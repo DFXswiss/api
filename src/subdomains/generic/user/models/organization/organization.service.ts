@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { In, IsNull } from 'typeorm';
@@ -13,13 +14,15 @@ import { OrganizationRepository } from './organization.repository';
 
 @Injectable()
 export class OrganizationService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly organizationRepo: OrganizationRepository,
     private readonly countryService: CountryService,
     private readonly userDataRepo: UserDataRepository,
   ) {
-    this.logger.create(OrganizationService);
+    this.logger = loggerFactory.create(OrganizationService);
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.ORGANIZATION_SYNC, timeout: 1800 })

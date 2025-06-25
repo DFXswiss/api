@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -14,14 +15,16 @@ import { PricingService } from './pricing.service';
 
 @Injectable()
 export class AssetPricesService {
+  private readonly logger: DfxLogger;
+
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly pricingService: PricingService,
     private readonly assetPriceRepo: AssetPriceRepository,
-    private readonly logger: DfxLoggerService,
   ) {
-    logger.create(AssetPricesService);
+    this.logger = loggerFactory.create(AssetPricesService);
   }
 
   // --- JOBS --- //

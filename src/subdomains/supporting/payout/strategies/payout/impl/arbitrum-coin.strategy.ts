@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutArbitrumService } from '../../../services/payout-arbitrum.service';
@@ -10,17 +11,17 @@ import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class ArbitrumCoinStrategy extends EvmStrategy {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
   constructor(
-    private readonly dfxLogger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     protected readonly arbitrumService: PayoutArbitrumService,
     protected readonly assetService: AssetService,
     payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(arbitrumService, payoutOrderRepo);
 
-    this.logger = this.dfxLogger.create(ArbitrumCoinStrategy);
+    this.logger = this.loggerFactory.create(ArbitrumCoinStrategy);
   }
 
   get blockchain(): Blockchain {

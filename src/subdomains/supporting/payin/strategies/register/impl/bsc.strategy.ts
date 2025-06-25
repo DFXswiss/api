@@ -2,19 +2,20 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class BscStrategy extends EvmStrategy implements OnModuleInit {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
-  constructor(private readonly dfxLogger: DfxLoggerService, bscService: PayInBscService) {
+  constructor(readonly loggerFactory: LoggerFactory, bscService: PayInBscService) {
     super(bscService);
 
-    this.logger = this.dfxLogger.create(BscStrategy);
+    this.logger = this.loggerFactory.create(BscStrategy);
   }
 
   onModuleInit() {

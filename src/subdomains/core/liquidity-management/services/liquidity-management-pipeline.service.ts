@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -20,15 +21,17 @@ import { LiquidityManagementRuleRepository } from '../repositories/liquidity-man
 
 @Injectable()
 export class LiquidityManagementPipelineService {
+  private readonly logger: DfxLogger;
+
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly orderRepo: LiquidityManagementOrderRepository,
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
     private readonly notificationService: NotificationService,
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
   ) {
-    this.logger.create(LiquidityManagementPipelineService);
+    this.logger = loggerFactory.create(LiquidityManagementPipelineService);
   }
 
   //*** JOBS ***//

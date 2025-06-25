@@ -3,9 +3,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -32,7 +33,10 @@ export const QUOTE_UID_PREFIX = 'Q';
 
 @Injectable()
 export class TransactionRequestService {
+  private readonly logger: DfxLogger;
+
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly transactionRequestRepo: TransactionRequestRepository,
     private readonly siftService: SiftService,
     private readonly assetService: AssetService,
@@ -41,9 +45,8 @@ export class TransactionRequestService {
     private readonly sellService: SellService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
-    private readonly logger: DfxLoggerService,
   ) {
-    logger.create(TransactionRequestService);
+    this.logger = loggerFactory.create(TransactionRequestService);
   }
 
   @Cron(CronExpression.EVERY_MINUTE)

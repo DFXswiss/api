@@ -10,8 +10,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { AppModule } from './app.module';
 import { Config } from './config/config';
+import { DfxLogger } from './logger/dfx-logger.service';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
-import { DfxLoggerService } from './shared/services/dfx-logger.service';
 import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
 import {
   KycChangedWebhookDto,
@@ -74,7 +74,7 @@ async function bootstrap() {
 
   await app.listen(Config.port);
 
-  new DfxLoggerService().create('Main').info(`Application ready ...`);
+  new DfxLogger('Main').info(`Application ready ...`);
 }
 
 void bootstrap();

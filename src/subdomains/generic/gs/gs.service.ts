@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -44,8 +45,10 @@ export enum SupportTable {
 
 @Injectable()
 export class GsService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
     private readonly buyService: BuyService,
@@ -67,7 +70,7 @@ export class GsService {
     private readonly supportIssueService: SupportIssueService,
     private readonly swapService: SwapService,
   ) {
-    this.logger.create(GsService);
+    this.logger = loggerFactory.create(GsService);
   }
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {

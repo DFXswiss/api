@@ -1,7 +1,8 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -12,15 +13,17 @@ import { CheckoutTxRepository } from '../repositories/checkout-tx.repository';
 
 @Injectable()
 export class CheckoutTxService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly checkoutTxRepo: CheckoutTxRepository,
     @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyService: BuyService,
     private readonly notificationService: NotificationService,
   ) {
-    this.logger.create(CheckoutTxService);
+    this.logger = loggerFactory.create(CheckoutTxService);
   }
 
   async createCheckoutBuyCrypto(tx: CheckoutTx): Promise<void> {

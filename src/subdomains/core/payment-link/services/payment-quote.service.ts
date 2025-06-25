@@ -7,10 +7,11 @@ import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-ga
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
 import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
@@ -30,6 +31,8 @@ import { PaymentQuoteRepository } from '../repositories/payment-quote.repository
 
 @Injectable()
 export class PaymentQuoteService {
+  private readonly logger: DfxLogger;
+
   static readonly PREFIX_UNIQUE_ID = 'plq';
 
   private readonly transferAmountBlockchainOrder: Blockchain[] = [
@@ -48,6 +51,7 @@ export class PaymentQuoteService {
   private readonly transferAmountAssetOrder: string[] = ['dEURO', 'ZCHF', 'USDT', 'USDC', 'DAI'];
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly paymentQuoteRepo: PaymentQuoteRepository,
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly assetService: AssetService,
@@ -56,9 +60,8 @@ export class PaymentQuoteService {
     private readonly payoutMoneroService: PayoutMoneroService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
-    private readonly logger: DfxLoggerService,
   ) {
-    this.logger.create(PaymentQuoteService);
+    this.logger = loggerFactory.create(PaymentQuoteService);
   }
 
   // --- JOBS --- //

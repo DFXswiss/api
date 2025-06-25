@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Active, activesEqual, isFiat } from 'src/shared/models/active';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from '../../notification/enums';
@@ -24,12 +25,14 @@ import { PricingFrankencoinService } from './integration/pricing-frankencoin.ser
 
 @Injectable()
 export class PricingService {
+  private readonly logger: DfxLogger;
   private readonly providerMap: PricingProviderMap;
   private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
   private readonly providerPriceCache = new AsyncCache<Price>(CacheItemResetPeriod.EVERY_10_SECONDS);
   private readonly updateCalls = new AsyncCache<PriceRule>(CacheItemResetPeriod.ALWAYS);
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly priceRuleRepo: PriceRuleRepository,
     private readonly notificationService: NotificationService,
     readonly krakenService: KrakenService,
@@ -43,7 +46,6 @@ export class PricingService {
     readonly deuroService: PricingDeuroService,
     readonly ebel2xService: PricingEbel2xService,
     readonly constantService: PricingConstantService,
-    private readonly logger: DfxLoggerService,
   ) {
     this.providerMap = {
       [PriceSource.KRAKEN]: krakenService,
@@ -58,7 +60,7 @@ export class PricingService {
       [PriceSource.EBEL2X]: ebel2xService,
       [PriceSource.CONSTANT]: constantService,
     };
-    logger.create(PricingService);
+    this.logger = loggerFactory.create(PricingService);
   }
 
   async getPrice(from: Active, to: Active, allowExpired: boolean, tryCount = 2): Promise<Price> {

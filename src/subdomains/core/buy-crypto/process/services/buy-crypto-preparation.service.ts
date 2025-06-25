@@ -2,12 +2,13 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -30,6 +31,7 @@ import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
 export class BuyCryptoPreparationService implements OnModuleInit {
+  private readonly logger: DfxLogger;
   private chf: Fiat;
   private eur: Fiat;
 
@@ -46,9 +48,9 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly bankTxService: BankTxService,
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
   ) {
-    logger.create(BuyCryptoPreparationService);
+    this.logger = loggerFactory.create(BuyCryptoPreparationService);
   }
 
   onModuleInit() {

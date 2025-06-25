@@ -1,7 +1,8 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -22,8 +23,10 @@ import { FiatOutputRepository } from './fiat-output.repository';
 
 @Injectable()
 export class FiatOutputService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly fiatOutputRepo: FiatOutputRepository,
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BankTxService))
@@ -31,7 +34,7 @@ export class FiatOutputService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly ep2ReportService: Ep2ReportService,
   ) {
-    this.logger.create(FiatOutputService);
+    this.logger = loggerFactory.create(FiatOutputService);
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })

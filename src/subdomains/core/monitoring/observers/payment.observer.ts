@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -38,16 +39,16 @@ interface IncompleteTransactions {
 
 @Injectable()
 export class PaymentObserver extends MetricObserver<PaymentData> {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
   constructor(
     monitoringService: MonitoringService,
+    readonly loggerFactory: LoggerFactory,
     private readonly repos: RepositoryFactory,
-    private readonly dfxLogger: DfxLoggerService,
   ) {
     super(monitoringService, 'payment', 'combined');
 
-    this.logger = this.dfxLogger.create(PaymentObserver);
+    this.logger = this.loggerFactory.create(PaymentObserver);
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })

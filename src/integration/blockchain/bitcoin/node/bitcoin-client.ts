@@ -1,7 +1,8 @@
 import { Currency } from '@uniswap/sdk-core';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
 import { BitcoinSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
@@ -31,12 +32,12 @@ type AddressInfoInnerArray = AddressInfoArray[];
 type AddressInfoArray = [string, number, string];
 
 export class BitcoinClient extends NodeClient {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
-  constructor(private readonly dfxLogger: DfxLoggerService, http: HttpService, url: string) {
+  constructor(readonly loggerFactory: LoggerFactory, http: HttpService, url: string) {
     super(http, url);
 
-    this.logger = this.dfxLogger.create(BitcoinClient);
+    this.logger = this.loggerFactory.create(BitcoinClient);
   }
 
   async send(

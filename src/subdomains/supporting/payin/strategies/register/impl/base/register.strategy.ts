@@ -1,7 +1,7 @@
 import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -12,7 +12,7 @@ export interface PayInInputLog {
 }
 
 export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy {
-  protected abstract readonly logger: DfxLoggerService;
+  protected abstract readonly logger: DfxLogger;
 
   @Inject() private readonly registry: RegisterStrategyRegistry;
   @Inject() protected readonly payInService: PayInService;

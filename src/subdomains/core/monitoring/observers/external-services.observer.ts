@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { IbanService } from 'src/integration/bank/services/iban.service';
 import { LetterService } from 'src/integration/letter/letter.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
@@ -21,17 +22,17 @@ enum Status {
 
 @Injectable()
 export class ExternalServicesObserver extends MetricObserver<ExternalServicesData[]> {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
   constructor(
     monitoringService: MonitoringService,
+    readonly loggerFactory: LoggerFactory,
     private readonly ibanService: IbanService,
     private readonly letterService: LetterService,
-    private readonly dfxLogger: DfxLoggerService,
   ) {
     super(monitoringService, 'externalServices', 'combined');
 
-    this.logger = this.dfxLogger.create(ExternalServicesObserver);
+    this.logger = this.loggerFactory.create(ExternalServicesObserver);
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })

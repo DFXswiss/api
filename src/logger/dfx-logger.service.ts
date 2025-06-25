@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import * as AppInsights from 'applicationinsights';
 import { TelemetryClient } from 'applicationinsights';
 import { SeverityLevel } from 'applicationinsights/out/Declarations/Contracts';
@@ -12,19 +12,13 @@ export enum LogLevel {
   VERBOSE = 'Verbose',
 }
 
-@Injectable()
-// TODO rename DfxLoggerFactory
-export class DfxLoggerService {
+export class DfxLogger {
   private context?: string;
   private logger: Logger;
 
-  constructor(private readonly notificationService?: NotificationService) {}
-
-  create(context: { name: string } | string) {
+  constructor(context?: { name: string } | string, private readonly notificationService?: NotificationService) {
     this.context = typeof context === 'string' ? context : context?.name;
     this.logger = new Logger(this.context);
-
-    return this;
   }
 
   log(level: LogLevel, message: string, error?: Error) {
@@ -54,6 +48,11 @@ export class DfxLoggerService {
   critical(message: string, error?: Error) {
     this.trace(SeverityLevel.Critical, message, error);
     this.logger.error(this.format(message, error));
+
+    // void this.notificationService?.sendMail({
+    //   type: MailType.ERROR_MONITORING,
+    //   // TODO
+    // });
   }
 
   error(message: string, error?: Error) {

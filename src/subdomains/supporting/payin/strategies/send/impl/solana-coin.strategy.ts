@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInSolanaService } from '../../../services/payin-solana.service';
@@ -12,16 +13,16 @@ import { SolanaStrategy } from './base/solana.strategy';
 
 @Injectable()
 export class SolanaCoinStrategy extends SolanaStrategy {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
   constructor(
     payInSolanaService: PayInSolanaService,
     payInRepo: PayInRepository,
-    private readonly dfxLogger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
   ) {
     super(payInSolanaService, payInRepo);
 
-    this.logger = this.dfxLogger.create(SolanaCoinStrategy);
+    this.logger = this.loggerFactory.create(SolanaCoinStrategy);
   }
 
   get blockchain(): Blockchain {

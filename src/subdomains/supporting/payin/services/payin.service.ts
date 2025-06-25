@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -23,14 +24,16 @@ import { SendStrategyRegistry } from '../strategies/send/impl/base/send.strategy
 
 @Injectable()
 export class PayInService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategyRegistry: SendStrategyRegistry,
     private readonly transactionService: TransactionService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
   ) {
-    this.logger.create(PayInService);
+    this.logger = loggerFactory.create(PayInService);
   }
 
   //*** PUBLIC API ***//

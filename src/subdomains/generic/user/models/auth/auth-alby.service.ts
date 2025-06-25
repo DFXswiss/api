@@ -1,8 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { AlbySignupDto } from '../user/dto/alby.dto';
@@ -29,18 +30,19 @@ interface AlbyUserResponse {
 
 @Injectable()
 export class AuthAlbyService {
+  private readonly logger: DfxLogger;
   private readonly albyUrl = 'https://getalby.com';
   private readonly albyApiUrl = 'https://api.getalby.com';
 
   private readonly signUpData = new Map<string, AlbySignupDto>();
 
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly http: HttpService,
     private readonly authService: AuthService,
     private readonly ipLogService: IpLogService,
   ) {
-    this.logger.create(AuthAlbyService);
+    this.logger = loggerFactory.create(AuthAlbyService);
   }
 
   getOauthUrl(dto: AlbySignupDto): string {

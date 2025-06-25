@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
@@ -9,12 +10,14 @@ import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.re
 
 @Injectable()
 export class LiquidityManagementBalanceService {
+  private readonly logger: DfxLogger;
+
   constructor(
     private readonly balanceIntegrationFactory: LiquidityBalanceIntegrationFactory,
     private readonly balanceRepo: LiquidityBalanceRepository,
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
   ) {
-    this.logger.create(LiquidityManagementBalanceService);
+    this.logger = loggerFactory.create(LiquidityManagementBalanceService);
   }
 
   //*** PUBLIC API ***//

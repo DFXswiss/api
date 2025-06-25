@@ -1,6 +1,6 @@
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
@@ -11,7 +11,7 @@ import { PayoutStrategy } from './payout.strategy';
 
 export abstract class EvmStrategy extends PayoutStrategy {
   private readonly txFees = new AsyncCache<number>(CacheItemResetPeriod.EVERY_30_SECONDS);
-  protected abstract readonly logger: DfxLoggerService;
+  protected abstract readonly logger: DfxLogger;
 
   constructor(
     protected readonly payoutEvmService: PayoutEvmService,

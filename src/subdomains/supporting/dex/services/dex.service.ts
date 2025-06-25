@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { FeeAmount } from '@uniswap/v3-sdk';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger, LogLevel } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLoggerService, LogLevel } from 'src/shared/services/dfx-logger.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { IsNull, Not } from 'typeorm';
 import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
@@ -31,8 +32,10 @@ import { SupplementaryStrategyRegistry } from '../strategies/supplementary/impl/
 
 @Injectable()
 export class DexService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly checkLiquidityStrategyRegistry: CheckLiquidityStrategyRegistry,
     private readonly purchaseLiquidityStrategyRegistry: PurchaseLiquidityStrategyRegistry,
     private readonly sellLiquidityStrategyRegistry: SellLiquidityStrategyRegistry,
@@ -41,7 +44,7 @@ export class DexService {
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {
-    this.logger.create(DexService);
+    this.logger = loggerFactory.create(DexService);
   }
 
   // *** MAIN PUBLIC API *** //

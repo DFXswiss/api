@@ -1,5 +1,5 @@
 import { Config } from 'src/config/config';
-import { DfxLoggerService, LogLevel } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger, LogLevel } from 'src/logger/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import {
   CryptoInput,
@@ -12,7 +12,7 @@ import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exc
 import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
 
 export abstract class EvmStrategy extends SendStrategy {
-  protected abstract readonly logger: DfxLoggerService;
+  protected abstract readonly logger: DfxLogger;
 
   constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
     super();

@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
@@ -20,15 +21,17 @@ export interface RefLiquidityRequest {
 
 @Injectable()
 export class RefRewardDexService {
+  private readonly logger: DfxLogger;
+
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly refRewardRepo: RefRewardRepository,
     private readonly dexService: DexService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly priceService: PricingService,
-    private readonly logger: DfxLoggerService,
   ) {
-    this.logger.create(RefRewardDexService);
+    this.logger = loggerFactory.create(RefRewardDexService);
   }
 
   async secureLiquidity(): Promise<void> {

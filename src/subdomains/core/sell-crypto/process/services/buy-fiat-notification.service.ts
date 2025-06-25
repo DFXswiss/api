@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
@@ -18,12 +19,14 @@ import { BuyFiatRepository } from '../buy-fiat.repository';
 
 @Injectable()
 export class BuyFiatNotificationService {
+  private readonly logger: DfxLogger;
+
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly notificationService: NotificationService,
-    private readonly logger: DfxLoggerService,
   ) {
-    this.logger.create(BuyFiatNotificationService);
+    this.logger = loggerFactory.create(BuyFiatNotificationService);
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BUY_FIAT_MAIL, timeout: 1800 })

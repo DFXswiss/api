@@ -4,6 +4,8 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -11,7 +13,6 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -50,6 +51,7 @@ import { TransactionService } from './transaction.service';
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
+  private readonly logger: DfxLogger;
   private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
 
   private chf: Fiat;
@@ -57,7 +59,7 @@ export class TransactionHelper implements OnModuleInit {
   private transactionSpecifications: TransactionSpecification[];
 
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly specRepo: TransactionSpecificationRepository,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
@@ -72,7 +74,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly buyService: BuyService,
     private readonly assetService: AssetService,
   ) {
-    this.logger.create(TransactionHelper);
+    this.logger = loggerFactory.create(TransactionHelper);
   }
 
   onModuleInit() {

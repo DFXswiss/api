@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { HttpService } from 'src/shared/services/http.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -15,13 +16,15 @@ import { WebhookRepository } from './webhook.repository';
 
 @Injectable()
 export class WebhookNotificationService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly webhookRepo: WebhookRepository,
     private readonly http: HttpService,
     private readonly notificationService: NotificationService,
   ) {
-    this.logger.create(WebhookNotificationService);
+    this.logger = loggerFactory.create(WebhookNotificationService);
   }
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.WEBHOOK, timeout: 1800 })

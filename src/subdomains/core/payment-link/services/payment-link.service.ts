@@ -18,8 +18,9 @@ import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binan
 import { C2BPaymentStatus } from 'src/integration/c2b-payment-link/share/PaymentStatus';
 import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Sell } from '../../sell-crypto/route/sell.entity';
@@ -39,9 +40,12 @@ import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentLinkService {
+  private readonly logger: DfxLogger;
+
   static readonly PREFIX_UNIQUE_ID = 'pl';
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentQuoteService: PaymentQuoteService,
@@ -50,9 +54,8 @@ export class PaymentLinkService {
     private readonly sellService: SellService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
     private readonly i18n: I18nService,
-    private readonly logger: DfxLoggerService,
   ) {
-    this.logger.create(PaymentLinkService);
+    this.logger = loggerFactory.create(PaymentLinkService);
   }
 
   async getOrThrow(
@@ -481,8 +484,7 @@ export class PaymentLinkService {
     routeLabel?: string,
   ): Promise<PaymentLink> {
     const existingPaymentLink = await this.getPaymentLinkByAccessKey(key, externalLinkId).catch(() => null);
-    if (!existingPaymentLink && !routeLabel)
-      throw new BadRequestException('Route label is required');
+    if (!existingPaymentLink && !routeLabel) throw new BadRequestException('Route label is required');
 
     const route = existingPaymentLink?.route ?? (await this.sellService.getByLabel(undefined, routeLabel));
     if (!route) throw new NotFoundException('Route not found');
@@ -726,7 +728,7 @@ export class PaymentLinkService {
 
       case C2BPaymentStatus.WAITING:
         const { qrContent, referId } = result.metadata;
-        
+
         const lnurl = new URL(qrContent).searchParams.get('lightning');
         const uniqueId = LightningHelper.decodeLnurl(lnurl).split('/').at(-1);
         const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(uniqueId);

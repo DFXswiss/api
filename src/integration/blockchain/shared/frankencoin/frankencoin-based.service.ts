@@ -1,7 +1,7 @@
 import { Contract } from 'ethers';
 import { groupBy, sumBy } from 'lodash';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -13,7 +13,7 @@ import { BlockchainRegistryService } from '../services/blockchain-registry.servi
 import { FrankencoinBasedCollateralDto } from './frankencoin-based.dto';
 
 export abstract class FrankencoinBasedService {
-  protected abstract readonly logger: DfxLoggerService;
+  protected abstract readonly logger: DfxLogger;
 
   private pricingService: PricingService;
   private registryService: BlockchainRegistryService;

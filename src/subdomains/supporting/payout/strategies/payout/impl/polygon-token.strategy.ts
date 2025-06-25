@@ -1,26 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutPolygonService } from '../../../services/payout-polygon.service';
 import { EvmStrategy } from './base/evm.strategy';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 
 @Injectable()
 export class PolygonTokenStrategy extends EvmStrategy {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
   constructor(
     protected readonly polygonService: PayoutPolygonService,
     protected readonly assetService: AssetService,
-    private readonly dfxLogger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(polygonService, payoutOrderRepo);
 
-    this.logger = this.dfxLogger.create(PolygonTokenStrategy);
+    this.logger = this.loggerFactory.create(PolygonTokenStrategy);
   }
 
   get blockchain(): Blockchain {

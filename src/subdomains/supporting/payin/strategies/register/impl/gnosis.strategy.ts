@@ -6,19 +6,20 @@ import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-ma
 import { AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInGnosisService } from '../../../services/payin-gnosis.service';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class GnosisStrategy extends EvmStrategy implements OnModuleInit {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
-  constructor(private readonly dfxLogger: DfxLoggerService, gnosisService: PayInGnosisService) {
+  constructor(readonly loggerFactory: LoggerFactory, gnosisService: PayInGnosisService) {
     super(gnosisService);
 
-    this.logger = this.dfxLogger.create(GnosisStrategy);
+    this.logger = this.loggerFactory.create(GnosisStrategy);
   }
 
   onModuleInit() {

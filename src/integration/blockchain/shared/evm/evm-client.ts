@@ -11,8 +11,8 @@ import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/se
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -30,7 +30,7 @@ export interface EvmClientParams {
   apiKey: string;
   walletPrivateKey: string;
   chainId: ChainId;
-  logger: DfxLoggerService;
+  loggerFactory: LoggerFactory;
   swapContractAddress?: string;
   quoteContractAddress?: string;
   swapFactoryAddress?: string;

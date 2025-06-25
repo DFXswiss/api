@@ -3,8 +3,9 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -24,19 +25,19 @@ interface BankData {
 
 @Injectable()
 export class BankObserver extends MetricObserver<BankData[]> {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
   constructor(
     monitoringService: MonitoringService,
+    readonly loggerFactory: LoggerFactory,
     private readonly olkypayService: OlkypayService,
     private readonly bankService: BankService,
     private readonly repos: RepositoryFactory,
     private readonly revolutService: RevolutService,
-    private readonly dfxLogger: DfxLoggerService,
   ) {
     super(monitoringService, 'bank', 'balance');
 
-    this.logger = this.dfxLogger.create(BankObserver);
+    this.logger = this.loggerFactory.create(BankObserver);
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })

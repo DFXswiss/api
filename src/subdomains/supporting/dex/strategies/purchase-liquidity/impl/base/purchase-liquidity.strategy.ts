@@ -1,8 +1,8 @@
 import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from 'src/subdomains/supporting/dex/exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from 'src/subdomains/supporting/dex/exceptions/price-slippage.exception';
@@ -15,7 +15,7 @@ import { PurchaseLiquidityRequest } from '../../../../interfaces';
 import { PurchaseLiquidityStrategyRegistry } from './purchase-liquidity.strategy-registry';
 
 export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModuleDestroy {
-  protected abstract readonly logger: DfxLoggerService;
+  protected abstract readonly logger: DfxLogger;
 
   private _feeAsset: Asset;
 

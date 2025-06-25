@@ -11,10 +11,11 @@ import { merge } from 'lodash';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
@@ -47,7 +48,10 @@ import { Sell } from './sell.entity';
 
 @Injectable()
 export class SellService {
+  private readonly logger: DfxLogger;
+
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly sellRepo: SellRepository,
     private readonly depositService: DepositService,
     private readonly userService: UserService,
@@ -66,9 +70,8 @@ export class SellService {
     private readonly cryptoService: CryptoService,
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
-    private readonly logger: DfxLoggerService,
   ) {
-    this.logger.create(SellService);
+    this.logger = loggerFactory.create(SellService);
   }
 
   // --- SELLS --- //

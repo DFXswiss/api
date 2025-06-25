@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailTranslationKey } from '../../notification/factories/mail.factory';
@@ -8,8 +9,10 @@ import { SupportMessage } from '../entities/support-message.entity';
 
 @Injectable()
 export class SupportIssueNotificationService {
-  constructor(private readonly notificationService: NotificationService, private readonly logger: DfxLoggerService) {
-    logger.create(SupportIssueNotificationService);
+  private readonly logger: DfxLogger;
+
+  constructor(private readonly notificationService: NotificationService, readonly loggerFactory: LoggerFactory) {
+    this.logger = loggerFactory.create(SupportIssueNotificationService);
   }
 
   async newSupportMessage(entity: SupportMessage): Promise<void> {

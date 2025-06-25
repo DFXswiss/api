@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { DfxLoggerService, LogLevel } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger, LogLevel } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { In, IsNull, Not } from 'typeorm';
 import { UpdateTradingRuleDto } from '../dto/update-trading-rule.dto';
 import { TradingOrder } from '../entities/trading-order.entity';
@@ -12,11 +13,13 @@ import { TradingService } from './trading.service';
 
 @Injectable()
 export class TradingRuleService {
+  private readonly logger: DfxLogger;
+
   @Inject() private readonly ruleRepo: TradingRuleRepository;
   @Inject() private readonly orderRepo: TradingOrderRepository;
 
-  constructor(private readonly tradingService: TradingService, private readonly logger: DfxLoggerService) {
-    this.logger.create(TradingRuleService);
+  constructor(private readonly tradingService: TradingService, readonly loggerFactory: LoggerFactory) {
+    this.logger = loggerFactory.create(TradingRuleService);
   }
 
   // --- PUBLIC API --- //

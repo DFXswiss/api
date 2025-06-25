@@ -5,10 +5,11 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { FileType, KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
@@ -35,8 +36,10 @@ import { KycInfo } from './dto/kyc-info.dto';
 
 @Injectable()
 export class KycService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly userDataService: UserDataService,
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
@@ -45,7 +48,7 @@ export class KycService {
     private readonly http: HttpService,
     private readonly documentService: KycDocumentService,
   ) {
-    this.logger.create(KycService);
+    this.logger = loggerFactory.create(KycService);
   }
 
   // --- KYC DATA --- //

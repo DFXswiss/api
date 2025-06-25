@@ -1,7 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger, LogLevel } from 'src/logger/dfx-logger.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLoggerService, LogLevel } from 'src/shared/services/dfx-logger.service';
 import { PayInBitcoinBasedService } from 'src/subdomains/supporting/payin/services/base/payin-bitcoin-based.service';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { CryptoInput, PayInConfirmationType } from '../../../../entities/crypto-input.entity';
@@ -9,7 +9,7 @@ import { PayInRepository } from '../../../../repositories/payin.repository';
 import { SendStrategy, SendType } from './send.strategy';
 
 export abstract class BitcoinBasedStrategy extends SendStrategy {
-  protected abstract readonly logger: DfxLoggerService;
+  protected abstract readonly logger: DfxLogger;
 
   constructor(
     protected readonly payInService: PayInBitcoinBasedService,

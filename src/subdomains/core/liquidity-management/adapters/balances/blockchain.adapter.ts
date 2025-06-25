@@ -8,9 +8,10 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { isAsset } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
@@ -30,16 +31,18 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private readonly bitcoinClient: BitcoinClient;
   private readonly lightningClient: LightningClient;
 
+  private readonly logger: DfxLogger;
+
   constructor(
     private readonly dexService: DexService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     bitcoinService: BitcoinService,
     lightningService: LightningService,
   ) {
     this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
     this.lightningClient = lightningService.getDefaultClient();
-    this.logger.create(BlockchainAdapter);
+    this.loggerFactory.create(BlockchainAdapter);
   }
 
   async getBalances(assets: (Asset & { context: LiquidityManagementContext })[]): Promise<LiquidityBalance[]> {

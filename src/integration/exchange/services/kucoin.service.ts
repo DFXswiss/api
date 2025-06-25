@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { kucoin } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { ExchangeService } from './exchange.service';
 
 @Injectable()
 export class KucoinService extends ExchangeService {
+  protected readonly logger: DfxLogger;
   protected networks: { [b in Blockchain]: string } = {
     Arbitrum: undefined,
     BinanceSmartChain: undefined,
@@ -28,9 +30,9 @@ export class KucoinService extends ExchangeService {
     Solana: undefined,
   };
 
-  constructor(protected readonly logger: DfxLoggerService) {
+  constructor(protected readonly loggerFactory: LoggerFactory) {
     super(kucoin, GetConfig().exchange);
 
-    this.logger.create(KucoinService);
+    this.logger = loggerFactory.create(KucoinService);
   }
 }

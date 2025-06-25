@@ -1,10 +1,10 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { getClientIp } from '@supercharge/request-ip';
-import { DfxLoggerService } from '../services/dfx-logger.service';
+import { DfxLogger } from '../../logger/dfx-logger.service';
 
 @Injectable()
 export class IpGuard implements CanActivate {
-  private readonly logger = new DfxLoggerService().create(IpGuard);
+  private readonly logger = new DfxLogger(IpGuard);
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();

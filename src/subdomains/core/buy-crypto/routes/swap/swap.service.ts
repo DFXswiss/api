@@ -10,9 +10,10 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
@@ -43,8 +44,10 @@ import { SwapRepository } from './swap.repository';
 
 @Injectable()
 export class SwapService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly swapRepo: SwapRepository,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
@@ -62,7 +65,7 @@ export class SwapService {
     private readonly cryptoService: CryptoService,
     private readonly transactionRequestService: TransactionRequestService,
   ) {
-    this.logger.create(SwapService);
+    this.logger = loggerFactory.create(SwapService);
   }
 
   async getSwapByAddress(depositAddress: string): Promise<Swap> {

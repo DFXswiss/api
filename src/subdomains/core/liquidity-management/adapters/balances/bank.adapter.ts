@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTxBatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-batch.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -13,14 +14,16 @@ import { LiquidityBalanceIntegration, LiquidityManagementAsset } from '../../int
 
 @Injectable()
 export class BankAdapter implements LiquidityBalanceIntegration {
+  private readonly logger: DfxLogger;
+
   constructor(
     private readonly bankService: BankService,
     private readonly bankTxBatchService: BankTxBatchService,
     private readonly olkypayService: OlkypayService,
     private readonly checkoutService: CheckoutService,
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
   ) {
-    this.logger.create(BankAdapter);
+    this.logger = loggerFactory.create(BankAdapter);
   }
 
   async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {

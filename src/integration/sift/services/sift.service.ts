@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -38,11 +39,12 @@ import {
 
 @Injectable()
 export class SiftService {
+  private readonly logger: DfxLogger;
   private readonly url = 'https://api.sift.com/v205/events';
   private readonly decisionUrl = 'https://api.sift.com/v3/accounts/';
 
-  constructor(private readonly logger: DfxLoggerService, private readonly http: HttpService) {
-    this.logger.create(SiftService);
+  constructor(readonly loggerFactory: LoggerFactory, private readonly http: HttpService) {
+    this.logger = loggerFactory.create(SiftService);
   }
 
   // --- ACCOUNT --- //

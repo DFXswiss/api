@@ -3,7 +3,8 @@ import { Method, ResponseType } from 'axios';
 import * as crypto from 'crypto';
 import { Request } from 'express';
 import { Config } from 'src/config/config';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -23,6 +24,7 @@ import { KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()
 export class SumsubService {
+  private readonly logger: DfxLogger;
   private readonly baseUrl = `https://api.sumsub.com`;
   private readonly kycLevelAuto = 'CH-Standard';
   private readonly kycLevelVideo = 'CH-Standard-Video';
@@ -33,8 +35,8 @@ export class SumsubService {
     HMAC_SHA512_HEX: 'sha512',
   };
 
-  constructor(private readonly logger: DfxLoggerService, private readonly http: HttpService) {
-    this.logger.create(SumsubService);
+  constructor(readonly loggerFactory: LoggerFactory, private readonly http: HttpService) {
+    this.logger = loggerFactory.create(SumsubService);
   }
 
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {

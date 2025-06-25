@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -10,12 +11,14 @@ import { RefRewardRepository } from '../ref-reward.repository';
 
 @Injectable()
 export class RefRewardNotificationService {
+  private readonly logger: DfxLogger;
+
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly refRewardRepo: RefRewardRepository,
     private readonly notificationService: NotificationService,
-    private readonly logger: DfxLoggerService,
   ) {
-    this.logger.create(RefRewardNotificationService);
+    this.logger = loggerFactory.create(RefRewardNotificationService);
   }
 
   async sendNotificationMails(): Promise<void> {

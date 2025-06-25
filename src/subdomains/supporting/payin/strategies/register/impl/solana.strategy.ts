@@ -5,10 +5,11 @@ import { SolanaService } from 'src/integration/blockchain/solana/services/solana
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { TatumWebhookDto } from 'src/integration/tatum/dto/tatum.dto';
 import { TatumWebhookService } from 'src/integration/tatum/services/tatum-webhook.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { Like } from 'typeorm';
@@ -18,20 +19,20 @@ import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
 export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
-  protected readonly logger: DfxLoggerService;
+  protected readonly logger: DfxLogger;
 
   private addressWebhookMessageQueue: QueueHandler;
   private solanaPaymentDepositAddress: string;
 
   constructor(
-    private readonly dfxLogger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly tatumWebhookService: TatumWebhookService,
     private readonly solanaService: SolanaService,
     private readonly repos: RepositoryFactory,
   ) {
     super();
 
-    this.logger = this.dfxLogger.create(SolanaStrategy);
+    this.logger = this.loggerFactory.create(SolanaStrategy);
   }
 
   onModuleInit() {

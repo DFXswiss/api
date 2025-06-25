@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -17,13 +18,15 @@ import { KycStepRepository } from '../repositories/kyc-step.repository';
 
 @Injectable()
 export class KycNotificationService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly kycStepRepo: KycStepRepository,
     private readonly notificationService: NotificationService,
     private readonly webhookService: WebhookService,
   ) {
-    this.logger.create(KycNotificationService);
+    this.logger = loggerFactory.create(KycNotificationService);
   }
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.KYC_MAIL, timeout: 1800 })

@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
 import { stringify } from 'qs';
 import { Config } from 'src/config/config';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -43,13 +44,14 @@ enum TransactionType {
 
 @Injectable()
 export class OlkypayService {
+  private readonly logger: DfxLogger;
   private readonly baseUrl = 'https://ws.olkypay.com/reporting';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
 
   private accessToken = 'access-token-will-be-updated';
 
-  constructor(private readonly http: HttpService, private readonly logger: DfxLoggerService) {
-    this.logger.create(OlkypayService);
+  constructor(private readonly http: HttpService, readonly loggerFactory: LoggerFactory) {
+    this.logger = loggerFactory.create(OlkypayService);
   }
 
   async getOlkyTransactions(lastModificationTime: string, accountIban: string): Promise<Partial<BankTx>[]> {

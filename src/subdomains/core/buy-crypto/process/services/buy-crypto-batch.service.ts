@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { DfxLogger, LogLevel } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLoggerService, LogLevel } from 'src/shared/services/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import {
   LiquidityManagementPipelineStatus,
@@ -31,8 +32,10 @@ import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 
 @Injectable()
 export class BuyCryptoBatchService {
+  private readonly logger: DfxLogger;
+
   constructor(
-    private readonly logger: DfxLoggerService,
+    readonly loggerFactory: LoggerFactory,
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly pricingService: PricingService,
@@ -44,7 +47,7 @@ export class BuyCryptoBatchService {
     private readonly liquidityService: LiquidityManagementService,
     private readonly feeService: FeeService,
   ) {
-    this.logger.create(BuyCryptoBatchService);
+    this.logger = loggerFactory.create(BuyCryptoBatchService);
   }
 
   async batchAndOptimizeTransactions(): Promise<void> {

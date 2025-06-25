@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLoggerService } from 'src/shared/services/dfx-logger.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -19,16 +20,18 @@ import { PayoutLogService } from './payout-log.service';
 
 @Injectable()
 export class PayoutService {
+  private readonly logger: DfxLogger;
+
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly logs: PayoutLogService,
     private readonly notificationService: NotificationService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
     private readonly payoutOrderFactory: PayoutOrderFactory,
     private readonly payoutStrategyRegistry: PayoutStrategyRegistry,
     private readonly prepareStrategyRegistry: PrepareStrategyRegistry,
-    private readonly logger: DfxLoggerService,
   ) {
-    logger.create(PayoutService);
+    this.logger = loggerFactory.create(PayoutService);
   }
 
   //*** PUBLIC API ***//
