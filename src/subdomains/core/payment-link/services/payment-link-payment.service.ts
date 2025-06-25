@@ -294,17 +294,16 @@ export class PaymentLinkPaymentService {
   }
 
   private async getQuoteForInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
-    const quote =
-      cryptoInput.address.blockchain === Blockchain.LIGHTNING
-        ? await this.getLightningQuoteByTx(cryptoInput.address.blockchain, cryptoInput.inTxId)
-        : await this.getQuoteByTx(cryptoInput.address.blockchain, cryptoInput.inTxId);
+    const quote = [Blockchain.LIGHTNING, Blockchain.BINANCE_PAY].includes(cryptoInput.address.blockchain)
+      ? await this.getQuoteByActivation(cryptoInput.address.blockchain, cryptoInput.inTxId)
+      : await this.getQuoteByTx(cryptoInput.address.blockchain, cryptoInput.inTxId);
 
     if (quote) return quote;
 
     return this.paymentQuoteService.getQuoteByAsset(cryptoInput.asset, cryptoInput.amount);
   }
 
-  private async getLightningQuoteByTx(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
+  private async getQuoteByActivation(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
     const activation = await this.paymentActivationService.getActivationByTxId(txId);
     if (!activation) return null;
 
