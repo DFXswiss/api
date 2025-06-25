@@ -1,7 +1,8 @@
 import { Logger } from '@nestjs/common';
+import * as AppInsights from 'applicationinsights';
 import { TelemetryClient } from 'applicationinsights';
 import { SeverityLevel } from 'applicationinsights/out/Declarations/Contracts';
-import * as AppInsights from 'applicationinsights';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 
 export enum LogLevel {
   CRITICAL = 'Critical',
@@ -11,11 +12,12 @@ export enum LogLevel {
   VERBOSE = 'Verbose',
 }
 
+// TODO: move to logger module
 export class DfxLogger {
   private readonly context?: string;
   private readonly logger: Logger;
 
-  constructor(context?: { name: string } | string) {
+  constructor(context?: { name: string } | string, private readonly notificationService?: NotificationService) {
     this.context = typeof context === 'string' ? context : context?.name;
     this.logger = new Logger(this.context);
   }
@@ -47,6 +49,11 @@ export class DfxLogger {
   critical(message: string, error?: Error) {
     this.trace(SeverityLevel.Critical, message, error);
     this.logger.error(this.format(message, error));
+
+    // void this.notificationService?.sendMail({
+    //   type: MailType.ERROR_MONITORING,
+    //   // TODO
+    // });
   }
 
   error(message: string, error?: Error) {
