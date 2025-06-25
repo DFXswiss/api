@@ -9,10 +9,9 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PayInWebHookService } from 'src/subdomains/supporting/payin/services/payin-webhhook.service';
 import { BinancePayWebhookDto } from '../../../../integration/binance-pay/dto/binance.dto';
-import { C2BPaymentStatus } from '../enums';
+import { C2BPaymentProvider, C2BPaymentStatus } from '../enums';
 import { C2BPaymentLinkService } from '../services/c2b-payment-link.service';
 import { PaymentLinkService } from '../services/payment-link.service';
-import { C2BPaymentProvider } from '../share/c2b-providers.enum';
 
 @ApiTags('Payment Link')
 @Controller('paymentLink')

@@ -5,7 +5,7 @@ import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-l
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import { BinancePayService } from '../../../../integration/binance-pay/services/binance-pay.service';
 import { Blockchain } from '../../../../integration/blockchain/shared/enums/blockchain.enum';
-import { C2BPaymentProvider } from '../share/c2b-providers.enum';
+import { C2BPaymentProvider } from '../enums';
 
 @Injectable()
 export class C2BPaymentLinkService {
