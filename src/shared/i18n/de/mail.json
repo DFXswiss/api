@@ -229,6 +229,11 @@
                 "organization_name_not_matching_verified_name": "Der Name deiner Organisation stimmt nicht mit dem Accountnamen überein"
             }
         },
+        "missing_data": {
+            "title": "Fehlende Daten bei Verifizierung",
+            "salutation": "Es fehlen noch Daten bei deiner Verifizierung",
+            "message": "Bei dem Schritt '{stepName}' fehlen noch Daten, die du noch ergänzen musst, um deine Verifizierung abzuschließen"
+        },
         "reminder": {
             "title": "Vervollständige Verifizierung",
             "salutation": "Vervollständige deine Verifizierung",

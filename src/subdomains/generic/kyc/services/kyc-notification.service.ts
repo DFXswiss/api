@@ -119,13 +119,49 @@ export class KycNotificationService {
         });
       } else {
         !userData.mail &&
-          this.logger.warn(`Failed to send ident failed mail for user data ${userData.id}: user has no email`);
+          this.logger.warn(`Failed to send kyc step failed mail for user data ${userData.id}: user has no email`);
       }
 
       // KYC webhook external services
       await this.webhookService.kycFailed(userData, reason);
     } catch (e) {
-      this.logger.error(`Failed to send ident failed mail or webhook for user data ${userData.id}:`, e);
+      this.logger.error(`Failed to send kyc step failed mail or webhook for user data ${userData.id}:`, e);
+    }
+  }
+
+  async kycStepMissingData(userData: UserData, stepName: string): Promise<void> {
+    try {
+      if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
+        await this.notificationService.sendMail({
+          type: MailType.USER_V2,
+          context: MailContext.KYC_MISSING_DATA,
+          input: {
+            userData,
+            wallet: userData.wallet,
+            title: `${MailTranslationKey.KYC_MISSING_DATA}.title`,
+            salutation: { key: `${MailTranslationKey.KYC_MISSING_DATA}.salutation`, params: { stepName } },
+            texts: [
+              { key: MailKey.SPACE, params: { value: '1' } },
+              {
+                key: `${MailTranslationKey.KYC_MISSING_DATA}.message`,
+                params: { stepName },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.KYC}.retry`,
+                params: { url: userData.kycUrl, urlText: userData.kycUrl },
+              },
+              {
+                key: `${MailTranslationKey.GENERAL}.button`,
+                params: { url: userData.kycUrl, button: 'true' },
+              },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+      }
+    } catch (e) {
+      this.logger.error(`Failed to send kyc step missing data mail or webhook for user data ${userData.id}:`, e);
     }
   }
 

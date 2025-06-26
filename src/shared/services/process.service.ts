@@ -25,6 +25,7 @@ export enum Process {
   KYC = 'Kyc',
   KYC_IDENT_REVIEW = 'KycIdentReview',
   KYC_NATIONALITY_REVIEW = 'KycNationalityReview',
+  KYC_FINANCIAL_REVIEW = 'KycFinancialReview',
   KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
