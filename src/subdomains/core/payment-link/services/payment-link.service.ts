@@ -31,6 +31,7 @@ import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
 import {
   C2BPaymentProvider,
+  PaymentLinkMode,
   PaymentLinkPaymentMode,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
@@ -201,6 +202,7 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
+      mode: dto.mode,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID, 16),
       webhookUrl: dto.webhookUrl,
       name: dto.config?.recipient?.name,
@@ -505,6 +507,23 @@ export class PaymentLinkService {
     });
   }
 
+  async createDonationPayment(
+    dto: CreatePaymentLinkPaymentDto,
+    routeLabel: string,
+    externalLinkId: string,
+  ): Promise<PaymentLink> {
+    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    if (!route) throw new NotFoundException('Route not found');
+
+    const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
+    if (paymentLink.mode !== PaymentLinkMode.DONATION) throw new UnauthorizedException('Payment link is not public');
+
+    const payment = await this.paymentLinkPaymentService.createPayment(paymentLink, dto);
+    paymentLink.payments = [payment];
+
+    return paymentLink;
+  }
+
   async cancelPayment(
     userId?: number,
     linkId?: number,
@@ -579,6 +598,14 @@ export class PaymentLinkService {
     await this.paymentLinkPaymentService.confirmPayment(payment);
 
     return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+  }
+
+  async isPaymentLinkPublicAccess(routeLabel: string, externalLinkId: string): Promise<boolean> {
+    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    if (!route) throw new NotFoundException('Route not found');
+
+    const existingPaymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
+    return existingPaymentLink.mode === PaymentLinkMode.DONATION;
   }
 
   async generateOcpStickersPdf(
