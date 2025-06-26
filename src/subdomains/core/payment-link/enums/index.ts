@@ -62,3 +62,9 @@ export enum PaymentStandard {
   LIGHTNING_BOLT11 = 'LightningBolt11',
   PAY_TO_ADDRESS = 'PayToAddress',
 }
+
+export enum CreatePaymentAccessLevel {
+  USER = 'user',
+  ACCESS_KEY = 'access-key',
+  PUBLIC = 'public',
+}
