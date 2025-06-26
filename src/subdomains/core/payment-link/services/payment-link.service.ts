@@ -202,6 +202,7 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
+      mode: dto.mode,
       uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID, 16),
       webhookUrl: dto.webhookUrl,
       name: dto.config?.recipient?.name,

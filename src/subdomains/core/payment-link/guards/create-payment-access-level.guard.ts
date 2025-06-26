@@ -33,9 +33,9 @@ export class CreatePaymentAccessLevelGuard implements CanActivate {
 
   private async validatePublicAccess(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const { route, externalLinkId } = request;
+    const { route, externalLinkId } = request.query;
 
     if (!route || !externalLinkId) return false;
-    return this.paymentLinkService.isPaymentLinkPublicAccess(route, externalLinkId);
+    return this.paymentLinkService.isPaymentLinkPublicAccess(route as string, externalLinkId as string);
   }
 }
