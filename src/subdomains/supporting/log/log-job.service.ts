@@ -455,7 +455,7 @@ export class LogJobService {
       // filtered lists
       const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
         [curr],
-        [...recentChfMaerkiKrakenTx, ...eurSenderBankTx],
+        [...recentChfMaerkiKrakenTx, ...recentEurMaerkiKrakenTx],
         BankTxType.KRAKEN,
       );
       const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(
@@ -512,29 +512,29 @@ export class LogJobService {
       if (fromKraken !== fromKrakenUnfiltered) {
         errors.push(`fromKraken !== fromKrakenUnfiltered`);
         this.logger
-          .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount: 
+          .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount:
         ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
       }
 
       if (toKraken !== toKrakenUnfiltered) {
         errors.push(`toKraken !== toKrakenUnfiltered`);
         this.logger
-          .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount: 
+          .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount:
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
       }
 
       if (fromKraken < 0) {
         errors.push(`fromKraken < 0`);
-        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
-        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
         pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
         fromKraken = 0;
       }
       if (toKraken < 0) {
         errors.push(`toKraken < 0`);
         this.logger.verbose(
-          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
-          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
           pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
         );
         toKraken = 0;
@@ -593,13 +593,13 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
-          total: this.getJsonValue(totalPlus, amountType(curr), true),
+          total: this.getJsonValue(totalPlus, amountType(curr), true, true),
           liquidity: liquidity
             ? {
-                total: this.getJsonValue(liquidity, amountType(curr), true),
-                liquidityBalance: this.getJsonValue(curr.balance?.amount, amountType(curr)),
+                total: this.getJsonValue(liquidity, amountType(curr), true, true),
+                liquidityBalance: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
                 paymentDepositBalance: this.getJsonValue(paymentDepositBalance, amountType(curr)),
-                manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr)),
+                manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr), false, true),
               }
             : undefined,
           custom: totalCustomBalance
@@ -623,14 +623,14 @@ export class LogJobService {
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
               }
             : undefined,
-          monitoring: errors.length
-            ? {
-                fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
-                fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
-                toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
-                toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
-              }
-            : undefined,
+          // monitoring: errors.length
+          //   ? {
+          //       fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
+          //       fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
+          //       toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
+          //       toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
+          //     }
+          //   : undefined,
         },
         minusBalance: {
           total: this.getJsonValue(totalMinus, amountType(curr), true),
@@ -651,7 +651,7 @@ export class LogJobService {
               }
             : undefined,
         },
-        error: errors.length ? errors.join(';') : undefined,
+        // error: errors.length ? errors.join(';') : undefined,
       };
 
       return prev;
@@ -919,8 +919,15 @@ export class LogJobService {
     return Util.asyncMap(addresses, (a) => client.getTokenBalances(assets, a));
   }
 
-  private getJsonValue(value: number | undefined, amountType: AmountType, returnZero = false): number | undefined {
-    return (!returnZero && !value) || value < 0 ? undefined : Util.roundReadable(value, amountType, 8);
+  private getJsonValue(
+    value: number | undefined,
+    amountType: AmountType,
+    returnZero = false,
+    returnNegativeValue = false,
+  ): number | undefined {
+    return (!returnZero && !value) || (value < 0 && !returnNegativeValue)
+      ? undefined
+      : Util.roundReadable(value, amountType, 8);
   }
 
   private financialTypeAmountType(financialType: string): AmountType {

@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString } from 'class-validator';
+import { Util } from 'src/shared/utils/util';
 import { OptionalSignUpDto } from './auth-credentials.dto';
 
 export class AuthLnurlSignupDto extends OptionalSignUpDto {
@@ -31,11 +33,13 @@ export class AuthLnurlSignupDto extends OptionalSignUpDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   address: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   signature: string;
 }
 

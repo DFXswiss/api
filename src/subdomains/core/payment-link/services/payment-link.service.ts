@@ -13,12 +13,11 @@ import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
-import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
@@ -26,11 +25,17 @@ import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
-import { PaymentLinkPayRequestDto, PaymentLinkPaymentErrorResponseDto } from '../dto/payment-link.dto';
+import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
+import {
+  C2BPaymentProvider,
+  PaymentLinkPaymentMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentStandard,
+} from '../enums';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -473,16 +478,17 @@ export class PaymentLinkService {
   async createPaymentForRouteWithAccessKey(
     dto: CreatePaymentLinkPaymentDto,
     key: string,
-    routeLabel: string,
     externalLinkId: string,
+    routeLabel?: string,
   ): Promise<PaymentLink> {
-    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    const existingPaymentLink = await this.getPaymentLinkByAccessKey(key, externalLinkId).catch(() => null);
+    if (!existingPaymentLink && !routeLabel) throw new BadRequestException('Route label is required');
+
+    const route = existingPaymentLink?.route ?? (await this.sellService.getByLabel(undefined, routeLabel));
     if (!route) throw new NotFoundException('Route not found');
 
-    const existingPaymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId).catch(() => null);
-
     const plAccessKeys = existingPaymentLink?.linkConfigObj?.accessKeys ?? [];
-    const userAccessKeys = route.userData.paymentLinksConfigObj.accessKeys ?? [];
+    const userAccessKeys = route.user.userData.paymentLinksConfigObj.accessKeys ?? [];
     const hasAccessKey = plAccessKeys.includes(key) || userAccessKeys.includes(key);
     if (!hasAccessKey) throw new UnauthorizedException('Invalid access key');
 

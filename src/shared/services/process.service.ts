@@ -18,6 +18,7 @@ export enum Process {
   REF_REWARD_MAIL = 'RefRewardMail',
   EXCHANGE_TX_SYNC = 'ExchangeTxSync',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
+  LIQUIDITY_MANAGEMENT_CHECK_BALANCES = 'LiquidityManagementCheckBalances',
   MONITORING = 'Monitoring',
   MONITOR_CONNECTION_POOL = 'MonitorConnectionPool',
   UPDATE_STATISTIC = 'UpdateStatistic',
@@ -76,6 +77,8 @@ const safetyProcesses: Process[] = [
   Process.EXCHANGE_TRADE,
   Process.FIAT_OUTPUT_BATCH_ID_UPDATE,
   Process.CRYPTO_PAYOUT,
+  Process.LIQUIDITY_MANAGEMENT,
+  Process.TRADING,
 ];
 
 type ProcessMap = { [p in Process]?: boolean };

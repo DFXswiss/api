@@ -6,7 +6,7 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { PriceRule } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import { IEntity } from '../entity';
+import { IEntity, UpdateResult } from '../entity';
 
 export enum AssetType {
   COIN = 'Coin',
@@ -136,5 +136,21 @@ export class Asset extends IEntity {
       this.instantSellable ||
       this.paymentEnabled
     );
+  }
+
+  get liquidityCapacity(): number {
+    return (this.liquidityManagementRule?.limit ?? Infinity) - (this.balance?.amount ?? 0);
+  }
+
+  updatePrice(usdPrice: number, chfPrice: number, eurPrice: number): UpdateResult<Asset> {
+    const update: Partial<Asset> = {
+      approxPriceUsd: usdPrice,
+      approxPriceChf: chfPrice,
+      approxPriceEur: eurPrice,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 }

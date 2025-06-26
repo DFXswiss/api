@@ -3,6 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsRelations, FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { UpdateResult } from '../entity';
 import { Asset, AssetCategory, AssetType } from './asset.entity';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 
@@ -42,7 +43,10 @@ export class AssetService {
   }
 
   async getPricedAssets(): Promise<Asset[]> {
-    return this.assetRepo.findCachedBy('priced', { priceRule: Not(IsNull()) });
+    return this.assetRepo.findCached('priced', {
+      where: { priceRule: Not(IsNull()) },
+      order: { priceRule: { id: 'ASC' } },
+    });
   }
 
   async getPaymentAssets(): Promise<Asset[]> {
@@ -79,12 +83,11 @@ export class AssetService {
       .then((assets) => Array.from(new Set(assets.map((a) => a.blockchain))));
   }
 
-  async updatePrice(assetId: number, usdPrice: number, chfPrice: number, eurPrice: number) {
-    await this.assetRepo.update(assetId, {
-      approxPriceUsd: usdPrice,
-      approxPriceChf: chfPrice,
-      approxPriceEur: eurPrice,
-    });
+  async updatePrices(updates: UpdateResult<Asset>[]): Promise<void> {
+    for (const update of updates) {
+      await this.assetRepo.update(...update);
+    }
+
     this.assetRepo.invalidateCache();
   }
 

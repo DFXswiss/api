@@ -66,7 +66,12 @@ export class TradingOrderService implements OnModuleInit {
   // --- HELPER METHODS --- //
 
   private async startNewOrders(): Promise<void> {
-    const orders = await this.orderRepo.findBy({ status: TradingOrderStatus.CREATED });
+    const orders = await this.orderRepo.find({
+      where: { status: TradingOrderStatus.CREATED },
+      relations: {
+        assetOut: { liquidityManagementRule: true, balance: true },
+      },
+    });
 
     for (const order of orders) {
       await this.executeOrder(order);
@@ -93,6 +98,10 @@ export class TradingOrderService implements OnModuleInit {
   }
 
   private async reserveLiquidity(order: TradingOrder): Promise<void> {
+    // fetch output liquidity limit
+    const swapLimit = Util.round(order.assetOut.liquidityCapacity * (order.amountIn / order.amountExpected), 8);
+
+    // fetch input liquidity
     const liquidityRequest: ReserveLiquidityRequest = {
       context: LiquidityOrderContext.TRADING,
       correlationId: `${order.id}`,
@@ -101,14 +110,20 @@ export class TradingOrderService implements OnModuleInit {
       targetAsset: order.assetIn,
     };
 
-    // adapt the amount if not enough liquidity (down to half)
     let {
       reference: { availableAmount },
     } = await this.dexService.checkLiquidity(liquidityRequest);
     availableAmount *= 0.99; // 1% cap for rounding
 
+    // check required swap amount
     const minAmount = order.amountIn / 2;
-    if (availableAmount < minAmount) {
+
+    if (swapLimit < minAmount) {
+      // swap not allowed
+      throw new Error(
+        `Swap would exceed liquidity limit of ${order.assetOut.uniqueName}: max. ${swapLimit}, min. required ${minAmount} (${order.assetIn.uniqueName})`,
+      );
+    } else if (availableAmount < minAmount) {
       // order liquidity
       try {
         const deficitAmount = Util.round(order.amountIn - availableAmount, 8);
@@ -123,9 +138,9 @@ export class TradingOrderService implements OnModuleInit {
 
       throw new WaitingForLiquidityException(`Waiting for liquidity of ${order.assetIn.uniqueName}`);
     } else {
-      const adaptedAmount = Math.min(order.amountIn, availableAmount);
+      const adaptedAmount = Math.min(order.amountIn, swapLimit, availableAmount);
 
-      order.amountExpected = Util.round((order.amountExpected * adaptedAmount) / order.amountIn, 8);
+      order.amountExpected = Util.round(order.amountExpected * (adaptedAmount / order.amountIn), 8);
       liquidityRequest.referenceAmount = order.amountIn = adaptedAmount;
     }
 
