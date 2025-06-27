@@ -70,3 +70,15 @@ export enum C2BPaymentStatus {
   FAILED = 'FAILED',
   REFUNDED = 'REFUNDED',
 }
+
+export enum PaymentLinkMode {
+  SINGLE = 'Single',
+  MULTIPLE = 'Multiple',
+  DONATION = 'Donation',
+}
+
+export enum CreatePaymentAccessLevel {
+  USER = 'user',
+  ACCESS_KEY = 'access-key',
+  PUBLIC = 'public',
+}
