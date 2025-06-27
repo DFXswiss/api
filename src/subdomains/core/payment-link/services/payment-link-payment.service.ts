@@ -9,11 +9,11 @@ import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
-import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
-import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
+import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
@@ -146,8 +146,32 @@ export class PaymentLinkPaymentService {
     });
   }
 
+  // --- HANDLE WAITS --- //
   async waitForPayment(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
     return this.paymentWaitMap.wait(payment.id, 0);
+  }
+
+  async handleBinanceWaiting(result: C2BWebhookResult): Promise<void> {
+    const { qrContent, referId } = result.metadata;
+
+    const lnurl = new URL(qrContent).searchParams.get('lightning');
+    const uniqueId = LightningHelper.decodeLnurl(lnurl).split('/').at(-1);
+    const payment = await this.getPendingPaymentByUniqueId(uniqueId);
+    if (!payment) throw new NotFoundException('Payment not found');
+
+    const quote = await this.paymentQuoteService.createQuote(payment.link.defaultStandard, payment);
+    const transferAmount = JSON.parse(quote.transferAmounts).find((t) => t.method === Blockchain.BINANCE_PAY);
+    if (!transferAmount?.assets.length) throw new NotFoundException('Transfer amount not found');
+
+    const transferInfo: TransferInfo = {
+      asset: transferAmount.assets[0].asset,
+      amount: transferAmount.assets[0].amount,
+      method: Blockchain.BINANCE_PAY,
+      quoteUniqueId: quote.uniqueId,
+      referId,
+    };
+
+    await this.createActivationRequest(payment.uniqueId, transferInfo);
   }
 
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
@@ -245,24 +269,6 @@ export class PaymentLinkPaymentService {
     return { txId: quote.txId };
   }
 
-  // --- C2B PAYMENT --- //
-  async confirmC2BPayment(provider: C2BPaymentProvider, providerOrderId: string) {
-    const quote = await this.paymentQuoteService.getQuoteByTxId(
-      C2BPaymentLinkService.mapProviderToBlockchain(provider),
-      providerOrderId,
-      [PaymentQuoteStatus.ACTUAL],
-    );
-    if (!quote) throw new Error(`Quote not found by id ${providerOrderId}`);
-
-    const payment = await this.paymentLinkPaymentRepo.findOne({
-      where: { id: quote.payment.id },
-      relations: { link: { route: { user: { userData: true } } } },
-    });
-
-    await this.paymentQuoteService.saveFinallyConfirmed(quote);
-    await this.handleQuoteChange(payment, quote);
-  }
-
   // --- HANDLE INPUTS --- //
   async getPaymentQuoteByFailedCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
     return this.paymentQuoteService.getQuoteByTxId(cryptoInput.address.blockchain, cryptoInput.inTxId, [
@@ -288,17 +294,16 @@ export class PaymentLinkPaymentService {
   }
 
   private async getQuoteForInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
-    const quote =
-      cryptoInput.address.blockchain === Blockchain.LIGHTNING
-        ? await this.getLightningQuoteByTx(cryptoInput.address.blockchain, cryptoInput.inTxId)
-        : await this.getQuoteByTx(cryptoInput.address.blockchain, cryptoInput.inTxId);
+    const quote = [Blockchain.LIGHTNING, Blockchain.BINANCE_PAY].includes(cryptoInput.address.blockchain)
+      ? await this.getQuoteByActivation(cryptoInput.address.blockchain, cryptoInput.inTxId)
+      : await this.getQuoteByTx(cryptoInput.address.blockchain, cryptoInput.inTxId);
 
     if (quote) return quote;
 
     return this.paymentQuoteService.getQuoteByAsset(cryptoInput.asset, cryptoInput.amount);
   }
 
-  private async getLightningQuoteByTx(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
+  private async getQuoteByActivation(txBlockchain: Blockchain, txId: string): Promise<PaymentQuote | null> {
     const activation = await this.paymentActivationService.getActivationByTxId(txId);
     if (!activation) return null;
 

@@ -8,6 +8,12 @@ import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
+import { C2BPaymentStatus } from 'src/subdomains/core/payment-link/enums';
+import {
+  C2BOrderResult,
+  C2BPaymentLinkProvider,
+  C2BWebhookResult,
+} from '../../../subdomains/core/payment-link/share/c2b-payment-link.provider';
 import {
   AddSubMerchantResponse,
   BinanceBizType,
@@ -26,11 +32,9 @@ import {
   StoreType,
   SubMerchantOrderData,
 } from '../dto/binance.dto';
-import { IPaymentLinkProvider, OrderResult, WebhookResult } from '../share/IPaymentLinkProvider';
-import { C2BPaymentStatus } from '../share/PaymentStatus';
 
 @Injectable()
-export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhookDto> {
+export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebhookDto> {
   private readonly logger = new DfxLogger(BinancePayService);
 
   private readonly baseUrl = 'https://bpay.binanceapi.com';
@@ -151,7 +155,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     quote: PaymentQuote,
-  ): Promise<OrderResult> {
+  ): Promise<C2BOrderResult> {
     const orderDetails: OrderData = {
       env: {
         terminalType: BinancePayTerminalType.OTHERS,
@@ -257,7 +261,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     return this.SUPPORTED_BIZ_TYPES.includes(bizType as BinanceBizType);
   }
 
-  async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult | undefined> {
+  async handleWebhook(dto: BinancePayWebhookDto): Promise<C2BWebhookResult | undefined> {
     const { bizType, bizIdStr, bizStatus } = dto;
     if (!this.isSupportedBizType(bizType) || !this.getStatus(bizStatus)) return;
 
