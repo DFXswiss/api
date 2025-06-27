@@ -648,6 +648,10 @@ export class UserData extends IEntity {
     return this.getStepsWith(name, type, sequenceNumber).find((s) => s.isInProgress);
   }
 
+  getCompletedStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
+    return this.getStepsWith(name, type, sequenceNumber).find((s) => s.isCompleted);
+  }
+
   getPendingStepOrThrow(stepId: number): KycStep {
     const kycStep = this.getStep(stepId);
     if (!kycStep?.isInProgress) throw new NotFoundException('KYC step not found');
