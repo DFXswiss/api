@@ -26,8 +26,8 @@ export class AssetService {
     return this.assetRepo.save(entity);
   }
 
-  async getAllAssets() {
-    return this.assetRepo.findCached('all');
+  async getAllAssets(relations?: FindOptionsRelations<Asset>) {
+    return this.assetRepo.findCached('all', { relations });
   }
 
   async getAssetsWith(relations?: FindOptionsRelations<Asset>) {
