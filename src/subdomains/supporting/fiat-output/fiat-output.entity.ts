@@ -1,4 +1,4 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Column, Entity, JoinColumn, OneToMany, OneToOne } from 'typeorm';
@@ -131,4 +131,14 @@ export class FiatOutput extends IEntity {
 
   @Column({ nullable: true })
   reportCreated?: boolean;
+
+  // --- ENTITY METHODS --- //
+
+  setBatch(batchId?: number, batchAmount?: number): UpdateResult<FiatOutput> {
+    const update: Partial<FiatOutput> = { batchId, batchAmount };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
 }

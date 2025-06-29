@@ -6,11 +6,11 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
@@ -80,14 +80,22 @@ export class FiatOutputJobService {
   }
 
   private async assignBankAccount(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT)) return;
+
     const entities = await this.fiatOutputRepo.find({
-      where: { valutaDate: IsNull(), isComplete: false },
+      where: {
+        valutaDate: IsNull(),
+        isComplete: false,
+        originEntityId: IsNull(),
+        accountIban: IsNull(),
+        type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT]),
+      },
       relations: { buyCrypto: true, buyFiats: { sell: true } },
     });
 
     for (const entity of entities) {
       try {
-        if (!entity.buyFiats.length && !entity.buyCrypto) continue;
+        if (!entity.buyFiats?.length && !entity.buyCrypto) continue;
 
         const ibanCountry = (entity.buyCrypto?.chargebackIban ?? entity.buyFiats?.[0]?.sell?.iban)?.substring(0, 2);
         const country = await this.countryService.getCountryWithSymbol(ibanCountry);
@@ -108,8 +116,10 @@ export class FiatOutputJobService {
   }
 
   private async setReadyDate(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_READY_DATE)) return;
+
     const entities = await this.fiatOutputRepo.find({
-      where: { valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
+      where: { bankTx: { id: Not(IsNull()) }, valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
       relations: { buyCrypto: true, buyFiats: { sell: true }, bankTx: true },
     });
 
@@ -125,18 +135,20 @@ export class FiatOutputJobService {
     for (const accountIbanGroup of groupedEntities.values()) {
       let updatedFiatOutputAmount = 0;
 
-      const sortedEntities = accountIbanGroup.sort((a, b) => {
+      const sortedEntities: FiatOutput[] = accountIbanGroup.sort((a, b) => {
         if (a.type !== b.type) return a.type.localeCompare(b.type);
         return a.amount - b.amount;
       });
 
+      const pendingBalance = accountIbanGroup.reduce(
+        (sum, tx) => sum + (tx.isReadyDate && !tx.bankTx ? tx.amount : 0),
+        0,
+      );
+
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
           const liqBalance = liqBalances.find((l) => l.asset.bank.iban === entity.accountIban);
-          const pendingBalance = accountIbanGroup.reduce(
-            (sum, tx) => sum + (tx.isReadyDate && !tx.bankTx ? tx.amount : 0),
-            0,
-          );
+
           const availableBalance =
             liqBalance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
@@ -151,6 +163,8 @@ export class FiatOutputJobService {
                 (liqBalance.asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
             )
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
+          } else {
+            break;
           }
         } catch (e) {
           this.logger.error(`Failed to fill up fiat-output ${entity.id}:`, e);
@@ -160,38 +174,46 @@ export class FiatOutputJobService {
   }
 
   private async createBatches(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE)) return;
+
     const entities = await this.fiatOutputRepo.find({
-      where: { isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
+      where: { amount: Not(IsNull()), isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
       order: { accountIban: 'ASC', id: 'ASC' },
     });
 
     let currentBatch: FiatOutput[] = [];
-    let currentBatchId = await this.getLastBatchId();
+    let currentBatchId = (await this.getLastBatchId()) + 1;
     const batches: FiatOutput[] = [];
 
     for (const entity of entities) {
-      if (!currentBatch.length) currentBatch.push(entity);
-
       const currentBatchAmount = currentBatch.reduce((sum, tx) => sum + tx.amount, 0);
 
       if (
-        currentBatch[0].accountIban !== entity.accountIban ||
-        currentBatchAmount + entity.amount < Config.liquidityManagement.fiatOutput.batchAmountLimit
+        currentBatch.length &&
+        (currentBatch[0].accountIban !== entity.accountIban ||
+          currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit)
       ) {
+        currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
         batches.push(...currentBatch);
-        currentBatchId += 1;
-        Object.assign(entity, { batchId: currentBatchId, batchAmount: currentBatchAmount * 100 });
 
+        currentBatchId += 1;
         currentBatch = [entity];
       } else {
         currentBatch.push(entity);
       }
     }
 
+    currentBatch.forEach((fiatOutput) =>
+      fiatOutput.setBatch(currentBatchId, currentBatch.reduce((sum, tx) => sum + tx.amount, 0) * 100),
+    );
+    batches.push(...currentBatch);
+
     await this.fiatOutputRepo.save(batches);
   }
 
   private async checkTransmission(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_TRANSMISSION_CHECK)) return;
+
     const entities = await this.fiatOutputRepo.find({
       where: { batchId: Not(IsNull()), isTransmittedDate: IsNull(), isComplete: false },
     });
@@ -210,6 +232,8 @@ export class FiatOutputJobService {
   }
 
   private async searchOutgoingBankTx(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_BANK_TX_SEARCH)) return;
+
     const entities = await this.fiatOutputRepo.find({
       where: {
         amount: Not(IsNull()),
