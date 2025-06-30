@@ -31,9 +31,6 @@ import { PaymentQuoteRepository } from '../repositories/payment-quote.repository
 @Injectable()
 export class PaymentQuoteService {
   private readonly logger = new DfxLogger(PaymentQuoteService);
-
-  static readonly PREFIX_UNIQUE_ID = 'plq';
-
   private readonly transferAmountBlockchainOrder: Blockchain[] = [
     Blockchain.LIGHTNING,
     Blockchain.POLYGON,
@@ -196,7 +193,7 @@ export class PaymentQuoteService {
     const expiryDate = new Date(Math.min(payment.expiryDate.getTime(), Util.secondsAfter(timeoutSeconds).getTime()));
 
     const quote = this.paymentQuoteRepo.create({
-      uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentQuoteUidPrefix, 16),
       status: PaymentQuoteStatus.ACTUAL,
       transferAmounts: await this.createTransferAmounts(standard, payment).then(JSON.stringify),
       expiryDate,

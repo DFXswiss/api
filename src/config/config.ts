@@ -76,6 +76,7 @@ export class Configuration {
     quoteUidPrefix: 'Q',
     paymentLinkUidPrefix: 'pl',
     paymentLinkPaymentUidPrefix: 'plp',
+    paymentQuoteUidPrefix: 'plq',
   };
 
   moderators = {
