@@ -196,7 +196,7 @@ export class FiatOutputJobService {
         if (
           currentBatch.length &&
           (currentBatch[0].accountIban !== entity.accountIban ||
-            currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit)
+            currentBatchAmount + entity.amount >= Config.liquidityManagement.fiatOutput.batchAmountLimit)
         ) {
           currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
           batches.push(...currentBatch);
