@@ -84,7 +84,7 @@ export class CustodyOrderService {
 
         orderDto.sell = await this.sellService.getById(sellPaymentInfo.routeId);
         orderDto.outputAsset = await this.assetService.getAssetById(sellPaymentInfo.asset.id);
-        orderDto.outputAmount = paymentInfo.amount;
+        orderDto.outputAmount = sellPaymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSellPaymentInfo(sellPaymentInfo);
         break;
       }
@@ -102,7 +102,7 @@ export class CustodyOrderService {
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
         orderDto.outputAsset = await this.assetService.getAssetById(swapPaymentInfo.sourceAsset.id);
-        orderDto.outputAmount = paymentInfo.amount;
+        orderDto.outputAmount = swapPaymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
       }
