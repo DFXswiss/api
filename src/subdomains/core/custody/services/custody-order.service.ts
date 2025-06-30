@@ -53,7 +53,7 @@ export class CustodyOrderService {
     let paymentInfo: CustodyOrderResponseDto = null;
 
     switch (dto.type) {
-      case CustodyOrderType.DEPOSIT:
+      case CustodyOrderType.DEPOSIT: {
         const sourceCurrency = await this.fiatService.getFiatByName(dto.sourceAsset);
         if (!sourceCurrency) throw new NotFoundException('Currency not found');
 
@@ -69,8 +69,8 @@ export class CustodyOrderService {
         orderDto.inputAsset = await this.assetService.getAssetById(buyPaymentInfo.asset.id);
         paymentInfo = CustodyOrderResponseDtoMapper.mapBuyPaymentInfo(buyPaymentInfo);
         break;
-
-      case CustodyOrderType.WITHDRAWAL:
+      }
+      case CustodyOrderType.WITHDRAWAL: {
         const sourceAsset = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
         if (!sourceAsset) throw new NotFoundException('Asset not found');
 
@@ -87,17 +87,17 @@ export class CustodyOrderService {
         orderDto.outputAmount = paymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSellPaymentInfo(sellPaymentInfo);
         break;
-
-      case CustodyOrderType.SWAP:
-        const source = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
+      }
+      case CustodyOrderType.SWAP: {
+        const sourceAsset = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
         if (!sourceAsset) throw new NotFoundException('Asset not found');
 
-        const target = await this.assetService.getCustodyAssetByName(dto.targetAsset);
+        const targetAsset = await this.assetService.getCustodyAssetByName(dto.targetAsset);
         if (!targetAsset) throw new NotFoundException('Asset not found');
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
-          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, source, target),
+          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
@@ -105,6 +105,7 @@ export class CustodyOrderService {
         orderDto.outputAmount = paymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
+      }
     }
 
     const order = await this.createOrderInternal({ ...orderDto, transactionRequestId: paymentInfo.id });
