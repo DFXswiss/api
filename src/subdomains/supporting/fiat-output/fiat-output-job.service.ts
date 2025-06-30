@@ -174,7 +174,11 @@ export class FiatOutputJobService {
   }
 
   private async createBatches(): Promise<void> {
-    if (DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE_JOB)) return;
+    if (
+      DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE_JOB) ||
+      DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE)
+    )
+      return;
 
     const entities = await this.fiatOutputRepo.find({
       where: { amount: Not(IsNull()), isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
