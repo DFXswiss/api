@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsRelations } from 'typeorm';
 import { CreateKycFileDto } from '../dto/kyc-file.dto';
@@ -12,7 +13,7 @@ export class KycFileService {
   async createKycFile(dto: CreateKycFileDto): Promise<KycFile> {
     const entity = this.kycFileRepository.create(dto);
 
-    entity.uid = `F${Util.randomString(16)}`;
+    entity.uid = `${Config.prefixes.kycFileUidPrefix}${Util.randomString(16)}`;
 
     return this.kycFileRepository.save(entity);
   }

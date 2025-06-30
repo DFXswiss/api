@@ -74,6 +74,7 @@ export class Configuration {
   prefixes = {
     issueUidPrefix: 'I',
     quoteUidPrefix: 'Q',
+    kycFileUidPrefix: 'F',
     paymentLinkUidPrefix: 'pl',
     paymentLinkPaymentUidPrefix: 'plp',
     paymentQuoteUidPrefix: 'plq',
