@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -60,8 +61,8 @@ export class BinancePayStrategy extends RegisterStrategy {
     if (!asset) return;
 
     return {
-      senderAddresses: null,
-      receiverAddress: BlockchainAddress.create(null, this.blockchain),
+      senderAddresses: data.openUserId,
+      receiverAddress: BlockchainAddress.create(Config.payment.binancePayMerchantId, this.blockchain),
       txId: payWebhook.providerOrderId,
       txType: PayInType.PAYMENT,
       blockHeight: null,
