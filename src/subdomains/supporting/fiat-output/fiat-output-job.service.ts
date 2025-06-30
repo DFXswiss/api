@@ -110,7 +110,7 @@ export class FiatOutputJobService {
           accountIban: country.maerkiBaumannEnable ? bank?.iban : undefined,
         });
       } catch (e) {
-        this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}`, e);
+        this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
       }
     }
   }
@@ -207,7 +207,7 @@ export class FiatOutputJobService {
           currentBatch.push(entity);
         }
       } catch (e) {
-        this.logger.error(`Error in createBatches fiatOutput: ${entity.id}`, e);
+        this.logger.error(`Error in createBatches fiatOutput ${entity.id}:`, e);
       }
     }
 
@@ -266,7 +266,7 @@ export class FiatOutputJobService {
 
         if (bankTx.type === BankTxType.GSHEET) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
-        this.logger.error(`Error in bankTx search fiatOutput: ${entity.id}`, e);
+        this.logger.error(`Error in bankTx search fiatOutput ${entity.id}:`, e);
       }
     }
   }
