@@ -13,11 +13,12 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
@@ -57,12 +58,12 @@ export interface MailKeyData {
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new DfxLogger(AuthService);
-
+  private readonly logger: DfxLogger;
   private readonly challengeList = new Map<string, ChallengeData>();
   private readonly mailKeyList = new Map<string, MailKeyData>();
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly userService: UserService,
     private readonly userRepo: UserRepository,
     private readonly walletService: WalletService,
@@ -77,7 +78,9 @@ export class AuthService {
     private readonly siftService: SiftService,
     private readonly languageService: LanguageService,
     private readonly geoLocationService: GeoLocationService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(AuthService);
+  }
 
   @DfxCron(CronExpression.EVERY_MINUTE)
   checkLists() {

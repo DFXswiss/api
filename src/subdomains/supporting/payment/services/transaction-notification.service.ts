@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -17,13 +18,16 @@ import { TransactionRepository } from '../repositories/transaction.repository';
 
 @Injectable()
 export class TransactionNotificationService {
-  private readonly logger = new DfxLogger(TransactionNotificationService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly repo: TransactionRepository,
     private readonly notificationService: NotificationService,
     private readonly bankDataService: BankDataService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(TransactionNotificationService);
+  }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TX_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapRepository } from 'src/subdomains/core/buy-crypto/routes/swap/swap.repository';
 import { CryptoInput, PayInPurpose, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -11,15 +12,18 @@ import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
 export class BuyCryptoRegistrationService {
-  private readonly logger = new DfxLogger(BuyCryptoRegistrationService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly swapRepository: SwapRepository,
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(BuyCryptoRegistrationService);
+  }
 
   async syncReturnTxId(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({

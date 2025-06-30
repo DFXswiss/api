@@ -9,7 +9,8 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -37,15 +38,17 @@ export enum TfaLevel {
 
 @Injectable()
 export class TfaService {
-  private readonly logger = new DfxLogger(TfaService);
-
+  private readonly logger: DfxLogger;
   private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly tfaRepo: TfaLogRepository,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(TfaService);
+  }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TFA_CACHE })
   processCleanupSecretCache() {

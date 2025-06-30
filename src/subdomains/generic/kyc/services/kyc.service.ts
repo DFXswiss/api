@@ -9,12 +9,13 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { LanguageService } from 'src/shared/models/language/language.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
@@ -88,11 +89,11 @@ import { TfaLevel, TfaService } from './tfa.service';
 
 @Injectable()
 export class KycService {
-  private readonly logger = new DfxLogger(KycService);
-
+  private readonly logger: DfxLogger;
   private readonly webhookQueue: QueueHandler;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly identService: IdentService,
@@ -117,6 +118,7 @@ export class KycService {
     private readonly userDataRelationService: UserDataRelationService,
   ) {
     this.webhookQueue = new QueueHandler();
+    this.logger = loggerFactory.create(KycService);
   }
 
   @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { process: Process.KYC })

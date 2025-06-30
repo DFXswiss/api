@@ -4,7 +4,8 @@ import { CheckoutPayment, CheckoutPaymentStatus } from 'src/integration/checkout
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { ChargebackReason, ChargebackState, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -17,16 +18,19 @@ import { CheckoutTxService } from './checkout-tx.service';
 
 @Injectable()
 export class FiatPayInSyncService {
-  private readonly logger = new DfxLogger(FiatPayInSyncService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly checkoutService: CheckoutService,
     private readonly checkoutTxRepo: CheckoutTxRepository,
     private readonly checkoutTxService: CheckoutTxService,
     private readonly transactionService: TransactionService,
     private readonly siftService: SiftService,
     private readonly buyService: BuyService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(FiatPayInSyncService);
+  }
 
   // --- JOBS --- //
 

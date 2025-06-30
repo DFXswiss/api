@@ -13,6 +13,8 @@ import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -20,7 +22,6 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -69,11 +70,11 @@ interface SecretCacheEntry {
 
 @Injectable()
 export class UserDataService {
-  private readonly logger = new DfxLogger(UserDataService);
-
+  private readonly logger: DfxLogger;
   private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly repos: RepositoryFactory,
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
@@ -97,7 +98,9 @@ export class UserDataService {
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(UserDataService);
+  }
 
   // --- GETTERS --- //
   async getUserDataByUser(userId: number): Promise<UserData> {

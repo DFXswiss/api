@@ -1,6 +1,7 @@
 import { MailerOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Mail } from '../entities/mail/base/mail';
 
 export interface MailOptions {
@@ -16,9 +17,11 @@ export interface MailOptions {
 
 @Injectable()
 export class MailService {
-  private readonly logger = new DfxLogger(MailService);
+  private readonly logger: DfxLogger;
 
-  constructor(private readonly mailerService: MailerService) {}
+  constructor(readonly loggerFactory: LoggerFactory, private readonly mailerService: MailerService) {
+    this.logger = loggerFactory.create(MailService);
+  }
 
   async send(mail: Mail): Promise<void> {
     try {

@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { UpdateResult } from 'src/shared/models/entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
 import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
@@ -16,16 +17,19 @@ import { KycService } from './kyc.service';
 
 @Injectable()
 export class KycAdminService {
-  private readonly logger = new DfxLogger(KycAdminService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly kycStepRepo: KycStepRepository,
     private readonly webhookService: WebhookService,
     private readonly kycService: KycService,
     private readonly kycNotificationService: KycNotificationService,
     @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(KycAdminService);
+  }
 
   async getKycSteps(userDataId: number, relations: FindOptionsRelations<KycStep> = {}): Promise<KycStep[]> {
     return this.kycStepRepo.find({ where: { userData: { id: userDataId } }, relations });

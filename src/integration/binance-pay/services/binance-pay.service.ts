@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
@@ -35,8 +35,6 @@ import {
 
 @Injectable()
 export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebhookDto> {
-  private readonly logger = new DfxLogger(BinancePayService);
-
   private readonly baseUrl = 'https://bpay.binanceapi.com';
   private readonly apiKey: string;
   private readonly secretKey: string;
@@ -49,7 +47,7 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
     BinanceBizType.MERCHANT_QR_CODE,
   ];
 
-  constructor(private readonly http: HttpService) {
+  constructor(private readonly http: HttpService, readonly loggerFactory: LoggerFactory) {
     this.apiKey = Config.payment.binancePayPublic;
     this.secretKey = Config.payment.binancePaySecret;
     this.certificatedExpiry = 0;

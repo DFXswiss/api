@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { PayoutOrder } from '../entities/payout-order.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class PayoutLogService {
-  private readonly logger = new DfxLogger(PayoutLogService);
+  private readonly logger: DfxLogger;
+
+  constructor(readonly loggerFactory: LoggerFactory) {
+    this.logger = loggerFactory.create(PayoutLogService);
+  }
 
   logTransferCompletion(confirmedOrders: PayoutOrder[]): void {
     const confirmedOrdersLogs = this.createDefaultOrdersLog(confirmedOrders);

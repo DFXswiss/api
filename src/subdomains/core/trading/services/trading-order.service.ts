@@ -2,10 +2,11 @@ import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
@@ -24,7 +25,7 @@ import { TradingRuleRepository } from '../repositories/trading-rule.respository'
 
 @Injectable()
 export class TradingOrderService implements OnModuleInit {
-  private readonly logger = new DfxLogger(TradingOrderService);
+  private readonly logger: DfxLogger;
 
   @Inject() private readonly ruleRepo: TradingRuleRepository;
   @Inject() private readonly orderRepo: TradingOrderRepository;
@@ -32,6 +33,7 @@ export class TradingOrderService implements OnModuleInit {
   private chf: Fiat;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly dexService: DexService,
     private readonly notificationService: NotificationService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
@@ -39,7 +41,9 @@ export class TradingOrderService implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly assetService: AssetService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(TradingOrderService);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

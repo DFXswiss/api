@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { IsNull, LessThan } from 'typeorm';
@@ -9,11 +10,12 @@ import { RefRepository } from './ref.repository';
 
 @Injectable()
 export class RefService {
-  private readonly logger = new DfxLogger(RefService);
-
+  private readonly logger: DfxLogger;
   private readonly refExpirationDays = 3;
 
-  constructor(private readonly repo: RefRepository) {}
+  constructor(private readonly repo: RefRepository, readonly loggerFactory: LoggerFactory) {
+    this.logger = loggerFactory.create(RefService);
+  }
 
   @DfxCron(CronExpression.EVERY_HOUR, { timeout: 7200 })
   async checkRefs(): Promise<void> {

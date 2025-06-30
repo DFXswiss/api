@@ -1,4 +1,5 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -14,6 +15,7 @@ import { FiatOutputRepository } from './fiat-output.repository';
 @Injectable()
 export class FiatOutputService {
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly fiatOutputRepo: FiatOutputRepository,
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BankTxService))

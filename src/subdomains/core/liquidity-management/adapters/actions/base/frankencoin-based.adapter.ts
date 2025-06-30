@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { FrankencoinBasedService } from 'src/integration/blockchain/shared/frankencoin/frankencoin-based.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
@@ -18,9 +18,8 @@ export enum FrankencoinBasedAdapterCommands {
 }
 
 export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
-  private readonly logger = new DfxLogger(FrankencoinBasedAdapter);
-
   protected commands = new Map<string, Command>();
+  protected abstract readonly logger: DfxLogger;
 
   constructor(
     system: LiquidityManagementSystem,

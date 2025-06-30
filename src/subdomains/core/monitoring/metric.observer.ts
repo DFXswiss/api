@@ -1,7 +1,7 @@
 import { NotImplementedException } from '@nestjs/common';
 import { BehaviorSubject, Observable, skip } from 'rxjs';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { MonitoringService } from './monitoring.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class MetricObserver<T> {
   protected abstract readonly logger: DfxLogger;

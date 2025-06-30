@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -13,15 +14,18 @@ import { RefRewardService } from './ref-reward.service';
 
 @Injectable()
 export class RefRewardOutService {
-  private readonly logger = new DfxLogger(RefRewardOutService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly refRewardRepo: RefRewardRepository,
     private readonly payoutService: PayoutService,
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly refRewardService: RefRewardService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(RefRewardOutService);
+  }
 
   async checkPaidTransaction(): Promise<void> {
     try {

@@ -1,9 +1,10 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -27,11 +28,13 @@ import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
 export class BuyFiatPreparationService implements OnModuleInit {
-  private readonly logger = new DfxLogger(BuyFiatPreparationService);
+  private readonly logger: DfxLogger;
+
   private chf: Fiat;
   private eur: Fiat;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly transactionHelper: TransactionHelper,
     private readonly pricingService: PricingService,
@@ -42,7 +45,9 @@ export class BuyFiatPreparationService implements OnModuleInit {
     private readonly countryService: CountryService,
     private readonly buyFiatNotificationService: BuyFiatNotificationService,
     private readonly fiatOutputService: FiatOutputService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(BuyFiatNotificationService);
+  }
 
   onModuleInit() {
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));

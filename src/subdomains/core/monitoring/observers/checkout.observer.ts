@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { CheckoutBalances, CheckoutService } from 'src/integration/checkout/services/checkout.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
@@ -18,14 +19,17 @@ interface CheckoutData {
 
 @Injectable()
 export class CheckoutObserver extends MetricObserver<CheckoutData[]> {
-  protected readonly logger = new DfxLogger(CheckoutObserver);
+  protected readonly logger: DfxLogger;
 
   constructor(
     monitoringService: MonitoringService,
+    readonly loggerFactory: LoggerFactory,
     private readonly checkoutService: CheckoutService,
     private readonly checkoutTxService: CheckoutTxService,
   ) {
     super(monitoringService, 'checkout', 'balance');
+
+    this.logger = this.loggerFactory.create(CheckoutObserver);
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })

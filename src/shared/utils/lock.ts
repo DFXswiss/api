@@ -1,4 +1,4 @@
-import { DfxLogger } from '../services/dfx-logger';
+import { DfxLogger } from '../../logger/dfx-logger.service';
 
 export interface Context {
   target: string;

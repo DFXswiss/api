@@ -14,10 +14,11 @@ import { AuthGuard } from '@nestjs/passport';
 import { CronExpression } from '@nestjs/schedule';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Balances, ExchangeError, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -33,11 +34,12 @@ import { ExchangeService, OrderSide } from '../services/exchange.service';
 @ApiTags('exchange')
 @Controller('exchange')
 export class ExchangeController {
-  private readonly logger = new DfxLogger(ExchangeController);
-
+  private readonly logger: DfxLogger;
   private trades: { [key: number]: TradeResult } = {};
 
-  constructor(private readonly exchangeRegistry: ExchangeRegistryService) {}
+  constructor(private readonly exchangeRegistry: ExchangeRegistryService, readonly loggerFactory: LoggerFactory) {
+    this.logger = loggerFactory.create(ExchangeController);
+  }
 
   @Get(':exchange/balances')
   @ApiBearerAuth()

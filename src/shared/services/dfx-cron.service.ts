@@ -3,12 +3,13 @@ import { DiscoveryService, MetadataScanner } from '@nestjs/core';
 import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { Config } from 'src/config/config';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { DisabledProcess } from 'src/shared/services/process.service';
 import { DFX_CRONJOB_PARAMS, DfxCronExpression, DfxCronParams } from 'src/shared/utils/cron';
 import { LockClass } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { DfxLogger } from '../../logger/dfx-logger.service';
 import { CustomCronExpression } from '../utils/custom-cron-expression';
-import { DfxLogger } from './dfx-logger';
 
 interface CronJobData {
   instance: object;
@@ -19,12 +20,13 @@ interface CronJobData {
 
 @Injectable()
 export class DfxCronService implements OnModuleInit {
-  private readonly logger = new DfxLogger(DfxCronService);
+  private readonly logger: DfxLogger;
 
   constructor(
     private readonly discovery: DiscoveryService,
     private readonly metadataScanner: MetadataScanner,
-    private readonly schedulerRegisty: SchedulerRegistry,
+    private readonly schedulerRegistry: SchedulerRegistry,
+    readonly loggerFactory: LoggerFactory,
   ) {}
 
   onModuleInit() {
@@ -57,7 +59,7 @@ export class DfxCronService implements OnModuleInit {
     const cronJob = new CronJob(data.params.expression, () => lock(this.wrapFunction(data), context));
     const cronJobName = `${context.target}::${context.method}`;
 
-    this.schedulerRegisty.addCronJob(cronJobName, cronJob);
+    this.schedulerRegistry.addCronJob(cronJobName, cronJob);
     cronJob.start();
   }
 

@@ -3,7 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { ExchangeService } from 'src/integration/exchange/services/exchange.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
 import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
@@ -27,7 +27,7 @@ export enum CcxtExchangeAdapterCommands {
 }
 
 export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
-  private readonly logger = new DfxLogger(CcxtExchangeAdapter);
+  protected abstract readonly logger: DfxLogger;
 
   protected commands = new Map<string, Command>();
 

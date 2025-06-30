@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { UpdateNotificationDto } from '../dto/update-notification.dto';
 import { Notification } from '../entities/notification.entity';
 import { MailFactory } from '../factories/mail.factory';
@@ -9,13 +10,17 @@ import { MailService } from './mail.service';
 
 @Injectable()
 export class NotificationService {
-  private readonly logger = new DfxLogger(NotificationService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    @Inject(forwardRef(() => LoggerFactory))
+    readonly loggerFactory: LoggerFactory,
     private readonly mailFactory: MailFactory,
     private readonly mailService: MailService,
     private readonly notificationRepo: NotificationRepository,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(NotificationService);
+  }
 
   async sendMail(request: MailRequest): Promise<void> {
     const mail = this.mailFactory.createMail(request);

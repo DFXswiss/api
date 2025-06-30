@@ -1,5 +1,5 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
-import { DfxLogger } from '../services/dfx-logger';
+import { DfxLogger } from '../../logger/dfx-logger.service';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {

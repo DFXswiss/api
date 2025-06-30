@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { EvmTokenStrategy } from './base/evm-token.strategy';
 
 @Injectable()
 export class BscTokenStrategy extends EvmTokenStrategy {
-  protected readonly logger = new DfxLogger(BscTokenStrategy);
+  protected readonly logger: DfxLogger;
 
-  constructor(protected readonly assetService: AssetService) {
+  constructor(readonly loggerFactory: LoggerFactory, protected readonly assetService: AssetService) {
     super();
+
+    this.logger = this.loggerFactory.create(BscTokenStrategy);
   }
 
   get blockchain(): Blockchain {

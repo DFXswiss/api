@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process, ProcessService } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -19,14 +20,17 @@ interface LiquidityData {
 
 @Injectable()
 export class LiquidityObserver extends MetricObserver<LiquidityData> {
-  protected readonly logger = new DfxLogger(LiquidityObserver);
+  protected readonly logger: DfxLogger;
 
   constructor(
     monitoringService: MonitoringService,
+    readonly loggerFactory: LoggerFactory,
     private readonly repos: RepositoryFactory,
     private readonly processService: ProcessService,
   ) {
     super(monitoringService, 'liquidity', 'trading');
+
+    this.logger = this.loggerFactory.create(LiquidityObserver);
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })

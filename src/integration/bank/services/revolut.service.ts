@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
 import { stringify } from 'qs';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -96,14 +97,15 @@ enum TransactionType {
 
 @Injectable()
 export class RevolutService {
-  private readonly logger = new DfxLogger(RevolutService);
-
+  private readonly logger: DfxLogger;
   private readonly baseUrl = 'https://b2b.revolut.com/api/1.0';
   private readonly loginUrl = 'https://b2b.revolut.com/api/1.0/auth/token';
 
   private accessToken = 'access-token-will-be-updated';
 
-  constructor(private readonly http: HttpService) {}
+  constructor(private readonly http: HttpService, readonly loggerFactory: LoggerFactory) {
+    this.logger = loggerFactory.create(RevolutService);
+  }
 
   async getRevolutTransactions(lastModificationTime: string, accountIban: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.revolut.clientAssertion || !Config.bank.revolut.refreshToken) return [];

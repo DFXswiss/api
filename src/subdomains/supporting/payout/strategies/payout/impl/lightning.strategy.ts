@@ -1,9 +1,10 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
@@ -12,14 +13,17 @@ import { PayoutStrategy } from './base/payout.strategy';
 
 @Injectable()
 export class LightningStrategy extends PayoutStrategy {
-  private readonly logger = new DfxLogger(LightningStrategy);
+  protected readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly assetService: AssetService,
     private readonly payoutLightningService: PayoutLightningService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super();
+
+    this.logger = this.loggerFactory.create(LightningStrategy);
   }
 
   get blockchain(): Blockchain {

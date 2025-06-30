@@ -7,9 +7,10 @@ import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbi
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { Equal, LessThan, Not } from 'typeorm';
@@ -23,8 +24,7 @@ import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentActivationService implements OnModuleInit {
-  private readonly logger = new DfxLogger(PaymentActivationService);
-
+  private readonly logger: DfxLogger;
   private readonly client: LightningClient;
 
   private evmDepositAddress: string;
@@ -32,6 +32,7 @@ export class PaymentActivationService implements OnModuleInit {
   private bitcoinDepositAddress: string;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     readonly lightningService: LightningService,
     private readonly paymentActivationRepo: PaymentActivationRepository,
     private readonly paymentQuoteService: PaymentQuoteService,
@@ -40,6 +41,7 @@ export class PaymentActivationService implements OnModuleInit {
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {
     this.client = lightningService.getDefaultClient();
+    this.logger = loggerFactory.create(PaymentActivationService);
   }
 
   onModuleInit() {

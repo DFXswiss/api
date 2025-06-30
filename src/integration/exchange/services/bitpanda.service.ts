@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { bitpanda } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { ExchangeService } from './exchange.service';
 
 @Injectable()
 export class BitpandaService extends ExchangeService {
-  protected readonly logger = new DfxLogger(BitpandaService);
+  protected readonly logger: DfxLogger;
 
   protected networks: { [b in Blockchain]: string } = {
     Arbitrum: undefined,
@@ -30,7 +31,9 @@ export class BitpandaService extends ExchangeService {
     Solana: undefined,
   };
 
-  constructor() {
+  constructor(readonly loggerFactory: LoggerFactory) {
     super(bitpanda, GetConfig().exchange);
+
+    this.logger = this.loggerFactory.create(BitpandaService);
   }
 }

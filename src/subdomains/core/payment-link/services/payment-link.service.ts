@@ -14,8 +14,9 @@ import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -42,10 +43,12 @@ import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentLinkService {
-  private readonly logger = new DfxLogger(PaymentLinkService);
+  private readonly logger: DfxLogger;
+
   static readonly PREFIX_UNIQUE_ID = 'pl';
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly paymentLinkRepo: PaymentLinkRepository,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentQuoteService: PaymentQuoteService,
@@ -54,7 +57,9 @@ export class PaymentLinkService {
     private readonly sellService: SellService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
     private readonly i18n: I18nService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(PaymentLinkService);
+  }
 
   async getOrThrow(
     userId: number,

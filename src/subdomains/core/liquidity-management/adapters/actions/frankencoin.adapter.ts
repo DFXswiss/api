@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { FrankencoinService } from 'src/integration/blockchain/frankencoin/frankencoin.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityManagementSystem } from '../../enums';
@@ -9,12 +11,17 @@ import { FrankencoinBasedAdapter } from './base/frankencoin-based.adapter';
 
 @Injectable()
 export class FrankencoinAdapter extends FrankencoinBasedAdapter {
+  protected readonly logger: DfxLogger;
+
   constructor(
+    readonly loggerFactory: LoggerFactory,
     liquidityManagementBalanceService: LiquidityManagementBalanceService,
     frankencoinService: FrankencoinService,
     private readonly assetService: AssetService,
   ) {
     super(LiquidityManagementSystem.FRANKENCOIN, liquidityManagementBalanceService, frankencoinService);
+
+    this.logger = this.loggerFactory.create(FrankencoinAdapter);
   }
 
   async getStableToken(): Promise<Asset> {

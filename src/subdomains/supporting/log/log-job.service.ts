@@ -10,11 +10,12 @@ import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { amountType } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process, ProcessService } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
@@ -58,9 +59,10 @@ import { LogService } from './log.service';
 
 @Injectable()
 export class LogJobService {
-  private readonly logger = new DfxLogger(LogJobService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
     private readonly logService: LogService,
@@ -79,7 +81,9 @@ export class LogJobService {
     private readonly tradingOrderService: TradingOrderService,
     private readonly payoutService: PayoutService,
     private readonly processService: ProcessService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(LogJobService);
+  }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
   async saveTradingLog() {

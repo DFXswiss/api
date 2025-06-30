@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger } from 'src/logger/dfx-logger.service';
+import { LoggerFactory } from 'src/logger/logger.factory';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -13,12 +14,15 @@ import { UserDataRepository } from './user-data.repository';
 
 @Injectable()
 export class UserDataNotificationService {
-  private readonly logger = new DfxLogger(UserDataNotificationService);
+  private readonly logger: DfxLogger;
 
   constructor(
+    readonly loggerFactory: LoggerFactory,
     private readonly userDataRepo: UserDataRepository,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) {
+    this.logger = loggerFactory.create(UserDataNotificationService);
+  }
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BLACK_SQUAD_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
