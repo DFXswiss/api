@@ -5,13 +5,14 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
-import { QUOTE_UID_PREFIX, TransactionRequestService } from '../../payment/services/transaction-request.service';
+import { TransactionRequestService } from '../../payment/services/transaction-request.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
@@ -30,8 +31,6 @@ import { LimitRequestService } from './limit-request.service';
 import { SupportDocumentService } from './support-document.service';
 import { SupportIssueNotificationService } from './support-issue-notification.service';
 import { SupportLogService } from './support-log.service';
-
-export const ISSUE_UID_PREFIX = 'I';
 
 @Injectable()
 export class SupportIssueService {
@@ -93,7 +92,7 @@ export class SupportIssueService {
 
     if (!existingIssue) {
       // create UID
-      newIssue.uid = `${ISSUE_UID_PREFIX}${Util.randomString(16)}`;
+      newIssue.uid = `${Config.prefixes.issueUidPrefix}${Util.randomString(16)}`;
 
       // map transaction
       if (dto.transaction) {
@@ -105,7 +104,7 @@ export class SupportIssueService {
           if (!newIssue.transaction) throw new NotFoundException('Transaction not found');
           if (!newIssue.transaction.userData || newIssue.transaction.userData.id !== newIssue.userData.id)
             throw new ForbiddenException('You can only create support issue for your own transaction');
-        } else if (dto.transaction.orderUid || dto.transaction.uid?.startsWith(QUOTE_UID_PREFIX)) {
+        } else if (dto.transaction.orderUid || dto.transaction.uid?.startsWith(Config.prefixes.quoteUidPrefix)) {
           newIssue.transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
             dto.transaction.orderUid ?? dto.transaction.uid,
             { user: { userData: true }, transaction: true },
@@ -251,8 +250,8 @@ export class SupportIssueService {
   }
 
   private getIssueSearch(id: string, userDataId?: number): FindOptionsWhere<SupportIssue> {
-    if (id.startsWith(ISSUE_UID_PREFIX)) return { uid: id };
-    if (id.startsWith(QUOTE_UID_PREFIX)) return { transactionRequest: { uid: id } };
+    if (id.startsWith(Config.prefixes.issueUidPrefix)) return { uid: id };
+    if (id.startsWith(Config.prefixes.quoteUidPrefix)) return { transactionRequest: { uid: id } };
     if (userDataId) return { id: +id, userData: { id: userDataId } };
 
     throw new UnauthorizedException();

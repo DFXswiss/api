@@ -110,7 +110,7 @@ export class FiatOutputJobService {
           accountIban: country.maerkiBaumannEnable ? bank?.iban : undefined,
         });
       } catch (e) {
-        this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}`, e);
+        this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
       }
     }
   }
@@ -174,7 +174,11 @@ export class FiatOutputJobService {
   }
 
   private async createBatches(): Promise<void> {
-    if (DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE)) return;
+    if (
+      DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE_JOB) ||
+      DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE)
+    )
+      return;
 
     const entities = await this.fiatOutputRepo.find({
       where: { amount: Not(IsNull()), isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
@@ -186,20 +190,24 @@ export class FiatOutputJobService {
     const batches: FiatOutput[] = [];
 
     for (const entity of entities) {
-      const currentBatchAmount = currentBatch.reduce((sum, tx) => sum + tx.amount, 0);
+      try {
+        const currentBatchAmount = currentBatch.reduce((sum, tx) => sum + tx.amount, 0);
 
-      if (
-        currentBatch.length &&
-        (currentBatch[0].accountIban !== entity.accountIban ||
-          currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit)
-      ) {
-        currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
-        batches.push(...currentBatch);
+        if (
+          currentBatch.length &&
+          (currentBatch[0].accountIban !== entity.accountIban ||
+            currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit)
+        ) {
+          currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
+          batches.push(...currentBatch);
 
-        currentBatchId += 1;
-        currentBatch = [entity];
-      } else {
-        currentBatch.push(entity);
+          currentBatchId += 1;
+          currentBatch = [entity];
+        } else {
+          currentBatch.push(entity);
+        }
+      } catch (e) {
+        this.logger.error(`Error in createBatches fiatOutput ${entity.id}:`, e);
       }
     }
 
@@ -216,18 +224,22 @@ export class FiatOutputJobService {
 
     const entities = await this.fiatOutputRepo.find({
       where: { batchId: Not(IsNull()), isTransmittedDate: IsNull(), isComplete: false },
+      order: { batchId: 'ASC' },
     });
 
-    const logEntities = await this.logService.getBankLogs(entities.map((f) => `MSG-${f.batchId}-`));
+    const groupedEntities = Util.groupBy(entities, 'batchId');
 
-    for (const entity of entities) {
-      if (!logEntities.some((l) => l.message.includes(`MSG-${entity.batchId}-`))) continue;
+    for (const batchIdGroup of groupedEntities.values()) {
+      const logEntities = await this.logService.getBankLog(`MSG-${batchIdGroup[0].batchId}-`);
+      if (!logEntities) continue;
 
-      await this.fiatOutputRepo.update(entity.id, {
-        isTransmittedDate: new Date(),
-        isConfirmedDate: new Date(),
-        isApprovedDate: new Date(),
-      });
+      for (const entity of batchIdGroup) {
+        await this.fiatOutputRepo.update(entity.id, {
+          isTransmittedDate: new Date(),
+          isConfirmedDate: new Date(),
+          isApprovedDate: new Date(),
+        });
+      }
     }
   }
 
@@ -254,13 +266,15 @@ export class FiatOutputJobService {
 
         if (bankTx.type === BankTxType.GSHEET) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
-        this.logger.error(`Error in bankTx search fiatOutput: ${entity.id}`, e);
+        this.logger.error(`Error in bankTx search fiatOutput ${entity.id}:`, e);
       }
     }
   }
 
   private async getLastBatchId(): Promise<number> {
-    return this.fiatOutputRepo.findOne({ order: { batchId: 'DESC' } }).then((u) => u.batchId);
+    return this.fiatOutputRepo
+      .findOne({ order: { batchId: 'DESC' }, where: { batchId: Not(IsNull()) } })
+      .then((u) => u.batchId);
   }
 
   private async setBankTxType(type: FiatOutputType, bankTx: BankTx): Promise<BankTx> {
