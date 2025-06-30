@@ -3,9 +3,9 @@ import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Equal } from 'typeorm';
+import { Brackets, Equal } from 'typeorm';
 import { CreateLogDto, LogCleanupSetting, UpdateLogDto } from './dto/create-log.dto';
-import { Log } from './log.entity';
+import { Log, LogSeverity } from './log.entity';
 import { LogRepository } from './log.repository';
 
 @Injectable()
@@ -47,5 +47,26 @@ export class LogService {
       .getRawOne<{ maxId: number }>();
 
     return this.logRepo.findOneBy({ id: Equal(maxId) });
+  }
+
+  async getBankLogs(batchIds: string[]): Promise<Log[]> {
+    const query = this.logRepo
+      .createQueryBuilder('log')
+      .where('subsystem = :subsystem', { subsystem: 'UploadBank' })
+      .andWhere('severity = :severity', { severity: LogSeverity.INFO });
+
+    query.andWhere(
+      new Brackets((query) =>
+        batchIds.forEach((id, index) => {
+          if (index === 0) {
+            query.where('log.message LIKE :message', { message: `%${id}%` });
+          } else {
+            query.orWhere('log.message LIKE :message', { message: `%${id}%` });
+          }
+        }),
+      ),
+    );
+
+    return query.getMany();
   }
 }
