@@ -38,7 +38,6 @@ import { PaymentQuoteService } from './payment-quote.service';
 @Injectable()
 export class PaymentLinkService {
   private readonly logger = new DfxLogger(PaymentLinkService);
-  static readonly PREFIX_UNIQUE_ID = 'pl';
 
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
@@ -185,7 +184,7 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
-      uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
       webhookUrl: dto.webhookUrl,
       name: dto.config?.recipient?.name,
       street: dto.config?.recipient?.address?.street,
@@ -469,7 +468,7 @@ export class PaymentLinkService {
     if (!route) throw new NotFoundException('Route not found');
 
     const existingPaymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId).catch(() => null);
-    
+
     const plAccessKeys = existingPaymentLink?.linkConfigObj?.accessKeys ?? [];
     const userAccessKeys = route.userData.paymentLinksConfigObj.accessKeys ?? [];
     const hasAccessKey = plAccessKeys.includes(key) || userAccessKeys.includes(key);
