@@ -174,7 +174,7 @@ export class FiatOutputJobService {
   }
 
   private async createBatches(): Promise<void> {
-    if (DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE)) return;
+    if (DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE_JOB)) return;
 
     const entities = await this.fiatOutputRepo.find({
       where: { amount: Not(IsNull()), isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
@@ -186,20 +186,24 @@ export class FiatOutputJobService {
     const batches: FiatOutput[] = [];
 
     for (const entity of entities) {
-      const currentBatchAmount = currentBatch.reduce((sum, tx) => sum + tx.amount, 0);
+      try {
+        const currentBatchAmount = currentBatch.reduce((sum, tx) => sum + tx.amount, 0);
 
-      if (
-        currentBatch.length &&
-        (currentBatch[0].accountIban !== entity.accountIban ||
-          currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit)
-      ) {
-        currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
-        batches.push(...currentBatch);
+        if (
+          currentBatch.length &&
+          (currentBatch[0].accountIban !== entity.accountIban ||
+            currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit)
+        ) {
+          currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
+          batches.push(...currentBatch);
 
-        currentBatchId += 1;
-        currentBatch = [entity];
-      } else {
-        currentBatch.push(entity);
+          currentBatchId += 1;
+          currentBatch = [entity];
+        } else {
+          currentBatch.push(entity);
+        }
+      } catch (e) {
+        this.logger.error(`Error in createBatches fiatOutput: ${entity.id}`, e);
       }
     }
 
@@ -260,7 +264,9 @@ export class FiatOutputJobService {
   }
 
   private async getLastBatchId(): Promise<number> {
-    return this.fiatOutputRepo.findOne({ order: { batchId: 'DESC' } }).then((u) => u.batchId);
+    return this.fiatOutputRepo
+      .findOne({ order: { batchId: 'DESC' }, where: { batchId: Not(IsNull()) } })
+      .then((u) => u.batchId);
   }
 
   private async setBankTxType(type: FiatOutputType, bankTx: BankTx): Promise<BankTx> {
