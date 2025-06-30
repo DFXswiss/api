@@ -52,6 +52,7 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError } from '../dto/kyc-error.enum';
@@ -537,6 +538,24 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
+  async updatePaymentData(kycHash: string, stepId: number, data: PaymentDataDto): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    if (data.contractAccepted) {
+      await this.userDataService.updateUserDataInternal(user, { paymentLinksAllowed: true });
+
+      await this.kycNotificationService.kycPaymentData(user, new Date());
+    }
+
+    return this.updateKycStepAndLog(
+      kycStep,
+      user,
+      data,
+      data.contractAccepted ? KycStepStatus.COMPLETED : KycStepStatus.MANUAL_REVIEW,
+    );
+  }
+
   async updateIntrumIdent(dto: IdNowResult): Promise<void> {
     const { id: sessionId, transactionnumber: transactionId, reason } = dto.identificationprocess;
     if (!sessionId || !transactionId) throw new BadRequestException(`Session data is missing`);
@@ -680,7 +699,7 @@ export class KycService {
       case IdentShortResult.RETRY:
         // retrigger personal data step, if data was wrong
         if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA))
-          await this.initiateStep(user, KycStepName.PERSONAL_DATA, undefined, true);
+          await this.restartStep(user.getCompletedStepWith(KycStepName.PERSONAL_DATA));
 
         await this.kycStepRepo.update(
           ...(result === IdentShortResult.FAIL ? kycStep.fail(dto) : kycStep.inProgress(dto)),
@@ -969,6 +988,11 @@ export class KycService {
     }
 
     return this.kycStepRepo.save(kycStep);
+  }
+
+  private async restartStep(kycStep: KycStep, comment?: KycError): Promise<void> {
+    await this.kycStepRepo.update(...kycStep.fail(undefined, comment ?? KycError.RESTARTED_STEP));
+    await this.initiateStep(kycStep.userData, kycStep.name, kycStep.type, true);
   }
 
   // --- HELPER METHODS --- //

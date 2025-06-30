@@ -18,7 +18,7 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { AmlError, AmlErrorResult, AmlErrorType } from '../enums/aml-error.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
-import { AmlRule } from '../enums/aml-rule.enum';
+import { AmlRule, SpecialIpCountries } from '../enums/aml-rule.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
 export class AmlHelperService {
@@ -47,7 +47,7 @@ export class AmlHelperService {
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
-    if (!entity.userData.verifiedName && !bankData.name && !entity.userData.completeName)
+    if (!entity.userData.verifiedName && !bankData?.name && !entity.userData.completeName)
       errors.push(AmlError.NAME_MISSING);
     if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable)
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
@@ -180,6 +180,8 @@ export class AmlHelperService {
         if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
+        if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
+          errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
         if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
           errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -187,6 +189,8 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
+      if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
+        errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
       if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
@@ -268,7 +272,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 1000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
+        if (amountInChf > 100000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
         break;
 
       case AmlRule.RULE_9:
@@ -303,6 +307,8 @@ export class AmlHelperService {
 
   static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
     if (!user) return undefined;
+
+    if (amlRules.includes(AmlRule.RULE_11) && SpecialIpCountries.includes(user.ipCountry)) return undefined;
 
     if (
       amlRules.includes(AmlRule.RULE_2) &&

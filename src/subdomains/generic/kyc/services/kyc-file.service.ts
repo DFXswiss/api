@@ -5,19 +5,22 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsRelations, In, IsNull } from 'typeorm';
 import { CreateKycFileDto, FileSubType, FileType } from '../dto/kyc-file.dto';
+import { IdDocType, SumsubResult } from '../dto/sum-sub.dto';
 import { KycFile } from '../entities/kyc-file.entity';
+import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycFileRepository } from '../repositories/kyc-file.repository';
+import { SumsubService } from './integration/sum-sub.service';
 
 @Injectable()
 export class KycFileService {
-  constructor(private readonly kycFileRepository: KycFileRepository) {}
+  constructor(private readonly kycFileRepository: KycFileRepository, private readonly sumSubService: SumsubService) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SYNC_FILE_SUB_TYPE, timeout: 7200 })
   async syncFileSubType() {
     const entities = await this.kycFileRepository.find({
       where: { type: In([FileType.USER_NOTES, FileType.NAME_CHECK, FileType.IDENTIFICATION]), subType: IsNull() },
       take: 15000,
-      relations: { logs: true },
+      relations: { logs: true, kycStep: true },
     });
 
     for (const entity of entities) {
@@ -56,6 +59,26 @@ export class KycFileService {
           entity.subType = FileSubType.IDENT_REPORT;
 
         if (entity.name.includes('.mp3') || entity.name.includes('.mp4')) entity.subType = FileSubType.IDENT_RECORDING;
+
+        if (entity.name.includes('.png') && entity.kycStep?.name === KycStepName.IDENT) {
+          const imageId = entity.name.split('-').pop()?.replace('.png', '');
+          const { webhook } = entity.kycStep.getResult<SumsubResult>();
+          const applicantMetaData = await this.sumSubService.getApplicantMetadata(webhook.applicantId);
+          const image = applicantMetaData.items.find((i) => i.id === imageId);
+
+          if (image) {
+            const identDocTypes = [
+              IdDocType.ID_CARD,
+              IdDocType.PASSPORT,
+              IdDocType.DRIVERS,
+              IdDocType.DRIVERS_TRANSLATION,
+              IdDocType.ID_DOC_PHOTO,
+            ];
+            entity.subType = identDocTypes.includes(image.idDocDef.idDocType)
+              ? FileSubType.IDENT_DOC
+              : FileSubType.IDENT_SELFIE;
+          }
+        }
       }
 
       if (entity.subType) await this.kycFileRepository.update(entity.id, { subType: entity.subType });

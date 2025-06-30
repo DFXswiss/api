@@ -7,7 +7,6 @@ import { LiquidityManagementContext, LiquidityOptimizationType } from '../enums'
 export type CorrelationId = string;
 export type PipelineId = number;
 export type Command = (order: LiquidityManagementOrder) => Promise<CorrelationId>;
-export type LiquidityManagementActive = Active & { context: LiquidityManagementContext };
 export type LiquidityManagementAsset = Asset & { context: LiquidityManagementContext };
 
 export interface LiquidityBalanceIntegration {

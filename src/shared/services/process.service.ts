@@ -18,6 +18,7 @@ export enum Process {
   REF_REWARD_MAIL = 'RefRewardMail',
   EXCHANGE_TX_SYNC = 'ExchangeTxSync',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
+  LIQUIDITY_MANAGEMENT_CHECK_BALANCES = 'LiquidityManagementCheckBalances',
   MONITORING = 'Monitoring',
   MONITOR_CONNECTION_POOL = 'MonitorConnectionPool',
   UPDATE_STATISTIC = 'UpdateStatistic',
@@ -53,7 +54,12 @@ export enum Process {
   SANCTION_SYNC = 'SanctionSync',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
-  FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
+  FIAT_OUTPUT = 'FiatOutput',
+  FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT = 'FiatOutputAssignBankAccount',
+  FIAT_OUTPUT_READY_DATE = 'FiatOutputReadyDate',
+  FIAT_OUTPUT_BATCH_ID_UPDATE = 'FiatOutputBatchIdUpdate',
+  FIAT_OUTPUT_TRANSMISSION_CHECK = 'FiatOutputTransmissionCheck',
+  FIAT_OUTPUT_BANK_TX_SEARCH = 'FiatOutputBankTxSearch',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TX_REQUEST_STATUS_SYNC = 'TxRequestStatusSync',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
@@ -62,7 +68,6 @@ export enum Process {
   CUSTODY = 'Custody',
   EXCHANGE_WITHDRAWAL = 'ExchangeWithdrawal',
   EXCHANGE_TRADE = 'ExchangeTrade',
-  FIAT_OUTPUT_BATCH_ID_UPDATE = 'FiatOutputBatchIdUpdate',
   CRYPTO_PAYOUT = 'CryptoPayout',
   USER_DATA = 'UserData',
   USER = 'User',
@@ -76,6 +81,8 @@ const safetyProcesses: Process[] = [
   Process.EXCHANGE_TRADE,
   Process.FIAT_OUTPUT_BATCH_ID_UPDATE,
   Process.CRYPTO_PAYOUT,
+  Process.LIQUIDITY_MANAGEMENT,
+  Process.TRADING,
 ];
 
 type ProcessMap = { [p in Process]?: boolean };

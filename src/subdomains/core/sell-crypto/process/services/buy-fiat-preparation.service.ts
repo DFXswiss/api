@@ -11,6 +11,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -65,7 +66,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
       ],
       relations: {
-        cryptoInput: true,
+        cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
         sell: true,
         transaction: { user: { wallet: true }, userData: true },
         bankData: true,
@@ -363,11 +364,13 @@ export class BuyFiatPreparationService implements OnModuleInit {
       },
     });
 
-    const buyFiatsToPayout = buyFiatsWithoutOutput.filter(
-      (bf) =>
-        !bf.userData.paymentLinksConfigObj.requiresExplicitPayoutRoute ||
-        bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId != null,
-    );
+    const buyFiatsToPayout = buyFiatsWithoutOutput
+      .filter((bf) => !bf.userData.paymentLinksConfigObj.requiresConfirmation || bf.paymentLinkPayment?.isConfirmed)
+      .filter(
+        (bf) =>
+          !bf.userData.paymentLinksConfigObj.requiresExplicitPayoutRoute ||
+          bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId != null,
+      );
 
     // immediate payouts
     const immediateOutputs = buyFiatsToPayout.filter(
@@ -377,7 +380,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
     );
 
     for (const buyFiat of immediateOutputs) {
-      await this.fiatOutputService.createInternal('BuyFiat', { buyFiats: [buyFiat] });
+      await this.fiatOutputService.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat] }, buyFiat.id);
     }
 
     // daily payouts
@@ -394,8 +397,9 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
     for (const buyFiats of sellGroups.values()) {
       await this.fiatOutputService.createInternal(
-        'BuyFiat',
+        FiatOutputType.BUY_FIAT,
         { buyFiats },
+        buyFiats[0].id,
         buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
       );
     }

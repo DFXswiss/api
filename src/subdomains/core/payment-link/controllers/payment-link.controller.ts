@@ -23,9 +23,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binance.dto';
-import { BinancePayWebhookGuard } from 'src/integration/c2b-payment-link/guards/binance-pay-webhook.guard';
-import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -86,14 +83,18 @@ export class PaymentLinkController {
 
   @Get('history')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async getPaymentHistory(
     @GetJwt() jwt: JwtPayload,
     @Query() dto: GetPaymentLinkHistoryDto,
+    @Query('externalLinkId') externalLinkId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkHistoryDto[]> {
     return this.paymentLinkService
-      .getHistoryByStatus(+jwt.user, dto.status, dto.from, dto.to)
+      .getHistoryByStatus(+jwt?.user, dto.status, dto.from, dto.to, key, externalLinkId)
       .then(PaymentLinkDtoMapper.toLinkHistoryDtoList);
   }
 
@@ -201,11 +202,10 @@ export class PaymentLinkController {
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
     if (key) {
-      if (!route || !externalLinkId)
-        throw new BadRequestException('when using access key, route and externalLinkId must be provided');
+      if (!externalLinkId) throw new BadRequestException('External Link ID is required');
 
       return this.paymentLinkService
-        .createPaymentForRouteWithAccessKey(dto, key, route, externalLinkId)
+        .createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
         .then(PaymentLinkDtoMapper.toLinkDto);
     }
 
@@ -256,19 +256,21 @@ export class PaymentLinkController {
 
   @Delete('payment')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async cancelPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -324,24 +326,6 @@ export class PaymentLinkController {
     });
 
     return new StreamableFile(pdfBuffer);
-  }
-
-  // --- INTEGRATION --- //
-  @Post('integration/binance/webhook')
-  @ApiExcludeEndpoint()
-  @UseGuards(BinancePayWebhookGuard)
-  async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: string }> {
-    void this.paymentLinkPaymentService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto).catch((error) => {
-      this.logger.error('Error handling Binance Pay webhook', error);
-    });
-    return { returnCode: 'SUCCESS', returnMessage: null };
-  }
-
-  @Post('integration/binance/activate/:id')
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async activateBinancePay(@Param('id') id: string): Promise<void> {
-    await this.paymentLinkService.activateC2BPaymentLink(id, C2BPaymentProvider.BINANCE_PAY);
   }
 
   // --- HELPER METHODS --- //

@@ -8,6 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
+import { OrderFailedException } from '../../../exceptions/order-failed.exception';
 import { OrderNotNecessaryException } from '../../../exceptions/order-not-necessary.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../../interfaces';
@@ -300,7 +301,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         throw new OrderNotProcessableException(e.message);
       }
 
-      throw e;
+      throw new OrderFailedException(e.message);
     }
   }
 
@@ -378,7 +379,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   } {
     const tradeAsset = params.tradeAsset as string | undefined;
     const minTradeAmount = params.minTradeAmount as number | undefined;
-    const fullTrade = Boolean(params.fullTrade);
+    const fullTrade = Boolean(params.fullTrade); // use full trade for directly triggered actions
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.buy(...) command are invalid.`);
 

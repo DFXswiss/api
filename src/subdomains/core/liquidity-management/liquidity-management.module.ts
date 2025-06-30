@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
@@ -59,7 +59,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BankIntegrationModule,
     NotificationModule,
     BankModule,
-    BankTxModule,
+    forwardRef(() => BankTxModule),
     CheckoutModule,
   ],
   controllers: [

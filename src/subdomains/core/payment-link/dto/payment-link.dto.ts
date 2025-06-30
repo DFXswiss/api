@@ -12,8 +12,9 @@ export interface TransferInfo {
   amount: number;
   method: TransferMethod;
   quoteUniqueId: string;
-  tx: string;
-  hex: string;
+  tx?: string;
+  hex?: string;
+  referId?: string;
 }
 
 export interface TransferAmount {
@@ -89,6 +90,9 @@ export class PaymentLinkPaymentDto {
 
   @ApiProperty({ enum: PaymentLinkPaymentMode })
   mode: PaymentLinkPaymentMode;
+
+  @ApiProperty()
+  date: Date;
 
   @ApiProperty()
   expiryDate: Date;

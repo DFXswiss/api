@@ -35,6 +35,9 @@ export class LiquidityManagementRule extends IEntity {
   @Column({ type: 'float', nullable: true })
   maximal?: number;
 
+  @Column({ type: 'float', nullable: true })
+  limit?: number;
+
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   deficitStartAction?: LiquidityManagementAction;
 

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { LnBitsInvoiceDto } from '../dto/lnbits.dto';
 import { LndPaymentDto, LndPaymentStatus, LndSendPaymentResponseDto } from '../dto/lnd.dto';
@@ -12,6 +13,7 @@ export class LightningService {
   private static ALLOWED_LNDHUB_PATTERN = /^lndhub:\/\/invoice:(?<key>.+)@(?<url>https:\/\/.+)$/;
 
   private readonly client: LightningClient;
+  private readonly addressPublicKeys = new AsyncCache<string>(CacheItemResetPeriod.EVERY_HOUR);
 
   constructor(private readonly http: HttpService) {
     this.client = new LightningClient(http);
@@ -26,6 +28,10 @@ export class LightningService {
   }
 
   async getPublicKeyOfAddress(address: string): Promise<string> {
+    return this.addressPublicKeys.get(address, () => this.fetchPublicKeyOfAddress(address));
+  }
+
+  private async fetchPublicKeyOfAddress(address: string): Promise<string> {
     const addressType = LightningHelper.getAddressType(address);
 
     switch (addressType) {
