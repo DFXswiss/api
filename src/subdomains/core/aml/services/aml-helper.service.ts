@@ -272,7 +272,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 1000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
+        if (amountInChf > 100000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
         break;
 
       case AmlRule.RULE_9:
