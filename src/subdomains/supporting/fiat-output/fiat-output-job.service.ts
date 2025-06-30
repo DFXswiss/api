@@ -10,7 +10,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
@@ -82,14 +82,17 @@ export class FiatOutputJobService {
   private async assignBankAccount(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT)) return;
 
+    const request: FindOptionsWhere<FiatOutput> = {
+      valutaDate: IsNull(),
+      isComplete: false,
+      type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT]),
+    };
+
     const entities = await this.fiatOutputRepo.find({
-      where: {
-        valutaDate: IsNull(),
-        isComplete: false,
-        originEntityId: IsNull(),
-        accountIban: IsNull(),
-        type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT]),
-      },
+      where: [
+        { ...request, originEntityId: IsNull() },
+        { ...request, accountIban: IsNull() },
+      ],
       relations: { buyCrypto: true, buyFiats: { sell: true } },
     });
 
@@ -196,7 +199,7 @@ export class FiatOutputJobService {
         if (
           currentBatch.length &&
           (currentBatch[0].accountIban !== entity.accountIban ||
-            currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit)
+            currentBatchAmount + entity.amount >= Config.liquidityManagement.fiatOutput.batchAmountLimit)
         ) {
           currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
           batches.push(...currentBatch);
