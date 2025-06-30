@@ -568,7 +568,7 @@ export class Configuration {
 
     binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
     binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
-    binancePayMerchantId: '218832235',
+    binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
 
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
