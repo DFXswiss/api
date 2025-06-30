@@ -10,6 +10,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { IsNull, Not } from 'typeorm';
+import { FiatOutputType } from '../../fiat-output/fiat-output.entity';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
@@ -187,7 +188,11 @@ export class BankTxReturnService implements OnModuleInit {
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
-      dto.chargebackOutput = await this.fiatOutputService.createInternal('BankTxReturn', { bankTxReturn });
+      dto.chargebackOutput = await this.fiatOutputService.createInternal(
+        FiatOutputType.BANK_TX_RETURN,
+        { bankTxReturn },
+        bankTxReturn.id,
+      );
     }
 
     await this.bankTxReturnRepo.update(

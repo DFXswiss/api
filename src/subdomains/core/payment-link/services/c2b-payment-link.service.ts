@@ -3,9 +3,10 @@ import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
-import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
-import { BinancePayService } from './services/binance-pay.service';
-import { C2BPaymentProvider } from './share/providers.enum';
+import { BinancePayService } from '../../../../integration/binance-pay/services/binance-pay.service';
+import { Blockchain } from '../../../../integration/blockchain/shared/enums/blockchain.enum';
+import { C2BPaymentProvider } from '../enums';
+import { C2BOrderResult, C2BWebhookResult } from '../share/c2b-payment-link.provider';
 
 @Injectable()
 export class C2BPaymentLinkService {
@@ -47,12 +48,16 @@ export class C2BPaymentLinkService {
     }
   }
 
-  async createOrder(payment: PaymentLinkPayment, transferInfo: TransferInfo, quote: PaymentQuote) {
+  async createOrder(
+    payment: PaymentLinkPayment,
+    transferInfo: TransferInfo,
+    quote: PaymentQuote,
+  ): Promise<C2BOrderResult> {
     const clientProvider = this.getProvider(transferInfo.method as C2BPaymentProvider);
     return clientProvider.createOrder(payment, transferInfo, quote);
   }
 
-  async handleWebhook(provider: C2BPaymentProvider, payload: any) {
+  async handleWebhook(provider: C2BPaymentProvider, payload: any): Promise<C2BWebhookResult | undefined> {
     const clientProvider = this.getProvider(provider);
     return clientProvider.handleWebhook(payload);
   }

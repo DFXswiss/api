@@ -125,7 +125,7 @@ export class TradingOrderService implements OnModuleInit {
     if (swapLimit < minAmount) {
       // swap not allowed
       throw new Error(
-        `Swap would exceed liquidity limit of ${order.assetIn.uniqueName}: max. ${swapLimit}, min. required ${minAmount} (${order.assetIn.uniqueName})`,
+        `Swap would exceed liquidity limit of ${order.assetOut.uniqueName}: max. ${swapLimit}, min. required ${minAmount} (${order.assetIn.uniqueName})`,
       );
     } else if (availableAmount < minAmount) {
       // order liquidity

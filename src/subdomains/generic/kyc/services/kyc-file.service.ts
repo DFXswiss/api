@@ -20,7 +20,7 @@ export class KycFileService {
     const entities = await this.kycFileRepository.find({
       where: { type: In([FileType.USER_NOTES, FileType.NAME_CHECK, FileType.IDENTIFICATION]), subType: IsNull() },
       take: 15000,
-      relations: { logs: true },
+      relations: { logs: true, kycStep: true },
     });
 
     for (const entity of entities) {

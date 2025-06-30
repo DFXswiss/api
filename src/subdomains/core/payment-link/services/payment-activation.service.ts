@@ -3,7 +3,6 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -13,6 +12,7 @@ import { LoggerFactory } from 'src/logger/logger.factory';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
+import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { Equal, LessThan, Not } from 'typeorm';
 import { TransferInfo } from '../dto/payment-link.dto';
 import { PaymentActivation } from '../entities/payment-activation.entity';
@@ -195,9 +195,7 @@ export class PaymentActivationService implements OnModuleInit {
         return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
 
       case Blockchain.BINANCE_PAY:
-        const order = await this.c2bPaymentLinkService.createOrder(payment, transferInfo, quote);
-        await this.paymentQuoteService.saveTransaction(quote, transferInfo.method, order.providerOrderId);
-        return order;
+        return this.createC2BPaymentRequest(payment, transferInfo, quote);
 
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);
@@ -263,6 +261,15 @@ export class PaymentActivationService implements OnModuleInit {
 
     const paymentRequest = await this.cryptoService.getPaymentRequest(true, asset, address, transferInfo.amount, label);
     return { paymentRequest };
+  }
+
+  private async createC2BPaymentRequest(
+    payment: PaymentLinkPayment,
+    transferInfo: TransferInfo,
+    quote: PaymentQuote,
+  ): Promise<{ paymentRequest: string; paymentHash: string }> {
+    const order = await this.c2bPaymentLinkService.createOrder(payment, transferInfo, quote);
+    return { paymentRequest: order.paymentRequest, paymentHash: order.providerOrderId };
   }
 
   private async savePaymentActivationRequest(
