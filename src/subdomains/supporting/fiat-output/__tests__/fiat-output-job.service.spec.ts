@@ -322,25 +322,17 @@ describe('FiatOutputJobService', () => {
     it('should update transmission status if matching logs found', async () => {
       const entity = [
         createCustomFiatOutput({ id: 1, batchId: 101, isComplete: false }),
-        createCustomFiatOutput({ id: 2, batchId: 102, isComplete: false }),
+        createCustomFiatOutput({ id: 2, batchId: 101, isComplete: false }),
         createCustomFiatOutput({ id: 3, batchId: 103, isComplete: false }),
       ];
 
       jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue(entity);
-      jest.spyOn(logService, 'getBankLogs').mockResolvedValue([
+      jest.spyOn(logService, 'getBankLog').mockResolvedValue(
         createCustomLog({
           message: '2025-06-27 15:35:04;/Users/dfx/Downloads/MSG-100-27.6.2025 13-20-46.xml;OK;',
           subsystem: 'UploadBank',
         }),
-        createCustomLog({
-          message: '2025-06-27 15:35:04;/Users/dfx/Downloads/MSG-101-27.6.2025 13-20-46.xml;OK;',
-          subsystem: 'UploadBank',
-        }),
-        createCustomLog({
-          message: '2025-06-27 15:42:42;/Users/dfx/Downloads/MSG-102-27.6.2025 13-37-47.xml;OK;',
-          subsystem: 'UploadBank',
-        }),
-      ]);
+      );
 
       await service['checkTransmission']();
 

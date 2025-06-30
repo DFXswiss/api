@@ -224,18 +224,22 @@ export class FiatOutputJobService {
 
     const entities = await this.fiatOutputRepo.find({
       where: { batchId: Not(IsNull()), isTransmittedDate: IsNull(), isComplete: false },
+      order: { batchId: 'ASC' },
     });
 
-    const logEntities = await this.logService.getBankLogs(entities.map((f) => `MSG-${f.batchId}-`));
+    const groupedEntities = Util.groupBy(entities, 'batchId');
 
-    for (const entity of entities) {
-      if (!logEntities.some((l) => l.message.includes(`MSG-${entity.batchId}-`))) continue;
+    for (const batchIdGroup of groupedEntities.values()) {
+      const logEntities = await this.logService.getBankLog(`MSG-${batchIdGroup[0].batchId}-`);
+      if (!logEntities) continue;
 
-      await this.fiatOutputRepo.update(entity.id, {
-        isTransmittedDate: new Date(),
-        isConfirmedDate: new Date(),
-        isApprovedDate: new Date(),
-      });
+      for (const entity of batchIdGroup) {
+        await this.fiatOutputRepo.update(entity.id, {
+          isTransmittedDate: new Date(),
+          isConfirmedDate: new Date(),
+          isApprovedDate: new Date(),
+        });
+      }
     }
   }
 
