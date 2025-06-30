@@ -45,31 +45,28 @@ export class BinancePayStrategy extends RegisterStrategy {
   private async processWebhookTransactions(payWebhook: C2BWebhookResult): Promise<void> {
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
-    const payInEntries = this.mapBinanceTransaction(payWebhook, supportedAssets);
+    const payInEntry = this.mapBinanceTransaction(payWebhook, supportedAssets);
 
-    if (payInEntries.length) {
+    if (payInEntry) {
       const log = this.createNewLogObject();
-      await this.createPayInsAndSave(payInEntries, log);
+      await this.createPayInsAndSave([payInEntry], log);
     }
   }
 
-  private mapBinanceTransaction(payWebhook: C2BWebhookResult, supportedAssets: Asset[]): PayInEntry[] {
-    try {
-      const paymentInstructions = payWebhook.metadata['paymentInfo']['paymentInstructions'];
+  private mapBinanceTransaction(payWebhook: C2BWebhookResult, supportedAssets: Asset[]): PayInEntry | undefined {
+    const data = payWebhook.metadata;
 
-      return paymentInstructions
-        .map((pi) => ({
-          senderAddresses: null,
-          receiverAddress: BlockchainAddress.create(null, this.blockchain),
-          txId: payWebhook.providerOrderId,
-          txType: PayInType.PAYMENT,
-          blockHeight: null,
-          amount: pi.amount,
-          asset: supportedAssets.find((a) => Util.equalsIgnoreCase(pi.currency, a.name)),
-        }))
-        .filter((p) => p.asset);
-    } catch (e) {
-      this.logger.error(`Error while mapping binance transaction: ${JSON.stringify(payWebhook)}`, e);
-    }
+    const asset = supportedAssets.find((a) => Util.equalsIgnoreCase(data.currency, a.name));
+    if (!asset) return;
+
+    return {
+      senderAddresses: null,
+      receiverAddress: BlockchainAddress.create(null, this.blockchain),
+      txId: payWebhook.providerOrderId,
+      txType: PayInType.PAYMENT,
+      blockHeight: null,
+      amount: data.totalFee,
+      asset,
+    };
   }
 }

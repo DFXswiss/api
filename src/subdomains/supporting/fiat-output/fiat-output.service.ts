@@ -1,89 +1,25 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { CronExpression } from '@nestjs/schedule';
-import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
-import { IsNull, Not } from 'typeorm';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
-import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { PayInStatus } from '../payin/entities/crypto-input.entity';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from './dto/update-fiat-output.dto';
-import { Ep2ReportService } from './ep2-report.service';
-import { FiatOutput } from './fiat-output.entity';
+import { FiatOutput, FiatOutputType } from './fiat-output.entity';
 import { FiatOutputRepository } from './fiat-output.repository';
 
 @Injectable()
 export class FiatOutputService {
-  private readonly logger = new DfxLogger(FiatOutputService);
-
   constructor(
     private readonly fiatOutputRepo: FiatOutputRepository,
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly buyCryptoRepo: BuyCryptoRepository,
-    private readonly ep2ReportService: Ep2ReportService,
   ) {}
-
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
-  async fillFiatOutput() {
-    const entities = await this.fiatOutputRepo.find({
-      where: {
-        amount: Not(IsNull()),
-        isComplete: false,
-        bankTx: { id: IsNull() },
-        isReadyDate: Not(IsNull()),
-        isTransmittedDate: Not(IsNull()),
-      },
-      relations: { bankTx: true },
-    });
-
-    for (const entity of entities) {
-      try {
-        const bankTx = await this.getMatchingBankTx(entity);
-        if (!bankTx || entity.isReadyDate > bankTx.created) continue;
-
-        await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created });
-      } catch (e) {
-        this.logger.error(`Error in fiatOutput complete job: ${entity.id}`, e);
-      }
-    }
-  }
-
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT_COMPLETE, timeout: 1800 })
-  async generateReports() {
-    const entities = await this.fiatOutputRepo.find({
-      where: { reportCreated: false, isComplete: true },
-      relations: {
-        buyFiats: { sell: true, transaction: { userData: true }, cryptoInput: { paymentLinkPayment: { link: true } } },
-      },
-    });
-
-    for (const entity of entities) {
-      try {
-        const buyFiat = entity.buyFiats[0];
-
-        const report = this.ep2ReportService.generateReport(entity);
-        const container = buyFiat.userData.paymentLinksConfigObj.ep2ReportContainer;
-        const routeId = buyFiat.paymentLinkPayment.link.linkConfigObj?.payoutRouteId ?? buyFiat.sell.id;
-        const fileName = `settlement-${routeId}_${Util.isoDateTime(entity.created)}.ep2`;
-
-        await new AzureStorageService(container).uploadBlob(fileName, Buffer.from(report), 'text/xml');
-
-        await this.fiatOutputRepo.update(entity.id, { reportCreated: true });
-      } catch (e) {
-        this.logger.error(`Failed to generate EP2 report for fiat output ${entity.id}:`, e);
-      }
-    }
-  }
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
     if (dto.buyCryptoId || dto.buyFiatId || dto.bankTxReturnId) {
@@ -118,11 +54,12 @@ export class FiatOutputService {
   }
 
   async createInternal(
-    type: string,
+    type: FiatOutputType,
     { buyCrypto, buyFiats, bankTxReturn }: { buyCrypto?: BuyCrypto; buyFiats?: BuyFiat[]; bankTxReturn?: BankTxReturn },
+    originEntityId: number,
     createReport = false,
   ): Promise<FiatOutput> {
-    const entity = this.fiatOutputRepo.create({ type, buyCrypto, buyFiats, bankTxReturn });
+    const entity = this.fiatOutputRepo.create({ type, buyCrypto, buyFiats, bankTxReturn, originEntityId });
     if (createReport) entity.reportCreated = false;
 
     return this.fiatOutputRepo.save(entity);
@@ -165,11 +102,5 @@ export class FiatOutputService {
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `fiatOutput.${key}`} = :param`, { param: value })
       .getOne();
-  }
-
-  private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
-    if (!entity.remittanceInfo) return undefined;
-
-    return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
   }
 }
