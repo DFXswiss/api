@@ -559,7 +559,7 @@ export class PaymentLinkService {
 
     await this.paymentLinkPaymentService.waitForPayment(pendingPayment);
 
-    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, pendingPayment.externalId);
   }
 
   async confirmPayment(
@@ -578,7 +578,7 @@ export class PaymentLinkService {
 
     await this.paymentLinkPaymentService.confirmPayment(payment);
 
-    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, payment.externalId);
   }
 
   async generateOcpStickersPdf(
