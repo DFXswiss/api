@@ -71,6 +71,14 @@ export class Configuration {
     },
   };
 
+  prefixes = {
+    issueUidPrefix: 'I',
+    quoteUidPrefix: 'Q',
+    paymentLinkUidPrefix: 'pl',
+    paymentLinkPaymentUidPrefix: 'plp',
+    paymentQuoteUidPrefix: 'plq',
+  };
+
   moderators = {
     Wendel: '019-957',
   };
