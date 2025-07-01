@@ -1,11 +1,10 @@
-import { Exchange } from 'ccxt';
-import { ExchangeConfig } from 'src/config/config';
+import { ConstructorArgs, Exchange } from 'ccxt';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { ExchangeService } from '../exchange.service';
 
 export class TestExchange extends Exchange {
-  constructor(config: ExchangeConfig) {
+  constructor(config: ConstructorArgs) {
     super(config);
   }
 }

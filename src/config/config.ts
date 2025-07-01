@@ -2,7 +2,7 @@ import { NetworkName } from '@defichain/jellyfish-network';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { Exchange } from 'ccxt';
+import { ConstructorArgs, Exchange } from 'ccxt';
 import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
@@ -779,7 +779,7 @@ export class Configuration {
     },
   };
 
-  exchange: ExchangeConfig = {
+  exchange: ConstructorArgs = {
     enableRateLimit: true,
     rateLimit: 500,
     timeout: 30000,
@@ -902,7 +902,7 @@ export class Configuration {
       : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
   }
 
-  get kraken(): ExchangeConfig {
+  get kraken(): ConstructorArgs {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
@@ -911,7 +911,7 @@ export class Configuration {
     };
   }
 
-  get binance(): ExchangeConfig {
+  get binance(): ConstructorArgs {
     return {
       apiKey: process.env.BINANCE_KEY,
       secret: process.env.BINANCE_SECRET,
@@ -921,11 +921,20 @@ export class Configuration {
     };
   }
 
-  get p2b(): ExchangeConfig {
+  get p2b(): ConstructorArgs {
     return {
       apiKey: process.env.P2B_KEY,
       secret: process.env.P2B_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
+  get xt(): ConstructorArgs {
+    return {
+      apiKey: process.env.XT_KEY,
+      secret: process.env.XT_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.XT_WITHDRAW_KEYS),
       ...this.exchange,
     };
   }
