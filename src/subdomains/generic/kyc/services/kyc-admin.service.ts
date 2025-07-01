@@ -81,17 +81,14 @@ export class KycAdminService {
     await this.kycService.syncIdentStep(kycStep);
   }
 
-  async resetKyc(userData: UserData): Promise<void> {
+  async resetKyc(userData: UserData, comment: KycError): Promise<void> {
     for (const kycStep of userData.kycSteps) {
       if (
         [KycStepName.FINANCIAL_DATA, KycStepName.IDENT, KycStepName.DFX_APPROVAL].includes(kycStep.name) &&
         !kycStep.isFailed &&
         !kycStep.isCanceled
       )
-        await this.kycStepRepo.update(kycStep.id, {
-          status: KycStepStatus.CANCELED,
-          comment: KycError.USER_DATA_DEACTIVATED,
-        });
+        await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED, comment });
     }
   }
 
