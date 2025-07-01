@@ -33,6 +33,8 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
       payIn.status = PayInStatus.PREPARED;
       await this.payInRepo.save(payIn);
     }
+
+    payInGroup.status = PayInStatus.PREPARED;
   }
 
   protected dispatchSend(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<string> {
