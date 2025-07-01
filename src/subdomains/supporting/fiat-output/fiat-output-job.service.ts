@@ -10,7 +10,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
@@ -82,14 +82,17 @@ export class FiatOutputJobService {
   private async assignBankAccount(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT)) return;
 
+    const request: FindOptionsWhere<FiatOutput> = {
+      valutaDate: IsNull(),
+      isComplete: false,
+      type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT]),
+    };
+
     const entities = await this.fiatOutputRepo.find({
-      where: {
-        valutaDate: IsNull(),
-        isComplete: false,
-        originEntityId: IsNull(),
-        accountIban: IsNull(),
-        type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT]),
-      },
+      where: [
+        { ...request, originEntityId: IsNull() },
+        { ...request, accountIban: IsNull() },
+      ],
       relations: { buyCrypto: true, buyFiats: { sell: true } },
     });
 
@@ -110,7 +113,7 @@ export class FiatOutputJobService {
           accountIban: country.maerkiBaumannEnable ? bank?.iban : undefined,
         });
       } catch (e) {
-        this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}`, e);
+        this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
       }
     }
   }
@@ -174,7 +177,11 @@ export class FiatOutputJobService {
   }
 
   private async createBatches(): Promise<void> {
-    if (DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE)) return;
+    if (
+      DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE_JOB) ||
+      DisabledProcess(Process.FIAT_OUTPUT_BATCH_ID_UPDATE)
+    )
+      return;
 
     const entities = await this.fiatOutputRepo.find({
       where: { amount: Not(IsNull()), isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
@@ -186,20 +193,24 @@ export class FiatOutputJobService {
     const batches: FiatOutput[] = [];
 
     for (const entity of entities) {
-      const currentBatchAmount = currentBatch.reduce((sum, tx) => sum + tx.amount, 0);
+      try {
+        const currentBatchAmount = currentBatch.reduce((sum, tx) => sum + tx.amount, 0);
 
-      if (
-        currentBatch.length &&
-        (currentBatch[0].accountIban !== entity.accountIban ||
-          currentBatchAmount + entity.amount > Config.liquidityManagement.fiatOutput.batchAmountLimit)
-      ) {
-        currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
-        batches.push(...currentBatch);
+        if (
+          currentBatch.length &&
+          (currentBatch[0].accountIban !== entity.accountIban ||
+            currentBatchAmount + entity.amount >= Config.liquidityManagement.fiatOutput.batchAmountLimit)
+        ) {
+          currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
+          batches.push(...currentBatch);
 
-        currentBatchId += 1;
-        currentBatch = [entity];
-      } else {
-        currentBatch.push(entity);
+          currentBatchId += 1;
+          currentBatch = [entity];
+        } else {
+          currentBatch.push(entity);
+        }
+      } catch (e) {
+        this.logger.error(`Error in createBatches fiatOutput ${entity.id}:`, e);
       }
     }
 
@@ -216,18 +227,22 @@ export class FiatOutputJobService {
 
     const entities = await this.fiatOutputRepo.find({
       where: { batchId: Not(IsNull()), isTransmittedDate: IsNull(), isComplete: false },
+      order: { batchId: 'ASC' },
     });
 
-    const logEntities = await this.logService.getBankLogs(entities.map((f) => `MSG-${f.batchId}-`));
+    const groupedEntities = Util.groupBy(entities, 'batchId');
 
-    for (const entity of entities) {
-      if (!logEntities.some((l) => l.message.includes(`MSG-${entity.batchId}-`))) continue;
+    for (const batchIdGroup of groupedEntities.values()) {
+      const logEntities = await this.logService.getBankLog(`MSG-${batchIdGroup[0].batchId}-`);
+      if (!logEntities) continue;
 
-      await this.fiatOutputRepo.update(entity.id, {
-        isTransmittedDate: new Date(),
-        isConfirmedDate: new Date(),
-        isApprovedDate: new Date(),
-      });
+      for (const entity of batchIdGroup) {
+        await this.fiatOutputRepo.update(entity.id, {
+          isTransmittedDate: new Date(),
+          isConfirmedDate: new Date(),
+          isApprovedDate: new Date(),
+        });
+      }
     }
   }
 
@@ -254,13 +269,15 @@ export class FiatOutputJobService {
 
         if (bankTx.type === BankTxType.GSHEET) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
-        this.logger.error(`Error in bankTx search fiatOutput: ${entity.id}`, e);
+        this.logger.error(`Error in bankTx search fiatOutput ${entity.id}:`, e);
       }
     }
   }
 
   private async getLastBatchId(): Promise<number> {
-    return this.fiatOutputRepo.findOne({ order: { batchId: 'DESC' } }).then((u) => u.batchId);
+    return this.fiatOutputRepo
+      .findOne({ order: { batchId: 'DESC' }, where: { batchId: Not(IsNull()) } })
+      .then((u) => u.batchId);
   }
 
   private async setBankTxType(type: FiatOutputType, bankTx: BankTx): Promise<BankTx> {

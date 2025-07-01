@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { EvmStrategy } from './evm.strategy';
@@ -29,6 +30,7 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
         : null;
 
       payIn.preparing(null, feeAmount, feeAmountChf);
+      payInGroup.status = PayInStatus.PREPARED;
       await this.payInRepo.save(payIn);
     }
   }

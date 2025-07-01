@@ -38,8 +38,6 @@ import { PaymentWebhookService } from './payment-webhook.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
-  static readonly PREFIX_UNIQUE_ID = 'plp';
-
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
   private readonly deviceActivationSubject = new Subject<PaymentDevice>();
 
@@ -199,7 +197,7 @@ export class PaymentLinkPaymentService {
       expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency: paymentLink.route.fiat,
-      uniqueId: Util.createUniqueId(PaymentLinkPaymentService.PREFIX_UNIQUE_ID, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkPaymentUidPrefix, 16),
       status: PaymentLinkPaymentStatus.PENDING,
       link: paymentLink,
     });

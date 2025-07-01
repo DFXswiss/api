@@ -614,6 +614,7 @@ export class KycService {
     relation: UserDataRelationState,
   ): Promise<UserData> {
     const beneficialOwner = await this.userDataService.createUserData({
+      accountType: AccountType.PERSONAL,
       kycType: KycType.DFX,
       status: UserDataStatus.KYC_ONLY,
       firstname: owner.firstName,
@@ -929,7 +930,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.DFX_APPROVAL:
-        return lastTry && !lastTry.isFailed
+        return lastTry && !lastTry.isFailed && !lastTry.isCanceled
           ? { nextStep: undefined }
           : { nextStep: { name: nextStep, preventDirectEvaluation } };
 

@@ -1,5 +1,7 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -27,6 +29,8 @@ import { CustodyService } from './custody.service';
 
 @Injectable()
 export class CustodyOrderService {
+  private readonly CustodyChains = [Blockchain.ETHEREUM];
+
   constructor(
     private readonly userService: UserService,
     private readonly custodyOrderRepo: CustodyOrderRepository,
@@ -40,8 +44,6 @@ export class CustodyOrderService {
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
   ) {}
-
-  //*** PUBLIC API ***//
 
   // --- ORDERS --- //
   async createOrder(jwt: JwtPayload, dto: GetCustodyInfoDto): Promise<CustodyOrderDto> {
@@ -57,7 +59,7 @@ export class CustodyOrderService {
         const sourceCurrency = await this.fiatService.getFiatByName(dto.sourceAsset);
         if (!sourceCurrency) throw new NotFoundException('Currency not found');
 
-        const targetAsset = await this.assetService.getCustodyAssetByName(dto.targetAsset);
+        const targetAsset = await this.getCustodyAsset(dto.targetAsset);
         if (!targetAsset) throw new NotFoundException('Asset not found');
 
         const buyPaymentInfo = await this.buyService.createBuyPaymentInfo(
@@ -71,7 +73,7 @@ export class CustodyOrderService {
         break;
       }
       case CustodyOrderType.WITHDRAWAL: {
-        const sourceAsset = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
+        const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
         if (!sourceAsset) throw new NotFoundException('Asset not found');
 
         const targetCurrency = await this.fiatService.getFiatByName(dto.targetAsset);
@@ -89,10 +91,10 @@ export class CustodyOrderService {
         break;
       }
       case CustodyOrderType.SWAP: {
-        const sourceAsset = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
+        const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
         if (!sourceAsset) throw new NotFoundException('Asset not found');
 
-        const targetAsset = await this.assetService.getCustodyAssetByName(dto.targetAsset);
+        const targetAsset = await this.getCustodyAsset(dto.targetAsset);
         if (!targetAsset) throw new NotFoundException('Asset not found');
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
@@ -209,5 +211,13 @@ export class CustodyOrderService {
 
       await this.custodyService.updateCustodyBalanceForOrder(order);
     }
+  }
+
+  // --- HELPERS --- //
+  private async getCustodyAsset(name: string): Promise<Asset | undefined> {
+    const assets = await this.assetService.getAssetsByName(name);
+    return assets
+      .filter((a) => this.CustodyChains.includes(a.blockchain))
+      .sort((a, b) => this.CustodyChains.indexOf(a.blockchain) - this.CustodyChains.indexOf(b.blockchain))[0];
   }
 }
