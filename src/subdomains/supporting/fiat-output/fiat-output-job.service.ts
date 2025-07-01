@@ -123,7 +123,7 @@ export class FiatOutputJobService {
 
     const entities = await this.fiatOutputRepo.find({
       where: { valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
-      relations: { buyCrypto: true, buyFiats: { sell: true }, bankTx: true },
+      relations: { buyCrypto: true, buyFiats: { sell: true, cryptoInput: true }, bankTx: true },
     });
 
     const groupedEntities = Util.groupBy(entities, 'accountIban');
@@ -147,10 +147,10 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
-          const liqBalance = assets.find((a) => a.bank.iban === entity.accountIban)?.balance;
+          const asset = assets.find((a) => a.bank.iban === entity.accountIban);
 
           const availableBalance =
-            liqBalance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
+            asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
           if (availableBalance > entity.amount) {
             updatedFiatOutputAmount += entity.amount;
@@ -160,7 +160,7 @@ export class FiatOutputJobService {
               !entity.buyFiats.length ||
               (entity.buyFiats?.[0]?.cryptoInput.isConfirmed &&
                 entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
-                (liqBalance.asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
+                (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
             )
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
           } else {
