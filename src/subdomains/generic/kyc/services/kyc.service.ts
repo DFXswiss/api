@@ -614,6 +614,7 @@ export class KycService {
     relation: UserDataRelationState,
   ): Promise<UserData> {
     const beneficialOwner = await this.userDataService.createUserData({
+      accountType: AccountType.PERSONAL,
       kycType: KycType.DFX,
       status: UserDataStatus.KYC_ONLY,
       firstname: owner.firstName,
