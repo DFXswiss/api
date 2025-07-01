@@ -26,7 +26,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.SIGNATORY_POWER : null,
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     userData.accountType === AccountType.ORGANIZATION
-      ? [KycStepName.BENEFICIAL_OWNER, KycStepName.OPERATIONAL_ACTIVITY]
+      ? [KycStepName.OPERATIONAL_ACTIVITY, KycStepName.BENEFICIAL_OWNER]
       : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
