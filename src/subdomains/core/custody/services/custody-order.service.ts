@@ -106,6 +106,22 @@ export class CustodyOrderService {
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
       }
+      case CustodyOrderType.RECEIVE: {
+        const sourceAsset = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
+        if (!sourceAsset) throw new NotFoundException('Asset not found');
+
+        const targetAsset = await this.assetService.getCustodyAssetByName(dto.targetAsset);
+        if (!targetAsset) throw new NotFoundException('Asset not found');
+
+        const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
+          jwt.user,
+          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+        );
+
+        orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
+        paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
+        break;
+      }
     }
 
     const order = await this.createOrderInternal({ ...orderDto, transactionRequestId: paymentInfo.id });
