@@ -16,6 +16,8 @@ const defaultInternalChargebackFeeDto: Partial<InternalChargebackFeeDto> = {
   fixed: 0,
   network: 0,
   rate: 0,
+  bankFixed: 0,
+  bankRate: 0,
 };
 
 export function createInternalFeeDto(): InternalFeeDto {
