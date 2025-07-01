@@ -415,6 +415,11 @@ export class FeeService implements OnModuleInit {
     const chargebackFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK);
     const chargebackMinFee = Util.minObj(chargebackFees, 'rate');
 
+    // get bank fees
+    const bankFees = fees.filter((fee) => fee.type === FeeType.BANK);
+    const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
+    const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
+
     const combinedChargebackFeeRate = Util.sumObjValue(chargebackFees, 'rate');
     const combinedChargebackFixedFee = Util.sumObjValue(chargebackFees, 'fixed');
 
@@ -423,6 +428,8 @@ export class FeeService implements OnModuleInit {
       fees: chargebackFees,
       rate: combinedChargebackFeeRate,
       fixed: combinedChargebackFixedFee ?? 0,
+      bankRate: combinedBankFeeRate,
+      bankFixed: combinedBankFixedFee ?? 0,
       network: Math.min(chargebackMinFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
     };
   }
@@ -463,6 +470,7 @@ export class FeeService implements OnModuleInit {
             FeeType.ADDITION,
             FeeType.RELATIVE_DISCOUNT,
             FeeType.CHARGEBACK,
+            FeeType.CHARGEBACK_BANK,
             FeeType.BANK,
             FeeType.SPECIAL,
           ].includes(f.type) &&
