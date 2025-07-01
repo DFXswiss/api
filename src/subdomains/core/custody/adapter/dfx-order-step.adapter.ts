@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
-import { PayoutStrategyRegistry } from 'src/subdomains/supporting/payout/strategies/payout/impl/base/payout.strategy-registry';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrderStepCommand } from '../enums/custody';
 
@@ -11,7 +11,7 @@ import { CustodyOrderStepCommand } from '../enums/custody';
 export class DfxOrderStepAdapter {
   constructor(
     private readonly blockchainRegistry: BlockchainRegistryService,
-    private readonly payoutStrategyRegistry: PayoutStrategyRegistry,
+    private readonly payoutService: PayoutService,
   ) {}
 
   async execute(step: CustodyOrderStep): Promise<string> {
@@ -41,14 +41,7 @@ export class DfxOrderStepAdapter {
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
     const custodyWallet = Config.blockchain.evm.custodyAccount(step.order.user.custodyAddressIndex);
 
-    const payoutStrategy = this.payoutStrategyRegistry.getPayoutStrategy(asset);
-
-    const sendFee = await payoutStrategy.estimateFee(
-      asset,
-      client.dfxAddress,
-      step.order.transactionRequest.amount,
-      asset,
-    );
+    const sendFee = await this.payoutService.estimateBlockchainFee(asset);
 
     return asset.type === AssetType.COIN
       ? client.sendNativeCoinFromAccount(
@@ -70,14 +63,7 @@ export class DfxOrderStepAdapter {
       Config.blockchain.evm.custodyAccount(step.order.user.custodyAddressIndex),
     );
 
-    const payoutStrategy = this.payoutStrategyRegistry.getPayoutStrategy(asset);
-
-    const sendFee = await payoutStrategy.estimateFee(
-      asset,
-      client.dfxAddress,
-      step.order.transactionRequest.amount,
-      asset,
-    );
+    const sendFee = await this.payoutService.estimateBlockchainFee(asset);
 
     return client.sendNativeCoinFromDex(custodyWallet.address, sendFee.amount);
   }
