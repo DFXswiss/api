@@ -929,7 +929,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.DFX_APPROVAL:
-        return lastTry && !lastTry.isFailed
+        return lastTry && !lastTry.isFailed && !lastTry.isCanceled
           ? { nextStep: undefined }
           : { nextStep: { name: nextStep, preventDirectEvaluation } };
 

@@ -30,6 +30,9 @@ export enum KycError {
 
   // PersonalData errors
   PERSONAL_DATA_NOT_MATCHING = 'PersonalDataNotMatching',
+
+  // Deactivated userData errors
+  USER_DATA_DEACTIVATED = 'UserDataDeactivated',
 }
 
 export const KycErrorMap: Record<KycError, string> = {
@@ -55,6 +58,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.BLOCKED]: 'KYC is blocked',
   [KycError.RELEASED]: undefined,
   [KycError.RESTARTED_STEP]: undefined,
+  [KycError.USER_DATA_DEACTIVATED]: 'Account deactivated',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
