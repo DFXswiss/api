@@ -22,7 +22,7 @@ export class LiquidityManagementBalanceService {
     assetIds: number[],
     relations?: FindOptionsRelations<LiquidityBalance>,
   ): Promise<LiquidityBalance[]> {
-    return this.balanceRepo.findBy({ asset: { id: In(assetIds) } });
+    return this.balanceRepo.find({ where: { asset: { id: In(assetIds) } }, relations });
   }
 
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
