@@ -104,7 +104,10 @@ export class BuyService {
   }
 
   async get(userDataId: number, id: number): Promise<Buy> {
-    const buy = await this.buyRepo.findOneBy({ id, user: { userData: { id: userDataId } } });
+    const buy = await this.buyRepo.findOne({
+      where: { id, user: { userData: { id: userDataId } } },
+      relations: { user: true },
+    });
     if (!buy) throw new NotFoundException('Buy not found');
     return buy;
   }
