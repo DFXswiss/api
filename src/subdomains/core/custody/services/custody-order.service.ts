@@ -87,7 +87,7 @@ export class CustodyOrderService {
         const targetCurrency = await this.fiatService.getFiatByName(dto.targetAsset);
         if (!targetCurrency) throw new NotFoundException('Currency not found');
 
-        this.checkBalance(sourceAsset, orderDto.inputAmount, user.custodyBalances);
+        this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
 
         const sellPaymentInfo = await this.sellService.createSellPaymentInfo(
           jwt.user,
@@ -107,7 +107,7 @@ export class CustodyOrderService {
         const targetAsset = await this.getCustodyAsset(dto.targetAsset);
         if (!targetAsset) throw new NotFoundException('Asset not found');
 
-        this.checkBalance(sourceAsset, orderDto.inputAmount, user.custodyBalances);
+        this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
