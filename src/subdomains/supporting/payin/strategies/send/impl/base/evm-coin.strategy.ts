@@ -30,7 +30,7 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
         : null;
 
       payIn.preparing(null, feeAmount, feeAmountChf);
-      payInGroup.status = PayInStatus.PREPARED;
+      payIn.status = PayInStatus.PREPARED;
       await this.payInRepo.save(payIn);
     }
   }
