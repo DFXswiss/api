@@ -9,6 +9,19 @@ export interface ChangeLog {
   total: number;
 }
 
+export interface FinanceLog {
+  assets: AssetLog;
+  tradings: TradingLog;
+  balancesByFinancialType: BalancesByFinancialType;
+  balancesTotal: BalancesTotal;
+}
+
+export interface BalancesTotal {
+  plusBalanceChf: number;
+  minusBalanceChf: number;
+  totalBalanceChf: number;
+}
+
 export interface BalancesByFinancialType {
   [financialType: string]: {
     plusBalance: number;
