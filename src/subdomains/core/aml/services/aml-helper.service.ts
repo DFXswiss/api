@@ -94,7 +94,7 @@ export class AmlHelperService {
 
     if (entity.cryptoInput) {
       // crypto input
-      if (!inputAsset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
+      if (!inputAsset.sellable && !entity.cryptoInput.asset.paymentEnabled) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
       if (entity.inputAsset === 'XMR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
         errors.push(AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED);

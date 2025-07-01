@@ -6,6 +6,7 @@ import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
+import { KycError } from '../dto/kyc-error.enum';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName } from '../enums/kyc-step-name.enum';
@@ -80,10 +81,14 @@ export class KycAdminService {
     await this.kycService.syncIdentStep(kycStep);
   }
 
-  async resetKyc(userData: UserData): Promise<void> {
+  async resetKyc(userData: UserData, comment: KycError): Promise<void> {
     for (const kycStep of userData.kycSteps) {
-      if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && !kycStep.isFailed)
-        await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED });
+      if (
+        [KycStepName.FINANCIAL_DATA, KycStepName.IDENT, KycStepName.DFX_APPROVAL].includes(kycStep.name) &&
+        !kycStep.isFailed &&
+        !kycStep.isCanceled
+      )
+        await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED, comment });
     }
   }
 

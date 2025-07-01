@@ -173,6 +173,10 @@ export class KycStep extends IEntity {
     return this.status === KycStepStatus.FAILED;
   }
 
+  get isCanceled(): boolean {
+    return this.status === KycStepStatus.CANCELED;
+  }
+
   get isDone(): boolean {
     return this.isInReview || this.isCompleted;
   }
