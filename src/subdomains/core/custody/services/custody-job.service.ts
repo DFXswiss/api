@@ -44,6 +44,7 @@ export class CustodyJobService {
   private async executeStep() {
     const newSteps = await this.custodyOrderStepRepo.find({
       where: { status: CustodyOrderStepStatus.CREATED },
+      relations: { order: { sell: true, swap: true } },
     });
 
     for (const step of newSteps) {

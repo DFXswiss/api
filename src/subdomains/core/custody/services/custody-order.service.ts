@@ -18,7 +18,7 @@ import { CustodyOrderResponseDto } from '../dto/output/custody-order-response.dt
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
-import { CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
+import { CustodyOrderStepCommand, CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
 import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response-dto.mapper';
 import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
@@ -169,7 +169,7 @@ export class CustodyOrderService {
   async createStep(
     order: CustodyOrder,
     index: number,
-    command: string,
+    command: CustodyOrderStepCommand,
     context: CustodyOrderStepContext,
   ): Promise<CustodyOrderStep> {
     const orderStep = this.custodyOrderStepRepo.create({
