@@ -167,10 +167,13 @@ export class CustodyOrderService {
   }
 
   async getCustodyOrderByTx(entity: BuyCrypto | BuyFiat): Promise<CustodyOrder> {
-    return this.custodyOrderRepo.findOneBy([
-      { transaction: { id: Equal(entity.transaction.id) } },
-      { transactionRequest: { id: Equal(entity.transaction.request?.id) } },
-    ]);
+    return this.custodyOrderRepo.findOne({
+      where: [
+        { transaction: { id: Equal(entity.transaction.id) } },
+        { transactionRequest: { id: Equal(entity.transaction.request?.id) } },
+      ],
+      relations: { user: true },
+    });
   }
 
   async confirmOrder(userId: number, orderId: number): Promise<void> {
