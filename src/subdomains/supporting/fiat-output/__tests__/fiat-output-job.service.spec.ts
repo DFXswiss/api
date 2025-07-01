@@ -200,22 +200,14 @@ describe('FiatOutputJobService', () => {
           type: AssetType.CUSTODY,
           bank: createCustomBank({ iban: 'DE123456789' }),
           name: 'EUR',
+          balance: createCustomLiquidityBalance({ amount: 13000 }),
         }),
         createCustomAsset({
           id: 2,
           type: AssetType.CUSTODY,
           bank: createCustomBank({ iban: 'CH123456789' }),
           name: 'CHF',
-        }),
-      ]);
-      jest.spyOn(liquidityManagementBalanceService, 'getAllLiqBalancesForAssets').mockResolvedValue([
-        createCustomLiquidityBalance({
-          amount: 13000,
-          asset: createCustomAsset({ bank: createCustomBank({ iban: 'DE123456789' }), name: 'EUR' }),
-        }),
-        createCustomLiquidityBalance({
-          amount: 9000,
-          asset: createCustomAsset({ bank: createCustomBank({ iban: 'CH123456789' }), name: 'CHF' }),
+          balance: createCustomLiquidityBalance({ amount: 9000 }),
         }),
       ]);
 
