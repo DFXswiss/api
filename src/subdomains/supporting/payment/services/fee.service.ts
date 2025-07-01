@@ -416,7 +416,7 @@ export class FeeService implements OnModuleInit {
     const chargebackMinFee = Util.minObj(chargebackFees, 'rate');
 
     // get bank fees
-    const bankFees = fees.filter((fee) => fee.type === FeeType.BANK);
+    const bankFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK_BANK);
     const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
     const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
 
