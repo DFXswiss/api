@@ -1,4 +1,11 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -18,6 +25,7 @@ import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
 import { UpdateCustodyOrderInternalDto } from '../dto/input/update-custody-order.dto';
 import { CustodyOrderResponseDto } from '../dto/output/custody-order-response.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
+import { CustodyBalance } from '../entities/custody-balance.entity';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
 import { CustodyOrderStepCommand, CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
@@ -47,7 +55,7 @@ export class CustodyOrderService {
 
   // --- ORDERS --- //
   async createOrder(jwt: JwtPayload, dto: GetCustodyInfoDto): Promise<CustodyOrderDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: true });
+    const user = await this.userService.getUser(jwt.user, { userData: true, custodyBalances: true });
     if (!user) throw new NotFoundException('User not found');
 
     const orderDto: CreateCustodyOrderInternalDto = { user, type: dto.type };
@@ -79,6 +87,8 @@ export class CustodyOrderService {
         const targetCurrency = await this.fiatService.getFiatByName(dto.targetAsset);
         if (!targetCurrency) throw new NotFoundException('Currency not found');
 
+        this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
+
         const sellPaymentInfo = await this.sellService.createSellPaymentInfo(
           jwt.user,
           GetCustodyOrderDtoMapper.getSellPaymentInfo(dto, sourceAsset, targetCurrency),
@@ -96,6 +106,8 @@ export class CustodyOrderService {
 
         const targetAsset = await this.getCustodyAsset(dto.targetAsset);
         if (!targetAsset) throw new NotFoundException('Asset not found');
+
+        this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
@@ -206,10 +218,6 @@ export class CustodyOrderService {
 
     if (nextStep) {
       await this.createStep(order, nextIndex, nextStep.command, nextStep.context);
-    } else {
-      await this.custodyOrderRepo.update(...order.complete());
-
-      await this.custodyService.updateCustodyBalanceForOrder(order);
     }
   }
 
@@ -219,5 +227,10 @@ export class CustodyOrderService {
     return assets
       .filter((a) => this.CustodyChains.includes(a.blockchain))
       .sort((a, b) => this.CustodyChains.indexOf(a.blockchain) - this.CustodyChains.indexOf(b.blockchain))[0];
+  }
+
+  private checkBalance(asset: Asset, amount: number, custodyBalances: CustodyBalance[]): void {
+    const assetBalance = custodyBalances.find((a) => a.asset.id === asset.id);
+    if (!assetBalance || assetBalance.balance < amount) throw new BadRequestException('Not enough balance');
   }
 }
