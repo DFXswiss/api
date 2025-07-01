@@ -20,7 +20,7 @@ import { CustodyOrderResponseDto } from '../dto/output/custody-order-response.dt
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
-import { CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
+import { CustodyOrderStepCommand, CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
 import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response-dto.mapper';
 import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
@@ -108,6 +108,22 @@ export class CustodyOrderService {
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
       }
+      case CustodyOrderType.RECEIVE: {
+        const sourceAsset = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
+        if (!sourceAsset) throw new NotFoundException('Asset not found');
+
+        const targetAsset = await this.assetService.getCustodyAssetByName(dto.targetAsset);
+        if (!targetAsset) throw new NotFoundException('Asset not found');
+
+        const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
+          jwt.user,
+          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+        );
+
+        orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
+        paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
+        break;
+      }
     }
 
     const order = await this.createOrderInternal({ ...orderDto, transactionRequestId: paymentInfo.id });
@@ -171,7 +187,7 @@ export class CustodyOrderService {
   async createStep(
     order: CustodyOrder,
     index: number,
-    command: string,
+    command: CustodyOrderStepCommand,
     context: CustodyOrderStepContext,
   ): Promise<CustodyOrderStep> {
     const orderStep = this.custodyOrderStepRepo.create({
