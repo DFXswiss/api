@@ -133,6 +133,7 @@ export class FiatOutputJobService {
       .then((assets) => assets.filter((a) => a.type === AssetType.CUSTODY && a.bank));
     const liqBalances = await this.liquidityManagementBalanceService.getAllLiqBalancesForAssets(
       assets.map((a) => a.id),
+      { asset: { bank: true } },
     );
 
     for (const accountIbanGroup of groupedEntities.values()) {

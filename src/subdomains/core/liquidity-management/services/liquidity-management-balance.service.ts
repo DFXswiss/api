@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { In } from 'typeorm';
+import { FindOptionsRelations, In } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
@@ -18,7 +18,10 @@ export class LiquidityManagementBalanceService {
 
   //*** PUBLIC API ***//
 
-  async getAllLiqBalancesForAssets(assetIds: number[]): Promise<LiquidityBalance[]> {
+  async getAllLiqBalancesForAssets(
+    assetIds: number[],
+    relations?: FindOptionsRelations<LiquidityBalance>,
+  ): Promise<LiquidityBalance[]> {
     return this.balanceRepo.findBy({ asset: { id: In(assetIds) } });
   }
 
