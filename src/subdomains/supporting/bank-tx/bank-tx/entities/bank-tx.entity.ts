@@ -240,7 +240,7 @@ export class BankTx extends IEntity {
   }
 
   get chargebackBankFee(): number {
-    return this.chargeAmount;
+    return this.chargeAmount ?? 0;
   }
 
   get refundAmount(): number {
