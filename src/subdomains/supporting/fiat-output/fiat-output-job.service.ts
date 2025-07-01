@@ -122,7 +122,7 @@ export class FiatOutputJobService {
     if (DisabledProcess(Process.FIAT_OUTPUT_READY_DATE)) return;
 
     const entities = await this.fiatOutputRepo.find({
-      where: { bankTx: { id: Not(IsNull()) }, valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
+      where: { valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
       relations: { buyCrypto: true, buyFiats: { sell: true }, bankTx: true },
     });
 
