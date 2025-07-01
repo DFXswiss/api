@@ -44,6 +44,7 @@ export class CustodyJobService {
   private async executeStep() {
     const newSteps = await this.custodyOrderStepRepo.find({
       where: { status: CustodyOrderStepStatus.CREATED },
+      relations: { order: { sell: true, swap: true } },
     });
 
     for (const step of newSteps) {
@@ -63,7 +64,7 @@ export class CustodyJobService {
     for (const step of runningSteps) {
       switch (step.context) {
         case CustodyOrderStepContext.DFX:
-          if (await this.dfxOrderStepAdapter.isComplete(step)) {
+          if (step.correlationId === 'NA' || (await this.dfxOrderStepAdapter.isComplete(step))) {
             await this.custodyOrderStepRepo.update(...step.complete());
             await this.custodyOrderService.startNextStep(step);
           }
