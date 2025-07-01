@@ -109,10 +109,10 @@ export class CustodyOrderService {
         break;
       }
       case CustodyOrderType.RECEIVE: {
-        const sourceAsset = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
+        const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
         if (!sourceAsset) throw new NotFoundException('Asset not found');
 
-        const targetAsset = await this.assetService.getCustodyAssetByName(dto.targetAsset);
+        const targetAsset = await this.getCustodyAsset(dto.targetAsset);
         if (!targetAsset) throw new NotFoundException('Asset not found');
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(

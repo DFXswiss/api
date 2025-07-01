@@ -73,10 +73,6 @@ export class AssetService {
     return this.assetRepo.findCachedBy(`${name}`, { name });
   }
 
-  async getCustodyAssetByName(name: string): Promise<Asset> {
-    return this.assetRepo.findOneCachedBy(`${name}`, { name });
-  }
-
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
     return this.assetRepo.findOneCachedBy(`native-${blockchain}`, { blockchain, type: AssetType.COIN });
   }
