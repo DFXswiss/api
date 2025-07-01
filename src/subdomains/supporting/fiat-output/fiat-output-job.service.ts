@@ -129,12 +129,8 @@ export class FiatOutputJobService {
     const groupedEntities = Util.groupBy(entities, 'accountIban');
 
     const assets = await this.assetService
-      .getAllAssets({ bank: true })
+      .getAllAssets({ bank: true, balance: true })
       .then((assets) => assets.filter((a) => a.type === AssetType.CUSTODY && a.bank));
-    const liqBalances = await this.liquidityManagementBalanceService.getAllLiqBalancesForAssets(
-      assets.map((a) => a.id),
-      { asset: { bank: true } },
-    );
 
     for (const accountIbanGroup of groupedEntities.values()) {
       let updatedFiatOutputAmount = 0;
@@ -151,7 +147,7 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
-          const liqBalance = liqBalances.find((l) => l.asset.bank.iban === entity.accountIban);
+          const liqBalance = assets.find((a) => a.bank.iban === entity.accountIban)?.balance;
 
           const availableBalance =
             liqBalance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
