@@ -87,8 +87,7 @@ export class CustodyOrderService {
         const targetCurrency = await this.fiatService.getFiatByName(dto.targetAsset);
         if (!targetCurrency) throw new NotFoundException('Currency not found');
 
-        if (!this.checkBalance(sourceAsset, orderDto.outputAmount, user.custodyBalances))
-          new BadRequestException('Amount is not enough');
+        this.checkBalance(sourceAsset, orderDto.inputAmount, user.custodyBalances);
 
         const sellPaymentInfo = await this.sellService.createSellPaymentInfo(
           jwt.user,
@@ -108,8 +107,7 @@ export class CustodyOrderService {
         const targetAsset = await this.getCustodyAsset(dto.targetAsset);
         if (!targetAsset) throw new NotFoundException('Asset not found');
 
-        if (!this.checkBalance(sourceAsset, orderDto.outputAmount, user.custodyBalances))
-          new BadRequestException('Amount is not enough');
+        this.checkBalance(sourceAsset, orderDto.inputAmount, user.custodyBalances);
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
@@ -231,8 +229,8 @@ export class CustodyOrderService {
       .sort((a, b) => this.CustodyChains.indexOf(a.blockchain) - this.CustodyChains.indexOf(b.blockchain))[0];
   }
 
-  private checkBalance(asset: Asset, amount: number, custodyBalances: CustodyBalance[]): boolean {
+  private checkBalance(asset: Asset, amount: number, custodyBalances: CustodyBalance[]): void {
     const assetBalance = custodyBalances.find((a) => a.asset.id === asset.id);
-    return assetBalance ? assetBalance.balance >= amount : false;
+    if (!assetBalance || assetBalance?.balance >= amount) throw new BadRequestException('Not enough balance');
   }
 }
