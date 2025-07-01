@@ -41,12 +41,28 @@ export class DfxOrderStepAdapter {
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
     const custodyWallet = Config.blockchain.evm.custodyAccount(step.order.user.custodyAddressIndex);
 
+    const payoutStrategy = this.payoutStrategyRegistry.getPayoutStrategy(asset);
+
+    const sendFee = await payoutStrategy.estimateFee(
+      asset,
+      client.dfxAddress,
+      step.order.transactionRequest.amount,
+      asset,
+    );
+
     return asset.type === AssetType.COIN
-      ? client.sendNativeCoinFromAccount(custodyWallet, targetAddress, step.order.transactionRequest.amount)
+      ? client.sendNativeCoinFromAccount(
+          custodyWallet,
+          targetAddress,
+          step.order.transactionRequest.amount - sendFee.amount,
+        )
       : client.sendTokenFromAccount(custodyWallet, targetAddress, asset, step.order.transactionRequest.amount);
   }
 
   private async chargeRoute(step: CustodyOrderStep): Promise<string> {
+    if (step.order.outputAsset.type === AssetType.COIN) {
+      return 'NA';
+    }
     const asset = step.order.outputAsset;
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
 
