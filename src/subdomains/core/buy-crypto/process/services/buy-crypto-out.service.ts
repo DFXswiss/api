@@ -41,8 +41,6 @@ export class BuyCryptoOutService {
 
   async payoutTransactions(): Promise<void> {
     try {
-      if (DisabledProcess(Process.CRYPTO_PAYOUT)) return;
-
       const batches = await this.fetchBatchesForPayout();
       if (batches.length === 0) return;
 
@@ -59,6 +57,8 @@ export class BuyCryptoOutService {
           await this.buyCryptoBatchRepo.save(batch);
         }
       }
+
+      if (DisabledProcess(Process.CRYPTO_PAYOUT)) return;
 
       // pay out buy crypto
       const payingOutBatches = batches.filter((b) => b.status === BuyCryptoBatchStatus.PAYING_OUT);
