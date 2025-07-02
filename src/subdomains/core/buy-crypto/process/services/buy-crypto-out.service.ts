@@ -172,6 +172,7 @@ export class BuyCryptoOutService {
             await this.custodyOrderService.updateCustodyOrderInternal(custodyOrder, {
               status: CustodyOrderStatus.COMPLETED,
               inputAmount: CustodyOrderInputTypes.includes(custodyOrder.type) ? tx.outputAmount : undefined,
+              inputAsset: CustodyOrderInputTypes.includes(custodyOrder.type) ? tx.outputAsset : undefined,
             });
           }
 

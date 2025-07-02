@@ -605,8 +605,8 @@ export class BuyCrypto extends IEntity {
       ? {
           type: CustodyOrderType.RECEIVE,
           swap: this.cryptoRoute,
-          outputAsset: this.cryptoInput.asset,
-          outputAmount: this.inputAmount,
+          inputAsset: this.outputAsset,
+          inputAmount: this.outputAmount,
         }
       : { type: CustodyOrderType.DEPOSIT, buy: this.buy, inputAsset: this.outputAsset, inputAmount: this.outputAmount };
   }
