@@ -634,11 +634,7 @@ export class TransactionController {
 
       case BankTxReturn:
         const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);
-        return TransactionDtoMapper.mapUnassignedTransaction(
-          transaction.bankTx,
-          currency,
-          transaction.targetEntity as BankTxReturn,
-        );
+        return TransactionDtoMapper.mapUnassignedTransaction(transaction.bankTx, currency, transaction.bankTxReturn);
 
       default:
         if (transaction?.sourceEntity instanceof BankTx && !transaction?.type) {
