@@ -578,6 +578,7 @@ export class TransactionController {
       userData: true,
       user: { userData: true },
       request: true,
+      bankTxReturn: true,
     };
 
     let tx: Transaction | TransactionRequest;
@@ -630,6 +631,14 @@ export class TransactionController {
         return detailed
           ? TransactionDtoMapper.mapReferralRewardDetail(refRewardExtended)
           : TransactionDtoMapper.mapReferralReward(refRewardExtended);
+
+      case BankTxReturn:
+        const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);
+        return TransactionDtoMapper.mapUnassignedTransaction(
+          transaction.bankTx,
+          currency,
+          transaction.targetEntity as BankTxReturn,
+        );
 
       default:
         if (transaction?.sourceEntity instanceof BankTx && !transaction?.type) {
