@@ -96,7 +96,7 @@ export class SupportIssueService {
 
       // map transaction
       if (dto.transaction) {
-        if (dto.transaction.id || dto.transaction.uid) {
+        if (dto.transaction.id || dto.transaction.uid?.startsWith(Config.prefixes.transactionUidPrefix)) {
           newIssue.transaction = dto.transaction.id
             ? await this.transactionService.getTransactionById(dto.transaction.id, { userData: true })
             : await this.transactionService.getTransactionByUid(dto.transaction.uid, { userData: true });
