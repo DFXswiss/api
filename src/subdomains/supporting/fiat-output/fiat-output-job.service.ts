@@ -280,6 +280,9 @@ export class FiatOutputJobService {
 
   private async setBankTxType(type: FiatOutputType, bankTx: BankTx): Promise<BankTx> {
     switch (type) {
+      case FiatOutputType.BUY_CRYPTO_FAIL:
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
+
       case FiatOutputType.BUY_FIAT:
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_FIAT });
 
