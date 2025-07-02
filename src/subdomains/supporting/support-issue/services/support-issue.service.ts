@@ -77,9 +77,10 @@ export class SupportIssueService {
       state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
     };
 
-    if (dto.transaction?.id || dto.transaction?.uid || dto.transaction?.orderUid) {
+    if (dto.transaction?.id || dto.transaction?.uid?.startsWith(Config.prefixes.transactionUidPrefix)) {
       existingWhere.transaction = { id: dto.transaction?.id, uid: dto.transaction?.uid };
-      existingWhere.transactionRequest = { uid: dto.transaction?.orderUid };
+    } else if (dto.transaction?.orderUid || dto.transaction?.uid?.startsWith(Config.prefixes.quoteUidPrefix)) {
+      existingWhere.transactionRequest = { uid: dto.transaction?.orderUid ?? dto.transaction?.uid };
     } else {
       existingWhere.transaction = { id: IsNull() };
       existingWhere.transactionRequest = { id: IsNull() };
