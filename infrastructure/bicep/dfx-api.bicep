@@ -196,6 +196,13 @@ param p2bSecret string
 
 param p2bWithdrawKeys string
 
+@secure()
+param xtKey string
+@secure()
+param xtSecret string
+
+param xtWithdrawKeys string
+
 param olkyClient string
 @secure()
 param olkySecret string
@@ -1071,6 +1078,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'P2B_WITHDRAW_KEYS'
           value: p2bWithdrawKeys
+        }
+        {
+          name: 'XT_KEY'
+          value: xtKey
+        }
+        {
+          name: 'XT_SECRET'
+          value: xtSecret
+        }
+        {
+          name: 'XT_WITHDRAW_KEYS'
+          value: xtWithdrawKeys
         }
         {
           name: 'LETTER_URL'

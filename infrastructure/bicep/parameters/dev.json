@@ -371,6 +371,15 @@
     "p2bSecret": {
       "value": "xxx"
     },
+    "xtWithdrawKeys": {
+      "value": "xxx"
+    },
+    "xtKey": {
+      "value": "xxx"
+    },
+    "xtSecret": {
+      "value": "xxx"
+    },
     "p2bWithdrawKeys": {
       "value": "xxx"
     },
