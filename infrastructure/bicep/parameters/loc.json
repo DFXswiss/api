@@ -383,6 +383,15 @@
     "xtSecret": {
       "value": "xxx"
     },
+    "mexcWithdrawKeys": {
+      "value": "xxx"
+    },
+    "mexcKey": {
+      "value": "xxx"
+    },
+    "mexcSecret": {
+      "value": "xxx"
+    },
     "olkyClient": {
       "value": "xxx"
     },

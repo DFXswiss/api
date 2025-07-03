@@ -371,6 +371,9 @@
     "p2bSecret": {
       "value": "xxx"
     },
+    "p2bWithdrawKeys": {
+      "value": "xxx"
+    },
     "xtWithdrawKeys": {
       "value": "xxx"
     },
@@ -380,7 +383,13 @@
     "xtSecret": {
       "value": "xxx"
     },
-    "p2bWithdrawKeys": {
+    "mexcWithdrawKeys": {
+      "value": "xxx"
+    },
+    "mexcKey": {
+      "value": "xxx"
+    },
+    "mexcSecret": {
       "value": "xxx"
     },
     "olkyClient": {

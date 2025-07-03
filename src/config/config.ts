@@ -939,6 +939,15 @@ export class Configuration {
     };
   }
 
+  get mexc(): ConstructorArgs {
+    return {
+      apiKey: process.env.MEXC_KEY,
+      secret: process.env.MEXC_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
   get evmWallets(): Map<string, string> {
     return splitWithdrawKeys(process.env.EVM_WALLETS);
   }
