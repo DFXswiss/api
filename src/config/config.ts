@@ -117,7 +117,7 @@ export class Configuration {
 
   tradingLimits = {
     monthlyDefaultWoKyc: 1000, // CHF
-    weeklyAmlRule: 5000, // CHF
+    weeklyAmlRule: 25000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
     yearlyWithoutKyc: 50000, // CHF
