@@ -180,9 +180,11 @@ export class FiatOutputJobService {
     )
       return;
 
-    const entities = await this.fiatOutputRepo.find({
-      where: { amount: Not(IsNull()), isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
-      order: { accountIban: 'ASC', id: 'ASC' },
+    const entities = await this.fiatOutputRepo.findBy({
+      amount: Not(IsNull()),
+      isReadyDate: Not(IsNull()),
+      batchId: IsNull(),
+      isComplete: false,
     });
 
     let currentBatch: FiatOutput[] = [];
@@ -195,8 +197,7 @@ export class FiatOutputJobService {
 
         if (
           currentBatch.length &&
-          (currentBatch[0].accountIban !== entity.accountIban ||
-            currentBatchAmount + entity.amount >= Config.liquidityManagement.fiatOutput.batchAmountLimit)
+          currentBatchAmount + entity.amount >= Config.liquidityManagement.fiatOutput.batchAmountLimit
         ) {
           currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
           batches.push(...currentBatch);
@@ -279,6 +280,9 @@ export class FiatOutputJobService {
 
   private async setBankTxType(type: FiatOutputType, bankTx: BankTx): Promise<BankTx> {
     switch (type) {
+      case FiatOutputType.BUY_CRYPTO_FAIL:
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
+
       case FiatOutputType.BUY_FIAT:
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_FIAT });
 

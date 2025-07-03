@@ -222,16 +222,15 @@ describe('FiatOutputJobService', () => {
 
   describe('createBatches', () => {
     it('should create 3 batches', async () => {
-      // entities will be sorted with DB Call
       const entities = [
-        createCustomFiatOutput({ id: 2, accountIban: 'CH123456789', amount: 200, isComplete: false }),
-        createCustomFiatOutput({ id: 4, accountIban: 'CH123456789', amount: 900, isComplete: false }),
-        createCustomFiatOutput({ id: 6, accountIban: 'CH975632135', amount: 22000, isComplete: false }),
         createCustomFiatOutput({ id: 1, accountIban: 'DE123456789', amount: 100, isComplete: false }),
+        createCustomFiatOutput({ id: 2, accountIban: 'CH123456789', amount: 200, isComplete: false }),
         createCustomFiatOutput({ id: 3, accountIban: 'DE123456789', amount: 500, isComplete: false }),
+        createCustomFiatOutput({ id: 4, accountIban: 'CH123456789', amount: 900, isComplete: false }),
         createCustomFiatOutput({ id: 5, accountIban: 'DE123456789', amount: 1100, isComplete: false }),
+        createCustomFiatOutput({ id: 6, accountIban: 'CH975632135', amount: 22000, isComplete: false }),
       ];
-      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue(entities);
+      jest.spyOn(fiatOutputRepo, 'findBy').mockResolvedValue(entities);
       jest.spyOn(fiatOutputRepo, 'findOne').mockResolvedValue(createCustomFiatOutput({ batchId: 0 }));
 
       await service['createBatches']();
@@ -239,12 +238,28 @@ describe('FiatOutputJobService', () => {
       const updateCalls = (fiatOutputRepo.save as jest.Mock).mock.calls;
       expect(updateCalls[0][0]).toMatchObject([
         createCustomFiatOutput({
+          id: 1,
+          accountIban: 'DE123456789',
+          amount: 100,
+          isComplete: false,
+          batchId: 1,
+          batchAmount: 280000,
+        }),
+        createCustomFiatOutput({
           id: 2,
           accountIban: 'CH123456789',
           amount: 200,
           isComplete: false,
           batchId: 1,
-          batchAmount: 110000,
+          batchAmount: 280000,
+        }),
+        createCustomFiatOutput({
+          id: 3,
+          accountIban: 'DE123456789',
+          amount: 500,
+          isComplete: false,
+          batchId: 1,
+          batchAmount: 280000,
         }),
         createCustomFiatOutput({
           id: 4,
@@ -252,7 +267,15 @@ describe('FiatOutputJobService', () => {
           amount: 900,
           isComplete: false,
           batchId: 1,
-          batchAmount: 110000,
+          batchAmount: 280000,
+        }),
+        createCustomFiatOutput({
+          id: 5,
+          accountIban: 'DE123456789',
+          amount: 1100,
+          isComplete: false,
+          batchId: 1,
+          batchAmount: 280000,
         }),
         createCustomFiatOutput({
           id: 6,
@@ -262,36 +285,12 @@ describe('FiatOutputJobService', () => {
           batchId: 2,
           batchAmount: 2200000,
         }),
-        createCustomFiatOutput({
-          id: 1,
-          accountIban: 'DE123456789',
-          amount: 100,
-          isComplete: false,
-          batchId: 3,
-          batchAmount: 170000,
-        }),
-        createCustomFiatOutput({
-          id: 3,
-          accountIban: 'DE123456789',
-          amount: 500,
-          isComplete: false,
-          batchId: 3,
-          batchAmount: 170000,
-        }),
-        createCustomFiatOutput({
-          id: 5,
-          accountIban: 'DE123456789',
-          amount: 1100,
-          isComplete: false,
-          batchId: 3,
-          batchAmount: 170000,
-        }),
       ]);
     });
 
     it('should create 1 batch', async () => {
       const entities = [createCustomFiatOutput({ id: 1, accountIban: 'CH123456789', amount: 200, isComplete: false })];
-      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue(entities);
+      jest.spyOn(fiatOutputRepo, 'findBy').mockResolvedValue(entities);
       jest.spyOn(fiatOutputRepo, 'findOne').mockResolvedValue(createCustomFiatOutput({ batchId: 0 }));
 
       await service['createBatches']();

@@ -77,9 +77,10 @@ export class SupportIssueService {
       state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
     };
 
-    if (dto.transaction?.id || dto.transaction?.uid || dto.transaction?.orderUid) {
+    if (dto.transaction?.id || dto.transaction?.uid?.startsWith(Config.prefixes.transactionUidPrefix)) {
       existingWhere.transaction = { id: dto.transaction?.id, uid: dto.transaction?.uid };
-      existingWhere.transactionRequest = { uid: dto.transaction?.orderUid };
+    } else if (dto.transaction?.orderUid || dto.transaction?.uid?.startsWith(Config.prefixes.quoteUidPrefix)) {
+      existingWhere.transactionRequest = { uid: dto.transaction?.orderUid ?? dto.transaction?.uid };
     } else {
       existingWhere.transaction = { id: IsNull() };
       existingWhere.transactionRequest = { id: IsNull() };
@@ -96,7 +97,7 @@ export class SupportIssueService {
 
       // map transaction
       if (dto.transaction) {
-        if (dto.transaction.id || dto.transaction.uid) {
+        if (dto.transaction.id || dto.transaction.uid?.startsWith(Config.prefixes.transactionUidPrefix)) {
           newIssue.transaction = dto.transaction.id
             ? await this.transactionService.getTransactionById(dto.transaction.id, { userData: true })
             : await this.transactionService.getTransactionByUid(dto.transaction.uid, { userData: true });

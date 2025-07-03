@@ -74,6 +74,7 @@ export class Configuration {
   prefixes = {
     issueUidPrefix: 'I',
     quoteUidPrefix: 'Q',
+    transactionUidPrefix: 'T',
     kycFileUidPrefix: 'F',
     paymentLinkUidPrefix: 'pl',
     paymentLinkPaymentUidPrefix: 'plp',
@@ -155,7 +156,7 @@ export class Configuration {
   arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
   railgunSignatureFormat = '[a-f0-9]{128}';
-  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{88}';
+  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
 
   allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}`;
 
