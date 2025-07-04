@@ -699,8 +699,10 @@ export class KycService {
       case IdentShortResult.FAIL:
       case IdentShortResult.RETRY:
         // retrigger personal data step, if data was wrong
-        if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA))
-          await this.restartStep(user.getCompletedStepWith(KycStepName.PERSONAL_DATA));
+        if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA)) {
+          const completedPersonalStep = user.getCompletedStepWith(KycStepName.PERSONAL_DATA);
+          if (completedPersonalStep) await this.restartStep(completedPersonalStep);
+        }
 
         await this.kycStepRepo.update(
           ...(result === IdentShortResult.FAIL ? kycStep.fail(dto) : kycStep.inProgress(dto)),
