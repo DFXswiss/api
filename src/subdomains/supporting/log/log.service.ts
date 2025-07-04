@@ -57,4 +57,8 @@ export class LogService {
       .andWhere('log.message LIKE :message', { message: `%${batchId}%` })
       .getOne();
   }
+
+  async getLastLogs(system: string, subsystem: string, severity: LogSeverity, take: number): Promise<Log[]> {
+    return this.logRepo.find({ where: { system, subsystem, severity }, take, order: { id: 'DESC' } });
+  }
 }
