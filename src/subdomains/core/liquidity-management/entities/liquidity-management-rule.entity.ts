@@ -83,7 +83,7 @@ export class LiquidityManagementRule extends IEntity {
 
   //*** PUBLIC API ***//
 
-  verify(balance: LiquidityBalance): LiquidityState {
+  verify(balance: LiquidityBalance, transmissionMinimum: number): LiquidityState {
     const deficit = Util.round(Math.max((this.minimal ?? 0) - balance.amount, 0), 8);
     const redundancy = Util.round(Math.max(balance.amount - (this.maximal ?? Infinity), 0), 8);
 
@@ -96,7 +96,7 @@ export class LiquidityManagementRule extends IEntity {
         : isRedundancy
         ? LiquidityOptimizationType.REDUNDANCY
         : null,
-      minAmount: isDeficit ? deficit : redundancy,
+      minAmount: isDeficit ? Math.min(deficit, transmissionMinimum) : redundancy,
       maxAmount: Util.round(Math.abs(this.optimal - balance.amount), 8),
     };
   }
