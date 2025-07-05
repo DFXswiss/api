@@ -1,16 +1,13 @@
-import { ConstructorArgs, Exchange } from 'ccxt';
+import { Injectable } from '@nestjs/common';
+import { mexc } from 'ccxt';
+import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { ExchangeService } from '../exchange.service';
+import { ExchangeService } from './exchange.service';
 
-export class TestExchange extends Exchange {
-  constructor(config: ConstructorArgs) {
-    super(config);
-  }
-}
-
-export class TestExchangeService extends ExchangeService {
-  protected logger = new DfxLogger(TestExchangeService);
+@Injectable()
+export class MexcService extends ExchangeService {
+  protected readonly logger = new DfxLogger(MexcService);
 
   protected networks: { [b in Blockchain]: string } = {
     Arbitrum: undefined,
@@ -32,4 +29,8 @@ export class TestExchangeService extends ExchangeService {
     Solana: undefined,
     Gnosis: undefined,
   };
+
+  constructor() {
+    super(mexc, GetConfig().mexc);
+  }
 }

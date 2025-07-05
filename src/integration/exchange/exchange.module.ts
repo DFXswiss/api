@@ -6,12 +6,13 @@ import { ExchangeController } from './controllers/exchange.controller';
 import { ExchangeTx } from './entities/exchange-tx.entity';
 import { ExchangeTxRepository } from './repositories/exchange-tx.repository';
 import { BinanceService } from './services/binance.service';
-import { BitpandaService } from './services/bitpanda.service';
 import { BitstampService } from './services/bitstamp.service';
 import { ExchangeRegistryService } from './services/exchange-registry.service';
 import { ExchangeTxService } from './services/exchange-tx.service';
 import { KrakenService } from './services/kraken.service';
 import { KucoinService } from './services/kucoin.service';
+import { MexcService } from './services/mexc.service';
+import { XtService } from './services/xt.service';
 // import { P2BService } from './services/p2b.service';
 
 @Module({
@@ -23,9 +24,10 @@ import { KucoinService } from './services/kucoin.service';
     KrakenService,
     BinanceService,
     BitstampService,
-    BitpandaService,
     KucoinService,
     ExchangeTxService,
+    XtService,
+    MexcService,
     // P2BService,
   ],
   exports: [
@@ -33,9 +35,10 @@ import { KucoinService } from './services/kucoin.service';
     KrakenService,
     BinanceService,
     BitstampService,
-    BitpandaService,
     KucoinService,
     ExchangeTxService,
+    XtService,
+    MexcService,
   ],
 })
 export class ExchangeModule {}
