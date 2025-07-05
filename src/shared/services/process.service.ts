@@ -64,7 +64,6 @@ export enum Process {
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TX_REQUEST_STATUS_SYNC = 'TxRequestStatusSync',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
-  ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
   CUSTODY = 'Custody',
   EXCHANGE_WITHDRAWAL = 'ExchangeWithdrawal',

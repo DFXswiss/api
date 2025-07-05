@@ -419,7 +419,7 @@ export class Configuration {
     {
       id: 12,
       name: 'Vollmacht',
-      ignore: (userData: UserData) => userData.accountOpenerAuthorization !== 'Vollmacht',
+      ignore: (userData: UserData) => userData.organization?.accountOpenerAuthorization !== 'Vollmacht',
       files: [
         {
           prefixes: (userData: UserData) => [`user/${userData.id}/Authority`],

@@ -54,4 +54,19 @@ export class Organization extends IEntity {
 
   @OneToMany(() => UserData, (userData) => userData.organization)
   userDatas: UserData[];
+
+  // --- ENTITY METHODS --- //
+
+  setAccountOpenerAuthorization(signatoryPower: SignatoryPower): Partial<Organization> {
+    const update: Partial<Organization> = {
+      accountOpenerAuthorization:
+        signatoryPower === SignatoryPower.SINGLE
+          ? AccountOpenerAuthorization.SINGLE_SIGNATURE
+          : AccountOpenerAuthorization.AUTHORIZATION,
+    };
+
+    Object.assign(this, update);
+
+    return update;
+  }
 }

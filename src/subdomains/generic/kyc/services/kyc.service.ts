@@ -26,6 +26,7 @@ import { MergeReason } from '../../user/models/account-merge/account-merge.entit
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
+import { OrganizationService } from '../../user/models/organization/organization.service';
 import { UserDataRelationState } from '../../user/models/user-data-relation/dto/user-data-relation.enum';
 import { UserDataRelationService } from '../../user/models/user-data-relation/user-data-relation.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
@@ -48,10 +49,12 @@ import {
   KycBeneficialData,
   KycContactData,
   KycFileData,
+  KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  KycSignatoryPowerData,
   PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -115,6 +118,7 @@ export class KycService {
     private readonly mailFactory: MailFactory,
     @Inject(forwardRef(() => UserDataRelationService))
     private readonly userDataRelationService: UserDataRelationService,
+    private readonly organizationService: OrganizationService,
   ) {
     this.webhookQueue = new QueueHandler();
   }
@@ -422,17 +426,17 @@ export class KycService {
   async updateKycStep(
     kycHash: string,
     stepId: number,
-    data: Partial<UserData>,
+    data: KycLegalEntityData | KycNationalityData | KycSignatoryPowerData,
     reviewStatus: KycStepStatus,
   ): Promise<KycStepBase> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    if (data.nationality) {
+    if (data instanceof KycNationalityData) {
       const nationality = await this.countryService.getCountry(data.nationality.id);
       if (!nationality) throw new BadRequestException('Nationality not found');
     } else {
-      user = await this.userDataService.updateUserDataInternal(user, data);
+      user.organization = await this.organizationService.updateOrganizationInternal(user.organization, data);
     }
 
     return this.updateKycStepAndLog(kycStep, user, data, reviewStatus);
@@ -463,7 +467,7 @@ export class KycService {
       allBeneficialOwnersDomicile.push(beneficialOwner.country.name);
     }
 
-    await this.userDataService.updateUserDataInternal(user, {
+    await this.organizationService.updateOrganizationInternal(user.organization, {
       allBeneficialOwnersName: allBeneficialOwnersName.join('\n'),
       allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
     });
@@ -1013,11 +1017,11 @@ export class KycService {
 
   async completeCommercialRegister(userData: UserData): Promise<UserData> {
     if (
-      (!userData.verifiedName && userData.organizationName) ||
+      (!userData.verifiedName && userData.organization.name) ||
       (userData.kycLevel > KycLevel.LEVEL_30 && userData.highRisk == null && userData.hasValidNameCheckDate)
     )
       return this.userDataService.updateUserDataInternal(userData, {
-        verifiedName: !userData.verifiedName && userData.organizationName ? userData.organizationName : undefined,
+        verifiedName: !userData.verifiedName && userData.organization.name ? userData.organization.name : undefined,
         pep:
           userData.kycLevel > KycLevel.LEVEL_30 && userData.highRisk == null && userData.hasValidNameCheckDate
             ? false
@@ -1143,7 +1147,7 @@ export class KycService {
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
     const userCountry =
-      identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
+      identStep.userData.organization.country ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {
       if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
 
