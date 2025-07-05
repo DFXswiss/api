@@ -79,6 +79,14 @@ export class AmlHelperService {
     if (ibanCountry) errors.push(...this.amlRuleCheck(ibanCountry.amlRule, entity, amountInChf, last7dCheckoutVolume));
     if (entity.userData.nationality)
       errors.push(...this.amlRuleCheck(entity.userData.nationality.amlRule, entity, amountInChf, last7dCheckoutVolume));
+    for (const amlRule of entity.wallet.amlRuleList) {
+      const error = this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume);
+      if (
+        !entity.wallet.amlRuleList.includes(AmlRule.RULE_11) ||
+        (!error.includes(AmlError.KYC_LEVEL_30_NOT_REACHED) && !error.includes(AmlError.KYC_LEVEL_50_NOT_REACHED))
+      )
+        errors.push(...error);
+    }
 
     if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
 
@@ -389,7 +397,7 @@ export class AmlHelperService {
       ibanCountry,
     ).filter((e) => e);
 
-    const comment = amlErrors.join(';');
+    const comment = Array.from(new Set(amlErrors)).join(';');
 
     // Pass
     if (amlErrors.length === 0)
