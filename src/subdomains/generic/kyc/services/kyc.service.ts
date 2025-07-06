@@ -273,8 +273,8 @@ export class KycService {
         missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
         kycStep.name !== KycStepName.DFX_APPROVAL)
     ) {
-      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
-      await this.kycStepRepo.update(...approvalStep.manualReview());
+      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isOnHold);
+      if (approvalStep) await this.kycStepRepo.update(...approvalStep.manualReview());
     }
   }
 
@@ -700,8 +700,10 @@ export class KycService {
       case IdentShortResult.FAIL:
       case IdentShortResult.RETRY:
         // retrigger personal data step, if data was wrong
-        if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA))
-          await this.restartStep(user.getCompletedStepWith(KycStepName.PERSONAL_DATA));
+        if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA)) {
+          const completedPersonalStep = user.getCompletedStepWith(KycStepName.PERSONAL_DATA);
+          if (completedPersonalStep) await this.restartStep(completedPersonalStep);
+        }
 
         await this.kycStepRepo.update(
           ...(result === IdentShortResult.FAIL ? kycStep.fail(dto) : kycStep.inProgress(dto)),

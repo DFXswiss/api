@@ -74,12 +74,12 @@ export const AmlErrorResult: {
   [AmlError.ASSET_NOT_SELLABLE]: null,
   [AmlError.ASSET_NOT_BUYABLE]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE,
   },
   [AmlError.ASSET_NOT_INSTANT_BUYABLE]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK,
   },
   [AmlError.ASSET_NOT_CARD_BUYABLE]: null,
@@ -96,7 +96,7 @@ export const AmlErrorResult: {
   [AmlError.CRYPTO_CRYPTO_NOT_ALLOWED]: null,
   [AmlError.ABROAD_CHF_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.CHF_ABROAD_TX,
   },
   [AmlError.USER_NOT_ACTIVE]: {
@@ -106,17 +106,17 @@ export const AmlErrorResult: {
   },
   [AmlError.USER_BLOCKED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.USER_BLOCKED,
   },
   [AmlError.USER_DELETED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.USER_DELETED,
   },
   [AmlError.USER_DATA_BLOCKED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.USER_DATA_BLOCKED,
   },
   [AmlError.USER_DATA_DEACTIVATED]: null,
@@ -131,17 +131,17 @@ export const AmlErrorResult: {
   },
   [AmlError.VERIFIED_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
   },
   [AmlError.IBAN_COUNTRY_FATF_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
   },
   [AmlError.TX_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
   },
   [AmlError.NO_BANK_TX_VERIFICATION]: null,
@@ -199,7 +199,7 @@ export const AmlErrorResult: {
   [AmlError.CARD_BLACKLISTED]: null,
   [AmlError.CARD_NAME_MISMATCH]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.CARD_NAME_MISMATCH,
   },
   [AmlError.INPUT_NOT_CONFIRMED]: null,
