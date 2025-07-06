@@ -9,6 +9,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { AmlError } from 'src/subdomains/core/aml/enums/aml-error.enum';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -69,6 +70,12 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           ...request,
         },
         { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
+        {
+          amlCheck: CheckStatus.PENDING,
+          amlReason: AmlReason.MANUAL_CHECK,
+          comment: AmlError.BANK_DATA_MANUAL_REVIEW,
+          ...request,
+        },
       ],
       relations: {
         bankTx: true,

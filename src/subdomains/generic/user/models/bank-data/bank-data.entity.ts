@@ -104,4 +104,15 @@ export class BankData extends IEntity {
 
     return [this.id, update];
   }
+
+  manualReview(comment?: string): UpdateResult<BankData> {
+    const update: Partial<BankData> = {
+      status: ReviewStatus.MANUAL_REVIEW,
+      comment,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
 }

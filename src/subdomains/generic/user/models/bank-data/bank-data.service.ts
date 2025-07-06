@@ -110,6 +110,8 @@ export class BankDataService {
         }
 
         await this.bankDataRepo.update(...entity.allow());
+      } else if (errors.includes(BankDataVerificationError.VERIFIED_NAME_NOT_MATCHING)) {
+        await this.bankDataRepo.update(...entity.manualReview(errors.join(';')));
       } else {
         await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
       }
