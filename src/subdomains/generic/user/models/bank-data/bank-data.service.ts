@@ -8,6 +8,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
@@ -49,6 +50,7 @@ export class BankDataService {
   async checkUnverifiedBankDatas(): Promise<void> {
     const search: FindOptionsWhere<BankData> = {
       type: Not(BankDataType.USER),
+      status: ReviewStatus.INTERNAL_REVIEW,
       comment: IsNull(),
     };
     const entities = await this.bankDataRepo.find({
@@ -80,7 +82,7 @@ export class BankDataService {
           entity.userData.hasCompletedStep(KycStepName.COMMERCIAL_REGISTER)
         ) {
           await this.nameCheckService.closeAndRefreshRiskStatus(entity);
-          await this.bankDataRepo.update(entity.id, { comment: 'Pass' });
+          await this.bankDataRepo.update(entity.id, { comment: 'Pass', status: ReviewStatus.COMPLETED }); // TODO remove Pass
         }
 
         return;
@@ -145,7 +147,8 @@ export class BankDataService {
   async createVerifyBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
     const bankData = await this.createBankDataInternal(userData, dto);
 
-    if (!DisabledProcess(Process.BANK_DATA_VERIFICATION)) await this.verifyBankData(bankData);
+    if (!DisabledProcess(Process.BANK_DATA_VERIFICATION) && bankData.status === ReviewStatus.INTERNAL_REVIEW)
+      await this.verifyBankData(bankData);
 
     // update updated time in user data
     await this.userDataRepo.setNewUpdateTime(userData.id);
@@ -158,6 +161,9 @@ export class BankDataService {
     if (!userData.kycSteps) userData.kycSteps = await this.kycAdminService.getKycSteps(userData.id);
 
     const bankData = this.bankDataRepo.create({ ...dto, userData });
+
+    if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
+
     return this.bankDataRepo.save(bankData);
   }
 

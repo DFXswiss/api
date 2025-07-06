@@ -31,7 +31,8 @@ import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
@@ -889,17 +890,17 @@ export class UserDataService {
       await this.kycAdminService.updateKycStepInternal(
         kycStep.update(
           [
-            KycStepStatus.IN_PROGRESS,
-            KycStepStatus.MANUAL_REVIEW,
-            KycStepStatus.INTERNAL_REVIEW,
-            KycStepStatus.EXTERNAL_REVIEW,
-            KycStepStatus.FINISHED,
-            KycStepStatus.PARTIALLY_APPROVED,
-            KycStepStatus.DATA_REQUESTED,
-            KycStepStatus.PAUSED,
-            KycStepStatus.ON_HOLD,
+            ReviewStatus.IN_PROGRESS,
+            ReviewStatus.MANUAL_REVIEW,
+            ReviewStatus.INTERNAL_REVIEW,
+            ReviewStatus.EXTERNAL_REVIEW,
+            ReviewStatus.FINISHED,
+            ReviewStatus.PARTIALLY_APPROVED,
+            ReviewStatus.DATA_REQUESTED,
+            ReviewStatus.PAUSED,
+            ReviewStatus.ON_HOLD,
           ].includes(kycStep.status)
-            ? KycStepStatus.CANCELED
+            ? ReviewStatus.CANCELED
             : undefined,
           undefined,
           undefined,
