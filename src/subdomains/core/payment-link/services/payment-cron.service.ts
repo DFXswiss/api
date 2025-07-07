@@ -2,23 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { PaymentActivationService } from './payment-activation.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
-import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentCronService {
-  constructor(
-    private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
-    private readonly paymentActivationService: PaymentActivationService,
-    private readonly paymentQuoteService: PaymentQuoteService,
-  ) {}
+  constructor(private readonly paymentLinkPaymentService: PaymentLinkPaymentService) {}
 
-  @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.PAYMENT_EXPIRATION })
-  async processPendingPayments(): Promise<void> {
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT_EXPIRATION })
+  async processExpiredPayments(): Promise<void> {
     await this.paymentLinkPaymentService.processExpiredPayments();
-    await this.paymentActivationService.processExpiredActivations();
-    await this.paymentQuoteService.processExpiredQuotes();
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT_CONFIRMATIONS })

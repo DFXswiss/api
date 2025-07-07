@@ -55,6 +55,12 @@ export class PaymentLinkPaymentService {
 
   // --- JOBS --- //
   async processExpiredPayments(): Promise<void> {
+    await this.doProcessExpiredPayments();
+    await this.paymentActivationService.processExpiredActivations();
+    await this.paymentQuoteService.processExpiredQuotes();
+  }
+
+  private async doProcessExpiredPayments(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
     const pendingPayments = await this.paymentLinkPaymentRepo.find({
