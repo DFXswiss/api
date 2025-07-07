@@ -169,8 +169,16 @@ export class KycStep extends IEntity {
     return this.status === KycStepStatus.COMPLETED;
   }
 
+  get isOnHold(): boolean {
+    return this.status === KycStepStatus.ON_HOLD;
+  }
+
   get isFailed(): boolean {
     return this.status === KycStepStatus.FAILED;
+  }
+
+  get isCanceled(): boolean {
+    return this.status === KycStepStatus.CANCELED;
   }
 
   get isDone(): boolean {

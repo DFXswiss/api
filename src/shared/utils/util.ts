@@ -194,7 +194,7 @@ export class Util {
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
       .replace(/[\.,]/g, '')
-      .replace(/[-‘`´']/g, ' ');
+      .replace(/[-‘`´'+&]/g, ' ');
   }
 
   static blankCenter(value: string, visibleLength = 4): string {

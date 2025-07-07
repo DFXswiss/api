@@ -34,6 +34,11 @@ export enum CustodyOrderStepContext {
   DFX = 'DFX',
 }
 
+export enum CustodyOrderStepCommand {
+  CHARGE_ROUTE = 'ChargeRoute',
+  SEND_TO_ROUTE = 'SendToRoute',
+}
+
 export const CustodyOrderInputTypes = [
   CustodyOrderType.DEPOSIT,
   CustodyOrderType.RECEIVE,

@@ -5,13 +5,13 @@ import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
-import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
 import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -31,9 +31,6 @@ import { PaymentQuoteRepository } from '../repositories/payment-quote.repository
 @Injectable()
 export class PaymentQuoteService {
   private readonly logger = new DfxLogger(PaymentQuoteService);
-
-  static readonly PREFIX_UNIQUE_ID = 'plq';
-
   private readonly transferAmountBlockchainOrder: Blockchain[] = [
     Blockchain.LIGHTNING,
     Blockchain.POLYGON,
@@ -163,8 +160,9 @@ export class PaymentQuoteService {
   }
 
   async saveBlockchainConfirmed(quote: PaymentQuote, txBlockchain: Blockchain, txId: string): Promise<PaymentQuote> {
-    const status =
-      txBlockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_COMPLETED : PaymentQuoteStatus.TX_BLOCKCHAIN;
+    const status = [Blockchain.LIGHTNING, Blockchain.BINANCE_PAY].includes(txBlockchain)
+      ? PaymentQuoteStatus.TX_COMPLETED
+      : PaymentQuoteStatus.TX_BLOCKCHAIN;
 
     const update = { status, txBlockchain, txId };
 
@@ -195,7 +193,7 @@ export class PaymentQuoteService {
     const expiryDate = new Date(Math.min(payment.expiryDate.getTime(), Util.secondsAfter(timeoutSeconds).getTime()));
 
     const quote = this.paymentQuoteRepo.create({
-      uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentQuoteUidPrefix, 16),
       status: PaymentQuoteStatus.ACTUAL,
       transferAmounts: await this.createTransferAmounts(standard, payment).then(JSON.stringify),
       expiryDate,

@@ -32,6 +32,7 @@ import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
 import { RegisterStrategyRegistry } from './strategies/register/impl/base/register.strategy-registry';
+import { BinancePayStrategy as BinancePayStrategyR } from './strategies/register/impl/binance-pay.strategy';
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
@@ -47,6 +48,7 @@ import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/se
 import { BaseCoinStrategy as BaseCoinStrategyS } from './strategies/send/impl/base-coin.strategy';
 import { BaseTokenStrategy as BaseTokenStrategyS } from './strategies/send/impl/base-token.strategy';
 import { SendStrategyRegistry } from './strategies/send/impl/base/send.strategy-registry';
+import { BinancePayStrategy as BinancePayStrategyS } from './strategies/send/impl/binance-pay.strategy';
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/send/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
@@ -134,6 +136,8 @@ import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/
     TronStrategyR,
     TronCoinStrategyS,
     TronTokenStrategyS,
+    BinancePayStrategyR,
+    BinancePayStrategyS,
   ],
   exports: [PayInService],
 })

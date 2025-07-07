@@ -146,6 +146,18 @@ export class GsService {
       refReward: await this.refRewardService.getAllUserRewards(userIds),
       cryptoInput: await this.payInService.getAllUserTransactions(userIds),
       bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
+      transaction: await this.transactionService.getAllTransactionsForUserData(userData.id, {
+        bankTx: true,
+        buyCrypto: true,
+        buyFiat: true,
+        bankTxReturn: true,
+        bankTxRepeat: true,
+        refReward: true,
+        cryptoInput: true,
+        checkoutTx: true,
+        request: true,
+        custodyOrder: true,
+      }),
     };
   }
 

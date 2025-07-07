@@ -28,6 +28,7 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
 import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
@@ -210,7 +211,6 @@ export class UserDataService {
       }
     }
 
-    // If KYC level >= 50 and DFX-approval not complete, complete it.
     if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
       for (const user of userData.users) {
         await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
@@ -481,7 +481,7 @@ export class UserDataService {
 
   async deactivateUserData(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.deactivateUserData());
-    await this.kycAdminService.resetKyc(userData);
+    await this.kycAdminService.resetKyc(userData, KycError.USER_DATA_DEACTIVATED);
   }
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {

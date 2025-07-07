@@ -1,6 +1,10 @@
 import { KycStepReason } from './output/kyc-info.dto';
 
 export enum KycError {
+  // General errors
+  RESTARTED_STEP = 'RestartedStep',
+
+  // Ident errors
   USER_DATA_MERGED = 'UserDataMerged',
   USER_DATA_MERGE_REQUESTED = 'UserDataMergeRequested',
   USER_DATA_EXISTING = 'UserDataExisting',
@@ -8,7 +12,6 @@ export enum KycError {
   FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
   LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
   REVERSED_NAMES = 'ReversedNames',
-  NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
   NATIONALITY_MISSING = 'NationalityMissing',
   NATIONALITY_NOT_ALLOWED = 'NationalityNotAllowed',
   INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
@@ -21,6 +24,15 @@ export enum KycError {
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
   BLOCKED = 'Blocked',
   RELEASED = 'Released',
+
+  // NationalityData errors
+  NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
+
+  // PersonalData errors
+  PERSONAL_DATA_NOT_MATCHING = 'PersonalDataNotMatching',
+
+  // Deactivated userData errors
+  USER_DATA_DEACTIVATED = 'UserDataDeactivated',
 }
 
 export const KycErrorMap: Record<KycError, string> = {
@@ -30,6 +42,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.USER_DATA_BLOCKED]: 'Unknown error',
   [KycError.FIRST_NAME_NOT_MATCHING]: 'Your first name is not matching',
   [KycError.LAST_NAME_NOT_MATCHING]: 'Your last name is not matching',
+  [KycError.PERSONAL_DATA_NOT_MATCHING]: 'Your personal data is not matching',
   [KycError.NATIONALITY_NOT_MATCHING]: 'Your nationality is not matching',
   [KycError.NATIONALITY_MISSING]: 'Nationality is missing',
   [KycError.NATIONALITY_NOT_ALLOWED]: 'Nationality is not allowed',
@@ -44,6 +57,8 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.REVERSED_NAMES]: 'The names in your account are reversed',
   [KycError.BLOCKED]: 'KYC is blocked',
   [KycError.RELEASED]: undefined,
+  [KycError.RESTARTED_STEP]: undefined,
+  [KycError.USER_DATA_DEACTIVATED]: 'Account deactivated',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

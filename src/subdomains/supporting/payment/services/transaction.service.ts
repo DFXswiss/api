@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { UpdateTransactionDto } from 'src/subdomains/core/history/dto/update-transaction.dto';
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
@@ -14,7 +15,7 @@ export class TransactionService {
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
 
-    entity.uid = `T${Util.randomString(16)}`;
+    entity.uid = `${Config.prefixes.transactionUidPrefix}${Util.randomString(16)}`;
 
     return this.repo.save(entity);
   }

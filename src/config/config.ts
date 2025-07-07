@@ -71,12 +71,29 @@ export class Configuration {
     },
   };
 
+  prefixes = {
+    issueUidPrefix: 'I',
+    quoteUidPrefix: 'Q',
+    transactionUidPrefix: 'T',
+    kycFileUidPrefix: 'F',
+    paymentLinkUidPrefix: 'pl',
+    paymentLinkPaymentUidPrefix: 'plp',
+    paymentQuoteUidPrefix: 'plq',
+  };
+
   moderators = {
     Wendel: '019-957',
   };
 
   loginCountries = {
     '1': ['CH'],
+  };
+
+  liquidityManagement = {
+    bankMinBalance: 100,
+    fiatOutput: {
+      batchAmountLimit: 9500,
+    },
   };
 
   defaultVolumeDecimal = 2;
@@ -100,7 +117,7 @@ export class Configuration {
 
   tradingLimits = {
     monthlyDefaultWoKyc: 1000, // CHF
-    weeklyAmlRule: 5000, // CHF
+    weeklyAmlRule: 25000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
     yearlyWithoutKyc: 50000, // CHF
@@ -140,7 +157,7 @@ export class Configuration {
   arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
   railgunSignatureFormat = '[a-f0-9]{128}';
-  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{88}';
+  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
   tronSignatureFormat = '(0x)?[a-f0-9]{130}';
 
   allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}`;
@@ -556,6 +573,7 @@ export class Configuration {
 
     binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
     binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
+    binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
 
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),

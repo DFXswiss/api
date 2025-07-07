@@ -272,8 +272,8 @@ export class KycService {
         missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
         kycStep.name !== KycStepName.DFX_APPROVAL)
     ) {
-      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
-      await this.kycStepRepo.update(...approvalStep.manualReview());
+      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isOnHold);
+      if (approvalStep) await this.kycStepRepo.update(...approvalStep.manualReview());
     }
   }
 
@@ -614,6 +614,7 @@ export class KycService {
     relation: UserDataRelationState,
   ): Promise<UserData> {
     const beneficialOwner = await this.userDataService.createUserData({
+      accountType: AccountType.PERSONAL,
       kycType: KycType.DFX,
       status: UserDataStatus.KYC_ONLY,
       firstname: owner.firstName,
@@ -698,8 +699,10 @@ export class KycService {
       case IdentShortResult.FAIL:
       case IdentShortResult.RETRY:
         // retrigger personal data step, if data was wrong
-        if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA))
-          await this.initiateStep(user, KycStepName.PERSONAL_DATA, undefined, true);
+        if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA)) {
+          const completedPersonalStep = user.getCompletedStepWith(KycStepName.PERSONAL_DATA);
+          if (completedPersonalStep) await this.restartStep(completedPersonalStep);
+        }
 
         await this.kycStepRepo.update(
           ...(result === IdentShortResult.FAIL ? kycStep.fail(dto) : kycStep.inProgress(dto)),
@@ -929,7 +932,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.DFX_APPROVAL:
-        return lastTry && !lastTry.isFailed
+        return lastTry && !lastTry.isFailed && !lastTry.isCanceled
           ? { nextStep: undefined }
           : { nextStep: { name: nextStep, preventDirectEvaluation } };
 
@@ -988,6 +991,11 @@ export class KycService {
     }
 
     return this.kycStepRepo.save(kycStep);
+  }
+
+  private async restartStep(kycStep: KycStep, comment?: KycError): Promise<void> {
+    await this.kycStepRepo.update(...kycStep.fail(undefined, comment ?? KycError.RESTARTED_STEP));
+    await this.initiateStep(kycStep.userData, kycStep.name, kycStep.type, true);
   }
 
   // --- HELPER METHODS --- //

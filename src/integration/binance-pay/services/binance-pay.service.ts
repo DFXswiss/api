@@ -8,6 +8,12 @@ import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
+import { C2BPaymentStatus } from 'src/subdomains/core/payment-link/enums';
+import {
+  C2BOrderResult,
+  C2BPaymentLinkProvider,
+  C2BWebhookResult,
+} from '../../../subdomains/core/payment-link/share/c2b-payment-link.provider';
 import {
   AddSubMerchantResponse,
   BinanceBizType,
@@ -26,11 +32,9 @@ import {
   StoreType,
   SubMerchantOrderData,
 } from '../dto/binance.dto';
-import { IPaymentLinkProvider, OrderResult, WebhookResult } from '../share/IPaymentLinkProvider';
-import { C2BPaymentStatus } from '../share/PaymentStatus';
 
 @Injectable()
-export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhookDto> {
+export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebhookDto> {
   private readonly logger = new DfxLogger(BinancePayService);
 
   private readonly baseUrl = 'https://bpay.binanceapi.com';
@@ -38,6 +42,12 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   private readonly secretKey: string;
   private certificatedExpiry: number;
   private cert: CertificateResponse['data'];
+
+  private readonly SUPPORTED_BIZ_TYPES = [
+    BinanceBizType.PAY,
+    BinanceBizType.PAY_REFUND,
+    BinanceBizType.MERCHANT_QR_CODE,
+  ];
 
   constructor(private readonly http: HttpService) {
     this.apiKey = Config.payment.binancePayPublic;
@@ -145,11 +155,12 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     quote: PaymentQuote,
-  ): Promise<OrderResult> {
+  ): Promise<C2BOrderResult> {
     const orderDetails: OrderData = {
       env: {
         terminalType: BinancePayTerminalType.OTHERS,
       },
+      qrCodeReferId: transferInfo.referId,
       merchantTradeNo: quote.uniqueId.replace('plq_', ''),
       orderAmount: transferInfo.amount,
       currency: transferInfo.asset,
@@ -241,21 +252,23 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
         return C2BPaymentStatus.REFUNDED;
       case BinancePayStatus.PAY_CLOSED:
         return C2BPaymentStatus.FAILED;
+      case BinancePayStatus.MERCHANT_QR_CODE_SCANED:
+        return C2BPaymentStatus.WAITING;
     }
   }
 
   private isSupportedBizType(bizType: string): boolean {
-    return bizType === BinanceBizType.PAY || bizType === BinanceBizType.PAY_REFUND;
+    return this.SUPPORTED_BIZ_TYPES.includes(bizType as BinanceBizType);
   }
 
-  async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult | undefined> {
+  async handleWebhook(dto: BinancePayWebhookDto): Promise<C2BWebhookResult | undefined> {
     const { bizType, bizIdStr, bizStatus } = dto;
     if (!this.isSupportedBizType(bizType) || !this.getStatus(bizStatus)) return;
 
     return {
       providerOrderId: bizIdStr,
       status: this.getStatus(bizStatus),
-      metadata: dto,
+      metadata: JSON.parse(dto.data),
     };
   }
 }

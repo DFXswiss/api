@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
@@ -9,6 +9,7 @@ import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
 import { BaseL2BridgeAdapter } from './adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
@@ -59,8 +60,9 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BankIntegrationModule,
     NotificationModule,
     BankModule,
-    BankTxModule,
+    forwardRef(() => BankTxModule),
     CheckoutModule,
+    PricingModule,
   ],
   controllers: [
     LiquidityManagementRuleController,

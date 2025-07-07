@@ -47,7 +47,7 @@ export class AmlHelperService {
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
-    if (!entity.userData.verifiedName && !bankData.name && !entity.userData.completeName)
+    if (!entity.userData.verifiedName && !bankData?.name && !entity.userData.completeName)
       errors.push(AmlError.NAME_MISSING);
     if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable)
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
@@ -94,7 +94,7 @@ export class AmlHelperService {
 
     if (entity.cryptoInput) {
       // crypto input
-      if (!inputAsset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
+      if (!inputAsset.sellable && !entity.cryptoInput.asset.paymentEnabled) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
       if (entity.inputAsset === 'XMR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
         errors.push(AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED);
@@ -272,7 +272,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 1000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
+        if (amountInChf > 100000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
         break;
 
       case AmlRule.RULE_9:

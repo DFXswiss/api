@@ -2,10 +2,11 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-rule.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { PriceRule } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import { IEntity } from '../entity';
+import { IEntity, UpdateResult } from '../entity';
 
 export enum AssetType {
   COIN = 'Coin',
@@ -105,6 +106,9 @@ export class Asset extends IEntity {
   @OneToOne(() => LiquidityManagementRule, (lmr) => lmr.targetAsset)
   liquidityManagementRule: LiquidityManagementRule;
 
+  @OneToOne(() => Bank, (bank) => bank.asset)
+  bank?: Bank;
+  
   @OneToOne(() => LiquidityBalance, (b) => b.asset)
   balance?: LiquidityBalance;
 
@@ -136,5 +140,17 @@ export class Asset extends IEntity {
 
   get liquidityCapacity(): number {
     return (this.liquidityManagementRule?.limit ?? Infinity) - (this.balance?.amount ?? 0);
+  }
+
+  updatePrice(usdPrice: number, chfPrice: number, eurPrice: number): UpdateResult<Asset> {
+    const update: Partial<Asset> = {
+      approxPriceUsd: usdPrice,
+      approxPriceChf: chfPrice,
+      approxPriceEur: eurPrice,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 }
