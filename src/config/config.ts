@@ -2,7 +2,7 @@ import { NetworkName } from '@defichain/jellyfish-network';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { ConstructorArgs, Exchange } from 'ccxt';
+import { ConstructorArgs } from 'ccxt';
 import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
@@ -26,8 +26,6 @@ export enum Environment {
   DEV = 'dev',
   PRD = 'prd',
 }
-
-export type ExchangeConfig = Partial<Exchange> & { withdrawKeys?: Map<string, string> };
 
 export type Version = '1' | '2';
 
