@@ -55,12 +55,6 @@ export class PaymentLinkPaymentService {
 
   // --- JOBS --- //
   async processExpiredPayments(): Promise<void> {
-    await this.doProcessExpiredPayments();
-    await this.paymentActivationService.processExpiredActivations();
-    await this.paymentQuoteService.processExpiredQuotes();
-  }
-
-  private async doProcessExpiredPayments(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);
 
     const pendingPayments = await this.paymentLinkPaymentRepo.find({
@@ -72,10 +66,13 @@ export class PaymentLinkPaymentService {
     });
 
     for (const payment of pendingPayments) {
-      await this.doSave(payment.expire(), true);
-
-      await this.cancelQuotesForPayment(payment);
+      await this.expirePayment(payment);
     }
+  }
+
+  async expirePayment(payment: PaymentLinkPayment) {
+    await this.doSave(payment.expire(), true);
+    await this.cancelQuotesForPayment(payment);
   }
 
   async checkTxConfirmations(): Promise<void> {
