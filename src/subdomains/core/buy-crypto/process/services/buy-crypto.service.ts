@@ -670,8 +670,6 @@ export class BuyCryptoService {
           transactionRequest: request,
           buy: entity.buy,
           swap: entity.cryptoRoute,
-          inputAsset: entity.outputAsset,
-          inputAmount: entity.outputAmount,
         });
       }
     }
