@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { Active, activesEqual, isFiat } from 'src/shared/models/active';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -23,8 +25,11 @@ import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 
 @Injectable()
-export class PricingService {
+export class PricingService implements OnModuleInit {
   private readonly logger = new DfxLogger(PricingService);
+  private chf: Fiat;
+  private eur: Fiat;
+  private usd: Fiat;
 
   private readonly providerMap: PricingProviderMap;
   private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
@@ -34,6 +39,7 @@ export class PricingService {
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,
     private readonly notificationService: NotificationService,
+    private readonly fiatService: FiatService,
     readonly krakenService: KrakenService,
     readonly binanceService: BinanceService,
     readonly kucoinService: KucoinService,
@@ -59,6 +65,23 @@ export class PricingService {
       [PriceSource.EBEL2X]: ebel2xService,
       [PriceSource.CONSTANT]: constantService,
     };
+  }
+
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
+    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
+    void this.fiatService.getFiatByName('USD').then((f) => (this.usd = f));
+  }
+
+  async getDefaultPrice(
+    from: Active,
+    referenceCurrency: 'EUR' | 'CHF' | 'USD',
+    allowExpired: boolean,
+    tryCount = 2,
+  ): Promise<Price> {
+    const to = referenceCurrency === 'CHF' ? this.chf : referenceCurrency === 'EUR' ? this.eur : this.usd;
+
+    return this.getPrice(from, to, allowExpired, tryCount);
   }
 
   async getPrice(from: Active, to: Active, allowExpired: boolean, tryCount = 2): Promise<Price> {

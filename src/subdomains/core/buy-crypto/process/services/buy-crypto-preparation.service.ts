@@ -1,11 +1,10 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -29,10 +28,8 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
-export class BuyCryptoPreparationService implements OnModuleInit {
+export class BuyCryptoPreparationService {
   private readonly logger = new DfxLogger(BuyCryptoPreparationService);
-  private chf: Fiat;
-  private eur: Fiat;
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -48,11 +45,6 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly bankTxService: BankTxService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
-  }
 
   async doAmlCheck(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
@@ -108,8 +100,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const { users, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
+        const referenceChfPrice = await this.pricingService.getDefaultPrice(inputReferenceCurrency, 'CHF', false);
+        const referenceEurPrice = await this.pricingService.getDefaultPrice(inputReferenceCurrency, 'EUR', false);
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
@@ -225,8 +217,8 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
+        const referenceEurPrice = await this.pricingService.getDefaultPrice(inputReferenceCurrency, 'EUR', false);
+        const referenceChfPrice = await this.pricingService.getDefaultPrice(inputReferenceCurrency, 'CHF', false);
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 

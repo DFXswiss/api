@@ -73,17 +73,11 @@ export class BankTxReturn extends IEntity {
     return [this.id, update];
   }
 
-  setFiatAmount(
-    amountInEur: number,
-    amountInChf: number,
-    amountInUsd: number,
-    chargebackBankTx: BankTx,
-  ): UpdateResult<BankTxReturn> {
+  setFiatAmount(amountInEur: number, amountInChf: number, amountInUsd: number): UpdateResult<BankTxReturn> {
     const update: Partial<BankTxReturn> = {
       amountInEur,
       amountInChf,
       amountInUsd,
-      chargebackBankTx,
       info: 'NA',
     };
 

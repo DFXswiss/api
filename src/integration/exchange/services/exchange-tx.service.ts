@@ -1,8 +1,7 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -18,9 +17,8 @@ import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
 
 @Injectable()
-export class ExchangeTxService implements OnModuleInit {
+export class ExchangeTxService {
   private readonly logger = new DfxLogger(ExchangeTxService);
-  private chf: Fiat;
 
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
@@ -29,10 +27,6 @@ export class ExchangeTxService implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-  }
 
   //*** JOBS ***//
 
@@ -65,7 +59,7 @@ export class ExchangeTxService implements OnModuleInit {
               type: undefined,
               name: entity.feeCurrency,
             }));
-          const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
+          const price = await this.pricingService.getDefaultPrice(feeAsset, 'CHF', true);
 
           entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
         }
@@ -84,7 +78,7 @@ export class ExchangeTxService implements OnModuleInit {
               type: undefined,
               name: currencyName,
             }));
-          const priceChf = await this.pricingService.getPrice(currency, this.chf, true);
+          const priceChf = await this.pricingService.getDefaultPrice(currency, 'CHF', true);
 
           entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
         }
