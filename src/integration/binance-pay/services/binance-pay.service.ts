@@ -165,6 +165,7 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
       orderAmount: transferInfo.amount,
       currency: transferInfo.asset,
       description: payment.memo,
+      orderExpireTime: quote.expiryDate.getTime(),
       goodsDetails: [
         {
           goodsType: payment.link.goodsType || GoodsType.TangibleGoods, // TODO: Remove default values
