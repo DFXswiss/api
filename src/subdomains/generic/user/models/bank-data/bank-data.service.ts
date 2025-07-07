@@ -162,7 +162,14 @@ export class BankDataService {
   async createBankDataInternal(userData: UserData, dto: CreateBankDataDto): Promise<BankData> {
     if (!userData.kycSteps) userData.kycSteps = await this.kycAdminService.getKycSteps(userData.id);
 
-    const bankData = this.bankDataRepo.create({ ...dto, userData });
+    const existingUserBankData = await this.bankDataRepo.findOneBy({ type: BankDataType.USER, iban: dto.iban });
+
+    const bankData = this.bankDataRepo.create({
+      ...dto,
+      userData,
+      label: existingUserBankData?.label,
+      preferredCurrency: existingUserBankData?.preferredCurrency,
+    });
 
     if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
 
