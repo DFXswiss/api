@@ -77,6 +77,7 @@ export interface OrderData {
   orderAmount: number;
   currency: string;
   description: string;
+  orderExpireTime: number;
   goodsDetails: {
     goodsType: string;
     goodsCategory: string;
