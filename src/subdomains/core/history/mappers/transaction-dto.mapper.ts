@@ -291,7 +291,7 @@ export class TransactionDtoMapper {
       uid: tx.transaction.uid,
       orderUid: tx.transaction.request?.uid,
       type: TransactionType.BUY,
-      state: bankTxReturn?.chargebackAllowedDate
+      state: bankTxReturn?.chargebackDate
         ? TransactionState.RETURNED
         : bankTxReturn?.chargebackAllowedDateUser
         ? TransactionState.RETURN_PENDING
