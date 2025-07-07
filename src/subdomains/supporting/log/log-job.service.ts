@@ -116,7 +116,7 @@ export class LogJobService {
       const logs = await this.logService
         .getLastLogs('LogService', 'FinancialDataLog', LogSeverity.INFO, 10)
         .then((l) => l.map((log) => JSON.parse(log.message) as FinanceLog));
-      const meanTotalBalance = Util.sum(logs.map((l) => l.balancesTotal.totalBalanceChf)) / logs.length;
+      const meanTotalBalance = Util.avg(logs.map((l) => l.balancesTotal.totalBalanceChf));
 
       await this.logService.create({
         system: 'LogService',
