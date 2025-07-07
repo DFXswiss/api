@@ -2,6 +2,7 @@ import { BadRequestException, Inject, OnModuleInit } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
 import {
   Balances,
+  ConstructorArgs,
   Dictionary,
   Exchange,
   ExchangeError,
@@ -11,7 +12,6 @@ import {
   Transaction,
   WithdrawalResponse,
 } from 'ccxt';
-import { ExchangeConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
@@ -49,8 +49,8 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   @Inject() private readonly registry: ExchangeRegistryService;
 
   constructor(
-    exchange: { new (config: ExchangeConfig): Exchange },
-    public readonly config: ExchangeConfig,
+    exchange: { new (userConfig: ConstructorArgs): Exchange },
+    public readonly config: ConstructorArgs,
     private readonly queue?: QueueHandler,
   ) {
     super();
