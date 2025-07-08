@@ -37,6 +37,10 @@ export class SolanaService extends BlockchainService {
     return nacl.sign.detached.verify(Util.stringToUint8(message, 'utf8'), bs58.decode(signature), bs58.decode(address));
   }
 
+  getPaymentRequest(address: string, amount: number): string {
+    return `solana:${address}?amount=${Util.numberToFixedString(amount)}`;
+  }
+
   async getBlockHeight(): Promise<number> {
     return this.client.getBlockHeight();
   }

@@ -19,7 +19,8 @@ export class PaymentRequestMapper {
       case Blockchain.POLYGON:
       case Blockchain.MONERO:
       case Blockchain.BITCOIN:
-        return this.toPaymentLinkEvmPayment(paymentActivation.method, paymentActivation);
+      case Blockchain.SOLANA:
+        return this.toPaymentLinkPayment(paymentActivation.method, paymentActivation);
 
       case Blockchain.BINANCE_PAY:
         return this.toBinancePayPayment(paymentActivation.method, paymentActivation);
@@ -33,7 +34,7 @@ export class PaymentRequestMapper {
     return { pr: paymentActivation.paymentRequest };
   }
 
-  private static toPaymentLinkEvmPayment(
+  private static toPaymentLinkPayment(
     method: Blockchain,
     paymentActivation: PaymentActivation,
   ): PaymentLinkEvmPaymentDto {

@@ -14,6 +14,7 @@ import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
 import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
+import { PayoutSolanaService } from 'src/subdomains/supporting/payout/services/payout-solana.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Equal, In, LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
@@ -54,6 +55,7 @@ export class PaymentQuoteService {
     private readonly evmGasPriceService: EvmGasPriceService,
     private readonly payoutMoneroService: PayoutMoneroService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
+    private readonly payoutSolanaService: PayoutSolanaService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
@@ -283,6 +285,8 @@ export class PaymentQuoteService {
         return MoneroHelper.xmrToAu(await this.payoutMoneroService.getEstimatedFee());
       case Blockchain.BITCOIN:
         return this.payoutBitcoinService.getCurrentFeeRate();
+      case Blockchain.SOLANA:
+        return this.payoutSolanaService.getCurrentGasForCoinTransaction();
     }
   }
 
@@ -380,12 +384,13 @@ export class PaymentQuoteService {
           await this.doEvmHexPayment(transferInfo.method, transferInfo, quote);
           break;
 
-        case Blockchain.MONERO:
-          await this.doMoneroHexPayment(transferInfo, quote);
-          break;
-
         case Blockchain.BITCOIN:
           await this.doBitcoinHexPayment(transferInfo.method, transferInfo, quote);
+          break;
+
+        case Blockchain.MONERO:
+        case Blockchain.SOLANA:
+          await this.doTxIdPayment(transferInfo, quote);
           break;
 
         default:
@@ -445,14 +450,6 @@ export class PaymentQuoteService {
     }
   }
 
-  private async doMoneroHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
-    try {
-      transferInfo.tx ? quote.txInMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
-    } catch (e) {
-      quote.txFailed(e.message);
-    }
-  }
-
   private async doBitcoinHexPayment(
     method: Blockchain,
     transferInfo: TransferInfo,
@@ -494,6 +491,14 @@ export class PaymentQuoteService {
       transactionResponse.error
         ? quote.txFailed(transactionResponse.error.message)
         : quote.txInMempool(transactionResponse.hash);
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
+  }
+
+  private async doTxIdPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    try {
+      transferInfo.tx ? quote.txInMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
     } catch (e) {
       quote.txFailed(e.message);
     }
