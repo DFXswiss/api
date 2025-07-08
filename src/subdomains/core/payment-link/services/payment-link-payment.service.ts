@@ -70,7 +70,7 @@ export class PaymentLinkPaymentService {
     }
   }
 
-  async expirePayment(payment: PaymentLinkPayment) {
+  async expirePayment(payment: PaymentLinkPayment): Promise<void> {
     await this.doSave(payment.expire(), true);
     await this.cancelQuotesForPayment(payment);
   }
@@ -215,7 +215,24 @@ export class PaymentLinkPaymentService {
       }, paymentLink.configObj.autoConfirmSecs * 1000);
     }
 
+    void Util.timeout(
+      this.expirePaymentIfPending(payment.uniqueId),
+      payment.expiryDate.getTime() - new Date().getTime(),
+    );
+
     return savedPayment;
+  }
+
+  private async expirePaymentIfPending(uniqueId: string): Promise<void> {
+    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
+      where: {
+        uniqueId,
+        status: PaymentLinkPaymentStatus.PENDING,
+      },
+      relations: { link: true },
+    });
+
+    if (pendingPayment) await this.expirePayment(pendingPayment);
   }
 
   async confirmPayment(payment: PaymentLinkPayment): Promise<void> {

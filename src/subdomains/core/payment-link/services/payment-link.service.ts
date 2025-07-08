@@ -286,11 +286,6 @@ export class PaymentLinkService {
       transferAmounts: actualQuote.transferAmountsForPayRequest,
     };
 
-    void Util.timeout(
-      this.paymentLinkPaymentService.expirePayment(pendingPayment),
-      actualQuote.expiryDate.getTime() - new Date().getTime(),
-    );
-
     return payRequest;
   }
 
