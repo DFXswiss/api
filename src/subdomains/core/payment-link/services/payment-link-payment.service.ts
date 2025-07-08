@@ -215,10 +215,9 @@ export class PaymentLinkPaymentService {
       }, paymentLink.configObj.autoConfirmSecs * 1000);
     }
 
-    void Util.timeout(
-      this.expirePaymentIfPending(payment.uniqueId),
-      payment.expiryDate.getTime() - new Date().getTime(),
-    );
+    setTimeout(async () => {
+      await this.expirePaymentIfPending(payment.uniqueId);
+    }, payment.expiryDate.getTime() - new Date().getTime());
 
     return savedPayment;
   }
