@@ -162,7 +162,7 @@ export class KycNotificationService {
 
   async kycPaymentData(userData: UserData, acceptedDate: Date): Promise<void> {
     try {
-      if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
+      if (userData.mail && !DisabledProcess(Process.KYC_MAIL)) {
         await this.notificationService.sendMail({
           type: MailType.USER_V2,
           context: MailContext.KYC_PAYMENT_DATA,

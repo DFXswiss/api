@@ -44,7 +44,6 @@ import { PaymentQuoteService } from './payment-quote.service';
 @Injectable()
 export class PaymentLinkService {
   private readonly logger = new DfxLogger(PaymentLinkService);
-  static readonly PREFIX_UNIQUE_ID = 'pl';
 
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
@@ -203,7 +202,7 @@ export class PaymentLinkService {
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
       mode: dto.mode,
-      uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
       webhookUrl: dto.webhookUrl,
       name: dto.config?.recipient?.name,
       street: dto.config?.recipient?.address?.street,
@@ -578,7 +577,7 @@ export class PaymentLinkService {
 
     await this.paymentLinkPaymentService.waitForPayment(pendingPayment);
 
-    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, pendingPayment.externalId);
   }
 
   async confirmPayment(
@@ -597,7 +596,7 @@ export class PaymentLinkService {
 
     await this.paymentLinkPaymentService.confirmPayment(payment);
 
-    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, payment.externalId);
   }
 
   async isPaymentLinkPublicAccess(routeLabel: string, externalLinkId: string): Promise<boolean> {

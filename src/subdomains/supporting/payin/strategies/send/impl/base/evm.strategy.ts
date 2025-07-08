@@ -38,8 +38,6 @@ export abstract class EvmStrategy extends SendStrategy {
 
           if (isReady) {
             payInGroup.status = PayInStatus.PREPARED;
-          } else {
-            continue;
           }
         }
 
@@ -62,14 +60,10 @@ export abstract class EvmStrategy extends SendStrategy {
           const effectivePreparationFee = Math.max(feeNativeAsset, Config.blockchain.evm.minimalPreparationFee);
 
           await this.prepareSend(payInGroup, effectivePreparationFee);
-
-          continue;
         }
 
         if (payInGroup.status === PayInStatus.PREPARED) {
           await this.dispatch(payInGroup, type, this.getTotalSendFee(payInGroup));
-
-          continue;
         }
       } catch (e) {
         if (e.message.includes('No maximum fee provided')) continue;
@@ -81,8 +75,6 @@ export abstract class EvmStrategy extends SendStrategy {
           `Failed to send ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)} of type ${type}:`,
           e,
         );
-
-        continue;
       }
     }
   }

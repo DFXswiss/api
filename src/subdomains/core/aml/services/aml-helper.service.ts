@@ -79,6 +79,14 @@ export class AmlHelperService {
     if (ibanCountry) errors.push(...this.amlRuleCheck(ibanCountry.amlRule, entity, amountInChf, last7dCheckoutVolume));
     if (entity.userData.nationality)
       errors.push(...this.amlRuleCheck(entity.userData.nationality.amlRule, entity, amountInChf, last7dCheckoutVolume));
+    for (const amlRule of entity.wallet.amlRuleList) {
+      const error = this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume);
+      if (
+        !entity.wallet.amlRuleList.includes(AmlRule.RULE_11) ||
+        (!error.includes(AmlError.KYC_LEVEL_30_NOT_REACHED) && !error.includes(AmlError.KYC_LEVEL_50_NOT_REACHED))
+      )
+        errors.push(...error);
+    }
 
     if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
 
@@ -94,7 +102,7 @@ export class AmlHelperService {
 
     if (entity.cryptoInput) {
       // crypto input
-      if (!inputAsset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
+      if (!inputAsset.sellable && !entity.cryptoInput.asset.paymentEnabled) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
       if (entity.inputAsset === 'XMR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
         errors.push(AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED);
@@ -272,7 +280,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 1000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
+        if (amountInChf > 100000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
         break;
 
       case AmlRule.RULE_9:
@@ -389,7 +397,7 @@ export class AmlHelperService {
       ibanCountry,
     ).filter((e) => e);
 
-    const comment = amlErrors.join(';');
+    const comment = Array.from(new Set(amlErrors)).join(';');
 
     // Pass
     if (amlErrors.length === 0)

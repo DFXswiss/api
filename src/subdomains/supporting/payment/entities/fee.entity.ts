@@ -17,6 +17,7 @@ export enum FeeType {
   RELATIVE_DISCOUNT = 'RelativeDiscount', // Single use only, relative discount
   ADDITION = 'Addition', // Multiple use possible, additive fee
   CHARGEBACK = 'Chargeback', // Multiple use possible, additive fee
+  CHARGEBACK_BANK = 'ChargebackBank', // Bank fee for chargebacks, multiple use possible, additive fee
   BANK = 'Bank', // Multiple use possible, additive fee
 }
 
