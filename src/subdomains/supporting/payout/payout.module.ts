@@ -114,6 +114,6 @@ import { SolanaStrategy as SolanaStrategyPR } from './strategies/prepare/impl/so
     GnosisCoinStrategyPO,
     GnosisTokenStrategyPO,
   ],
-  exports: [PayoutService, PayoutMoneroService, PayoutBitcoinService],
+  exports: [PayoutService, PayoutMoneroService, PayoutBitcoinService, PayoutSolanaService],
 })
 export class PayoutModule {}
