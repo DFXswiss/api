@@ -36,6 +36,8 @@ import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
 
+const HOUR_IN_MILLIS = 60 * 60 * 1000;
+
 @Injectable()
 export class PaymentLinkPaymentService {
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
@@ -215,9 +217,13 @@ export class PaymentLinkPaymentService {
       }, paymentLink.configObj.autoConfirmSecs * 1000);
     }
 
-    setTimeout(async () => {
-      await this.expirePaymentIfPending(payment.uniqueId);
-    }, payment.expiryDate.getTime() - Date.now() + Config.payment.timeoutDelay * 1000);
+    const timeout = payment.expiryDate.getTime() - Date.now() + Config.payment.timeoutDelay * 1000;
+
+    if (timeout < HOUR_IN_MILLIS) {
+      setTimeout(async () => {
+        await this.expirePaymentIfPending(payment.uniqueId);
+      }, timeout);
+    }
 
     return savedPayment;
   }
