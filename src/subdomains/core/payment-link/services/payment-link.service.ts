@@ -266,6 +266,7 @@ export class PaymentLinkService {
     const payRequest: PaymentLinkPayRequestDto = {
       id: pendingPayment.link.uniqueId,
       externalId: pendingPayment.link.externalId,
+      mode: pendingPayment.link.mode,
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
       minSendable: msatTransferAmount,
@@ -350,6 +351,7 @@ export class PaymentLinkService {
       possibleStandards: standards,
       displayQr,
       recipient: paymentLink.recipient,
+      mode: paymentLink.mode,
       statusCode: undefined,
       message: undefined,
       error: undefined,
