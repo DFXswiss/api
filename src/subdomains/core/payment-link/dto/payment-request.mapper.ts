@@ -40,11 +40,15 @@ export class PaymentRequestMapper {
   ): PaymentLinkEvmPaymentDto {
     const infoUrl = `${Config.url()}/lnurlp/tx/${paymentActivation.payment.uniqueId}`;
 
+    const hint = [Blockchain.MONERO, Blockchain.SOLANA].includes(method)
+      ? `Use this data to create a transaction and sign it. Broadcast the signed transaction to the blockchain and send the transaction hash back via the endpoint ${infoUrl}`
+      : `Use this data to create a transaction and sign it. Send the signed transaction back as HEX via the endpoint ${infoUrl}. We check the transferred HEX and broadcast the transaction to the blockchain.`;
+
     return {
       expiryDate: paymentActivation.expiryDate,
       blockchain: method,
       uri: paymentActivation.paymentRequest,
-      hint: `Use this data to create a transaction and sign it. Send the signed transaction back as HEX via the endpoint ${infoUrl}. We check the transferred HEX and broadcast the transaction to the blockchain.`,
+      hint,
     };
   }
 
