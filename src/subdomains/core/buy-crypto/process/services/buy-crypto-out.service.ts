@@ -5,7 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { CustodyOrderInputTypes, CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
+import { CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -171,7 +171,8 @@ export class BuyCryptoOutService {
           if (custodyOrder) {
             await this.custodyOrderService.updateCustodyOrderInternal(custodyOrder, {
               status: CustodyOrderStatus.COMPLETED,
-              inputAmount: CustodyOrderInputTypes.includes(custodyOrder.type) ? tx.outputAmount : undefined,
+              inputAmount: tx.outputAmount,
+              inputAsset: tx.outputAsset,
             });
           }
 
