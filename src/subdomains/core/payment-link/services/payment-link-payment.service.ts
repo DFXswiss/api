@@ -217,7 +217,7 @@ export class PaymentLinkPaymentService {
 
     setTimeout(async () => {
       await this.expirePaymentIfPending(payment.uniqueId);
-    }, payment.expiryDate.getTime() - new Date().getTime());
+    }, payment.expiryDate.getTime() - Date.now() + Config.payment.timeoutDelay * 1000);
 
     return savedPayment;
   }
