@@ -713,4 +713,128 @@ export class PaymentLinkService {
       }
     });
   }
+
+  async generateBitcoinFocusOcpStickersPdf(
+    routeIdOrLabel: string,
+    externalIds?: string[],
+    ids?: number[],
+    lang = 'en',
+  ): Promise<Buffer> {
+    const linksFromDb = await this.sellService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
+    const linkMapByExternalId = new Map(linksFromDb.map((link) => [link.externalId, link]));
+    const linkMapById = new Map(linksFromDb.map((link) => [link.id, link]));
+    const linksByExternalId = externalIds?.map((extId) => linkMapByExternalId.get(extId)).filter(Boolean) || [];
+    const linksById = ids?.map((id) => linkMapById.get(id)).filter(Boolean) || [];
+    const links = [...linksByExternalId, ...linksById];
+
+    // Blue OCP Image
+    const stickerPath = join(process.cwd(), 'assets', 'ocp-bitcoin-focus-sticker.png');
+    const stickerBuffer = readFileSync(stickerPath);
+
+    // OCP Logo
+    const ocpLogoPath = join(process.cwd(), 'assets', 'ocp-logo.png');
+    const ocpLogoBuffer = readFileSync(ocpLogoPath);
+
+    const qrPadding = 10;
+    const cols = 2;
+    const rows = 6;
+    const margin = 30;
+    const stickerSpacing = 20;
+    const ocpLogoSize = 35;
+
+    const imgAspect = 1.62654522; // height:width ratio based on measurements of the sticker
+
+    return new Promise<Buffer>(async (resolve, reject) => {
+      try {
+        const pdf = new PDFDocument({ size: 'A3', margin: 0 });
+        const chunks: Buffer[] = [];
+        pdf.on('data', (c) => chunks.push(c));
+        pdf.on('end', () => resolve(Buffer.concat(chunks)));
+
+        const { width: pageWidth, height: pageHeight } = pdf.page;
+        const availW = pageWidth - 2 * margin;
+        const availH = pageHeight - 2 * margin;
+
+        const byH = (availH - (rows - 1) * stickerSpacing) / rows;
+        const byW = (availW - (cols - 1) * stickerSpacing) / cols / imgAspect;
+
+        const stickerHeight = Math.min(byH, byW);
+        const stickerWidth = stickerHeight * imgAspect;
+        const qrWidth = stickerWidth * 0.4; // 40% of the sticker width based on measurements
+
+        const gridW = cols * stickerWidth + (cols - 1) * stickerSpacing;
+        const gridH = rows * stickerHeight + (rows - 1) * stickerSpacing;
+
+        const startX = margin + (availW - gridW) / 2;
+        const startY = margin + (availH - gridH) / 2;
+
+        const stickersPerPage = cols * rows;
+        for (let i = 0; i < links.length; i++) {
+          if (i > 0 && i % stickersPerPage === 0) {
+            pdf.addPage();
+          }
+
+          const { externalId, id, uniqueId } = links[i];
+          const idx = i % stickersPerPage;
+          const col = idx % cols;
+          const row = Math.floor(idx / cols);
+          const x = startX + col * (stickerWidth + stickerSpacing);
+          const y = startY + row * (stickerHeight + stickerSpacing);
+
+          // QR Code URL
+          const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
+          const qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
+
+          // Generate QR code matrix data
+          const qrData = QRCode.create(qrCodeUrl, {});
+          const moduleCount = qrData.modules.size;
+          const moduleSize = qrWidth / moduleCount;
+          const dotRadius = moduleSize * 0.4; // 40% of module size for dot radius
+
+          // Add Blue OCP Image
+          pdf.image(stickerBuffer, x, y, {
+            width: stickerWidth,
+            height: stickerHeight,
+          });
+
+          // Draw white background for QR code area
+          pdf.rect(x + stickerWidth - qrPadding - qrWidth, y + qrPadding, qrWidth, qrWidth).fill('white');
+
+          // Draw QR code dots
+          pdf.fillColor('black');
+          for (let row = 0; row < moduleCount; row++) {
+            for (let col = 0; col < moduleCount; col++) {
+              if (qrData.modules.get(row, col)) {
+                const centerX = x + stickerWidth - qrPadding - qrWidth + col * moduleSize + moduleSize / 2;
+                const centerY = y + qrPadding + row * moduleSize + moduleSize / 2;
+                pdf.circle(centerX, centerY, dotRadius).fill();
+              }
+            }
+          }
+
+          // Add OCP Logo
+          pdf.image(
+            ocpLogoBuffer,
+            x + stickerWidth - qrPadding - qrWidth + (qrWidth - ocpLogoSize) / 2,
+            y + qrPadding + (qrWidth - ocpLogoSize) / 2,
+            {
+              width: ocpLogoSize,
+              height: ocpLogoSize,
+            },
+          );
+
+          // Add External ID
+          pdf.fontSize(4).font('Helvetica').fillColor('black');
+          const textWidth = pdf.widthOfString(externalId ?? id.toString());
+          const textX = x + stickerWidth - textWidth - 5;
+          const textY = y + stickerHeight - 7;
+          pdf.text(externalId ?? id.toString(), textX, textY);
+        }
+
+        pdf.end();
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
 }

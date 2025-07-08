@@ -318,7 +318,12 @@ export class PaymentLinkController {
 
     const idArray = ids?.split(',').map((id) => +id);
     const externalIdArray = externalIds?.split(',').map((id) => id.trim());
-    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray, idArray, lang);
+    const pdfBuffer = await this.paymentLinkService.generateBitcoinFocusOcpStickersPdf(
+      route,
+      externalIdArray,
+      idArray,
+      lang,
+    );
 
     res.set({
       'Content-Type': 'application/pdf',
