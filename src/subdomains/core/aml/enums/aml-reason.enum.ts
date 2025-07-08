@@ -17,6 +17,7 @@ export enum AmlReason {
   HIGH_RISK_KYC_NEEDED = 'HighRiskKycNeeded',
   HIGH_RISK_BLOCKED = 'HighRiskBlocked',
   MANUAL_CHECK = 'ManualCheck',
+  MANUAL_CHECK_BANK_DATA = 'ManualCheckBankData',
   NO_COMMUNICATION = 'NoCommunication',
   FEE_TOO_HIGH = 'FeeTooHigh',
   RECEIVER_REJECTED_TX = 'ReceiverRejectedTx',
@@ -47,6 +48,7 @@ export const KycAmlReasons = [
 export const AmlReasonWithoutReason = [
   AmlReason.NA,
   AmlReason.MANUAL_CHECK,
+  AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.USER_BLOCKED,
   AmlReason.USER_DATA_BLOCKED,
 ];

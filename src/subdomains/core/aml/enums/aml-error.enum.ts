@@ -182,7 +182,7 @@ export const AmlErrorResult: {
   [AmlError.BANK_DATA_MANUAL_REVIEW]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK,
+    amlReason: AmlReason.MANUAL_CHECK_BANK_DATA,
   },
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,

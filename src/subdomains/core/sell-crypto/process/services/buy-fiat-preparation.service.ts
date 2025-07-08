@@ -5,7 +5,6 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
-import { AmlError } from 'src/subdomains/core/aml/enums/aml-error.enum';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -65,12 +64,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
           ...request,
         },
         { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
-        {
-          amlCheck: CheckStatus.PENDING,
-          amlReason: AmlReason.MANUAL_CHECK,
-          comment: AmlError.BANK_DATA_MANUAL_REVIEW,
-          ...request,
-        },
       ],
       relations: {
         cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
