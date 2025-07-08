@@ -66,10 +66,13 @@ export class PaymentLinkPaymentService {
     });
 
     for (const payment of pendingPayments) {
-      await this.doSave(payment.expire(), true);
-
-      await this.cancelQuotesForPayment(payment);
+      await this.expirePayment(payment);
     }
+  }
+
+  async expirePayment(payment: PaymentLinkPayment): Promise<void> {
+    await this.doSave(payment.expire(), true);
+    await this.cancelQuotesForPayment(payment);
   }
 
   async checkTxConfirmations(): Promise<void> {
@@ -212,7 +215,23 @@ export class PaymentLinkPaymentService {
       }, paymentLink.configObj.autoConfirmSecs * 1000);
     }
 
+    setTimeout(async () => {
+      await this.expirePaymentIfPending(payment.uniqueId);
+    }, payment.expiryDate.getTime() - Date.now() + Config.payment.timeoutDelay * 1000);
+
     return savedPayment;
+  }
+
+  private async expirePaymentIfPending(uniqueId: string): Promise<void> {
+    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
+      where: {
+        uniqueId,
+        status: PaymentLinkPaymentStatus.PENDING,
+      },
+      relations: { link: true },
+    });
+
+    if (pendingPayment) await this.expirePayment(pendingPayment);
   }
 
   async confirmPayment(payment: PaymentLinkPayment): Promise<void> {
