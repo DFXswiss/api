@@ -18,10 +18,10 @@ export class OCPStickerService {
     routeIdOrLabel: string,
     externalIds?: string[],
     ids?: number[],
-    version = StickerType.BITCOIN_FOCUS,
+    type = StickerType.BITCOIN_FOCUS,
     lang = 'en',
   ): Promise<Buffer> {
-    if (version === StickerType.BITCOIN_FOCUS) {
+    if (type === StickerType.BITCOIN_FOCUS) {
       return this.generateBitcoinFocusStickersPdf(routeIdOrLabel, externalIds, ids, lang);
     } else {
       return this.generateClassicStickersPdf(routeIdOrLabel, externalIds, ids, lang);

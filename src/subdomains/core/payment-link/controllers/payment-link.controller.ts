@@ -307,13 +307,13 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
   @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: false })
   @ApiQuery({ name: 'ids', description: 'Comma-separated payment link IDs', required: false })
-  @ApiQuery({ name: 'version', description: 'Sticker version', required: false })
+  @ApiQuery({ name: 'type', description: 'Sticker type', required: false })
   @ApiQuery({ name: 'lang', description: 'Language code', required: false })
   async generateOcpStickers(
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
     @Query('ids') ids: string,
-    @Query('version') version: StickerType,
+    @Query('type') type: StickerType,
     @Query('lang') lang: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
@@ -327,7 +327,7 @@ export class PaymentLinkController {
       route,
       externalIdArray,
       idArray,
-      version,
+      type,
       lang,
     );
 
