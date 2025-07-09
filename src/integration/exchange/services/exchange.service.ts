@@ -41,7 +41,7 @@ enum PrecisionMode {
 export abstract class ExchangeService extends PricingProvider implements OnModuleInit {
   protected abstract readonly logger: DfxLogger;
 
-  protected abstract readonly networks: { [b in Blockchain]: string };
+  protected abstract readonly networks: { [b in Blockchain]: string | false };
   protected readonly exchange: Exchange;
 
   private markets: Market[];
@@ -321,7 +321,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     );
   }
 
-  mapNetwork(blockchain: Blockchain): string {
+  mapNetwork(blockchain: Blockchain): string | false {
     return this.networks[blockchain];
   }
 }

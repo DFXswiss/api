@@ -9,7 +9,7 @@ import { ExchangeService } from './exchange.service';
 export class KrakenService extends ExchangeService {
   protected readonly logger = new DfxLogger(KrakenService);
 
-  protected networks: { [b in Blockchain]: string } = {
+  protected networks: { [b in Blockchain]: string | false } = {
     Arbitrum: 'arbitrum',
     BinanceSmartChain: 'bsc',
     Bitcoin: 'bitcoin',
@@ -27,7 +27,7 @@ export class KrakenService extends ExchangeService {
     Arweave: undefined,
     Railgun: undefined,
     BinancePay: undefined,
-    Solana: undefined,
+    Solana: false, // use auto-detect
   };
 
   constructor() {

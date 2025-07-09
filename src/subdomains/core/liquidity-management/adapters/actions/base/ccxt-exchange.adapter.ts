@@ -349,7 +349,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   private parseWithdrawParams(params: Record<string, unknown>): {
     address: string;
     key: string;
-    network: string;
+    network?: string;
     asset?: string;
   } {
     const address = process.env[params.destinationAddress as string];
@@ -357,10 +357,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const network = this.exchangeService.mapNetwork(params.destinationBlockchain as Blockchain);
     const asset = params.asset as string | undefined;
 
-    if (!(address && key && network))
+    if (!(address && key && network != null))
       throw new Error(`Params provided to CcxtExchangeAdapter.withdraw(...) command are invalid.`);
 
-    return { address, key, network, asset };
+    return { address, key, network: network || undefined, asset };
   }
 
   private validateBuyParams(params: Record<string, unknown>): boolean {
@@ -415,7 +415,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   private parseTransferParams(params: Record<string, unknown>): {
     address: string;
     key: string;
-    network: string;
+    network?: string;
     target: string;
     optimum?: number;
   } {
@@ -425,10 +425,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const target = params.targetExchange as string;
     const optimum = params.targetOptimum as number | undefined;
 
-    if (!(address && key && network && target))
+    if (!(address && key && network != null && target))
       throw new Error(`Params provided to CcxtExchangeAdapter.transfer(...) command are invalid.`);
 
-    return { address, key, network, target, optimum };
+    return { address, key, network: network || undefined, target, optimum };
   }
 
   // --- HELPER METHODS --- //
