@@ -40,11 +40,11 @@ export class OCPStickerService {
     const stickerTitle = this.i18n.translate('payment.sticker.pay_with_crypto', { lang: lang.toLowerCase() });
 
     // Classic (blue) OCP Sticker
-    const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');
+    const stickerPath = join(process.cwd(), 'assets', 'ocp-classic-sticker.png');
     const stickerBuffer = readFileSync(stickerPath);
 
     // OCP Logo
-    const ocpLogoPath = join(process.cwd(), 'assets', 'ocp_logo_2.png');
+    const ocpLogoPath = join(process.cwd(), 'assets', 'ocp_logo.png');
     const ocpLogoBuffer = readFileSync(ocpLogoPath);
 
     const qrPadding = 10;
@@ -174,7 +174,7 @@ export class OCPStickerService {
     const stickerBuffer = readFileSync(stickerPath);
 
     // OCP Logo
-    const ocpLogoPath = join(process.cwd(), 'assets', 'ocp_logo_2.png');
+    const ocpLogoPath = join(process.cwd(), 'assets', 'ocp_logo.png');
     const ocpLogoBuffer = readFileSync(ocpLogoPath);
 
     const cols = 2;
