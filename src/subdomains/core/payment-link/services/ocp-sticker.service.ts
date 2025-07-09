@@ -170,7 +170,7 @@ export class OCPStickerService {
     const links = await this.fetchPaymentLinks(routeIdOrLabel, externalIds, ids);
 
     // Bitcoin Focus OCP Sticker
-    const stickerPath = join(process.cwd(), 'assets', `ocp-bitcoin-focus-sticker_${lang}.png`);
+    const stickerPath = join(process.cwd(), 'assets', `ocp-bitcoin-focus-sticker_${lang.toLowerCase()}.png`);
     const stickerBuffer = readFileSync(stickerPath);
 
     // OCP Logo
