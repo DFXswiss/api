@@ -32,7 +32,7 @@ export class CreatePaymentLinkDto {
   @ApiPropertyOptional({
     enum: PaymentLinkMode,
     description:
-      'Possible values: Multiple(Default - can have multiple payments), Single(Only one payment can be created), Donation(Allows multiple payments, payments can be created anonymously)',
+      'Possible values: Multiple(Default - can have multiple payments), Single(Only one payment can be created), Public(Allows multiple payments, payments can be created anonymously)',
   })
   @IsOptional()
   @IsEnum(PaymentLinkMode)

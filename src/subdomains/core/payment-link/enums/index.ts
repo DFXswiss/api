@@ -79,5 +79,5 @@ export enum StickerType {
 export enum PaymentLinkMode {
   SINGLE = 'Single',
   MULTIPLE = 'Multiple',
-  DONATION = 'Donation',
+  PUBLIC = 'Public',
 }

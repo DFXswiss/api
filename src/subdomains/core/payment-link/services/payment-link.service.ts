@@ -505,22 +505,22 @@ export class PaymentLinkService {
     });
   }
 
-  async getDonationPaymentLink(routeLabel: string, externalLinkId: string): Promise<PaymentLink> {
+  async getPublicPaymentLink(routeLabel: string, externalLinkId: string): Promise<PaymentLink> {
     const route = await this.sellService.getByLabel(undefined, routeLabel);
     if (!route) throw new NotFoundException('Route not found');
 
     const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
-    if (paymentLink.mode !== PaymentLinkMode.DONATION) throw new UnauthorizedException('Payment link is not public');
+    if (paymentLink.mode !== PaymentLinkMode.PUBLIC) throw new UnauthorizedException('Payment link is not public');
 
     return paymentLink;
   }
 
-  async createDonationPayment(
+  async createPublicPayment(
     dto: CreatePaymentLinkPaymentDto,
     routeLabel: string,
     externalLinkId: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getDonationPaymentLink(routeLabel, externalLinkId);
+    const paymentLink = await this.getPublicPaymentLink(routeLabel, externalLinkId);
     if (dto.amount == 0) throw new BadRequestException('Amount must be greater than 0');
 
     const payment = await this.paymentLinkPaymentService.createPayment(paymentLink, dto);
@@ -541,7 +541,7 @@ export class PaymentLinkService {
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
       : Boolean(key)
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
-      : await this.getDonationPaymentLink(routeLabel, externalLinkId);
+      : await this.getPublicPaymentLink(routeLabel, externalLinkId);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
@@ -606,13 +606,5 @@ export class PaymentLinkService {
     await this.paymentLinkPaymentService.confirmPayment(payment);
 
     return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, payment.externalId);
-  }
-
-  async isPaymentLinkPublicAccess(routeLabel: string, externalLinkId: string): Promise<boolean> {
-    const route = await this.sellService.getByLabel(undefined, routeLabel);
-    if (!route) throw new NotFoundException('Route not found');
-
-    const existingPaymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
-    return existingPaymentLink.mode === PaymentLinkMode.DONATION;
   }
 }

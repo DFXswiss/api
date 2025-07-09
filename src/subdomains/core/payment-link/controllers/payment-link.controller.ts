@@ -217,9 +217,7 @@ export class PaymentLinkController {
         .then(PaymentLinkDtoMapper.toLinkDto);
     }
 
-    return this.paymentLinkService
-      .createDonationPayment(dto, route, externalLinkId)
-      .then(PaymentLinkDtoMapper.toLinkDto);
+    return this.paymentLinkService.createPublicPayment(dto, route, externalLinkId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Get('payment/wait')
