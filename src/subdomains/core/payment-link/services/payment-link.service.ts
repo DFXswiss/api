@@ -271,6 +271,7 @@ export class PaymentLinkService {
       possibleStandards: standards,
       displayQr,
       recipient: pendingPayment.link.recipient,
+      route: pendingPayment.link.route.route.label,
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
@@ -343,6 +344,8 @@ export class PaymentLinkService {
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
+      route: paymentLink.route.route.label,
+      currencyName: paymentLink.route.fiat?.name,
       displayQr,
       recipient: paymentLink.recipient,
       mode: paymentLink.mode,
@@ -502,16 +505,23 @@ export class PaymentLinkService {
     });
   }
 
-  async createDonationPayment(
-    dto: CreatePaymentLinkPaymentDto,
-    routeLabel: string,
-    externalLinkId: string,
-  ): Promise<PaymentLink> {
+  async getDonationPaymentLink(routeLabel: string, externalLinkId: string): Promise<PaymentLink> {
     const route = await this.sellService.getByLabel(undefined, routeLabel);
     if (!route) throw new NotFoundException('Route not found');
 
     const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
     if (paymentLink.mode !== PaymentLinkMode.DONATION) throw new UnauthorizedException('Payment link is not public');
+
+    return paymentLink;
+  }
+
+  async createDonationPayment(
+    dto: CreatePaymentLinkPaymentDto,
+    routeLabel: string,
+    externalLinkId: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.getDonationPaymentLink(routeLabel, externalLinkId);
+    if (dto.amount == 0) throw new BadRequestException('Amount must be greater than 0');
 
     const payment = await this.paymentLinkPaymentService.createPayment(paymentLink, dto);
     paymentLink.payments = [payment];
@@ -525,10 +535,13 @@ export class PaymentLinkService {
     externalLinkId?: string,
     externalPaymentId?: string,
     key?: string,
+    routeLabel?: string,
   ): Promise<PaymentLink> {
     const paymentLink = Boolean(userId)
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
-      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+      : Boolean(key)
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
+      : await this.getDonationPaymentLink(routeLabel, externalLinkId);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }

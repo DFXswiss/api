@@ -11,7 +11,6 @@ import {
   Query,
   Res,
   StreamableFile,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -46,10 +45,9 @@ import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { CreatePaymentAccessLevel, StickerType } from '../enums';
-import { CreatePaymentAccessLevelGuard } from '../guards/create-payment-access-level.guard';
-import { GetCreatePaymentLinkAccessLevel } from '../guards/get-create-payment-link-access-level';
+import { StickerType } from '../enums';
 import { JwtOrPaymentLinkKeyGuard } from '../guards/jwt-or-payment-link-key.guard';
+import { OptionalJwtOrPaymentLinkKeyGuard } from '../guards/optional-jwt-or-payment-link-key.guard';
 import { OCPStickerService } from '../services/ocp-sticker.service';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 import { PaymentLinkService } from '../services/payment-link.service';
@@ -193,7 +191,7 @@ export class PaymentLinkController {
   }
 
   @Post('payment')
-  @UseGuards(CreatePaymentAccessLevelGuard)
+  @UseGuards(OptionalJwtOrPaymentLinkKeyGuard)
   @ApiCreatedResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -201,34 +199,27 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'route', description: 'Route label', required: false })
   async createPayment(
     @GetJwt() jwt: JwtPayload,
-    @GetCreatePaymentLinkAccessLevel() accessLevel: CreatePaymentAccessLevel,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('key') key: string,
     @Query('route') route: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    switch (accessLevel) {
-      case CreatePaymentAccessLevel.ACCESS_KEY:
-        return this.paymentLinkService
-          .createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
-          .then(PaymentLinkDtoMapper.toLinkDto);
-
-      case CreatePaymentAccessLevel.PUBLIC:
-        if (dto.amount === 0) throw new BadRequestException('Amount must be greater than 0');
-
-        return this.paymentLinkService
-          .createDonationPayment(dto, route, externalLinkId)
-          .then(PaymentLinkDtoMapper.toLinkDto);
-
-      case CreatePaymentAccessLevel.USER:
-        return this.paymentLinkService
-          .createPayment(+jwt.user, dto, +linkId, externalLinkId)
-          .then(PaymentLinkDtoMapper.toLinkDto);
-
-      default:
-        throw new UnauthorizedException('Invalid access level');
+    if (jwt) {
+      return this.paymentLinkService
+        .createPayment(+jwt.user, dto, +linkId, externalLinkId)
+        .then(PaymentLinkDtoMapper.toLinkDto);
     }
+
+    if (key) {
+      return this.paymentLinkService
+        .createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
+        .then(PaymentLinkDtoMapper.toLinkDto);
+    }
+
+    return this.paymentLinkService
+      .createDonationPayment(dto, route, externalLinkId)
+      .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Get('payment/wait')
@@ -273,21 +264,23 @@ export class PaymentLinkController {
 
   @Delete('payment')
   @ApiBearerAuth()
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(OptionalJwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
   @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
+  @ApiQuery({ name: 'route', description: 'Route label', required: false })
   async cancelPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
     @Query('key') key: string,
+    @Query('route') route: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
+      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key, route)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 

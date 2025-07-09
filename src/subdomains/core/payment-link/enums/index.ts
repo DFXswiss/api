@@ -81,9 +81,3 @@ export enum PaymentLinkMode {
   MULTIPLE = 'Multiple',
   DONATION = 'Donation',
 }
-
-export enum CreatePaymentAccessLevel {
-  USER = 'user',
-  ACCESS_KEY = 'access-key',
-  PUBLIC = 'public',
-}
