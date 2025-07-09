@@ -39,6 +39,14 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
   [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
   [Blockchain.BINANCE_PAY]: undefined,
+  [Blockchain.KRAKEN]: undefined,
+  [Blockchain.BINANCE]: undefined,
+  [Blockchain.XT]: undefined,
+  [Blockchain.MAERKI_BAUMANN]: undefined,
+  [Blockchain.OLKYPAY]: undefined,
+  [Blockchain.CHECKOUT]: undefined,
+  [Blockchain.KALEIDO]: undefined,
+  [Blockchain.SUMIXX]: undefined,
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -60,6 +68,14 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.CARDANO]: 'transaction',
   [Blockchain.RAILGUN]: 'transaction',
   [Blockchain.BINANCE_PAY]: undefined,
+  [Blockchain.KRAKEN]: undefined,
+  [Blockchain.BINANCE]: undefined,
+  [Blockchain.XT]: undefined,
+  [Blockchain.MAERKI_BAUMANN]: undefined,
+  [Blockchain.OLKYPAY]: undefined,
+  [Blockchain.CHECKOUT]: undefined,
+  [Blockchain.KALEIDO]: undefined,
+  [Blockchain.SUMIXX]: undefined,
 };
 
 function assetPaths(asset: Asset): string | undefined {

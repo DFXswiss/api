@@ -6,11 +6,6 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { readFileSync } from 'fs';
-import { I18nService } from 'nestjs-i18n';
-import { join } from 'path';
-import PDFDocument from 'pdfkit';
-import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -53,7 +48,6 @@ export class PaymentLinkService {
     private readonly countryService: CountryService,
     private readonly sellService: SellService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
-    private readonly i18n: I18nService,
   ) {}
 
   async getOrThrow(
@@ -607,139 +601,5 @@ export class PaymentLinkService {
 
     const existingPaymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
     return existingPaymentLink.mode === PaymentLinkMode.DONATION;
-  }
-
-  async generateOcpStickersPdf(
-    routeIdOrLabel: string,
-    externalIds?: string[],
-    ids?: number[],
-    lang = 'en',
-  ): Promise<Buffer> {
-    const linksFromDb = await this.sellService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
-    const linkMapByExternalId = new Map(linksFromDb.map((link) => [link.externalId, link]));
-    const linkMapById = new Map(linksFromDb.map((link) => [link.id, link]));
-    const linksByExternalId = externalIds?.map((extId) => linkMapByExternalId.get(extId)).filter(Boolean) || [];
-    const linksById = ids?.map((id) => linkMapById.get(id)).filter(Boolean) || [];
-    const links = [...linksByExternalId, ...linksById];
-
-    // Translated sticker title
-    const stickerTitle = this.i18n.translate('payment.sticker.pay_with_crypto', { lang: lang.toLowerCase() });
-
-    // Blue OCP Image
-    const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');
-    const stickerBuffer = readFileSync(stickerPath);
-
-    // OCP Logo
-    const ocpLogoPath = join(process.cwd(), 'assets', 'ocp-logo.png');
-    const ocpLogoBuffer = readFileSync(ocpLogoPath);
-
-    const qrPadding = 10;
-    const borderWidth = 2.7;
-    const borderColor = '#2130EE'; // #2130EE
-    const cols = 2;
-    const rows = 6;
-    const margin = 30;
-    const stickerSpacing = 20;
-    const ocpLogoSize = 35;
-
-    const imgAspect = 1;
-    const ratioSum = imgAspect + 1;
-
-    return new Promise<Buffer>(async (resolve, reject) => {
-      try {
-        const pdf = new PDFDocument({ size: 'A3', margin: 0 });
-        const chunks: Buffer[] = [];
-        pdf.on('data', (c) => chunks.push(c));
-        pdf.on('end', () => resolve(Buffer.concat(chunks)));
-
-        const { width: pageWidth, height: pageHeight } = pdf.page;
-        const availW = pageWidth - 2 * margin;
-        const availH = pageHeight - 2 * margin;
-
-        const byH = (availH - (rows - 1) * stickerSpacing) / rows;
-        const byW = (availW - (cols - 1) * stickerSpacing) / cols / ratioSum;
-
-        const stickerHeight = Math.min(byH, byW);
-        const pngWidth = stickerHeight * imgAspect;
-        const qrWidth = stickerHeight;
-        const stickerWidth = pngWidth + qrWidth;
-
-        const gridW = cols * stickerWidth + (cols - 1) * stickerSpacing;
-        const gridH = rows * stickerHeight + (rows - 1) * stickerSpacing;
-
-        const startX = margin + (availW - gridW) / 2;
-        const startY = margin + (availH - gridH) / 2;
-
-        const stickersPerPage = cols * rows;
-        for (let i = 0; i < links.length; i++) {
-          if (i > 0 && i % stickersPerPage === 0) {
-            pdf.addPage();
-          }
-
-          const { externalId, id, uniqueId } = links[i];
-          const idx = i % stickersPerPage;
-          const col = idx % cols;
-          const row = Math.floor(idx / cols);
-          const x = startX + col * (stickerWidth + stickerSpacing);
-          const y = startY + row * (stickerHeight + stickerSpacing);
-
-          // QR Code URL
-          const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
-          const qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
-          const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
-            width: 400,
-            margin: 0,
-          });
-          const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
-
-          // Add Blue OCP Image
-          pdf.image(stickerBuffer, x, y, {
-            width: pngWidth,
-            height: stickerHeight + 1,
-          });
-
-          // Add QR-Code
-          pdf.image(qrBuffer, x + pngWidth + qrPadding, y + qrPadding, {
-            width: qrWidth - qrPadding * 2,
-            height: stickerHeight - qrPadding * 2,
-          });
-
-          // Add OCP Logo
-          pdf.image(
-            ocpLogoBuffer,
-            x + pngWidth + qrPadding + (qrWidth - qrPadding * 2 - ocpLogoSize) / 2,
-            y + qrPadding + (stickerHeight - qrPadding * 2 - ocpLogoSize) / 2,
-            {
-              width: ocpLogoSize,
-              height: ocpLogoSize,
-            },
-          );
-
-          // Add title
-          pdf.fontSize(10).font('Helvetica').fillColor('white');
-          const labelX = x + 12;
-          const labelY = y + 8;
-          pdf.text(stickerTitle, labelX, labelY);
-
-          // Add External ID
-          pdf.fontSize(4).font('Helvetica').fillColor('black');
-          const textWidth = pdf.widthOfString(externalId ?? id.toString());
-          const textX = x + pngWidth - textWidth - 5;
-          const textY = y + stickerHeight - 7;
-          pdf.text(externalId ?? id.toString(), textX, textY);
-
-          // Add Border
-          pdf
-            .strokeColor(borderColor)
-            .lineWidth(borderWidth)
-            .rect(x + 1, y, stickerWidth, stickerHeight)
-            .stroke();
-        }
-
-        pdf.end();
-      } catch (e) {
-        reject(e);
-      }
-    });
   }
 }

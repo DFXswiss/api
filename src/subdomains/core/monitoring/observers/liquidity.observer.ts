@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
+import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process, ProcessService } from 'src/shared/services/process.service';
@@ -15,6 +20,8 @@ interface LiquidityData {
   stuckTradingRuleCount: number;
   stuckLiquidityOrderCount: number;
   safetyModeActive: boolean;
+  krakenSyncDelay: number; // min
+  binanceSyncDelay: number; // min
 }
 
 @Injectable()
@@ -25,6 +32,8 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
     monitoringService: MonitoringService,
     private readonly repos: RepositoryFactory,
     private readonly processService: ProcessService,
+    private readonly assetService: AssetService,
+    private readonly exchangeTxService: ExchangeTxService,
   ) {
     super(monitoringService, 'liquidity', 'trading');
   }
@@ -41,6 +50,17 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
   // --- HELPER METHODS --- //
 
   private async getLiquidityData(): Promise<LiquidityData> {
+    const binance: Asset = await this.assetService
+      .getAllBlockchainAssets([Blockchain.BINANCE], undefined, { balance: true })
+      .then((asset) => Util.sort(asset, 'updated', 'DESC'))[0];
+
+    const kraken: Asset = await this.assetService
+      .getAllBlockchainAssets([Blockchain.KRAKEN], undefined, { balance: true })
+      .then((asset) => Util.sort(asset, 'updated', 'DESC'))[0];
+
+    const lastBinanceTx = await this.exchangeTxService.getLastExchangeTx(ExchangeName.BINANCE);
+    const lastKrakenTx = await this.exchangeTxService.getLastExchangeTx(ExchangeName.KRAKEN);
+
     return {
       stuckTradingOrderCount: await this.repos.tradingOrder.countBy({
         status: In([TradingOrderStatus.CREATED, TradingOrderStatus.IN_PROGRESS]),
@@ -55,6 +75,8 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
         updated: LessThan(Util.minutesBefore(30)),
       }),
       safetyModeActive: this.processService.isSafetyModeActive(),
+      binanceSyncDelay: Math.abs(Util.minutesDiff(lastBinanceTx.created, binance.balance.updated)),
+      krakenSyncDelay: Math.abs(Util.minutesDiff(lastKrakenTx.created, kraken.balance.updated)),
     };
   }
 }
