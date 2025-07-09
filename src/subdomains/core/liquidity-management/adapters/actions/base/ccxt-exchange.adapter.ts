@@ -301,6 +301,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         throw new OrderNotProcessableException(e.message);
       }
 
+      this.logger.error(`Error checking trade completion for order ${order.id}:`, e);
       throw new OrderFailedException(e.message);
     }
   }
