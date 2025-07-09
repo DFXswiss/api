@@ -103,7 +103,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   async getTrades(from?: string, to?: string, since?: Date): Promise<Trade[]> {
     const pair = from && to && (await this.getPair(from, to));
-    return this.callApi((e) => e.fetchMyTrades(pair, since?.getTime()));
+    return this.callApi((e) => e.fetchMyTrades(pair, this.toCcxtDate(since)));
   }
 
   async getOpenTrades(from: string, to: string): Promise<Order[]> {
@@ -199,11 +199,11 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   async getDeposits(token: string, since?: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchDeposits(token, since?.getTime(), 200, { limit: 200 }));
+    return this.callApi((e) => e.fetchDeposits(token, this.toCcxtDate(since), 200, { limit: 200 }));
   }
 
   async getWithdrawals(token: string, since?: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchWithdrawals(token, since?.getTime(), 200, { limit: 200 }));
+    return this.callApi((e) => e.fetchWithdrawals(token, this.toCcxtDate(since), 200, { limit: 200 }));
   }
 
   // --- Helper Methods --- //
@@ -323,5 +323,10 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   mapNetwork(blockchain: Blockchain): string | false {
     return this.networks[blockchain];
+  }
+
+  private toCcxtDate(date?: Date): number | undefined {
+    // ignore milliseconds
+    return date ? Util.round(date?.getTime(), -3) : undefined;
   }
 }
