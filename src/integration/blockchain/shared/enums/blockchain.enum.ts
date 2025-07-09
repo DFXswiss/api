@@ -27,6 +27,7 @@ export const PaymentLinkBlockchain = {
   MONERO: Blockchain.MONERO,
   OPTIMISM: Blockchain.OPTIMISM,
   POLYGON: Blockchain.POLYGON,
+  GNOSIS: Blockchain.GNOSIS,
   BITCOIN: Blockchain.BITCOIN,
   BINANCE_PAY: Blockchain.BINANCE_PAY,
   SOLANA: Blockchain.SOLANA,
