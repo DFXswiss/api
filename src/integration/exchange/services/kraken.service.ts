@@ -28,6 +28,14 @@ export class KrakenService extends ExchangeService {
     Railgun: undefined,
     BinancePay: undefined,
     Solana: false, // use auto-detect
+    Kraken: undefined,
+    Binance: undefined,
+    XT: undefined,
+    MaerkiBaumann: undefined,
+    Olkypay: undefined,
+    Checkout: undefined,
+    Kaleido: undefined,
+    Sumixx: undefined,
   };
 
   constructor() {
