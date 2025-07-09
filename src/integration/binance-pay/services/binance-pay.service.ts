@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
@@ -37,7 +37,7 @@ import {
 } from '../dto/binance.dto';
 
 @Injectable()
-export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebhookDto> {
+export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebhookDto>, OnModuleInit {
   private readonly logger = new DfxLogger(BinancePayService);
 
   private readonly baseUrl = 'https://bpay.binanceapi.com';
@@ -231,6 +231,10 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
     } catch (e) {
       this.logger.error(`Failed to update certificates:`, e);
     }
+  }
+
+  async onModuleInit(): Promise<void> {
+    await this.updateCertificates();
   }
 
   async getCertificates(): Promise<CertificateResponse> {
