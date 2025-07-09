@@ -17,7 +17,7 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { FiatPriceCurrencies, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
@@ -100,8 +100,16 @@ export class BuyCryptoPreparationService {
         const { users, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
-        const referenceChfPrice = await this.pricingService.getDefaultPrice(inputReferenceCurrency, 'CHF', false);
-        const referenceEurPrice = await this.pricingService.getDefaultPrice(inputReferenceCurrency, 'EUR', false);
+        const referenceChfPrice = await this.pricingService.getFiatPrice(
+          inputReferenceCurrency,
+          FiatPriceCurrencies.CHF,
+          false,
+        );
+        const referenceEurPrice = await this.pricingService.getFiatPrice(
+          inputReferenceCurrency,
+          FiatPriceCurrencies.EUR,
+          false,
+        );
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
@@ -217,8 +225,16 @@ export class BuyCryptoPreparationService {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const referenceEurPrice = await this.pricingService.getDefaultPrice(inputReferenceCurrency, 'EUR', false);
-        const referenceChfPrice = await this.pricingService.getDefaultPrice(inputReferenceCurrency, 'CHF', false);
+        const referenceEurPrice = await this.pricingService.getFiatPrice(
+          inputReferenceCurrency,
+          FiatPriceCurrencies.EUR,
+          false,
+        );
+        const referenceChfPrice = await this.pricingService.getFiatPrice(
+          inputReferenceCurrency,
+          FiatPriceCurrencies.CHF,
+          false,
+        );
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 

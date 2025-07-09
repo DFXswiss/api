@@ -24,6 +24,12 @@ import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 
+export enum FiatPriceCurrencies {
+  EUR = 'EUR',
+  CHF = 'CHF',
+  USD = 'USD',
+}
+
 @Injectable()
 export class PricingService implements OnModuleInit {
   private readonly logger = new DfxLogger(PricingService);
@@ -73,13 +79,18 @@ export class PricingService implements OnModuleInit {
     void this.fiatService.getFiatByName('USD').then((f) => (this.usd = f));
   }
 
-  async getDefaultPrice(
+  async getFiatPrice(
     from: Active,
-    referenceCurrency: 'EUR' | 'CHF' | 'USD',
+    referenceCurrency: FiatPriceCurrencies,
     allowExpired: boolean,
     tryCount = 2,
   ): Promise<Price> {
-    const to = referenceCurrency === 'CHF' ? this.chf : referenceCurrency === 'EUR' ? this.eur : this.usd;
+    const to =
+      referenceCurrency === FiatPriceCurrencies.CHF
+        ? this.chf
+        : referenceCurrency === FiatPriceCurrencies.EUR
+        ? this.eur
+        : this.usd;
 
     return this.getPrice(from, to, allowExpired, tryCount);
   }
