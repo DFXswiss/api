@@ -50,7 +50,7 @@ export enum Process {
   NETWORK_START_FEE = 'NetworkStartFee',
   TRADING_LOG = 'TradingLog',
   ASSET_DECIMALS = 'AssetDecimals',
-  UPDATE_GAS_PRICE = 'UpdateGasPrice',
+  UPDATE_BLOCKCHAIN_FEE = 'UpdateBlockchainFee',
   SANCTION_SYNC = 'SanctionSync',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',

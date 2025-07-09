@@ -45,7 +45,9 @@ import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
+import { StickerType } from '../enums';
 import { JwtOrPaymentLinkKeyGuard } from '../guards/jwt-or-payment-link-key.guard';
+import { OCPStickerService } from '../services/ocp-sticker.service';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 import { PaymentLinkService } from '../services/payment-link.service';
 
@@ -58,6 +60,7 @@ export class PaymentLinkController {
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly sellService: SellService,
+    private readonly paymentLinkStickerService: OCPStickerService,
   ) {}
 
   @Get()
@@ -304,11 +307,13 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
   @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: false })
   @ApiQuery({ name: 'ids', description: 'Comma-separated payment link IDs', required: false })
+  @ApiQuery({ name: 'type', description: 'Sticker type', required: false })
   @ApiQuery({ name: 'lang', description: 'Language code', required: false })
   async generateOcpStickers(
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
     @Query('ids') ids: string,
+    @Query('type') type: StickerType,
     @Query('lang') lang: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
@@ -318,7 +323,13 @@ export class PaymentLinkController {
 
     const idArray = ids?.split(',').map((id) => +id);
     const externalIdArray = externalIds?.split(',').map((id) => id.trim());
-    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray, idArray, lang);
+    const pdfBuffer = await this.paymentLinkStickerService.generateOcpStickersPdf(
+      route,
+      externalIdArray,
+      idArray,
+      type,
+      lang,
+    );
 
     res.set({
       'Content-Type': 'application/pdf',
