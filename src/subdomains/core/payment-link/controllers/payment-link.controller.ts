@@ -45,6 +45,7 @@ import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
+import { StickerType } from '../enums';
 import { JwtOrPaymentLinkKeyGuard } from '../guards/jwt-or-payment-link-key.guard';
 import { OCPStickerService } from '../services/ocp-sticker.service';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
@@ -312,7 +313,7 @@ export class PaymentLinkController {
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
     @Query('ids') ids: string,
-    @Query('version') version: string,
+    @Query('version') version: StickerType,
     @Query('lang') lang: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {

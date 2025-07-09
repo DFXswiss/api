@@ -8,6 +8,7 @@ import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { PaymentLink } from '../entities/payment-link.entity';
+import { StickerType } from '../enums';
 
 @Injectable()
 export class OCPStickerService {
@@ -17,10 +18,10 @@ export class OCPStickerService {
     routeIdOrLabel: string,
     externalIds?: string[],
     ids?: number[],
-    version = 'bitcoin-focus',
+    version = StickerType.BITCOIN_FOCUS,
     lang = 'en',
   ): Promise<Buffer> {
-    if (version === 'bitcoin-focus') {
+    if (version === StickerType.BITCOIN_FOCUS) {
       return this.generateBitcoinFocusStickersPdf(routeIdOrLabel, externalIds, ids, lang);
     } else {
       return this.generateClassicStickersPdf(routeIdOrLabel, externalIds, ids, lang);
