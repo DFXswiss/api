@@ -25,7 +25,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
 
   constructor(
     private readonly blockchainRegistryService: BlockchainRegistryService,
-    private readonly payoutMoneroService: PayoutMoneroService, // TODO: via registry service?
+    private readonly payoutMoneroService: PayoutMoneroService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
   ) {
     this.feeCache = new Map();
@@ -36,8 +36,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
   }
 
   // --- JOBS --- //
-
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.UPDATE_GAS_PRICE })
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.UPDATE_BLOCKCHAIN_FEE })
   async updateFees(): Promise<void> {
     for (const blockchain of Object.values(PaymentLinkBlockchain)) {
       try {
