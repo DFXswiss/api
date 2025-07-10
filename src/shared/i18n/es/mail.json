@@ -158,6 +158,15 @@
                 "line4": "Se le notificará tan pronto como se haya completado la comprobación y se haya procesado su pago.",
                 "line5": "Para ver el estado actual de su transacción:<br>[url:haga clic aquí]"
             },
+            "manual_check_bank_data": {
+                "title": "Depósito en cuenta corriente",
+                "salutation": "Se comprobará su depósito",
+                "line1": "Gracias por confiar en DFX.",
+                "line2": "Lamentablemente, la transacción no ha podido liberarse de forma totalmente automática y ahora debe ser comprobada manualmente por un empleado.",
+                "line3": "Suele tardar 24 horas, pero un máximo de 7 días.",
+                "line4": "Se le notificará tan pronto como se haya completado la comprobación y se haya procesado su pago.",
+                "line5": "Para ver el estado actual de su transacción:<br>[url:haga clic aquí]"
+            },
             "asset_kyc_needed": {
                 "title": "Verificación (KYC) requerida",
                 "salutation": "Se requiere verificación (KYC) para ejecutar su transacción pendiente",

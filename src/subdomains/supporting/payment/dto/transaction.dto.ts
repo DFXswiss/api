@@ -72,6 +72,7 @@ export const TransactionReasonMapper: {
 } = {
   [AmlReason.NA]: null,
   [AmlReason.MANUAL_CHECK]: null,
+  [AmlReason.MANUAL_CHECK_BANK_DATA]: null,
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
   [AmlReason.USER_BLOCKED]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DATA_BLOCKED]: TransactionReason.UNKNOWN,

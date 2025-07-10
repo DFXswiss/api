@@ -74,7 +74,8 @@ import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
@@ -124,7 +125,7 @@ export class KycService {
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {
         name: KycStepName.IDENT,
-        status: KycStepStatus.IN_PROGRESS,
+        status: ReviewStatus.IN_PROGRESS,
         created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays - 1)),
       },
       relations: { userData: true },
@@ -159,7 +160,7 @@ export class KycService {
     const entities = await this.kycStepRepo.find({
       where: {
         name: KycStepName.NATIONALITY_DATA,
-        status: KycStepStatus.INTERNAL_REVIEW,
+        status: ReviewStatus.INTERNAL_REVIEW,
       },
       relations: { userData: true },
     });
@@ -194,8 +195,8 @@ export class KycService {
     const entities = await this.kycStepRepo.find({
       where: {
         name: KycStepName.IDENT,
-        status: KycStepStatus.INTERNAL_REVIEW,
-        userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
+        status: ReviewStatus.INTERNAL_REVIEW,
+        userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
       relations: { userData: true },
     });
@@ -423,7 +424,7 @@ export class KycService {
     kycHash: string,
     stepId: number,
     data: Partial<UserData>,
-    reviewStatus: KycStepStatus,
+    reviewStatus: ReviewStatus,
   ): Promise<KycStepBase> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
@@ -468,14 +469,14 @@ export class KycService {
       allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
     });
 
-    return this.updateKycStepAndLog(kycStep, user, data, KycStepStatus.MANUAL_REVIEW);
+    return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
   async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    return this.updateKycStepAndLog(kycStep, user, data, KycStepStatus.MANUAL_REVIEW);
+    return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
   async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
@@ -552,7 +553,7 @@ export class KycService {
       kycStep,
       user,
       data,
-      data.contractAccepted ? KycStepStatus.COMPLETED : KycStepStatus.MANUAL_REVIEW,
+      data.contractAccepted ? ReviewStatus.COMPLETED : ReviewStatus.MANUAL_REVIEW,
     );
   }
 
@@ -599,7 +600,7 @@ export class KycService {
     kycStep: KycStep,
     user: UserData,
     data: KycStepResult,
-    reviewStatus: KycStepStatus,
+    reviewStatus: ReviewStatus,
   ): Promise<KycStepBase> {
     await this.kycStepRepo.update(...kycStep.update(reviewStatus, data));
     await this.createStepLog(user, kycStep);
@@ -683,7 +684,7 @@ export class KycService {
         break;
 
       case IdentShortResult.PENDING:
-        if ([KycStepStatus.EXTERNAL_REVIEW].includes(kycStep.status))
+        if ([ReviewStatus.EXTERNAL_REVIEW].includes(kycStep.status))
           await this.kycStepRepo.update(...kycStep.inProgress(dto));
         break;
 

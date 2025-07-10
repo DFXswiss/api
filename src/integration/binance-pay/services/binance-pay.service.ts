@@ -1,8 +1,11 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
@@ -34,7 +37,7 @@ import {
 } from '../dto/binance.dto';
 
 @Injectable()
-export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebhookDto> {
+export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebhookDto>, OnModuleInit {
   private readonly logger = new DfxLogger(BinancePayService);
 
   private readonly baseUrl = 'https://bpay.binanceapi.com';
@@ -42,6 +45,8 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
   private readonly secretKey: string;
   private certificatedExpiry: number;
   private cert: CertificateResponse['data'];
+
+  private static readonly HOURS_2 = 2 * 60 * 60 * 1000;
 
   private readonly SUPPORTED_BIZ_TYPES = [
     BinanceBizType.PAY,
@@ -211,25 +216,41 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
     }
   }
 
-  async queryCertificate(): Promise<CertificateResponse> {
-    if (this.certificatedExpiry > Date.now()) {
-      return {
-        status: ResponseStatus.SUCCESS,
-        code: '000000',
-        data: this.cert,
-      };
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BINANCE_PAY_CERTIFICATES_UPDATE })
+  async updateCertificates(): Promise<void> {
+    try {
+      const headers = this.getHeaders({});
+      const response = await this.http.post<CertificateResponse>(
+        `${this.baseUrl}/binancepay/openapi/certificates`,
+        {},
+        { headers },
+      );
+
+      this.cert = response.data;
+      this.certificatedExpiry = Date.now() + BinancePayService.HOURS_2;
+    } catch (e) {
+      this.logger.error(`Failed to update certificates:`, e);
+    }
+  }
+
+  onModuleInit() {
+    void this.updateCertificates();
+  }
+
+  async getCertificates(): Promise<CertificateResponse> {
+    if (!this.cert || this.certificatedExpiry < Date.now()) {
+      await this.updateCertificates();
     }
 
-    this.certificatedExpiry = Date.now() + 5 * 60 * 1000;
-    const headers = this.getHeaders({});
-    const response = await this.http.post<CertificateResponse>(
-      `${this.baseUrl}/binancepay/openapi/certificates`,
-      {},
-      { headers },
-    );
+    if (!this.cert) {
+      throw new ServiceUnavailableException('Binance Pay certificate not found');
+    }
 
-    this.cert = response.data;
-    return response;
+    return {
+      status: ResponseStatus.SUCCESS,
+      code: '000000',
+      data: this.cert,
+    };
   }
 
   public async verifySignature(body: BinancePayWebhookDto, headers: BinancePayHeaders): Promise<boolean> {
@@ -237,7 +258,7 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
     const webhookData = JSON.stringify({ ...body, bizId: body.bizIdStr }).replace(/"bizId":"(\d+)"/g, '"bizId":$1');
     const payload = `${timestamp}\n${nonce}\n${webhookData}\n`;
 
-    const { data } = await this.queryCertificate();
+    const { data } = await this.getCertificates();
     const cert = data.find((cert) => cert.certSerial === certSN);
     if (!cert) throw new Error('Certificate not found');
 

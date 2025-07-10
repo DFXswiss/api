@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { Active, activesEqual, isFiat } from 'src/shared/models/active';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -22,10 +24,17 @@ import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 
+export enum PriceCurrency {
+  EUR = 'EUR',
+  CHF = 'CHF',
+  USD = 'USD',
+}
+
 @Injectable()
-export class PricingService {
+export class PricingService implements OnModuleInit {
   private readonly logger = new DfxLogger(PricingService);
 
+  private readonly fiatMap = new Map<PriceCurrency, Fiat>();
   private readonly providerMap: PricingProviderMap;
   private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
   private readonly providerPriceCache = new AsyncCache<Price>(CacheItemResetPeriod.EVERY_10_SECONDS);
@@ -34,6 +43,7 @@ export class PricingService {
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,
     private readonly notificationService: NotificationService,
+    private readonly fiatService: FiatService,
     readonly krakenService: KrakenService,
     readonly binanceService: BinanceService,
     readonly kucoinService: KucoinService,
@@ -61,7 +71,25 @@ export class PricingService {
     };
   }
 
-  async getPrice(from: Active, to: Active, allowExpired: boolean, tryCount = 2): Promise<Price> {
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => this.fiatMap.set(PriceCurrency.CHF, f));
+    void this.fiatService.getFiatByName('EUR').then((f) => this.fiatMap.set(PriceCurrency.EUR, f));
+    void this.fiatService.getFiatByName('USD').then((f) => this.fiatMap.set(PriceCurrency.USD, f));
+  }
+
+  async getPrice(
+    from: Active | PriceCurrency,
+    to: Active | PriceCurrency,
+    allowExpired: boolean,
+    tryCount = 2,
+  ): Promise<Price> {
+    const fromAsset = typeof from === 'object' ? from : this.fiatMap.get(from);
+    const toAsset = typeof to === 'object' ? to : this.fiatMap.get(to);
+
+    return this.getAssetPrice(fromAsset, toAsset, allowExpired, tryCount);
+  }
+
+  private async getAssetPrice(from: Active, to: Active, allowExpired: boolean, tryCount: number): Promise<Price> {
     try {
       if (activesEqual(from, to)) return Price.create(from.name, to.name, 1);
 

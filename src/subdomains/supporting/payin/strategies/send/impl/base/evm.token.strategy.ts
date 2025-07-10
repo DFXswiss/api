@@ -2,6 +2,7 @@ import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
+import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EvmStrategy } from './evm.strategy';
 import { SendGroup, SendType } from './send.strategy';
 
@@ -33,7 +34,7 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
       const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
       const feeAmountChf = feeAmount
         ? await this.pricingService
-            .getPrice(feeAsset, this.chf, true)
+            .getPrice(feeAsset, PriceCurrency.CHF, true)
             .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
         : null;
 
