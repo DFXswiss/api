@@ -28,8 +28,8 @@ export class PaymentLinkFeeService implements OnModuleInit {
     this.feeCache = new Map();
   }
 
-  async onModuleInit() {
-    await this.updateFees();
+  onModuleInit() {
+    void this.updateFees();
   }
 
   // --- JOBS --- //

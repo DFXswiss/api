@@ -39,9 +39,8 @@ export class AlchemyWebhookService implements OnModuleInit {
     this.addressWebhookSubject = new Subject<AlchemyWebhookDto>();
   }
 
-  async onModuleInit() {
-    const allWebhooks = await this.getAllWebhooks();
-    allWebhooks.forEach((w) => this.webhookCache.set(w.id, w.signingKey));
+  onModuleInit() {
+    void this.getAllWebhooks().then((l) => l.forEach((w) => this.webhookCache.set(w.id, w.signingKey)));
   }
 
   async getAllWebhooks(): Promise<Webhook[]> {

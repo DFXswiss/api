@@ -16,7 +16,7 @@ import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supportin
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { FiatPriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -88,16 +88,8 @@ export class BuyFiatPreparationService {
         const { users, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && !bankData.comment) continue;
 
-        const referenceChfPrice = await this.pricingService.getFiatPrice(
-          inputReferenceCurrency,
-          FiatPriceCurrency.CHF,
-          false,
-        );
-        const referenceEurPrice = await this.pricingService.getFiatPrice(
-          inputReferenceCurrency,
-          FiatPriceCurrency.EUR,
-          false,
-        );
+        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.CHF, false);
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.EUR, false);
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
@@ -176,8 +168,8 @@ export class BuyFiatPreparationService {
 
         const inputCurrency = entity.cryptoInput.asset;
 
-        const eurPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.EUR, false);
-        const chfPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.CHF, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, false);
 
         const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
@@ -241,8 +233,8 @@ export class BuyFiatPreparationService {
         const { fee: paymentLinkFee } = entity.cryptoInput.paymentLinkPayment.link.configObj;
 
         // prices
-        const eurPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.EUR, false);
-        const chfPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.CHF, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, false);
 
         const conversionPrice = Price.create(
           inputCurrency.name,

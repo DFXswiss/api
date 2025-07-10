@@ -1,17 +1,10 @@
-import {
-  BadRequestException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-  OnModuleInit,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active, isAsset } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -28,7 +21,7 @@ import { MoreThan } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
-import { PricingService } from '../../pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
 import { InternalChargebackFeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
@@ -69,10 +62,8 @@ export interface FeeRequestBase {
 const FeeValidityMinutes = 30;
 
 @Injectable()
-export class FeeService implements OnModuleInit {
+export class FeeService {
   private readonly logger = new DfxLogger(FeeService);
-
-  private chf: Fiat;
 
   constructor(
     private readonly feeRepo: FeeRepository,
@@ -86,10 +77,6 @@ export class FeeService implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly bankService: BankService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-  }
 
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BLOCKCHAIN_FEE_UPDATE, timeout: 1800 })
@@ -281,7 +268,7 @@ export class FeeService implements OnModuleInit {
   }
 
   async getBlockchainFee(active: Active, allowCached: boolean): Promise<number> {
-    const price = await this.pricingService.getPrice(active, this.chf, allowCached);
+    const price = await this.pricingService.getPrice(active, PriceCurrency.CHF, allowCached);
 
     const blockchainFeeChf = await this.getBlockchainFeeInChf(active, allowCached);
     return price.invert().convert(blockchainFeeChf, 8);
@@ -436,7 +423,7 @@ export class FeeService implements OnModuleInit {
 
   private async calculateBlockchainFeeInChf(asset: Asset, allowExpiredPrice: boolean): Promise<number> {
     const { asset: feeAsset, amount } = await this.payoutService.estimateBlockchainFee(asset);
-    const price = await this.pricingService.getPrice(feeAsset, this.chf, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, allowExpiredPrice);
 
     return price.convert(amount, 8);
   }

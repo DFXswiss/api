@@ -7,7 +7,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { FiatPriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
@@ -59,7 +59,7 @@ export class ExchangeTxService {
               type: undefined,
               name: entity.feeCurrency,
             }));
-          const price = await this.pricingService.getFiatPrice(feeAsset, FiatPriceCurrency.CHF, true);
+          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, true);
 
           entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
         }
@@ -78,7 +78,7 @@ export class ExchangeTxService {
               type: undefined,
               name: currencyName,
             }));
-          const priceChf = await this.pricingService.getFiatPrice(currency, FiatPriceCurrency.CHF, true);
+          const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, true);
 
           entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
         }

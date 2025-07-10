@@ -19,7 +19,7 @@ export class PricingFrankencoinService extends PricingProvider implements OnModu
     super();
   }
 
-  async onModuleInit() {
+  onModuleInit() {
     this.frankencoinService = this.moduleRef.get(FrankencoinService, { strict: false });
   }
 

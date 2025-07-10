@@ -24,7 +24,7 @@ import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 
-export enum FiatPriceCurrency {
+export enum PriceCurrency {
   EUR = 'EUR',
   CHF = 'CHF',
   USD = 'USD',
@@ -33,10 +33,8 @@ export enum FiatPriceCurrency {
 @Injectable()
 export class PricingService implements OnModuleInit {
   private readonly logger = new DfxLogger(PricingService);
-  private chf: Fiat;
-  private eur: Fiat;
-  private usd: Fiat;
 
+  private readonly fiatMap = new Map<PriceCurrency, Fiat>();
   private readonly providerMap: PricingProviderMap;
   private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
   private readonly providerPriceCache = new AsyncCache<Price>(CacheItemResetPeriod.EVERY_10_SECONDS);
@@ -74,28 +72,24 @@ export class PricingService implements OnModuleInit {
   }
 
   onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
-    void this.fiatService.getFiatByName('USD').then((f) => (this.usd = f));
+    void this.fiatService.getFiatByName('CHF').then((f) => this.fiatMap.set(PriceCurrency.CHF, f));
+    void this.fiatService.getFiatByName('EUR').then((f) => this.fiatMap.set(PriceCurrency.EUR, f));
+    void this.fiatService.getFiatByName('USD').then((f) => this.fiatMap.set(PriceCurrency.USD, f));
   }
 
-  async getFiatPrice(
-    from: Active,
-    referenceCurrency: FiatPriceCurrency,
+  async getPrice(
+    from: Active | PriceCurrency,
+    to: Active | PriceCurrency,
     allowExpired: boolean,
     tryCount = 2,
   ): Promise<Price> {
-    const to =
-      referenceCurrency === FiatPriceCurrency.CHF
-        ? this.chf
-        : referenceCurrency === FiatPriceCurrency.EUR
-        ? this.eur
-        : this.usd;
+    const fromAsset = typeof from === 'object' ? from : this.fiatMap.get(from);
+    const toAsset = typeof to === 'object' ? to : this.fiatMap.get(to);
 
-    return this.getPrice(from, to, allowExpired, tryCount);
+    return this.getAssetPrice(fromAsset, toAsset, allowExpired, tryCount);
   }
 
-  async getPrice(from: Active, to: Active, allowExpired: boolean, tryCount = 2): Promise<Price> {
+  private async getAssetPrice(from: Active, to: Active, allowExpired: boolean, tryCount: number): Promise<Price> {
     try {
       if (activesEqual(from, to)) return Price.create(from.name, to.name, 1);
 

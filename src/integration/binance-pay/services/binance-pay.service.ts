@@ -233,8 +233,8 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
     }
   }
 
-  async onModuleInit(): Promise<void> {
-    await this.updateCertificates();
+  onModuleInit() {
+    void this.updateCertificates();
   }
 
   async getCertificates(): Promise<CertificateResponse> {

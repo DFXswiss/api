@@ -49,17 +49,17 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
   // --- HELPER METHODS --- //
 
   private async getLiquidityData(): Promise<LiquidityData> {
-    const binanceLiqBalance = await this.assetService
+    const binanceLiqBalances = await this.assetService
       .getAllBlockchainAssets([Blockchain.BINANCE], undefined, { balance: true })
       .then((asset) => asset.filter((a) => a.balance).map((a) => a.balance));
 
-    const binance = Util.sort(binanceLiqBalance, 'updated', 'DESC')[0];
+    const binance = Util.sort(binanceLiqBalances, 'updated', 'DESC')[0];
 
-    const krakenLiqBalance = await this.assetService
+    const krakenLiqBalances = await this.assetService
       .getAllBlockchainAssets([Blockchain.KRAKEN], undefined, { balance: true })
       .then((asset) => asset.filter((a) => a.balance).map((a) => a.balance));
 
-    const kraken = Util.sort(krakenLiqBalance, 'updated', 'DESC')[0];
+    const kraken = Util.sort(krakenLiqBalances, 'updated', 'DESC')[0];
 
     const lastBinanceTx = await this.exchangeTxService.getLastExchangeTx(ExchangeName.BINANCE);
     const lastKrakenTx = await this.exchangeTxService.getLastExchangeTx(ExchangeName.KRAKEN);
