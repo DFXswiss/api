@@ -19,6 +19,7 @@ import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
 import { SolanaModule } from './solana/solana.module';
+import { TronModule } from './tron/tron.module';
 
 @Module({
   providers: [EvmDecimalsService, CryptoService, BlockchainRegistryService],
@@ -40,6 +41,7 @@ import { SolanaModule } from './solana/solana.module';
     ArweaveModule,
     RailgunModule,
     SolanaModule,
+    TronModule,
   ],
   exports: [
     BitcoinModule,
@@ -57,6 +59,7 @@ import { SolanaModule } from './solana/solana.module';
     Ebel2xModule,
     RailgunModule,
     SolanaModule,
+    TronModule,
     CryptoService,
     BlockchainRegistryService,
   ],

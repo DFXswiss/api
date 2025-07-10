@@ -28,6 +28,7 @@ export class KrakenService extends ExchangeService {
     Railgun: undefined,
     BinancePay: undefined,
     Solana: false, // use auto-detect
+    Tron: undefined,
     Kraken: undefined,
     Binance: undefined,
     XT: undefined,

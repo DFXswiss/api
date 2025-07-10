@@ -13,6 +13,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
+import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
 import { LnurlpLinkUpdateDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -86,6 +87,8 @@ export class DepositService {
       return this.createMoneroDeposits(blockchain, count);
     } else if (blockchain === Blockchain.SOLANA) {
       return this.createSolanaDeposits(blockchain, count);
+    } else if (blockchain === Blockchain.TRON) {
+      return this.createTronDeposits(blockchain, count);
     }
 
     throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
@@ -212,5 +215,23 @@ export class DepositService {
     }
 
     await this.tatumWebhookService.createAddressWebhook({ blockchain: Blockchain.SOLANA, addresses: addresses });
+  }
+
+  private async createTronDeposits(blockchain: Blockchain, count: number): Promise<void> {
+    const addresses: string[] = [];
+
+    const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
+
+    for (let i = 0; i < count; i++) {
+      const accountIndex = nextDepositIndex + i;
+
+      const wallet = TronUtil.createWallet(Config.blockchain.tron.walletAccount(accountIndex));
+      const deposit = Deposit.create(wallet.address, [blockchain], accountIndex);
+      await this.depositRepo.save(deposit);
+
+      addresses.push(deposit.address);
+    }
+
+    await this.tatumWebhookService.createAddressWebhook({ blockchain: Blockchain.TRON, addresses: addresses });
   }
 }

@@ -38,6 +38,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.RAILGUN]: undefined,
   [Blockchain.BINANCE_PAY]: undefined,
   [Blockchain.GNOSIS]: undefined,
+  [Blockchain.TRON]: undefined,
   [Blockchain.KRAKEN]: undefined,
   [Blockchain.BINANCE]: undefined,
   [Blockchain.XT]: undefined,

@@ -1,10 +1,11 @@
 import { Currency } from '@uniswap/sdk-core';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SolanaToken } from '../../solana/dto/solana.dto';
+import { TronToken } from '../../tron/dto/tron.dto';
 import { BlockchainTokenBalance } from '../dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
 
-export type BlockchainCurrency = Currency | SolanaToken;
+export type BlockchainCurrency = Currency | SolanaToken | TronToken;
 
 export abstract class BlockchainClient {
   abstract getNativeCoinBalance(): Promise<number>;

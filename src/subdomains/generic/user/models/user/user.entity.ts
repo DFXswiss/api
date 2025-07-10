@@ -4,6 +4,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { CustodyBalance } from 'src/subdomains/core/custody/entities/custody-balance.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { CustodyAddressType } from 'src/subdomains/core/custody/enums/custody';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
@@ -15,7 +16,6 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { CustodyProvider } from '../custody-provider/custody-provider.entity';
-import { CustodyBalance } from 'src/subdomains/core/custody/entities/custody-balance.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -37,6 +37,7 @@ export enum UserAddressType {
   ARWEAVE = 'Arweave',
   CARDANO = 'Cardano',
   SOLANA = 'Solana',
+  TRON = 'Tron',
   OTHER = 'Other',
 }
 

@@ -1,9 +1,6 @@
 import { TransactionResponse } from 'alchemy-sdk';
 
-export type SignedTransactionResponse =
-  | EvmSignedTransactionResponse
-  | BitcoinSignedTransactionResponse
-  | SolanaSignedTransactionResponse;
+export type SignedTransactionResponse = EvmSignedTransactionResponse | BlockchainSignedTransactionResponse;
 
 export interface EvmSignedTransactionResponse {
   response?: TransactionResponse;
@@ -13,18 +10,10 @@ export interface EvmSignedTransactionResponse {
   };
 }
 
-export interface BitcoinSignedTransactionResponse {
+export interface BlockchainSignedTransactionResponse {
   hash?: string;
   error?: {
-    code: number;
-    message: string;
-  };
-}
-
-export interface SolanaSignedTransactionResponse {
-  hash?: string;
-  error?: {
-    code: number;
+    code?: number;
     message: string;
   };
 }

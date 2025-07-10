@@ -28,6 +28,7 @@ export class KucoinService extends ExchangeService {
     Railgun: undefined,
     BinancePay: undefined,
     Solana: undefined,
+    Tron: undefined,
     Kraken: undefined,
     Binance: undefined,
     XT: undefined,
