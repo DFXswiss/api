@@ -59,7 +59,7 @@ export class LiquidityBalanceIntegrationFactory {
     throw new Error('Could not find integration for liquidity balance check. Supported Asset or Fiat.');
   }
 
-  private matchesContext(test: object, rule: LiquidityManagementRule): boolean {
-    return Object.values(test).some((e) => e.toString() === rule.context.toString());
+  private matchesContext(enumObj: object, rule: LiquidityManagementRule): boolean {
+    return Object.values(enumObj).some((e) => e.toString() === rule.context.toString());
   }
 }
