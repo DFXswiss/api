@@ -1,12 +1,10 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
-import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
 import { Blockchain, PaymentLinkBlockchain } from '../../../../integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from '../../../../integration/blockchain/shared/services/blockchain-registry.service';
 
@@ -21,11 +19,10 @@ export class PaymentLinkFeeService implements OnModuleInit {
 
   private static readonly MINUTES_5 = 5 * 60;
 
-  private feeCache: Map<Blockchain, FeeCacheData>;
+  private readonly feeCache: Map<Blockchain, FeeCacheData>;
 
   constructor(
     private readonly blockchainRegistryService: BlockchainRegistryService,
-    private readonly payoutMoneroService: PayoutMoneroService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
   ) {
     this.feeCache = new Map();
@@ -56,6 +53,8 @@ export class PaymentLinkFeeService implements OnModuleInit {
     switch (blockchain) {
       case Blockchain.BINANCE_PAY:
       case Blockchain.LIGHTNING:
+      case Blockchain.MONERO:
+      case Blockchain.SOLANA:
         return 0;
 
       case Blockchain.ETHEREUM:
@@ -63,12 +62,10 @@ export class PaymentLinkFeeService implements OnModuleInit {
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
       case Blockchain.GNOSIS:
-      case Blockchain.POLYGON:
+      case Blockchain.POLYGON: {
         const client = this.blockchainRegistryService.getEvmClient(blockchain);
         return +(await client.getRecommendedGasPrice());
-
-      case Blockchain.MONERO:
-        return MoneroHelper.xmrToAu(await this.payoutMoneroService.getEstimatedFee());
+      }
 
       case Blockchain.BITCOIN:
         return this.payoutBitcoinService.getCurrentFeeRate();
