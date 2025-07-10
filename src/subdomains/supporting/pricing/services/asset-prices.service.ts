@@ -11,7 +11,7 @@ import { Util } from 'src/shared/utils/util';
 import { In, MoreThanOrEqual } from 'typeorm';
 import { AssetPrice } from '../domain/entities/asset-price.entity';
 import { AssetPriceRepository } from '../repositories/asset-price.repository';
-import { FiatPriceCurrencies, PricingService } from './pricing.service';
+import { FiatPriceCurrency, PricingService } from './pricing.service';
 
 @Injectable()
 export class AssetPricesService {
@@ -33,9 +33,9 @@ export class AssetPricesService {
     // fetch prices
     for (const asset of assetsToUpdate) {
       try {
-        const usdPrice = await this.pricingService.getFiatPrice(asset, FiatPriceCurrencies.USD, false);
-        const chfPrice = await this.pricingService.getFiatPrice(asset, FiatPriceCurrencies.CHF, false);
-        const eurPrice = await this.pricingService.getFiatPrice(asset, FiatPriceCurrencies.EUR, false);
+        const usdPrice = await this.pricingService.getFiatPrice(asset, FiatPriceCurrency.USD, false);
+        const chfPrice = await this.pricingService.getFiatPrice(asset, FiatPriceCurrency.CHF, false);
+        const eurPrice = await this.pricingService.getFiatPrice(asset, FiatPriceCurrency.EUR, false);
 
         updates.push(asset.updatePrice(usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1)));
 

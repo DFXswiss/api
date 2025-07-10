@@ -17,7 +17,7 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { FiatPriceCurrencies, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { FiatPriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
@@ -102,12 +102,12 @@ export class BuyCryptoPreparationService {
 
         const referenceChfPrice = await this.pricingService.getFiatPrice(
           inputReferenceCurrency,
-          FiatPriceCurrencies.CHF,
+          FiatPriceCurrency.CHF,
           false,
         );
         const referenceEurPrice = await this.pricingService.getFiatPrice(
           inputReferenceCurrency,
-          FiatPriceCurrencies.EUR,
+          FiatPriceCurrency.EUR,
           false,
         );
 
@@ -227,12 +227,12 @@ export class BuyCryptoPreparationService {
 
         const referenceEurPrice = await this.pricingService.getFiatPrice(
           inputReferenceCurrency,
-          FiatPriceCurrencies.EUR,
+          FiatPriceCurrency.EUR,
           false,
         );
         const referenceChfPrice = await this.pricingService.getFiatPrice(
           inputReferenceCurrency,
-          FiatPriceCurrencies.CHF,
+          FiatPriceCurrency.CHF,
           false,
         );
 

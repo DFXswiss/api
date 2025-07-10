@@ -24,7 +24,7 @@ import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 
-export enum FiatPriceCurrencies {
+export enum FiatPriceCurrency {
   EUR = 'EUR',
   CHF = 'CHF',
   USD = 'USD',
@@ -81,14 +81,14 @@ export class PricingService implements OnModuleInit {
 
   async getFiatPrice(
     from: Active,
-    referenceCurrency: FiatPriceCurrencies,
+    referenceCurrency: FiatPriceCurrency,
     allowExpired: boolean,
     tryCount = 2,
   ): Promise<Price> {
     const to =
-      referenceCurrency === FiatPriceCurrencies.CHF
+      referenceCurrency === FiatPriceCurrency.CHF
         ? this.chf
-        : referenceCurrency === FiatPriceCurrencies.EUR
+        : referenceCurrency === FiatPriceCurrency.EUR
         ? this.eur
         : this.usd;
 

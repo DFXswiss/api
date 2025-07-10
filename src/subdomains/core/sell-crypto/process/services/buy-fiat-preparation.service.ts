@@ -16,7 +16,7 @@ import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supportin
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { FiatPriceCurrencies, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { FiatPriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -90,12 +90,12 @@ export class BuyFiatPreparationService {
 
         const referenceChfPrice = await this.pricingService.getFiatPrice(
           inputReferenceCurrency,
-          FiatPriceCurrencies.CHF,
+          FiatPriceCurrency.CHF,
           false,
         );
         const referenceEurPrice = await this.pricingService.getFiatPrice(
           inputReferenceCurrency,
-          FiatPriceCurrencies.EUR,
+          FiatPriceCurrency.EUR,
           false,
         );
 
@@ -176,8 +176,8 @@ export class BuyFiatPreparationService {
 
         const inputCurrency = entity.cryptoInput.asset;
 
-        const eurPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrencies.EUR, false);
-        const chfPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrencies.CHF, false);
+        const eurPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.EUR, false);
+        const chfPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.CHF, false);
 
         const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
@@ -241,8 +241,8 @@ export class BuyFiatPreparationService {
         const { fee: paymentLinkFee } = entity.cryptoInput.paymentLinkPayment.link.configObj;
 
         // prices
-        const eurPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrencies.EUR, false);
-        const chfPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrencies.CHF, false);
+        const eurPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.EUR, false);
+        const chfPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.CHF, false);
 
         const conversionPrice = Price.create(
           inputCurrency.name,
