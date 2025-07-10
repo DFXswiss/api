@@ -1,6 +1,5 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit, forwardRef } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -13,19 +12,15 @@ import { FiatOutputType } from '../../fiat-output/fiat-output.entity';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { PricingService } from '../../pricing/services/pricing.service';
-import { BankTx, BankTxType } from '../bank-tx/entities/bank-tx.entity';
-import { BankTxService } from '../bank-tx/services/bank-tx.service';
+import { FiatPriceCurrency, PricingService } from '../../pricing/services/pricing.service';
+import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 import { BankTxReturn } from './bank-tx-return.entity';
 import { BankTxReturnRepository } from './bank-tx-return.repository';
 import { UpdateBankTxReturnDto } from './dto/update-bank-tx-return.dto';
 
 @Injectable()
-export class BankTxReturnService implements OnModuleInit {
+export class BankTxReturnService {
   private readonly logger = new DfxLogger(BankTxReturnService);
-  private chf: Fiat;
-  private eur: Fiat;
-  private usd: Fiat;
 
   constructor(
     private readonly bankTxReturnRepo: BankTxReturnRepository,
@@ -34,15 +29,7 @@ export class BankTxReturnService implements OnModuleInit {
     private readonly fiatOutputService: FiatOutputService,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
-    @Inject(forwardRef(() => BankTxService))
-    private readonly bankTxService: BankTxService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
-    void this.fiatService.getFiatByName('USD').then((f) => (this.usd = f));
-  }
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX_RETURN, timeout: 1800 })
   async fillBankTxReturn() {
@@ -71,9 +58,9 @@ export class BankTxReturnService implements OnModuleInit {
   async setFiatAmounts(): Promise<void> {
     const entities = await this.bankTxReturnRepo.find({
       where: {
-        chargebackBankTx: { id: IsNull() },
+        chargebackBankTx: { id: Not(IsNull()) },
         bankTx: { id: Not(IsNull()) },
-        amountInEur: Not(IsNull()),
+        amountInEur: IsNull(),
         chargebackRemittanceInfo: Not(IsNull()),
       },
       relations: { chargebackBankTx: true, bankTx: true },
@@ -81,24 +68,19 @@ export class BankTxReturnService implements OnModuleInit {
 
     for (const entity of entities) {
       try {
-        const bankTxChargeback = await this.bankTxService.getBankTxByRemittanceInfo(entity.chargebackRemittanceInfo);
-        if (!bankTxChargeback) continue;
-
         const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.currency);
 
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, this.eur, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, this.chf, false);
-        const usdPrice = await this.pricingService.getPrice(inputCurrency, this.usd, false);
+        const eurPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.EUR, false);
+        const chfPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.CHF, false);
+        const usdPrice = await this.pricingService.getFiatPrice(inputCurrency, FiatPriceCurrency.USD, false);
 
         await this.bankTxReturnRepo.update(
           ...entity.setFiatAmount(
             eurPrice.convert(entity.bankTx.amount, 2),
             chfPrice.convert(entity.bankTx.amount, 2),
             usdPrice.convert(entity.bankTx.amount, 2),
-            bankTxChargeback,
           ),
         );
-        await this.bankTxService.updateInternal(bankTxChargeback, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
       } catch (e) {
         this.logger.error(`Error during bankTxReturn ${entity.id} set fiat amounts:`, e);
       }
@@ -122,19 +104,18 @@ export class BankTxReturnService implements OnModuleInit {
     const entity = await this.bankTxReturnRepo.findOne({ where: { id }, relations: { chargebackBankTx: true } });
     if (!entity) throw new NotFoundException('BankTxReturn not found');
 
+    return this.updateInternal(entity, dto);
+  }
+
+  async updateInternal(entity: BankTxReturn, dto: Partial<BankTxReturn>): Promise<BankTxReturn> {
     const update = this.bankTxReturnRepo.create(dto);
 
     // chargeback bank tx
-    if (dto.chargebackBankTxId && !entity.chargebackBankTx) {
-      update.chargebackBankTx = await this.bankTxService.getBankTxById(dto.chargebackBankTxId);
-      if (!update.chargebackBankTx) throw new BadRequestException('ChargebackBankTx not found');
-
+    if (dto.chargebackBankTx && !entity.chargebackBankTx) {
       const existingReturnForChargeback = await this.bankTxReturnRepo.findOneBy({
-        chargebackBankTx: { id: dto.chargebackBankTxId },
+        chargebackBankTx: { id: dto.chargebackBankTx.id },
       });
       if (existingReturnForChargeback) throw new BadRequestException('ChargebackBankTx already used');
-
-      await this.bankTxService.updateInternal(update.chargebackBankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
     }
 
     return this.bankTxReturnRepo.save({ ...update, ...Util.removeNullFields(entity) });

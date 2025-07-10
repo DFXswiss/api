@@ -11,7 +11,7 @@ import { Util } from 'src/shared/utils/util';
 import { In, MoreThanOrEqual } from 'typeorm';
 import { AssetPrice } from '../domain/entities/asset-price.entity';
 import { AssetPriceRepository } from '../repositories/asset-price.repository';
-import { PricingService } from './pricing.service';
+import { FiatPriceCurrency, PricingService } from './pricing.service';
 
 @Injectable()
 export class AssetPricesService {
@@ -27,19 +27,15 @@ export class AssetPricesService {
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.PRICING, timeout: 3600 })
   async updatePrices() {
-    const usd = await this.fiatService.getFiatByName('USD');
-    const chf = await this.fiatService.getFiatByName('CHF');
-    const eur = await this.fiatService.getFiatByName('EUR');
-
     const assetsToUpdate = await this.assetService.getPricedAssets();
     const updates: UpdateResult<Asset>[] = [];
 
     // fetch prices
     for (const asset of assetsToUpdate) {
       try {
-        const usdPrice = await this.pricingService.getPrice(asset, usd, false);
-        const chfPrice = await this.pricingService.getPrice(asset, chf, false);
-        const eurPrice = await this.pricingService.getPrice(asset, eur, false);
+        const usdPrice = await this.pricingService.getFiatPrice(asset, FiatPriceCurrency.USD, false);
+        const chfPrice = await this.pricingService.getFiatPrice(asset, FiatPriceCurrency.CHF, false);
+        const eurPrice = await this.pricingService.getFiatPrice(asset, FiatPriceCurrency.EUR, false);
 
         updates.push(asset.updatePrice(usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1)));
 
