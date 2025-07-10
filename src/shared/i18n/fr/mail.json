@@ -158,6 +158,15 @@
                 "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
                 "line5": "Pour consulter le statut actuel de votre transaction:<br>[url:cliquez ici]"
             },
+            "manual_check_bank_data": {
+                "title": "Dépôt de chèques",
+                "salutation": "Votre dépôt sera vérifié",
+                "line1": "Nous vous remercions de la confiance que vous accordez à DFX.",
+                "line2": "Malheureusement, la transaction n'a pas pu être validée de manière entièrement automatique et doit maintenant être vérifiée manuellement par un employé.",
+                "line3": "Ce délai est généralement de 24 heures, mais peut aller jusqu'à 7 jours.",
+                "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
+                "line5": "Pour consulter le statut actuel de votre transaction:<br>[url:cliquez ici]"
+            },
             "asset_kyc_needed": {
                 "title": "Vérification (KYC) requise",
                 "salutation": "La vérification (KYC) est nécessaire pour exécuter votre transaction en cours.",

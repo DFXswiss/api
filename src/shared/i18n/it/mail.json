@@ -158,6 +158,15 @@
                 "line4": "Sarete informati non appena il controllo sarà stato completato e il pagamento sarà stato elaborato.",
                 "line5": "Per visualizzare lo stato attuale della transazione:<br>[url:clicca qui]"
             },
+            "manual_check_bank_data": {
+                "title": "Deposito in conto corrente",
+                "salutation": "Il vostro deposito sarà controllato",
+                "line1": "Grazie per la vostra fiducia in DFX.",
+                "line2": "Purtroppo non è stato possibile sbloccare la transazione in modo completamente automatico e ora deve essere controllata manualmente da un dipendente.",
+                "line3": "Questo processo richiede solitamente 24 ore, ma un massimo di 7 giorni.",
+                "line4": "Sarete informati non appena il controllo sarà stato completato e il pagamento sarà stato elaborato.",
+                "line5": "Per visualizzare lo stato attuale della transazione:<br>[url:clicca qui]"
+            },
             "asset_kyc_needed": {
                 "title": "Verifica (KYC) richiesta",
                 "salutation": "La verifica (KYC) è necessaria per eseguire la transazione in corso.",

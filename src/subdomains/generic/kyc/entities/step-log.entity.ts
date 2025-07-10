@@ -1,5 +1,5 @@
 import { ChildEntity, Column, ManyToOne } from 'typeorm';
-import { KycStepStatus } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { KycLog } from './kyc-log.entity';
 import { KycStep } from './kyc-step.entity';
 
@@ -9,5 +9,5 @@ export class StepLog extends KycLog {
   kycStep: KycStep;
 
   @Column()
-  status: KycStepStatus;
+  status: ReviewStatus;
 }
