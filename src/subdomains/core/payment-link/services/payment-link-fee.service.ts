@@ -5,8 +5,6 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
-import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
-import { PayoutSolanaService } from 'src/subdomains/supporting/payout/services/payout-solana.service';
 import { Blockchain, PaymentLinkBlockchain } from '../../../../integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from '../../../../integration/blockchain/shared/services/blockchain-registry.service';
 
@@ -25,9 +23,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
 
   constructor(
     private readonly blockchainRegistryService: BlockchainRegistryService,
-    private readonly payoutMoneroService: PayoutMoneroService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
-    private readonly payoutSolanaService: PayoutSolanaService,
   ) {
     this.feeCache = new Map();
   }
