@@ -72,18 +72,25 @@ export class TatumWebhookService {
   }
 
   private async setupTatumSdk(tatumNetwork: TatumNetwork): Promise<TatumSdk> {
-    switch (tatumNetwork) {
-      case TatumNetwork.SOLANA:
-        return TatumSDK.init<TatumSolana>({
-          network: tatumNetwork,
-          apiKey: Config.tatum.apiKey,
-        });
+    let tatumSdk: TatumSdk;
 
-      case TatumNetwork.TRON:
-        return TatumSDK.init<TatumTron>({
-          network: tatumNetwork,
-          apiKey: Config.tatum.apiKey,
-        });
+    if (tatumNetwork === TatumNetwork.SOLANA) {
+      tatumSdk = await TatumSDK.init<TatumSolana>({
+        network: tatumNetwork,
+        apiKey: Config.tatum.apiKey,
+      });
+    }
+
+    if (tatumNetwork === TatumNetwork.TRON) {
+      tatumSdk = await TatumSDK.init<TatumTron>({
+        network: tatumNetwork,
+        apiKey: Config.tatum.apiKey,
+      });
+    }
+
+    if (tatumSdk) {
+      this.tatumMap.set(tatumNetwork, tatumSdk);
+      return tatumSdk;
     }
 
     throw new Error(`Invalid tatum network ${tatumNetwork}`);

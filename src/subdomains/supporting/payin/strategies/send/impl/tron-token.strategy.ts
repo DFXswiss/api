@@ -35,12 +35,7 @@ export class TronTokenStrategy extends TronStrategy {
   }
 
   protected async prepareSend(payIn: CryptoInput, nativeFee: number): Promise<void> {
-    const transferFee = await this.payInTronService.getCurrentGasCostForTokenTransaction(
-      payIn.asset,
-      payIn.address.address,
-    );
-
-    const feeAmount = nativeFee + transferFee;
+    const feeAmount = nativeFee;
     const prepareTxId = await this.topUpCoin(payIn, feeAmount);
 
     const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);

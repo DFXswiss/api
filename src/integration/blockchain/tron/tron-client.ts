@@ -77,12 +77,14 @@ export class TronClient extends BlockchainClient {
     const tokenBalances: BlockchainTokenBalance[] = [];
 
     for (const asset of assets) {
-      const addressBalances = allAddressBalanceTokenData.filter((d) =>
+      const addressBalance = allAddressBalanceTokenData.find((d) =>
         Util.equalsIgnoreCase(d.tokenAddress, asset.chainId),
       );
 
-      const balance = Util.sum(addressBalances.map((d) => TronUtil.fromSunAmount(d.balance, d.decimals)));
-      tokenBalances.push({ owner, contractAddress: asset.chainId, balance });
+      if (addressBalance) {
+        const balance = TronUtil.fromSunAmount(addressBalance.balance, addressBalance.decimals);
+        tokenBalances.push({ owner, contractAddress: asset.chainId, balance });
+      }
     }
 
     return tokenBalances;
@@ -90,7 +92,7 @@ export class TronClient extends BlockchainClient {
 
   async isTxComplete(txHash: string, confirmations = 0): Promise<boolean> {
     const transaction = await this.getTransaction(txHash);
-    if (!Util.equalsIgnoreCase(transaction.status, 'SUCCESS')) return false;
+    if (!Util.equalsIgnoreCase(transaction.status, 'SUCCESS')) throw new Error(`Transaction ${txHash} has failed`);
 
     const currentConfirmations = (await this.getBlockHeight()) - (transaction.blockNumber ?? Number.MAX_VALUE);
     return currentConfirmations > confirmations;
@@ -130,7 +132,7 @@ export class TronClient extends BlockchainClient {
 
     const chainParameter = await this.getChainParameter();
 
-    let gasCost = (await this.checkAccount(address))
+    let gasCost = (await this.isAccountActivated(address))
       ? 0
       : chainParameter.createAccountFee + chainParameter.createAccountBandwidthFee;
 
@@ -148,7 +150,7 @@ export class TronClient extends BlockchainClient {
 
     const chainParameter = await this.getChainParameter();
 
-    let gasCost = (await this.checkAccount(address))
+    let gasCost = (await this.isAccountActivated(address))
       ? 0
       : chainParameter.createAccountFee + chainParameter.createAccountBandwidthFee;
 
@@ -172,10 +174,10 @@ export class TronClient extends BlockchainClient {
     return Util.round(gasCost, 6);
   }
 
-  async checkAccount(address: string): Promise<boolean> {
+  async isAccountActivated(address: string): Promise<boolean> {
     const url = Config.blockchain.tron.tronGatewayUrl;
 
-    const getaccountResponse = await this.http.post<any>(
+    const getAccountResponse = await this.http.post<any>(
       `${url}/wallet/getaccount`,
       {
         address,
@@ -184,7 +186,7 @@ export class TronClient extends BlockchainClient {
       this.httpConfig(),
     );
 
-    return getaccountResponse && Object.keys(getaccountResponse).length > 0;
+    return getAccountResponse && Object.keys(getAccountResponse).length > 0;
   }
 
   private async getAddressResources(address: string): Promise<TronAddressResourcesDto> {
@@ -200,7 +202,7 @@ export class TronClient extends BlockchainClient {
     );
 
     return {
-      bandwidth: accountResourceResponse.freeNetLimit || 0 + accountResourceResponse.NetLimit || 0,
+      bandwidth: accountResourceResponse.freeNetLimit ?? accountResourceResponse.NetLimit ?? 0,
       energy: accountResourceResponse.EnergyLimit ?? 0,
     };
   }
@@ -235,23 +237,20 @@ export class TronClient extends BlockchainClient {
       .get<{ chainParameter: { key: string; value: number }[] }>(`${url}/wallet/getchainparameters`, this.httpConfig())
       .then((r) => r.chainParameter);
 
-    const transactionFeeParameter = chainParameters.find((cp) => Util.equalsIgnoreCase(cp.key, 'getTransactionFee'));
+    const chainParameterMap: Map<string, number> = new Map(chainParameters.map((cp) => [cp.key, cp.value]));
 
-    const energyFeeParameter = chainParameters.find((cp) => Util.equalsIgnoreCase(cp.key, 'getEnergyFee'));
-
-    const createAccountFeeParameter = chainParameters.find((cp) =>
-      Util.equalsIgnoreCase(cp.key, 'getCreateAccountFee'),
-    );
-
-    const createNewAccountFeeInSystemContractParameter = chainParameters.find((cp) =>
-      Util.equalsIgnoreCase(cp.key, 'getCreateNewAccountFeeInSystemContract'),
+    const transactionFeeParameter = chainParameterMap.get('getTransactionFee');
+    const energyFeeParameter = chainParameterMap.get('getEnergyFee');
+    const createAccountFeeParameter = chainParameterMap.get('getCreateAccountFee');
+    const createNewAccountFeeInSystemContractParameter = chainParameterMap.get(
+      'getCreateNewAccountFeeInSystemContract',
     );
 
     return {
-      bandwidthUnitPrice: TronUtil.fromSunAmount(transactionFeeParameter.value),
-      energyUnitPrice: TronUtil.fromSunAmount(energyFeeParameter.value),
-      createAccountFee: TronUtil.fromSunAmount(createAccountFeeParameter.value),
-      createAccountBandwidthFee: TronUtil.fromSunAmount(createNewAccountFeeInSystemContractParameter.value),
+      bandwidthUnitPrice: TronUtil.fromSunAmount(transactionFeeParameter),
+      energyUnitPrice: TronUtil.fromSunAmount(energyFeeParameter),
+      createAccountFee: TronUtil.fromSunAmount(createAccountFeeParameter),
+      createAccountBandwidthFee: TronUtil.fromSunAmount(createNewAccountFeeInSystemContractParameter),
     };
   }
 

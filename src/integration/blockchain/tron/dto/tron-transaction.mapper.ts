@@ -65,7 +65,7 @@ export class TronTransactionMapper {
 
   private static getToFromData(data: string): string {
     const params = data.slice(8);
-    const receiverAddress = params.slice(0, 64).slice(24);
+    const receiverAddress = params.slice(24, 64);
     return TronUtil.convertToTronAddress(receiverAddress);
   }
 

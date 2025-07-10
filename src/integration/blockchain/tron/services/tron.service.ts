@@ -113,7 +113,7 @@ export class TronService extends BlockchainService implements OnModuleInit {
     return this.client.getHistory(limit);
   }
 
-  async checkAccount(address: string): Promise<boolean> {
-    return this.client.checkAccount(address);
+  async isAccountActivated(address: string): Promise<boolean> {
+    return this.client.isAccountActivated(address);
   }
 }

@@ -29,8 +29,6 @@ export abstract class TronStrategy extends SendStrategy {
 
           if (isReady) {
             payIn.status = PayInStatus.PREPARED;
-          } else {
-            continue;
           }
         }
 
@@ -50,8 +48,6 @@ export abstract class TronStrategy extends SendStrategy {
           const effectivePreparationFee = Math.max(feeNativeAsset, Config.blockchain.solana.minimalPreparationFee);
 
           await this.prepareSend(payIn, effectivePreparationFee);
-
-          continue;
         }
 
         if (payIn.status === PayInStatus.PREPARED) {
