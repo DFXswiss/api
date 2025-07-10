@@ -14,6 +14,7 @@ import { PaymentLinkPaymentRepository } from './repositories/payment-link-paymen
 import { PaymentQuoteRepository } from './repositories/payment-quote.repository';
 import { C2BPaymentLinkService } from './services/c2b-payment-link.service';
 import { PaymentActivationService } from './services/payment-activation.service';
+import { PaymentLinkFeeService } from './services/payment-link-fee.service';
 import { PaymentLinkPaymentService } from './services/payment-link-payment.service';
 import { PaymentQuoteService } from './services/payment-quote.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
@@ -38,6 +39,7 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
     PaymentActivationService,
     PaymentWebhookService,
     C2BPaymentLinkService,
+    PaymentLinkFeeService,
   ],
   exports: [PaymentLinkPaymentService, PaymentQuoteService, PaymentActivationService, C2BPaymentLinkService],
 })

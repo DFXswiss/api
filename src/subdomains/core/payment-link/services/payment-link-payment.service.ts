@@ -36,6 +36,8 @@ import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
 
+const HOUR_IN_MILLIS = 60 * 60 * 1000;
+
 @Injectable()
 export class PaymentLinkPaymentService {
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
@@ -66,10 +68,13 @@ export class PaymentLinkPaymentService {
     });
 
     for (const payment of pendingPayments) {
-      await this.doSave(payment.expire(), true);
-
-      await this.cancelQuotesForPayment(payment);
+      await this.expirePayment(payment);
     }
+  }
+
+  async expirePayment(payment: PaymentLinkPayment): Promise<void> {
+    await this.doSave(payment.expire(), true);
+    await this.cancelQuotesForPayment(payment);
   }
 
   async checkTxConfirmations(): Promise<void> {
@@ -212,7 +217,27 @@ export class PaymentLinkPaymentService {
       }, paymentLink.configObj.autoConfirmSecs * 1000);
     }
 
+    const timeout = payment.expiryDate.getTime() - Date.now() + Config.payment.timeoutDelay * 1000;
+
+    if (timeout < HOUR_IN_MILLIS) {
+      setTimeout(async () => {
+        await this.expirePaymentIfPending(payment.uniqueId);
+      }, timeout);
+    }
+
     return savedPayment;
+  }
+
+  private async expirePaymentIfPending(uniqueId: string): Promise<void> {
+    const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
+      where: {
+        uniqueId,
+        status: PaymentLinkPaymentStatus.PENDING,
+      },
+      relations: { link: true },
+    });
+
+    if (pendingPayment) await this.expirePayment(pendingPayment);
   }
 
   async confirmPayment(payment: PaymentLinkPayment): Promise<void> {

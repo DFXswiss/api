@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { bitpanda } from 'ccxt';
+import { xt } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { ExchangeService } from './exchange.service';
 
 @Injectable()
-export class BitpandaService extends ExchangeService {
-  protected readonly logger = new DfxLogger(BitpandaService);
+export class XtService extends ExchangeService {
+  protected readonly logger = new DfxLogger(XtService);
 
   protected networks: { [b in Blockchain]: string } = {
     Arbitrum: undefined,
@@ -29,9 +29,17 @@ export class BitpandaService extends ExchangeService {
     BinancePay: undefined,
     Solana: undefined,
     Tron: undefined,
+    Kraken: undefined,
+    Binance: undefined,
+    XT: undefined,
+    MaerkiBaumann: undefined,
+    Olkypay: undefined,
+    Checkout: undefined,
+    Kaleido: undefined,
+    Sumixx: undefined,
   };
 
   constructor() {
-    super(bitpanda, GetConfig().exchange);
+    super(xt, GetConfig().xt);
   }
 }

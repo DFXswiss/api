@@ -11,6 +11,7 @@ import { PaymentLinkGateway } from './controllers/payment-link.gateway';
 import { PaymentLink } from './entities/payment-link.entity';
 import { PaymentLinkPaymentModule } from './payment-link-payment.module';
 import { PaymentLinkRepository } from './repositories/payment-link.repository';
+import { OCPStickerService } from './services/ocp-sticker.service';
 import { PaymentCronService } from './services/payment-cron.service';
 import { PaymentLinkService } from './services/payment-link.service';
 
@@ -25,7 +26,14 @@ import { PaymentLinkService } from './services/payment-link.service';
     BinancePayModule,
   ],
   controllers: [PaymentLinkController, PaymentLinkShortController, C2BPaymentLinkController],
-  providers: [PaymentLinkRepository, PaymentLinkService, PaymentCronService, PaymentLinkController, PaymentLinkGateway],
+  providers: [
+    PaymentLinkRepository,
+    PaymentLinkService,
+    OCPStickerService,
+    PaymentCronService,
+    PaymentLinkController,
+    PaymentLinkGateway,
+  ],
   exports: [PaymentLinkService],
 })
 export class PaymentLinkModule {}

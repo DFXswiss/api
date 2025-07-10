@@ -16,14 +16,13 @@ import { MoneroModule } from './monero/monero.module';
 import { OptimismModule } from './optimism/optimism.module';
 import { PolygonModule } from './polygon/polygon.module';
 import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
-import { EvmGasPriceService } from './shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
 import { SolanaModule } from './solana/solana.module';
 import { TronModule } from './tron/tron.module';
 
 @Module({
-  providers: [EvmDecimalsService, EvmGasPriceService, CryptoService, BlockchainRegistryService],
+  providers: [EvmDecimalsService, CryptoService, BlockchainRegistryService],
   imports: [
     SharedModule,
     BitcoinModule,
@@ -61,7 +60,6 @@ import { TronModule } from './tron/tron.module';
     RailgunModule,
     SolanaModule,
     TronModule,
-    EvmGasPriceService,
     CryptoService,
     BlockchainRegistryService,
   ],

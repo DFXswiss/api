@@ -70,3 +70,8 @@ export enum C2BPaymentStatus {
   FAILED = 'FAILED',
   REFUNDED = 'REFUNDED',
 }
+
+export enum StickerType {
+  CLASSIC = 'Classic',
+  BITCOIN_FOCUS = 'BitcoinFocus',
+}

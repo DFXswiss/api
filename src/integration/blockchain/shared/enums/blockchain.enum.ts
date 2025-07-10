@@ -14,10 +14,24 @@ export enum Blockchain {
   CARDANO = 'Cardano',
   DEFICHAIN = 'DeFiChain',
   RAILGUN = 'Railgun',
-  BINANCE_PAY = 'BinancePay',
   SOLANA = 'Solana',
   GNOSIS = 'Gnosis',
   TRON = 'Tron',
+
+  // Payment Provider
+  BINANCE_PAY = 'BinancePay',
+
+  // Exchanges
+  KRAKEN = 'Kraken',
+  BINANCE = 'Binance',
+  XT = 'XT',
+
+  // Banks
+  MAERKI_BAUMANN = 'MaerkiBaumann',
+  OLKYPAY = 'Olkypay',
+  CHECKOUT = 'Checkout',
+  KALEIDO = 'Kaleido',
+  SUMIXX = 'Sumixx',
 }
 
 export const PaymentLinkBlockchain = {
@@ -28,6 +42,7 @@ export const PaymentLinkBlockchain = {
   MONERO: Blockchain.MONERO,
   OPTIMISM: Blockchain.OPTIMISM,
   POLYGON: Blockchain.POLYGON,
+  GNOSIS: Blockchain.GNOSIS,
   BITCOIN: Blockchain.BITCOIN,
   BINANCE_PAY: Blockchain.BINANCE_PAY,
   SOLANA: Blockchain.SOLANA,

@@ -73,7 +73,7 @@
     "bitcoinjs-message": "^2.2.0",
     "bolt11": "^1.4.1",
     "bs58check": "^4.0.0",
-    "ccxt": "^3.1.60",
+    "ccxt": "^4.4.92",
     "checkout-sdk-node": "^2.5.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",

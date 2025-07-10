@@ -33,13 +33,21 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.BASE]: 'https://basescan.org',
   [Blockchain.GNOSIS]: 'https://gnosisscan.io',
   [Blockchain.SOLANA]: 'https://solscan.io',
+  [Blockchain.TRON]: 'https://tronscan.org/#',
   [Blockchain.HAQQ]: 'https://explorer.haqq.network',
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
   [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
   [Blockchain.BINANCE_PAY]: undefined,
-  [Blockchain.TRON]: 'https://tronscan.org/#',
+  [Blockchain.KRAKEN]: undefined,
+  [Blockchain.BINANCE]: undefined,
+  [Blockchain.XT]: undefined,
+  [Blockchain.MAERKI_BAUMANN]: undefined,
+  [Blockchain.OLKYPAY]: undefined,
+  [Blockchain.CHECKOUT]: undefined,
+  [Blockchain.KALEIDO]: undefined,
+  [Blockchain.SUMIXX]: undefined,
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -55,13 +63,21 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.BASE]: 'tx',
   [Blockchain.GNOSIS]: 'tx',
   [Blockchain.SOLANA]: 'tx',
+  [Blockchain.TRON]: 'transaction',
   [Blockchain.HAQQ]: 'tx',
   [Blockchain.LIQUID]: 'tx',
   [Blockchain.ARWEAVE]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
   [Blockchain.RAILGUN]: 'transaction',
   [Blockchain.BINANCE_PAY]: undefined,
-  [Blockchain.TRON]: 'transaction',
+  [Blockchain.KRAKEN]: undefined,
+  [Blockchain.BINANCE]: undefined,
+  [Blockchain.XT]: undefined,
+  [Blockchain.MAERKI_BAUMANN]: undefined,
+  [Blockchain.OLKYPAY]: undefined,
+  [Blockchain.CHECKOUT]: undefined,
+  [Blockchain.KALEIDO]: undefined,
+  [Blockchain.SUMIXX]: undefined,
 };
 
 function assetPaths(asset: Asset): string | undefined {
@@ -106,11 +122,11 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.POLYGON:
     case Blockchain.BASE:
     case Blockchain.GNOSIS:
+    case Blockchain.TRON:
     case Blockchain.HAQQ:
     case Blockchain.LIQUID:
     case Blockchain.ARWEAVE:
     case Blockchain.CARDANO:
-    case Blockchain.TRON:
       return 'address';
 
     case Blockchain.SOLANA:
