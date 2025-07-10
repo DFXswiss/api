@@ -14,6 +14,8 @@ import { LightningStrategy } from '../impl/lightning.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismStrategy } from '../impl/optimism.strategy';
 import { PolygonStrategy } from '../impl/polygon.strategy';
+import { SolanaStrategy } from '../impl/solana.strategy';
+import { TronStrategy } from '../impl/tron.strategy';
 
 describe('PrepareStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
@@ -26,6 +28,8 @@ describe('PrepareStrategyRegistry', () => {
   let polygonStrategy: PolygonStrategy;
   let baseStrategy: BaseStrategy;
   let gnosisStrategy: GnosisStrategy;
+  let solanaStrategy: SolanaStrategy;
+  let tronStrategy: TronStrategy;
 
   let registry: PrepareStrategyRegistryWrapper;
 
@@ -41,6 +45,8 @@ describe('PrepareStrategyRegistry', () => {
     polygonStrategy = new PolygonStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     baseStrategy = new BaseStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     gnosisStrategy = new GnosisStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    solanaStrategy = new SolanaStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    tronStrategy = new TronStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
 
     registry = new PrepareStrategyRegistryWrapper(
       bitcoinStrategy,
@@ -53,6 +59,8 @@ describe('PrepareStrategyRegistry', () => {
       polygonStrategy,
       baseStrategy,
       gnosisStrategy,
+      solanaStrategy,
+      tronStrategy,
     );
   });
 
@@ -118,6 +126,18 @@ describe('PrepareStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(GnosisStrategy);
       });
 
+      it('gets SOLANA strategy for SOLANA', () => {
+        const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.SOLANA }));
+
+        expect(strategy).toBeInstanceOf(SolanaStrategy);
+      });
+
+      it('gets TRON strategy for TRON', () => {
+        const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.TRON }));
+
+        expect(strategy).toBeInstanceOf(TronStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPrepareStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -141,12 +161,15 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     polygonStrategy: PolygonStrategy,
     baseStrategy: BaseStrategy,
     gnosisStrategy: GnosisStrategy,
+    solanaStrategy: SolanaStrategy,
+    tronStrategy: TronStrategy,
   ) {
     super();
 
     this.add(Blockchain.BITCOIN, bitcoinStrategy);
     this.add(Blockchain.LIGHTNING, lightningStrategy);
     this.add(Blockchain.MONERO, moneroStrategy);
+
     this.add(Blockchain.ETHEREUM, ethereumStrategy);
     this.add(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);
     this.add(Blockchain.ARBITRUM, arbitrumStrategy);
@@ -154,5 +177,7 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     this.add(Blockchain.POLYGON, polygonStrategy);
     this.add(Blockchain.BASE, baseStrategy);
     this.add(Blockchain.GNOSIS, gnosisStrategy);
+    this.add(Blockchain.SOLANA, solanaStrategy);
+    this.add(Blockchain.TRON, tronStrategy);
   }
 }
