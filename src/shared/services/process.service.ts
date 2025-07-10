@@ -75,6 +75,7 @@ export enum Process {
   LOG_CLEANUP = 'LogCleanup',
   SAFETY_MODULE = 'SafetyModule',
   SYNC_FILE_SUB_TYPE = 'SyncFileSubType',
+  BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
 }
 
 const safetyProcesses: Process[] = [
