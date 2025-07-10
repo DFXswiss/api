@@ -3,7 +3,6 @@ import { CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -50,13 +49,17 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
   // --- HELPER METHODS --- //
 
   private async getLiquidityData(): Promise<LiquidityData> {
-    const binance: Asset = await this.assetService
+    const binanceLiqBalance = await this.assetService
       .getAllBlockchainAssets([Blockchain.BINANCE], undefined, { balance: true })
-      .then((asset) => Util.sort(asset, 'updated', 'DESC'))[0];
+      .then((asset) => asset.filter((a) => a.balance).map((a) => a.balance));
 
-    const kraken: Asset = await this.assetService
+    const binance = Util.sort(binanceLiqBalance, 'updated', 'DESC')[0];
+
+    const krakenLiqBalance = await this.assetService
       .getAllBlockchainAssets([Blockchain.KRAKEN], undefined, { balance: true })
-      .then((asset) => Util.sort(asset, 'updated', 'DESC'))[0];
+      .then((asset) => asset.filter((a) => a.balance).map((a) => a.balance));
+
+    const kraken = Util.sort(krakenLiqBalance, 'updated', 'DESC')[0];
 
     const lastBinanceTx = await this.exchangeTxService.getLastExchangeTx(ExchangeName.BINANCE);
     const lastKrakenTx = await this.exchangeTxService.getLastExchangeTx(ExchangeName.KRAKEN);
@@ -75,8 +78,8 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
         updated: LessThan(Util.minutesBefore(30)),
       }),
       safetyModeActive: this.processService.isSafetyModeActive(),
-      binanceSyncDelay: Math.abs(Util.minutesDiff(lastBinanceTx.created, binance.balance.updated)),
-      krakenSyncDelay: Math.abs(Util.minutesDiff(lastKrakenTx.created, kraken.balance.updated)),
+      binanceSyncDelay: Math.abs(Util.minutesDiff(lastBinanceTx.created, binance.updated)),
+      krakenSyncDelay: Math.abs(Util.minutesDiff(lastKrakenTx.created, kraken.updated)),
     };
   }
 }
