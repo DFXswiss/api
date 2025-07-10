@@ -1,9 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
-import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -12,9 +10,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
-import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
-import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
-import { PayoutSolanaService } from 'src/subdomains/supporting/payout/services/payout-solana.service';
+import { PaymentLinkFeeService } from 'src/subdomains/core/payment-link/services/payment-link-fee.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Equal, In, LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
@@ -52,10 +48,7 @@ export class PaymentQuoteService {
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
-    private readonly evmGasPriceService: EvmGasPriceService,
-    private readonly payoutMoneroService: PayoutMoneroService,
-    private readonly payoutBitcoinService: PayoutBitcoinService,
-    private readonly payoutSolanaService: PayoutSolanaService,
+    private readonly feeService: PaymentLinkFeeService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
@@ -238,7 +231,7 @@ export class PaymentQuoteService {
     blockchain: Blockchain,
     assets: Asset[],
   ): Promise<TransferAmount> {
-    const minFee = await this.getMinFee(blockchain);
+    const minFee = await this.feeService.getMinFee(blockchain);
 
     const transferAmount: TransferAmount = {
       method: blockchain,
@@ -267,27 +260,6 @@ export class PaymentQuoteService {
     }
 
     return transferAmount;
-  }
-
-  private async getMinFee(blockchain: Blockchain): Promise<number | undefined> {
-    switch (blockchain) {
-      case Blockchain.BINANCE_PAY:
-      case Blockchain.LIGHTNING:
-        return 0;
-      case Blockchain.ETHEREUM:
-      case Blockchain.ARBITRUM:
-      case Blockchain.OPTIMISM:
-      case Blockchain.BASE:
-      case Blockchain.GNOSIS:
-      case Blockchain.POLYGON:
-        return this.evmGasPriceService.getGasPrice(blockchain);
-      case Blockchain.MONERO:
-        return MoneroHelper.xmrToAu(await this.payoutMoneroService.getEstimatedFee());
-      case Blockchain.BITCOIN:
-        return this.payoutBitcoinService.getCurrentFeeRate();
-      case Blockchain.SOLANA:
-        return this.payoutSolanaService.getCurrentGasForCoinTransaction();
-    }
   }
 
   private async createOrderedPaymentAssetMap(blockchains: Blockchain[]): Promise<Map<Blockchain, Asset[]>> {

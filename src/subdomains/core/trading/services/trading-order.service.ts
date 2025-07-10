@@ -225,7 +225,7 @@ export class TradingOrderService implements OnModuleInit {
 
     await this.closeReservation(order);
 
-    order.fail(message);
+    order.fail(e.message);
     await this.orderRepo.save(order);
 
     const rule = order.tradingRule.pause();
