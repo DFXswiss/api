@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -13,8 +13,7 @@ import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { FiatPriceCurrency, PricingService } from '../../pricing/services/pricing.service';
-import { BankTx, BankTxType } from '../bank-tx/entities/bank-tx.entity';
-import { BankTxService } from '../bank-tx/services/bank-tx.service';
+import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 import { BankTxReturn } from './bank-tx-return.entity';
 import { BankTxReturnRepository } from './bank-tx-return.repository';
 import { UpdateBankTxReturnDto } from './dto/update-bank-tx-return.dto';
@@ -30,8 +29,6 @@ export class BankTxReturnService {
     private readonly fiatOutputService: FiatOutputService,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
-    @Inject(forwardRef(() => BankTxService))
-    private readonly bankTxService: BankTxService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX_RETURN, timeout: 1800 })
@@ -110,20 +107,15 @@ export class BankTxReturnService {
     return this.updateInternal(entity, dto);
   }
 
-  async updateInternal(entity: BankTxReturn, dto: UpdateBankTxReturnDto): Promise<BankTxReturn> {
+  async updateInternal(entity: BankTxReturn, dto: Partial<BankTxReturn>): Promise<BankTxReturn> {
     const update = this.bankTxReturnRepo.create(dto);
 
     // chargeback bank tx
     if (dto.chargebackBankTx && !entity.chargebackBankTx) {
-      update.chargebackBankTx = await this.bankTxService.getBankTxById(dto.chargebackBankTx.id);
-      if (!update.chargebackBankTx) throw new BadRequestException('ChargebackBankTx not found');
-
       const existingReturnForChargeback = await this.bankTxReturnRepo.findOneBy({
         chargebackBankTx: { id: dto.chargebackBankTx.id },
       });
       if (existingReturnForChargeback) throw new BadRequestException('ChargebackBankTx already used');
-
-      await this.bankTxService.updateInternal(update.chargebackBankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
     }
 
     return this.bankTxReturnRepo.save({ ...update, ...Util.removeNullFields(entity) });
