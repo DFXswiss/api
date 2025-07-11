@@ -85,7 +85,7 @@ export class FiatOutputJobService {
     const request: FindOptionsWhere<FiatOutput> = {
       valutaDate: IsNull(),
       isComplete: false,
-      type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT]),
+      type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT, FiatOutputType.BANK_TX_RETURN]),
     };
 
     const entities = await this.fiatOutputRepo.find({
@@ -93,23 +93,18 @@ export class FiatOutputJobService {
         { ...request, originEntityId: IsNull() },
         { ...request, accountIban: IsNull() },
       ],
-      relations: { buyCrypto: true, buyFiats: { sell: true } },
+      relations: { buyCrypto: { bankTx: true }, buyFiats: { sell: true }, bankTxReturn: { bankTx: true } },
     });
 
     for (const entity of entities) {
       try {
-        if (!entity.buyFiats?.length && !entity.buyCrypto) continue;
+        if (!entity.buyFiats?.length && !entity.buyCrypto && !entity.bankTxReturn) continue;
 
-        const ibanCountry = (entity.buyCrypto?.chargebackIban ?? entity.buyFiats?.[0]?.sell?.iban)?.substring(0, 2);
-        const country = await this.countryService.getCountryWithSymbol(ibanCountry);
-        const currency = ['LI', 'CH'].includes(ibanCountry)
-          ? 'CHF'
-          : entity.buyCrypto?.bankTx?.currency ?? entity.buyFiats?.[0]?.sell?.fiat?.name;
-
-        const bank = await this.bankService.getSenderBank(currency);
+        const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
+        const bank = await this.bankService.getSenderBank(entity.outputCurrency);
 
         await this.fiatOutputRepo.update(entity.id, {
-          originEntityId: entity.type === FiatOutputType.BUY_FIAT ? entity.buyFiats[0].id : entity.buyCrypto.id,
+          originEntityId: entity.originEntity?.id,
           accountIban: country.maerkiBaumannEnable ? bank?.iban : undefined,
         });
       } catch (e) {
