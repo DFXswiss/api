@@ -204,6 +204,12 @@ export class BankDataService {
         { label: dto.label, preferredCurrency: dto.preferredCurrency },
       );
 
+    if (dto.status === ReviewStatus.COMPLETED) {
+      dto.approved = true;
+    } else if (dto.status === ReviewStatus.FAILED) {
+      dto.approved = false;
+    }
+
     return this.bankDataRepo.saveWithUniqueDefault({ ...bankData, ...dto });
   }
 
