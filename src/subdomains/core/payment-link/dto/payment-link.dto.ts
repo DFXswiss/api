@@ -47,7 +47,7 @@ export interface PaymentLinkRequestDto {
   recipient: PaymentLinkRecipientDto;
   mode: PaymentLinkMode;
   route?: string;
-  currencyName?: string;
+  currency?: string;
 }
 
 export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {

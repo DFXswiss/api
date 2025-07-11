@@ -345,7 +345,7 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       route: paymentLink.route.route.label,
-      currencyName: paymentLink.route.fiat?.name,
+      currency: paymentLink.route.fiat?.name,
       displayQr,
       recipient: paymentLink.recipient,
       mode: paymentLink.mode,
