@@ -185,16 +185,18 @@ export class PaymentLinkPaymentService {
     if (pendingPayment)
       throw new ConflictException('There is already a pending payment for the specified payment link');
 
-    const allPayments = await this.paymentLinkPaymentRepo.find({
-      where: { link: { uniqueId: paymentLink.uniqueId } },
-    });
-
     if (paymentLink.mode === PaymentLinkMode.SINGLE) {
-      if (allPayments.length > 0) throw new ConflictException('Single payment link can only have one payment');
+      const hasPreviousPayment = await this.paymentLinkPaymentRepo.existsBy({
+        link: { uniqueId: paymentLink.uniqueId },
+      });
+      if (hasPreviousPayment) throw new ConflictException('Single payment link can only have one payment');
     }
 
     if (dto.externalId) {
-      const exists = allPayments.some((p) => p.externalId === dto.externalId);
+      const exists = await this.paymentLinkPaymentRepo.existsBy({
+        externalId: dto.externalId,
+        link: { id: paymentLink.id },
+      });
       if (exists) throw new ConflictException('Payment already exists');
     }
 
