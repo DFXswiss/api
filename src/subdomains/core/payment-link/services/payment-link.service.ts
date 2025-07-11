@@ -26,6 +26,7 @@ import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
 import {
   C2BPaymentProvider,
+  PaymentLinkMode,
   PaymentLinkPaymentMode,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
@@ -194,6 +195,7 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
+      mode: dto.mode,
       uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
       webhookUrl: dto.webhookUrl,
       name: dto.config?.recipient?.name,
@@ -258,6 +260,7 @@ export class PaymentLinkService {
     const payRequest: PaymentLinkPayRequestDto = {
       id: pendingPayment.link.uniqueId,
       externalId: pendingPayment.link.externalId,
+      mode: pendingPayment.link.mode,
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
       minSendable: msatTransferAmount,
@@ -268,6 +271,7 @@ export class PaymentLinkService {
       possibleStandards: standards,
       displayQr,
       recipient: pendingPayment.link.recipient,
+      route: pendingPayment.link.route.route.label,
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
@@ -340,8 +344,11 @@ export class PaymentLinkService {
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
+      route: paymentLink.route.route.label,
+      currency: paymentLink.route.fiat?.name,
       displayQr,
       recipient: paymentLink.recipient,
+      mode: paymentLink.mode,
       statusCode: undefined,
       message: undefined,
       error: undefined,
@@ -498,16 +505,43 @@ export class PaymentLinkService {
     });
   }
 
+  async getPublicPaymentLink(routeLabel: string, externalLinkId: string): Promise<PaymentLink> {
+    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    if (!route) throw new NotFoundException('Route not found');
+
+    const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
+    if (paymentLink.mode !== PaymentLinkMode.PUBLIC) throw new UnauthorizedException('Payment link is not public');
+
+    return paymentLink;
+  }
+
+  async createPublicPayment(
+    dto: CreatePaymentLinkPaymentDto,
+    routeLabel: string,
+    externalLinkId: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.getPublicPaymentLink(routeLabel, externalLinkId);
+    if (dto.amount == 0) throw new BadRequestException('Amount must be greater than 0');
+
+    const payment = await this.paymentLinkPaymentService.createPayment(paymentLink, dto);
+    paymentLink.payments = [payment];
+
+    return paymentLink;
+  }
+
   async cancelPayment(
     userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
     key?: string,
+    routeLabel?: string,
   ): Promise<PaymentLink> {
     const paymentLink = Boolean(userId)
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
-      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+      : Boolean(key)
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
+      : await this.getPublicPaymentLink(routeLabel, externalLinkId);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
@@ -573,5 +607,4 @@ export class PaymentLinkService {
 
     return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, payment.externalId);
   }
-
 }

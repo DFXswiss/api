@@ -25,6 +25,7 @@ import {
 import { Response } from 'express';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -190,7 +191,7 @@ export class PaymentLinkController {
   }
 
   @Post('payment')
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiCreatedResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -204,17 +205,19 @@ export class PaymentLinkController {
     @Query('route') route: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    if (key) {
-      if (!externalLinkId) throw new BadRequestException('External Link ID is required');
+    if (jwt) {
+      return this.paymentLinkService
+        .createPayment(+jwt.user, dto, +linkId, externalLinkId)
+        .then(PaymentLinkDtoMapper.toLinkDto);
+    }
 
+    if (key) {
       return this.paymentLinkService
         .createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
         .then(PaymentLinkDtoMapper.toLinkDto);
     }
 
-    return this.paymentLinkService
-      .createPayment(+jwt.user, dto, +linkId, externalLinkId)
-      .then(PaymentLinkDtoMapper.toLinkDto);
+    return this.paymentLinkService.createPublicPayment(dto, route, externalLinkId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Get('payment/wait')
@@ -259,21 +262,23 @@ export class PaymentLinkController {
 
   @Delete('payment')
   @ApiBearerAuth()
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
   @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
+  @ApiQuery({ name: 'route', description: 'Route label', required: false })
   async cancelPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
     @Query('key') key: string,
+    @Query('route') route: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key)
+      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key, route)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
