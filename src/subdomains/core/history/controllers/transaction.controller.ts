@@ -297,6 +297,7 @@ export class TransactionController {
     RoleGuard(UserRole.ACCOUNT),
     UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
   )
+  @ApiOkResponse({ type: RefundDataDto })
   async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RefundDataDto> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { bankTxReturn: true },
@@ -367,6 +368,7 @@ export class TransactionController {
     RoleGuard(UserRole.ACCOUNT),
     UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
   )
+  @ApiOkResponse()
   async setTransactionRefundTarget(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
