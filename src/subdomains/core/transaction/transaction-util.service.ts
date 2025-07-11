@@ -70,7 +70,7 @@ export class TransactionUtilService {
       entity.chargebackDate ||
       (entity instanceof BuyFiat && entity.chargebackTxId) ||
       (entity instanceof BuyCrypto && (entity.chargebackCryptoTxId || entity.chargebackBankTx)) ||
-      (entity instanceof BankTxReturn && (entity.chargebackRemittanceInfo || entity.chargebackBankTx))
+      (entity instanceof BankTxReturn && (entity.chargebackOutput || entity.chargebackBankTx))
     )
       throw new BadRequestException('Transaction is already returned');
 

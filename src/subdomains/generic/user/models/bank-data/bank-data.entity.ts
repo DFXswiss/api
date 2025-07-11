@@ -30,7 +30,7 @@ export class BankData extends IEntity {
   name?: string;
 
   @Column({ nullable: true })
-  status: ReviewStatus;
+  status?: ReviewStatus;
 
   @Column({ nullable: true })
   approved?: boolean;

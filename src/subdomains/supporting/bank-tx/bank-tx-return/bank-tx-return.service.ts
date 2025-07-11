@@ -33,26 +33,7 @@ export class BankTxReturnService {
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX_RETURN, timeout: 1800 })
   async fillBankTxReturn() {
-    await this.setRemittanceInfo();
     await this.setFiatAmounts();
-  }
-
-  async setRemittanceInfo(): Promise<void> {
-    const entities = await this.bankTxReturnRepo.find({
-      where: {
-        bankTx: { id: Not(IsNull()) },
-        chargebackRemittanceInfo: IsNull(),
-      },
-      relations: { bankTx: true },
-    });
-
-    for (const entity of entities) {
-      try {
-        await this.bankTxReturnRepo.update(...entity.setRemittanceInfo());
-      } catch (e) {
-        this.logger.error(`Error during bankTxReturn ${entity.id} set remittanceInfo:`, e);
-      }
-    }
   }
 
   async setFiatAmounts(): Promise<void> {
@@ -131,7 +112,7 @@ export class BankTxReturnService {
   async refundBankTxReturn(buyCryptoId: number, dto: RefundInternalDto): Promise<void> {
     const bankTxReturn = await this.bankTxReturnRepo.findOne({
       where: { id: buyCryptoId },
-      relations: { transaction: { userData: true }, bankTx: true },
+      relations: { transaction: { userData: true }, bankTx: true, chargebackOutput: true },
     });
 
     if (!bankTxReturn) throw new NotFoundException('BankTxReturn not found');
@@ -179,6 +160,7 @@ export class BankTxReturnService {
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
+        bankTxReturn.chargebackBankRemittanceInfo,
       ),
     );
   }
