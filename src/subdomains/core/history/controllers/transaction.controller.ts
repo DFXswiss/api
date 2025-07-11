@@ -376,7 +376,7 @@ export class TransactionController {
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { transaction: { userData: true } },
-      bankTxReturn: { bankTx: true },
+      bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
       buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true, transaction: { userData: true } },
       buyFiat: { cryptoInput: true, transaction: { userData: true } },
