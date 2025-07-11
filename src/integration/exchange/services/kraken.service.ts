@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { kraken } from 'ccxt';
+import { kraken, Order } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -41,5 +41,12 @@ export class KrakenService extends ExchangeService {
 
   constructor() {
     super(kraken, GetConfig().kraken);
+  }
+
+  protected async updateOrderPrice(order: Order, price: number): Promise<string> {
+    // order ID does not change for Kraken
+    return this.callApi((e) =>
+      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price),
+    ).then(() => order.id);
   }
 }
