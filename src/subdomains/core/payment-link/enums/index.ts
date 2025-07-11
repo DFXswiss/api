@@ -75,3 +75,9 @@ export enum StickerType {
   CLASSIC = 'Classic',
   BITCOIN_FOCUS = 'BitcoinFocus',
 }
+
+export enum PaymentLinkMode {
+  SINGLE = 'Single',
+  MULTIPLE = 'Multiple',
+  PUBLIC = 'Public',
+}
