@@ -49,6 +49,7 @@ import {
   BalancesByFinancialType,
   BankExchangeType,
   ChangeLog,
+  FinanceLog,
   LogPairId,
   ManualLogPosition,
   TradingLog,
@@ -112,10 +113,18 @@ export class LogJobService {
       if (!DisabledProcess(Process.SAFETY_MODULE))
         await this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
 
+      const logs = await this.logService
+        .getLastLogs('LogService', 'FinancialDataLog', LogSeverity.INFO, 10)
+        .then((l) => l.map((log) => JSON.parse(log.message) as FinanceLog));
+      const meanTotalBalance = Util.avg(logs.map((l) => l.balancesTotal.totalBalanceChf));
+
       await this.logService.create({
         system: 'LogService',
         subsystem: 'FinancialDataLog',
-        severity: LogSeverity.INFO,
+        severity:
+          Math.abs(totalBalanceChf - meanTotalBalance) > Config.financeLogTotalBalanceChangeLimit
+            ? LogSeverity.UNKNOWN
+            : LogSeverity.INFO,
         message: JSON.stringify({
           assets: assetLog,
           tradings: tradingLog,

@@ -46,6 +46,7 @@ export class Configuration {
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
+  financeLogTotalBalanceChangeLimit = 5000;
 
   defaults = {
     currency: 'EUR',
