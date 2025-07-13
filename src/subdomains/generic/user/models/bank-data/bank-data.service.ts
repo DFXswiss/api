@@ -51,7 +51,6 @@ export class BankDataService {
     const search: FindOptionsWhere<BankData> = {
       type: Not(BankDataType.USER),
       status: ReviewStatus.INTERNAL_REVIEW,
-      comment: IsNull(),
     };
     const entities = await this.bankDataRepo.find({
       where: [
@@ -82,7 +81,7 @@ export class BankDataService {
           entity.userData.hasCompletedStep(KycStepName.COMMERCIAL_REGISTER)
         ) {
           await this.nameCheckService.closeAndRefreshRiskStatus(entity);
-          await this.bankDataRepo.update(entity.id, { comment: 'Pass', status: ReviewStatus.COMPLETED }); // TODO remove Pass
+          await this.bankDataRepo.update(...entity.complete());
         }
 
         return;
