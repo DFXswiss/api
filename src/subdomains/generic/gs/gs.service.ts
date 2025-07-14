@@ -90,7 +90,7 @@ export class GsService {
           ...additionalSelect,
         ]),
       ),
-    });
+    }).then((d) => d.filter((e) => Object.values(e).every((entity: any) => entity.length < 50000)));
 
     const runTime = Date.now() - startTime;
 
