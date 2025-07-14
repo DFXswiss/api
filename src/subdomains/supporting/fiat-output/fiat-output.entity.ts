@@ -135,7 +135,7 @@ export class FiatOutput extends IEntity {
   // --- ENTITY METHODS --- //
 
   setBatch(batchId?: number, batchAmount?: number): UpdateResult<FiatOutput> {
-    const update: Partial<FiatOutput> = { batchId, batchAmount };
+    const update: Partial<FiatOutput> = { batchId, batchAmount: Math.round(batchAmount) };
 
     Object.assign(this, update);
 

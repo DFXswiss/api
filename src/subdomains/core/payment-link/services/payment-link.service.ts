@@ -23,6 +23,7 @@ import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment
 import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLinkConfig } from '../entities/payment-link.config';
 import { PaymentLink } from '../entities/payment-link.entity';
 import {
   C2BPaymentProvider,
@@ -355,7 +356,7 @@ export class PaymentLinkService {
     };
   }
 
-  private getMergedConfig(paymentLink: PaymentLink, config: UpdatePaymentLinkConfigDto): string | null {
+  private getMergedConfig(paymentLink: PaymentLink, config: Partial<PaymentLinkConfig>): string | null {
     const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
     const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
     return Object.keys(customConfig).length === 0 ? null : (JSON.stringify(customConfig) as string);
@@ -606,5 +607,35 @@ export class PaymentLinkService {
     await this.paymentLinkPaymentService.confirmPayment(payment);
 
     return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, payment.externalId);
+  }
+
+  async createPosLink(paymentLinkId: number, scoped: boolean): Promise<string> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { id: paymentLinkId },
+      relations: { route: { user: { userData: true } } },
+    });
+    if (!paymentLink) throw new NotFoundException('PaymentLink not found');
+
+    const config = scoped ? paymentLink.linkConfigObj : paymentLink.route.userData.paymentLinksConfigObj;
+
+    let accessKey = config.accessKeys?.at(0);
+    if (!accessKey) {
+      accessKey = Util.secureRandomString();
+
+      const update = { accessKeys: [accessKey] };
+
+      if (scoped) {
+        await this.paymentLinkRepo.update(paymentLink.id, { config: this.getMergedConfig(paymentLink, update) });
+      } else {
+        await this.userDataService.updatePaymentLinksConfig(paymentLink.route.user.userData, update);
+      }
+    }
+
+    const search = new URLSearchParams({
+      lightning: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
+      key: accessKey,
+    });
+
+    return `${Config.frontend.services}/pl/pos?${search.toString()}`;
   }
 }

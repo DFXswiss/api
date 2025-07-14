@@ -229,7 +229,7 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
       this.cert = response.data;
       this.certificatedExpiry = Date.now() + BinancePayService.HOURS_2;
     } catch (e) {
-      this.logger.error(`Failed to update certificates:`, e);
+      if (!e.message?.includes('not configured')) this.logger.error(`Failed to update certificates:`, e);
     }
   }
 

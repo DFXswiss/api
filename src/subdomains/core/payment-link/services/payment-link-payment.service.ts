@@ -303,6 +303,7 @@ export class PaymentLinkPaymentService {
   // --- HANDLE INPUTS --- //
   async getPaymentQuoteByFailedCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
     return this.paymentQuoteService.getQuoteByTxId(cryptoInput.address.blockchain, cryptoInput.inTxId, [
+      PaymentQuoteStatus.TX_MEMPOOL,
       PaymentQuoteStatus.TX_BLOCKCHAIN,
       PaymentQuoteStatus.TX_COMPLETED,
     ]);
