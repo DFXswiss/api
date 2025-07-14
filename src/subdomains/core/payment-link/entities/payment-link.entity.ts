@@ -102,7 +102,7 @@ export class PaymentLink extends IEntity {
 
   // --- ENTITY METHODS --- //
   get metaId(): string {
-    return this.externalId ?? `${this.id}`;
+    return this.label ?? this.externalId ?? `${this.id}`;
   }
 
   displayName(paymentMetaId?: string): string {
