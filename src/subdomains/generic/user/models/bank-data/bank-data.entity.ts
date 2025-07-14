@@ -85,7 +85,6 @@ export class BankData extends IEntity {
     const update: Partial<BankData> = {
       status: ReviewStatus.COMPLETED,
       approved: true,
-      comment: 'Pass', // TODO remove Pass
     };
 
     Object.assign(this, update);
@@ -99,6 +98,14 @@ export class BankData extends IEntity {
       approved: false,
       comment,
     };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  complete(): UpdateResult<BankData> {
+    const update: Partial<BankData> = { status: ReviewStatus.COMPLETED };
 
     Object.assign(this, update);
 
