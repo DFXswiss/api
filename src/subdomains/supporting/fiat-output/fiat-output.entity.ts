@@ -4,6 +4,7 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { Column, Entity, JoinColumn, OneToMany, OneToOne } from 'typeorm';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import { Util } from 'src/shared/utils/util';
 
 export enum TransactionCharge {
   BEN = 'BEN',
@@ -135,7 +136,7 @@ export class FiatOutput extends IEntity {
   // --- ENTITY METHODS --- //
 
   setBatch(batchId?: number, batchAmount?: number): UpdateResult<FiatOutput> {
-    const update: Partial<FiatOutput> = { batchId, batchAmount };
+    const update: Partial<FiatOutput> = { batchId, batchAmount: Util.round(batchAmount, 0) };
 
     Object.assign(this, update);
 
