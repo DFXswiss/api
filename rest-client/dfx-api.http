@@ -69,7 +69,7 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-PUT {{url}}/v1/user/201879
+PUT {{url}}/v1/user/xxx
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -81,7 +81,7 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-PUT {{url}}/v1/userData/2202
+PUT {{url}}/v1/userData/xxx
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -121,7 +121,7 @@ Authorization: Bearer {{authToken}}
 
 ###
 
-GET {{url}}/v1/exchange/trade/705325209
+GET {{url}}/v1/exchange/trade/xxx
 Authorization: Bearer {{authToken}}
 
 
@@ -130,7 +130,7 @@ Authorization: Bearer {{authToken}}
 // BUY CRYPTO
 @authToken = {{login.response.body.accessToken}}
 
-POST {{url}}/v1/buyCrypto/53363/webhook
+POST {{url}}/v1/buyCrypto/xxx/webhook
 Authorization: Bearer {{authToken}}
 
 ###
@@ -138,7 +138,7 @@ Authorization: Bearer {{authToken}}
 // BUY FIAT
 @authToken = {{login.response.body.accessToken}}
 
-POST {{url}}/v1/buyFiat/57369/webhook
+POST {{url}}/v1/buyFiat/xxx/webhook
 Authorization: Bearer {{authToken}}
 
 ###
@@ -152,7 +152,7 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-PUT {{url}}/v1/buyCrypto/volumes?start=20308&end=20309
+PUT {{url}}/v1/buyCrypto/volumes?start=xxx&end=yyy
 Authorization: Bearer {{authToken}}
 
 ###
@@ -241,15 +241,21 @@ content-type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-  "userDataId": 207838
+  "userDataId": xxx
 }
 
 ###
 
 @authToken = {{login.response.body.accessToken}}
 
-POST {{url}}/v1/kyc/admin/ident/file/sync?step=72208
-content-type: application/json
+PUT {{url}}/v1/kyc/admin/step/xxx/ident
+Authorization: Bearer {{authToken}}
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/kyc/admin/ident/file/sync?step=xxx
 Authorization: Bearer {{authToken}}
 
 ###
@@ -353,7 +359,7 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-POST {{url}}/v1/payout/speedup?id=36004
+POST {{url}}/v1/payout/speedup?id=xxx
 Authorization: Bearer {{authToken}}
 
 
@@ -387,7 +393,7 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-PUT {{url}}/v1/custody/admin/user/324748/balance?assetId=337
+PUT {{url}}/v1/custody/admin/user/xxx/balance?assetId=337
 Authorization: Bearer {{authToken}}
 
 ### 
