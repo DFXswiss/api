@@ -399,3 +399,10 @@ Authorization: Bearer {{authToken}}
 POST {{url}}/v1/paymentLink/integration/binance/activate/xxx
 Authorization: Bearer {{authToken}}
 
+### 
+
+@authToken = {{login.response.body.accessToken}}
+
+PUT {{url}}/v1/paymentLink/xxx/pos?scoped=false
+Authorization: Bearer {{authToken}}
+

@@ -306,6 +306,14 @@ export class PaymentLinkController {
     return this.paymentLinkService.updatePaymentLinkAdmin(+id, dto);
   }
 
+  @Put(':id/pos')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async createPosLink(@Param('id') id: string, @Query('scoped') scoped: string): Promise<string> {
+    return this.paymentLinkService.createPosLink(+id, scoped === 'true');
+  }
+
   @Get('stickers')
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: StreamableFile })
