@@ -51,7 +51,6 @@ export class BankDataService {
     const search: FindOptionsWhere<BankData> = {
       type: Not(BankDataType.USER),
       status: ReviewStatus.INTERNAL_REVIEW,
-      comment: IsNull(),
     };
     const entities = await this.bankDataRepo.find({
       where: [
@@ -82,7 +81,7 @@ export class BankDataService {
           entity.userData.hasCompletedStep(KycStepName.COMMERCIAL_REGISTER)
         ) {
           await this.nameCheckService.closeAndRefreshRiskStatus(entity);
-          await this.bankDataRepo.update(entity.id, { comment: 'Pass', status: ReviewStatus.COMPLETED }); // TODO remove Pass
+          await this.bankDataRepo.update(...entity.complete());
         }
 
         return;
@@ -203,6 +202,12 @@ export class BankDataService {
         { userData: { id: bankData.userData.id }, iban: bankData.iban },
         { label: dto.label, preferredCurrency: dto.preferredCurrency },
       );
+
+    if (dto.status === ReviewStatus.COMPLETED) {
+      dto.approved = true;
+    } else if (dto.status === ReviewStatus.FAILED) {
+      dto.approved = false;
+    }
 
     return this.bankDataRepo.saveWithUniqueDefault({ ...bankData, ...dto });
   }

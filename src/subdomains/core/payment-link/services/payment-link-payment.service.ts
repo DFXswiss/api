@@ -24,6 +24,7 @@ import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-paym
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
 import {
+  PaymentLinkMode,
   PaymentLinkPaymentMode,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
@@ -183,6 +184,13 @@ export class PaymentLinkPaymentService {
     const pendingPayment = paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (pendingPayment)
       throw new ConflictException('There is already a pending payment for the specified payment link');
+
+    if (paymentLink.mode === PaymentLinkMode.SINGLE) {
+      const hasPreviousPayment = await this.paymentLinkPaymentRepo.existsBy({
+        link: { uniqueId: paymentLink.uniqueId },
+      });
+      if (hasPreviousPayment) throw new ConflictException('Single payment link can only have one payment');
+    }
 
     if (dto.externalId) {
       const exists = await this.paymentLinkPaymentRepo.existsBy({
