@@ -10,6 +10,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -98,7 +99,7 @@ export class BuyCryptoPreparationService {
         );
 
         const { users, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
-        if (bankData && !bankData.comment) continue;
+        if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.CHF, false);
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.EUR, false);
