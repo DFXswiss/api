@@ -31,6 +31,7 @@ export class MexcService extends ExchangeService {
     Kraken: undefined,
     Binance: undefined,
     XT: undefined,
+    MEXC: undefined,
     MaerkiBaumann: undefined,
     Olkypay: undefined,
     Checkout: undefined,
@@ -40,5 +41,9 @@ export class MexcService extends ExchangeService {
 
   constructor() {
     super(mexc, GetConfig().mexc);
+  }
+
+  get name(): string {
+    return 'MEXC';
   }
 }

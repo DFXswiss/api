@@ -550,7 +550,8 @@ export class Configuration {
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
-    minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
+    minConfirmations: (blockchain: Blockchain) =>
+      [Blockchain.ETHEREUM, Blockchain.BITCOIN].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),

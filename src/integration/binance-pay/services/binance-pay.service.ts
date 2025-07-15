@@ -107,6 +107,8 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
   }
 
   private validateEnrollmentRequiredFieldsOrThrow(paymentLink: PaymentLink): void {
+    const recipient = paymentLink.recipient;
+
     const missing = [
       'externalId',
       'label',
@@ -119,7 +121,8 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
       'zip',
       'city',
       'registrationNumber',
-    ].filter((f) => !paymentLink[f]);
+    ].filter((f) => !(paymentLink[f] ?? recipient[f] ?? recipient.address?.[f]));
+
     if (missing.length) {
       throw new BadRequestException(`Missing required fields for Binance Pay: ${missing.join(', ')}`);
     }
@@ -128,16 +131,18 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
   public async enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>> {
     this.validateEnrollmentRequiredFieldsOrThrow(paymentLink);
 
+    const recipient = paymentLink.recipient;
+
     const subMerchantData = {
       merchantName: `${paymentLink.name} - ${paymentLink.label} - ${paymentLink.externalId}`,
       storeType: paymentLink.storeType || StoreType.PHYSICAL,
       merchantMcc: paymentLink.merchantMcc,
-      country: paymentLink.country?.symbol,
-      siteUrl: paymentLink.website,
-      address: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
+      country: recipient.address?.country,
+      siteUrl: recipient.website,
+      address: `${recipient.address?.street} ${recipient.address?.houseNumber}, ${recipient.address?.zip} ${recipient.address?.city}`,
       registrationNumber: paymentLink.registrationNumber,
-      registrationCountry: paymentLink.country?.symbol,
-      registrationAddress: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
+      registrationCountry: recipient.address?.country,
+      registrationAddress: `${recipient.address?.street} ${recipient.address?.houseNumber}, ${recipient.address?.zip} ${recipient.address?.city}`,
     };
 
     try {

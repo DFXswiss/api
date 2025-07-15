@@ -302,17 +302,30 @@ export class PaymentLinkPaymentService {
 
   // --- HANDLE INPUTS --- //
   async getPaymentQuoteByFailedCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
-    return this.paymentQuoteService.getQuoteByTxId(cryptoInput.address.blockchain, cryptoInput.inTxId, [
+    const quote = await this.paymentQuoteService.getQuoteByTxId(cryptoInput.address.blockchain, cryptoInput.inTxId, [
       PaymentQuoteStatus.TX_MEMPOOL,
       PaymentQuoteStatus.TX_BLOCKCHAIN,
       PaymentQuoteStatus.TX_COMPLETED,
     ]);
+    if (!quote) return null;
+
+    if (quote.status === PaymentQuoteStatus.TX_MEMPOOL) {
+      await this.handleBlockchainConfirmed(quote, cryptoInput);
+    }
+
+    return quote;
   }
 
   async getPaymentQuoteByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | undefined> {
     const quote = await this.getQuoteForInput(cryptoInput);
     if (!quote) throw new Error(`No matching quote found`);
 
+    await this.handleBlockchainConfirmed(quote, cryptoInput);
+
+    return quote;
+  }
+
+  private async handleBlockchainConfirmed(quote: PaymentQuote, cryptoInput: CryptoInput): Promise<void> {
     await this.paymentQuoteService.saveBlockchainConfirmed(quote, cryptoInput.address.blockchain, cryptoInput.inTxId);
 
     const payment = await this.paymentLinkPaymentRepo.findOne({
@@ -321,8 +334,6 @@ export class PaymentLinkPaymentService {
     });
 
     await this.handleQuoteChange(payment, quote);
-
-    return quote;
   }
 
   private async getQuoteForInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
