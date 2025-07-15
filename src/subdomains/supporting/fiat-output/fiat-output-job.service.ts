@@ -248,7 +248,6 @@ export class FiatOutputJobService {
         isComplete: false,
         bankTx: { id: IsNull() },
         isReadyDate: Not(IsNull()),
-        isTransmittedDate: Not(IsNull()),
       },
       relations: { bankTx: true, bankTxReturn: true },
     });
