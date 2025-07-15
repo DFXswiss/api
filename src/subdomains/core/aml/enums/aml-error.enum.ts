@@ -53,6 +53,14 @@ export enum AmlError {
   LIQUIDITY_LIMIT_EXCEEDED = 'LiquidityLimitExceeded',
 }
 
+export const DelayResultError = [
+  AmlError.NAME_CHECK_WITHOUT_KYC,
+  AmlError.NO_VERIFIED_NAME,
+  AmlError.NO_LETTER,
+  AmlError.BANK_DATA_MISSING,
+  AmlError.INPUT_NOT_CONFIRMED,
+];
+
 export enum AmlErrorType {
   SINGLE = 'Single', // Only one error may occur
   MULTI = 'Multi', // All errors must have the same amlCheck

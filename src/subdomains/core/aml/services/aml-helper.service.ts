@@ -17,7 +17,7 @@ import {
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { AmlError, AmlErrorResult, AmlErrorType } from '../enums/aml-error.enum';
+import { AmlError, AmlErrorResult, AmlErrorType, DelayResultError } from '../enums/aml-error.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
 import { AmlRule, SpecialIpCountries } from '../enums/aml-rule.enum';
 import { CheckStatus } from '../enums/check-status.enum';
@@ -420,6 +420,9 @@ export class AmlHelperService {
       if (entity.comment !== AmlError.BANK_DATA_MANUAL_REVIEW || comment === AmlError.BANK_DATA_MANUAL_REVIEW)
         return {};
     }
+
+    // Delay amlCheck for some specific errors
+    if (amlErrors.some((e) => DelayResultError.includes(e)) && Util.minutesDiff(entity.created) < 5) return { comment };
 
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
