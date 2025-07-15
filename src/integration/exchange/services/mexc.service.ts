@@ -41,4 +41,8 @@ export class MexcService extends ExchangeService {
   constructor() {
     super(mexc, GetConfig().mexc);
   }
+
+  get name(): string {
+    return 'MEXC';
+  }
 }

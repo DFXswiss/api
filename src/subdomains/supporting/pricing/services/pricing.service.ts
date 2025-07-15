@@ -2,6 +2,8 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
+import { MexcService } from 'src/integration/exchange/services/mexc.service';
+import { XtService } from 'src/integration/exchange/services/xt.service';
 import { Active, activesEqual, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -47,6 +49,8 @@ export class PricingService implements OnModuleInit {
     readonly krakenService: KrakenService,
     readonly binanceService: BinanceService,
     readonly kucoinService: KucoinService,
+    readonly mexcService: MexcService,
+    readonly xtService: XtService,
     readonly coinGeckoService: CoinGeckoService,
     readonly dexService: PricingDexService,
     readonly fixerService: FixerService,
@@ -60,6 +64,8 @@ export class PricingService implements OnModuleInit {
       [PriceSource.KRAKEN]: krakenService,
       [PriceSource.BINANCE]: binanceService,
       [PriceSource.KUCOIN]: kucoinService,
+      [PriceSource.MEXC]: mexcService,
+      [PriceSource.XT]: xtService,
       [PriceSource.COIN_GECKO]: coinGeckoService,
       [PriceSource.DEX]: dexService,
       [PriceSource.FIXER]: fixerService,
