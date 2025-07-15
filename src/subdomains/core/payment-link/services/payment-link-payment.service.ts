@@ -15,7 +15,7 @@ import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
 import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { LessThan } from 'typeorm';
+import { IsNull, LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { PaymentLinkEvmPaymentDto, PaymentLinkHexResultDto, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
@@ -36,8 +36,6 @@ import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payme
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
-
-const HOUR_IN_MILLIS = 60 * 60 * 1000;
 
 @Injectable()
 export class PaymentLinkPaymentService {
@@ -207,7 +205,7 @@ export class PaymentLinkPaymentService {
       amount: dto.amount,
       externalId: dto.externalId,
       note: dto.note,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.paymentTimeout),
+      expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.configObj.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency: paymentLink.route.fiat,
       uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkPaymentUidPrefix, 16),
@@ -225,22 +223,27 @@ export class PaymentLinkPaymentService {
       }, paymentLink.configObj.autoConfirmSecs * 1000);
     }
 
-    const timeout = payment.expiryDate.getTime() - Date.now() + Config.payment.timeoutDelay * 1000;
+    // expiry timers
+    const scanTimeout = paymentLink.configObj.scanTimeout;
+    if (scanTimeout) {
+      setTimeout(() => this.expirePaymentIfPending(payment.id, true), scanTimeout * 1000);
+    }
 
-    if (timeout < HOUR_IN_MILLIS) {
-      setTimeout(async () => {
-        await this.expirePaymentIfPending(payment.uniqueId);
-      }, timeout);
+    const paymentExpiry = Util.secondsAfter(Config.payment.timeoutDelay, payment.expiryDate);
+    if (Util.minutesDiff(new Date(), paymentExpiry) <= 60) {
+      const paymentTimeout = paymentExpiry.getTime() - new Date().getTime();
+      setTimeout(() => this.expirePaymentIfPending(payment.id, false), paymentTimeout);
     }
 
     return savedPayment;
   }
 
-  private async expirePaymentIfPending(uniqueId: string): Promise<void> {
+  private async expirePaymentIfPending(id: number, ignoreWithQuote: boolean): Promise<void> {
     const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
       where: {
-        uniqueId,
+        id,
         status: PaymentLinkPaymentStatus.PENDING,
+        quotes: { id: ignoreWithQuote ? IsNull() : undefined },
       },
       relations: { link: true },
     });
