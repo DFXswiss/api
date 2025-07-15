@@ -41,6 +41,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.KRAKEN]: undefined,
   [Blockchain.BINANCE]: undefined,
   [Blockchain.XT]: undefined,
+  [Blockchain.MEXC]: undefined,
   [Blockchain.MAERKI_BAUMANN]: undefined,
   [Blockchain.OLKYPAY]: undefined,
   [Blockchain.CHECKOUT]: undefined,
