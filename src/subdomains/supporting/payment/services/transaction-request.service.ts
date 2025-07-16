@@ -28,8 +28,6 @@ import {
 } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
 
-export const QUOTE_UID_PREFIX = 'Q';
-
 @Injectable()
 export class TransactionRequestService {
   private readonly logger = new DfxLogger(TransactionRequestService);
@@ -85,7 +83,7 @@ export class TransactionRequestService {
     userId: number,
   ): Promise<void> {
     try {
-      const uid = `${QUOTE_UID_PREFIX}${Util.randomString(16)}`;
+      const uid = `${Config.prefixes.quoteUidPrefix}${Util.randomString(16)}`;
 
       // create the entity
       const transactionRequest = this.transactionRequestRepo.create({
@@ -234,6 +232,7 @@ export class TransactionRequestService {
         created: MoreThan(Util.daysBefore(2)),
       },
       order: { created: 'DESC' },
+      relations: { user: true, custodyOrder: true },
     });
 
     const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);

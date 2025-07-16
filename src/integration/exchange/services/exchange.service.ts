@@ -2,6 +2,7 @@ import { BadRequestException, Inject, OnModuleInit } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
 import {
   Balances,
+  ConstructorArgs,
   Dictionary,
   Exchange,
   ExchangeError,
@@ -11,7 +12,6 @@ import {
   Transaction,
   WithdrawalResponse,
 } from 'ccxt';
-import { ExchangeConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
@@ -41,7 +41,7 @@ enum PrecisionMode {
 export abstract class ExchangeService extends PricingProvider implements OnModuleInit {
   protected abstract readonly logger: DfxLogger;
 
-  protected abstract readonly networks: { [b in Blockchain]: string };
+  protected abstract readonly networks: { [b in Blockchain]: string | false };
   protected readonly exchange: Exchange;
 
   private markets: Market[];
@@ -49,8 +49,8 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   @Inject() private readonly registry: ExchangeRegistryService;
 
   constructor(
-    exchange: { new (config: ExchangeConfig): Exchange },
-    public readonly config: ExchangeConfig,
+    exchange: { new (userConfig: ConstructorArgs): Exchange },
+    public readonly config: ConstructorArgs,
     private readonly queue?: QueueHandler,
   ) {
     super();
@@ -103,7 +103,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   async getTrades(from?: string, to?: string, since?: Date): Promise<Trade[]> {
     const pair = from && to && (await this.getPair(from, to));
-    return this.callApi((e) => e.fetchMyTrades(pair, since?.getTime()));
+    return this.callApi((e) => e.fetchMyTrades(pair, this.toCcxtDate(since)));
   }
 
   async getOpenTrades(from: string, to: string): Promise<Order[]> {
@@ -141,10 +141,12 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
           this.logger.verbose(
             `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${order.remaining}`,
           );
-          const id = await this.updateOrderPrice(order, price).catch((e: ExchangeError) => {
-            this.logger.error(`Failed to update price of order ${order.id}:`, e);
+          const id = await this.updateOrderPrice(order, price).catch(async (e: ExchangeError) => {
+            await this.callApi((e) => e.cancelOrder(order.id, order.symbol)).catch((e) => {
+              this.logger.error(`Error while cancelling order ${order.id}:`, e);
+            });
 
-            if (e.message.includes('Not enough leaves qty')) throw e;
+            throw e;
           });
 
           if (id) {
@@ -197,11 +199,11 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   async getDeposits(token: string, since?: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchDeposits(token, since?.getTime(), 200, { limit: 200 }));
+    return this.callApi((e) => e.fetchDeposits(token, this.toCcxtDate(since), 200, { limit: 200 }));
   }
 
   async getWithdrawals(token: string, since?: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchWithdrawals(token, since?.getTime(), 200, { limit: 200 }));
+    return this.callApi((e) => e.fetchWithdrawals(token, this.toCcxtDate(since), 200, { limit: 200 }));
   }
 
   // --- Helper Methods --- //
@@ -279,7 +281,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const { amount: amountPrecision } = await this.getPrecision(pair);
     const price = await this.fetchCurrentOrderPrice(pair, direction);
 
-    const orderAmount = Util.roundToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
+    const orderAmount = Util.floorToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
 
     const id = await this.placeOrder(pair, direction, orderAmount, price);
 
@@ -319,7 +321,12 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     );
   }
 
-  mapNetwork(blockchain: Blockchain): string {
+  mapNetwork(blockchain: Blockchain): string | false {
     return this.networks[blockchain];
+  }
+
+  private toCcxtDate(date?: Date): number | undefined {
+    // ignore milliseconds
+    return date ? Util.round(date?.getTime(), -3) : undefined;
   }
 }

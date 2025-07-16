@@ -10,4 +10,7 @@ export enum AmlRule {
   RULE_8 = 8, // CHF amount > 10k
   RULE_9 = 9, // Checkout Active User & KycLevel 30
   RULE_10 = 10, // Checkout Active User & KycLevel 50
+  RULE_11 = 11, // Special IP countries without Kyc
 }
+
+export const SpecialIpCountries = ['CH'];

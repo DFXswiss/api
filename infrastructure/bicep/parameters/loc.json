@@ -227,6 +227,24 @@
     "baseChainId": {
       "value": "84531"
     },
+    "gnosisWalletAddress": {
+      "value": "xxx"
+    },
+    "gnosisWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "gnosisGatewayUrl": {
+      "value": "https://gnosis-chiado.g.alchemy.com/v2"
+    },
+    "gnosisSwapContractAddress": {
+      "value": ""
+    },
+    "gnosisQuoteContractAddress": {
+      "value": ""
+    },
+    "gnosisChainId": {
+      "value": "10200"
+    },
     "bscWalletAddress": {
       "value": "xxx"
     },
@@ -354,6 +372,24 @@
       "value": "xxx"
     },
     "p2bWithdrawKeys": {
+      "value": "xxx"
+    },
+    "xtWithdrawKeys": {
+      "value": "xxx"
+    },
+    "xtKey": {
+      "value": "xxx"
+    },
+    "xtSecret": {
+      "value": "xxx"
+    },
+    "mexcWithdrawKeys": {
+      "value": "xxx"
+    },
+    "mexcKey": {
+      "value": "xxx"
+    },
+    "mexcSecret": {
       "value": "xxx"
     },
     "olkyClient": {

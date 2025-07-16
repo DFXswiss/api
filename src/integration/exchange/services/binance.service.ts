@@ -21,11 +21,22 @@ export class BinanceService extends ExchangeService {
     Optimism: 'OPTIMISM',
     Polygon: 'MATIC',
     Base: 'BASE',
+    Gnosis: undefined,
     Haqq: undefined,
     Liquid: undefined,
     Arweave: undefined,
     Railgun: undefined,
-    Solana: undefined,
+    BinancePay: undefined,
+    Solana: 'SOL',
+    Kraken: undefined,
+    Binance: undefined,
+    XT: undefined,
+    MEXC: undefined,
+    MaerkiBaumann: undefined,
+    Olkypay: undefined,
+    Checkout: undefined,
+    Kaleido: undefined,
+    Sumixx: undefined,
   };
 
   constructor() {

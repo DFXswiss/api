@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, Matches } from 'class-validator';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetConfig } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export class LinkedUserInDto {
   @ApiProperty()

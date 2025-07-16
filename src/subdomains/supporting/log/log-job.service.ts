@@ -6,6 +6,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockchain-client';
+import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -23,7 +24,6 @@ import {
   LiquidityManagementBridges,
   LiquidityManagementExchanges,
 } from 'src/subdomains/core/liquidity-management/enums';
-import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
@@ -49,6 +49,7 @@ import {
   BalancesByFinancialType,
   BankExchangeType,
   ChangeLog,
+  FinanceLog,
   LogPairId,
   ManualLogPosition,
   TradingLog,
@@ -63,7 +64,6 @@ export class LogJobService {
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
-    private readonly liqManagementBalanceService: LiquidityManagementBalanceService,
     private readonly logService: LogService,
     private readonly payInService: PayInService,
     private readonly buyFiatService: BuyFiatService,
@@ -90,7 +90,7 @@ export class LogJobService {
 
       // assets
       const assets = await this.assetService
-        .getAllAssets()
+        .getAssetsWith({ balance: true })
         .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
 
       // asset log
@@ -113,10 +113,18 @@ export class LogJobService {
       if (!DisabledProcess(Process.SAFETY_MODULE))
         await this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
 
+      const logs = await this.logService
+        .getLastLogs('LogService', 'FinancialDataLog', LogSeverity.INFO, 10)
+        .then((l) => l.map((log) => JSON.parse(log.message) as FinanceLog));
+      const meanTotalBalance = Util.avg(logs.map((l) => l.balancesTotal.totalBalanceChf));
+
       await this.logService.create({
         system: 'LogService',
         subsystem: 'FinancialDataLog',
-        severity: LogSeverity.INFO,
+        severity:
+          Math.abs(totalBalanceChf - meanTotalBalance) > Config.financeLogTotalBalanceChangeLimit
+            ? LogSeverity.UNKNOWN
+            : LogSeverity.INFO,
         message: JSON.stringify({
           assets: assetLog,
           tradings: tradingLog,
@@ -126,8 +134,16 @@ export class LogJobService {
             minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
             totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
           },
-          changes: changeLog,
         }),
+        valid: null,
+        category: null,
+      });
+
+      await this.logService.create({
+        system: 'LogService',
+        subsystem: 'FinancialChangesLog',
+        severity: LogSeverity.INFO,
+        message: JSON.stringify({ changes: changeLog }),
         valid: null,
         category: null,
       });
@@ -200,22 +216,36 @@ export class LogJobService {
       }),
     );
 
-    // deposit address balance
-    const paymentAssets = assets.filter((a) => a.paymentEnabled && a.blockchain !== Blockchain.LIGHTNING);
+    // payment deposit address balance (Monero/Lightning have no separated balance)
+    const paymentAssets = assets.filter(
+      (a) =>
+        a.paymentEnabled && ![Blockchain.LIGHTNING, Blockchain.MONERO, Blockchain.BINANCE_PAY].includes(a.blockchain),
+    );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 
-    const depositBalances = await Promise.all(
+    const paymentDepositBalances = await Promise.all(
       Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
         const client = this.blockchainRegistryService.getClient(e);
 
-        const balances: BlockchainTokenBalance[] = [Blockchain.MONERO, Blockchain.BITCOIN].includes(e)
-          ? [{ owner: undefined, contractAddress: undefined, balance: await client.getNativeCoinBalance() }]
-          : await this.getCustomBalances(client, a, [
-              EvmUtil.createWallet({
-                seed: Config.payment.evmSeed,
-                index: 0,
-              }).address,
-            ]).then((b) => b.flat());
+        const targetAddress = this.getPaymentDepositAddress(e);
+        const coin = a.find((asset) => asset.type === AssetType.COIN);
+        const balances: BlockchainTokenBalance[] = [
+          {
+            owner: targetAddress,
+            contractAddress: `${coin.id}`,
+            balance: await client.getNativeCoinBalanceForAddress(targetAddress),
+          },
+        ];
+
+        if (![Blockchain.MONERO, Blockchain.BITCOIN].includes(e))
+          balances.push(
+            ...(await this.getCustomBalances(
+              client,
+              a.filter((asset) => asset.type !== AssetType.COIN),
+              [targetAddress],
+            ).then((b) => b.flat())),
+          );
+
         return { blockchain: e, balances };
       }),
     );
@@ -224,9 +254,6 @@ export class LogJobService {
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
     const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
-
-    // liq balances
-    const liqBalances = await this.liqManagementBalanceService.getAllLiqBalancesForAssets(assets.map((a) => a.id));
 
     // pending balances
     const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
@@ -347,8 +374,7 @@ export class LogJobService {
 
     // assetLog
     return assets.reduce((prev, curr) => {
-      const liquidityBalance = liqBalances.find((b) => b.asset.id === curr.id)?.amount;
-      if (liquidityBalance == null && !curr.isActive) return prev;
+      if ((curr.balance?.amount == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
 
       const customAddressBalances = customBalances
         .find((c) => c.blockchain === curr.blockchain)
@@ -356,21 +382,22 @@ export class LogJobService {
 
       const totalCustomBalance = customAddressBalances && Util.sumObjValue(customAddressBalances, 'balance');
 
-      const depositBalance = depositBalances
+      const paymentDepositBalance = paymentDepositBalances
         .find((c) => c.blockchain === curr.blockchain)
         ?.balances?.reduce(
           (sum, result) =>
-            sum +
-            (result.contractAddress === curr.chainId || curr.blockchain === Blockchain.MONERO ? result.balance : 0),
+            sum + (result.contractAddress === curr.chainId || `${curr.id}` === curr.chainId ? result.balance : 0),
           0,
         );
 
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       // plus
-      const liquidity = (liquidityBalance ?? 0) + (depositBalance ?? 0) + (manualLiqPosition ?? 0);
+      const liquidity = (curr.balance?.amount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
-      const cryptoInput = pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
+      const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING].includes(curr.blockchain)
+        ? 0
+        : pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
         (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
         0,
@@ -437,7 +464,7 @@ export class LogJobService {
       // filtered lists
       const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
         [curr],
-        [...recentChfMaerkiKrakenTx, ...eurSenderBankTx],
+        [...recentChfMaerkiKrakenTx, ...recentEurMaerkiKrakenTx],
         BankTxType.KRAKEN,
       );
       const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(
@@ -494,29 +521,29 @@ export class LogJobService {
       if (fromKraken !== fromKrakenUnfiltered) {
         errors.push(`fromKraken !== fromKrakenUnfiltered`);
         this.logger
-          .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount: 
+          .verbose(`Error in financial log, fromKraken balance !== fromKrakenUnfiltered balance for asset: ${curr.id}, fromKrakenAmount:
         ${fromKraken}, fromKrakenUnfilteredAmount: ${fromKrakenUnfiltered}`);
       }
 
       if (toKraken !== toKrakenUnfiltered) {
         errors.push(`toKraken !== toKrakenUnfiltered`);
         this.logger
-          .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount: 
+          .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount:
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
       }
 
       if (fromKraken < 0) {
         errors.push(`fromKraken < 0`);
-        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
-        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+        this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
         pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
         fromKraken = 0;
       }
       if (toKraken < 0) {
         errors.push(`toKraken < 0`);
         this.logger.verbose(
-          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount: 
-          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount}, 
+          `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
           pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
         );
         toKraken = 0;
@@ -575,8 +602,15 @@ export class LogJobService {
       prev[curr.id] = {
         priceChf: curr.approxPriceChf,
         plusBalance: {
-          total: this.getJsonValue(totalPlus, amountType(curr), true),
-          liquidity: this.getJsonValue(liquidity, amountType(curr)),
+          total: this.getJsonValue(totalPlus, amountType(curr), true, true),
+          liquidity: liquidity
+            ? {
+                total: this.getJsonValue(liquidity, amountType(curr), true, true),
+                liquidityBalance: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
+                paymentDepositBalance: this.getJsonValue(paymentDepositBalance, amountType(curr)),
+                manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr), false, true),
+              }
+            : undefined,
           custom: totalCustomBalance
             ? {
                 total: this.getJsonValue(totalCustomBalance, amountType(curr), true),
@@ -598,14 +632,14 @@ export class LogJobService {
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
               }
             : undefined,
-          monitoring: errors.length
-            ? {
-                fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
-                fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
-                toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
-                toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
-              }
-            : undefined,
+          // monitoring: errors.length
+          //   ? {
+          //       fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
+          //       fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
+          //       toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
+          //       toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
+          //     }
+          //   : undefined,
         },
         minusBalance: {
           total: this.getJsonValue(totalMinus, amountType(curr), true),
@@ -626,7 +660,7 @@ export class LogJobService {
               }
             : undefined,
         },
-        error: errors.length ? errors.join(';') : undefined,
+        // error: errors.length ? errors.join(';') : undefined,
       };
 
       return prev;
@@ -894,11 +928,40 @@ export class LogJobService {
     return Util.asyncMap(addresses, (a) => client.getTokenBalances(assets, a));
   }
 
-  private getJsonValue(value: number | undefined, amountType: AmountType, returnZero = false): number | undefined {
-    return (!returnZero && !value) || value < 0 ? undefined : Util.roundReadable(value, amountType, 8);
+  private getJsonValue(
+    value: number | undefined,
+    amountType: AmountType,
+    returnZero = false,
+    returnNegativeValue = false,
+  ): number | undefined {
+    return (!returnZero && !value) || (value < 0 && !returnNegativeValue)
+      ? undefined
+      : Util.roundReadable(value, amountType, 8);
   }
 
   private financialTypeAmountType(financialType: string): AmountType {
     return ['EUR', 'USD', 'CHF'].includes(financialType) ? AmountType.FIAT : AmountType.ASSET;
+  }
+
+  private getPaymentDepositAddress(blockchain: Blockchain): string {
+    switch (blockchain) {
+      case Blockchain.MONERO:
+        return Config.payment.moneroAddress;
+
+      case Blockchain.BITCOIN:
+        return Config.payment.bitcoinAddress;
+
+      case Blockchain.SOLANA:
+        return SolanaUtil.createWallet({
+          seed: Config.payment.solanaSeed,
+          index: 0,
+        }).address;
+
+      default:
+        return EvmUtil.createWallet({
+          seed: Config.payment.evmSeed,
+          index: 0,
+        }).address;
+    }
   }
 }

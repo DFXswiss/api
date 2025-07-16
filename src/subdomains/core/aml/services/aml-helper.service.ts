@@ -2,6 +2,7 @@ import { Config } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
@@ -16,9 +17,9 @@ import {
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { AmlError, AmlErrorResult, AmlErrorType } from '../enums/aml-error.enum';
+import { AmlError, AmlErrorResult, AmlErrorType, DelayResultError } from '../enums/aml-error.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
-import { AmlRule } from '../enums/aml-rule.enum';
+import { AmlRule, SpecialIpCountries } from '../enums/aml-rule.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
 export class AmlHelperService {
@@ -47,7 +48,7 @@ export class AmlHelperService {
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
-    if (!entity.userData.verifiedName && !bankData.name && !entity.userData.completeName)
+    if (!entity.userData.verifiedName && !bankData?.name && !entity.userData.completeName)
       errors.push(AmlError.NAME_MISSING);
     if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable)
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
@@ -79,12 +80,22 @@ export class AmlHelperService {
     if (ibanCountry) errors.push(...this.amlRuleCheck(ibanCountry.amlRule, entity, amountInChf, last7dCheckoutVolume));
     if (entity.userData.nationality)
       errors.push(...this.amlRuleCheck(entity.userData.nationality.amlRule, entity, amountInChf, last7dCheckoutVolume));
+    for (const amlRule of entity.wallet.amlRuleList) {
+      const error = this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume);
+      if (
+        !entity.wallet.amlRuleList.includes(AmlRule.RULE_11) ||
+        (!error.includes(AmlError.KYC_LEVEL_30_NOT_REACHED) && !error.includes(AmlError.KYC_LEVEL_50_NOT_REACHED))
+      )
+        errors.push(...error);
+    }
 
     if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
-      if (!bankData || bankData.approved === null) {
+      if (!bankData || (bankData.approved === null && bankData.status !== ReviewStatus.MANUAL_REVIEW)) {
         errors.push(AmlError.BANK_DATA_MISSING);
+      } else if (bankData.status === ReviewStatus.MANUAL_REVIEW) {
+        errors.push(AmlError.BANK_DATA_MANUAL_REVIEW);
       } else if ((!bankData.approved && !bankData.manualApproved) || bankData.manualApproved === false) {
         errors.push(AmlError.BANK_DATA_NOT_ACTIVE);
       } else if (entity.userData.id !== bankData.userData.id) {
@@ -94,7 +105,7 @@ export class AmlHelperService {
 
     if (entity.cryptoInput) {
       // crypto input
-      if (!inputAsset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
+      if (!inputAsset.sellable && !entity.cryptoInput.asset.paymentEnabled) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
       if (entity.inputAsset === 'XMR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
         errors.push(AmlError.KYC_LEVEL_FOR_ASSET_NOT_REACHED);
@@ -180,6 +191,8 @@ export class AmlHelperService {
         if (last7dCheckoutVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
+        if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
+          errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
         if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
           errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -187,6 +200,8 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
+      if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
+        errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
       if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
@@ -268,7 +283,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 1000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
+        if (amountInChf > 100000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
         break;
 
       case AmlRule.RULE_9:
@@ -303,6 +318,8 @@ export class AmlHelperService {
 
   static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
     if (!user) return undefined;
+
+    if (amlRules.includes(AmlRule.RULE_11) && SpecialIpCountries.includes(user.ipCountry)) return undefined;
 
     if (
       amlRules.includes(AmlRule.RULE_2) &&
@@ -383,7 +400,7 @@ export class AmlHelperService {
       ibanCountry,
     ).filter((e) => e);
 
-    const comment = amlErrors.join(';');
+    const comment = Array.from(new Set(amlErrors)).join(';');
 
     // Pass
     if (amlErrors.length === 0)
@@ -400,8 +417,12 @@ export class AmlHelperService {
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
       if (Util.daysDiff(entity.created) > 14) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
-      return {};
+      if (entity.comment !== AmlError.BANK_DATA_MANUAL_REVIEW || comment === AmlError.BANK_DATA_MANUAL_REVIEW)
+        return {};
     }
+
+    // Delay amlCheck for some specific errors
+    if (amlErrors.some((e) => DelayResultError.includes(e)) && Util.minutesDiff(entity.created) < 5) return { comment };
 
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);

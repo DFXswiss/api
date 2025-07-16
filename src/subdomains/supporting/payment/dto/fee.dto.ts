@@ -29,13 +29,14 @@ export class FeeDto extends BaseFeeDto {
   networkStart?: number;
 }
 
-export class InternalFeeDto extends BaseFeeDto {
+export class InternalBaseFeeDto extends BaseFeeDto {
   fees: Fee[];
-  payoutRefBonus: boolean;
   bankRate: number; // bank fee rate
   bankFixed: number; // bank fixed fee
 }
 
-export class InternalChargebackFeeDto extends BaseFeeDto {
-  fees: Fee[];
+export class InternalFeeDto extends InternalBaseFeeDto {
+  payoutRefBonus: boolean;
 }
+
+export class InternalChargebackFeeDto extends InternalBaseFeeDto {}

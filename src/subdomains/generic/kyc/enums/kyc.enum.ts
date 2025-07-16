@@ -26,7 +26,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.SIGNATORY_POWER : null,
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     userData.accountType === AccountType.ORGANIZATION
-      ? [KycStepName.BENEFICIAL_OWNER, KycStepName.OPERATIONAL_ACTIVITY]
+      ? [KycStepName.OPERATIONAL_ACTIVITY, KycStepName.BENEFICIAL_OWNER]
       : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
@@ -84,24 +84,6 @@ export function getIdentificationType(type: IdentType, companyId: string): KycId
     default:
       return undefined;
   }
-}
-
-export enum KycStepStatus {
-  NOT_STARTED = 'NotStarted',
-  IN_PROGRESS = 'InProgress',
-  FINISHED = 'Finished',
-  EXTERNAL_REVIEW = 'ExternalReview',
-  INTERNAL_REVIEW = 'InternalReview',
-  MANUAL_REVIEW = 'ManualReview',
-  FAILED = 'Failed',
-  COMPLETED = 'Completed',
-  PARTIALLY_APPROVED = 'PartiallyApproved',
-  CANCELED = 'Canceled',
-  IGNORED = 'Ignored',
-  OUTDATED = 'Outdated',
-  DATA_REQUESTED = 'DataRequested',
-  PAUSED = 'Paused',
-  ON_HOLD = 'OnHold',
 }
 
 export enum UrlType {

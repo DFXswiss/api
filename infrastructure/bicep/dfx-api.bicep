@@ -114,6 +114,14 @@ param baseSwapContractAddress string
 param baseQuoteContractAddress string
 param baseChainId string
 
+param gnosisWalletAddress string
+@secure()
+param gnosisWalletPrivateKey string
+param gnosisGatewayUrl string
+param gnosisSwapContractAddress string
+param gnosisQuoteContractAddress string
+param gnosisChainId string
+
 param bscWalletAddress string
 @secure()
 param bscWalletPrivateKey string
@@ -187,6 +195,20 @@ param p2bKey string
 param p2bSecret string
 
 param p2bWithdrawKeys string
+
+@secure()
+param xtKey string
+@secure()
+param xtSecret string
+
+param xtWithdrawKeys string
+
+@secure()
+param mexcKey string
+@secure()
+param mexcSecret string
+
+param mexcWithdrawKeys string
 
 param olkyClient string
 @secure()
@@ -849,6 +871,30 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: baseChainId
         }
         {
+          name: 'GNOSIS_WALLET_ADDRESS'
+          value: gnosisWalletAddress
+        }
+        {
+          name: 'GNOSIS_WALLET_PRIVATE_KEY'
+          value: gnosisWalletPrivateKey
+        }
+        {
+          name: 'GNOSIS_GATEWAY_URL'
+          value: gnosisGatewayUrl
+        }
+        {
+          name: 'GNOSIS_SWAP_CONTRACT_ADDRESS'
+          value: gnosisSwapContractAddress
+        }
+        {
+          name: 'GNOSIS_QUOTE_CONTRACT_ADDRESS'
+          value: gnosisQuoteContractAddress
+        }
+        {
+          name: 'GNOSIS_CHAIN_ID'
+          value: gnosisChainId
+        }
+        {
           name: 'BSC_WALLET_ADDRESS'
           value: bscWalletAddress
         }
@@ -1039,6 +1085,30 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'P2B_WITHDRAW_KEYS'
           value: p2bWithdrawKeys
+        }
+        {
+          name: 'XT_KEY'
+          value: xtKey
+        }
+        {
+          name: 'XT_SECRET'
+          value: xtSecret
+        }
+        {
+          name: 'XT_WITHDRAW_KEYS'
+          value: xtWithdrawKeys
+        }
+        {
+          name: 'MEXC_KEY'
+          value: mexcKey
+        }
+        {
+          name: 'MEXC_SECRET'
+          value: mexcSecret
+        }
+        {
+          name: 'MEXC_WITHDRAW_KEYS'
+          value: mexcWithdrawKeys
         }
         {
           name: 'LETTER_URL'

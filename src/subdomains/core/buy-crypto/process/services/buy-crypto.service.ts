@@ -19,6 +19,7 @@ import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
+import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import {
@@ -35,6 +36,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
@@ -266,7 +268,11 @@ export class BuyCryptoService {
 
     if (dto.chargebackAllowedDate) {
       if (entity.bankTx && !entity.chargebackOutput)
-        update.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto: entity });
+        update.chargebackOutput = await this.fiatOutputService.createInternal(
+          FiatOutputType.BUY_CRYPTO_FAIL,
+          { buyCrypto: entity },
+          entity.id,
+        );
 
       if (entity.checkoutTx) {
         await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
@@ -459,7 +465,11 @@ export class BuyCryptoService {
       throw new BadRequestException('IBAN not valid or BIC not available');
 
     if (dto.chargebackAllowedDate && chargebackAmount)
-      dto.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto });
+      dto.chargebackOutput = await this.fiatOutputService.createInternal(
+        FiatOutputType.BUY_CRYPTO_FAIL,
+        { buyCrypto },
+        buyCrypto.id,
+      );
 
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
@@ -654,10 +664,12 @@ export class BuyCryptoService {
         });
       } else {
         await this.custodyOrderService.createOrderInternal({
+          type: entity.isCryptoCryptoTransaction ? CustodyOrderType.RECEIVE : CustodyOrderType.DEPOSIT,
           user: dto.user,
-          ...entity.custodyInput,
           transaction: entity.transaction,
           transactionRequest: request,
+          buy: entity.buy,
+          swap: entity.cryptoRoute,
         });
       }
     }

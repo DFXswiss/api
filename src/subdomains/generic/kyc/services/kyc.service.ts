@@ -53,6 +53,7 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError } from '../dto/kyc-error.enum';
@@ -74,7 +75,8 @@ import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
@@ -124,7 +126,7 @@ export class KycService {
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {
         name: KycStepName.IDENT,
-        status: KycStepStatus.IN_PROGRESS,
+        status: ReviewStatus.IN_PROGRESS,
         created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays - 1)),
       },
       relations: { userData: true },
@@ -159,7 +161,7 @@ export class KycService {
     const entities = await this.kycStepRepo.find({
       where: {
         name: KycStepName.NATIONALITY_DATA,
-        status: KycStepStatus.INTERNAL_REVIEW,
+        status: ReviewStatus.INTERNAL_REVIEW,
       },
       relations: { userData: true },
     });
@@ -178,6 +180,7 @@ export class KycService {
           await this.kycStepRepo.update(...entity.manualReview(comment));
         } else {
           await this.kycStepRepo.update(...entity.complete());
+          await this.checkDfxApproval(entity);
         }
 
         await this.createStepLog(entity.userData, entity);
@@ -193,8 +196,8 @@ export class KycService {
     const entities = await this.kycStepRepo.find({
       where: {
         name: KycStepName.IDENT,
-        status: KycStepStatus.INTERNAL_REVIEW,
-        userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: KycStepStatus.COMPLETED } },
+        status: ReviewStatus.INTERNAL_REVIEW,
+        userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
       relations: { userData: true },
     });
@@ -271,8 +274,8 @@ export class KycService {
         missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
         kycStep.name !== KycStepName.DFX_APPROVAL)
     ) {
-      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
-      await this.kycStepRepo.update(...approvalStep.manualReview());
+      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isOnHold);
+      if (approvalStep) await this.kycStepRepo.update(...approvalStep.manualReview());
     }
   }
 
@@ -422,7 +425,7 @@ export class KycService {
     kycHash: string,
     stepId: number,
     data: Partial<UserData>,
-    reviewStatus: KycStepStatus,
+    reviewStatus: ReviewStatus,
   ): Promise<KycStepBase> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
@@ -467,14 +470,14 @@ export class KycService {
       allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
     });
 
-    return this.updateKycStepAndLog(kycStep, user, data, KycStepStatus.MANUAL_REVIEW);
+    return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
   async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    return this.updateKycStepAndLog(kycStep, user, data, KycStepStatus.MANUAL_REVIEW);
+    return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
   async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
@@ -566,6 +569,24 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
+  async updatePaymentData(kycHash: string, stepId: number, data: PaymentDataDto): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    if (data.contractAccepted) {
+      await this.userDataService.updateUserDataInternal(user, { paymentLinksAllowed: true });
+
+      await this.kycNotificationService.kycPaymentData(user, new Date());
+    }
+
+    return this.updateKycStepAndLog(
+      kycStep,
+      user,
+      data,
+      data.contractAccepted ? ReviewStatus.COMPLETED : ReviewStatus.MANUAL_REVIEW,
+    );
+  }
+
   async updateIntrumIdent(dto: IdNowResult): Promise<void> {
     const { id: sessionId, transactionnumber: transactionId, reason } = dto.identificationprocess;
     if (!sessionId || !transactionId) throw new BadRequestException(`Session data is missing`);
@@ -609,7 +630,7 @@ export class KycService {
     kycStep: KycStep,
     user: UserData,
     data: KycStepResult,
-    reviewStatus: KycStepStatus,
+    reviewStatus: ReviewStatus,
   ): Promise<KycStepBase> {
     await this.kycStepRepo.update(...kycStep.update(reviewStatus, data));
     await this.createStepLog(user, kycStep);
@@ -624,6 +645,7 @@ export class KycService {
     relation: UserDataRelationState,
   ): Promise<UserData> {
     const beneficialOwner = await this.userDataService.createUserData({
+      accountType: AccountType.PERSONAL,
       kycType: KycType.DFX,
       status: UserDataStatus.KYC_ONLY,
       firstname: owner.firstName,
@@ -692,7 +714,7 @@ export class KycService {
         break;
 
       case IdentShortResult.PENDING:
-        if ([KycStepStatus.EXTERNAL_REVIEW].includes(kycStep.status))
+        if ([ReviewStatus.EXTERNAL_REVIEW].includes(kycStep.status))
           await this.kycStepRepo.update(...kycStep.inProgress(dto));
         break;
 
@@ -708,8 +730,10 @@ export class KycService {
       case IdentShortResult.FAIL:
       case IdentShortResult.RETRY:
         // retrigger personal data step, if data was wrong
-        if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA))
-          await this.initiateStep(user, KycStepName.PERSONAL_DATA, undefined, true);
+        if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA)) {
+          const completedPersonalStep = user.getCompletedStepWith(KycStepName.PERSONAL_DATA);
+          if (completedPersonalStep) await this.restartStep(user, completedPersonalStep);
+        }
 
         await this.kycStepRepo.update(
           ...(result === IdentShortResult.FAIL ? kycStep.fail(dto) : kycStep.inProgress(dto)),
@@ -938,7 +962,9 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.DFX_APPROVAL:
-        return lastTry && !lastTry.isFailed ? undefined : { nextStep: { name: nextStep, preventDirectEvaluation } };
+        return lastTry && !lastTry.isFailed && !lastTry.isCanceled
+          ? { nextStep: undefined }
+          : { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       default:
         return { nextStep: undefined };
@@ -995,6 +1021,11 @@ export class KycService {
     }
 
     return this.kycStepRepo.save(kycStep);
+  }
+
+  private async restartStep(userData: UserData, kycStep: KycStep, comment?: KycError): Promise<void> {
+    await this.kycStepRepo.update(...kycStep.fail(undefined, comment ?? KycError.RESTARTED_STEP));
+    await this.initiateStep(userData, kycStep.name, kycStep.type, true);
   }
 
   // --- HELPER METHODS --- //

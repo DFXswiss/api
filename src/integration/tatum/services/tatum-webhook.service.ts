@@ -16,11 +16,11 @@ export class TatumWebhookService implements OnModuleInit {
     this.addressWebhookSubject = new Subject<TatumWebhookDto>();
   }
 
-  async onModuleInit() {
-    this.tatum = await TatumSDK.init<TatumSolana>({
+  onModuleInit() {
+    void TatumSDK.init<TatumSolana>({
       network: TatumNetwork.SOLANA,
       apiKey: Config.blockchain.solana.solanaApiKey,
-    });
+    }).then((t) => (this.tatum = t));
   }
 
   isValidWebhookSignature(tatumSignature: string, rawBody: any): boolean {

@@ -51,6 +51,7 @@ import {
   KycOperationalData,
   KycPersonalData,
   KycSignatoryPowerData,
+  PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { Start2faDto } from '../dto/input/start-2fa.dto';
@@ -61,10 +62,10 @@ import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
-import { KycStepStatus } from '../enums/kyc.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
+import { ReviewStatus } from '../enums/review-status.enum';
 
 const CodeHeaderName = 'x-kyc-code';
 const MergedResponse = {
@@ -210,7 +211,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycNationalityData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, KycStepStatus.INTERNAL_REVIEW);
+    return this.kycService.updateKycStep(code, +id, data, ReviewStatus.INTERNAL_REVIEW);
   }
 
   @Put('data/legal/:id')
@@ -257,7 +258,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycSignatoryPowerData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, KycStepStatus.MANUAL_REVIEW);
+    return this.kycService.updateKycStep(code, +id, data, ReviewStatus.MANUAL_REVIEW);
   }
 
   @Put('data/beneficial/:id')
@@ -318,6 +319,17 @@ export class KycController {
     @Body() data: KycFinancialInData,
   ): Promise<KycStepBase> {
     return this.kycService.updateFinancialData(code, ip, +id, data);
+  }
+
+  @Put('data/payment/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updatePaymentsData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: PaymentDataDto,
+  ): Promise<KycStepBase> {
+    return this.kycService.updatePaymentData(code, +id, data);
   }
 
   @Post('ident/sumsub')

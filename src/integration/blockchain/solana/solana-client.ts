@@ -17,7 +17,7 @@ import {
   SolanaTransactionDto,
 } from './dto/solana.dto';
 import { SolanaWallet } from './solana-wallet';
-import { SolanaUtil } from './SolanaUtil';
+import { SolanaUtil } from './solana.util';
 
 const INSTRUCTION_TYPES = ['create', 'closeAccount', 'transfer', 'transferchecked'];
 const TOKEN_PROGRAM_IDS = [
@@ -190,7 +190,7 @@ export class SolanaClient extends BlockchainClient {
         Solana.SystemProgram.transfer({
           fromPubkey: wallet.publicKey,
           toPubkey: new Solana.PublicKey(toAddress),
-          lamports: Solana.LAMPORTS_PER_SOL * amount,
+          lamports: SolanaUtil.toLamportAmount(amount),
         }),
       )
       .add(this.calculatePriorityFee());

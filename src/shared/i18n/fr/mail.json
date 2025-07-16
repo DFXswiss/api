@@ -158,6 +158,15 @@
                 "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
                 "line5": "Pour consulter le statut actuel de votre transaction:<br>[url:cliquez ici]"
             },
+            "manual_check_bank_data": {
+                "title": "Dépôt de chèques",
+                "salutation": "Votre dépôt sera vérifié",
+                "line1": "Nous vous remercions de la confiance que vous accordez à DFX.",
+                "line2": "Malheureusement, la transaction n'a pas pu être validée de manière entièrement automatique et doit maintenant être vérifiée manuellement par un employé.",
+                "line3": "Ce délai est généralement de 24 heures, mais peut aller jusqu'à 7 jours.",
+                "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
+                "line5": "Pour consulter le statut actuel de votre transaction:<br>[url:cliquez ici]"
+            },
             "asset_kyc_needed": {
                 "title": "Vérification (KYC) requise",
                 "salutation": "La vérification (KYC) est nécessaire pour exécuter votre transaction en cours.",
@@ -233,6 +242,11 @@
             "title": "Terminez votre vérification",
             "salutation": "Terminez votre vérification",
             "message": "Nous avons remarqué que vous n'avez pas terminé votre vérification."
+        },
+        "payment_data" : {
+            "title": "Accord de cession",
+            "salutation": "Accord de cession",
+            "message": "DFX offre à ses clients la possibilité de lui céder des créances impayées résultant de la vente de biens et de services afin de permettre le paiement au moyen de crypto-monnaiesAccord de cession. Le client a la possibilité de soumettre une réclamation en suspens via notre API (api.dfx.swiss) ou via le front-end sur app.dfx.swiss.<br>Le montant dû est versé au client après déduction d'une commission de traitement de 0,2 %. Selon la configuration propre au client, le paiement peut être effectué soit en crypto-monnaies, soit en monnaie fiduciaire par le biais d'une transaction bancaire.<br>Les conditions générales de DFX s'appliquent à toutes les transactions. La cession prend fin automatiquement à la clôture du compte DFX ou peut être résiliée immédiatement par DFX ou le client en cas de rupture de contrat ou d'insolvabilité.<br><br>D'accord sur {date}"
         },
         "retry": "Veuillez réessayer avec l'URL suivante:<br>[url:{urlText}]",
         "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]",

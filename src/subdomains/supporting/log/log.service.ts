@@ -5,7 +5,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Equal } from 'typeorm';
 import { CreateLogDto, LogCleanupSetting, UpdateLogDto } from './dto/create-log.dto';
-import { Log } from './log.entity';
+import { Log, LogSeverity } from './log.entity';
 import { LogRepository } from './log.repository';
 
 @Injectable()
@@ -47,5 +47,18 @@ export class LogService {
       .getRawOne<{ maxId: number }>();
 
     return this.logRepo.findOneBy({ id: Equal(maxId) });
+  }
+
+  async getBankLog(batchId: string): Promise<Log> {
+    return this.logRepo
+      .createQueryBuilder('log')
+      .where('subsystem = :subsystem', { subsystem: 'UploadBank' })
+      .andWhere('severity = :severity', { severity: LogSeverity.INFO })
+      .andWhere('log.message LIKE :message', { message: `%${batchId}%` })
+      .getOne();
+  }
+
+  async getLastLogs(system: string, subsystem: string, severity: LogSeverity, take: number): Promise<Log[]> {
+    return this.logRepo.find({ where: { system, subsystem, severity }, take, order: { id: 'DESC' } });
   }
 }

@@ -1,13 +1,18 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import PDFDocument from 'pdfkit';
-import * as QRCode from 'qrcode';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
@@ -15,18 +20,26 @@ import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
-import { PaymentLinkPayRequestDto, PaymentLinkPaymentErrorResponseDto } from '../dto/payment-link.dto';
+import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLinkConfig } from '../entities/payment-link.config';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
+import {
+  C2BPaymentProvider,
+  PaymentLinkMode,
+  PaymentLinkPaymentMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentStandard,
+} from '../enums';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
 export class PaymentLinkService {
-  static readonly PREFIX_UNIQUE_ID = 'pl';
+  private readonly logger = new DfxLogger(PaymentLinkService);
 
   constructor(
     private readonly paymentLinkRepo: PaymentLinkRepository,
@@ -35,6 +48,7 @@ export class PaymentLinkService {
     private readonly userDataService: UserDataService,
     private readonly countryService: CountryService,
     private readonly sellService: SellService,
+    private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
   async getOrThrow(
@@ -42,16 +56,19 @@ export class PaymentLinkService {
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
+    loadPayments = true,
   ): Promise<PaymentLink> {
     const link = await this.paymentLinkRepo.getPaymentLinkById(userId, linkId, externalLinkId, externalPaymentId);
     if (!link) throw new NotFoundException('Payment link not found');
 
     if (!link.payments) link.payments = [];
 
-    const payment = externalPaymentId
-      ? await this.paymentLinkPaymentService.getPaymentByExternalId(externalPaymentId)
-      : await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
-    if (payment) link.payments.push(payment);
+    if (loadPayments) {
+      const payment = externalPaymentId
+        ? await this.paymentLinkPaymentService.getPaymentByExternalId(externalPaymentId)
+        : await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
+      if (payment) link.payments.push(payment);
+    }
 
     return link;
   }
@@ -69,7 +86,18 @@ export class PaymentLinkService {
     return allPaymentLinks;
   }
 
-  async getHistoryByStatus(userId: number, status?: string, from?: Date, to?: Date): Promise<PaymentLink[]> {
+  async getHistoryByStatus(
+    userId?: number,
+    status?: string,
+    from?: Date,
+    to?: Date,
+    key?: string,
+    externalLinkId?: string,
+  ): Promise<PaymentLink[]> {
+    const ownerUserId = Boolean(userId)
+      ? userId
+      : (await this.getPaymentLinkByAccessKey(key, externalLinkId)).route.user.id;
+
     const paymentStatus = status?.split(',').map((s) => Util.toEnum(PaymentLinkPaymentStatus, s)) ?? [
       PaymentLinkPaymentStatus.COMPLETED,
     ];
@@ -80,7 +108,7 @@ export class PaymentLinkService {
     fromDate.setHours(0, 0, 0, 0);
     toDate.setHours(23, 59, 59, 999);
 
-    return this.paymentLinkRepo.getHistoryByStatus(userId, paymentStatus, fromDate, toDate);
+    return this.paymentLinkRepo.getHistoryByStatus(ownerUserId, paymentStatus, fromDate, toDate, externalLinkId);
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
@@ -133,6 +161,7 @@ export class PaymentLinkService {
       mode: PaymentLinkPaymentMode.SINGLE,
       amount: +dto.amount,
       externalId: dto.externalId,
+      note: dto.note,
       currency: dto.currency,
       expiryDate: dto.expiryDate,
     };
@@ -147,6 +176,19 @@ export class PaymentLinkService {
     return this.createForRoute(route, paymentLinkDto);
   }
 
+  private async tryEnrollC2BPaymentLink(
+    paymentLink: PaymentLink,
+    provider: C2BPaymentProvider,
+  ): Promise<Record<string, string> | undefined> {
+    try {
+      return await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
+    } catch (e) {
+      e instanceof BadRequestException
+        ? this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment: ${e.message}`)
+        : this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}:`, e);
+    }
+  }
+
   private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const country = dto.config?.recipient?.address?.country
       ? await this.countryService.getCountryWithSymbol(dto.config?.recipient?.address?.country)
@@ -157,7 +199,8 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
-      uniqueId: Util.createUniqueId(PaymentLinkService.PREFIX_UNIQUE_ID, 16),
+      mode: dto.mode,
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
       webhookUrl: dto.webhookUrl,
       name: dto.config?.recipient?.name,
       street: dto.config?.recipient?.address?.street,
@@ -169,8 +212,16 @@ export class PaymentLinkService {
       mail: dto.config?.recipient?.mail,
       website: dto.config?.recipient?.website,
       payments: [],
+      registrationNumber: dto.config?.recipient?.registrationNumber,
+      storeType: dto.config?.recipient?.storeType,
+      merchantMcc: dto.config?.recipient?.merchantMcc,
+      goodsType: dto.config?.recipient?.goodsType,
+      goodsCategory: dto.config?.recipient?.goodsCategory,
       config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),
     });
+
+    const c2bIds = await this.tryEnrollC2BPaymentLink(paymentLink, C2BPaymentProvider.BINANCE_PAY);
+    if (c2bIds) paymentLink.config = this.getMergedConfig(paymentLink, c2bIds);
 
     await this.paymentLinkRepo.save(paymentLink);
 
@@ -213,6 +264,7 @@ export class PaymentLinkService {
     const payRequest: PaymentLinkPayRequestDto = {
       id: pendingPayment.link.uniqueId,
       externalId: pendingPayment.link.externalId,
+      mode: pendingPayment.link.mode,
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
       minSendable: msatTransferAmount,
@@ -223,6 +275,7 @@ export class PaymentLinkService {
       possibleStandards: standards,
       displayQr,
       recipient: pendingPayment.link.recipient,
+      route: pendingPayment.link.route.route.label,
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
@@ -295,12 +348,21 @@ export class PaymentLinkService {
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
+      route: paymentLink.route.route.label,
+      currency: paymentLink.route.fiat?.name,
       displayQr,
       recipient: paymentLink.recipient,
+      mode: paymentLink.mode,
       statusCode: undefined,
       message: undefined,
       error: undefined,
     };
+  }
+
+  private getMergedConfig(paymentLink: PaymentLink, config: Partial<PaymentLinkConfig>): string | null {
+    const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
+    const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
+    return Object.keys(customConfig).length === 0 ? null : (JSON.stringify(customConfig) as string);
   }
 
   async update(
@@ -310,15 +372,11 @@ export class PaymentLinkService {
     externalLinkId?: string,
     externalPaymentId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
 
     const { status, label, webhookUrl, config } = dto;
     const { name, address, phone, mail, website } = config?.recipient ?? {};
     const { street, houseNumber, zip, city, country } = address ?? {};
-
-    const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
-    const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
-    const configString = Object.keys(customConfig).length === 0 ? null : JSON.stringify(customConfig);
 
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
@@ -332,7 +390,7 @@ export class PaymentLinkService {
       phone,
       mail,
       website,
-      config: configString,
+      config: this.getMergedConfig(paymentLink, config),
     };
 
     if (country === null) {
@@ -348,7 +406,10 @@ export class PaymentLinkService {
   }
 
   async updatePaymentLinkAdmin(id: number, dto: UpdatePaymentLinkInternalDto): Promise<PaymentLink> {
-    const entity = await this.paymentLinkRepo.findOneBy({ id });
+    const entity = await this.paymentLinkRepo.findOne({
+      where: { id },
+      relations: { route: { user: { userData: true } } },
+    });
     if (!entity) throw new NotFoundException('PaymentLink not found');
 
     if (dto.country) {
@@ -373,7 +434,32 @@ export class PaymentLinkService {
     await this.userDataService.updatePaymentLinksConfig(userData, dto);
   }
 
+  async activateC2BPaymentLink(paymentLinkUniqueId: string, provider: C2BPaymentProvider): Promise<void> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { uniqueId: paymentLinkUniqueId },
+      relations: { route: { user: { userData: true } } },
+    });
+    if (!paymentLink) throw new NotFoundException('Payment link not found');
+
+    const ids = await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
+    const config = this.getMergedConfig(paymentLink, ids);
+    await this.paymentLinkRepo.update(paymentLink.id, { config });
+  }
+
   private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {
+    if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(Blockchain.BINANCE_PAY, paymentLink)) {
+      const c2bIds = await this.tryEnrollC2BPaymentLink(
+        Object.assign(paymentLink, dto),
+        C2BPaymentProvider.BINANCE_PAY,
+      );
+
+      if (c2bIds) {
+        const incomingNewConfig = JSON.parse(dto.config || '{}');
+        const configsWithKeys = { ...incomingNewConfig, ...c2bIds };
+        dto.config = this.getMergedConfig(paymentLink, configsWithKeys);
+      }
+    }
+
     await this.paymentLinkRepo.update(paymentLink.id, dto);
 
     return Object.assign(paymentLink, dto);
@@ -393,162 +479,184 @@ export class PaymentLinkService {
     return paymentLink;
   }
 
+  async createPaymentForRouteWithAccessKey(
+    dto: CreatePaymentLinkPaymentDto,
+    key: string,
+    externalLinkId: string,
+    routeLabel?: string,
+  ): Promise<PaymentLink> {
+    const existingPaymentLink = await this.getPaymentLinkByAccessKey(key, externalLinkId).catch(() => null);
+    if (!existingPaymentLink && !routeLabel) throw new BadRequestException('Route label is required');
+
+    const route = existingPaymentLink?.route ?? (await this.sellService.getByLabel(undefined, routeLabel));
+    if (!route) throw new NotFoundException('Route not found');
+
+    const plAccessKeys = existingPaymentLink?.linkConfigObj?.accessKeys ?? [];
+    const userAccessKeys = route.user.userData.paymentLinksConfigObj.accessKeys ?? [];
+    const hasAccessKey = plAccessKeys.includes(key) || userAccessKeys.includes(key);
+    if (!hasAccessKey) throw new UnauthorizedException('Invalid access key');
+
+    if (existingPaymentLink) {
+      if (dto.amount !== 0)
+        existingPaymentLink.payments = [await this.paymentLinkPaymentService.createPayment(existingPaymentLink, dto)];
+
+      return existingPaymentLink;
+    }
+
+    return this.create(route.user.id, {
+      externalId: externalLinkId,
+      payment: dto.amount !== 0 ? dto : undefined,
+    });
+  }
+
+  async getPublicPaymentLink(routeLabel: string, externalLinkId: string): Promise<PaymentLink> {
+    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    if (!route) throw new NotFoundException('Route not found');
+
+    const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
+    if (paymentLink.mode !== PaymentLinkMode.PUBLIC) throw new UnauthorizedException('Payment link is not public');
+
+    return paymentLink;
+  }
+
+  async createPublicPayment(
+    dto: CreatePaymentLinkPaymentDto,
+    routeLabel: string,
+    externalLinkId: string,
+  ): Promise<PaymentLink> {
+    if (dto.amount === 0) throw new BadRequestException('Amount must be greater than 0');
+
+    const paymentLink = await this.getPublicPaymentLink(routeLabel, externalLinkId);
+    if (paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING))
+      throw new ConflictException('There is already a pending payment for the specified payment link');
+
+    const payment = await this.paymentLinkPaymentService.createPayment(paymentLink, dto);
+    paymentLink.payments = [payment];
+
+    return paymentLink;
+  }
+
   async cancelPayment(
-    userId: number,
+    userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
+    key?: string,
+    routeLabel?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const paymentLink = Boolean(userId)
+      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
+      : Boolean(key)
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
+      : await this.getPublicPaymentLink(routeLabel, externalLinkId);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
 
-  async waitForPayment(
-    userId: number,
-    linkId?: number,
+  async getPaymentLinkByAccessKey(
+    key: string,
     externalLinkId?: string,
     externalPaymentId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    if (externalLinkId) {
+      const paymentLinks = await this.paymentLinkRepo.getAllPaymentLinksByExternalLinkId(externalLinkId);
+      const paymentLink = paymentLinks.find((p) => p.configObj.accessKeys?.includes(key));
+      if (!paymentLink) throw new NotFoundException('No payment link found');
+
+      return this.getOrThrow(paymentLink.route.user.id, paymentLink.id, paymentLink.externalId);
+    }
+
+    if (externalPaymentId) {
+      const payments = await this.paymentLinkPaymentService.getAllPaymentsByExternalLinkId(externalPaymentId);
+      const payment = payments.find((p) => p.link.configObj.accessKeys?.includes(key));
+      if (!payment) throw new NotFoundException('No payment found');
+
+      return this.getOrThrow(payment.link.route.user.id, payment.link.id, payment.link.externalId, payment.externalId);
+    }
+
+    throw new BadRequestException('Either externalLinkId or externalPaymentId must be provided');
+  }
+
+  async waitForPayment(
+    userId?: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+    key?: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = Boolean(userId)
+      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
+      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
 
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
 
     await this.paymentLinkPaymentService.waitForPayment(pendingPayment);
 
-    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, pendingPayment.externalId);
   }
 
   async confirmPayment(
-    userId: number,
+    userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
+    key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const paymentLink = Boolean(userId)
+      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
+      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+
     const payment = paymentLink.payments[0];
     if (!payment) throw new NotFoundException('Payment not found');
 
     await this.paymentLinkPaymentService.confirmPayment(payment);
 
-    return this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, payment.externalId);
   }
 
-  async generateOcpStickersPdf(routeIdOrLabel: string, externalIds: string[]): Promise<Buffer> {
-    const paymentLinksFromDb = await this.sellService.getPaymentLinksByRoute(routeIdOrLabel, externalIds);
-    const paymentLinksMap = new Map(paymentLinksFromDb.map((link) => [link.externalId, link]));
-    const paymentLinks = externalIds.map((id) => paymentLinksMap.get(id)).filter(Boolean);
+  async createPosLinkUser(
+    userId: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+  ): Promise<string> {
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
 
-    // Blue OCP Image
-    const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');
-    const stickerBuffer = readFileSync(stickerPath);
+    return this.createPosLinkFor(paymentLink, false);
+  }
 
-    // OCP Logo
-    const ocpLogoPath = join(process.cwd(), 'assets', 'ocp-logo.png');
-    const ocpLogoBuffer = readFileSync(ocpLogoPath);
-
-    const qrPadding = 10;
-    const borderWidth = 2.7;
-    const borderColor = '#2130EE'; // #2130EE
-    const cols = 2;
-    const rows = 6;
-    const margin = 30;
-    const stickerSpacing = 20;
-    const ocpLogoSize = 35;
-
-    const imgAspect = 1;
-    const ratioSum = imgAspect + 1;
-
-    return new Promise<Buffer>(async (resolve, reject) => {
-      try {
-        const pdf = new PDFDocument({ size: 'A3', margin: 0 });
-        const chunks: Buffer[] = [];
-        pdf.on('data', (c) => chunks.push(c));
-        pdf.on('end', () => resolve(Buffer.concat(chunks)));
-
-        const { width: pageWidth, height: pageHeight } = pdf.page;
-        const availW = pageWidth - 2 * margin;
-        const availH = pageHeight - 2 * margin;
-
-        const byH = (availH - (rows - 1) * stickerSpacing) / rows;
-        const byW = (availW - (cols - 1) * stickerSpacing) / cols / ratioSum;
-
-        const stickerHeight = Math.min(byH, byW);
-        const pngWidth = stickerHeight * imgAspect;
-        const qrWidth = stickerHeight;
-        const stickerWidth = pngWidth + qrWidth;
-
-        const gridW = cols * stickerWidth + (cols - 1) * stickerSpacing;
-        const gridH = rows * stickerHeight + (rows - 1) * stickerSpacing;
-
-        const startX = margin + (availW - gridW) / 2;
-        const startY = margin + (availH - gridH) / 2;
-
-        const stickersPerPage = cols * rows;
-        for (let i = 0; i < paymentLinks.length; i++) {
-          if (i > 0 && i % stickersPerPage === 0) {
-            pdf.addPage();
-          }
-
-          const { externalId, uniqueId } = paymentLinks[i];
-          const idx = i % stickersPerPage;
-          const col = idx % cols;
-          const row = Math.floor(idx / cols);
-          const x = startX + col * (stickerWidth + stickerSpacing);
-          const y = startY + row * (stickerHeight + stickerSpacing);
-
-          // QR Code URL
-          const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
-          const qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
-          const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
-            width: 400,
-            margin: 0,
-          });
-          const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
-
-          // Add Blue OCP Image
-          pdf.image(stickerBuffer, x, y, {
-            width: pngWidth,
-            height: stickerHeight + 1,
-          });
-
-          // Add QR-Code
-          pdf.image(qrBuffer, x + pngWidth + qrPadding - borderWidth / 2, y + qrPadding, {
-            width: qrWidth - qrPadding * 2,
-            height: stickerHeight - qrPadding * 2,
-          });
-
-          // Add OCP Logo
-          pdf.image(
-            ocpLogoBuffer,
-            x + pngWidth + qrPadding - borderWidth / 2 + (qrWidth - qrPadding * 2 - ocpLogoSize) / 2,
-            y + qrPadding + (stickerHeight - qrPadding * 2 - ocpLogoSize) / 2,
-            {
-              width: ocpLogoSize,
-              height: ocpLogoSize,
-            },
-          );
-
-          // Add External ID
-          pdf.fontSize(4).font('Helvetica');
-          const textWidth = pdf.widthOfString(externalId);
-          const textX = x + pngWidth - textWidth - 5;
-          const textY = y + stickerHeight - 7;
-          pdf.text(externalId, textX, textY);
-
-          // Add Border
-          pdf
-            .strokeColor(borderColor)
-            .lineWidth(borderWidth)
-            .rect(x + 1, y, stickerWidth, stickerHeight)
-            .stroke();
-        }
-
-        pdf.end();
-      } catch (e) {
-        reject(e);
-      }
+  async createPosLinkAdmin(paymentLinkId: number, scoped: boolean): Promise<string> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { id: paymentLinkId },
+      relations: { route: { user: { userData: true } } },
     });
+    if (!paymentLink) throw new NotFoundException('PaymentLink not found');
+
+    return this.createPosLinkFor(paymentLink, scoped);
+  }
+
+  private async createPosLinkFor(paymentLink: PaymentLink, scoped: boolean): Promise<string> {
+    const config = scoped ? paymentLink.linkConfigObj : paymentLink.route.userData.paymentLinksConfigObj;
+
+    let accessKey = config.accessKeys?.at(0);
+    if (!accessKey) {
+      accessKey = Util.secureRandomString();
+
+      const update = { accessKeys: [accessKey] };
+
+      if (scoped) {
+        await this.paymentLinkRepo.update(paymentLink.id, { config: this.getMergedConfig(paymentLink, update) });
+      } else {
+        await this.userDataService.updatePaymentLinksConfig(paymentLink.route.user.userData, update);
+      }
+    }
+
+    const search = new URLSearchParams({
+      lightning: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
+      key: accessKey,
+    });
+
+    return `${Config.frontend.services}/pl/pos?${search.toString()}`;
   }
 }

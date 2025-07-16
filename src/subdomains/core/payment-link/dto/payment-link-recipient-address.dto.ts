@@ -31,6 +31,5 @@ export class PaymentLinkRecipientAddressDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.sanitize)
   country?: string;
 }

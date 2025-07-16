@@ -18,10 +18,10 @@ interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt
 export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   private readonly logger = new DfxLogger(OptimismClient);
 
-  #l1Provider: ethers.providers.JsonRpcProvider;
-  #l1Wallet: ethers.Wallet;
+  private readonly l1Provider: ethers.providers.JsonRpcProvider;
+  private readonly l1Wallet: ethers.Wallet;
 
-  #crossChainMessenger: CrossChainMessenger;
+  private readonly crossChainMessenger: CrossChainMessenger;
 
   constructor(params: EvmClientParams) {
     super(params);
@@ -30,32 +30,32 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     const { optimismChainId } = GetConfig().blockchain.optimism;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
 
-    this.#l1Provider = new ethers.providers.JsonRpcProvider(ethereumGateway);
-    this.#l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.#l1Provider);
+    this.l1Provider = new ethers.providers.JsonRpcProvider(ethereumGateway);
+    this.l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.l1Provider);
 
-    this.#crossChainMessenger = new CrossChainMessenger({
+    this.crossChainMessenger = new CrossChainMessenger({
       l1ChainId: ethChainId,
       l2ChainId: optimismChainId,
-      l1SignerOrProvider: this.#l1Wallet,
+      l1SignerOrProvider: this.l1Wallet,
       l2SignerOrProvider: this.wallet,
       bedrock: true,
     });
   }
 
   async depositCoinOnDex(amount: number): Promise<string> {
-    const response = await this.#crossChainMessenger.depositETH(EvmUtil.toWeiAmount(amount));
+    const response = await this.crossChainMessenger.depositETH(EvmUtil.toWeiAmount(amount));
 
     return response.hash;
   }
 
   async withdrawCoinOnDex(amount: number): Promise<string> {
-    const response = await this.#crossChainMessenger.withdrawETH(EvmUtil.toWeiAmount(amount));
+    const response = await this.crossChainMessenger.withdrawETH(EvmUtil.toWeiAmount(amount));
 
     return response.hash;
   }
 
   async approveBridge(l1Token: Asset, l2Token: Asset): Promise<string> {
-    const allowanceResponse = await this.#crossChainMessenger.approveERC20(
+    const allowanceResponse = await this.crossChainMessenger.approveERC20(
       l1Token.chainId,
       l2Token.chainId,
       ethers.constants.MaxUint256,
@@ -71,7 +71,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
       );
     }
 
-    const response = await this.#crossChainMessenger.depositERC20(
+    const response = await this.crossChainMessenger.depositERC20(
       l1Token.chainId,
       l2Token.chainId,
       EvmUtil.toWeiAmount(amount, l1Token.decimals),
@@ -87,7 +87,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
       );
     }
 
-    const response = await this.#crossChainMessenger.withdrawERC20(
+    const response = await this.crossChainMessenger.withdrawERC20(
       l1Token.chainId,
       l2Token.chainId,
       EvmUtil.toWeiAmount(amount, l1Token.decimals),
@@ -98,7 +98,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   async checkL2BridgeCompletion(l1TxId: string): Promise<boolean> {
     try {
-      const status = await Util.timeout(this.#crossChainMessenger.getMessageStatus(l1TxId), 20000);
+      const status = await Util.timeout(this.crossChainMessenger.getMessageStatus(l1TxId), 20000);
 
       return status === MessageStatus.RELAYED;
     } catch {
@@ -108,14 +108,14 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   async checkL1BridgeCompletion(l2TxId: string): Promise<boolean> {
     try {
-      const status = await Util.timeout(this.#crossChainMessenger.getMessageStatus(l2TxId), 20000);
+      const status = await Util.timeout(this.crossChainMessenger.getMessageStatus(l2TxId), 20000);
 
       switch (status) {
         case MessageStatus.READY_TO_PROVE: {
           this.logger.verbose(
             `Checking L1 Bridge transaction completion, L2 txId: ${l2TxId}, status: READY_TO_PROVE, running #proveMessage(...)`,
           );
-          await this.#crossChainMessenger.proveMessage(l2TxId);
+          await this.crossChainMessenger.proveMessage(l2TxId);
 
           return false;
         }
@@ -124,7 +124,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
           this.logger.verbose(
             `Checking L1 Bridge transaction completion, L2 txId: ${l2TxId}, status: READY_FOR_RELAY, running #finalizeMessage(...)`,
           );
-          await this.#crossChainMessenger.finalizeMessage(l2TxId);
+          await this.crossChainMessenger.finalizeMessage(l2TxId);
 
           return false;
         }

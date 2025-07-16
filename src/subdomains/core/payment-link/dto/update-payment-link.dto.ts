@@ -1,8 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsEnum, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsEnum, IsObject, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
+import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/binance-pay/dto/binance.dto';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
+import { Util } from 'src/shared/utils/util';
 import { PaymentLinkStatus } from '../enums';
 import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
 
@@ -15,11 +17,12 @@ export class UpdatePaymentLinkDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   label?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUrl()
   webhookUrl?: string;
 
   @ApiPropertyOptional({ type: UpdatePaymentLinkConfigDto })
@@ -91,4 +94,24 @@ export class UpdatePaymentLinkInternalDto {
   @IsOptional()
   @IsString()
   label?: string;
+
+  @IsOptional()
+  @IsString()
+  registrationNumber?: string;
+
+  @IsOptional()
+  @IsEnum(StoreType)
+  storeType?: StoreType;
+
+  @IsOptional()
+  @IsEnum(MerchantMCC)
+  merchantMcc?: MerchantMCC;
+
+  @IsOptional()
+  @IsEnum(GoodsType)
+  goodsType?: GoodsType;
+
+  @IsOptional()
+  @IsEnum(GoodsCategory)
+  goodsCategory?: GoodsCategory;
 }

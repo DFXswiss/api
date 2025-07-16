@@ -92,6 +92,13 @@ export class GsService {
       ),
     });
 
+    // Null all elements which are larger than 50k symbols
+    data.forEach((e) =>
+      Object.entries(e).forEach(([key, value]) => {
+        if (value?.toString().length >= 50000) delete e[key];
+      }),
+    );
+
     const runTime = Date.now() - startTime;
 
     if (runTime > 1000 * 3) {
@@ -146,6 +153,18 @@ export class GsService {
       refReward: await this.refRewardService.getAllUserRewards(userIds),
       cryptoInput: await this.payInService.getAllUserTransactions(userIds),
       bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
+      transaction: await this.transactionService.getAllTransactionsForUserData(userData.id, {
+        bankTx: true,
+        buyCrypto: true,
+        buyFiat: true,
+        bankTxReturn: true,
+        bankTxRepeat: true,
+        refReward: true,
+        cryptoInput: true,
+        checkoutTx: true,
+        request: true,
+        custodyOrder: true,
+      }),
     };
   }
 

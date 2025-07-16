@@ -1,10 +1,8 @@
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
@@ -13,7 +11,7 @@ import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementRuleStatus } from '../../liquidity-management/enums';
 import { LiquidityManagementService } from '../../liquidity-management/services/liquidity-management.service';
 import { TradingOrder } from '../entities/trading-order.entity';
@@ -23,13 +21,11 @@ import { TradingOrderRepository } from '../repositories/trading-order.respositor
 import { TradingRuleRepository } from '../repositories/trading-rule.respository';
 
 @Injectable()
-export class TradingOrderService implements OnModuleInit {
+export class TradingOrderService {
   private readonly logger = new DfxLogger(TradingOrderService);
 
   @Inject() private readonly ruleRepo: TradingRuleRepository;
   @Inject() private readonly orderRepo: TradingOrderRepository;
-
-  private chf: Fiat;
 
   constructor(
     private readonly dexService: DexService,
@@ -37,13 +33,8 @@ export class TradingOrderService implements OnModuleInit {
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly liquidityService: LiquidityManagementService,
     private readonly pricingService: PricingService,
-    private readonly fiatService: FiatService,
     private readonly assetService: AssetService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-  }
 
   // --- PUBLIC API --- //
 
@@ -66,7 +57,12 @@ export class TradingOrderService implements OnModuleInit {
   // --- HELPER METHODS --- //
 
   private async startNewOrders(): Promise<void> {
-    const orders = await this.orderRepo.findBy({ status: TradingOrderStatus.CREATED });
+    const orders = await this.orderRepo.find({
+      where: { status: TradingOrderStatus.CREATED },
+      relations: {
+        assetOut: { liquidityManagementRule: true, balance: true },
+      },
+    });
 
     for (const order of orders) {
       await this.executeOrder(order);
@@ -93,6 +89,10 @@ export class TradingOrderService implements OnModuleInit {
   }
 
   private async reserveLiquidity(order: TradingOrder): Promise<void> {
+    // fetch output liquidity limit
+    const swapLimit = Util.round(order.assetOut.liquidityCapacity * (order.amountIn / order.amountExpected), 8);
+
+    // fetch input liquidity
     const liquidityRequest: ReserveLiquidityRequest = {
       context: LiquidityOrderContext.TRADING,
       correlationId: `${order.id}`,
@@ -101,14 +101,20 @@ export class TradingOrderService implements OnModuleInit {
       targetAsset: order.assetIn,
     };
 
-    // adapt the amount if not enough liquidity (down to half)
     let {
       reference: { availableAmount },
     } = await this.dexService.checkLiquidity(liquidityRequest);
     availableAmount *= 0.99; // 1% cap for rounding
 
+    // check required swap amount
     const minAmount = order.amountIn / 2;
-    if (availableAmount < minAmount) {
+
+    if (swapLimit < minAmount) {
+      // swap not allowed
+      throw new Error(
+        `Swap would exceed liquidity limit of ${order.assetOut.uniqueName}: max. ${swapLimit}, min. required ${minAmount} (${order.assetIn.uniqueName})`,
+      );
+    } else if (availableAmount < minAmount) {
       // order liquidity
       try {
         const deficitAmount = Util.round(order.amountIn - availableAmount, 8);
@@ -123,9 +129,9 @@ export class TradingOrderService implements OnModuleInit {
 
       throw new WaitingForLiquidityException(`Waiting for liquidity of ${order.assetIn.uniqueName}`);
     } else {
-      const adaptedAmount = Math.min(order.amountIn, availableAmount);
+      const adaptedAmount = Math.min(order.amountIn, swapLimit, availableAmount);
 
-      order.amountExpected = Util.round((order.amountExpected * adaptedAmount) / order.amountIn, 8);
+      order.amountExpected = Util.round(order.amountExpected * (adaptedAmount / order.amountIn), 8);
       liquidityRequest.referenceAmount = order.amountIn = adaptedAmount;
     }
 
@@ -170,35 +176,39 @@ export class TradingOrderService implements OnModuleInit {
   }
 
   private async handleOrderCompletion(order: TradingOrder): Promise<void> {
-    await this.closeReservation(order);
+    try {
+      await this.closeReservation(order);
 
-    const client = this.blockchainRegistryService.getEvmClient(order.assetIn.blockchain);
+      const client = this.blockchainRegistryService.getEvmClient(order.assetIn.blockchain);
 
-    const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
-    const txFee = await client.getTxActualFee(order.txId);
-    const swapFee = order.amountIn * EvmUtil.poolFeeFactor(order.tradingRule.poolFee);
+      const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
+      const txFee = await client.getTxActualFee(order.txId);
+      const swapFee = order.amountIn * EvmUtil.poolFeeFactor(order.tradingRule.poolFee);
 
-    const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
-    const coinChfPrice = await this.pricingService.getPrice(coin, this.chf, true);
-    const inChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
-    const outChfPrice = await this.pricingService.getPrice(order.assetOut, this.chf, true);
+      const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
+      const coinChfPrice = await this.pricingService.getPrice(coin, PriceCurrency.CHF, true);
+      const inChfPrice = await this.pricingService.getPrice(order.assetIn, PriceCurrency.CHF, true);
+      const outChfPrice = await this.pricingService.getPrice(order.assetOut, PriceCurrency.CHF, true);
 
-    order.complete(
-      outputAmount,
-      txFee,
-      coinChfPrice.convert(txFee),
-      swapFee,
-      inChfPrice.convert(swapFee),
-      outChfPrice.convert(outputAmount, Config.defaultVolumeDecimal) -
-        inChfPrice.convert(order.amountIn, Config.defaultVolumeDecimal),
-    );
-    await this.orderRepo.save(order);
+      order.complete(
+        outputAmount,
+        txFee,
+        coinChfPrice.convert(txFee),
+        swapFee,
+        inChfPrice.convert(swapFee),
+        outChfPrice.convert(outputAmount, Config.defaultVolumeDecimal) -
+          inChfPrice.convert(order.amountIn, Config.defaultVolumeDecimal),
+      );
+      await this.orderRepo.save(order);
 
-    const rule = order.tradingRule.reactivate();
-    await this.ruleRepo.save(rule);
+      const rule = order.tradingRule.reactivate();
+      await this.ruleRepo.save(rule);
 
-    const message = `Trading order ${order.id} (rule ${order.tradingRule.id}) complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
-    this.logger.verbose(message);
+      const message = `Trading order ${order.id} (rule ${order.tradingRule.id}) complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
+      this.logger.verbose(message);
+    } catch (e) {
+      this.logger.warn(`Failed to complete trading order ${order.id} (rule ${order.tradingRule.id}):`, e);
+    }
   }
 
   private async handleOrderFail(process: string, order: TradingOrder, e: Error): Promise<void> {
@@ -206,7 +216,7 @@ export class TradingOrderService implements OnModuleInit {
 
     await this.closeReservation(order);
 
-    order.fail(message);
+    order.fail(e.message);
     await this.orderRepo.save(order);
 
     const rule = order.tradingRule.pause();
