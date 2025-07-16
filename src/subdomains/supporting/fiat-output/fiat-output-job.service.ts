@@ -9,8 +9,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
@@ -30,9 +30,9 @@ export class FiatOutputJobService {
     private readonly ep2ReportService: Ep2ReportService,
     private readonly bankService: BankService,
     private readonly countryService: CountryService,
-    private readonly liquidityManagementBalanceService: LiquidityManagementBalanceService,
     private readonly assetService: AssetService,
     private readonly logService: LogService,
+    private readonly bankTxReturnService: BankTxReturnService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -60,7 +60,7 @@ export class FiatOutputJobService {
         const report = this.ep2ReportService.generateReport(entity);
         const container = buyFiat.userData.paymentLinksConfigObj.ep2ReportContainer;
         const routeId = buyFiat.paymentLinkPayment.link.linkConfigObj?.payoutRouteId ?? buyFiat.sell.id;
-        const fileName = `settlement-${routeId}_${Util.isoDateTime(entity.created)}.ep2`;
+        const fileName = `settlement_${Util.isoDateTime(entity.created)}_${routeId}.ep2`;
 
         await new AzureStorageService(container).uploadBlob(fileName, Buffer.from(report), 'text/xml');
 
@@ -85,7 +85,7 @@ export class FiatOutputJobService {
     const request: FindOptionsWhere<FiatOutput> = {
       valutaDate: IsNull(),
       isComplete: false,
-      type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT]),
+      type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT, FiatOutputType.BANK_TX_RETURN]),
     };
 
     const entities = await this.fiatOutputRepo.find({
@@ -93,23 +93,18 @@ export class FiatOutputJobService {
         { ...request, originEntityId: IsNull() },
         { ...request, accountIban: IsNull() },
       ],
-      relations: { buyCrypto: true, buyFiats: { sell: true } },
+      relations: { buyCrypto: { bankTx: true }, buyFiats: { sell: true }, bankTxReturn: { bankTx: true } },
     });
 
     for (const entity of entities) {
       try {
-        if (!entity.buyFiats?.length && !entity.buyCrypto) continue;
+        if (!entity.buyFiats?.length && !entity.buyCrypto && !entity.bankTxReturn) continue;
 
-        const ibanCountry = (entity.buyCrypto?.chargebackIban ?? entity.buyFiats?.[0]?.sell?.iban)?.substring(0, 2);
-        const country = await this.countryService.getCountryWithSymbol(ibanCountry);
-        const currency = ['LI', 'CH'].includes(ibanCountry)
-          ? 'CHF'
-          : entity.buyCrypto?.bankTx?.currency ?? entity.buyFiats?.[0]?.sell?.fiat?.name;
-
-        const bank = await this.bankService.getSenderBank(currency);
+        const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
+        const bank = await this.bankService.getSenderBank(entity.outputCurrency);
 
         await this.fiatOutputRepo.update(entity.id, {
-          originEntityId: entity.type === FiatOutputType.BUY_FIAT ? entity.buyFiats[0].id : entity.buyCrypto.id,
+          originEntityId: entity.originEntity?.id,
           accountIban: country.maerkiBaumannEnable ? bank?.iban : undefined,
         });
       } catch (e) {
@@ -123,18 +118,14 @@ export class FiatOutputJobService {
 
     const entities = await this.fiatOutputRepo.find({
       where: { valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
-      relations: { buyCrypto: true, buyFiats: { sell: true }, bankTx: true },
+      relations: { buyCrypto: true, buyFiats: { sell: true, cryptoInput: true }, bankTx: true },
     });
 
     const groupedEntities = Util.groupBy(entities, 'accountIban');
 
     const assets = await this.assetService
-      .getAllAssets({ bank: true })
+      .getAllAssets({ bank: true, balance: true })
       .then((assets) => assets.filter((a) => a.type === AssetType.CUSTODY && a.bank));
-    const liqBalances = await this.liquidityManagementBalanceService.getAllLiqBalancesForAssets(
-      assets.map((a) => a.id),
-      { asset: { bank: true } },
-    );
 
     for (const accountIbanGroup of groupedEntities.values()) {
       let updatedFiatOutputAmount = 0;
@@ -151,10 +142,10 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
-          const liqBalance = liqBalances.find((l) => l.asset.bank.iban === entity.accountIban);
+          const asset = assets.find((a) => a.bank.iban === entity.accountIban);
 
           const availableBalance =
-            liqBalance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
+            asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
           if (availableBalance > entity.amount) {
             updatedFiatOutputAmount += entity.amount;
@@ -164,7 +155,7 @@ export class FiatOutputJobService {
               !entity.buyFiats.length ||
               (entity.buyFiats?.[0]?.cryptoInput.isConfirmed &&
                 entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
-                (liqBalance.asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
+                (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
             )
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
           } else {
@@ -184,9 +175,11 @@ export class FiatOutputJobService {
     )
       return;
 
-    const entities = await this.fiatOutputRepo.find({
-      where: { amount: Not(IsNull()), isReadyDate: Not(IsNull()), batchId: IsNull(), isComplete: false },
-      order: { accountIban: 'ASC', id: 'ASC' },
+    const entities = await this.fiatOutputRepo.findBy({
+      amount: Not(IsNull()),
+      isReadyDate: Not(IsNull()),
+      batchId: IsNull(),
+      isComplete: false,
     });
 
     let currentBatch: FiatOutput[] = [];
@@ -199,8 +192,7 @@ export class FiatOutputJobService {
 
         if (
           currentBatch.length &&
-          (currentBatch[0].accountIban !== entity.accountIban ||
-            currentBatchAmount + entity.amount >= Config.liquidityManagement.fiatOutput.batchAmountLimit)
+          currentBatchAmount + entity.amount >= Config.liquidityManagement.fiatOutput.batchAmountLimit
         ) {
           currentBatch.forEach((fiatOutput) => fiatOutput.setBatch(currentBatchId, currentBatchAmount * 100));
           batches.push(...currentBatch);
@@ -256,9 +248,8 @@ export class FiatOutputJobService {
         isComplete: false,
         bankTx: { id: IsNull() },
         isReadyDate: Not(IsNull()),
-        isTransmittedDate: Not(IsNull()),
       },
-      relations: { bankTx: true },
+      relations: { bankTx: true, bankTxReturn: true },
     });
 
     for (const entity of entities) {
@@ -267,6 +258,9 @@ export class FiatOutputJobService {
         if (!bankTx || entity.isReadyDate > bankTx.created) continue;
 
         await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created, isComplete: true });
+
+        if (entity.type === FiatOutputType.BANK_TX_RETURN)
+          await this.bankTxReturnService.updateInternal(entity.bankTxReturn, { chargebackBankTx: bankTx });
 
         if (bankTx.type === BankTxType.GSHEET) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
@@ -283,6 +277,9 @@ export class FiatOutputJobService {
 
   private async setBankTxType(type: FiatOutputType, bankTx: BankTx): Promise<BankTx> {
     switch (type) {
+      case FiatOutputType.BUY_CRYPTO_FAIL:
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
+
       case FiatOutputType.BUY_FIAT:
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_FIAT });
 
@@ -290,7 +287,7 @@ export class FiatOutputJobService {
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_REPEAT });
 
       case FiatOutputType.BANK_TX_RETURN:
-        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN });
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
     }
   }
 }

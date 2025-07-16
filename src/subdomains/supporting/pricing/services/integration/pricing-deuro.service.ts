@@ -33,7 +33,7 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
     super();
   }
 
-  async onModuleInit() {
+  onModuleInit() {
     this.deuroService = this.moduleRef.get(DEuroService, { strict: false });
     this.krakenService = this.moduleRef.get(KrakenService, { strict: false });
   }

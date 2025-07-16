@@ -6,11 +6,6 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { readFileSync } from 'fs';
-import { I18nService } from 'nestjs-i18n';
-import { join } from 'path';
-import PDFDocument from 'pdfkit';
-import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -28,9 +23,11 @@ import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment
 import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLinkConfig } from '../entities/payment-link.config';
 import { PaymentLink } from '../entities/payment-link.entity';
 import {
   C2BPaymentProvider,
+  PaymentLinkMode,
   PaymentLinkPaymentMode,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
@@ -52,7 +49,6 @@ export class PaymentLinkService {
     private readonly countryService: CountryService,
     private readonly sellService: SellService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
-    private readonly i18n: I18nService,
   ) {}
 
   async getOrThrow(
@@ -200,6 +196,7 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
+      mode: dto.mode,
       uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
       webhookUrl: dto.webhookUrl,
       name: dto.config?.recipient?.name,
@@ -264,6 +261,7 @@ export class PaymentLinkService {
     const payRequest: PaymentLinkPayRequestDto = {
       id: pendingPayment.link.uniqueId,
       externalId: pendingPayment.link.externalId,
+      mode: pendingPayment.link.mode,
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
       minSendable: msatTransferAmount,
@@ -274,6 +272,7 @@ export class PaymentLinkService {
       possibleStandards: standards,
       displayQr,
       recipient: pendingPayment.link.recipient,
+      route: pendingPayment.link.route.route.label,
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
@@ -346,15 +345,18 @@ export class PaymentLinkService {
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
+      route: paymentLink.route.route.label,
+      currency: paymentLink.route.fiat?.name,
       displayQr,
       recipient: paymentLink.recipient,
+      mode: paymentLink.mode,
       statusCode: undefined,
       message: undefined,
       error: undefined,
     };
   }
 
-  private getMergedConfig(paymentLink: PaymentLink, config: UpdatePaymentLinkConfigDto): string | null {
+  private getMergedConfig(paymentLink: PaymentLink, config: Partial<PaymentLinkConfig>): string | null {
     const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
     const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
     return Object.keys(customConfig).length === 0 ? null : (JSON.stringify(customConfig) as string);
@@ -504,16 +506,43 @@ export class PaymentLinkService {
     });
   }
 
+  async getPublicPaymentLink(routeLabel: string, externalLinkId: string): Promise<PaymentLink> {
+    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    if (!route) throw new NotFoundException('Route not found');
+
+    const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
+    if (paymentLink.mode !== PaymentLinkMode.PUBLIC) throw new UnauthorizedException('Payment link is not public');
+
+    return paymentLink;
+  }
+
+  async createPublicPayment(
+    dto: CreatePaymentLinkPaymentDto,
+    routeLabel: string,
+    externalLinkId: string,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.getPublicPaymentLink(routeLabel, externalLinkId);
+    if (dto.amount == 0) throw new BadRequestException('Amount must be greater than 0');
+
+    const payment = await this.paymentLinkPaymentService.createPayment(paymentLink, dto);
+    paymentLink.payments = [payment];
+
+    return paymentLink;
+  }
+
   async cancelPayment(
     userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
     key?: string,
+    routeLabel?: string,
   ): Promise<PaymentLink> {
     const paymentLink = Boolean(userId)
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
-      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+      : Boolean(key)
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
+      : await this.getPublicPaymentLink(routeLabel, externalLinkId);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
@@ -580,137 +609,33 @@ export class PaymentLinkService {
     return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, payment.externalId);
   }
 
-  async generateOcpStickersPdf(
-    routeIdOrLabel: string,
-    externalIds?: string[],
-    ids?: number[],
-    lang = 'en',
-  ): Promise<Buffer> {
-    const linksFromDb = await this.sellService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
-    const linkMapByExternalId = new Map(linksFromDb.map((link) => [link.externalId, link]));
-    const linkMapById = new Map(linksFromDb.map((link) => [link.id, link]));
-    const linksByExternalId = externalIds?.map((extId) => linkMapByExternalId.get(extId)).filter(Boolean) || [];
-    const linksById = ids?.map((id) => linkMapById.get(id)).filter(Boolean) || [];
-    const links = [...linksByExternalId, ...linksById];
-
-    // Translated sticker title
-    const stickerTitle = this.i18n.translate('payment.sticker.pay_with_crypto', { lang: lang.toLowerCase() });
-
-    // Blue OCP Image
-    const stickerPath = join(process.cwd(), 'assets', 'ocp-sticker.png');
-    const stickerBuffer = readFileSync(stickerPath);
-
-    // OCP Logo
-    const ocpLogoPath = join(process.cwd(), 'assets', 'ocp-logo.png');
-    const ocpLogoBuffer = readFileSync(ocpLogoPath);
-
-    const qrPadding = 10;
-    const borderWidth = 2.7;
-    const borderColor = '#2130EE'; // #2130EE
-    const cols = 2;
-    const rows = 6;
-    const margin = 30;
-    const stickerSpacing = 20;
-    const ocpLogoSize = 35;
-
-    const imgAspect = 1;
-    const ratioSum = imgAspect + 1;
-
-    return new Promise<Buffer>(async (resolve, reject) => {
-      try {
-        const pdf = new PDFDocument({ size: 'A3', margin: 0 });
-        const chunks: Buffer[] = [];
-        pdf.on('data', (c) => chunks.push(c));
-        pdf.on('end', () => resolve(Buffer.concat(chunks)));
-
-        const { width: pageWidth, height: pageHeight } = pdf.page;
-        const availW = pageWidth - 2 * margin;
-        const availH = pageHeight - 2 * margin;
-
-        const byH = (availH - (rows - 1) * stickerSpacing) / rows;
-        const byW = (availW - (cols - 1) * stickerSpacing) / cols / ratioSum;
-
-        const stickerHeight = Math.min(byH, byW);
-        const pngWidth = stickerHeight * imgAspect;
-        const qrWidth = stickerHeight;
-        const stickerWidth = pngWidth + qrWidth;
-
-        const gridW = cols * stickerWidth + (cols - 1) * stickerSpacing;
-        const gridH = rows * stickerHeight + (rows - 1) * stickerSpacing;
-
-        const startX = margin + (availW - gridW) / 2;
-        const startY = margin + (availH - gridH) / 2;
-
-        const stickersPerPage = cols * rows;
-        for (let i = 0; i < links.length; i++) {
-          if (i > 0 && i % stickersPerPage === 0) {
-            pdf.addPage();
-          }
-
-          const { externalId, id, uniqueId } = links[i];
-          const idx = i % stickersPerPage;
-          const col = idx % cols;
-          const row = Math.floor(idx / cols);
-          const x = startX + col * (stickerWidth + stickerSpacing);
-          const y = startY + row * (stickerHeight + stickerSpacing);
-
-          // QR Code URL
-          const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
-          const qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
-          const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
-            width: 400,
-            margin: 0,
-          });
-          const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
-
-          // Add Blue OCP Image
-          pdf.image(stickerBuffer, x, y, {
-            width: pngWidth,
-            height: stickerHeight + 1,
-          });
-
-          // Add QR-Code
-          pdf.image(qrBuffer, x + pngWidth + qrPadding, y + qrPadding, {
-            width: qrWidth - qrPadding * 2,
-            height: stickerHeight - qrPadding * 2,
-          });
-
-          // Add OCP Logo
-          pdf.image(
-            ocpLogoBuffer,
-            x + pngWidth + qrPadding + (qrWidth - qrPadding * 2 - ocpLogoSize) / 2,
-            y + qrPadding + (stickerHeight - qrPadding * 2 - ocpLogoSize) / 2,
-            {
-              width: ocpLogoSize,
-              height: ocpLogoSize,
-            },
-          );
-
-          // Add title
-          pdf.fontSize(10).font('Helvetica').fillColor('white');
-          const labelX = x + 12;
-          const labelY = y + 8;
-          pdf.text(stickerTitle, labelX, labelY);
-
-          // Add External ID
-          pdf.fontSize(4).font('Helvetica').fillColor('black');
-          const textWidth = pdf.widthOfString(externalId ?? id.toString());
-          const textX = x + pngWidth - textWidth - 5;
-          const textY = y + stickerHeight - 7;
-          pdf.text(externalId ?? id.toString(), textX, textY);
-
-          // Add Border
-          pdf
-            .strokeColor(borderColor)
-            .lineWidth(borderWidth)
-            .rect(x + 1, y, stickerWidth, stickerHeight)
-            .stroke();
-        }
-
-        pdf.end();
-      } catch (e) {
-        reject(e);
-      }
+  async createPosLink(paymentLinkId: number, scoped: boolean): Promise<string> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { id: paymentLinkId },
+      relations: { route: { user: { userData: true } } },
     });
+    if (!paymentLink) throw new NotFoundException('PaymentLink not found');
+
+    const config = scoped ? paymentLink.linkConfigObj : paymentLink.route.userData.paymentLinksConfigObj;
+
+    let accessKey = config.accessKeys?.at(0);
+    if (!accessKey) {
+      accessKey = Util.secureRandomString();
+
+      const update = { accessKeys: [accessKey] };
+
+      if (scoped) {
+        await this.paymentLinkRepo.update(paymentLink.id, { config: this.getMergedConfig(paymentLink, update) });
+      } else {
+        await this.userDataService.updatePaymentLinksConfig(paymentLink.route.user.userData, update);
+      }
+    }
+
+    const search = new URLSearchParams({
+      lightning: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
+      key: accessKey,
+    });
+
+    return `${Config.frontend.services}/pl/pos?${search.toString()}`;
   }
 }

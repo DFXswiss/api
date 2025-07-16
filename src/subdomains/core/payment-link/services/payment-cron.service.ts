@@ -14,8 +14,8 @@ export class PaymentCronService {
     private readonly paymentQuoteService: PaymentQuoteService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.PAYMENT_EXPIRATION })
-  async processPendingPayments(): Promise<void> {
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT_EXPIRATION })
+  async processExpiredPayments(): Promise<void> {
     await this.paymentLinkPaymentService.processExpiredPayments();
     await this.paymentActivationService.processExpiredActivations();
     await this.paymentQuoteService.processExpiredQuotes();

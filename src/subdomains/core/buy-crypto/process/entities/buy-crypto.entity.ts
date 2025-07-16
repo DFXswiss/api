@@ -7,7 +7,6 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
-import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -592,25 +591,6 @@ export class BuyCrypto extends IEntity {
     return this.transaction.custodyOrder ?? this.transaction.request?.custodyOrder;
   }
 
-  get custodyInput(): {
-    type: CustodyOrderType;
-    buy?: Buy;
-    swap?: Swap;
-    inputAsset?: Asset;
-    inputAmount?: number;
-    outputAsset?: Asset;
-    outputAmount?: number;
-  } {
-    return this.isCryptoCryptoTransaction
-      ? {
-          type: CustodyOrderType.RECEIVE,
-          swap: this.cryptoRoute,
-          outputAsset: this.cryptoInput.asset,
-          outputAmount: this.inputAmount,
-        }
-      : { type: CustodyOrderType.DEPOSIT, buy: this.buy, inputAsset: this.outputAsset, inputAmount: this.outputAmount };
-  }
-
   get chargebackBankRemittanceInfo(): string {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
   }
@@ -742,6 +722,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
+  AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.VIDEO_IDENT_NEEDED,
   AmlReason.KYC_DATA_NEEDED,

@@ -57,6 +57,7 @@ export class PaymentLinkDtoMapper {
       config: PaymentLinkDtoMapper.getConfigsWithoutSecrets(paymentLink.configObj),
       url: LightningHelper.createLnurlp(paymentLink.uniqueId),
       lnurl: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
+      mode: paymentLink.mode,
     };
   }
 

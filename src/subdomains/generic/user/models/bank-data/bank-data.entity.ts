@@ -1,6 +1,7 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
@@ -27,6 +28,9 @@ export enum BankDataVerificationError {
 export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
   name?: string;
+
+  @Column({ nullable: true })
+  status?: ReviewStatus;
 
   @Column({ nullable: true })
   approved?: boolean;
@@ -79,8 +83,8 @@ export class BankData extends IEntity {
 
   allow(): UpdateResult<BankData> {
     const update: Partial<BankData> = {
+      status: ReviewStatus.COMPLETED,
       approved: true,
-      comment: 'Pass',
     };
 
     Object.assign(this, update);
@@ -90,7 +94,27 @@ export class BankData extends IEntity {
 
   forbid(comment?: string): UpdateResult<BankData> {
     const update: Partial<BankData> = {
+      status: ReviewStatus.FAILED,
       approved: false,
+      comment,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  complete(): UpdateResult<BankData> {
+    const update: Partial<BankData> = { status: ReviewStatus.COMPLETED };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  manualReview(comment?: string): UpdateResult<BankData> {
+    const update: Partial<BankData> = {
+      status: ReviewStatus.MANUAL_REVIEW,
       comment,
     };
 

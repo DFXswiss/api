@@ -72,6 +72,9 @@ export class CryptoService {
       case Blockchain.MONERO:
         return this.moneroService.getPaymentRequest(address, amount);
 
+      case Blockchain.SOLANA:
+        return this.solanaService.getPaymentRequest(address, amount);
+
       default:
         return undefined;
     }

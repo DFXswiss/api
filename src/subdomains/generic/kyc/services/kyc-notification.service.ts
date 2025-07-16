@@ -12,7 +12,7 @@ import { In, IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepStatus } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
 @Injectable()
@@ -35,7 +35,7 @@ export class KycNotificationService {
       where: {
         reminderSentDate: IsNull(),
         name: Not(KycStepName.CONTACT_DATA),
-        status: KycStepStatus.IN_PROGRESS,
+        status: ReviewStatus.IN_PROGRESS,
         updated: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
         userData: {
           kycLevel: MoreThanOrEqual(0) && LessThan(50),

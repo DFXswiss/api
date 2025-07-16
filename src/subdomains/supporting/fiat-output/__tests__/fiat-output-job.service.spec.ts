@@ -9,11 +9,10 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { createCustomLiquidityBalance } from 'src/subdomains/core/liquidity-management/__mocks__/liquidity-balance.entity.mock';
-import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
-import { TradingRuleService } from 'src/subdomains/core/trading/services/trading-rule.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createDefaultBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createCustomBank } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from '../../bank/bank/bank.service';
@@ -29,40 +28,37 @@ import { FiatOutputRepository } from '../fiat-output.repository';
 describe('FiatOutputJobService', () => {
   let service: FiatOutputJobService;
 
-  let tradingRuleService: TradingRuleService;
   let fiatOutputRepo: FiatOutputRepository;
   let bankTxService: BankTxService;
   let ep2ReportService: Ep2ReportService;
   let bankService: BankService;
   let countryService: CountryService;
-  let liquidityManagementBalanceService: LiquidityManagementBalanceService;
   let assetService: AssetService;
   let logService: LogService;
+  let bankTxReturnService: BankTxReturnService;
 
   beforeEach(async () => {
-    tradingRuleService = createMock<TradingRuleService>();
     fiatOutputRepo = createMock<FiatOutputRepository>();
     bankTxService = createMock<BankTxService>();
     ep2ReportService = createMock<Ep2ReportService>();
     countryService = createMock<CountryService>();
     bankService = createMock<BankService>();
-    liquidityManagementBalanceService = createMock<LiquidityManagementBalanceService>();
     assetService = createMock<AssetService>();
     logService = createMock<LogService>();
+    bankTxReturnService = createMock<BankTxReturnService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
         FiatOutputJobService,
-        { provide: TradingRuleService, useValue: tradingRuleService },
         { provide: FiatOutputRepository, useValue: fiatOutputRepo },
         { provide: BankTxService, useValue: bankTxService },
         { provide: Ep2ReportService, useValue: ep2ReportService },
         { provide: CountryService, useValue: countryService },
         { provide: BankService, useValue: bankService },
-        { provide: LiquidityManagementBalanceService, useValue: liquidityManagementBalanceService },
         { provide: AssetService, useValue: assetService },
         { provide: LogService, useValue: logService },
+        { provide: BankTxReturnService, useValue: bankTxReturnService },
 
         TestUtil.provideConfig(),
       ],
@@ -200,22 +196,14 @@ describe('FiatOutputJobService', () => {
           type: AssetType.CUSTODY,
           bank: createCustomBank({ iban: 'DE123456789' }),
           name: 'EUR',
+          balance: createCustomLiquidityBalance({ amount: 13000 }),
         }),
         createCustomAsset({
           id: 2,
           type: AssetType.CUSTODY,
           bank: createCustomBank({ iban: 'CH123456789' }),
           name: 'CHF',
-        }),
-      ]);
-      jest.spyOn(liquidityManagementBalanceService, 'getAllLiqBalancesForAssets').mockResolvedValue([
-        createCustomLiquidityBalance({
-          amount: 13000,
-          asset: createCustomAsset({ bank: createCustomBank({ iban: 'DE123456789' }), name: 'EUR' }),
-        }),
-        createCustomLiquidityBalance({
-          amount: 9000,
-          asset: createCustomAsset({ bank: createCustomBank({ iban: 'CH123456789' }), name: 'CHF' }),
+          balance: createCustomLiquidityBalance({ amount: 9000 }),
         }),
       ]);
 
@@ -230,16 +218,15 @@ describe('FiatOutputJobService', () => {
 
   describe('createBatches', () => {
     it('should create 3 batches', async () => {
-      // entities will be sorted with DB Call
       const entities = [
-        createCustomFiatOutput({ id: 2, accountIban: 'CH123456789', amount: 200, isComplete: false }),
-        createCustomFiatOutput({ id: 4, accountIban: 'CH123456789', amount: 900, isComplete: false }),
-        createCustomFiatOutput({ id: 6, accountIban: 'CH975632135', amount: 22000, isComplete: false }),
         createCustomFiatOutput({ id: 1, accountIban: 'DE123456789', amount: 100, isComplete: false }),
+        createCustomFiatOutput({ id: 2, accountIban: 'CH123456789', amount: 200, isComplete: false }),
         createCustomFiatOutput({ id: 3, accountIban: 'DE123456789', amount: 500, isComplete: false }),
+        createCustomFiatOutput({ id: 4, accountIban: 'CH123456789', amount: 900, isComplete: false }),
         createCustomFiatOutput({ id: 5, accountIban: 'DE123456789', amount: 1100, isComplete: false }),
+        createCustomFiatOutput({ id: 6, accountIban: 'CH975632135', amount: 22000, isComplete: false }),
       ];
-      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue(entities);
+      jest.spyOn(fiatOutputRepo, 'findBy').mockResolvedValue(entities);
       jest.spyOn(fiatOutputRepo, 'findOne').mockResolvedValue(createCustomFiatOutput({ batchId: 0 }));
 
       await service['createBatches']();
@@ -247,12 +234,28 @@ describe('FiatOutputJobService', () => {
       const updateCalls = (fiatOutputRepo.save as jest.Mock).mock.calls;
       expect(updateCalls[0][0]).toMatchObject([
         createCustomFiatOutput({
+          id: 1,
+          accountIban: 'DE123456789',
+          amount: 100,
+          isComplete: false,
+          batchId: 1,
+          batchAmount: 280000,
+        }),
+        createCustomFiatOutput({
           id: 2,
           accountIban: 'CH123456789',
           amount: 200,
           isComplete: false,
           batchId: 1,
-          batchAmount: 110000,
+          batchAmount: 280000,
+        }),
+        createCustomFiatOutput({
+          id: 3,
+          accountIban: 'DE123456789',
+          amount: 500,
+          isComplete: false,
+          batchId: 1,
+          batchAmount: 280000,
         }),
         createCustomFiatOutput({
           id: 4,
@@ -260,7 +263,15 @@ describe('FiatOutputJobService', () => {
           amount: 900,
           isComplete: false,
           batchId: 1,
-          batchAmount: 110000,
+          batchAmount: 280000,
+        }),
+        createCustomFiatOutput({
+          id: 5,
+          accountIban: 'DE123456789',
+          amount: 1100,
+          isComplete: false,
+          batchId: 1,
+          batchAmount: 280000,
         }),
         createCustomFiatOutput({
           id: 6,
@@ -270,36 +281,12 @@ describe('FiatOutputJobService', () => {
           batchId: 2,
           batchAmount: 2200000,
         }),
-        createCustomFiatOutput({
-          id: 1,
-          accountIban: 'DE123456789',
-          amount: 100,
-          isComplete: false,
-          batchId: 3,
-          batchAmount: 170000,
-        }),
-        createCustomFiatOutput({
-          id: 3,
-          accountIban: 'DE123456789',
-          amount: 500,
-          isComplete: false,
-          batchId: 3,
-          batchAmount: 170000,
-        }),
-        createCustomFiatOutput({
-          id: 5,
-          accountIban: 'DE123456789',
-          amount: 1100,
-          isComplete: false,
-          batchId: 3,
-          batchAmount: 170000,
-        }),
       ]);
     });
 
     it('should create 1 batch', async () => {
       const entities = [createCustomFiatOutput({ id: 1, accountIban: 'CH123456789', amount: 200, isComplete: false })];
-      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue(entities);
+      jest.spyOn(fiatOutputRepo, 'findBy').mockResolvedValue(entities);
       jest.spyOn(fiatOutputRepo, 'findOne').mockResolvedValue(createCustomFiatOutput({ batchId: 0 }));
 
       await service['createBatches']();

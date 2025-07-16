@@ -548,6 +548,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
+  AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.VIDEO_IDENT_NEEDED,
   AmlReason.KYC_DATA_NEEDED,

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { isAsset, isFiat } from 'src/shared/models/active';
 import { Util } from 'src/shared/utils/util';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -42,15 +43,13 @@ export class LiquidityBalanceIntegrationFactory {
 
   private getAdapterType(rule: LiquidityManagementRule): AdapterType {
     if (isAsset(rule.target)) {
-      const blockchain = Object.values(Blockchain).find((b) => b.toString() === rule.context.toString());
-      if (blockchain) return AdapterType.BLOCKCHAIN;
+      if (this.matchesContext(IbanBankName, rule) || this.matchesContext(CardBankName, rule)) return AdapterType.BANK;
 
-      const bank = [...Object.values(IbanBankName), ...Object.values(CardBankName)].find(
-        (b) => b.toString() === rule.context.toString(),
-      );
-      if (bank) return AdapterType.BANK;
+      if (this.matchesContext(ExchangeName, rule)) return AdapterType.EXCHANGE;
 
-      return AdapterType.EXCHANGE;
+      if (this.matchesContext(Blockchain, rule)) return AdapterType.BLOCKCHAIN;
+
+      throw new Error(`No balance adapter for LM rule ${rule.id} with context ${rule.context} found`);
     }
 
     if (isFiat(rule.target)) {
@@ -58,5 +57,9 @@ export class LiquidityBalanceIntegrationFactory {
     }
 
     throw new Error('Could not find integration for liquidity balance check. Supported Asset or Fiat.');
+  }
+
+  private matchesContext(enumObj: object, rule: LiquidityManagementRule): boolean {
+    return Object.values(enumObj).some((e) => e.toString() === rule.context.toString());
   }
 }

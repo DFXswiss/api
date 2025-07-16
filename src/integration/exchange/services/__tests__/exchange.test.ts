@@ -1,11 +1,10 @@
-import { Exchange } from 'ccxt';
-import { ExchangeConfig } from 'src/config/config';
+import { ConstructorArgs, Exchange } from 'ccxt';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { ExchangeService } from '../exchange.service';
 
 export class TestExchange extends Exchange {
-  constructor(config: ExchangeConfig) {
+  constructor(config: ConstructorArgs) {
     super(config);
   }
 }
@@ -32,5 +31,14 @@ export class TestExchangeService extends ExchangeService {
     BinancePay: undefined,
     Solana: undefined,
     Gnosis: undefined,
+    Kraken: undefined,
+    Binance: undefined,
+    XT: undefined,
+    MEXC: undefined,
+    MaerkiBaumann: undefined,
+    Olkypay: undefined,
+    Checkout: undefined,
+    Kaleido: undefined,
+    Sumixx: undefined,
   };
 }

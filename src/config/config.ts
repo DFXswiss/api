@@ -2,7 +2,7 @@ import { NetworkName } from '@defichain/jellyfish-network';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { Exchange } from 'ccxt';
+import { ConstructorArgs } from 'ccxt';
 import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
@@ -26,8 +26,6 @@ export enum Environment {
   DEV = 'dev',
   PRD = 'prd',
 }
-
-export type ExchangeConfig = Partial<Exchange> & { withdrawKeys?: Map<string, string> };
 
 export type Version = '1' | '2';
 
@@ -75,6 +73,7 @@ export class Configuration {
   prefixes = {
     issueUidPrefix: 'I',
     quoteUidPrefix: 'Q',
+    transactionUidPrefix: 'T',
     kycFileUidPrefix: 'F',
     paymentLinkUidPrefix: 'pl',
     paymentLinkPaymentUidPrefix: 'plp',
@@ -117,7 +116,7 @@ export class Configuration {
 
   tradingLimits = {
     monthlyDefaultWoKyc: 1000, // CHF
-    weeklyAmlRule: 5000, // CHF
+    weeklyAmlRule: 25000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
     yearlyWithoutKyc: 50000, // CHF
@@ -156,7 +155,7 @@ export class Configuration {
   arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
   railgunSignatureFormat = '[a-f0-9]{128}';
-  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{88}';
+  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
 
   allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}`;
 
@@ -552,7 +551,8 @@ export class Configuration {
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
-    minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
+    minConfirmations: (blockchain: Blockchain) =>
+      [Blockchain.ETHEREUM, Blockchain.BITCOIN].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
@@ -780,7 +780,7 @@ export class Configuration {
     },
   };
 
-  exchange: ExchangeConfig = {
+  exchange: ConstructorArgs = {
     enableRateLimit: true,
     rateLimit: 500,
     timeout: 30000,
@@ -903,7 +903,7 @@ export class Configuration {
       : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
   }
 
-  get kraken(): ExchangeConfig {
+  get kraken(): ConstructorArgs {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
@@ -912,7 +912,7 @@ export class Configuration {
     };
   }
 
-  get binance(): ExchangeConfig {
+  get binance(): ConstructorArgs {
     return {
       apiKey: process.env.BINANCE_KEY,
       secret: process.env.BINANCE_SECRET,
@@ -922,11 +922,29 @@ export class Configuration {
     };
   }
 
-  get p2b(): ExchangeConfig {
+  get p2b(): ConstructorArgs {
     return {
       apiKey: process.env.P2B_KEY,
       secret: process.env.P2B_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
+  get xt(): ConstructorArgs {
+    return {
+      apiKey: process.env.XT_KEY,
+      secret: process.env.XT_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.XT_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
+  get mexc(): ConstructorArgs {
+    return {
+      apiKey: process.env.MEXC_KEY,
+      secret: process.env.MEXC_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
       ...this.exchange,
     };
   }

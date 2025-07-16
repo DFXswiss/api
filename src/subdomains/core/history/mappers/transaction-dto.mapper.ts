@@ -2,6 +2,7 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { Active, amountType, feeAmountType, isAsset } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -194,8 +195,8 @@ export class TransactionDtoMapper {
       outputBlockchain: isAsset(txRequest.targetAssetEntity) ? txRequest.targetAssetEntity?.blockchain : null,
       outputPaymentMethod: txRequest.targetPaymentMethod,
       priceSteps: null,
-      feeAmount: fees.total,
-      feeAsset: fees.total ? txRequest.sourceAssetEntity.name : null,
+      feeAmount: fees?.total,
+      feeAsset: fees?.total ? txRequest.sourceAssetEntity.name : null,
       fees,
       inputTxId: null,
       inputTxUrl: null,
@@ -284,13 +285,17 @@ export class TransactionDtoMapper {
   }
 
   // UnassignedTx
-  static mapUnassignedTransaction(tx: BankTx, currency: Fiat): UnassignedTransactionDto {
+  static mapUnassignedTransaction(tx: BankTx, currency: Fiat, bankTxReturn?: BankTxReturn): UnassignedTransactionDto {
     return {
       id: tx.transaction.id,
       uid: tx.transaction.uid,
       orderUid: tx.transaction.request?.uid,
       type: TransactionType.BUY,
-      state: TransactionState.UNASSIGNED,
+      state: bankTxReturn?.chargebackDate
+        ? TransactionState.RETURNED
+        : bankTxReturn?.chargebackAllowedDateUser
+        ? TransactionState.RETURN_PENDING
+        : TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,
       inputAsset: tx.txCurrency,
       inputAssetId: currency.id,
@@ -298,11 +303,11 @@ export class TransactionDtoMapper {
       inputPaymentMethod: FiatPaymentMethod.BANK,
       inputTxId: null,
       inputTxUrl: null,
-      chargebackAmount: undefined,
-      chargebackTarget: undefined,
-      chargebackTxId: undefined,
+      chargebackAmount: bankTxReturn?.chargebackAmount,
+      chargebackTarget: bankTxReturn?.chargebackIban,
+      chargebackTxId: bankTxReturn?.chargebackRemittanceInfo,
       chargebackTxUrl: undefined,
-      chargebackDate: undefined,
+      chargebackDate: bankTxReturn?.chargebackDate,
       date: tx.transaction.created,
     };
   }

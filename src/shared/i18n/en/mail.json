@@ -158,6 +158,15 @@
                 "line4": "You will be notified as soon as the check has been completed and your payment has been processed.",
                 "line5": "To view the current status of your transaction:<br>[url:click here]"
             },
+            "manual_check_bank_data": {
+                "title": "Checking deposit",
+                "salutation": "Your deposit will be checked",
+                "line1": "Thank you for your trust in DFX.",
+                "line2": "Unfortunately, the transaction could not be released fully automatically and must now be checked manually by an employee.",
+                "line3": "This usually takes 24 hours, but a maximum of 7 days.",
+                "line4": "You will be notified as soon as the check has been completed and your payment has been processed.",
+                "line5": "To view the current status of your transaction:<br>[url:click here]"
+            },
             "asset_kyc_needed": {
                 "title": "Verification (KYC) required",
                 "salutation": "Verification (KYC) is required to execute your pending transaction",

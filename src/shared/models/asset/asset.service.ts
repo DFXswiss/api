@@ -34,12 +34,16 @@ export class AssetService {
     return this.assetRepo.find({ relations });
   }
 
-  async getAllBlockchainAssets(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
+  async getAllBlockchainAssets(
+    blockchains: Blockchain[],
+    includePrivate = true,
+    relations?: FindOptionsRelations<Asset>,
+  ): Promise<Asset[]> {
     const search: FindOptionsWhere<Asset> = {};
     search.blockchain = blockchains.length > 0 ? In(blockchains) : Not(Blockchain.DEFICHAIN);
     !includePrivate && (search.category = Not(AssetCategory.PRIVATE));
 
-    return this.assetRepo.findCachedBy(JSON.stringify(search), search);
+    return this.assetRepo.findCached(JSON.stringify({ where: search, relations }), { where: search, relations });
   }
 
   async getPricedAssets(): Promise<Asset[]> {
