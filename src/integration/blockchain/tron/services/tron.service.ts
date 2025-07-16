@@ -65,12 +65,16 @@ export class TronService extends BlockchainService implements OnModuleInit {
     return this.client.getTokenBalance(asset, address ?? this.client.getWalletAddress());
   }
 
-  async getCurrentGasCostForCoinTransaction(address?: string): Promise<number> {
-    return this.client.getCurrentGasCostForCoinTransaction(address);
+  async getCreateAccountFee(address: string): Promise<number> {
+    return (await this.client.isAccountActivated(address)) ? 0 : this.client.getCreateAccountFee();
   }
 
-  async getCurrentGasCostForTokenTransaction(token: Asset, address?: string): Promise<number> {
-    return this.client.getCurrentGasCostForTokenTransaction(token, address);
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+    return this.client.getCurrentGasCostForCoinTransaction();
+  }
+
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    return this.client.getCurrentGasCostForTokenTransaction(token);
   }
 
   async sendNativeCoinFromAccount(account: WalletAccount, toAddress: string, amount: number) {

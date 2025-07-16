@@ -1,4 +1,4 @@
-import { Tron } from '@tatumio/tatum';
+import { AddressBalance, Tron } from '@tatumio/tatum';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
@@ -9,20 +9,11 @@ import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transa
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import { TronTransactionMapper } from './dto/tron-transaction.mapper';
-import {
-  TronAddressResourcesDto,
-  TronChainParameterDto,
-  TronResourceDto,
-  TronToken,
-  TronTransactionDto,
-  TronTransactionResponse,
-} from './dto/tron.dto';
+import { TronChainParameterDto, TronToken, TronTransactionDto, TronTransactionResponse } from './dto/tron.dto';
 import { TronWallet } from './tron-wallet';
 import { TronUtil } from './tron.util';
 
 export class TronClient extends BlockchainClient {
-  private readonly randomReceiverAddress = 'TQDxzX9KXA2tWp1qBjyiocwipKabnE2s8t';
-
   private readonly wallet: TronWallet;
 
   private readonly tokens = new AsyncCache<TronToken>();
@@ -70,16 +61,16 @@ export class TronClient extends BlockchainClient {
 
     const assetAddresses = assets.map((a) => a.chainId);
 
-    const allAddressBalanceTokenData = addressBalanceResponse.data.filter((d) =>
-      Util.includesIgnoreCase(assetAddresses, d.tokenAddress),
+    const allAddressBalanceTokenMap: Map<string, AddressBalance> = new Map(
+      addressBalanceResponse.data
+        .filter((d) => Util.includesIgnoreCase(assetAddresses, d.tokenAddress))
+        .map((ab) => [ab.tokenAddress.toLowerCase(), ab]),
     );
 
     const tokenBalances: BlockchainTokenBalance[] = [];
 
     for (const asset of assets) {
-      const addressBalance = allAddressBalanceTokenData.find((d) =>
-        Util.equalsIgnoreCase(d.tokenAddress, asset.chainId),
-      );
+      const addressBalance = allAddressBalanceTokenMap.get(asset.chainId.toLowerCase());
 
       if (addressBalance) {
         const balance = TronUtil.fromSunAmount(addressBalance.balance, addressBalance.decimals);
@@ -92,10 +83,16 @@ export class TronClient extends BlockchainClient {
 
   async isTxComplete(txHash: string, confirmations = 0): Promise<boolean> {
     const transaction = await this.getTransaction(txHash);
-    if (!Util.equalsIgnoreCase(transaction.status, 'SUCCESS')) throw new Error(`Transaction ${txHash} has failed`);
 
-    const currentConfirmations = (await this.getBlockHeight()) - (transaction.blockNumber ?? Number.MAX_VALUE);
-    return currentConfirmations > confirmations;
+    const currentConfirmations = (await this.getBlockHeight()) - (transaction?.blockNumber ?? Number.MAX_VALUE);
+
+    if (currentConfirmations > confirmations) {
+      if (Util.equalsIgnoreCase(transaction.status, 'SUCCESS')) return true;
+
+      throw new Error(`Transaction ${txHash} has failed`);
+    }
+
+    return false;
   }
 
   async getToken(asset: Asset): Promise<TronToken> {
@@ -127,38 +124,28 @@ export class TronClient extends BlockchainClient {
     });
   }
 
-  async getCurrentGasCostForCoinTransaction(address?: string): Promise<number> {
-    const receiverAddress = address ?? this.randomReceiverAddress;
+  async getCreateAccountFee(): Promise<number> {
+    const chainParameter = await this.getChainParameter();
+    return chainParameter.createAccountFee + chainParameter.createAccountBandwidthFee;
+  }
 
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
     const chainParameter = await this.getChainParameter();
 
-    let gasCost = (await this.isAccountActivated(address))
-      ? 0
-      : chainParameter.createAccountFee + chainParameter.createAccountBandwidthFee;
-
-    const addressResources = await this.getAddressResources(receiverAddress);
-
-    if (addressResources.bandwidth < Config.blockchain.tron.coinTransferBandwidth) {
-      gasCost += Config.blockchain.tron.coinTransferBandwidth * chainParameter.bandwidthUnitPrice;
-    }
+    let gasCost = await this.getCreateAccountFee();
+    gasCost += Config.blockchain.tron.coinTransferBandwidth * chainParameter.bandwidthUnitPrice;
 
     return Util.round(gasCost, 6);
   }
 
-  async getCurrentGasCostForTokenTransaction(token: Asset, address?: string): Promise<number> {
-    const receiverAddress = address ?? this.randomReceiverAddress;
-
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
     const chainParameter = await this.getChainParameter();
 
-    let gasCost = (await this.isAccountActivated(address))
-      ? 0
-      : chainParameter.createAccountFee + chainParameter.createAccountBandwidthFee;
+    let gasCost = await this.getCreateAccountFee();
 
-    const addressResources = await this.getAddressResources(receiverAddress);
+    const tokenBandwidth = await this.getTokenBandwidth(token);
 
-    const tokenBandwidth = await this.getTokenBandwidth(token, receiverAddress);
-
-    const bandwidthFeeInTrx = (tokenBandwidth - addressResources.bandwidth) * chainParameter.bandwidthUnitPrice;
+    const bandwidthFeeInTrx = tokenBandwidth * chainParameter.bandwidthUnitPrice;
 
     gasCost += Math.max(bandwidthFeeInTrx, 0);
 
@@ -167,7 +154,7 @@ export class TronClient extends BlockchainClient {
         ? Config.blockchain.tron.usdtTransferEnergy
         : Config.blockchain.tron.tokenTransferEnergy;
 
-    const feeInTrx = (transferEnergy - addressResources.energy) * chainParameter.energyUnitPrice;
+    const feeInTrx = transferEnergy * chainParameter.energyUnitPrice;
 
     gasCost += Math.max(feeInTrx, 0);
 
@@ -189,31 +176,13 @@ export class TronClient extends BlockchainClient {
     return getAccountResponse && Object.keys(getAccountResponse).length > 0;
   }
 
-  private async getAddressResources(address: string): Promise<TronAddressResourcesDto> {
-    const url = Config.blockchain.tron.tronGatewayUrl;
-
-    const accountResourceResponse = await this.http.post<TronResourceDto>(
-      `${url}/wallet/getaccountresource`,
-      {
-        address,
-        visible: true,
-      },
-      this.httpConfig(),
-    );
-
-    return {
-      bandwidth: accountResourceResponse.freeNetLimit ?? accountResourceResponse.NetLimit ?? 0,
-      energy: accountResourceResponse.EnergyLimit ?? 0,
-    };
-  }
-
-  private async getTokenBandwidth(token: Asset, address: string): Promise<number> {
+  private async getTokenBandwidth(token: Asset): Promise<number> {
     const url = Config.blockchain.tron.tronGatewayUrl;
 
     const triggersmartcontractResponse = await this.http.post<any>(
       `${url}/wallet/triggersmartcontract`,
       {
-        owner_address: address,
+        owner_address: this.getWalletAddress(),
         contract_address: token.chainId,
         function_selector: 'transfer(address,uint256)',
         parameter:

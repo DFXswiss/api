@@ -551,7 +551,7 @@ export class TransactionHelper implements OnModuleInit {
       fee.network += await this.getSolanaCreateTokenAccountFee(user, to);
 
     if (!allowExpiredPrice && user && isAsset(to) && to.blockchain === Blockchain.TRON && to.type === AssetType.TOKEN)
-      fee.network += await this.getTronTokenEnergyFee(user, to);
+      fee.network += await this.getTronCreateTokenAccountFee(user, to);
 
     return [fee, networkStartFee];
   }
@@ -592,10 +592,10 @@ export class TransactionHelper implements OnModuleInit {
     return price.convert(fee);
   }
 
-  private async getTronTokenEnergyFee(user: User, asset: Asset): Promise<number> {
+  private async getTronCreateTokenAccountFee(user: User, asset: Asset): Promise<number> {
     const tronService = this.blockchainRegistryService.getService(asset.blockchain) as TronService;
 
-    const fee = await tronService.getCurrentGasCostForTokenTransaction(asset, user.address);
+    const fee = await tronService.getCreateAccountFee(user.address);
     if (!fee) return 0;
 
     const tronCoin = await this.assetService.getTronCoin();

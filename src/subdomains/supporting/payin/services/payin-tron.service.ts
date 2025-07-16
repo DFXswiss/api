@@ -27,8 +27,8 @@ export class PayInTronService {
     return this.tronService.sendNativeCoinFromDex(addressTo, amount);
   }
 
-  async getCurrentGasCostForTokenTransaction(token: Asset, address: string): Promise<number> {
-    return this.tronService.getCurrentGasCostForTokenTransaction(token, address);
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    return this.tronService.getCurrentGasCostForTokenTransaction(token);
   }
 
   async sendToken(account: WalletAccount, addressTo: string, token: Asset, amount: number): Promise<string> {
