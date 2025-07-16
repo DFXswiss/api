@@ -43,9 +43,9 @@ import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
   KycBeneficialData,
-  KycCommercialLegalEntityData,
   KycContactData,
   KycFileData,
+  KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
   KycOperationalData,
@@ -62,10 +62,10 @@ import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
-import { ReviewStatus } from '../enums/review-status.enum';
 
 const CodeHeaderName = 'x-kyc-code';
 const MergedResponse = {
@@ -220,10 +220,10 @@ export class KycController {
   async updateCommercialRegisterData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycCommercialLegalEntityData,
+    @Body() data: KycLegalEntityData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('commercial-register', data.fileName);
-    return this.kycService.updateCommercialLegalData(code, +id, data, FileType.COMMERCIAL_REGISTER);
+    return this.kycService.updateLegalData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
   @Put('data/residence/:id')

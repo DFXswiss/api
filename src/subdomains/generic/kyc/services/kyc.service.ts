@@ -46,9 +46,9 @@ import { IdentDocument, IdentStatus } from '../dto/ident.dto';
 import {
   ContactPersonData,
   KycBeneficialData,
-  KycCommercialLegalEntityData,
   KycContactData,
   KycFileData,
+  KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
   KycOperationalData,
@@ -503,12 +503,7 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
-  async updateCommercialLegalData(
-    kycHash: string,
-    stepId: number,
-    data: KycCommercialLegalEntityData,
-    fileType: FileType,
-  ) {
+  async updateLegalData(kycHash: string, stepId: number, data: KycLegalEntityData, fileType: FileType) {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 

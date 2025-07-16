@@ -197,7 +197,18 @@ export class KycFileData {
   fileName: string;
 }
 
-export class KycCommercialLegalEntityData extends KycFileData {
+export class KycLegalEntityData {
+  @ApiProperty({ description: 'Base64 encoded commercial register file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+
+  @ApiProperty({ description: 'Name of the commercial register file' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  fileName: string;
+
   @ApiProperty({ enum: LegalEntity })
   @IsNotEmpty()
   @IsEnum(LegalEntity)
