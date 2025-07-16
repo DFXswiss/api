@@ -132,8 +132,7 @@ export class TronClient extends BlockchainClient {
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
     const chainParameter = await this.getChainParameter();
 
-    let gasCost = await this.getCreateAccountFee();
-    gasCost += Config.blockchain.tron.coinTransferBandwidth * chainParameter.bandwidthUnitPrice;
+    const gasCost = Config.blockchain.tron.coinTransferBandwidth * chainParameter.bandwidthUnitPrice;
 
     return Util.round(gasCost, 6);
   }
@@ -141,13 +140,10 @@ export class TronClient extends BlockchainClient {
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
     const chainParameter = await this.getChainParameter();
 
-    let gasCost = await this.getCreateAccountFee();
-
     const tokenBandwidth = await this.getTokenBandwidth(token);
-
     const bandwidthFeeInTrx = tokenBandwidth * chainParameter.bandwidthUnitPrice;
 
-    gasCost += Math.max(bandwidthFeeInTrx, 0);
+    let gasCost = Math.max(bandwidthFeeInTrx, 0);
 
     const transferEnergy =
       token.uniqueName === 'Tron/USDT'
