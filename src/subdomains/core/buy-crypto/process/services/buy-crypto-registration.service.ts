@@ -59,7 +59,7 @@ export class BuyCryptoRegistrationService {
 
       await this.createBuyCryptosAndAckPayIns(buyCryptoPayIns);
     } catch (e) {
-      this.logger.error('Error while registering new buyCrypto cryptoInput payIns');
+      this.logger.error('Error while registering new buyCrypto pay-ins:', e);
     }
   }
 

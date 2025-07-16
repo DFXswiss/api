@@ -1,23 +1,23 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -25,16 +25,13 @@ import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
-export class BuyFiatPreparationService implements OnModuleInit {
+export class BuyFiatPreparationService {
   private readonly logger = new DfxLogger(BuyFiatPreparationService);
-  private chf: Fiat;
-  private eur: Fiat;
 
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly transactionHelper: TransactionHelper,
     private readonly pricingService: PricingService,
-    private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
     private readonly buyFiatService: BuyFiatService,
     private readonly amlService: AmlService,
@@ -42,11 +39,6 @@ export class BuyFiatPreparationService implements OnModuleInit {
     private readonly buyFiatNotificationService: BuyFiatNotificationService,
     private readonly fiatOutputService: FiatOutputService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
-  }
 
   async doAmlCheck(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
@@ -65,7 +57,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
         { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
       ],
       relations: {
-        cryptoInput: true,
+        cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
         sell: true,
         transaction: { user: { wallet: true }, userData: true },
         bankData: true,
@@ -95,10 +87,10 @@ export class BuyFiatPreparationService implements OnModuleInit {
         );
 
         const { users, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
-        if (bankData && !bankData.comment) continue;
+        if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
 
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
+        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.CHF, false);
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.EUR, false);
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
@@ -177,8 +169,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
         const inputCurrency = entity.cryptoInput.asset;
 
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, this.eur, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, this.chf, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, false);
 
         const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
@@ -243,8 +235,8 @@ export class BuyFiatPreparationService implements OnModuleInit {
         const { fee: paymentLinkFee } = entity.cryptoInput.paymentLinkPayment.link.configObj;
 
         // prices
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, this.eur, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, this.chf, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, false);
 
         const conversionPrice = Price.create(
           inputCurrency.name,
@@ -364,11 +356,13 @@ export class BuyFiatPreparationService implements OnModuleInit {
       },
     });
 
-    const buyFiatsToPayout = buyFiatsWithoutOutput.filter(
-      (bf) =>
-        !bf.userData.paymentLinksConfigObj.requiresExplicitPayoutRoute ||
-        bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId != null,
-    );
+    const buyFiatsToPayout = buyFiatsWithoutOutput
+      .filter((bf) => !bf.userData.paymentLinksConfigObj.requiresConfirmation || bf.paymentLinkPayment?.isConfirmed)
+      .filter(
+        (bf) =>
+          !bf.userData.paymentLinksConfigObj.requiresExplicitPayoutRoute ||
+          bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId != null,
+      );
 
     // immediate payouts
     const immediateOutputs = buyFiatsToPayout.filter(
@@ -378,7 +372,7 @@ export class BuyFiatPreparationService implements OnModuleInit {
     );
 
     for (const buyFiat of immediateOutputs) {
-      await this.fiatOutputService.createInternal('BuyFiat', { buyFiats: [buyFiat] });
+      await this.fiatOutputService.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat] }, buyFiat.id);
     }
 
     // daily payouts
@@ -395,8 +389,9 @@ export class BuyFiatPreparationService implements OnModuleInit {
 
     for (const buyFiats of sellGroups.values()) {
       await this.fiatOutputService.createInternal(
-        'BuyFiat',
+        FiatOutputType.BUY_FIAT,
         { buyFiats },
+        buyFiats[0].id,
         buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
       );
     }

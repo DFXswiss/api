@@ -69,6 +69,10 @@ export class Util {
     return new BigNumber(amount).precision(precision).toNumber();
   }
 
+  static floorByPrecision(amount: number, precision: number): number {
+    return new BigNumber(amount).precision(precision, BigNumber.ROUND_FLOOR).toNumber();
+  }
+
   static sum(list: number[]): number {
     return list.reduce((prev, curr) => prev + curr, 0);
   }
@@ -194,7 +198,7 @@ export class Util {
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
       .replace(/[\.,]/g, '')
-      .replace(/[-‘`´']/g, ' ');
+      .replace(/[-‘`´'+&]/g, ' ');
   }
 
   static blankCenter(value: string, visibleLength = 4): string {
@@ -226,6 +230,22 @@ export class Util {
     return left?.map((s) => s?.toLowerCase()).includes(right?.toLowerCase());
   }
 
+  static toBase32(buffer: Buffer): string {
+    const BASE_32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford: no O/I/L/U
+
+    let num = BigInt('0x' + buffer.toString('hex'));
+    const base = BigInt(BASE_32.length);
+
+    let result = '';
+    while (num > 0n) {
+      const remainder = num % base;
+      result = BASE_32[Number(remainder)] + result;
+      num = num / base;
+    }
+
+    return result || '0';
+  }
+
   // --- ID GENERATION --- //
   static randomId(): number {
     return randomBytes(4).readUInt32BE();
@@ -235,6 +255,10 @@ export class Util {
     return randomBytes(length / 2)
       .toString('hex')
       .toUpperCase();
+  }
+
+  static secureRandomString(): string {
+    return Util.toBase32(randomBytes(32));
   }
 
   static createUniqueId(prefix: string, length = 6): string {
@@ -302,6 +326,10 @@ export class Util {
 
   static sameDay(a: Date, b: Date): boolean {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  static localeDataString(data: number | Date, language: string): string {
+    return language === 'DE' ? data.toLocaleString('de-DE') : data.toLocaleString('en-US');
   }
 
   static isoDate(date: Date): string {
@@ -584,7 +612,10 @@ export class Util {
 
   static sanitize({ value }: TransformFnParams): string | undefined {
     return value
-      ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' })
+      ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' }).replace(
+          /&amp;/g,
+          '&',
+        )
       : value;
   }
 

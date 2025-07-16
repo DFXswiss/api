@@ -1,10 +1,9 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SepaEntry } from '../dto/sepa-entry.dto';
 import { SepaFile } from '../dto/sepa-file.dto';
 import { ChargeRecord, SepaAddress, SepaCdi } from '../dto/sepa.dto';
@@ -12,16 +11,10 @@ import { BankTxBatch } from '../entities/bank-tx-batch.entity';
 import { BankTx } from '../entities/bank-tx.entity';
 
 @Injectable()
-export class SepaParser implements OnModuleInit {
+export class SepaParser {
   private readonly logger = new DfxLogger(SepaParser);
 
-  private chf: Fiat;
-
   constructor(private readonly pricingService: PricingService, private readonly fiatService: FiatService) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-  }
 
   parseSepaFile(xmlFile: string): SepaFile {
     return Util.parseXml<{ Document: SepaFile }>(xmlFile).Document;
@@ -152,7 +145,7 @@ export class SepaParser implements OnModuleInit {
     for (const charge of charges) {
       const currency = charge.Amt['@_Ccy'];
       const chargeCurrency = await this.fiatService.getFiatByName(currency);
-      const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, this.chf, true);
+      const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, PriceCurrency.CHF, true);
       const chargeReferencePrice = await this.pricingService.getPrice(chargeCurrency, referenceCurrency, true);
       const amount = +charge.Amt['#text'];
 

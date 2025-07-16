@@ -37,12 +37,14 @@ export interface WebhookData {
 export enum BinanceBizType {
   PAY = 'PAY',
   PAY_REFUND = 'PAY_REFUND',
+  MERCHANT_QR_CODE = 'MERCHANT_QR_CODE',
 }
 
 export enum BinancePayStatus {
   PAY_SUCCESS = 'PAY_SUCCESS',
   PAY_CLOSED = 'PAY_CLOSED',
   PAY_FAIL = 'PAY_FAIL',
+  MERCHANT_QR_CODE_SCANED = 'MERCHANT_QR_CODE_SCANED',
 }
 
 export enum BinanceRefundStatus {
@@ -50,7 +52,7 @@ export enum BinanceRefundStatus {
 }
 
 export interface BinancePayWebhookDto {
-  bizType: string;
+  bizType: BinanceBizType;
   data: string;
   bizIdStr: string;
   bizId: number;
@@ -70,10 +72,12 @@ export interface OrderData {
   env: {
     terminalType: BinancePayTerminalType;
   };
+  qrCodeReferId?: string;
   merchantTradeNo: string;
   orderAmount: number;
   currency: string;
   description: string;
+  orderExpireTime: number;
   goodsDetails: {
     goodsType: string;
     goodsCategory: string;

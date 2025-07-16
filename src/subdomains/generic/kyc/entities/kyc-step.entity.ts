@@ -8,7 +8,8 @@ import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { KycSessionInfoDto } from '../dto/output/kyc-info.dto';
 import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
+import { KycStepType, UrlType } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycFile } from './kyc-file.entity';
@@ -29,7 +30,7 @@ export class KycStep extends IEntity {
   type?: KycStepType;
 
   @Column()
-  status: KycStepStatus;
+  status: ReviewStatus;
 
   @Column({ type: 'integer' })
   sequenceNumber: number;
@@ -116,6 +117,9 @@ export class KycStep extends IEntity {
 
       case KycStepName.RESIDENCE_PERMIT:
         return { url: `${apiUrl}/data/residence/${this.id}`, type: UrlType.API };
+
+      case KycStepName.PAYMENT_AGREEMENT:
+        return { url: `${apiUrl}/data/payment/${this.id}`, type: UrlType.API };
     }
   }
 
@@ -127,7 +131,7 @@ export class KycStep extends IEntity {
       userData,
       name,
       type,
-      status: KycStepStatus.IN_PROGRESS,
+      status: ReviewStatus.IN_PROGRESS,
       sequenceNumber,
     });
   }
@@ -147,27 +151,35 @@ export class KycStep extends IEntity {
   // --- KYC PROCESS --- //
 
   get isInProgress(): boolean {
-    return this.status === KycStepStatus.IN_PROGRESS;
+    return this.status === ReviewStatus.IN_PROGRESS;
   }
 
   get isInReview(): boolean {
     return [
-      KycStepStatus.FINISHED,
-      KycStepStatus.EXTERNAL_REVIEW,
-      KycStepStatus.INTERNAL_REVIEW,
-      KycStepStatus.MANUAL_REVIEW,
-      KycStepStatus.PARTIALLY_APPROVED,
-      KycStepStatus.DATA_REQUESTED,
-      KycStepStatus.PAUSED,
+      ReviewStatus.FINISHED,
+      ReviewStatus.EXTERNAL_REVIEW,
+      ReviewStatus.INTERNAL_REVIEW,
+      ReviewStatus.MANUAL_REVIEW,
+      ReviewStatus.PARTIALLY_APPROVED,
+      ReviewStatus.DATA_REQUESTED,
+      ReviewStatus.PAUSED,
     ].includes(this.status);
   }
 
   get isCompleted(): boolean {
-    return this.status === KycStepStatus.COMPLETED;
+    return this.status === ReviewStatus.COMPLETED;
+  }
+
+  get isOnHold(): boolean {
+    return this.status === ReviewStatus.ON_HOLD;
   }
 
   get isFailed(): boolean {
-    return this.status === KycStepStatus.FAILED;
+    return this.status === ReviewStatus.FAILED;
+  }
+
+  get isCanceled(): boolean {
+    return this.status === ReviewStatus.CANCELED;
   }
 
   get isDone(): boolean {
@@ -175,7 +187,7 @@ export class KycStep extends IEntity {
   }
 
   update(
-    status: KycStepStatus,
+    status: ReviewStatus,
     result?: KycStepResult,
     comment?: string,
     sequenceNumber?: number,
@@ -194,7 +206,7 @@ export class KycStep extends IEntity {
 
   complete(result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.COMPLETED,
+      status: ReviewStatus.COMPLETED,
       result: this.setResult(result),
     };
 
@@ -205,7 +217,7 @@ export class KycStep extends IEntity {
 
   fail(result?: KycStepResult, comment?: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.FAILED,
+      status: ReviewStatus.FAILED,
       result: this.setResult(result),
       comment,
     };
@@ -217,7 +229,7 @@ export class KycStep extends IEntity {
 
   pause(result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.IN_PROGRESS,
+      status: ReviewStatus.IN_PROGRESS,
       result: this.setResult(result),
       reminderSentDate: null,
     };
@@ -229,7 +241,7 @@ export class KycStep extends IEntity {
 
   cancel(): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.CANCELED,
+      status: ReviewStatus.CANCELED,
     };
 
     Object.assign(this, update);
@@ -239,7 +251,7 @@ export class KycStep extends IEntity {
 
   inProgress(result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.IN_PROGRESS,
+      status: ReviewStatus.IN_PROGRESS,
       result: this.setResult(result),
     };
 
@@ -250,7 +262,7 @@ export class KycStep extends IEntity {
 
   ignored(comment: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.IGNORED,
+      status: ReviewStatus.IGNORED,
       comment,
     };
 
@@ -261,7 +273,7 @@ export class KycStep extends IEntity {
 
   finish(): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.FINISHED,
+      status: ReviewStatus.FINISHED,
     };
 
     Object.assign(this, update);
@@ -270,7 +282,7 @@ export class KycStep extends IEntity {
   }
 
   externalReview(): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = { status: KycStepStatus.EXTERNAL_REVIEW };
+    const update: Partial<KycStep> = { status: ReviewStatus.EXTERNAL_REVIEW };
 
     Object.assign(this, update);
 
@@ -279,7 +291,7 @@ export class KycStep extends IEntity {
 
   internalReview(result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.INTERNAL_REVIEW,
+      status: ReviewStatus.INTERNAL_REVIEW,
       result: this.setResult(result),
     };
 
@@ -289,7 +301,7 @@ export class KycStep extends IEntity {
   }
 
   onHold(): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = { status: KycStepStatus.ON_HOLD };
+    const update: Partial<KycStep> = { status: ReviewStatus.ON_HOLD };
 
     Object.assign(this, update);
 
@@ -298,7 +310,7 @@ export class KycStep extends IEntity {
 
   manualReview(comment?: string, result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.MANUAL_REVIEW,
+      status: ReviewStatus.MANUAL_REVIEW,
       comment,
       result: this.setResult(result),
     };

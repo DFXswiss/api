@@ -1,9 +1,9 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { BinancePayService } from '../../c2b-payment-link/services/binance-pay.service';
+import { BinancePayService } from '../services/binance-pay.service';
 
 @Injectable()
 export class BinancePayWebhookGuard implements CanActivate {
-  constructor(private readonly binancePayService: BinancePayService) { }
+  constructor(private readonly binancePayService: BinancePayService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();

@@ -31,9 +31,11 @@ import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
 import { RegisterStrategyRegistry } from './strategies/register/impl/base/register.strategy-registry';
+import { BinancePayStrategy as BinancePayStrategyR } from './strategies/register/impl/binance-pay.strategy';
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
+import { GnosisStrategy as GnosisStrategyR } from './strategies/register/impl/gnosis.strategy';
 import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
@@ -44,6 +46,7 @@ import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/se
 import { BaseCoinStrategy as BaseCoinStrategyS } from './strategies/send/impl/base-coin.strategy';
 import { BaseTokenStrategy as BaseTokenStrategyS } from './strategies/send/impl/base-token.strategy';
 import { SendStrategyRegistry } from './strategies/send/impl/base/send.strategy-registry';
+import { BinancePayStrategy as BinancePayStrategyS } from './strategies/send/impl/binance-pay.strategy';
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/send/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
@@ -122,8 +125,11 @@ import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/i
     SolanaStrategyR,
     SolanaCoinStrategyS,
     SolanaTokenStrategyS,
+    GnosisStrategyR,
     GnosisCoinStrategyS,
     GnosisTokenStrategyS,
+    BinancePayStrategyR,
+    BinancePayStrategyS,
   ],
   exports: [PayInService],
 })

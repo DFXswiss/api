@@ -36,7 +36,7 @@ import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity
 import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
-import { PricingService } from '../../pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
@@ -52,8 +52,6 @@ import { TransactionService } from './transaction.service';
 export class TransactionHelper implements OnModuleInit {
   private readonly logger = new DfxLogger(TransactionHelper);
   private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
-
-  private chf: Fiat;
 
   private transactionSpecifications: TransactionSpecification[];
 
@@ -74,7 +72,6 @@ export class TransactionHelper implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
     void this.updateCache();
   }
 
@@ -103,7 +100,7 @@ export class TransactionHelper implements OnModuleInit {
       : this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN).minVolume;
 
     const price = await this.pricingService
-      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .getPrice(fromReference, PriceCurrency.CHF, allowExpiredPrice)
       .then((p) => p.invert());
     return this.convert(minVolume, price, from);
   }
@@ -118,7 +115,7 @@ export class TransactionHelper implements OnModuleInit {
       ? Config.payment.minVolume
       : this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT).minVolume;
 
-    const price = await this.pricingService.getPrice(this.chf, toReference, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(PriceCurrency.CHF, toReference, allowExpiredPrice);
     return this.convert(minVolume, price, to);
   }
 
@@ -132,7 +129,7 @@ export class TransactionHelper implements OnModuleInit {
     const minVolume = isPayment ? Config.payment.minVolume : this.getMinSpecs(from, to).minVolume;
 
     const price = await this.pricingService
-      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .getPrice(fromReference, PriceCurrency.CHF, allowExpiredPrice)
       .then((p) => p.invert());
     return this.convert(minVolume, price, from);
   }
@@ -265,7 +262,7 @@ export class TransactionHelper implements OnModuleInit {
     const txAsset = targetAmount ? to : from;
     const txAmount = targetAmount ?? sourceAmount;
 
-    const chfPrice = await this.pricingService.getPrice(txAsset, this.chf, true);
+    const chfPrice = await this.pricingService.getPrice(txAsset, PriceCurrency.CHF, true);
     const txAmountChf = chfPrice.convert(txAmount);
 
     const bankIn = this.getDefaultBankByPaymentMethod(paymentMethodIn);
@@ -359,7 +356,7 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<number> {
     const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, tx, type);
 
-    price ??= await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
+    price ??= await this.pricingService.getPrice(from, PriceCurrency.CHF, allowExpiredPrice);
 
     return price.convert(tx.inputReferenceAmount) + previousVolume;
   }
@@ -397,7 +394,7 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<RefundDataDto> {
     const inputCurrency = await this.getRefundActive(refundEntity);
 
-    const price = await this.pricingService.getPrice(this.chf, inputCurrency, false);
+    const price = await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, false);
 
     const amountType = !isFiat ? AmountType.ASSET : AmountType.FIAT;
     const feeAmountType = !isFiat ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
@@ -417,7 +414,12 @@ export class TransactionHelper implements OnModuleInit {
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
     const networkFeeAmount = price.convert(chargebackFee.network);
-    const bankFeeAmount = price.convert(refundEntity.chargebackBankFee * 1.01); // Bank fee buffer
+    const bankFeeAmount =
+      refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
+        ? price.convert(
+            chargebackFee.bankRate * inputAmount + chargebackFee.bankFixed + refundEntity.chargebackBankFee * 1.01,
+          )
+        : 0; // Bank fee buffer 1%
 
     const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
     if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
@@ -584,7 +586,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const solanaCoin = await this.assetService.getSolanaCoin();
 
-    const price = await this.pricingService.getPrice(solanaCoin, this.chf, true);
+    const price = await this.pricingService.getPrice(solanaCoin, PriceCurrency.CHF, true);
     return price.convert(fee);
   }
 
@@ -691,7 +693,9 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getSourceSpecs(from: Active, { fee, volume }: TxSpec, allowExpiredPrice: boolean): Promise<TxSpec> {
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert());
+    const price = await this.pricingService
+      .getPrice(from, PriceCurrency.CHF, allowExpiredPrice)
+      .then((p) => p.invert());
 
     return {
       fee: {
@@ -709,7 +713,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getTargetSpecs(to: Active, { fee, volume }: TxSpec, allowExpiredPrice: boolean): Promise<TxSpec> {
-    const price = await this.pricingService.getPrice(this.chf, to, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(PriceCurrency.CHF, to, allowExpiredPrice);
 
     return {
       fee: {

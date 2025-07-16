@@ -28,6 +28,15 @@ export class BinanceService extends ExchangeService {
     Railgun: undefined,
     BinancePay: undefined,
     Solana: 'SOL',
+    Kraken: undefined,
+    Binance: undefined,
+    XT: undefined,
+    MEXC: undefined,
+    MaerkiBaumann: undefined,
+    Olkypay: undefined,
+    Checkout: undefined,
+    Kaleido: undefined,
+    Sumixx: undefined,
   };
 
   constructor() {

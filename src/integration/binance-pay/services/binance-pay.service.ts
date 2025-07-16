@@ -1,13 +1,22 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
+import { C2BPaymentStatus } from 'src/subdomains/core/payment-link/enums';
+import {
+  C2BOrderResult,
+  C2BPaymentLinkProvider,
+  C2BWebhookResult,
+} from '../../../subdomains/core/payment-link/share/c2b-payment-link.provider';
 import {
   AddSubMerchantResponse,
   BinanceBizType,
@@ -26,11 +35,9 @@ import {
   StoreType,
   SubMerchantOrderData,
 } from '../dto/binance.dto';
-import { IPaymentLinkProvider, OrderResult, WebhookResult } from '../share/IPaymentLinkProvider';
-import { C2BPaymentStatus } from '../share/PaymentStatus';
 
 @Injectable()
-export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhookDto> {
+export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebhookDto>, OnModuleInit {
   private readonly logger = new DfxLogger(BinancePayService);
 
   private readonly baseUrl = 'https://bpay.binanceapi.com';
@@ -38,6 +45,14 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   private readonly secretKey: string;
   private certificatedExpiry: number;
   private cert: CertificateResponse['data'];
+
+  private static readonly HOURS_2 = 2 * 60 * 60 * 1000;
+
+  private readonly SUPPORTED_BIZ_TYPES = [
+    BinanceBizType.PAY,
+    BinanceBizType.PAY_REFUND,
+    BinanceBizType.MERCHANT_QR_CODE,
+  ];
 
   constructor(private readonly http: HttpService) {
     this.apiKey = Config.payment.binancePayPublic;
@@ -92,6 +107,8 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   }
 
   private validateEnrollmentRequiredFieldsOrThrow(paymentLink: PaymentLink): void {
+    const recipient = paymentLink.recipient;
+
     const missing = [
       'externalId',
       'label',
@@ -104,7 +121,8 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
       'zip',
       'city',
       'registrationNumber',
-    ].filter((f) => !paymentLink[f]);
+    ].filter((f) => !(paymentLink[f] ?? recipient[f] ?? recipient.address?.[f]));
+
     if (missing.length) {
       throw new BadRequestException(`Missing required fields for Binance Pay: ${missing.join(', ')}`);
     }
@@ -113,16 +131,18 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
   public async enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>> {
     this.validateEnrollmentRequiredFieldsOrThrow(paymentLink);
 
+    const recipient = paymentLink.recipient;
+
     const subMerchantData = {
       merchantName: `${paymentLink.name} - ${paymentLink.label} - ${paymentLink.externalId}`,
       storeType: paymentLink.storeType || StoreType.PHYSICAL,
       merchantMcc: paymentLink.merchantMcc,
-      country: paymentLink.country?.symbol,
-      siteUrl: paymentLink.website,
-      address: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
+      country: recipient.address?.country,
+      siteUrl: recipient.website,
+      address: `${recipient.address?.street} ${recipient.address?.houseNumber}, ${recipient.address?.zip} ${recipient.address?.city}`,
       registrationNumber: paymentLink.registrationNumber,
-      registrationCountry: paymentLink.country?.symbol,
-      registrationAddress: `${paymentLink.street} ${paymentLink.houseNumber}, ${paymentLink.zip} ${paymentLink.city}`,
+      registrationCountry: recipient.address?.country,
+      registrationAddress: `${recipient.address?.street} ${recipient.address?.houseNumber}, ${recipient.address?.zip} ${recipient.address?.city}`,
     };
 
     try {
@@ -145,15 +165,17 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     quote: PaymentQuote,
-  ): Promise<OrderResult> {
+  ): Promise<C2BOrderResult> {
     const orderDetails: OrderData = {
       env: {
         terminalType: BinancePayTerminalType.OTHERS,
       },
+      qrCodeReferId: transferInfo.referId,
       merchantTradeNo: quote.uniqueId.replace('plq_', ''),
       orderAmount: transferInfo.amount,
       currency: transferInfo.asset,
       description: payment.memo,
+      orderExpireTime: quote.expiryDate.getTime(),
       goodsDetails: [
         {
           goodsType: payment.link.goodsType || GoodsType.TangibleGoods, // TODO: Remove default values
@@ -199,25 +221,41 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     }
   }
 
-  async queryCertificate(): Promise<CertificateResponse> {
-    if (this.certificatedExpiry > Date.now()) {
-      return {
-        status: ResponseStatus.SUCCESS,
-        code: '000000',
-        data: this.cert,
-      };
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BINANCE_PAY_CERTIFICATES_UPDATE })
+  async updateCertificates(): Promise<void> {
+    try {
+      const headers = this.getHeaders({});
+      const response = await this.http.post<CertificateResponse>(
+        `${this.baseUrl}/binancepay/openapi/certificates`,
+        {},
+        { headers },
+      );
+
+      this.cert = response.data;
+      this.certificatedExpiry = Date.now() + BinancePayService.HOURS_2;
+    } catch (e) {
+      if (!e.message?.includes('not configured')) this.logger.error(`Failed to update certificates:`, e);
+    }
+  }
+
+  onModuleInit() {
+    void this.updateCertificates();
+  }
+
+  async getCertificates(): Promise<CertificateResponse> {
+    if (!this.cert || this.certificatedExpiry < Date.now()) {
+      await this.updateCertificates();
     }
 
-    this.certificatedExpiry = Date.now() + 5 * 60 * 1000;
-    const headers = this.getHeaders({});
-    const response = await this.http.post<CertificateResponse>(
-      `${this.baseUrl}/binancepay/openapi/certificates`,
-      {},
-      { headers },
-    );
+    if (!this.cert) {
+      throw new ServiceUnavailableException('Binance Pay certificate not found');
+    }
 
-    this.cert = response.data;
-    return response;
+    return {
+      status: ResponseStatus.SUCCESS,
+      code: '000000',
+      data: this.cert,
+    };
   }
 
   public async verifySignature(body: BinancePayWebhookDto, headers: BinancePayHeaders): Promise<boolean> {
@@ -225,7 +263,7 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
     const webhookData = JSON.stringify({ ...body, bizId: body.bizIdStr }).replace(/"bizId":"(\d+)"/g, '"bizId":$1');
     const payload = `${timestamp}\n${nonce}\n${webhookData}\n`;
 
-    const { data } = await this.queryCertificate();
+    const { data } = await this.getCertificates();
     const cert = data.find((cert) => cert.certSerial === certSN);
     if (!cert) throw new Error('Certificate not found');
 
@@ -241,21 +279,23 @@ export class BinancePayService implements IPaymentLinkProvider<BinancePayWebhook
         return C2BPaymentStatus.REFUNDED;
       case BinancePayStatus.PAY_CLOSED:
         return C2BPaymentStatus.FAILED;
+      case BinancePayStatus.MERCHANT_QR_CODE_SCANED:
+        return C2BPaymentStatus.WAITING;
     }
   }
 
   private isSupportedBizType(bizType: string): boolean {
-    return bizType === BinanceBizType.PAY || bizType === BinanceBizType.PAY_REFUND;
+    return this.SUPPORTED_BIZ_TYPES.includes(bizType as BinanceBizType);
   }
 
-  async handleWebhook(dto: BinancePayWebhookDto): Promise<WebhookResult | undefined> {
+  async handleWebhook(dto: BinancePayWebhookDto): Promise<C2BWebhookResult | undefined> {
     const { bizType, bizIdStr, bizStatus } = dto;
     if (!this.isSupportedBizType(bizType) || !this.getStatus(bizStatus)) return;
 
     return {
       providerOrderId: bizIdStr,
       status: this.getStatus(bizStatus),
-      metadata: dto,
+      metadata: JSON.parse(dto.data),
     };
   }
 }

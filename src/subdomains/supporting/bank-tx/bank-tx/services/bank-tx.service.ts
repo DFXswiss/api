@@ -76,7 +76,6 @@ export class BankTxService {
     private readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
     private readonly olkyService: OlkypayService,
-    @Inject(forwardRef(() => BankTxReturnService))
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,

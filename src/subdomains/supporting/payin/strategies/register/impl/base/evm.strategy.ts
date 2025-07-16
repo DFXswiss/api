@@ -143,7 +143,7 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
       txId: transaction.hash,
       txType: this.getTxType(transaction.toAddress),
       blockHeight: Number(transaction.blockNum),
-      amount: EvmUtil.fromWeiAmount(rawValue, transaction.rawContract.decimals),
+      amount: Util.floorByPrecision(EvmUtil.fromWeiAmount(rawValue, transaction.rawContract.decimals), 15), // temporary precision fix
       asset: this.getTransactionAsset(supportedAssets, transaction.rawContract.address) ?? null,
     };
   }

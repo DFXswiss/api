@@ -1,10 +1,10 @@
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { KycStepStatus } from '../../enums/kyc.enum';
+import { ReviewStatus } from '../../enums/review-status.enum';
 
 export class UpdateKycStepDto {
   @IsNotEmpty()
-  @IsEnum(KycStepStatus)
-  status: KycStepStatus;
+  @IsEnum(ReviewStatus)
+  status: ReviewStatus;
 
   @IsOptional()
   @IsString()

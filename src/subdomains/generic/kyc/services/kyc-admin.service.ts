@@ -6,10 +6,12 @@ import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
+import { KycError } from '../dto/kyc-error.enum';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType } from '../enums/kyc.enum';
+import { KycStepType } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { KycNotificationService } from './kyc-notification.service';
 import { KycService } from './kyc.service';
@@ -80,10 +82,14 @@ export class KycAdminService {
     await this.kycService.syncIdentStep(kycStep);
   }
 
-  async resetKyc(userData: UserData): Promise<void> {
+  async resetKyc(userData: UserData, comment: KycError): Promise<void> {
     for (const kycStep of userData.kycSteps) {
-      if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && !kycStep.isFailed)
-        await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED });
+      if (
+        [KycStepName.FINANCIAL_DATA, KycStepName.IDENT, KycStepName.DFX_APPROVAL].includes(kycStep.name) &&
+        !kycStep.isFailed &&
+        !kycStep.isCanceled
+      )
+        await this.kycStepRepo.update(kycStep.id, { status: ReviewStatus.CANCELED, comment });
     }
   }
 
@@ -103,7 +109,7 @@ export class KycAdminService {
     });
     if (!kycStep) throw new NotFoundException('No kycSteps found');
 
-    if (kycStep.status === KycStepStatus.FAILED) {
+    if (kycStep.status === ReviewStatus.FAILED) {
       await this.webhookService.kycFailed(kycStep.userData, dto.reason ?? 'KYC failed');
     } else {
       await this.webhookService.kycChanged(kycStep.userData);

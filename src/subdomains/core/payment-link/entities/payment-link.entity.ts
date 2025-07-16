@@ -1,13 +1,13 @@
 import { GetConfig } from 'src/config/config';
 
+import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/binance-pay/dto/binance.dto';
 import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/c2b-payment-link/dto/binance.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
-import { PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
+import { PaymentLinkMode, PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';
 
@@ -39,6 +39,9 @@ export class PaymentLink extends IEntity {
 
   @Column({ length: 256 })
   status: PaymentLinkStatus;
+
+  @Column({ length: 256, default: PaymentLinkMode.MULTIPLE })
+  mode: PaymentLinkMode;
 
   @Column({ length: 'MAX', nullable: true })
   webhookUrl?: string;
@@ -99,7 +102,7 @@ export class PaymentLink extends IEntity {
 
   // --- ENTITY METHODS --- //
   get metaId(): string {
-    return this.externalId ?? `${this.id}`;
+    return this.label ?? this.externalId ?? `${this.id}`;
   }
 
   displayName(paymentMetaId?: string): string {
@@ -178,9 +181,5 @@ export class PaymentLink extends IEntity {
 
   getMatchingStandard(param?: PaymentStandard): PaymentStandard {
     return this.configObj.standards.includes(param) ? param : this.defaultStandard;
-  }
-
-  get paymentTimeout(): number {
-    return this.configObj.paymentTimeout;
   }
 }

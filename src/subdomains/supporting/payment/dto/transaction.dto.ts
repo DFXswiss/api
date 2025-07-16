@@ -17,7 +17,7 @@ export enum TransactionState {
   CREATED = 'Created',
   PROCESSING = 'Processing',
   LIQUIDITY_PENDING = 'LiquidityPending',
-  AML_PENDING = 'AmlPending',
+  CHECK_PENDING = 'CheckPending',
   KYC_REQUIRED = 'KycRequired',
   LIMIT_EXCEEDED = 'LimitExceeded',
   FEE_TOO_HIGH = 'FeeTooHigh',
@@ -72,6 +72,7 @@ export const TransactionReasonMapper: {
 } = {
   [AmlReason.NA]: null,
   [AmlReason.MANUAL_CHECK]: null,
+  [AmlReason.MANUAL_CHECK_BANK_DATA]: null,
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
   [AmlReason.USER_BLOCKED]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DATA_BLOCKED]: TransactionReason.UNKNOWN,

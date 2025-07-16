@@ -297,6 +297,7 @@ export class TransactionController {
     RoleGuard(UserRole.ACCOUNT),
     UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
   )
+  @ApiOkResponse({ type: RefundDataDto })
   async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RefundDataDto> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { bankTxReturn: true },
@@ -367,6 +368,7 @@ export class TransactionController {
     RoleGuard(UserRole.ACCOUNT),
     UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
   )
+  @ApiOkResponse()
   async setTransactionRefundTarget(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -374,7 +376,7 @@ export class TransactionController {
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { transaction: { userData: true } },
-      bankTxReturn: { bankTx: true },
+      bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
       buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true, transaction: { userData: true } },
       buyFiat: { cryptoInput: true, transaction: { userData: true } },
@@ -569,7 +571,14 @@ export class TransactionController {
     accountId?: number,
   ): Promise<Transaction | TransactionRequest | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true, chargebackOutput: true },
+      buyCrypto: {
+        buy: true,
+        cryptoRoute: true,
+        cryptoInput: true,
+        bankTx: true,
+        chargebackOutput: true,
+        checkoutTx: true,
+      },
       buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
       refReward: true,
       bankTx: { transaction: true },
@@ -578,6 +587,7 @@ export class TransactionController {
       userData: true,
       user: { userData: true },
       request: true,
+      bankTxReturn: true,
     };
 
     let tx: Transaction | TransactionRequest;
@@ -630,6 +640,10 @@ export class TransactionController {
         return detailed
           ? TransactionDtoMapper.mapReferralRewardDetail(refRewardExtended)
           : TransactionDtoMapper.mapReferralReward(refRewardExtended);
+
+      case BankTxReturn:
+        const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);
+        return TransactionDtoMapper.mapUnassignedTransaction(transaction.bankTx, currency, transaction.bankTxReturn);
 
       default:
         if (transaction?.sourceEntity instanceof BankTx && !transaction?.type) {

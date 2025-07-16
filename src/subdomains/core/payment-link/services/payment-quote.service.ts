@@ -1,19 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
-import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmGasPriceService } from 'src/integration/blockchain/shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
-import { C2BPaymentLinkService } from 'src/integration/c2b-payment-link/c2b-payment-link.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
-import { PayoutMoneroService } from 'src/subdomains/supporting/payout/services/payout-monero.service';
+import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
+import { PaymentLinkFeeService } from 'src/subdomains/core/payment-link/services/payment-link-fee.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Equal, In, LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
@@ -31,9 +28,6 @@ import { PaymentQuoteRepository } from '../repositories/payment-quote.repository
 @Injectable()
 export class PaymentQuoteService {
   private readonly logger = new DfxLogger(PaymentQuoteService);
-
-  static readonly PREFIX_UNIQUE_ID = 'plq';
-
   private readonly transferAmountBlockchainOrder: Blockchain[] = [
     Blockchain.LIGHTNING,
     Blockchain.POLYGON,
@@ -54,9 +48,7 @@ export class PaymentQuoteService {
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
-    private readonly evmGasPriceService: EvmGasPriceService,
-    private readonly payoutMoneroService: PayoutMoneroService,
-    private readonly payoutBitcoinService: PayoutBitcoinService,
+    private readonly feeService: PaymentLinkFeeService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
@@ -163,8 +155,9 @@ export class PaymentQuoteService {
   }
 
   async saveBlockchainConfirmed(quote: PaymentQuote, txBlockchain: Blockchain, txId: string): Promise<PaymentQuote> {
-    const status =
-      txBlockchain === Blockchain.LIGHTNING ? PaymentQuoteStatus.TX_COMPLETED : PaymentQuoteStatus.TX_BLOCKCHAIN;
+    const status = [Blockchain.LIGHTNING, Blockchain.BINANCE_PAY].includes(txBlockchain)
+      ? PaymentQuoteStatus.TX_COMPLETED
+      : PaymentQuoteStatus.TX_BLOCKCHAIN;
 
     const update = { status, txBlockchain, txId };
 
@@ -195,7 +188,7 @@ export class PaymentQuoteService {
     const expiryDate = new Date(Math.min(payment.expiryDate.getTime(), Util.secondsAfter(timeoutSeconds).getTime()));
 
     const quote = this.paymentQuoteRepo.create({
-      uniqueId: Util.createUniqueId(PaymentQuoteService.PREFIX_UNIQUE_ID, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentQuoteUidPrefix, 16),
       status: PaymentQuoteStatus.ACTUAL,
       transferAmounts: await this.createTransferAmounts(standard, payment).then(JSON.stringify),
       expiryDate,
@@ -238,7 +231,7 @@ export class PaymentQuoteService {
     blockchain: Blockchain,
     assets: Asset[],
   ): Promise<TransferAmount> {
-    const minFee = await this.getMinFee(blockchain);
+    const minFee = await this.feeService.getMinFee(blockchain);
 
     const transferAmount: TransferAmount = {
       method: blockchain,
@@ -267,25 +260,6 @@ export class PaymentQuoteService {
     }
 
     return transferAmount;
-  }
-
-  private async getMinFee(blockchain: Blockchain): Promise<number | undefined> {
-    switch (blockchain) {
-      case Blockchain.BINANCE_PAY:
-      case Blockchain.LIGHTNING:
-        return 0;
-      case Blockchain.ETHEREUM:
-      case Blockchain.ARBITRUM:
-      case Blockchain.OPTIMISM:
-      case Blockchain.BASE:
-      case Blockchain.GNOSIS:
-      case Blockchain.POLYGON:
-        return this.evmGasPriceService.getGasPrice(blockchain);
-      case Blockchain.MONERO:
-        return MoneroHelper.xmrToAu(await this.payoutMoneroService.getEstimatedFee());
-      case Blockchain.BITCOIN:
-        return this.payoutBitcoinService.getCurrentFeeRate();
-    }
   }
 
   private async createOrderedPaymentAssetMap(blockchains: Blockchain[]): Promise<Map<Blockchain, Asset[]>> {
@@ -382,12 +356,13 @@ export class PaymentQuoteService {
           await this.doEvmHexPayment(transferInfo.method, transferInfo, quote);
           break;
 
-        case Blockchain.MONERO:
-          await this.doMoneroHexPayment(transferInfo, quote);
-          break;
-
         case Blockchain.BITCOIN:
           await this.doBitcoinHexPayment(transferInfo.method, transferInfo, quote);
+          break;
+
+        case Blockchain.MONERO:
+        case Blockchain.SOLANA:
+          await this.doTxIdPayment(transferInfo, quote);
           break;
 
         default:
@@ -447,14 +422,6 @@ export class PaymentQuoteService {
     }
   }
 
-  private async doMoneroHexPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
-    try {
-      transferInfo.tx ? quote.txInMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
-    } catch (e) {
-      quote.txFailed(e.message);
-    }
-  }
-
   private async doBitcoinHexPayment(
     method: Blockchain,
     transferInfo: TransferInfo,
@@ -496,6 +463,14 @@ export class PaymentQuoteService {
       transactionResponse.error
         ? quote.txFailed(transactionResponse.error.message)
         : quote.txInMempool(transactionResponse.hash);
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
+  }
+
+  private async doTxIdPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    try {
+      transferInfo.tx ? quote.txInMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
     } catch (e) {
       quote.txFailed(e.message);
     }

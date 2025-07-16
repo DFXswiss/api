@@ -23,11 +23,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import { BinancePayWebhookDto } from 'src/integration/c2b-payment-link/dto/binance.dto';
-import { BinancePayWebhookGuard } from 'src/integration/c2b-payment-link/guards/binance-pay-webhook.guard';
-import { C2BPaymentProvider } from 'src/integration/c2b-payment-link/share/providers.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -41,14 +39,21 @@ import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
-import { PaymentLinkDto, PaymentLinkHistoryDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
+import {
+  PaymentLinkDto,
+  PaymentLinkHistoryDto,
+  PaymentLinkPayRequestDto,
+  PaymentLinkPosDto,
+} from '../dto/payment-link.dto';
 import { PaymentRecipientMapper } from '../dto/payment-recipient-mapper';
 import { PaymentRecipientDto } from '../dto/payment-recipient.dto';
 import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
+import { StickerType } from '../enums';
 import { JwtOrPaymentLinkKeyGuard } from '../guards/jwt-or-payment-link-key.guard';
+import { OCPStickerService } from '../services/ocp-sticker.service';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 import { PaymentLinkService } from '../services/payment-link.service';
 
@@ -61,6 +66,7 @@ export class PaymentLinkController {
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly sellService: SellService,
+    private readonly paymentLinkStickerService: OCPStickerService,
   ) {}
 
   @Get()
@@ -86,14 +92,18 @@ export class PaymentLinkController {
 
   @Get('history')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async getPaymentHistory(
     @GetJwt() jwt: JwtPayload,
     @Query() dto: GetPaymentLinkHistoryDto,
+    @Query('externalLinkId') externalLinkId: string,
+    @Query('key') key: string,
   ): Promise<PaymentLinkHistoryDto[]> {
     return this.paymentLinkService
-      .getHistoryByStatus(+jwt.user, dto.status, dto.from, dto.to)
+      .getHistoryByStatus(+jwt?.user, dto.status, dto.from, dto.to, key, externalLinkId)
       .then(PaymentLinkDtoMapper.toLinkHistoryDtoList);
   }
 
@@ -121,11 +131,27 @@ export class PaymentLinkController {
     @Query('externalPaymentId') externalPaymentId: string,
     @Body() dto: UpdatePaymentLinkDto,
   ): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(jwt.account);
-
     return this.paymentLinkService
       .update(+jwt.user, dto, +linkId, externalLinkId, externalPaymentId)
       .then(PaymentLinkDtoMapper.toLinkDto);
+  }
+
+  @Put('pos')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOkResponse({ type: PaymentLinkPosDto })
+  @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
+  async createPosLink(
+    @GetJwt() jwt: JwtPayload,
+    @Query('linkId') linkId: string,
+    @Query('externalLinkId') externalLinkId: string,
+    @Query('externalPaymentId') externalPaymentId: string,
+  ): Promise<PaymentLinkPosDto> {
+    return this.paymentLinkService
+      .createPosLinkUser(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .then((url) => ({ url }));
   }
 
   // -- CONFIG --- //
@@ -186,7 +212,7 @@ export class PaymentLinkController {
   }
 
   @Post('payment')
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiCreatedResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -200,18 +226,19 @@ export class PaymentLinkController {
     @Query('route') route: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    if (key) {
-      if (!route || !externalLinkId)
-        throw new BadRequestException('when using access key, route and externalLinkId must be provided');
-
+    if (jwt) {
       return this.paymentLinkService
-        .createPaymentForRouteWithAccessKey(dto, key, route, externalLinkId)
+        .createPayment(+jwt.user, dto, +linkId, externalLinkId)
         .then(PaymentLinkDtoMapper.toLinkDto);
     }
 
-    return this.paymentLinkService
-      .createPayment(+jwt.user, dto, +linkId, externalLinkId)
-      .then(PaymentLinkDtoMapper.toLinkDto);
+    if (key) {
+      return this.paymentLinkService
+        .createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
+        .then(PaymentLinkDtoMapper.toLinkDto);
+    }
+
+    return this.paymentLinkService.createPublicPayment(dto, route, externalLinkId).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Get('payment/wait')
@@ -256,19 +283,23 @@ export class PaymentLinkController {
 
   @Delete('payment')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'externalPaymentId', description: 'External payment ID', required: false })
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
+  @ApiQuery({ name: 'route', description: 'Route label', required: false })
   async cancelPayment(
     @GetJwt() jwt: JwtPayload,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
+    @Query('key') key: string,
+    @Query('route') route: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(+jwt.user, +linkId, externalLinkId, externalPaymentId)
+      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key, route)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -296,17 +327,27 @@ export class PaymentLinkController {
     return this.paymentLinkService.updatePaymentLinkAdmin(+id, dto);
   }
 
+  @Put(':id/pos')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async createPosLinkAdmin(@Param('id') id: string, @Query('scoped') scoped: string): Promise<string> {
+    return this.paymentLinkService.createPosLinkAdmin(+id, scoped === 'true');
+  }
+
   @Get('stickers')
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: StreamableFile })
   @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
   @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: false })
   @ApiQuery({ name: 'ids', description: 'Comma-separated payment link IDs', required: false })
+  @ApiQuery({ name: 'type', description: 'Sticker type', required: false })
   @ApiQuery({ name: 'lang', description: 'Language code', required: false })
   async generateOcpStickers(
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
     @Query('ids') ids: string,
+    @Query('type') type: StickerType,
     @Query('lang') lang: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
@@ -316,7 +357,13 @@ export class PaymentLinkController {
 
     const idArray = ids?.split(',').map((id) => +id);
     const externalIdArray = externalIds?.split(',').map((id) => id.trim());
-    const pdfBuffer = await this.paymentLinkService.generateOcpStickersPdf(route, externalIdArray, idArray, lang);
+    const pdfBuffer = await this.paymentLinkStickerService.generateOcpStickersPdf(
+      route,
+      externalIdArray,
+      idArray,
+      type,
+      lang,
+    );
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -324,24 +371,6 @@ export class PaymentLinkController {
     });
 
     return new StreamableFile(pdfBuffer);
-  }
-
-  // --- INTEGRATION --- //
-  @Post('integration/binance/webhook')
-  @ApiExcludeEndpoint()
-  @UseGuards(BinancePayWebhookGuard)
-  async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: string }> {
-    void this.paymentLinkPaymentService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto).catch((error) => {
-      this.logger.error('Error handling Binance Pay webhook', error);
-    });
-    return { returnCode: 'SUCCESS', returnMessage: null };
-  }
-
-  @Post('integration/binance/activate/:id')
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async activateBinancePay(@Param('id') id: string): Promise<void> {
-    await this.paymentLinkService.activateC2BPaymentLink(id, C2BPaymentProvider.BINANCE_PAY);
   }
 
   // --- HELPER METHODS --- //

@@ -2,15 +2,13 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FrankencoinService } from '../frankencoin/frankencoin.service';
 import { CollateralWithTotalBalance } from '../shared/dto/frankencoin-based.dto';
 import { EvmUtil } from '../shared/evm/evm.util';
@@ -33,33 +31,21 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'DEuroSmartContract';
 
-  private usd: Fiat;
-  private eur: Fiat;
-  private chf: Fiat;
-
   private deuroClient: DEuroClient;
 
   private frankencoinService: FrankencoinService;
 
-  constructor(
-    private readonly moduleRef: ModuleRef,
-    private readonly logService: LogService,
-    private readonly fiatService: FiatService,
-  ) {
+  constructor(private readonly moduleRef: ModuleRef, private readonly logService: LogService) {
     super();
   }
 
-  async onModuleInit() {
+  onModuleInit() {
     this.setup(
       this.moduleRef.get(PricingService, { strict: false }),
       this.moduleRef.get(BlockchainRegistryService, { strict: false }),
     );
 
     this.frankencoinService = this.moduleRef.get(FrankencoinService, { strict: false });
-
-    this.usd = await this.fiatService.getFiatByName('USD');
-    this.eur = await this.fiatService.getFiatByName('EUR');
-    this.chf = await this.fiatService.getFiatByName('CHF');
 
     this.deuroClient = new DEuroClient(this.getEvmClient());
   }
@@ -279,7 +265,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
   async getCustomCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {
     if (collateral.symbol === 'WFPS') {
       const fpsPriceInChf = await this.frankencoinService.getFPSPrice();
-      const priceChfToUsd = await this.getPrice(this.chf, this.usd);
+      const priceChfToUsd = await this.getPrice(PriceCurrency.CHF, PriceCurrency.USD);
 
       return 1 / priceChfToUsd.convert(fpsPriceInChf);
     } else if (collateral.symbol === 'DEPS') {
@@ -304,7 +290,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
 
     const deuroLog = <DEuroLogDto>JSON.parse(maxDEuroLogEntity.message);
 
-    const priceUsdToEur = await this.getPrice(this.usd, this.eur);
+    const priceUsdToEur = await this.getPrice(PriceCurrency.USD, PriceCurrency.EUR);
 
     return {
       totalSupplyDeuro: deuroLog.totalSupply,

@@ -4,7 +4,8 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType, getKycStepIndex, getKycTypeIndex, requiredKycSteps } from '../../enums/kyc.enum';
+import { KycStepType, getKycStepIndex, getKycTypeIndex, requiredKycSteps } from '../../enums/kyc.enum';
+import { ReviewStatus } from '../../enums/review-status.enum';
 import { KycLevelDto, KycSessionDto } from '../output/kyc-info.dto';
 import { KycStepMapper } from './kyc-step.mapper';
 
@@ -17,8 +18,8 @@ export class KycInfoMapper {
   ): KycLevelDto | KycSessionDto {
     const kycSteps = KycInfoMapper.getUiSteps(userData);
     currentStep ??=
-      kycSteps.find((s) => s.status === KycStepStatus.IN_PROGRESS) ??
-      kycSteps.find((s) => s.status === KycStepStatus.FAILED);
+      kycSteps.find((s) => s.status === ReviewStatus.IN_PROGRESS) ??
+      kycSteps.find((s) => s.status === ReviewStatus.FAILED);
 
     const userKycClients = kycClients.filter((kc) => userData.kycClientList.includes(kc.id));
 
@@ -42,13 +43,13 @@ export class KycInfoMapper {
     const openSteps: KycStep[] = requiredKycSteps(userData).map((s) =>
       Object.assign(new KycStep(), {
         name: s,
-        status: KycStepStatus.NOT_STARTED,
+        status: ReviewStatus.NOT_STARTED,
         sequenceNumber: -1,
       }),
     );
 
     return KycInfoMapper.sortSteps(
-      userData.kycSteps.filter((s) => s.status !== KycStepStatus.CANCELED).concat(openSteps),
+      userData.kycSteps.filter((s) => s.status !== ReviewStatus.CANCELED).concat(openSteps),
     );
   }
 

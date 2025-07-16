@@ -1010,6 +1010,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.IBAN_CHECK]: DeclineCategory.OTHER,
   [AmlReason.KYC_REJECTED]: DeclineCategory.OTHER,
   [AmlReason.MANUAL_CHECK]: DeclineCategory.OTHER,
+  [AmlReason.MANUAL_CHECK_BANK_DATA]: DeclineCategory.OTHER,
   [AmlReason.MIN_DEPOSIT_NOT_REACHED]: DeclineCategory.OTHER,
   [AmlReason.NA]: DeclineCategory.OTHER,
   [AmlReason.NAME_CHECK_WITHOUT_KYC]: DeclineCategory.OTHER,

@@ -1,4 +1,4 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Column, Entity, JoinColumn, OneToMany, OneToOne } from 'typeorm';
@@ -9,6 +9,16 @@ export enum TransactionCharge {
   BEN = 'BEN',
   OUR = 'OUR',
   SHA = 'SHA',
+}
+
+export enum FiatOutputType {
+  BUY_FIAT = 'BuyFiat',
+  BUY_CRYPTO_FAIL = 'BuyCryptoFail',
+  LIQ_MANAGEMENT = 'LiqManagement',
+  BANK_TX_RETURN = 'BankTxReturn',
+  BANK_TX_REPEAT = 'BankTxRepeat',
+  MANUAL = 'Manual',
+  TALIUM_BUY_CRYPTO = 'TaliumBuyCrypto',
 }
 
 @Entity()
@@ -27,7 +37,7 @@ export class FiatOutput extends IEntity {
   bankTx?: BankTx;
 
   @Column({ length: 256 })
-  type: string;
+  type: FiatOutputType;
 
   @Column({ type: 'integer', nullable: true })
   originEntityId?: number;
@@ -121,4 +131,32 @@ export class FiatOutput extends IEntity {
 
   @Column({ nullable: true })
   reportCreated?: boolean;
+
+  // --- ENTITY METHODS --- //
+
+  setBatch(batchId?: number, batchAmount?: number): UpdateResult<FiatOutput> {
+    const update: Partial<FiatOutput> = { batchId, batchAmount: Math.round(batchAmount) };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  get ibanCountry(): string {
+    return (
+      this.buyCrypto?.chargebackIban ??
+      this.buyFiats?.[0]?.sell?.iban ??
+      this.bankTxReturn?.chargebackIban
+    )?.substring(0, 2);
+  }
+
+  get outputCurrency(): string {
+    return ['LI', 'CH'].includes(this.ibanCountry)
+      ? 'CHF'
+      : this.buyCrypto?.bankTx?.currency ?? this.buyFiats?.[0]?.sell?.fiat?.name ?? this.bankTxReturn?.bankTx?.currency;
+  }
+
+  get originEntity(): BuyCrypto | BuyFiat | BankTxReturn {
+    return this.buyCrypto ?? this.buyFiats[0] ?? this.bankTxReturn;
+  }
 }

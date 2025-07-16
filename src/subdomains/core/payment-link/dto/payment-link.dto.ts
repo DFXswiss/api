@@ -1,7 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ErrorDto } from 'src/shared/dto/error.dto';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
+import {
+  PaymentLinkMode,
+  PaymentLinkPaymentMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentStandard,
+} from '../enums';
 import { PaymentLinkConfigDto } from './payment-link-config.dto';
 import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
 
@@ -12,8 +18,9 @@ export interface TransferInfo {
   amount: number;
   method: TransferMethod;
   quoteUniqueId: string;
-  tx: string;
-  hex: string;
+  tx?: string;
+  hex?: string;
+  referId?: string;
 }
 
 export interface TransferAmount {
@@ -38,6 +45,9 @@ export interface PaymentLinkRequestDto {
   possibleStandards: PaymentStandard[];
   displayQr: boolean;
   recipient: PaymentLinkRecipientDto;
+  mode: PaymentLinkMode;
+  route?: string;
+  currency?: string;
 }
 
 export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
@@ -91,6 +101,9 @@ export class PaymentLinkPaymentDto {
   mode: PaymentLinkPaymentMode;
 
   @ApiProperty()
+  date: Date;
+
+  @ApiProperty()
   expiryDate: Date;
 
   @ApiProperty()
@@ -136,6 +149,9 @@ export class PaymentLinkBaseDto {
 
   @ApiPropertyOptional({ type: PaymentLinkConfigDto })
   config?: PaymentLinkConfigDto;
+
+  @ApiProperty({ enum: PaymentLinkMode })
+  mode?: PaymentLinkMode;
 }
 
 export class PaymentLinkDto extends PaymentLinkBaseDto {
@@ -146,4 +162,9 @@ export class PaymentLinkDto extends PaymentLinkBaseDto {
 export class PaymentLinkHistoryDto extends PaymentLinkBaseDto {
   @ApiPropertyOptional({ type: PaymentLinkPaymentDto, isArray: true })
   payments?: PaymentLinkPaymentDto[];
+}
+
+export class PaymentLinkPosDto {
+  @ApiProperty({ description: 'POS URL' })
+  url: string;
 }
