@@ -12,7 +12,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
-import { SolanaUtil } from 'src/integration/blockchain/solana/SolanaUtil';
+import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { LnurlpLinkUpdateDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';

@@ -11,17 +11,17 @@ import { DEuroModule } from './deuro/deuro.module';
 import { Ebel2xModule } from './ebel2x/ebel2x.module';
 import { EthereumModule } from './ethereum/ethereum.module';
 import { FrankencoinModule } from './frankencoin/frankencoin.module';
+import { GnosisModule } from './gnosis/gnosis.module';
 import { MoneroModule } from './monero/monero.module';
 import { OptimismModule } from './optimism/optimism.module';
 import { PolygonModule } from './polygon/polygon.module';
 import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
-import { EvmGasPriceService } from './shared/evm/evm-gas-price.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
 import { SolanaModule } from './solana/solana.module';
 
 @Module({
-  providers: [EvmDecimalsService, EvmGasPriceService, CryptoService, BlockchainRegistryService],
+  providers: [EvmDecimalsService, CryptoService, BlockchainRegistryService],
   imports: [
     SharedModule,
     BitcoinModule,
@@ -31,6 +31,7 @@ import { SolanaModule } from './solana/solana.module';
     ArbitrumModule,
     PolygonModule,
     BaseModule,
+    GnosisModule,
     LightningModule,
     MoneroModule,
     FrankencoinModule,
@@ -48,6 +49,7 @@ import { SolanaModule } from './solana/solana.module';
     ArbitrumModule,
     PolygonModule,
     BaseModule,
+    GnosisModule,
     LightningModule,
     MoneroModule,
     FrankencoinModule,
@@ -55,7 +57,6 @@ import { SolanaModule } from './solana/solana.module';
     Ebel2xModule,
     RailgunModule,
     SolanaModule,
-    EvmGasPriceService,
     CryptoService,
     BlockchainRegistryService,
   ],

@@ -5,6 +5,7 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportMessage } from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
 import { LimitRequest } from '../../../supporting/support-issue/entities/limit-request.entity';
@@ -29,6 +30,7 @@ export class SupportReturnData {
   refReward: RefReward[];
   cryptoInput: CryptoInput[];
   bankTxRepeat: BankTxRepeat[];
+  transaction: Transaction[];
 }
 
 export class SupportDataQuery {

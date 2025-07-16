@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { In } from 'typeorm';
+import { FindOptionsRelations, In } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
@@ -18,8 +18,11 @@ export class LiquidityManagementBalanceService {
 
   //*** PUBLIC API ***//
 
-  async getAllLiqBalancesForAssets(assetIds: number[]): Promise<LiquidityBalance[]> {
-    return this.balanceRepo.findBy({ asset: { id: In(assetIds) } });
+  async getAllLiqBalancesForAssets(
+    assetIds: number[],
+    relations?: FindOptionsRelations<LiquidityBalance>,
+  ): Promise<LiquidityBalance[]> {
+    return this.balanceRepo.find({ where: { asset: { id: In(assetIds) } }, relations });
   }
 
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
@@ -42,7 +45,7 @@ export class LiquidityManagementBalanceService {
   }
 
   findRelevantBalance(rule: LiquidityManagementRule, balances: LiquidityBalance[]): LiquidityBalance | undefined {
-    return balances.find((b) => b.target.id === rule.target.id);
+    return balances.find((b) => b.asset.id === rule.target.id);
   }
 
   async getBalances(): Promise<LiquidityBalance[]> {
@@ -59,10 +62,7 @@ export class LiquidityManagementBalanceService {
   private async saveBalanceResults(balances: LiquidityBalance[]): Promise<void> {
     for (const balance of balances) {
       try {
-        const existingBalance = await this.balanceRepo.findOneBy([
-          { asset: { id: balance.asset?.id } },
-          { fiat: { id: balance.fiat?.id } },
-        ]);
+        const existingBalance = await this.balanceRepo.findOneBy({ asset: { id: balance.asset?.id } });
 
         if (existingBalance) {
           existingBalance.updateBalance(balance.amount ?? 0);
@@ -73,7 +73,7 @@ export class LiquidityManagementBalanceService {
 
         await this.balanceRepo.save(balance);
       } catch (e) {
-        this.logger.error(`Could not save balance of ${balance.targetName}:`, e);
+        this.logger.error(`Could not save balance of ${balance.asset.name}:`, e);
       }
     }
   }

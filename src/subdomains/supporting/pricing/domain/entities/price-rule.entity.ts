@@ -10,6 +10,9 @@ export enum PriceSource {
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
   KUCOIN = 'Kucoin',
+  MEXC = 'MEXC',
+  XT = 'XT',
+
   COIN_GECKO = 'CoinGecko',
   DEX = 'DEX',
   FIXER = 'Fixer',

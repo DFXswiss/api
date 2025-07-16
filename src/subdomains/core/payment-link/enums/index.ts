@@ -1,3 +1,5 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+
 export enum PaymentLinkStatus {
   ACTIVE = 'Active',
   INACTIVE = 'Inactive',
@@ -55,4 +57,27 @@ export enum PaymentStandard {
   OPEN_CRYPTO_PAY = 'OpenCryptoPay',
   LIGHTNING_BOLT11 = 'LightningBolt11',
   PAY_TO_ADDRESS = 'PayToAddress',
+}
+
+export enum C2BPaymentProvider {
+  BINANCE_PAY = Blockchain.BINANCE_PAY,
+}
+
+export enum C2BPaymentStatus {
+  WAITING = 'WAITING',
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  REFUNDED = 'REFUNDED',
+}
+
+export enum StickerType {
+  CLASSIC = 'Classic',
+  BITCOIN_FOCUS = 'BitcoinFocus',
+}
+
+export enum PaymentLinkMode {
+  SINGLE = 'Single',
+  MULTIPLE = 'Multiple',
+  PUBLIC = 'Public',
 }

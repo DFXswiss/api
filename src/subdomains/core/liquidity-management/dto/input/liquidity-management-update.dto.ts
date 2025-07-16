@@ -17,6 +17,11 @@ export class LiquidityManagementRuleUpdateDto {
   maximal: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  limit: number;
+
+  @IsOptional()
   @IsInt()
   reactivationTime?: number;
 }

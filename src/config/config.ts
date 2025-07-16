@@ -2,7 +2,7 @@ import { NetworkName } from '@defichain/jellyfish-network';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { Exchange } from 'ccxt';
+import { ConstructorArgs } from 'ccxt';
 import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
@@ -27,8 +27,6 @@ export enum Environment {
   PRD = 'prd',
 }
 
-export type ExchangeConfig = Partial<Exchange> & { withdrawKeys?: Map<string, string> };
-
 export type Version = '1' | '2';
 
 export function GetConfig(): Configuration {
@@ -48,6 +46,7 @@ export class Configuration {
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
+  financeLogTotalBalanceChangeLimit = 5000;
 
   defaults = {
     currency: 'EUR',
@@ -71,12 +70,29 @@ export class Configuration {
     },
   };
 
+  prefixes = {
+    issueUidPrefix: 'I',
+    quoteUidPrefix: 'Q',
+    transactionUidPrefix: 'T',
+    kycFileUidPrefix: 'F',
+    paymentLinkUidPrefix: 'pl',
+    paymentLinkPaymentUidPrefix: 'plp',
+    paymentQuoteUidPrefix: 'plq',
+  };
+
   moderators = {
     Wendel: '019-957',
   };
 
   loginCountries = {
     '1': ['CH'],
+  };
+
+  liquidityManagement = {
+    bankMinBalance: 100,
+    fiatOutput: {
+      batchAmountLimit: 9500,
+    },
   };
 
   defaultVolumeDecimal = 2;
@@ -100,7 +116,7 @@ export class Configuration {
 
   tradingLimits = {
     monthlyDefaultWoKyc: 1000, // CHF
-    weeklyAmlRule: 5000, // CHF
+    weeklyAmlRule: 25000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
     yearlyWithoutKyc: 50000, // CHF
@@ -139,7 +155,7 @@ export class Configuration {
   arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
   railgunSignatureFormat = '[a-f0-9]{128}';
-  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{88}';
+  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
 
   allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}`;
 
@@ -535,7 +551,8 @@ export class Configuration {
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
-    minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
+    minConfirmations: (blockchain: Blockchain) =>
+      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
@@ -546,10 +563,14 @@ export class Configuration {
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
-    manualMethods: ['BinancePay', 'KuCoinPay', 'BitcoinOnChainTaprootAsset'],
+    manualMethods: ['KuCoinPay', 'TaprootAsset', 'Spark'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+
+    binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
+    binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
+    binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
 
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
@@ -664,6 +685,15 @@ export class Configuration {
       swapFactoryAddress: '0x33128a8fc17869897dce68ed026d694621f6fdfd',
       quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
+    gnosis: {
+      gnosisWalletAddress: process.env.GNOSIS_WALLET_ADDRESS,
+      gnosisWalletPrivateKey: process.env.GNOSIS_WALLET_PRIVATE_KEY,
+      gnosisGatewayUrl: process.env.GNOSIS_GATEWAY_URL,
+      gnosisApiKey: process.env.ALCHEMY_API_KEY,
+      gnosisChainId: +process.env.GNOSIS_CHAIN_ID,
+      swapContractAddress: process.env.GNOSIS_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.GNOSIS_QUOTE_CONTRACT_ADDRESS,
+    },
     bsc: {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
@@ -705,6 +735,7 @@ export class Configuration {
       solanaGatewayUrl: process.env.SOLANA_GATEWAY_URL,
       solanaApiKey: process.env.TATUM_API_KEY,
       transactionPriorityRate: +(process.env.SOLANA_TRANSACTION_PRIORITY_RATE ?? 1),
+      minimalCoinAccountRent: 0.00089088,
       createTokenAccountFee: 0.00203928,
       minimalPreparationFee: 0.00000001,
 
@@ -749,7 +780,7 @@ export class Configuration {
     },
   };
 
-  exchange: ExchangeConfig = {
+  exchange: ConstructorArgs = {
     enableRateLimit: true,
     rateLimit: 500,
     timeout: 30000,
@@ -872,7 +903,7 @@ export class Configuration {
       : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
   }
 
-  get kraken(): ExchangeConfig {
+  get kraken(): ConstructorArgs {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
@@ -881,7 +912,7 @@ export class Configuration {
     };
   }
 
-  get binance(): ExchangeConfig {
+  get binance(): ConstructorArgs {
     return {
       apiKey: process.env.BINANCE_KEY,
       secret: process.env.BINANCE_SECRET,
@@ -891,11 +922,29 @@ export class Configuration {
     };
   }
 
-  get p2b(): ExchangeConfig {
+  get p2b(): ConstructorArgs {
     return {
       apiKey: process.env.P2B_KEY,
       secret: process.env.P2B_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
+  get xt(): ConstructorArgs {
+    return {
+      apiKey: process.env.XT_KEY,
+      secret: process.env.XT_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.XT_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
+  get mexc(): ConstructorArgs {
+    return {
+      apiKey: process.env.MEXC_KEY,
+      secret: process.env.MEXC_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
       ...this.exchange,
     };
   }

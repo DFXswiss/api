@@ -3,6 +3,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -11,6 +12,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { Equal, LessThan, Not } from 'typeorm';
 import { TransferInfo } from '../dto/payment-link.dto';
 import { PaymentActivation } from '../entities/payment-activation.entity';
@@ -29,6 +31,7 @@ export class PaymentActivationService implements OnModuleInit {
   private evmDepositAddress: string;
   private moneroDepositAddress: string;
   private bitcoinDepositAddress: string;
+  private solanaDepositAddress: string;
 
   constructor(
     readonly lightningService: LightningService,
@@ -36,6 +39,7 @@ export class PaymentActivationService implements OnModuleInit {
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly assetService: AssetService,
     private readonly cryptoService: CryptoService,
+    private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {
     this.client = lightningService.getDefaultClient();
   }
@@ -44,6 +48,7 @@ export class PaymentActivationService implements OnModuleInit {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
     this.moneroDepositAddress = Config.payment.moneroAddress;
     this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
+    this.solanaDepositAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
   }
 
   async close(activation: PaymentActivation): Promise<void> {
@@ -153,7 +158,7 @@ export class PaymentActivationService implements OnModuleInit {
     expiryDate: Date,
     standard: PaymentStandard,
   ): Promise<PaymentActivation> {
-    const { paymentRequest, paymentHash } = await this.createBlockchainRequest(payment, transferInfo, expirySec);
+    const { paymentRequest, paymentHash } = await this.createBlockchainRequest(payment, transferInfo, expirySec, quote);
 
     return this.savePaymentActivationRequest(
       payment,
@@ -170,6 +175,7 @@ export class PaymentActivationService implements OnModuleInit {
     payment: PaymentLinkPayment,
     transferInfo: TransferInfo,
     expirySec: number,
+    quote: PaymentQuote,
   ): Promise<{ paymentRequest: string; paymentHash?: string }> {
     switch (transferInfo.method) {
       case Blockchain.LIGHTNING:
@@ -182,11 +188,18 @@ export class PaymentActivationService implements OnModuleInit {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
         return this.createPaymentRequest(this.evmDepositAddress, transferInfo);
 
       case Blockchain.MONERO:
         return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
+
+      case Blockchain.SOLANA:
+        return this.createPaymentRequest(this.solanaDepositAddress, transferInfo);
+
+      case Blockchain.BINANCE_PAY:
+        return this.createC2BPaymentRequest(payment, transferInfo, quote);
 
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);
@@ -252,6 +265,15 @@ export class PaymentActivationService implements OnModuleInit {
 
     const paymentRequest = await this.cryptoService.getPaymentRequest(true, asset, address, transferInfo.amount, label);
     return { paymentRequest };
+  }
+
+  private async createC2BPaymentRequest(
+    payment: PaymentLinkPayment,
+    transferInfo: TransferInfo,
+    quote: PaymentQuote,
+  ): Promise<{ paymentRequest: string; paymentHash: string }> {
+    const order = await this.c2bPaymentLinkService.createOrder(payment, transferInfo, quote);
+    return { paymentRequest: order.paymentRequest, paymentHash: order.providerOrderId };
   }
 
   private async savePaymentActivationRequest(

@@ -15,15 +15,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { CronExpression } from '@nestjs/schedule';
-import {
-  ApiBearerAuth,
-  ApiCreatedResponse,
-  ApiExcludeEndpoint,
-  ApiOkResponse,
-  ApiOperation,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
@@ -151,7 +143,7 @@ export class TransactionController {
   }
 
   @Put('csv')
-  @ApiCreatedResponse()
+  @ApiOkResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createCsv(@Query() query: HistoryQueryUser): Promise<string> {
     const csvFile = await this.historyService.getCsvHistory({ ...query, format: ExportFormat.CSV }, ExportType.COMPACT);
@@ -236,7 +228,7 @@ export class TransactionController {
   @Put('detail/csv')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
-  @ApiCreatedResponse()
+  @ApiOkResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
     const transactions = await this.getAllTransactionsDetailed(jwt.account, query);
@@ -248,11 +240,7 @@ export class TransactionController {
 
   @Get('unassigned')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.ACCOUNT),
-    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
     const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
@@ -309,6 +297,7 @@ export class TransactionController {
     RoleGuard(UserRole.ACCOUNT),
     UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
   )
+  @ApiOkResponse({ type: RefundDataDto })
   async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RefundDataDto> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { bankTxReturn: true },
@@ -379,6 +368,7 @@ export class TransactionController {
     RoleGuard(UserRole.ACCOUNT),
     UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
   )
+  @ApiOkResponse()
   async setTransactionRefundTarget(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -386,7 +376,7 @@ export class TransactionController {
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { transaction: { userData: true } },
-      bankTxReturn: { bankTx: true },
+      bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
       buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true, transaction: { userData: true } },
       buyFiat: { cryptoInput: true, transaction: { userData: true } },
@@ -483,12 +473,11 @@ export class TransactionController {
   // --- HELPER METHODS --- //
 
   private async getTransactionDto(
-    tx: Transaction | TransactionRequest,
+    tx: Transaction | TransactionRequest | undefined,
     detailed = false,
   ): Promise<UnassignedTransactionDto | TransactionDto | undefined> {
-    return tx instanceof Transaction
-      ? this.txToTransactionDto(tx, detailed)
-      : this.waitingTxRequestToTransactionDto(tx, detailed);
+    if (tx instanceof Transaction) return this.txToTransactionDto(tx, detailed);
+    if (tx instanceof TransactionRequest) return this.waitingTxRequestToTransactionDto(tx, detailed);
   }
 
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
@@ -582,7 +571,14 @@ export class TransactionController {
     accountId?: number,
   ): Promise<Transaction | TransactionRequest | undefined> {
     const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true, bankTx: true, chargebackOutput: true },
+      buyCrypto: {
+        buy: true,
+        cryptoRoute: true,
+        cryptoInput: true,
+        bankTx: true,
+        chargebackOutput: true,
+        checkoutTx: true,
+      },
       buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
       refReward: true,
       bankTx: { transaction: true },
@@ -591,6 +587,7 @@ export class TransactionController {
       userData: true,
       user: { userData: true },
       request: true,
+      bankTxReturn: true,
     };
 
     let tx: Transaction | TransactionRequest;
@@ -643,6 +640,10 @@ export class TransactionController {
         return detailed
           ? TransactionDtoMapper.mapReferralRewardDetail(refRewardExtended)
           : TransactionDtoMapper.mapReferralReward(refRewardExtended);
+
+      case BankTxReturn:
+        const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);
+        return TransactionDtoMapper.mapUnassignedTransaction(transaction.bankTx, currency, transaction.bankTxReturn);
 
       default:
         if (transaction?.sourceEntity instanceof BankTx && !transaction?.type) {

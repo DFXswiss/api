@@ -240,7 +240,7 @@ export class BankTx extends IEntity {
   }
 
   get chargebackBankFee(): number {
-    return this.chargeAmount;
+    return this.chargeAmount ?? 0;
   }
 
   get refundAmount(): number {
@@ -253,8 +253,13 @@ export class BankTx extends IEntity {
 
   get txInfoName(): string {
     if (
+      !this.txInfo ||
       this.remittanceInfo === this.txInfo ||
       this.txInfo.includes(this.name) ||
+      this.txInfo.includes('Gutschrift SWIFT') ||
+      this.txInfo.includes('Vrt SEPA Recu') ||
+      this.txInfo.includes('Vrt INST Recu') ||
+      this.txInfo.split(' ')[0].length === 14 || // bankUsage
       this.ultimateName ||
       this.creditDebitIndicator === BankTxIndicator.DEBIT
     )

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { plainToInstance, Transform, Type } from 'class-transformer';
+import { Transform, Type, plainToInstance } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -10,6 +10,7 @@ import {
   IsNotEmptyObject,
   IsOptional,
   IsString,
+  IsUrl,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -178,7 +179,7 @@ export class KycOperationalData {
 
   @ApiPropertyOptional({ description: 'Organization Website URL' })
   @IsOptional()
-  @IsString()
+  @IsUrl()
   websiteUrl: string;
 }
 
@@ -261,4 +262,17 @@ export class KycManualIdentData {
   @ValidateNested()
   @Type(() => KycFileData)
   document: KycFileData;
+}
+
+export class PaymentDataDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  purpose: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsBoolean()
+  contractAccepted: boolean;
 }

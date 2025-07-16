@@ -5,7 +5,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
-import { KycStepStatus } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { IsNull, Like, MoreThan, Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
 import { KycLevel, KycType, SignatoryPower, UserDataStatus } from './user-data.entity';
@@ -42,15 +42,15 @@ export class UserDataJobService {
         kycLevel: MoreThan(KycLevel.LEVEL_30),
         accountType: AccountType.ORGANIZATION,
         accountOpenerAuthorization: IsNull(),
-        kycSteps: { name: KycStepName.SIGNATORY_POWER, status: KycStepStatus.COMPLETED },
+        kycSteps: { name: KycStepName.SIGNATORY_POWER, status: ReviewStatus.COMPLETED },
       },
       relations: { kycSteps: true },
     });
 
     for (const entity of entities) {
       const signatoryResult = entity.kycSteps
-        .find((k) => k.name === KycStepName.SIGNATORY_POWER && k.status === KycStepStatus.COMPLETED)
-        .getResult<{signatoryPower: SignatoryPower}>();
+        .find((k) => k.name === KycStepName.SIGNATORY_POWER && k.status === ReviewStatus.COMPLETED)
+        .getResult<{ signatoryPower: SignatoryPower }>();
 
       await this.userDataRepo.update(...entity.setAccountOpenerAuthorization(signatoryResult.signatoryPower));
     }
@@ -62,7 +62,7 @@ export class UserDataJobService {
         kycLevel: KycLevel.LEVEL_30,
         kycType: KycType.DFX,
         status: Not(UserDataStatus.MERGED),
-        kycSteps: { name: KycStepName.FINANCIAL_DATA, status: KycStepStatus.COMPLETED },
+        kycSteps: { name: KycStepName.FINANCIAL_DATA, status: ReviewStatus.COMPLETED },
       },
       relations: { kycSteps: true },
     });

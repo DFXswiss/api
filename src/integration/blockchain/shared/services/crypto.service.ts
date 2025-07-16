@@ -29,6 +29,7 @@ export class CryptoService {
     Blockchain.OPTIMISM,
     Blockchain.POLYGON,
     Blockchain.BASE,
+    Blockchain.GNOSIS,
     Blockchain.HAQQ,
   ];
 
@@ -63,12 +64,16 @@ export class CryptoService {
       case Blockchain.OPTIMISM:
       case Blockchain.POLYGON:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.HAQQ:
       case Blockchain.BINANCE_SMART_CHAIN:
         return EvmUtil.getPaymentRequest(address, asset, amount);
 
       case Blockchain.MONERO:
         return this.moneroService.getPaymentRequest(address, amount);
+
+      case Blockchain.SOLANA:
+        return this.solanaService.getPaymentRequest(address, amount);
 
       default:
         return undefined;
@@ -94,6 +99,7 @@ export class CryptoService {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
+      case Blockchain.GNOSIS:
       case Blockchain.HAQQ:
         return UserAddressType.EVM;
 

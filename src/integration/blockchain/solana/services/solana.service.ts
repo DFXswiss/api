@@ -37,6 +37,10 @@ export class SolanaService extends BlockchainService {
     return nacl.sign.detached.verify(Util.stringToUint8(message, 'utf8'), bs58.decode(signature), bs58.decode(address));
   }
 
+  getPaymentRequest(address: string, amount: number): string {
+    return `solana:${address}?amount=${Util.numberToFixedString(amount)}`;
+  }
+
   async getBlockHeight(): Promise<number> {
     return this.client.getBlockHeight();
   }
@@ -45,12 +49,20 @@ export class SolanaService extends BlockchainService {
     return this.client.getNativeCoinBalance();
   }
 
+  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
+    return this.client.getNativeCoinBalanceForAddress(address);
+  }
+
   async getTokenBalance(asset: Asset, address?: string): Promise<number> {
     return this.client.getTokenBalance(asset, address ?? this.client.getWalletAddress());
   }
 
-  async isTxComplete(txHash: string, confirmations?: number): Promise<boolean> {
-    return this.client.isTxComplete(txHash, confirmations);
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+    return this.client.getCurrentGasCostForCoinTransaction();
+  }
+
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    return this.client.getCurrentGasCostForTokenTransaction(token);
   }
 
   async sendNativeCoinFromAccount(account: WalletAccount, toAddress: string, amount: number) {
@@ -73,6 +85,10 @@ export class SolanaService extends BlockchainService {
 
   async sendTokenFromDex(toAddress: string, token: Asset, amount: number) {
     return this.client.sendTokenFromDex(toAddress, token, amount);
+  }
+
+  async isTxComplete(txHash: string, confirmations?: number): Promise<boolean> {
+    return this.client.isTxComplete(txHash, confirmations);
   }
 
   async getTransaction(txHash: string): Promise<SolanaTransactionDto> {

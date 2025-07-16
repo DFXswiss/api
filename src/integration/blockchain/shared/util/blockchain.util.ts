@@ -31,12 +31,23 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.ARBITRUM]: 'https://arbiscan.io',
   [Blockchain.POLYGON]: 'https://polygonscan.com',
   [Blockchain.BASE]: 'https://basescan.org',
+  [Blockchain.GNOSIS]: 'https://gnosisscan.io',
   [Blockchain.SOLANA]: 'https://solscan.io',
   [Blockchain.HAQQ]: 'https://explorer.haqq.network',
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
   [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
+  [Blockchain.BINANCE_PAY]: undefined,
+  [Blockchain.KRAKEN]: undefined,
+  [Blockchain.BINANCE]: undefined,
+  [Blockchain.XT]: undefined,
+  [Blockchain.MEXC]: undefined,
+  [Blockchain.MAERKI_BAUMANN]: undefined,
+  [Blockchain.OLKYPAY]: undefined,
+  [Blockchain.CHECKOUT]: undefined,
+  [Blockchain.KALEIDO]: undefined,
+  [Blockchain.SUMIXX]: undefined,
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -50,12 +61,23 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.ARBITRUM]: 'tx',
   [Blockchain.POLYGON]: 'tx',
   [Blockchain.BASE]: 'tx',
+  [Blockchain.GNOSIS]: 'tx',
   [Blockchain.SOLANA]: 'tx',
   [Blockchain.HAQQ]: 'tx',
   [Blockchain.LIQUID]: 'tx',
   [Blockchain.ARWEAVE]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
   [Blockchain.RAILGUN]: 'transaction',
+  [Blockchain.BINANCE_PAY]: undefined,
+  [Blockchain.KRAKEN]: undefined,
+  [Blockchain.BINANCE]: undefined,
+  [Blockchain.XT]: undefined,
+  [Blockchain.MEXC]: undefined,
+  [Blockchain.MAERKI_BAUMANN]: undefined,
+  [Blockchain.OLKYPAY]: undefined,
+  [Blockchain.CHECKOUT]: undefined,
+  [Blockchain.KALEIDO]: undefined,
+  [Blockchain.SUMIXX]: undefined,
 };
 
 function assetPaths(asset: Asset): string | undefined {
@@ -74,6 +96,7 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.ARBITRUM:
     case Blockchain.POLYGON:
     case Blockchain.BASE:
+    case Blockchain.GNOSIS:
     case Blockchain.SOLANA:
     case Blockchain.HAQQ:
     case Blockchain.CARDANO:
@@ -95,6 +118,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.ARBITRUM:
     case Blockchain.POLYGON:
     case Blockchain.BASE:
+    case Blockchain.GNOSIS:
     case Blockchain.HAQQ:
     case Blockchain.LIQUID:
     case Blockchain.ARWEAVE:

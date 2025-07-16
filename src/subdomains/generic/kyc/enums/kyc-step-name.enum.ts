@@ -1,4 +1,5 @@
 export enum KycStepName {
+  // standard KYC
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
   NATIONALITY_DATA = 'NationalityData',
@@ -15,4 +16,7 @@ export enum KycStepName {
   RESIDENCE_PERMIT = 'ResidencePermit',
   STATUTES = 'Statutes',
   DFX_APPROVAL = 'DfxApproval',
+
+  // additional features
+  PAYMENT_AGREEMENT = 'PaymentAgreement',
 }

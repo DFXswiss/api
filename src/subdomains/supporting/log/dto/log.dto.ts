@@ -9,6 +9,19 @@ export interface ChangeLog {
   total: number;
 }
 
+export interface FinanceLog {
+  assets: AssetLog;
+  tradings: TradingLog;
+  balancesByFinancialType: BalancesByFinancialType;
+  balancesTotal: BalancesTotal;
+}
+
+export interface BalancesTotal {
+  plusBalanceChf: number;
+  minusBalanceChf: number;
+  totalBalanceChf: number;
+}
+
 export interface BalancesByFinancialType {
   [financialType: string]: {
     plusBalance: number;
@@ -55,10 +68,17 @@ type PairId = {
 // asset log
 type AssetLogPlusBalance = {
   total: number;
-  liquidity?: number;
+  liquidity?: AssetLogLiquidity;
   custom?: AssetLogPlusCustom;
   pending?: AssetLogPlusPending;
   monitoring?: AssetLogMonitoring;
+};
+
+type AssetLogLiquidity = {
+  total: number;
+  liquidityBalance?: number;
+  paymentDepositBalance?: number;
+  manualLiqPosition?: number;
 };
 
 type AssetLogMinusBalance = {

@@ -21,11 +21,22 @@ export class BitstampService extends ExchangeService {
     Optimism: undefined,
     Polygon: undefined,
     Base: undefined,
+    Gnosis: undefined,
     Haqq: undefined,
     Liquid: undefined,
     Arweave: undefined,
     Railgun: undefined,
+    BinancePay: undefined,
     Solana: undefined,
+    Kraken: undefined,
+    Binance: undefined,
+    XT: undefined,
+    MEXC: undefined,
+    MaerkiBaumann: undefined,
+    Olkypay: undefined,
+    Checkout: undefined,
+    Kaleido: undefined,
+    Sumixx: undefined,
   };
 
   constructor() {

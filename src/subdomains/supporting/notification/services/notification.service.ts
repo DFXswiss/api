@@ -19,6 +19,7 @@ export class NotificationService {
 
   async sendMail(request: MailRequest): Promise<void> {
     const mail = this.mailFactory.createMail(request);
+    if (!mail) return;
 
     Object.assign(mail, NotificationService.fromRequest(request));
 

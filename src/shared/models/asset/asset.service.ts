@@ -2,7 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { Util } from 'src/shared/utils/util';
-import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { UpdateResult } from '../entity';
 import { Asset, AssetCategory, AssetType } from './asset.entity';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 
@@ -25,20 +26,31 @@ export class AssetService {
     return this.assetRepo.save(entity);
   }
 
-  async getAllAssets() {
-    return this.assetRepo.findCached('all');
+  async getAllAssets(relations?: FindOptionsRelations<Asset>) {
+    return this.assetRepo.findCached('all', { relations });
   }
 
-  async getAllBlockchainAssets(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
+  async getAssetsWith(relations?: FindOptionsRelations<Asset>) {
+    return this.assetRepo.find({ relations });
+  }
+
+  async getAllBlockchainAssets(
+    blockchains: Blockchain[],
+    includePrivate = true,
+    relations?: FindOptionsRelations<Asset>,
+  ): Promise<Asset[]> {
     const search: FindOptionsWhere<Asset> = {};
     search.blockchain = blockchains.length > 0 ? In(blockchains) : Not(Blockchain.DEFICHAIN);
     !includePrivate && (search.category = Not(AssetCategory.PRIVATE));
 
-    return this.assetRepo.findCachedBy(JSON.stringify(search), search);
+    return this.assetRepo.findCached(JSON.stringify({ where: search, relations }), { where: search, relations });
   }
 
   async getPricedAssets(): Promise<Asset[]> {
-    return this.assetRepo.findCachedBy('priced', { priceRule: Not(IsNull()) });
+    return this.assetRepo.findCached('priced', {
+      where: { priceRule: Not(IsNull()) },
+      order: { priceRule: { id: 'ASC' } },
+    });
   }
 
   async getPaymentAssets(): Promise<Asset[]> {
@@ -61,8 +73,8 @@ export class AssetService {
     return this.assetRepo.findOneCachedBy(`${query.name}-${query.blockchain}-${query.type}`, query);
   }
 
-  async getCustodyAssetByName(name: string): Promise<Asset> {
-    return this.assetRepo.findOneCachedBy(`${name}`, { name });
+  async getAssetsByName(name: string): Promise<Asset[]> {
+    return this.assetRepo.findCachedBy(`${name}`, { name });
   }
 
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
@@ -75,12 +87,11 @@ export class AssetService {
       .then((assets) => Array.from(new Set(assets.map((a) => a.blockchain))));
   }
 
-  async updatePrice(assetId: number, usdPrice: number, chfPrice: number, eurPrice: number) {
-    await this.assetRepo.update(assetId, {
-      approxPriceUsd: usdPrice,
-      approxPriceChf: chfPrice,
-      approxPriceEur: eurPrice,
-    });
+  async updatePrices(updates: UpdateResult<Asset>[]): Promise<void> {
+    for (const update of updates) {
+      await this.assetRepo.update(...update);
+    }
+
     this.assetRepo.invalidateCache();
   }
 
@@ -152,6 +163,14 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'ETH',
       blockchain: Blockchain.BASE,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getGnosisCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'xDAI',
+      blockchain: Blockchain.GNOSIS,
       type: AssetType.COIN,
     });
   }
