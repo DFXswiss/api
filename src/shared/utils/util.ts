@@ -69,6 +69,10 @@ export class Util {
     return new BigNumber(amount).precision(precision).toNumber();
   }
 
+  static floorByPrecision(amount: number, precision: number): number {
+    return new BigNumber(amount).precision(precision, BigNumber.ROUND_FLOOR).toNumber();
+  }
+
   static sum(list: number[]): number {
     return list.reduce((prev, curr) => prev + curr, 0);
   }
