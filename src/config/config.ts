@@ -410,7 +410,10 @@ export class Configuration {
           prefixes: (userData: UserData) => [`user/${userData.id}/CommercialRegister`],
           filter: (file: KycFileBlob, userData: UserData) =>
             userData.kycSteps.some(
-              (s) => s.name === KycStepName.LEGAL_ENTITY && s.isCompleted && s.result === file.url,
+              (s) =>
+                [KycStepName.LEGAL_ENTITY, KycStepName.COMMERCIAL_REGISTER].includes(s.name) &&
+                s.isCompleted &&
+                s.result === file.url,
             ),
         },
       ],
