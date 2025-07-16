@@ -15,6 +15,7 @@ export interface PaymentLinkConfig {
   fee: number;
   recipient?: PaymentLinkRecipientDto;
   paymentTimeout: number;
+  scanTimeout?: number;
   autoConfirmSecs?: number;
   payoutRouteId?: number;
   // user data only

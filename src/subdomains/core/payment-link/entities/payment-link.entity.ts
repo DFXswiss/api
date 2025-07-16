@@ -182,8 +182,4 @@ export class PaymentLink extends IEntity {
   getMatchingStandard(param?: PaymentStandard): PaymentStandard {
     return this.configObj.standards.includes(param) ? param : this.defaultStandard;
   }
-
-  get paymentTimeout(): number {
-    return this.configObj.paymentTimeout;
-  }
 }

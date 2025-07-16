@@ -702,7 +702,7 @@ export class KycService {
         // retrigger personal data step, if data was wrong
         if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA)) {
           const completedPersonalStep = user.getCompletedStepWith(KycStepName.PERSONAL_DATA);
-          if (completedPersonalStep) await this.restartStep(completedPersonalStep);
+          if (completedPersonalStep) await this.restartStep(user, completedPersonalStep);
         }
 
         await this.kycStepRepo.update(
@@ -994,9 +994,9 @@ export class KycService {
     return this.kycStepRepo.save(kycStep);
   }
 
-  private async restartStep(kycStep: KycStep, comment?: KycError): Promise<void> {
+  private async restartStep(userData: UserData, kycStep: KycStep, comment?: KycError): Promise<void> {
     await this.kycStepRepo.update(...kycStep.fail(undefined, comment ?? KycError.RESTARTED_STEP));
-    await this.initiateStep(kycStep.userData, kycStep.name, kycStep.type, true);
+    await this.initiateStep(userData, kycStep.name, kycStep.type, true);
   }
 
   // --- HELPER METHODS --- //

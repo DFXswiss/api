@@ -46,6 +46,7 @@ export class Configuration {
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
+  financeLogTotalBalanceChangeLimit = 5000;
 
   defaults = {
     currency: 'EUR',
@@ -562,7 +563,7 @@ export class Configuration {
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
-    manualMethods: ['KuCoinPay', 'BitcoinOnChainTaprootAsset'],
+    manualMethods: ['KuCoinPay', 'TaprootAsset', 'Spark'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
