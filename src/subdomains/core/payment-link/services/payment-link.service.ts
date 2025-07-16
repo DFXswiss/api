@@ -56,16 +56,19 @@ export class PaymentLinkService {
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
+    loadPayments = true,
   ): Promise<PaymentLink> {
     const link = await this.paymentLinkRepo.getPaymentLinkById(userId, linkId, externalLinkId, externalPaymentId);
     if (!link) throw new NotFoundException('Payment link not found');
 
     if (!link.payments) link.payments = [];
 
-    const payment = externalPaymentId
-      ? await this.paymentLinkPaymentService.getPaymentByExternalId(externalPaymentId)
-      : await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
-    if (payment) link.payments.push(payment);
+    if (loadPayments) {
+      const payment = externalPaymentId
+        ? await this.paymentLinkPaymentService.getPaymentByExternalId(externalPaymentId)
+        : await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
+      if (payment) link.payments.push(payment);
+    }
 
     return link;
   }
@@ -369,7 +372,7 @@ export class PaymentLinkService {
     externalLinkId?: string,
     externalPaymentId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
 
     const { status, label, webhookUrl, config } = dto;
     const { name, address, phone, mail, website } = config?.recipient ?? {};
@@ -521,8 +524,11 @@ export class PaymentLinkService {
     routeLabel: string,
     externalLinkId: string,
   ): Promise<PaymentLink> {
+    if (dto.amount === 0) throw new BadRequestException('Amount must be greater than 0');
+
     const paymentLink = await this.getPublicPaymentLink(routeLabel, externalLinkId);
-    if (dto.amount == 0) throw new BadRequestException('Amount must be greater than 0');
+    if (paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING))
+      throw new ConflictException('There is already a pending payment for the specified payment link');
 
     const payment = await this.paymentLinkPaymentService.createPayment(paymentLink, dto);
     paymentLink.payments = [payment];
@@ -609,13 +615,28 @@ export class PaymentLinkService {
     return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, payment.externalId);
   }
 
-  async createPosLink(paymentLinkId: number, scoped: boolean): Promise<string> {
+  async createPosLinkUser(
+    userId: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+  ): Promise<string> {
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
+
+    return this.createPosLinkFor(paymentLink, false);
+  }
+
+  async createPosLinkAdmin(paymentLinkId: number, scoped: boolean): Promise<string> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { id: paymentLinkId },
       relations: { route: { user: { userData: true } } },
     });
     if (!paymentLink) throw new NotFoundException('PaymentLink not found');
 
+    return this.createPosLinkFor(paymentLink, scoped);
+  }
+
+  private async createPosLinkFor(paymentLink: PaymentLink, scoped: boolean): Promise<string> {
     const config = scoped ? paymentLink.linkConfigObj : paymentLink.route.userData.paymentLinksConfigObj;
 
     let accessKey = config.accessKeys?.at(0);

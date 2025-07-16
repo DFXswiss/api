@@ -163,3 +163,8 @@ export class PaymentLinkHistoryDto extends PaymentLinkBaseDto {
   @ApiPropertyOptional({ type: PaymentLinkPaymentDto, isArray: true })
   payments?: PaymentLinkPaymentDto[];
 }
+
+export class PaymentLinkPosDto {
+  @ApiProperty({ description: 'POS URL' })
+  url: string;
+}
