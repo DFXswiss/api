@@ -39,6 +39,7 @@ export enum AmlError {
   BANK_DATA_MISSING = 'BankDataMissing',
   BANK_DATA_NOT_ACTIVE = 'BankDataNotActive',
   BANK_DATA_USER_MISMATCH = 'BankDataUserMismatch',
+  BANK_DATA_MANUAL_REVIEW = 'BankDataManualReview',
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
   BANK_DEACTIVATED = 'BankDeactivated',
@@ -51,6 +52,14 @@ export enum AmlError {
   VIDEO_IDENT_MISSING = 'VideoIdentMissing',
   LIQUIDITY_LIMIT_EXCEEDED = 'LiquidityLimitExceeded',
 }
+
+export const DelayResultError = [
+  AmlError.NAME_CHECK_WITHOUT_KYC,
+  AmlError.NO_VERIFIED_NAME,
+  AmlError.NO_LETTER,
+  AmlError.BANK_DATA_MISSING,
+  AmlError.INPUT_NOT_CONFIRMED,
+];
 
 export enum AmlErrorType {
   SINGLE = 'Single', // Only one error may occur
@@ -178,6 +187,11 @@ export const AmlErrorResult: {
     amlReason: null,
   },
   [AmlError.BANK_DATA_USER_MISMATCH]: null,
+  [AmlError.BANK_DATA_MANUAL_REVIEW]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_BANK_DATA,
+  },
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
   [AmlError.ACCOUNT_IBAN_BLACKLISTED]: {

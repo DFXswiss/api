@@ -92,6 +92,13 @@ export class GsService {
       ),
     });
 
+    // Null all elements which are larger than 50k symbols
+    data.forEach((e) =>
+      Object.entries(e).forEach(([key, value]) => {
+        if (value?.toString().length >= 50000) delete e[key];
+      }),
+    );
+
     const runTime = Date.now() - startTime;
 
     if (runTime > 1000 * 3) {

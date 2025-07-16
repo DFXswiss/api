@@ -17,8 +17,8 @@ export interface SumSubWebhookResult {
   previousLevelName?: string;
   type?: SumSubWebhookType;
   reviewResult?: SumSubReviewResult;
-  reviewStatus?: ReviewStatus;
-  videoIdentReviewStatus?: ReviewStatus;
+  reviewStatus?: SumSubReviewStatus;
+  videoIdentReviewStatus?: SumSubReviewStatus;
   createdAt: Date;
   createdAtMs?: Date;
   sandboxMode?: boolean;
@@ -152,7 +152,7 @@ export enum ReviewRejectType {
   RETRY = 'RETRY',
 }
 
-export enum ReviewStatus {
+export enum SumSubReviewStatus {
   INIT = 'init',
   PENDING = 'pending',
   PRE_CHECKED = 'prechecked',
@@ -353,17 +353,17 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
     case SumSubWebhookType.APPLICANT_REVIEWED:
     case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED: {
       switch (dto.reviewStatus) {
-        case ReviewStatus.INIT:
+        case SumSubReviewStatus.INIT:
           return IdentShortResult.PENDING;
 
-        case ReviewStatus.PENDING:
+        case SumSubReviewStatus.PENDING:
           if (dto.levelName === SumSubLevelName.CH_STANDARD) return IdentShortResult.REVIEW;
           break;
 
-        case ReviewStatus.QUEUED:
+        case SumSubReviewStatus.QUEUED:
           return IdentShortResult.REVIEW;
 
-        case ReviewStatus.COMPLETED:
+        case SumSubReviewStatus.COMPLETED:
           return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
             ? IdentShortResult.SUCCESS
             : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY &&

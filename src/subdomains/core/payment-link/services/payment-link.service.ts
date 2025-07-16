@@ -23,9 +23,11 @@ import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment
 import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLinkConfig } from '../entities/payment-link.config';
 import { PaymentLink } from '../entities/payment-link.entity';
 import {
   C2BPaymentProvider,
+  PaymentLinkMode,
   PaymentLinkPaymentMode,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
@@ -54,16 +56,19 @@ export class PaymentLinkService {
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
+    loadPayments = true,
   ): Promise<PaymentLink> {
     const link = await this.paymentLinkRepo.getPaymentLinkById(userId, linkId, externalLinkId, externalPaymentId);
     if (!link) throw new NotFoundException('Payment link not found');
 
     if (!link.payments) link.payments = [];
 
-    const payment = externalPaymentId
-      ? await this.paymentLinkPaymentService.getPaymentByExternalId(externalPaymentId)
-      : await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
-    if (payment) link.payments.push(payment);
+    if (loadPayments) {
+      const payment = externalPaymentId
+        ? await this.paymentLinkPaymentService.getPaymentByExternalId(externalPaymentId)
+        : await this.paymentLinkPaymentService.getMostRecentPayment(link.uniqueId);
+      if (payment) link.payments.push(payment);
+    }
 
     return link;
   }
@@ -194,6 +199,7 @@ export class PaymentLinkService {
       externalId: dto.externalId,
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
+      mode: dto.mode,
       uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
       webhookUrl: dto.webhookUrl,
       name: dto.config?.recipient?.name,
@@ -258,6 +264,7 @@ export class PaymentLinkService {
     const payRequest: PaymentLinkPayRequestDto = {
       id: pendingPayment.link.uniqueId,
       externalId: pendingPayment.link.externalId,
+      mode: pendingPayment.link.mode,
       tag: 'payRequest',
       callback: LightningHelper.createLnurlpCallbackUrl(uniqueId),
       minSendable: msatTransferAmount,
@@ -268,6 +275,7 @@ export class PaymentLinkService {
       possibleStandards: standards,
       displayQr,
       recipient: pendingPayment.link.recipient,
+      route: pendingPayment.link.route.route.label,
       quote: {
         id: actualQuote.uniqueId,
         expiration: actualQuote.expiryDate,
@@ -340,15 +348,18 @@ export class PaymentLinkService {
       displayName: paymentLink.displayName(),
       standard: usedStandard,
       possibleStandards: standards,
+      route: paymentLink.route.route.label,
+      currency: paymentLink.route.fiat?.name,
       displayQr,
       recipient: paymentLink.recipient,
+      mode: paymentLink.mode,
       statusCode: undefined,
       message: undefined,
       error: undefined,
     };
   }
 
-  private getMergedConfig(paymentLink: PaymentLink, config: UpdatePaymentLinkConfigDto): string | null {
+  private getMergedConfig(paymentLink: PaymentLink, config: Partial<PaymentLinkConfig>): string | null {
     const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
     const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
     return Object.keys(customConfig).length === 0 ? null : (JSON.stringify(customConfig) as string);
@@ -361,7 +372,7 @@ export class PaymentLinkService {
     externalLinkId?: string,
     externalPaymentId?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
 
     const { status, label, webhookUrl, config } = dto;
     const { name, address, phone, mail, website } = config?.recipient ?? {};
@@ -498,16 +509,46 @@ export class PaymentLinkService {
     });
   }
 
+  async getPublicPaymentLink(routeLabel: string, externalLinkId: string): Promise<PaymentLink> {
+    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    if (!route) throw new NotFoundException('Route not found');
+
+    const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
+    if (paymentLink.mode !== PaymentLinkMode.PUBLIC) throw new UnauthorizedException('Payment link is not public');
+
+    return paymentLink;
+  }
+
+  async createPublicPayment(
+    dto: CreatePaymentLinkPaymentDto,
+    routeLabel: string,
+    externalLinkId: string,
+  ): Promise<PaymentLink> {
+    if (dto.amount === 0) throw new BadRequestException('Amount must be greater than 0');
+
+    const paymentLink = await this.getPublicPaymentLink(routeLabel, externalLinkId);
+    if (paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING))
+      throw new ConflictException('There is already a pending payment for the specified payment link');
+
+    const payment = await this.paymentLinkPaymentService.createPayment(paymentLink, dto);
+    paymentLink.payments = [payment];
+
+    return paymentLink;
+  }
+
   async cancelPayment(
     userId?: number,
     linkId?: number,
     externalLinkId?: string,
     externalPaymentId?: string,
     key?: string,
+    routeLabel?: string,
   ): Promise<PaymentLink> {
     const paymentLink = Boolean(userId)
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
-      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+      : Boolean(key)
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
+      : await this.getPublicPaymentLink(routeLabel, externalLinkId);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
@@ -574,4 +615,48 @@ export class PaymentLinkService {
     return this.getOrThrow(paymentLink.route.user.id, linkId, externalLinkId, payment.externalId);
   }
 
+  async createPosLinkUser(
+    userId: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+  ): Promise<string> {
+    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
+
+    return this.createPosLinkFor(paymentLink, false);
+  }
+
+  async createPosLinkAdmin(paymentLinkId: number, scoped: boolean): Promise<string> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { id: paymentLinkId },
+      relations: { route: { user: { userData: true } } },
+    });
+    if (!paymentLink) throw new NotFoundException('PaymentLink not found');
+
+    return this.createPosLinkFor(paymentLink, scoped);
+  }
+
+  private async createPosLinkFor(paymentLink: PaymentLink, scoped: boolean): Promise<string> {
+    const config = scoped ? paymentLink.linkConfigObj : paymentLink.route.userData.paymentLinksConfigObj;
+
+    let accessKey = config.accessKeys?.at(0);
+    if (!accessKey) {
+      accessKey = Util.secureRandomString();
+
+      const update = { accessKeys: [accessKey] };
+
+      if (scoped) {
+        await this.paymentLinkRepo.update(paymentLink.id, { config: this.getMergedConfig(paymentLink, update) });
+      } else {
+        await this.userDataService.updatePaymentLinksConfig(paymentLink.route.user.userData, update);
+      }
+    }
+
+    const search = new URLSearchParams({
+      lightning: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
+      key: accessKey,
+    });
+
+    return `${Config.frontend.services}/pl/pos?${search.toString()}`;
+  }
 }

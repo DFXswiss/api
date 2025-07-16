@@ -122,6 +122,6 @@ import { TronStrategy as TronStrategyPR } from './strategies/prepare/impl/tron.s
     TronCoinStrategyPO,
     TronTokenStrategyPO,
   ],
-  exports: [PayoutService, PayoutMoneroService, PayoutBitcoinService],
+  exports: [PayoutService, PayoutMoneroService, PayoutBitcoinService, PayoutSolanaService],
 })
 export class PayoutModule {}

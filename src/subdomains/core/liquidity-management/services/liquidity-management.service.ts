@@ -1,14 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In, Not } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -25,20 +23,13 @@ export class LiquidityManagementService {
 
   private readonly ruleActivations = new Map<number, Date>();
 
-  private eur: Fiat;
-
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly balanceService: LiquidityManagementBalanceService,
     private readonly settingService: SettingService,
-    private readonly fiatService: FiatService,
     private readonly pricingService: PricingService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
-  }
 
   //*** JOBS ***//
 
@@ -131,7 +122,7 @@ export class LiquidityManagementService {
         return;
       }
 
-      const eurPrice = await this.pricingService.getPrice(this.eur, rule.targetAsset, true);
+      const eurPrice = await this.pricingService.getPrice(PriceCurrency.EUR, rule.targetAsset, true);
       const transmissionMinimum = eurPrice.convert(Config.liquidityManagement.fiatOutput.batchAmountLimit * 0.95, 8);
 
       const result = rule.verify(balance, transmissionMinimum);

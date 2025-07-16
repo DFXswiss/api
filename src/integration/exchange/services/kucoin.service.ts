@@ -32,6 +32,7 @@ export class KucoinService extends ExchangeService {
     Kraken: undefined,
     Binance: undefined,
     XT: undefined,
+    MEXC: undefined,
     MaerkiBaumann: undefined,
     Olkypay: undefined,
     Checkout: undefined,

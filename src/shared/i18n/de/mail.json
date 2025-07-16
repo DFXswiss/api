@@ -158,6 +158,15 @@
                 "line4": "Du wirst benachrichtigt sobald die Prüfung abgeschlossen ist und deine Zahlung verarbeitet wurde.",
                 "line5": "Um den aktuellen Stand deiner Transaktion einsehen zu können:<br>[url:Klick hier]"
             },
+            "manual_check_bank_data": {
+                "title": "Einzahlung wird geprüft",
+                "salutation": "Deine Einzahlung wird geprüft",
+                "line1": "Vielen Dank für dein Vertrauen in DFX.",
+                "line2": "Leider konnte die Transaktion nicht vollautomatisch freigegeben werden und muss nun durch einen Mitarbeiter manuell geprüft werden.",
+                "line3": "Dies dauert in der Regel 24h, maximal aber 7 Tage.",
+                "line4": "Du wirst benachrichtigt sobald die Prüfung abgeschlossen ist und deine Zahlung verarbeitet wurde.",
+                "line5": "Um den aktuellen Stand deiner Transaktion einsehen zu können:<br>[url:Klick hier]"
+            },
             "asset_kyc_needed": {
                 "title": "Verifizierung (KYC) erforderlich",
                 "salutation": "Verifizierung (KYC) ist erforderlich, um deine ausstehende Transaktion auszuführen",

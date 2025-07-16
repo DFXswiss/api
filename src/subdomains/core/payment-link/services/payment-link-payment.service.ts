@@ -15,7 +15,7 @@ import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
 import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { LessThan } from 'typeorm';
+import { IsNull, LessThan } from 'typeorm';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { PaymentLinkEvmPaymentDto, PaymentLinkHexResultDto, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
@@ -24,6 +24,7 @@ import { PaymentDevice, PaymentLinkPayment } from '../entities/payment-link-paym
 import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
 import {
+  PaymentLinkMode,
   PaymentLinkPaymentMode,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
@@ -35,8 +36,6 @@ import { PaymentLinkPaymentRepository } from '../repositories/payment-link-payme
 import { PaymentActivationService } from './payment-activation.service';
 import { PaymentQuoteService } from './payment-quote.service';
 import { PaymentWebhookService } from './payment-webhook.service';
-
-const HOUR_IN_MILLIS = 60 * 60 * 1000;
 
 @Injectable()
 export class PaymentLinkPaymentService {
@@ -184,6 +183,13 @@ export class PaymentLinkPaymentService {
     if (pendingPayment)
       throw new ConflictException('There is already a pending payment for the specified payment link');
 
+    if (paymentLink.mode === PaymentLinkMode.SINGLE) {
+      const hasPreviousPayment = await this.paymentLinkPaymentRepo.existsBy({
+        link: { uniqueId: paymentLink.uniqueId },
+      });
+      if (hasPreviousPayment) throw new ConflictException('Single payment link can only have one payment');
+    }
+
     if (dto.externalId) {
       const exists = await this.paymentLinkPaymentRepo.existsBy({
         externalId: dto.externalId,
@@ -199,7 +205,7 @@ export class PaymentLinkPaymentService {
       amount: dto.amount,
       externalId: dto.externalId,
       note: dto.note,
-      expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.paymentTimeout),
+      expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.configObj.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency: paymentLink.route.fiat,
       uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkPaymentUidPrefix, 16),
@@ -217,22 +223,27 @@ export class PaymentLinkPaymentService {
       }, paymentLink.configObj.autoConfirmSecs * 1000);
     }
 
-    const timeout = payment.expiryDate.getTime() - Date.now() + Config.payment.timeoutDelay * 1000;
+    // expiry timers
+    const scanTimeout = paymentLink.configObj.scanTimeout;
+    if (scanTimeout) {
+      setTimeout(() => this.expirePaymentIfPending(payment.id, true), scanTimeout * 1000);
+    }
 
-    if (timeout < HOUR_IN_MILLIS) {
-      setTimeout(async () => {
-        await this.expirePaymentIfPending(payment.uniqueId);
-      }, timeout);
+    const paymentExpiry = Util.secondsAfter(Config.payment.timeoutDelay, payment.expiryDate);
+    if (Util.minutesDiff(new Date(), paymentExpiry) <= 60) {
+      const paymentTimeout = paymentExpiry.getTime() - new Date().getTime();
+      setTimeout(() => this.expirePaymentIfPending(payment.id, false), paymentTimeout);
     }
 
     return savedPayment;
   }
 
-  private async expirePaymentIfPending(uniqueId: string): Promise<void> {
+  private async expirePaymentIfPending(id: number, ignoreWithQuote: boolean): Promise<void> {
     const pendingPayment = await this.paymentLinkPaymentRepo.findOne({
       where: {
-        uniqueId,
+        id,
         status: PaymentLinkPaymentStatus.PENDING,
+        quotes: { id: ignoreWithQuote ? IsNull() : undefined },
       },
       relations: { link: true },
     });
@@ -294,16 +305,30 @@ export class PaymentLinkPaymentService {
 
   // --- HANDLE INPUTS --- //
   async getPaymentQuoteByFailedCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
-    return this.paymentQuoteService.getQuoteByTxId(cryptoInput.address.blockchain, cryptoInput.inTxId, [
+    const quote = await this.paymentQuoteService.getQuoteByTxId(cryptoInput.address.blockchain, cryptoInput.inTxId, [
+      PaymentQuoteStatus.TX_MEMPOOL,
       PaymentQuoteStatus.TX_BLOCKCHAIN,
       PaymentQuoteStatus.TX_COMPLETED,
     ]);
+    if (!quote) return null;
+
+    if (quote.status === PaymentQuoteStatus.TX_MEMPOOL) {
+      await this.handleBlockchainConfirmed(quote, cryptoInput);
+    }
+
+    return quote;
   }
 
   async getPaymentQuoteByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentQuote | undefined> {
     const quote = await this.getQuoteForInput(cryptoInput);
     if (!quote) throw new Error(`No matching quote found`);
 
+    await this.handleBlockchainConfirmed(quote, cryptoInput);
+
+    return quote;
+  }
+
+  private async handleBlockchainConfirmed(quote: PaymentQuote, cryptoInput: CryptoInput): Promise<void> {
     await this.paymentQuoteService.saveBlockchainConfirmed(quote, cryptoInput.address.blockchain, cryptoInput.inTxId);
 
     const payment = await this.paymentLinkPaymentRepo.findOne({
@@ -312,8 +337,6 @@ export class PaymentLinkPaymentService {
     });
 
     await this.handleQuoteChange(payment, quote);
-
-    return quote;
   }
 
   private async getQuoteForInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {

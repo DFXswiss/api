@@ -63,27 +63,15 @@ export class BankTxReturn extends IEntity {
 
   //*** METHODS ***//
 
-  setRemittanceInfo(): UpdateResult<BankTxReturn> {
-    const update: Partial<BankTxReturn> = {
-      chargebackRemittanceInfo: `Chargeback ${this.bankTx?.id} Zahlung kann keinem Kundenauftrag zugeordnet werden. Weitere Infos unter dfx.swiss/help`,
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
+  get chargebackBankRemittanceInfo(): string {
+    return `Chargeback ${this.bankTx.id} Zahlung kann keinem Kundenauftrag zugeordnet werden. Weitere Infos unter dfx.swiss/help`;
   }
 
-  setFiatAmount(
-    amountInEur: number,
-    amountInChf: number,
-    amountInUsd: number,
-    chargebackBankTx: BankTx,
-  ): UpdateResult<BankTxReturn> {
+  setFiatAmount(amountInEur: number, amountInChf: number, amountInUsd: number): UpdateResult<BankTxReturn> {
     const update: Partial<BankTxReturn> = {
       amountInEur,
       amountInChf,
       amountInUsd,
-      chargebackBankTx,
       info: 'NA',
     };
 

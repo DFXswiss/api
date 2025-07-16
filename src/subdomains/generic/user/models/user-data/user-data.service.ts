@@ -25,13 +25,14 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
+import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
@@ -458,7 +459,7 @@ export class UserDataService {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
   }
 
-  async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinkConfigDto): Promise<void> {
+  async updatePaymentLinksConfig(user: UserData, dto: Partial<PaymentLinkConfig>): Promise<void> {
     const mergedConfig = { ...JSON.parse(user.paymentLinksConfig || '{}'), ...dto };
     const customConfig = Util.removeDefaultFields(mergedConfig, DefaultPaymentLinkConfig);
     const paymentLinksConfig = Object.keys(customConfig).length === 0 ? null : JSON.stringify(customConfig);
@@ -888,17 +889,17 @@ export class UserDataService {
       await this.kycAdminService.updateKycStepInternal(
         kycStep.update(
           [
-            KycStepStatus.IN_PROGRESS,
-            KycStepStatus.MANUAL_REVIEW,
-            KycStepStatus.INTERNAL_REVIEW,
-            KycStepStatus.EXTERNAL_REVIEW,
-            KycStepStatus.FINISHED,
-            KycStepStatus.PARTIALLY_APPROVED,
-            KycStepStatus.DATA_REQUESTED,
-            KycStepStatus.PAUSED,
-            KycStepStatus.ON_HOLD,
+            ReviewStatus.IN_PROGRESS,
+            ReviewStatus.MANUAL_REVIEW,
+            ReviewStatus.INTERNAL_REVIEW,
+            ReviewStatus.EXTERNAL_REVIEW,
+            ReviewStatus.FINISHED,
+            ReviewStatus.PARTIALLY_APPROVED,
+            ReviewStatus.DATA_REQUESTED,
+            ReviewStatus.PAUSED,
+            ReviewStatus.ON_HOLD,
           ].includes(kycStep.status)
-            ? KycStepStatus.CANCELED
+            ? ReviewStatus.CANCELED
             : undefined,
           undefined,
           undefined,

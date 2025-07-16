@@ -1,14 +1,13 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
@@ -18,9 +17,8 @@ import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
 
 @Injectable()
-export class ExchangeTxService implements OnModuleInit {
+export class ExchangeTxService {
   private readonly logger = new DfxLogger(ExchangeTxService);
-  private chf: Fiat;
 
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
@@ -29,10 +27,6 @@ export class ExchangeTxService implements OnModuleInit {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
   ) {}
-
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-  }
 
   //*** JOBS ***//
 
@@ -65,7 +59,7 @@ export class ExchangeTxService implements OnModuleInit {
               type: undefined,
               name: entity.feeCurrency,
             }));
-          const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
+          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, true);
 
           entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
         }
@@ -84,7 +78,7 @@ export class ExchangeTxService implements OnModuleInit {
               type: undefined,
               name: currencyName,
             }));
-          const priceChf = await this.pricingService.getPrice(currency, this.chf, true);
+          const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, true);
 
           entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
         }

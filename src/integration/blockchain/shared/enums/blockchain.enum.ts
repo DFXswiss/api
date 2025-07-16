@@ -25,6 +25,7 @@ export enum Blockchain {
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
   XT = 'XT',
+  MEXC = 'MEXC',
 
   // Banks
   MAERKI_BAUMANN = 'MaerkiBaumann',

@@ -9,8 +9,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
@@ -30,9 +30,9 @@ export class FiatOutputJobService {
     private readonly ep2ReportService: Ep2ReportService,
     private readonly bankService: BankService,
     private readonly countryService: CountryService,
-    private readonly liquidityManagementBalanceService: LiquidityManagementBalanceService,
     private readonly assetService: AssetService,
     private readonly logService: LogService,
+    private readonly bankTxReturnService: BankTxReturnService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -60,7 +60,7 @@ export class FiatOutputJobService {
         const report = this.ep2ReportService.generateReport(entity);
         const container = buyFiat.userData.paymentLinksConfigObj.ep2ReportContainer;
         const routeId = buyFiat.paymentLinkPayment.link.linkConfigObj?.payoutRouteId ?? buyFiat.sell.id;
-        const fileName = `settlement-${routeId}_${Util.isoDateTime(entity.created)}.ep2`;
+        const fileName = `settlement_${Util.isoDateTime(entity.created)}_${routeId}.ep2`;
 
         await new AzureStorageService(container).uploadBlob(fileName, Buffer.from(report), 'text/xml');
 
@@ -85,7 +85,7 @@ export class FiatOutputJobService {
     const request: FindOptionsWhere<FiatOutput> = {
       valutaDate: IsNull(),
       isComplete: false,
-      type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT]),
+      type: In([FiatOutputType.BUY_CRYPTO_FAIL, FiatOutputType.BUY_FIAT, FiatOutputType.BANK_TX_RETURN]),
     };
 
     const entities = await this.fiatOutputRepo.find({
@@ -93,23 +93,18 @@ export class FiatOutputJobService {
         { ...request, originEntityId: IsNull() },
         { ...request, accountIban: IsNull() },
       ],
-      relations: { buyCrypto: true, buyFiats: { sell: true } },
+      relations: { buyCrypto: { bankTx: true }, buyFiats: { sell: true }, bankTxReturn: { bankTx: true } },
     });
 
     for (const entity of entities) {
       try {
-        if (!entity.buyFiats?.length && !entity.buyCrypto) continue;
+        if (!entity.buyFiats?.length && !entity.buyCrypto && !entity.bankTxReturn) continue;
 
-        const ibanCountry = (entity.buyCrypto?.chargebackIban ?? entity.buyFiats?.[0]?.sell?.iban)?.substring(0, 2);
-        const country = await this.countryService.getCountryWithSymbol(ibanCountry);
-        const currency = ['LI', 'CH'].includes(ibanCountry)
-          ? 'CHF'
-          : entity.buyCrypto?.bankTx?.currency ?? entity.buyFiats?.[0]?.sell?.fiat?.name;
-
-        const bank = await this.bankService.getSenderBank(currency);
+        const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
+        const bank = await this.bankService.getSenderBank(entity.outputCurrency);
 
         await this.fiatOutputRepo.update(entity.id, {
-          originEntityId: entity.type === FiatOutputType.BUY_FIAT ? entity.buyFiats[0].id : entity.buyCrypto.id,
+          originEntityId: entity.originEntity?.id,
           accountIban: country.maerkiBaumannEnable ? bank?.iban : undefined,
         });
       } catch (e) {
@@ -253,9 +248,8 @@ export class FiatOutputJobService {
         isComplete: false,
         bankTx: { id: IsNull() },
         isReadyDate: Not(IsNull()),
-        isTransmittedDate: Not(IsNull()),
       },
-      relations: { bankTx: true },
+      relations: { bankTx: true, bankTxReturn: true },
     });
 
     for (const entity of entities) {
@@ -264,6 +258,9 @@ export class FiatOutputJobService {
         if (!bankTx || entity.isReadyDate > bankTx.created) continue;
 
         await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created, isComplete: true });
+
+        if (entity.type === FiatOutputType.BANK_TX_RETURN)
+          await this.bankTxReturnService.updateInternal(entity.bankTxReturn, { chargebackBankTx: bankTx });
 
         if (bankTx.type === BankTxType.GSHEET) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {

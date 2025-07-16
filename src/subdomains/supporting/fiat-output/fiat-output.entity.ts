@@ -135,10 +135,28 @@ export class FiatOutput extends IEntity {
   // --- ENTITY METHODS --- //
 
   setBatch(batchId?: number, batchAmount?: number): UpdateResult<FiatOutput> {
-    const update: Partial<FiatOutput> = { batchId, batchAmount };
+    const update: Partial<FiatOutput> = { batchId, batchAmount: Math.round(batchAmount) };
 
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  get ibanCountry(): string {
+    return (
+      this.buyCrypto?.chargebackIban ??
+      this.buyFiats?.[0]?.sell?.iban ??
+      this.bankTxReturn?.chargebackIban
+    )?.substring(0, 2);
+  }
+
+  get outputCurrency(): string {
+    return ['LI', 'CH'].includes(this.ibanCountry)
+      ? 'CHF'
+      : this.buyCrypto?.bankTx?.currency ?? this.buyFiats?.[0]?.sell?.fiat?.name ?? this.bankTxReturn?.bankTx?.currency;
+  }
+
+  get originEntity(): BuyCrypto | BuyFiat | BankTxReturn {
+    return this.buyCrypto ?? this.buyFiats[0] ?? this.bankTxReturn;
   }
 }

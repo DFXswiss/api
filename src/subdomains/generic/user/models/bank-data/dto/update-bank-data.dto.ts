@@ -1,15 +1,13 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { BankDataType } from '../bank-data.entity';
 
 export class UpdateBankDataDto extends UpdateBankAccountDto {
-  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
   approved?: boolean;
@@ -18,8 +16,11 @@ export class UpdateBankDataDto extends UpdateBankAccountDto {
   @IsEnum(BankDataType)
   type?: BankDataType;
 
-  @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
   manualApproved?: boolean;
+
+  @IsOptional()
+  @IsEnum(ReviewStatus)
+  status?: ReviewStatus;
 }
