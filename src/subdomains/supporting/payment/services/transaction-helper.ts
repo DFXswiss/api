@@ -597,7 +597,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const tronCoin = await this.assetService.getTronCoin();
 
-    const price = await this.pricingService.getPrice(tronCoin, this.chf, true);
+    const price = await this.pricingService.getPrice(tronCoin, PriceCurrency.CHF, true);
     return price.convert(fee);
   }
 
