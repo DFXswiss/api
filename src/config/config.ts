@@ -552,7 +552,7 @@ export class Configuration {
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     minConfirmations: (blockchain: Blockchain) =>
-      [Blockchain.ETHEREUM, Blockchain.BITCOIN].includes(blockchain) ? 6 : 100,
+      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
