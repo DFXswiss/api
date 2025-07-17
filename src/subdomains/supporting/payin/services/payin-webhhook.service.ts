@@ -7,10 +7,12 @@ import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-pay
 export class PayInWebHookService {
   private readonly lightningTransactionWebhookSubject: Subject<LnBitsTransactionWebhookDto>;
   private readonly binanceTransactionWebhookSubject: Subject<C2BWebhookResult>;
+  private readonly kucoinTransactionWebhookSubject: Subject<C2BWebhookResult>;
 
   constructor() {
     this.lightningTransactionWebhookSubject = new Subject<LnBitsTransactionWebhookDto>();
     this.binanceTransactionWebhookSubject = new Subject<C2BWebhookResult>();
+    this.kucoinTransactionWebhookSubject = new Subject<C2BWebhookResult>();
   }
 
   getLightningTransactionWebhookObservable(): Observable<LnBitsTransactionWebhookDto> {
@@ -27,5 +29,13 @@ export class PayInWebHookService {
 
   processBinanceTransaction(payWebhook: C2BWebhookResult): void {
     this.binanceTransactionWebhookSubject.next(payWebhook);
+  }
+
+  getKucoinTransactionWebhookObservable(): Observable<C2BWebhookResult> {
+    return this.kucoinTransactionWebhookSubject.asObservable();
+  }
+
+  processKucoinTransaction(payWebhook: C2BWebhookResult): void {
+    this.kucoinTransactionWebhookSubject.next(payWebhook);
   }
 }
