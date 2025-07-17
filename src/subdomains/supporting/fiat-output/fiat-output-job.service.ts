@@ -272,7 +272,7 @@ export class FiatOutputJobService {
   private async getLastBatchId(): Promise<number> {
     return this.fiatOutputRepo
       .findOne({ order: { batchId: 'DESC' }, where: { batchId: Not(IsNull()) } })
-      .then((u) => u.batchId);
+      .then((u) => u?.batchId ?? 0);
   }
 
   private async setBankTxType(type: FiatOutputType, bankTx: BankTx): Promise<BankTx> {

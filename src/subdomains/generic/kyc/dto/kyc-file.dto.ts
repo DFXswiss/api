@@ -15,6 +15,7 @@ export enum FileType {
   STOCK_REGISTER = 'StockRegister',
   COMMERCIAL_REGISTER = 'CommercialRegister',
   RESIDENCE_PERMIT = 'ResidencePermit',
+  STATUTES = 'Statutes',
   ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
   AUTHORITY = 'Authority',
 }
@@ -34,6 +35,7 @@ export enum FileSubType {
   PRE_ONBOARDING_REPORT = 'PreOnboardingReport',
   OPERATIONAL_ACTIVITY_REPORT = 'OperationalActivityReport',
   BENEFICIAL_OWNER_REPORT = 'BeneficialOwnerReport',
+  STATUTES_REPORT = 'StatutesReport',
   FORM_A = 'FormA',
   FORM_K = 'FormK',
   CUSTOMER_PROFILE = 'CustomerProfile',

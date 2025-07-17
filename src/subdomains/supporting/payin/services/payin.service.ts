@@ -15,7 +15,14 @@ import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/d
 import { In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CryptoInput, PayInAction, PayInPurpose, PayInStatus, PayInType } from '../entities/crypto-input.entity';
+import {
+  CryptoInput,
+  PayInAction,
+  PayInConfirmationType,
+  PayInPurpose,
+  PayInStatus,
+  PayInType,
+} from '../entities/crypto-input.entity';
 import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
@@ -32,7 +39,7 @@ export class PayInService {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
   ) {}
 
-  //*** PUBLIC API ***//
+  // --- PUBLIC API --- //
 
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
     const payIns: CryptoInput[] = [];
@@ -171,7 +178,7 @@ export class PayInService {
     await this.payInRepository.save(_payIn);
   }
 
-  //*** JOBS ***//
+  // --- JOBS --- //
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async forwardPayInEntries(): Promise<void> {
@@ -218,7 +225,7 @@ export class PayInService {
     }
   }
 
-  //*** HELPER METHODS ***//
+  // --- HELPER METHODS --- //
 
   private async forwardPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({
@@ -259,7 +266,7 @@ export class PayInService {
     for (const group of groups.entries()) {
       try {
         const strategy = group[0];
-        await strategy.checkConfirmations(group[1], 'Output');
+        await strategy.checkConfirmations(group[1], PayInConfirmationType.OUTPUT);
       } catch {
         continue;
       }
@@ -279,7 +286,7 @@ export class PayInService {
     for (const group of groups.entries()) {
       try {
         const strategy = group[0];
-        await strategy.checkConfirmations(group[1], 'Return');
+        await strategy.checkConfirmations(group[1], PayInConfirmationType.RETURN);
       } catch {
         continue;
       }
@@ -326,7 +333,7 @@ export class PayInService {
     for (const group of groups.entries()) {
       try {
         const strategy = group[0];
-        await strategy.checkConfirmations(group[1], 'Input');
+        await strategy.checkConfirmations(group[1], PayInConfirmationType.INPUT);
       } catch {
         continue;
       }

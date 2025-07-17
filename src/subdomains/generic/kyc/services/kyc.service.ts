@@ -48,6 +48,7 @@ import {
   KycBeneficialData,
   KycContactData,
   KycFileData,
+  KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
   KycOperationalData,
@@ -502,6 +503,30 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
+  async updateLegalData(kycHash: string, stepId: number, data: KycLegalEntityData, fileType: FileType) {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    // upload file
+    const { contentType, buffer } = Util.fromBase64(data.file);
+    const { url } = await this.documentService.uploadUserFile(
+      user,
+      fileType,
+      data.fileName,
+      buffer,
+      contentType as ContentType,
+      false,
+      kycStep,
+    );
+
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, { url, legalEntity: data.legalEntity }));
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
+  }
+
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
@@ -856,30 +881,23 @@ export class KycService {
     const preventDirectEvaluation = lastTry != null;
 
     switch (nextStep) {
-      case KycStepName.CONTACT_DATA:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
       case KycStepName.PERSONAL_DATA:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
       case KycStepName.NATIONALITY_DATA:
-      case KycStepName.LEGAL_ENTITY:
       case KycStepName.OWNER_DIRECTORY:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
-      case KycStepName.COMMERCIAL_REGISTER:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
+      case KycStepName.CONTACT_DATA:
+      case KycStepName.LEGAL_ENTITY:
       case KycStepName.SIGNATORY_POWER:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
       case KycStepName.BENEFICIAL_OWNER:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
       case KycStepName.OPERATIONAL_ACTIVITY:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
       case KycStepName.AUTHORITY:
+      case KycStepName.FINANCIAL_DATA:
+      case KycStepName.ADDITIONAL_DOCUMENTS:
+      case KycStepName.RESIDENCE_PERMIT:
+      case KycStepName.STATUTES:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.IDENT:
@@ -922,15 +940,6 @@ export class KycService {
             preventDirectEvaluation,
           },
         };
-
-      case KycStepName.FINANCIAL_DATA:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
-      case KycStepName.ADDITIONAL_DOCUMENTS:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
-
-      case KycStepName.RESIDENCE_PERMIT:
-        return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.DFX_APPROVAL:
         return lastTry && !lastTry.isFailed && !lastTry.isCanceled

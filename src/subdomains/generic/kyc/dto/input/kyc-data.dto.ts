@@ -116,13 +116,6 @@ export class KycInputDataDto extends KycPersonalData {
   mail: string;
 }
 
-export class KycLegalEntityData {
-  @ApiProperty({ enum: LegalEntity })
-  @IsNotEmpty()
-  @IsEnum(LegalEntity)
-  legalEntity: LegalEntity;
-}
-
 export class KycSignatoryPowerData {
   @ApiProperty({ enum: SignatoryPower })
   @IsNotEmpty()
@@ -202,6 +195,24 @@ export class KycFileData {
   @IsString()
   @Transform(Util.sanitize)
   fileName: string;
+}
+
+export class KycLegalEntityData {
+  @ApiProperty({ description: 'Base64 encoded commercial register file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+
+  @ApiProperty({ description: 'Name of the commercial register file' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  fileName: string;
+
+  @ApiProperty({ enum: LegalEntity })
+  @IsNotEmpty()
+  @IsEnum(LegalEntity)
+  legalEntity: LegalEntity;
 }
 
 export class KycManualIdentData {

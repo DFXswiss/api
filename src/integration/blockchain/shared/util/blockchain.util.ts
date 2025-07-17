@@ -33,6 +33,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.BASE]: 'https://basescan.org',
   [Blockchain.GNOSIS]: 'https://gnosisscan.io',
   [Blockchain.SOLANA]: 'https://solscan.io',
+  [Blockchain.TRON]: 'https://tronscan.org/#',
   [Blockchain.HAQQ]: 'https://explorer.haqq.network',
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
@@ -63,6 +64,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.BASE]: 'tx',
   [Blockchain.GNOSIS]: 'tx',
   [Blockchain.SOLANA]: 'tx',
+  [Blockchain.TRON]: 'transaction',
   [Blockchain.HAQQ]: 'tx',
   [Blockchain.LIQUID]: 'tx',
   [Blockchain.ARWEAVE]: 'tx',
@@ -101,6 +103,9 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.HAQQ:
     case Blockchain.CARDANO:
       return asset.chainId ? `token/${asset.chainId}` : undefined;
+
+    case Blockchain.TRON:
+      return asset.chainId ? `token20/${asset.chainId}` : undefined;
   }
 }
 
@@ -119,6 +124,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.POLYGON:
     case Blockchain.BASE:
     case Blockchain.GNOSIS:
+    case Blockchain.TRON:
     case Blockchain.HAQQ:
     case Blockchain.LIQUID:
     case Blockchain.ARWEAVE:

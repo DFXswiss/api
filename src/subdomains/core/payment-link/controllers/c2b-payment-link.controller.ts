@@ -36,20 +36,25 @@ export class C2BPaymentLinkController {
   @ApiExcludeEndpoint()
   @UseGuards(BinancePayWebhookGuard)
   async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: string }> {
-    const result = await this.c2bPaymentLinkService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto);
+    try {
+      const result = await this.c2bPaymentLinkService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto);
 
-    if (result) {
-      switch (result.status) {
-        case C2BPaymentStatus.WAITING:
-          await this.paymentLinkPaymentService.handleBinanceWaiting(result);
-          break;
+      if (result) {
+        switch (result.status) {
+          case C2BPaymentStatus.WAITING:
+            await this.paymentLinkPaymentService.handleBinanceWaiting(result);
+            break;
 
-        case C2BPaymentStatus.COMPLETED:
-          this.payInWebHookService.processBinanceTransaction(result);
-          break;
+          case C2BPaymentStatus.COMPLETED:
+            this.payInWebHookService.processBinanceTransaction(result);
+            break;
+        }
       }
-    }
 
-    return { returnCode: 'SUCCESS', returnMessage: null };
+      return { returnCode: 'SUCCESS', returnMessage: null };
+    } catch (e) {
+      this.logger.error(`Error processing BinancePay webhook with content ${JSON.stringify(dto)}:`, e);
+      throw e;
+    }
   }
 }

@@ -78,8 +78,8 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
         updated: LessThan(Util.minutesBefore(30)),
       }),
       safetyModeActive: this.processService.isSafetyModeActive(),
-      binanceSyncDelay: Math.abs(Util.minutesDiff(lastBinanceTx.created, binance.updated)),
-      krakenSyncDelay: Math.abs(Util.minutesDiff(lastKrakenTx.created, kraken.updated)),
+      binanceSyncDelay: Math.abs(Util.minutesDiff(lastBinanceTx?.created, binance?.updated)),
+      krakenSyncDelay: Math.abs(Util.minutesDiff(lastKrakenTx?.created, kraken?.updated)),
     };
   }
 }
