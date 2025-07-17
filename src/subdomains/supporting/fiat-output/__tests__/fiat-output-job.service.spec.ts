@@ -5,6 +5,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
+import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
@@ -46,6 +47,7 @@ describe('FiatOutputJobService', () => {
     assetService = createMock<AssetService>();
     logService = createMock<LogService>();
     bankTxReturnService = createMock<BankTxReturnService>();
+    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
