@@ -12,10 +12,15 @@ import { OptimismService } from '../../optimism/optimism.service';
 import { PolygonService } from '../../polygon/polygon.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { SolanaClient } from '../../solana/solana-client';
+import { TronService } from '../../tron/services/tron.service';
+import { TronClient } from '../../tron/tron-client';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from '../evm/evm-client';
 import { EvmService } from '../evm/evm.service';
 import { L2BridgeEvmClient } from '../evm/interfaces';
+
+type BlockchainClientType = EvmClient | MoneroClient | BitcoinClient | SolanaClient | TronClient;
+type BlockchainServiceType = EvmService | MoneroService | BitcoinService | SolanaService | TronService;
 
 @Injectable()
 export class BlockchainRegistryService {
@@ -30,9 +35,10 @@ export class BlockchainRegistryService {
     private readonly moneroService: MoneroService,
     private readonly bitcoinService: BitcoinService,
     private readonly solanaService: SolanaService,
+    private readonly tronService: TronService,
   ) {}
 
-  getClient(blockchain: Blockchain): EvmClient | MoneroClient | BitcoinClient | SolanaClient {
+  getClient(blockchain: Blockchain): BlockchainClientType {
     return this.getService(blockchain).getDefaultClient();
   }
 
@@ -49,7 +55,7 @@ export class BlockchainRegistryService {
     return blockchainService.getDefaultClient(type);
   }
 
-  getService(blockchain: Blockchain): EvmService | MoneroService | BitcoinService | SolanaService {
+  getService(blockchain: Blockchain): BlockchainServiceType {
     switch (blockchain) {
       case Blockchain.ETHEREUM:
         return this.ethereumService;
@@ -71,6 +77,8 @@ export class BlockchainRegistryService {
         return this.bitcoinService;
       case Blockchain.SOLANA:
         return this.solanaService;
+      case Blockchain.TRON:
+        return this.tronService;
 
       default:
         throw new Error(`No service found for blockchain ${blockchain}`);

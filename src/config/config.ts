@@ -141,9 +141,10 @@ export class Configuration {
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
   railgunAddressFormat = '0zk[a-z0-9]{1,124}';
-  solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{32,44}';
+  solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{43,44}';
+  tronAddressFormat = 'T[1-9A-HJ-NP-Za-km-z]{32,34}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -156,8 +157,9 @@ export class Configuration {
   cardanoSignatureFormat = '[a-f0-9]{582}';
   railgunSignatureFormat = '[a-f0-9]{128}';
   solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
+  tronSignatureFormat = '(0x)?[a-f0-9]{130}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '[a-f0-9]{84}';
@@ -549,6 +551,7 @@ export class Configuration {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
+    tronSeed: process.env.PAYMENT_TRON_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     minConfirmations: (blockchain: Blockchain) =>
@@ -741,6 +744,27 @@ export class Configuration {
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.solana.solanaWalletSeed,
+        index: accountIndex,
+      }),
+    },
+    tron: {
+      tronWalletSeed: process.env.TRON_WALLET_SEED,
+      tronGatewayUrl: process.env.TRON_GATEWAY_URL,
+      tronApiUrl: process.env.TRON_API_URL,
+      tronRpcUrl: process.env.TRON_RPC_URL,
+      tronApiKey: process.env.TATUM_API_KEY,
+      // Definition: USDT Contract: 64.285, all other contracts: 100.000
+      usdtTransferEnergy: 64285,
+      tokenTransferEnergy: 100000,
+      // Coin Bandwidth definition: Bandwidth cost: 268
+      coinTransferBandwidth: 268,
+      // Token Bandwidth definition: Bandwidth cost: 70, Signature cost: 65
+      tokenTransferBandwidth: 70 + 65,
+      // Max send token fee: 100 TRX
+      sendTokenFeeLimit: 100_000_000,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.tron.tronWalletSeed,
         index: accountIndex,
       }),
     },

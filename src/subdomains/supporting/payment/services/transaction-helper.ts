@@ -4,6 +4,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
 import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -546,6 +547,9 @@ export class TransactionHelper implements OnModuleInit {
     if (!allowExpiredPrice && user && isAsset(to) && to.blockchain === Blockchain.SOLANA && to.type === AssetType.TOKEN)
       fee.network += await this.getSolanaCreateTokenAccountFee(user, to);
 
+    if (!allowExpiredPrice && user && isAsset(to) && to.blockchain === Blockchain.TRON && to.type === AssetType.TOKEN)
+      fee.network += await this.getTronCreateTokenAccountFee(user, to);
+
     return [fee, networkStartFee];
   }
 
@@ -582,6 +586,18 @@ export class TransactionHelper implements OnModuleInit {
     const solanaCoin = await this.assetService.getSolanaCoin();
 
     const price = await this.pricingService.getPrice(solanaCoin, PriceCurrency.CHF, true);
+    return price.convert(fee);
+  }
+
+  private async getTronCreateTokenAccountFee(user: User, asset: Asset): Promise<number> {
+    const tronService = this.blockchainRegistryService.getService(asset.blockchain) as TronService;
+
+    const fee = await tronService.getCreateAccountFee(user.address);
+    if (!fee) return 0;
+
+    const tronCoin = await this.assetService.getTronCoin();
+
+    const price = await this.pricingService.getPrice(tronCoin, PriceCurrency.CHF, true);
     return price.convert(fee);
   }
 

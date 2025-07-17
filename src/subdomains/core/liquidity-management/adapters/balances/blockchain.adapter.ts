@@ -6,6 +6,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
+import { TronClient } from 'src/integration/blockchain/tron/tron-client';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { isAsset } from 'src/shared/models/active';
@@ -17,7 +18,7 @@ import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityManagementContext } from '../../enums';
 import { LiquidityBalanceIntegration } from '../../interfaces';
 
-type TokenClient = EvmClient | SolanaClient;
+type TokenClient = EvmClient | SolanaClient | TronClient;
 
 @Injectable()
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
@@ -110,6 +111,10 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
         case Blockchain.SOLANA:
           await this.updateSolanaBalance(assets);
+          break;
+
+        case Blockchain.TRON:
+          await this.updateTronBalance(assets);
           break;
 
         default:
@@ -226,6 +231,17 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const blockchain = assets[0].blockchain;
     const client = this.blockchainRegistryService.getClient(blockchain) as SolanaClient;
 
+    await this.updateCoinAndTokenBalance(
+      assets.filter((a) => a.type !== AssetType.POOL),
+      client,
+    );
+  }
+
+  private async updateTronBalance(assets: Asset[]): Promise<void> {
+    if (assets.length === 0) return;
+
+    const blockchain = assets[0].blockchain;
+    const client = this.blockchainRegistryService.getClient(blockchain) as TronClient;
     await this.updateCoinAndTokenBalance(
       assets.filter((a) => a.type !== AssetType.POOL),
       client,

@@ -5,7 +5,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
-import { SolanaSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
+import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import {
@@ -139,7 +139,7 @@ export class SolanaClient extends BlockchainClient {
     return result.hash;
   }
 
-  async sendSignedTransaction(hex: string): Promise<SolanaSignedTransactionResponse> {
+  async sendSignedTransaction(hex: string): Promise<BlockchainSignedTransactionResponse> {
     const hexToUse = hex.toLowerCase().startsWith('0x') ? hex.substring(0, 2) : hex;
     const tx = Buffer.from(hexToUse, 'hex').toString('base64');
 

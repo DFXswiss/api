@@ -206,4 +206,12 @@ export class AssetService {
       type: AssetType.COIN,
     });
   }
+
+  async getTronCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'TRX',
+      blockchain: Blockchain.TRON,
+      type: AssetType.COIN,
+    });
+  }
 }
