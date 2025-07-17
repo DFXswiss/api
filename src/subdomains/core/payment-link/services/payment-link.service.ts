@@ -7,6 +7,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import {
+  GoodsCategoryMap,
+  GoodsTypeMap,
+  MerchantCategoryMap,
+  StoreTypeMap,
+} from 'src/integration/binance-pay/dto/binance-enum.mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -14,12 +20,14 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { IsNull, Not } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
+import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
 import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -33,6 +41,7 @@ import {
   PaymentLinkStatus,
   PaymentStandard,
 } from '../enums';
+import { GoodsCategory, GoodsType, MerchantCategory, StoreType } from '../enums/merchant.enum';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -213,10 +222,6 @@ export class PaymentLinkService {
       website: dto.config?.recipient?.website,
       payments: [],
       registrationNumber: dto.config?.recipient?.registrationNumber,
-      storeType: dto.config?.recipient?.storeType,
-      merchantMcc: dto.config?.recipient?.merchantMcc,
-      goodsType: dto.config?.recipient?.goodsType,
-      goodsCategory: dto.config?.recipient?.goodsCategory,
       config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),
     });
 
@@ -658,5 +663,38 @@ export class PaymentLinkService {
     });
 
     return `${Config.frontend.services}/pl/pos?${search.toString()}`;
+  }
+
+  async syncPaymentRecipient(): Promise<void> {
+    const pendingLinks = await this.paymentLinkRepo.findBy({ country: { id: Not(IsNull()) } });
+
+    for (const link of pendingLinks) {
+      const update: PaymentLinkRecipientDto = {
+        name: link.name,
+        address: {
+          street: link.street,
+          houseNumber: link.houseNumber,
+          zip: link.zip,
+          city: link.city,
+          country: link.country?.symbol,
+        },
+        phone: link.phone,
+        mail: link.mail,
+        website: link.website,
+        registrationNumber: link.registrationNumber,
+        storeType: Object.entries(StoreTypeMap).find(([_, st]) => st === link.storeType)[0] as StoreType,
+        merchantCategory: Object.entries(MerchantCategoryMap).find(
+          ([_, mc]) => mc === link.merchantMcc,
+        )[0] as MerchantCategory,
+        goodsType: Object.entries(GoodsTypeMap).find(([_, gt]) => gt === link.goodsType)[0] as GoodsType,
+        goodsCategory: Object.entries(GoodsCategoryMap).find(
+          ([_, gc]) => gc === link.goodsCategory,
+        )[0] as GoodsCategory,
+      };
+
+      await this.paymentLinkRepo.update(link.id, {
+        config: this.getMergedConfig(link, { recipient: { ...link.linkConfigObj.recipient, ...update } }),
+      });
+    }
   }
 }

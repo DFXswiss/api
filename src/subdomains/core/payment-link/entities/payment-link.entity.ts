@@ -4,6 +4,7 @@ import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integratio
 import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
@@ -47,6 +48,19 @@ export class PaymentLink extends IEntity {
   webhookUrl?: string;
 
   @Column({ length: 256, nullable: true })
+  regionManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeOwner?: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  config?: string; // PaymentLinkConfig
+
+  // recipient (TODO: move to config)
+  @Column({ length: 256, nullable: true })
   name?: string;
 
   @Column({ length: 256, nullable: true })
@@ -71,19 +85,7 @@ export class PaymentLink extends IEntity {
   mail?: string;
 
   @Column({ length: 256, nullable: true })
-  regionManager?: string;
-
-  @Column({ length: 256, nullable: true })
-  storeManager?: string;
-
-  @Column({ length: 256, nullable: true })
-  storeOwner?: string;
-
-  @Column({ length: 256, nullable: true })
   website?: string;
-
-  @Column({ length: 'MAX', nullable: true })
-  config?: string; // PaymentLinkConfig
 
   @Column({ nullable: true })
   registrationNumber?: string; // Registration number/Company tax ID
@@ -113,30 +115,10 @@ export class PaymentLink extends IEntity {
     return this.route.userData.paymentLinksName ?? this.route.userData.verifiedName ?? defaultDisplayName;
   }
 
-  get recipient(): PaymentLinkRecipientDto | undefined {
-    if (this.hasRecipient) {
-      return {
-        name: this.name,
-        address: {
-          street: this.street,
-          houseNumber: this.houseNumber,
-          zip: this.zip,
-          city: this.city,
-          country: this.country?.name,
-        },
-        phone: this.phone,
-        mail: this.mail,
-        website: this.website,
-      };
-    }
-
-    // fallback to config
-    const { recipient } = this.configObj;
-    if (recipient) return recipient;
-
-    // fallback to user data
+  get recipient(): PaymentLinkRecipientDto {
+    // user data
     const userData = this.route.userData;
-    return {
+    const userDataRecipient: PaymentLinkRecipientDto = {
       name: userData.completeName,
       address: {
         ...userData.address,
@@ -146,20 +128,27 @@ export class PaymentLink extends IEntity {
       mail: userData.mail,
       website: null,
     };
-  }
 
-  get hasRecipient(): boolean {
-    return !!(
-      this.name ||
-      this.street ||
-      this.houseNumber ||
-      this.zip ||
-      this.city ||
-      this.country ||
-      this.phone ||
-      this.mail ||
-      this.website
-    );
+    // link
+    const configRecipient = this.configObj.recipient;
+
+    const linkRecipient: PaymentLinkRecipientDto = Util.removeNullFields({
+      name: this.name,
+      address: this.city
+        ? {
+            street: this.street,
+            houseNumber: this.houseNumber,
+            zip: this.zip,
+            city: this.city,
+            country: this.country?.name,
+          }
+        : undefined,
+      phone: this.phone,
+      mail: this.mail,
+      website: this.website,
+    });
+
+    return Object.assign(userDataRecipient, configRecipient, linkRecipient);
   }
 
   get configObj(): PaymentLinkConfig {
