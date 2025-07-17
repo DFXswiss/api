@@ -957,6 +957,12 @@ export class LogJobService {
           index: 0,
         }).address;
 
+      case Blockchain.TRON:
+        return SolanaUtil.createWallet({
+          seed: Config.payment.tronSeed,
+          index: 0,
+        }).address;
+
       default:
         return EvmUtil.createWallet({
           seed: Config.payment.evmSeed,

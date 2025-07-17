@@ -27,6 +27,7 @@ import { PayInNotificationService } from './services/payin-notification.service'
 import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInPolygonService } from './services/payin-polygon.service';
 import { PayInSolanaService } from './services/payin-solana.service';
+import { PayInTronService } from './services/payin-tron.service';
 import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
@@ -41,6 +42,7 @@ import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/mo
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
 import { PolygonStrategy as PolygonStrategyR } from './strategies/register/impl/polygon.strategy';
 import { SolanaStrategy as SolanaStrategyR } from './strategies/register/impl/solana.strategy';
+import { TronStrategy as TronStrategyR } from './strategies/register/impl/tron.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
 import { BaseCoinStrategy as BaseCoinStrategyS } from './strategies/send/impl/base-coin.strategy';
@@ -62,6 +64,8 @@ import { PolygonCoinStrategy as PolygonCoinStrategyS } from './strategies/send/i
 import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send/impl/polygon-token.strategy';
 import { SolanaCoinStrategy as SolanaCoinStrategyS } from './strategies/send/impl/solana-coin.strategy';
 import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/impl/solana-token.strategy';
+import { TronCoinStrategy as TronCoinStrategyS } from './strategies/send/impl/tron-coin.strategy';
+import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/tron-token.strategy';
 
 @Module({
   imports: [
@@ -96,6 +100,7 @@ import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/i
     PayInBaseService,
     PayInSolanaService,
     PayInGnosisService,
+    PayInTronService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
     BitcoinStrategyR,
@@ -128,6 +133,9 @@ import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/i
     GnosisStrategyR,
     GnosisCoinStrategyS,
     GnosisTokenStrategyS,
+    TronStrategyR,
+    TronCoinStrategyS,
+    TronTokenStrategyS,
     BinancePayStrategyR,
     BinancePayStrategyS,
   ],
