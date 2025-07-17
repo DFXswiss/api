@@ -48,6 +48,7 @@ import {
   KycBeneficialData,
   KycContactData,
   KycFileData,
+  KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
   KycOperationalData,
@@ -502,6 +503,30 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
+  async updateLegalData(kycHash: string, stepId: number, data: KycLegalEntityData, fileType: FileType) {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    // upload file
+    const { contentType, buffer } = Util.fromBase64(data.file);
+    const { url } = await this.documentService.uploadUserFile(
+      user,
+      fileType,
+      data.fileName,
+      buffer,
+      contentType as ContentType,
+      false,
+      kycStep,
+    );
+
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, { url, legalEntity: data.legalEntity }));
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
+  }
+
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
@@ -860,12 +885,11 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
       case KycStepName.NATIONALITY_DATA:
-      case KycStepName.LEGAL_ENTITY:
       case KycStepName.OWNER_DIRECTORY:
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.CONTACT_DATA:
-      case KycStepName.COMMERCIAL_REGISTER:
+      case KycStepName.LEGAL_ENTITY:
       case KycStepName.SIGNATORY_POWER:
       case KycStepName.BENEFICIAL_OWNER:
       case KycStepName.OPERATIONAL_ACTIVITY:
