@@ -58,7 +58,7 @@ export class LogService {
       .getOne();
   }
 
-  async getLastLogs(system: string, subsystem: string, severity: LogSeverity, take: number): Promise<Log[]> {
-    return this.logRepo.find({ where: { system, subsystem, severity }, take, order: { id: 'DESC' } });
+  async getLastLog(system: string, subsystem: string, severity: LogSeverity): Promise<Log> {
+    return this.logRepo.findOne({ where: { system, subsystem, severity }, order: { id: 'DESC' } });
   }
 }

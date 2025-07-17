@@ -113,16 +113,15 @@ export class LogJobService {
       if (!DisabledProcess(Process.SAFETY_MODULE))
         await this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
 
-      const logs = await this.logService
-        .getLastLogs('LogService', 'FinancialDataLog', LogSeverity.INFO, 10)
-        .then((l) => l.map((log) => JSON.parse(log.message) as FinanceLog));
-      const meanTotalBalance = Util.avg(logs.map((l) => l.balancesTotal.totalBalanceChf));
+      const lastLog = await this.logService.getLastLog('LogService', 'FinancialDataLog', LogSeverity.INFO);
+      const lastTotalBalance = (JSON.parse(lastLog.message) as FinanceLog).balancesTotal.totalBalanceChf;
 
       await this.logService.create({
         system: 'LogService',
         subsystem: 'FinancialDataLog',
         severity:
-          Math.abs(totalBalanceChf - meanTotalBalance) > Config.financeLogTotalBalanceChangeLimit
+          Math.abs(totalBalanceChf - lastTotalBalance) > Config.financeLogTotalBalanceChangeLimit &&
+          Util.minutesDiff(lastLog.created) < 10
             ? LogSeverity.UNKNOWN
             : LogSeverity.INFO,
         message: JSON.stringify({
