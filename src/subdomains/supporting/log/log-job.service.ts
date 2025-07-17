@@ -113,7 +113,7 @@ export class LogJobService {
       if (!DisabledProcess(Process.SAFETY_MODULE))
         await this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
 
-      const lastLog = await this.logService.getLastLog('LogService', 'FinancialDataLog', LogSeverity.INFO);
+      const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO);
       const lastTotalBalance = (JSON.parse(lastLog.message) as FinanceLog).balancesTotal.totalBalanceChf;
 
       await this.logService.create({

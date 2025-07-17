@@ -3,7 +3,6 @@ import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Equal } from 'typeorm';
 import { CreateLogDto, LogCleanupSetting, UpdateLogDto } from './dto/create-log.dto';
 import { Log, LogSeverity } from './log.entity';
 import { LogRepository } from './log.repository';
@@ -37,16 +36,8 @@ export class LogService {
     return this.logRepo.save({ ...log, ...dto });
   }
 
-  async maxEntity(system: string, subsystem: string, severity: string): Promise<Log | undefined> {
-    const { maxId } = await this.logRepo
-      .createQueryBuilder()
-      .select('max(id) as maxId')
-      .where('system = :system', { system })
-      .andWhere('subsystem = :subsystem', { subsystem })
-      .andWhere('severity = :severity', { severity })
-      .getRawOne<{ maxId: number }>();
-
-    return this.logRepo.findOneBy({ id: Equal(maxId) });
+  async maxEntity(system: string, subsystem: string, severity: LogSeverity): Promise<Log | undefined> {
+    return this.logRepo.findOne({ where: { system, subsystem, severity }, order: { id: 'DESC' } });
   }
 
   async getBankLog(batchId: string): Promise<Log> {
@@ -56,9 +47,5 @@ export class LogService {
       .andWhere('severity = :severity', { severity: LogSeverity.INFO })
       .andWhere('log.message LIKE :message', { message: `%${batchId}%` })
       .getOne();
-  }
-
-  async getLastLog(system: string, subsystem: string, severity: LogSeverity): Promise<Log> {
-    return this.logRepo.findOne({ where: { system, subsystem, severity }, order: { id: 'DESC' } });
   }
 }
