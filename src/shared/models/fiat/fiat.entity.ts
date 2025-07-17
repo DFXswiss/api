@@ -53,9 +53,9 @@ export class Fiat extends IEntity {
   isIbanCountryAllowed(ibanCountry: string): boolean {
     const config = this.ibanCountryConfigObject;
 
-    if (config.allowed.includes(ibanCountry)) {
+    if (config?.allowed?.includes(ibanCountry)) {
       return true;
-    } else if (config.notAllowed.includes(ibanCountry) || config.notAllowed.includes('all')) {
+    } else if (config?.notAllowed?.includes(ibanCountry) || config?.notAllowed?.includes('*')) {
       return false;
     } else {
       return true;

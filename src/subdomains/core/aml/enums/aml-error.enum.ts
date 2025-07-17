@@ -51,7 +51,7 @@ export enum AmlError {
   CARD_NAME_MISMATCH = 'CardNameMismatch',
   VIDEO_IDENT_MISSING = 'VideoIdentMissing',
   LIQUIDITY_LIMIT_EXCEEDED = 'LiquidityLimitExceeded',
-  IBAN_COUNTRY_NOT_ALLOWED = 'IbanCountryNotAllowed',
+  IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
 }
 
 export const DelayResultError = [
@@ -232,7 +232,7 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
   },
-  [AmlError.IBAN_COUNTRY_NOT_ALLOWED]: {
+  [AmlError.IBAN_CURRENCY_MISMATCH]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,

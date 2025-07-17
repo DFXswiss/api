@@ -218,7 +218,7 @@ export class AmlHelperService {
         )
       )
         errors.push(AmlError.IBAN_BLACKLISTED);
-      if (!entity.sell.fiat.isIbanCountryAllowed(ibanCountry.symbol)) errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
+      if (!entity.sell.fiat.isIbanCountryAllowed(ibanCountry.symbol)) errors.push(AmlError.IBAN_CURRENCY_MISMATCH);
     }
 
     return errors;

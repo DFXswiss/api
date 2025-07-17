@@ -794,7 +794,7 @@ export class TransactionHelper implements OnModuleInit {
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
 
-    if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_COUNTRY_NOT_ALLOWED;
+    if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
     if (
       nationality &&
