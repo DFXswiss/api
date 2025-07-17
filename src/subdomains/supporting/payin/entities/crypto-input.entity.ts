@@ -25,7 +25,11 @@ export enum PayInAction {
   RETURN = 'Return',
 }
 
-export type PayInConfirmationType = 'Input' | 'Output' | 'Return';
+export enum PayInConfirmationType {
+  INPUT = 'Input',
+  OUTPUT = 'Output',
+  RETURN = 'Return',
+}
 
 export enum PayInStatus {
   CREATED = 'Created',
@@ -234,19 +238,29 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
+  resetForward(): this {
+    this.status = PayInStatus.ACKNOWLEDGED;
+    this.outTxId = null;
+    this.prepareTxId = null;
+    this.forwardFeeAmount = null;
+    this.forwardFeeAmountChf = null;
+
+    return this;
+  }
+
   confirm(direction: PayInConfirmationType, forwardRequired: boolean): this {
     switch (direction) {
-      case 'Input':
+      case PayInConfirmationType.INPUT:
         if (!this.purpose) break;
         this.isConfirmed = true;
         this.status = !forwardRequired ? PayInStatus.COMPLETED : undefined;
         break;
 
-      case 'Output':
+      case PayInConfirmationType.OUTPUT:
         this.status = PayInStatus.FORWARD_CONFIRMED;
         break;
 
-      case 'Return':
+      case PayInConfirmationType.RETURN:
         this.status = PayInStatus.RETURN_CONFIRMED;
         break;
     }
@@ -255,7 +269,11 @@ export class CryptoInput extends IEntity {
   }
 
   confirmationTxId(direction: PayInConfirmationType): string {
-    return direction === 'Input' ? this.inTxId : direction === 'Output' ? this.outTxId : this.returnTxId;
+    return direction === PayInConfirmationType.INPUT
+      ? this.inTxId
+      : direction === PayInConfirmationType.OUTPUT
+      ? this.outTxId
+      : this.returnTxId;
   }
 
   designateReturn(): this {

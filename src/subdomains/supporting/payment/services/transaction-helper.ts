@@ -180,7 +180,7 @@ export class TransactionHelper implements OnModuleInit {
       this.transactionSpecifications,
       payIn.asset.blockchain,
       payIn.asset.name,
-      direction == 'Input' ? TransactionDirection.IN : TransactionDirection.OUT,
+      direction == PayInConfirmationType.INPUT ? TransactionDirection.IN : TransactionDirection.OUT,
     );
     return spec?.minConfirmations ?? 0;
   }
