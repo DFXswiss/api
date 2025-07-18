@@ -59,12 +59,8 @@ export class TronClient extends BlockchainClient {
     const addressBalanceResponse = await this.tatumSdk.address.getBalance({ address: owner });
     if (addressBalanceResponse.error) throw new Error(`Cannot detect token balances of owner ${owner}`);
 
-    const assetAddresses = assets.map((a) => a.chainId);
-
     const allAddressBalanceTokenMap: Map<string, AddressBalance> = new Map(
-      addressBalanceResponse.data
-        .filter((d) => Util.includesIgnoreCase(assetAddresses, d.tokenAddress))
-        .map((ab) => [ab.tokenAddress.toLowerCase(), ab]),
+      addressBalanceResponse.data.filter((ab) => ab.tokenAddress).map((ab) => [ab.tokenAddress.toLowerCase(), ab]),
     );
 
     const tokenBalances: BlockchainTokenBalance[] = [];
