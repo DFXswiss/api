@@ -1,4 +1,5 @@
-import { AddressBalance, Tron } from '@tatumio/tatum';
+import { AddressBalance, ApiVersion, Network as TatumNetwork, TatumSDK, Tron } from '@tatumio/tatum';
+import { TronWalletProvider } from '@tatumio/tron-wallet-provider';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
@@ -18,10 +19,19 @@ export class TronClient extends BlockchainClient {
 
   private readonly tokens = new AsyncCache<TronToken>();
 
-  constructor(private readonly http: HttpService, private readonly tatumSdk: Tron) {
+  private tatumSdk: Tron;
+
+  constructor(private readonly http: HttpService) {
     super();
 
     this.wallet = TronWallet.createWithMnemonic(Config.blockchain.tron.tronWalletSeed);
+
+    void TatumSDK.init<Tron>({
+      version: ApiVersion.V3,
+      network: TatumNetwork.TRON,
+      apiKey: Config.blockchain.tron.tronApiKey,
+      configureWalletProviders: [TronWalletProvider],
+    }).then((sdk) => (this.tatumSdk = sdk));
   }
 
   getWalletAddress(): string {
