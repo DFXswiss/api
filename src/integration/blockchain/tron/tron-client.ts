@@ -25,16 +25,6 @@ export class TronClient extends BlockchainClient {
     super();
 
     this.wallet = TronWallet.createWithMnemonic(Config.blockchain.tron.tronWalletSeed);
-    this.init();
-  }
-
-  private init() {
-    void TatumSDK.init<Tron>({
-      version: ApiVersion.V3,
-      network: TatumNetwork.TRON,
-      apiKey: Config.blockchain.tron.tronApiKey,
-      configureWalletProviders: [TronWalletProvider],
-    }).then((sdk) => (this.tatumSdk = sdk));
   }
 
   getWalletAddress(): string {
@@ -42,7 +32,8 @@ export class TronClient extends BlockchainClient {
   }
 
   async getBlockHeight(): Promise<number> {
-    return this.tatumSdk.rpc.getNowBlock().then((nb) => nb.block_header.raw_data.number);
+    const tatumSdk = await this.getTatumSdk();
+    return tatumSdk.rpc.getNowBlock().then((nb) => nb.block_header.raw_data.number);
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -50,7 +41,8 @@ export class TronClient extends BlockchainClient {
   }
 
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
-    const addressBalanceResponse = await this.tatumSdk.address.getBalance({ address });
+    const tatumSdk = await this.getTatumSdk();
+    const addressBalanceResponse = await tatumSdk.address.getBalance({ address });
     if (addressBalanceResponse.error) throw new Error(`Cannot detect native coin balance of address ${address}`);
 
     const allAddressBalanceCoinData = addressBalanceResponse.data.filter(
@@ -69,7 +61,8 @@ export class TronClient extends BlockchainClient {
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
     const owner = address ?? this.getWalletAddress();
 
-    const addressBalanceResponse = await this.tatumSdk.address.getBalance({ address: owner });
+    const tatumSdk = await this.getTatumSdk();
+    const addressBalanceResponse = await tatumSdk.address.getBalance({ address: owner });
     if (addressBalanceResponse.error) throw new Error(`Cannot detect token balances of owner ${owner}`);
 
     const allAddressBalanceTokenMap: Map<string, AddressBalance> = new Map(
@@ -346,6 +339,19 @@ export class TronClient extends BlockchainClient {
   }
 
   // --- HELPER METHODS --- //
+  private async getTatumSdk(): Promise<Tron> {
+    if (!this.tatumSdk) {
+      this.tatumSdk = await TatumSDK.init<Tron>({
+        version: ApiVersion.V3,
+        network: TatumNetwork.TRON,
+        apiKey: Config.blockchain.tron.tronApiKey,
+        configureWalletProviders: [TronWalletProvider],
+      });
+    }
+
+    return this.tatumSdk;
+  }
+
   private httpConfig(): HttpRequestConfig {
     return {
       headers: {
