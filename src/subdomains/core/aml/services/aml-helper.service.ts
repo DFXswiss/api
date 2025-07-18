@@ -311,6 +311,38 @@ export class AmlHelperService {
           ].filter((e) => e);
 
         break;
+
+      case AmlRule.RULE_12:
+        if (
+          (entity.userData.bankTransactionVerification !== CheckStatus.PASS ||
+            entity.userData.kycLevel < KycLevel.LEVEL_30) &&
+          entity instanceof BuyCrypto &&
+          entity.checkoutTx
+        )
+          return [
+            entity.userData.bankTransactionVerification !== CheckStatus.PASS
+              ? AmlError.NO_BANK_TX_VERIFICATION
+              : undefined,
+            entity.userData.kycLevel < KycLevel.LEVEL_50 ? AmlError.KYC_LEVEL_50_NOT_REACHED : undefined,
+          ].filter((e) => e);
+
+        break;
+
+      case AmlRule.RULE_13:
+        if (
+          (entity.userData.bankTransactionVerification !== CheckStatus.PASS ||
+            entity.userData.kycLevel < KycLevel.LEVEL_50) &&
+          entity instanceof BuyCrypto &&
+          entity.checkoutTx
+        )
+          return [
+            entity.userData.bankTransactionVerification !== CheckStatus.PASS
+              ? AmlError.NO_BANK_TX_VERIFICATION
+              : undefined,
+            entity.userData.kycLevel < KycLevel.LEVEL_50 ? AmlError.KYC_LEVEL_50_NOT_REACHED : undefined,
+          ].filter((e) => e);
+
+        break;
     }
 
     return [];
@@ -362,6 +394,20 @@ export class AmlHelperService {
       amlRules.includes(AmlRule.RULE_10) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
       (user.status !== UserStatus.ACTIVE || user.userData.kycLevel < KycLevel.LEVEL_50)
+    )
+      return user.userData.kycLevel < KycLevel.LEVEL_50 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
+
+    if (
+      amlRules.includes(AmlRule.RULE_12) &&
+      paymentMethodIn === FiatPaymentMethod.CARD &&
+      (user.userData.bankTransactionVerification !== CheckStatus.PASS || user.userData.kycLevel < KycLevel.LEVEL_30)
+    )
+      return user.userData.kycLevel < KycLevel.LEVEL_30 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
+
+    if (
+      amlRules.includes(AmlRule.RULE_13) &&
+      paymentMethodIn === FiatPaymentMethod.CARD &&
+      (user.userData.bankTransactionVerification !== CheckStatus.PASS || user.userData.kycLevel < KycLevel.LEVEL_50)
     )
       return user.userData.kycLevel < KycLevel.LEVEL_50 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
   }
