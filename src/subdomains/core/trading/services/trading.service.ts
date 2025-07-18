@@ -6,13 +6,14 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { TradingInfo } from '../dto/trading.dto';
 import { PriceConfig, TradingRule } from '../entities/trading-rule.entity';
+import { TradeIgnoredException } from '../exceptions/trade-ignored.exception';
 
 @Injectable()
 export class TradingService {
@@ -135,7 +136,9 @@ export class TradingService {
       );
 
       if (checkPoolBalance <= targetAmount)
-        throw new Error(`Pool balance ${checkPoolBalance} is lower than required output amount ${targetAmount}`);
+        throw new TradeIgnoredException(
+          `Pool balance ${checkPoolBalance} is lower than required output amount ${targetAmount}`,
+        );
 
       const maxAllowedLoopCounter = 100;
       let currentLoopCounter = 0;
@@ -152,10 +155,12 @@ export class TradingService {
         ));
 
         if (checkPoolBalance <= targetAmount)
-          throw new Error(`Pool balance ${checkPoolBalance} is lower than required output amount ${targetAmount}`);
+          throw new TradeIgnoredException(
+            `Pool balance ${checkPoolBalance} is lower than required output amount ${targetAmount}`,
+          );
 
         if (++currentLoopCounter > maxAllowedLoopCounter)
-          throw new Error(
+          throw new TradeIgnoredException(
             `Max allowed loop counter exceeded: checkPriceImpact ${checkPriceImpact}, calcPriceImpact ${priceImpact.toFixed(
               6,
             )}`,
@@ -168,10 +173,9 @@ export class TradingService {
       const estimatedProfitChf = Util.round(amountIn * tradingInfo.assetIn.approxPriceChf * estimatedProfitPercent, 2);
       const swapFeeChf = Util.round(feeAmount * coin.approxPriceChf, 2);
       if (swapFeeChf > estimatedProfitChf) {
-        tradingInfo.tradeRequired = false;
-        tradingInfo.message = `Swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`;
-
-        this.logger.info(`Trading rule ${tradingRule.id} ignored: ${tradingInfo.message}`);
+        throw new TradeIgnoredException(
+          `Swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`,
+        );
       }
 
       const approximateAmountOut =
@@ -187,7 +191,9 @@ export class TradingService {
       tradingInfo.tradeRequired = false;
       tradingInfo.message = e.message;
 
-      this.logger.error(`Trading rule ${tradingRule.id} ignored: ${e.message}`);
+      const logLevel = e instanceof TradeIgnoredException ? LogLevel.INFO : LogLevel.ERROR;
+
+      this.logger.log(logLevel, `Trading rule ${tradingRule.id} ignored: ${e.message}`);
     }
 
     return tradingInfo;
