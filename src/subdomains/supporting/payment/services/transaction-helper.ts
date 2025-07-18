@@ -547,13 +547,7 @@ export class TransactionHelper implements OnModuleInit {
     if (!allowExpiredPrice && user && isAsset(to) && to.blockchain === Blockchain.SOLANA && to.type === AssetType.TOKEN)
       fee.network += await this.getSolanaCreateTokenAccountFee(user, to);
 
-    if (
-      !allowExpiredPrice &&
-      user &&
-      isAsset(to) &&
-      to.blockchain === Blockchain.TRON &&
-      [AssetType.COIN, AssetType.TOKEN].includes(to.type)
-    )
+    if (!allowExpiredPrice && user && isAsset(to) && to.blockchain === Blockchain.TRON)
       fee.network += await this.getTronCreateAccountFee(user, to);
 
     return [fee, networkStartFee];
