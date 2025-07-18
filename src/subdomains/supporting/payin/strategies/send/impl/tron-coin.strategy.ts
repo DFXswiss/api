@@ -5,7 +5,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { CryptoInput, PayInStatus } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInTronService } from '../../../services/payin-tron.service';
 import { SendType } from './base/send.strategy';
@@ -49,6 +49,8 @@ export class TronCoinStrategy extends TronStrategy {
       : null;
 
     payIn.preparing(null, feeAmount, feeAmountChf);
+    payIn.status = PayInStatus.PREPARED;
+
     await this.payInRepo.save(payIn);
   }
 

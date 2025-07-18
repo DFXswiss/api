@@ -22,7 +22,6 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     !(userData.legalEntity === LegalEntity.GMBH && userData.organizationCountry?.symbol === 'CH')
       ? KycStepName.OWNER_DIRECTORY
       : null,
-
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.SIGNATORY_POWER : null,
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     userData.accountType === AccountType.ORGANIZATION
