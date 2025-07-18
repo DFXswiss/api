@@ -197,11 +197,13 @@ export class TransactionHelper implements OnModuleInit {
     bankIn: CardBankName | IbanBankName | undefined,
     bankOut: CardBankName | IbanBankName | undefined,
     user: User,
+    userData: UserData,
   ): Promise<InternalFeeDto & FeeDto> {
     // get fee
     const [fee, networkStartFee] = await this.getAllFees(
       user,
-      undefined,
+      userData,
+      user.wallet,
       paymentMethodIn,
       paymentMethodOut,
       bankIn,
@@ -272,6 +274,7 @@ export class TransactionHelper implements OnModuleInit {
     // get fee
     const [fee, networkStartFee] = await this.getAllFees(
       user,
+      user.userData,
       wallet,
       paymentMethodIn,
       paymentMethodOut,
@@ -407,6 +410,7 @@ export class TransactionHelper implements OnModuleInit {
       specialCodes: [],
       allowCachedBlockchainFee: false,
       userData,
+      wallet: userData.wallet,
     });
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
@@ -515,6 +519,7 @@ export class TransactionHelper implements OnModuleInit {
 
   private async getAllFees(
     user: User | undefined,
+    userData: UserData | undefined,
     wallet: Wallet | undefined,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
@@ -529,7 +534,7 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<[InternalFeeDto, number]> {
     const [fee, networkStartFee] = await Promise.all([
       this.getTxFee(
-        user,
+        userData,
         wallet,
         paymentMethodIn,
         paymentMethodOut,
@@ -608,7 +613,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getTxFee(
-    user: User | undefined,
+    userData: UserData | undefined,
     wallet: Wallet | undefined,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
@@ -621,7 +626,7 @@ export class TransactionHelper implements OnModuleInit {
     allowCachedBlockchainFee: boolean,
   ): Promise<InternalFeeDto> {
     const feeRequest: UserFeeRequest = {
-      user,
+      userData,
       wallet,
       paymentMethodIn,
       paymentMethodOut,
@@ -634,7 +639,7 @@ export class TransactionHelper implements OnModuleInit {
       allowCachedBlockchainFee,
     };
 
-    return user ? this.feeService.getUserFee(feeRequest) : this.feeService.getDefaultFee(feeRequest);
+    return userData ? this.feeService.getUserFee(feeRequest) : this.feeService.getDefaultFee(feeRequest);
   }
 
   private async getTargetEstimation(

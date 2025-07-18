@@ -159,7 +159,7 @@ export class BuyFiatPreparationService {
       relations: {
         sell: true,
         cryptoInput: true,
-        transaction: { user: { wallet: true, userData: true }, userData: true },
+        transaction: { user: { wallet: true }, userData: true },
       },
     });
 
@@ -185,6 +185,7 @@ export class BuyFiatPreparationService {
           undefined,
           IbanBankName.MAERKI,
           entity.user,
+          entity.userData,
         );
 
         await this.buyFiatRepo.update(
