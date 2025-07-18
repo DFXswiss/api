@@ -25,7 +25,10 @@ export class TronClient extends BlockchainClient {
     super();
 
     this.wallet = TronWallet.createWithMnemonic(Config.blockchain.tron.tronWalletSeed);
+    this.init();
+  }
 
+  private init() {
     void TatumSDK.init<Tron>({
       version: ApiVersion.V3,
       network: TatumNetwork.TRON,

@@ -11,7 +11,7 @@ import { TronClient } from '../tron-client';
 
 @Injectable()
 export class TronService extends BlockchainService {
-  private client: TronClient;
+  private readonly client: TronClient;
 
   constructor(private readonly http: HttpService) {
     super();
