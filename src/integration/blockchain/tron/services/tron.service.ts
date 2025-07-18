@@ -1,7 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { ApiVersion, Network as TatumNetwork, TatumSDK, Tron } from '@tatumio/tatum';
-import { TronWalletProvider } from '@tatumio/tron-wallet-provider';
-import { Config } from 'src/config/config';
+import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
@@ -13,24 +10,13 @@ import { TronToken, TronTransactionDto } from '../dto/tron.dto';
 import { TronClient } from '../tron-client';
 
 @Injectable()
-export class TronService extends BlockchainService implements OnModuleInit {
-  private tatumSdk: Tron;
-
-  private client: TronClient;
+export class TronService extends BlockchainService {
+  private readonly client: TronClient;
 
   constructor(private readonly http: HttpService) {
     super();
-  }
 
-  async onModuleInit() {
-    this.tatumSdk = await TatumSDK.init<Tron>({
-      version: ApiVersion.V3,
-      network: TatumNetwork.TRON,
-      apiKey: Config.blockchain.tron.tronApiKey,
-      configureWalletProviders: [TronWalletProvider],
-    });
-
-    this.client = new TronClient(this.http, this.tatumSdk);
+    this.client = new TronClient(this.http);
   }
 
   getDefaultClient(): TronClient {
