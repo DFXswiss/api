@@ -229,6 +229,8 @@ export class AmlHelperService {
     amountInChf: number,
     last7dCheckoutVolume: number,
   ): AmlError[] {
+    const errors: AmlError[] = [];
+
     switch (amlRule) {
       case AmlRule.DEFAULT:
         return [];
@@ -240,7 +242,7 @@ export class AmlHelperService {
           entity.user.status === UserStatus.NA &&
           entity.checkoutTx.ip !== entity.user.ip
         )
-          return [AmlError.IP_MISMATCH];
+          errors.push(AmlError.IP_MISMATCH);
         break;
 
       case AmlRule.RULE_2:
@@ -250,7 +252,7 @@ export class AmlHelperService {
 
       case AmlRule.RULE_3:
         if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_50)
-          return [AmlError.KYC_LEVEL_50_NOT_REACHED];
+          errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
         break;
 
       case AmlRule.RULE_4:
@@ -259,7 +261,7 @@ export class AmlHelperService {
           entity instanceof BuyCrypto &&
           entity.checkoutTx
         )
-          return [AmlError.WEEKLY_LIMIT_REACHED];
+          errors.push(AmlError.WEEKLY_LIMIT_REACHED);
         break;
 
       case AmlRule.RULE_6:
@@ -269,7 +271,7 @@ export class AmlHelperService {
           entity.checkoutTx &&
           entity.userData.kycLevel < KycLevel.LEVEL_30
         )
-          return [AmlError.KYC_LEVEL_30_NOT_REACHED];
+          errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
         break;
 
       case AmlRule.RULE_7:
@@ -279,73 +281,48 @@ export class AmlHelperService {
           entity.checkoutTx &&
           entity.userData.kycLevel < KycLevel.LEVEL_50
         )
-          return [AmlError.KYC_LEVEL_50_NOT_REACHED];
+          errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
         break;
 
       case AmlRule.RULE_8:
-        if (amountInChf > 100000) return [AmlError.ASSET_AMOUNT_TOO_HIGH];
+        if (amountInChf > 100000) errors.push(AmlError.ASSET_AMOUNT_TOO_HIGH);
         break;
 
       case AmlRule.RULE_9:
-        if (
-          (entity.user.status !== UserStatus.ACTIVE || entity.userData.kycLevel < KycLevel.LEVEL_30) &&
-          entity instanceof BuyCrypto &&
-          entity.checkoutTx
-        )
-          return [
-            entity.user.status !== UserStatus.ACTIVE ? AmlError.USER_NOT_ACTIVE : undefined,
-            entity.userData.kycLevel < KycLevel.LEVEL_30 ? AmlError.KYC_LEVEL_30_NOT_REACHED : undefined,
-          ].filter((e) => e);
+        if (entity instanceof BuyCrypto && entity.checkoutTx) {
+          if (entity.user.status !== UserStatus.ACTIVE) errors.push(AmlError.USER_NOT_ACTIVE);
+          if (entity.userData.kycLevel < KycLevel.LEVEL_30) errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
+        }
 
         break;
 
       case AmlRule.RULE_10:
-        if (
-          (entity.user.status !== UserStatus.ACTIVE || entity.userData.kycLevel < KycLevel.LEVEL_50) &&
-          entity instanceof BuyCrypto &&
-          entity.checkoutTx
-        )
-          return [
-            entity.user.status !== UserStatus.ACTIVE ? AmlError.USER_NOT_ACTIVE : undefined,
-            entity.userData.kycLevel < KycLevel.LEVEL_50 ? AmlError.KYC_LEVEL_50_NOT_REACHED : undefined,
-          ].filter((e) => e);
+        if (entity instanceof BuyCrypto && entity.checkoutTx) {
+          if (entity.user.status !== UserStatus.ACTIVE) errors.push(AmlError.USER_NOT_ACTIVE);
+          if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
+        }
 
         break;
 
       case AmlRule.RULE_12:
-        if (
-          (entity.userData.bankTransactionVerification !== CheckStatus.PASS ||
-            entity.userData.kycLevel < KycLevel.LEVEL_30) &&
-          entity instanceof BuyCrypto &&
-          entity.checkoutTx
-        )
-          return [
-            entity.userData.bankTransactionVerification !== CheckStatus.PASS
-              ? AmlError.NO_BANK_TX_VERIFICATION
-              : undefined,
-            entity.userData.kycLevel < KycLevel.LEVEL_50 ? AmlError.KYC_LEVEL_50_NOT_REACHED : undefined,
-          ].filter((e) => e);
-
+        if (entity instanceof BuyCrypto && entity.checkoutTx) {
+          if (entity.userData.bankTransactionVerification !== CheckStatus.PASS)
+            errors.push(AmlError.NO_BANK_TX_VERIFICATION);
+          if (entity.userData.kycLevel < KycLevel.LEVEL_30) errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
+        }
         break;
 
       case AmlRule.RULE_13:
-        if (
-          (entity.userData.bankTransactionVerification !== CheckStatus.PASS ||
-            entity.userData.kycLevel < KycLevel.LEVEL_50) &&
-          entity instanceof BuyCrypto &&
-          entity.checkoutTx
-        )
-          return [
-            entity.userData.bankTransactionVerification !== CheckStatus.PASS
-              ? AmlError.NO_BANK_TX_VERIFICATION
-              : undefined,
-            entity.userData.kycLevel < KycLevel.LEVEL_50 ? AmlError.KYC_LEVEL_50_NOT_REACHED : undefined,
-          ].filter((e) => e);
+        if (entity instanceof BuyCrypto && entity.checkoutTx) {
+          if (entity.userData.bankTransactionVerification !== CheckStatus.PASS)
+            errors.push(AmlError.NO_BANK_TX_VERIFICATION);
+          if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
+        }
 
         break;
     }
 
-    return [];
+    return errors;
   }
 
   static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
@@ -383,33 +360,25 @@ export class AmlHelperService {
     )
       return QuoteError.KYC_REQUIRED;
 
-    if (
-      amlRules.includes(AmlRule.RULE_9) &&
-      paymentMethodIn === FiatPaymentMethod.CARD &&
-      (user.status !== UserStatus.ACTIVE || user.userData.kycLevel < KycLevel.LEVEL_30)
-    )
-      return user.userData.kycLevel < KycLevel.LEVEL_30 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
+    if (amlRules.includes(AmlRule.RULE_9) && paymentMethodIn === FiatPaymentMethod.CARD) {
+      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (user.userData.kycLevel < KycLevel.LEVEL_30) return QuoteError.KYC_REQUIRED;
+    }
 
-    if (
-      amlRules.includes(AmlRule.RULE_10) &&
-      paymentMethodIn === FiatPaymentMethod.CARD &&
-      (user.status !== UserStatus.ACTIVE || user.userData.kycLevel < KycLevel.LEVEL_50)
-    )
-      return user.userData.kycLevel < KycLevel.LEVEL_50 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
+    if (amlRules.includes(AmlRule.RULE_10) && paymentMethodIn === FiatPaymentMethod.CARD) {
+      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (user.userData.kycLevel < KycLevel.LEVEL_50) return QuoteError.KYC_REQUIRED;
+    }
 
-    if (
-      amlRules.includes(AmlRule.RULE_12) &&
-      paymentMethodIn === FiatPaymentMethod.CARD &&
-      (user.userData.bankTransactionVerification !== CheckStatus.PASS || user.userData.kycLevel < KycLevel.LEVEL_30)
-    )
-      return user.userData.kycLevel < KycLevel.LEVEL_30 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
+    if (amlRules.includes(AmlRule.RULE_12) && paymentMethodIn === FiatPaymentMethod.CARD) {
+      if (user.userData.bankTransactionVerification !== CheckStatus.PASS) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (user.userData.kycLevel < KycLevel.LEVEL_30) return QuoteError.KYC_REQUIRED;
+    }
 
-    if (
-      amlRules.includes(AmlRule.RULE_13) &&
-      paymentMethodIn === FiatPaymentMethod.CARD &&
-      (user.userData.bankTransactionVerification !== CheckStatus.PASS || user.userData.kycLevel < KycLevel.LEVEL_50)
-    )
-      return user.userData.kycLevel < KycLevel.LEVEL_50 ? QuoteError.KYC_REQUIRED : QuoteError.BANK_TRANSACTION_MISSING;
+    if (amlRules.includes(AmlRule.RULE_13) && paymentMethodIn === FiatPaymentMethod.CARD) {
+      if (user.userData.bankTransactionVerification !== CheckStatus.PASS) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (user.userData.kycLevel < KycLevel.LEVEL_50) return QuoteError.KYC_REQUIRED;
+    }
   }
 
   static getAmlResult(
