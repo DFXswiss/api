@@ -116,11 +116,18 @@ export class KucoinPayService
     body: KucoinPayRefundNotification | KucoinPayOrderNotification,
     headers: any,
   ): Promise<boolean> {
-    const { signature, timestamp } = headers;
+    this.logger.info(`Verifying Kucoin Pay signature for headers: ${JSON.stringify(headers)}`);
+    this.logger.info(`Verifying Kucoin Pay signature for body: ${JSON.stringify(body)}`);
+
+    const { 'pay-api-sig': signature, 'pay-api-timestamp': timestamp } = headers;
+    if (!signature || !timestamp) return false;
+
     const variant = this.mapOrderTypeToSignatureVariant(body.orderType);
     const content = this.getSignatureContent(variant, { ...body, timestamp });
 
-    return Util.verifySign(content, this.verificationKey, signature, 'sha256', 'base64');
+    const result =   Util.verifySign(content, this.verificationKey, signature, 'sha256', 'base64');
+    this.logger.info(`Kucoin Pay signature verification result: ${result}`);
+    return result;
   }
 
   async handleWebhook(
@@ -147,8 +154,8 @@ export class KucoinPayService
     }
   }
 
-  enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>> {
-    throw new Error('Temporary disabled. Only manual enrollment is supported for Kucoin Pay.');
+  enrollPaymentLink(): Promise<Record<string, string>> {
+    return Promise.resolve({ kucoinPaySubMerchantId: Util.randomString(8) });
   }
 
   private mapOrderTypeToSignatureVariant(orderType: KucoinOrderType): SignatureVariant {
