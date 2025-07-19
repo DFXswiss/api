@@ -52,6 +52,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
   private async calculateFee(blockchain: Blockchain): Promise<number> {
     switch (blockchain) {
       case Blockchain.BINANCE_PAY:
+      case Blockchain.KUCOIN_PAY:
       case Blockchain.LIGHTNING:
       case Blockchain.MONERO:
       case Blockchain.SOLANA:

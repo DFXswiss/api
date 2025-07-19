@@ -27,6 +27,7 @@ export class BinanceService extends ExchangeService {
     Arweave: undefined,
     Railgun: undefined,
     BinancePay: undefined,
+    KucoinPay: undefined,
     Solana: 'SOL',
     Tron: 'TRX',
     Kraken: undefined,

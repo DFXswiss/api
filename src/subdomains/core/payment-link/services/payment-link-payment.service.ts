@@ -340,7 +340,9 @@ export class PaymentLinkPaymentService {
   }
 
   private async getQuoteForInput(cryptoInput: CryptoInput): Promise<PaymentQuote | null> {
-    const quote = [Blockchain.LIGHTNING, Blockchain.BINANCE_PAY].includes(cryptoInput.address.blockchain)
+    const quote = [Blockchain.LIGHTNING, Blockchain.BINANCE_PAY, Blockchain.KUCOIN_PAY].includes(
+      cryptoInput.address.blockchain,
+    )
       ? await this.getQuoteByActivation(cryptoInput.address.blockchain, cryptoInput.inTxId)
       : await this.getQuoteByTx(cryptoInput.address.blockchain, cryptoInput.inTxId);
 

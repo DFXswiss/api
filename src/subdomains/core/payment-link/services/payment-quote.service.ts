@@ -155,7 +155,7 @@ export class PaymentQuoteService {
   }
 
   async saveBlockchainConfirmed(quote: PaymentQuote, txBlockchain: Blockchain, txId: string): Promise<PaymentQuote> {
-    const status = [Blockchain.LIGHTNING, Blockchain.BINANCE_PAY].includes(txBlockchain)
+    const status = [Blockchain.LIGHTNING, Blockchain.BINANCE_PAY, Blockchain.KUCOIN_PAY].includes(txBlockchain)
       ? PaymentQuoteStatus.TX_COMPLETED
       : PaymentQuoteStatus.TX_BLOCKCHAIN;
 

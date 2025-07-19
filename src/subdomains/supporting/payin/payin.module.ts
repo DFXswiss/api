@@ -37,6 +37,7 @@ import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
 import { GnosisStrategy as GnosisStrategyR } from './strategies/register/impl/gnosis.strategy';
+import { KucoinPayStrategy as KucoinPayStrategyR } from './strategies/register/impl/kucoin-pay.strategy';
 import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
@@ -56,6 +57,7 @@ import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send
 import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/send/impl/ethereum-token.strategy';
 import { GnosisCoinStrategy as GnosisCoinStrategyS } from './strategies/send/impl/gnosis-coin.strategy';
 import { GnosisTokenStrategy as GnosisTokenStrategyS } from './strategies/send/impl/gnosis-token.strategy';
+import { KucoinPayStrategy as KucoinPayStrategyS } from './strategies/send/impl/kucoin-pay.strategy';
 import { LightningStrategy as LightningStrategyS } from './strategies/send/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyS } from './strategies/send/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send/impl/optimism-coin.strategy';
@@ -138,6 +140,8 @@ import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/
     TronTokenStrategyS,
     BinancePayStrategyR,
     BinancePayStrategyS,
+    KucoinPayStrategyR,
+    KucoinPayStrategyS,
   ],
   exports: [PayInService],
 })

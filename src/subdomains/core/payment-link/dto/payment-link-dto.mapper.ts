@@ -41,6 +41,7 @@ export class PaymentLinkDtoMapper {
     delete config.accessKeys;
     delete config.binancePayMerchantId;
     delete config.binancePaySubMerchantId;
+    delete config.kucoinPaySubMerchantId;
 
     return config;
   }

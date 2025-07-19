@@ -22,8 +22,9 @@ export class PaymentRequestMapper {
       case Blockchain.SOLANA:
         return this.toPaymentLinkPayment(paymentActivation.method, paymentActivation);
 
+      case Blockchain.KUCOIN_PAY:
       case Blockchain.BINANCE_PAY:
-        return this.toBinancePayPayment(paymentActivation.method, paymentActivation);
+        return this.toC2BPayment(paymentActivation.method, paymentActivation);
 
       default:
         throw new BadRequestException(`Invalid method ${paymentActivation?.method}`);
@@ -52,11 +53,13 @@ export class PaymentRequestMapper {
     };
   }
 
-  private static toBinancePayPayment(method: Blockchain, paymentActivation: PaymentActivation): any {
+  private static toC2BPayment(method: Blockchain, paymentActivation: PaymentActivation): any {
+    const appName = method === Blockchain.KUCOIN_PAY ? 'Kucoin' : 'Binance';
+
     return {
       expiryDate: paymentActivation.expiryDate,
       uri: paymentActivation.paymentRequest,
-      hint: `Pay in the Binance app by following the deep link ${paymentActivation.paymentRequest}.`,
+      hint: `Pay in the ${appName} app by following the deep link ${paymentActivation.paymentRequest}.`,
     };
   }
 }

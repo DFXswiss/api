@@ -569,7 +569,7 @@ export class Configuration {
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
-    manualMethods: ['KuCoinPay', 'TaprootAsset', 'Spark'],
+    manualMethods: ['TaprootAsset', 'Spark'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
@@ -577,6 +577,10 @@ export class Configuration {
     binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
     binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
     binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
+
+    kucoinPayApiKey: process.env.KUCOIN_API_KEY,
+    kucoinPaySigningKey: process.env.DFX_KUCOINPAY_PRIVATE_KEY?.split('<br>').join('\n'),
+    kucoinPayPublicKey: process.env.KUCOIN_PUBLIC_KEY?.split('<br>').join('\n'),
 
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),

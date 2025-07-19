@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BinancePayModule } from 'src/integration/binance-pay/binance-pay.module';
+import { KucoinPayModule } from 'src/integration/kucoin-pay/kucoin-pay.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { PayInWebhookModule } from 'src/subdomains/supporting/payin/payin-webhook.module';
@@ -24,6 +25,7 @@ import { PaymentLinkService } from './services/payment-link.service';
     SellCryptoModule,
     PaymentLinkPaymentModule,
     BinancePayModule,
+    KucoinPayModule,
   ],
   controllers: [PaymentLinkController, PaymentLinkShortController, C2BPaymentLinkController],
   providers: [
