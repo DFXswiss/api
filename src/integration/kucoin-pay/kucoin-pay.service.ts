@@ -30,17 +30,23 @@ export class KucoinPayService
   private readonly logger = new DfxLogger(KucoinPayService);
   private readonly baseUrl = 'https://pay.tunas.io/api/kucoinpay';
   private readonly apiKey: string;
-  private readonly secretKey: string;
   private readonly verificationKey: string;
+  private readonly privateKey: crypto.KeyObject;
 
   constructor(private readonly http: HttpService) {
     this.apiKey = Config.payment.kucoinPayApiKey;
 
-    this.secretKey =
+    const secretKey =
       Config.payment.kucoinPaySigningKey
         ?.replace('-----BEGIN PRIVATE KEY-----', '')
         .replace('-----END PRIVATE KEY-----', '')
         .replace(/\n/g, '') ?? '';
+
+    this.privateKey = crypto.createPrivateKey({
+      key: Buffer.from(secretKey, 'base64'),
+      format: 'der',
+      type: 'pkcs8',
+    });
 
     this.verificationKey = Config.payment.kucoinPayPublicKey;
   }
@@ -116,11 +122,18 @@ export class KucoinPayService
     body: KucoinPayRefundNotification | KucoinPayOrderNotification,
     headers: any,
   ): Promise<boolean> {
-    const { signature, timestamp } = headers;
+    this.logger.info(`Verifying Kucoin Pay signature for headers: ${JSON.stringify(headers)}`);
+    this.logger.info(`Verifying Kucoin Pay signature for body: ${JSON.stringify(body)}`);
+
+    const { 'pay-api-sig': signature, 'pay-api-timestamp': timestamp } = headers;
+    if (!signature || !timestamp) return false;
+
     const variant = this.mapOrderTypeToSignatureVariant(body.orderType);
     const content = this.getSignatureContent(variant, { ...body, timestamp });
 
-    return Util.verifySign(content, this.verificationKey, signature, 'sha256', 'base64');
+    const result = Util.verifySign(content, this.verificationKey, signature, 'sha256', 'base64');
+    this.logger.info(`Kucoin Pay signature verification result: ${result}`);
+    return result;
   }
 
   async handleWebhook(
@@ -147,8 +160,8 @@ export class KucoinPayService
     }
   }
 
-  enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>> {
-    throw new Error('Temporary disabled. Only manual enrollment is supported for Kucoin Pay.');
+  enrollPaymentLink(): Promise<Record<string, string>> {
+    return Promise.resolve({ kucoinPaySubMerchantId: Util.randomString(8) });
   }
 
   private mapOrderTypeToSignatureVariant(orderType: KucoinOrderType): SignatureVariant {
@@ -167,14 +180,8 @@ export class KucoinPayService
   private getSignature(variant: SignatureVariant, args: Record<string, any>): string {
     const content = this.getSignatureContent(variant, args);
 
-    const privateKey = crypto.createPrivateKey({
-      key: Buffer.from(this.secretKey, 'base64'),
-      format: 'der',
-      type: 'pkcs8',
-    });
-
     const signature = crypto.sign('RSA-SHA256', Buffer.from(content, 'utf8'), {
-      key: privateKey,
+      key: this.privateKey,
       padding: crypto.constants.RSA_PKCS1_PADDING,
     });
 
@@ -185,7 +192,7 @@ export class KucoinPayService
     const paramOrder = this.getParamOrder(variant);
 
     return paramOrder
-      .filter((param) => (param === 'apiKey' ? true : args[param] !== undefined && args[param] !== null))
+      .filter((param) => (param === 'apiKey' ? true : args[param] != null))
       .map((param) => (param === 'apiKey' ? `${param}=${this.apiKey}` : `${param}=${args[param]}`))
       .join('&');
   }
