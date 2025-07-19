@@ -16,6 +16,7 @@ export class FiatDtoMapper {
       cardSellable: fiat.cardSellable,
       instantBuyable: fiat.instantBuyable,
       instantSellable: fiat.instantSellable,
+      ibanCountryConfig: fiat.ibanCountryConfigObject,
     };
 
     return Object.assign(new FiatDto(), dto);

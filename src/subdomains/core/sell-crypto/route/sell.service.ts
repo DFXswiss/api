@@ -340,6 +340,7 @@ export class SellService {
       FiatPaymentMethod.BANK,
       !dto.exactPrice,
       user,
+      sell.iban.substring(0, 2),
     );
 
     const sellDto: SellPaymentInfoDto = {

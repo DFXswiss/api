@@ -9,4 +9,5 @@ export enum QuoteError {
   NATIONALITY_NOT_ALLOWED = 'NationalityNotAllowed',
   NAME_REQUIRED = 'NameRequired',
   VIDEO_IDENT_REQUIRED = 'VideoIdentRequired',
+  IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
 }

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { IbanCountryConfig } from '../fiat.entity';
 
 export class FiatDto {
   @ApiProperty()
@@ -25,6 +26,9 @@ export class FiatDto {
 
   @ApiProperty()
   instantSellable: boolean;
+
+  @ApiProperty()
+  ibanCountryConfig: IbanCountryConfig;
 }
 
 export class VolumeLimitDto {
