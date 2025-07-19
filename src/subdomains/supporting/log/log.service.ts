@@ -36,8 +36,8 @@ export class LogService {
     return this.logRepo.save({ ...log, ...dto });
   }
 
-  async maxEntity(system: string, subsystem: string, severity: LogSeverity): Promise<Log | undefined> {
-    return this.logRepo.findOne({ where: { system, subsystem, severity }, order: { id: 'DESC' } });
+  async maxEntity(system: string, subsystem: string, severity: LogSeverity, valid?: boolean): Promise<Log | undefined> {
+    return this.logRepo.findOne({ where: { system, subsystem, severity, valid }, order: { id: 'DESC' } });
   }
 
   async getBankLog(batchId: string): Promise<Log> {

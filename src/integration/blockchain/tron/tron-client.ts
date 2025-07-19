@@ -265,7 +265,7 @@ export class TronClient extends BlockchainClient {
           fromPrivateKey: wallet.privateKey,
           to: toAddress,
           tokenAddress: token.chainId,
-          amount: amount.toString(),
+          amount: Util.floor(amount, token.decimals ?? 0).toString(),
           feeLimit: TronUtil.fromSunAmount(Config.blockchain.tron.sendTokenFeeLimit),
         },
         this.httpConfig(),
