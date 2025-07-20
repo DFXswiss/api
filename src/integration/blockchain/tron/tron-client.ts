@@ -256,6 +256,8 @@ export class TronClient extends BlockchainClient {
   }
 
   private async sendToken(wallet: TronWallet, toAddress: string, token: Asset, amount: number): Promise<string> {
+    if (!token.decimals) throw new Error(`No decimals found in token ${token.uniqueName}`);
+
     const url = Config.blockchain.tron.tronApiUrl;
 
     return this.http
@@ -265,7 +267,7 @@ export class TronClient extends BlockchainClient {
           fromPrivateKey: wallet.privateKey,
           to: toAddress,
           tokenAddress: token.chainId,
-          amount: Util.floor(amount, token.decimals ?? 0).toString(),
+          amount: Util.floor(amount, token.decimals).toString(),
           feeLimit: TronUtil.fromSunAmount(Config.blockchain.tron.sendTokenFeeLimit),
         },
         this.httpConfig(),
