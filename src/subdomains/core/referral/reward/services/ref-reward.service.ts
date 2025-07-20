@@ -1,19 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, Not } from 'typeorm';
 import { RefRewardExtended } from '../../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
+import { CreateRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
@@ -57,20 +57,40 @@ export class RefRewardService {
     private readonly userService: UserService,
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
-    private readonly fiatService: FiatService,
     private readonly transactionService: TransactionService,
   ) {}
 
-  //*** JOBS ***//
+  async createManualRefReward(dto: CreateRefRewardDto) {
+    const user = await this.userService.getUser(dto.user.id);
+    if (!user) throw new NotFoundException('User not found');
+
+    const asset = await this.assetService.getAssetById(dto.asset.id);
+    if (!asset) throw new NotFoundException('Asset not found');
+
+    const eurChfPrice = await this.pricingService.getPrice(PriceCurrency.EUR, PriceCurrency.CHF, false);
+
+    const entity = this.rewardRepo.create({
+      user,
+      targetAddress: user.address,
+      outputAsset: asset.dexName,
+      status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
+      targetBlockchain: asset.blockchain,
+      amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
+      amountInEur: dto.amountInEur,
+    });
+
+    entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.MANUAL_REF, user });
+
+    // update user ref balance
+
+    await this.rewardRepo.save(entity);
+  }
 
   async createPendingRefRewards() {
     const openCreditUser = await this.userService.getOpenRefCreditUser();
     if (openCreditUser.length == 0) return;
 
-    // CHF/EUR Price
-    const fiatEur = await this.fiatService.getFiatByName('EUR');
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-    const eurChfPrice = await this.pricingService.getPrice(fiatEur, fiatChf, false);
+    const eurChfPrice = await this.pricingService.getPrice(PriceCurrency.EUR, PriceCurrency.CHF, false);
 
     const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
       CryptoService.getDefaultBlockchainBasedOn(o.address),
@@ -102,7 +122,7 @@ export class RefRewardService {
 
         const entity = this.rewardRepo.create({
           outputAsset: payoutAsset.dexName,
-          user: user,
+          user,
           status: refCreditEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
           targetAddress: user.address,
           targetBlockchain: blockchain,
