@@ -125,8 +125,8 @@ export class TransactionService {
       .createQueryBuilder('transaction')
       .select('SUM(refReward.amountInEur / user.refFeePercent)', 'volume')
       .addSelect('SUM(refReward.amountInEur)', 'credit')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('transaction.refReward', 'refReward')
+      .leftJoin('transaction.user', 'user')
+      .leftJoin('transaction.refReward', 'refReward')
       .where('sourceType = :sourceType', { sourceType: TransactionSourceType.MANUAL_REF })
       .andWhere('user.ref = :ref', { ref })
       .getRawOne<{ volume: number; credit: number }>();
