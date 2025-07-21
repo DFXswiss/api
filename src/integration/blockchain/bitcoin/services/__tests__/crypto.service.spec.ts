@@ -7,6 +7,7 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
+import { ZanoService } from 'src/integration/blockchain/zano/services/zano.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -18,6 +19,7 @@ describe('CryptoService', () => {
   let blockchainRegistryService: BlockchainRegistryService;
   let lightningService: LightningService;
   let moneroService: MoneroService;
+  let zanoService: ZanoService;
   let arweaveService: ArweaveService;
   let bitcoinService: BitcoinService;
   let railgunService: RailgunService;
@@ -29,6 +31,7 @@ describe('CryptoService', () => {
     bitcoinService = createMock<BitcoinService>();
     lightningService = createMock<LightningService>();
     moneroService = createMock<MoneroService>();
+    zanoService = createMock<ZanoService>();
     arweaveService = createMock<ArweaveService>();
     railgunService = createMock<RailgunService>();
     solanaService = createMock<SolanaService>();
@@ -41,6 +44,7 @@ describe('CryptoService', () => {
         { provide: BitcoinService, useValue: bitcoinService },
         { provide: LightningService, useValue: lightningService },
         { provide: MoneroService, useValue: moneroService },
+        { provide: ZanoService, useValue: zanoService },
         { provide: ArweaveService, useValue: arweaveService },
         { provide: RailgunService, useValue: railgunService },
         { provide: SolanaService, useValue: solanaService },
@@ -125,6 +129,14 @@ describe('CryptoService', () => {
         '88q8rtLE9zsPjdvoY4WmBFJ9WXj3zghijeeDbihZAFg8EDPdJPhYj5Q9w9K1k5ghSQgyALKHrQiNUYdG2An8PSFnBwFpvC1',
       ),
     ).toEqual([Blockchain.MONERO]);
+  });
+
+  it('should return Blockchain.ZANO for address ZxDGqXPCPFs8gLbE998HeZB2u9gV4V5EaMvNSHsmc3Yb6FFv8QjEhmxXq6Ddt6GeKPcDCfCEUdoTvMJXnqp651uU2KF3sHwaK', () => {
+    expect(
+      CryptoService.getBlockchainsBasedOn(
+        'ZxDGqXPCPFs8gLbE998HeZB2u9gV4V5EaMvNSHsmc3Yb6FFv8QjEhmxXq6Ddt6GeKPcDCfCEUdoTvMJXnqp651uU2KF3sHwaK',
+      ),
+    ).toEqual([Blockchain.ZANO]);
   });
 
   it('should return Blockchain.LIQUID for address VTpzTic2n6uzefaDsrwtUJJYEXTdw1Q9hTk5G9XGFRM9WUhbAbjwgbZ3pr71QnuAmTFSfzPEzF7CWuBy', () => {

@@ -25,6 +25,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.BITCOIN]: 'https://mempool.space',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.MONERO]: 'https://xmrscan.org',
+  [Blockchain.ZANO]: 'https://explorer.zano.org',
   [Blockchain.ETHEREUM]: 'https://etherscan.io',
   [Blockchain.BINANCE_SMART_CHAIN]: 'https://bscscan.com',
   [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io',
@@ -56,6 +57,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.BITCOIN]: 'tx',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.MONERO]: 'tx',
+  [Blockchain.ZANO]: 'transaction',
   [Blockchain.ETHEREUM]: 'tx',
   [Blockchain.BINANCE_SMART_CHAIN]: 'tx',
   [Blockchain.OPTIMISM]: 'tx',
@@ -92,6 +94,9 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.MONERO:
       return undefined;
 
+    case Blockchain.ZANO:
+      return asset.chainId ? `assets?asset_id=${asset.chainId}` : undefined;
+
     case Blockchain.ETHEREUM:
     case Blockchain.BINANCE_SMART_CHAIN:
     case Blockchain.OPTIMISM:
@@ -113,6 +118,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
   switch (blockchain) {
     case Blockchain.LIGHTNING:
     case Blockchain.MONERO:
+    case Blockchain.ZANO:
       return undefined;
 
     case Blockchain.DEFICHAIN:

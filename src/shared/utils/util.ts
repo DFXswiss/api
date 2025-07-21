@@ -197,7 +197,7 @@ export class Util {
       .replace(/[ßșšś]/g, 's')
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
-      .replace(/[\.,]/g, '')
+      .replace(/[\.,’]/g, '')
       .replace(/[-‘`´'+&]/g, ' ');
   }
 

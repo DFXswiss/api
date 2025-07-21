@@ -16,6 +16,7 @@ export class KrakenService extends ExchangeService {
     Bitcoin: false,
     Lightning: undefined,
     Monero: false,
+    Zano: undefined,
     Cardano: false,
     DeFiChain: false,
     Ethereum: false,

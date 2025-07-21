@@ -298,8 +298,7 @@ export class TronClient extends BlockchainClient {
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
-    const transaction = await this.getTransaction(txHash);
-    return TronUtil.fromSunAmount(transaction.fee ?? 0);
+    return this.getTransaction(txHash).then((t) => t.fee);
   }
 
   async getTransaction(txHash: string): Promise<TronTransactionDto | undefined> {

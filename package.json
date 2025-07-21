@@ -63,6 +63,7 @@
     "@uniswap/sdk-core": "^7.7.2",
     "@uniswap/smart-order-router": "^4.20.10",
     "@uniswap/v3-sdk": "^3.25.2",
+    "@zano-project/zano-utils-js": "^0.0.3",
     "alchemy-sdk": "^3.5.6",
     "applicationinsights": "^2.9.6",
     "arweave": "^1.15.7",
