@@ -5,7 +5,6 @@ export enum LogSeverity {
   INFO = 'Info',
   WARNING = 'Warning',
   ERROR = 'Error',
-  UNKNOWN = 'Unknown',
 }
 
 @Entity()

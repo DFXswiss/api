@@ -35,7 +35,7 @@ export class C2BPaymentLinkController {
   @Post('integration/binance/webhook')
   @ApiExcludeEndpoint()
   @UseGuards(BinancePayWebhookGuard)
-  async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: string }> {
+  async binancePayWebhook(@Body() dto: BinancePayWebhookDto): Promise<{ returnCode: string; returnMessage: any }> {
     try {
       const result = await this.c2bPaymentLinkService.handleWebhook(C2BPaymentProvider.BINANCE_PAY, dto);
 
@@ -54,7 +54,7 @@ export class C2BPaymentLinkController {
       return { returnCode: 'SUCCESS', returnMessage: null };
     } catch (e) {
       this.logger.error(`Error processing BinancePay webhook with content ${JSON.stringify(dto)}:`, e);
-      throw e;
+      return { returnCode: 'SUCCESS', returnMessage: { status: 'REJECTED', code: 'UNSUPPORTED_QR_CODE' } };
     }
   }
 }
