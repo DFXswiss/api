@@ -2,6 +2,7 @@ import { Config } from 'src/config/config';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TxMinSpec } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-spec.dto';
+import { Country } from '../../country/country.entity';
 import { Fiat } from '../fiat.entity';
 import { FiatDetailDto, FiatDto, VolumeLimitDto } from './fiat.dto';
 
@@ -16,13 +17,16 @@ export class FiatDtoMapper {
       cardSellable: fiat.cardSellable,
       instantBuyable: fiat.instantBuyable,
       instantSellable: fiat.instantSellable,
-      ibanCountryConfig: fiat.ibanCountryConfigObject,
     };
 
     return Object.assign(new FiatDto(), dto);
   }
 
-  static toDetailDto(fiat: Fiat, spec: TxMinSpec): FiatDetailDto {
+  static toDetailDto(fiat: Fiat, spec: TxMinSpec, countries: Country[]): FiatDetailDto {
+    const allowedCountries = countries
+      .filter((c) => c.dfxEnable && fiat.isIbanCountryAllowed(c.symbol))
+      .map((c) => c.symbol);
+
     return Object.assign(this.toDto(fiat), {
       limits: {
         [FiatPaymentMethod.BANK]:
@@ -38,6 +42,7 @@ export class FiatDtoMapper {
             ? this.convert(spec.minVolume, Config.tradingLimits.cardDefault, fiat)
             : this.zeroLimits,
       },
+      allowedIbanCountry: allowedCountries,
     });
   }
 
