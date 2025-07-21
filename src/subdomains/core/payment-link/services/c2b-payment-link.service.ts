@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { KucoinPayService } from 'src/integration/kucoin-pay/kucoin-pay.service';
 import { TransferInfo } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
@@ -11,19 +10,12 @@ import { C2BOrderResult, C2BWebhookResult } from '../share/c2b-payment-link.prov
 
 @Injectable()
 export class C2BPaymentLinkService {
-  constructor(
-    private readonly binancePayService: BinancePayService,
-    private readonly kucoinPayService: KucoinPayService,
-  ) {}
+  constructor(private readonly binancePayService: BinancePayService) {}
 
   static mapProviderToBlockchain(provider: C2BPaymentProvider): Blockchain {
     switch (provider) {
       case C2BPaymentProvider.BINANCE_PAY:
         return Blockchain.BINANCE_PAY;
-
-      case C2BPaymentProvider.KUCOIN_PAY:
-        return Blockchain.KUCOIN_PAY;
-
       default:
         throw new Error(`Provider ${provider} not supported`);
     }
@@ -33,10 +25,6 @@ export class C2BPaymentLinkService {
     switch (blockchain) {
       case Blockchain.BINANCE_PAY:
         return C2BPaymentProvider.BINANCE_PAY;
-
-      case Blockchain.KUCOIN_PAY:
-        return C2BPaymentProvider.KUCOIN_PAY;
-
       default:
         throw new Error(`Blockchain ${blockchain} not supported`);
     }
@@ -55,10 +43,6 @@ export class C2BPaymentLinkService {
     switch (provider) {
       case C2BPaymentProvider.BINANCE_PAY:
         return this.binancePayService;
-
-      case C2BPaymentProvider.KUCOIN_PAY:
-        return this.kucoinPayService;
-
       default:
         throw new Error(`Provider ${provider} not supported`);
     }

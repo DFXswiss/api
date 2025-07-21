@@ -21,7 +21,6 @@ export enum Blockchain {
 
   // Payment Provider
   BINANCE_PAY = 'BinancePay',
-  KUCOIN_PAY = 'KucoinPay',
 
   // Exchanges
   KRAKEN = 'Kraken',
@@ -48,7 +47,6 @@ export const PaymentLinkBlockchain = {
   GNOSIS: Blockchain.GNOSIS,
   BITCOIN: Blockchain.BITCOIN,
   BINANCE_PAY: Blockchain.BINANCE_PAY,
-  KUCOIN_PAY: Blockchain.KUCOIN_PAY,
   SOLANA: Blockchain.SOLANA,
   TRON: Blockchain.TRON,
 } as const;

@@ -61,7 +61,6 @@ export enum PaymentStandard {
 
 export enum C2BPaymentProvider {
   BINANCE_PAY = Blockchain.BINANCE_PAY,
-  KUCOIN_PAY = Blockchain.KUCOIN_PAY,
 }
 
 export enum C2BPaymentStatus {
