@@ -23,9 +23,10 @@ export interface PaymentLinkConfig {
   ep2ReportContainer?: string;
   requiresExplicitPayoutRoute?: boolean;
   requiresConfirmation?: boolean;
-  // binance pay related
+  // c2b payment provider related
   binancePayMerchantId?: string;
   binancePaySubMerchantId?: string;
+  kucoinPaySubMerchantId?: string;
   // access key related
   accessKeys?: string[];
 }

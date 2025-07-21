@@ -29,6 +29,7 @@ export class KrakenService extends ExchangeService {
     Arweave: undefined,
     Railgun: undefined,
     BinancePay: undefined,
+    KucoinPay: undefined,
     Solana: false,
     Tron: undefined,
     Kraken: undefined,
