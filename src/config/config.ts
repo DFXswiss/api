@@ -143,8 +143,9 @@ export class Configuration {
   railgunAddressFormat = '0zk[a-z0-9]{1,124}';
   solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{43,44}';
   tronAddressFormat = 'T[1-9A-HJ-NP-Za-km-z]{32,34}';
+  zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -158,8 +159,9 @@ export class Configuration {
   railgunSignatureFormat = '[a-f0-9]{128}';
   solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
   tronSignatureFormat = '(0x)?[a-f0-9]{130}';
+  zanoSignatureFormat = '[a-f0-9]{128}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '[a-f0-9]{84}';
@@ -770,6 +772,14 @@ export class Configuration {
         seed: this.blockchain.tron.tronWalletSeed,
         index: accountIndex,
       }),
+    },
+    zano: {
+      node: {
+        url: process.env.ZANO_NODE_URL,
+      },
+      rpc: {
+        url: process.env.ZANO_RPC_URL,
+      },
     },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
