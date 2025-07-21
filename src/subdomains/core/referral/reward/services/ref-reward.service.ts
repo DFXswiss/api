@@ -82,6 +82,11 @@ export class RefRewardService {
     entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.MANUAL_REF, user });
 
     // update user ref balance
+    await this.userService.updateRefVolume(
+      user.ref,
+      user.refVolume + dto.amountInEur / user.refFeePercent,
+      user.refCredit + dto.amountInEur,
+    );
 
     await this.rewardRepo.save(entity);
   }

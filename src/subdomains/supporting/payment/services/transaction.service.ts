@@ -5,7 +5,7 @@ import { UpdateTransactionDto } from 'src/subdomains/core/history/dto/update-tra
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
-import { Transaction } from '../entities/transaction.entity';
+import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 
 @Injectable()
@@ -118,6 +118,20 @@ export class TransactionService {
         refReward: true,
       },
     });
+  }
+
+  async getManualRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
+    const { volume, credit } = await this.repo
+      .createQueryBuilder('transaction')
+      .select('SUM(refReward.amountInEur / user.refFeePercent)', 'volume')
+      .addSelect('SUM(refReward.amountInEur)', 'credit')
+      .leftJoinAndSelect('transaction.user', 'user')
+      .leftJoinAndSelect('transaction.refReward', 'refReward')
+      .where('sourceType = :sourceType', { sourceType: TransactionSourceType.MANUAL_REF })
+      .andWhere('user.ref = :ref', { ref })
+      .getRawOne<{ volume: number; credit: number }>();
+
+    return { volume: volume ?? 0, credit: credit ?? 0 };
   }
 
   async getAllTransactionsForUserData(
