@@ -17,6 +17,7 @@ import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { TronService } from '../../tron/services/tron.service';
+import { ZanoService } from '../../zano/services/zano.service';
 import { EvmUtil } from '../evm/evm.util';
 
 @Injectable()
@@ -37,6 +38,7 @@ export class CryptoService {
   constructor(
     private readonly lightningService: LightningService,
     private readonly moneroService: MoneroService,
+    private readonly zanoService: ZanoService,
     private readonly arweaveService: ArweaveService,
     private readonly bitcoinService: BitcoinService,
     private readonly railgunService: RailgunService,
@@ -108,6 +110,9 @@ export class CryptoService {
       case Blockchain.MONERO:
         return UserAddressType.MONERO;
 
+      case Blockchain.ZANO:
+        return UserAddressType.ZANO;
+
       case Blockchain.SOLANA:
         return UserAddressType.SOLANA;
 
@@ -133,6 +138,7 @@ export class CryptoService {
     if (CryptoService.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
     if (CryptoService.isLightningAddress(address)) return [Blockchain.LIGHTNING];
     if (CryptoService.isMoneroAddress(address)) return [Blockchain.MONERO];
+    if (CryptoService.isZanoAddress(address)) return [Blockchain.ZANO];
     if (CryptoService.isSolanaAddress(address)) return [Blockchain.SOLANA];
     if (CryptoService.isTronAddress(address)) return [Blockchain.TRON];
     if (CryptoService.isLiquidAddress(address)) return [Blockchain.LIQUID];
@@ -159,6 +165,10 @@ export class CryptoService {
 
   private static isMoneroAddress(address: string): boolean {
     return RegExp(`^(${Config.moneroAddressFormat})$`).test(address);
+  }
+
+  public static isZanoAddress(address: string): boolean {
+    return new RegExp(`^(${Config.zanoAddressFormat})$`).test(address);
   }
 
   private static isLiquidAddress(address: string): boolean {
@@ -202,6 +212,7 @@ export class CryptoService {
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (blockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
       if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
+      if (blockchain === Blockchain.ZANO) return await this.verifyZano(message, address, signature);
       if (blockchain === Blockchain.SOLANA) return await this.verifySolana(message, address, signature);
       if (blockchain === Blockchain.TRON) return await this.verifyTron(message, address, signature);
       if (blockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
@@ -240,6 +251,10 @@ export class CryptoService {
 
   private async verifyMonero(message: string, address: string, signature: string): Promise<boolean> {
     return this.moneroService.verifySignature(message, address, signature);
+  }
+
+  private async verifyZano(message: string, address: string, signature: string): Promise<boolean> {
+    return this.zanoService.verifySignature(message, address, signature);
   }
 
   private async verifySolana(message: string, address: string, signature: string): Promise<boolean> {

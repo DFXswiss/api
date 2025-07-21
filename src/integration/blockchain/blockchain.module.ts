@@ -20,6 +20,7 @@ import { BlockchainRegistryService } from './shared/services/blockchain-registry
 import { CryptoService } from './shared/services/crypto.service';
 import { SolanaModule } from './solana/solana.module';
 import { TronModule } from './tron/tron.module';
+import { ZanoModule } from './zano/zano.module';
 
 @Module({
   providers: [EvmDecimalsService, CryptoService, BlockchainRegistryService],
@@ -35,6 +36,7 @@ import { TronModule } from './tron/tron.module';
     GnosisModule,
     LightningModule,
     MoneroModule,
+    ZanoModule,
     FrankencoinModule,
     DEuroModule,
     Ebel2xModule,
@@ -54,6 +56,7 @@ import { TronModule } from './tron/tron.module';
     GnosisModule,
     LightningModule,
     MoneroModule,
+    ZanoModule,
     FrankencoinModule,
     DEuroModule,
     Ebel2xModule,

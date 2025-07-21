@@ -38,6 +38,7 @@ export enum UserAddressType {
   CARDANO = 'Cardano',
   SOLANA = 'Solana',
   TRON = 'Tron',
+  ZANO = 'Zano',
   OTHER = 'Other',
 }
 
