@@ -93,7 +93,7 @@ export class ExchangeTxService {
   }
 
   async getLastExchangeTx(exchange: ExchangeName, relations?: FindOptionsRelations<ExchangeTx>): Promise<ExchangeTx> {
-    return this.exchangeTxRepo.findOne({ where: { exchange }, order: { id: 'DESC' }, relations });
+    return this.exchangeTxRepo.findOne({ where: { exchange, status: 'ok' }, order: { id: 'DESC' }, relations });
   }
 
   async getRecentExchangeTx(minId: number, exchange: ExchangeName, types: ExchangeTxType[]): Promise<ExchangeTx[]> {
