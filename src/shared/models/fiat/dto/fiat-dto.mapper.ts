@@ -42,7 +42,7 @@ export class FiatDtoMapper {
             ? this.convert(spec.minVolume, Config.tradingLimits.cardDefault, fiat)
             : this.zeroLimits,
       },
-      allowedIbanCountry: allowedCountries,
+      allowedIbanCountries: allowedCountries,
     });
   }
 
