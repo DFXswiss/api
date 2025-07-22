@@ -281,7 +281,7 @@ export class BuyFiatPreparationService {
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
       },
-      relations: { sell: true, cryptoInput: true },
+      relations: { sell: true, cryptoInput: true, transaction: { userData: true } },
     });
 
     for (const entity of entities) {
