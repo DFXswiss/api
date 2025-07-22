@@ -665,7 +665,7 @@ export class PaymentLinkService {
     return `${Config.frontend.services}/pl/pos?${search.toString()}`;
   }
 
-  async syncPaymentRecipient(): Promise<void> {
+  async syncPaymentRecipients(): Promise<void> {
     const pendingLinks = await this.paymentLinkRepo.findBy({ country: { id: Not(IsNull()) } });
 
     for (const link of pendingLinks) {

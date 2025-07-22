@@ -1,5 +1,5 @@
+import { merge } from 'lodash';
 import { GetConfig } from 'src/config/config';
-
 import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/binance-pay/dto/binance.dto';
 import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -116,20 +116,6 @@ export class PaymentLink extends IEntity {
   }
 
   get recipient(): PaymentLinkRecipientDto {
-    // user data
-    const userData = this.route.userData;
-    const userDataRecipient: PaymentLinkRecipientDto = {
-      name: userData.completeName,
-      address: {
-        ...userData.address,
-        country: userData.address.country?.name,
-      },
-      phone: userData.phone,
-      mail: userData.mail,
-      website: null,
-    };
-
-    // link
     const configRecipient = this.configObj.recipient;
 
     const linkRecipient: PaymentLinkRecipientDto = Util.removeNullFields({
@@ -148,16 +134,29 @@ export class PaymentLink extends IEntity {
       website: this.website,
     });
 
-    return Object.assign(userDataRecipient, configRecipient, linkRecipient);
+    return Object.assign(configRecipient, linkRecipient);
   }
 
   get configObj(): PaymentLinkConfig {
-    return Object.assign(
-      {},
-      DefaultPaymentLinkConfig,
-      this.route.userData.paymentLinksConfigObj,
-      JSON.parse(this.config ?? '{}'),
-    );
+    const userData = this.route.userData;
+
+    const userDataRecipient: PaymentLinkRecipientDto = Util.removeNullFields({
+      name: userData.completeName,
+      address: userData.address.country
+        ? {
+            ...userData.address,
+            country: userData.address.country?.name,
+          }
+        : undefined,
+      phone: userData.phone,
+      mail: userData.mail,
+    });
+
+    const linkConfig: PaymentLinkConfig = JSON.parse(this.config ?? '{}');
+
+    const recipient = merge(userDataRecipient, userData.paymentLinksConfigObj.recipient, linkConfig.recipient);
+
+    return Object.assign({}, DefaultPaymentLinkConfig, userData.paymentLinksConfigObj, linkConfig, { recipient });
   }
 
   get linkConfigObj(): PaymentLinkConfig {

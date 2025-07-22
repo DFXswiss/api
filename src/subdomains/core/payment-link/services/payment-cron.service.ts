@@ -29,7 +29,7 @@ export class PaymentCronService {
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT_CONFIG_SYNC })
-  async syncPaymentRecipient(): Promise<void> {
-    await this.paymentLinkService.syncPaymentRecipient();
+  async syncPaymentRecipients(): Promise<void> {
+    await this.paymentLinkService.syncPaymentRecipients();
   }
 }
