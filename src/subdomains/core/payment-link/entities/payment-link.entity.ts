@@ -1,9 +1,10 @@
+import { merge } from 'lodash';
 import { GetConfig } from 'src/config/config';
-
 import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/binance-pay/dto/binance.dto';
 import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
@@ -47,6 +48,19 @@ export class PaymentLink extends IEntity {
   webhookUrl?: string;
 
   @Column({ length: 256, nullable: true })
+  regionManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeManager?: string;
+
+  @Column({ length: 256, nullable: true })
+  storeOwner?: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  config?: string; // PaymentLinkConfig
+
+  // recipient (TODO: move to config)
+  @Column({ length: 256, nullable: true })
   name?: string;
 
   @Column({ length: 256, nullable: true })
@@ -71,19 +85,7 @@ export class PaymentLink extends IEntity {
   mail?: string;
 
   @Column({ length: 256, nullable: true })
-  regionManager?: string;
-
-  @Column({ length: 256, nullable: true })
-  storeManager?: string;
-
-  @Column({ length: 256, nullable: true })
-  storeOwner?: string;
-
-  @Column({ length: 256, nullable: true })
   website?: string;
-
-  @Column({ length: 'MAX', nullable: true })
-  config?: string; // PaymentLinkConfig
 
   @Column({ nullable: true })
   registrationNumber?: string; // Registration number/Company tax ID
@@ -113,62 +115,48 @@ export class PaymentLink extends IEntity {
     return this.route.userData.paymentLinksName ?? this.route.userData.verifiedName ?? defaultDisplayName;
   }
 
-  get recipient(): PaymentLinkRecipientDto | undefined {
-    if (this.hasRecipient) {
-      return {
-        name: this.name,
-        address: {
-          street: this.street,
-          houseNumber: this.houseNumber,
-          zip: this.zip,
-          city: this.city,
-          country: this.country?.name,
-        },
-        phone: this.phone,
-        mail: this.mail,
-        website: this.website,
-      };
-    }
+  get recipient(): PaymentLinkRecipientDto {
+    const configRecipient = this.configObj.recipient;
 
-    // fallback to config
-    const { recipient } = this.configObj;
-    if (recipient) return recipient;
+    const linkRecipient: PaymentLinkRecipientDto = Util.removeNullFields({
+      name: this.name,
+      address: this.city
+        ? {
+            street: this.street,
+            houseNumber: this.houseNumber,
+            zip: this.zip,
+            city: this.city,
+            country: this.country?.name,
+          }
+        : undefined,
+      phone: this.phone,
+      mail: this.mail,
+      website: this.website,
+    });
 
-    // fallback to user data
-    const userData = this.route.userData;
-    return {
-      name: userData.completeName,
-      address: {
-        ...userData.address,
-        country: userData.address.country?.name,
-      },
-      phone: userData.phone,
-      mail: userData.mail,
-      website: null,
-    };
-  }
-
-  get hasRecipient(): boolean {
-    return !!(
-      this.name ||
-      this.street ||
-      this.houseNumber ||
-      this.zip ||
-      this.city ||
-      this.country ||
-      this.phone ||
-      this.mail ||
-      this.website
-    );
+    return Object.assign(configRecipient, linkRecipient);
   }
 
   get configObj(): PaymentLinkConfig {
-    return Object.assign(
-      {},
-      DefaultPaymentLinkConfig,
-      this.route.userData.paymentLinksConfigObj,
-      JSON.parse(this.config ?? '{}'),
-    );
+    const userData = this.route.userData;
+
+    const userDataRecipient: PaymentLinkRecipientDto = Util.removeNullFields({
+      name: userData.completeName,
+      address: userData.address.country
+        ? {
+            ...userData.address,
+            country: userData.address.country?.name,
+          }
+        : undefined,
+      phone: userData.phone,
+      mail: userData.mail,
+    });
+
+    const linkConfig: PaymentLinkConfig = JSON.parse(this.config ?? '{}');
+
+    const recipient = merge(userDataRecipient, userData.paymentLinksConfigObj.recipient, linkConfig.recipient);
+
+    return Object.assign({}, DefaultPaymentLinkConfig, userData.paymentLinksConfigObj, linkConfig, { recipient });
   }
 
   get linkConfigObj(): PaymentLinkConfig {

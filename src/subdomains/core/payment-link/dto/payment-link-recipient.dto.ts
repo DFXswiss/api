@@ -1,9 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsEmail, IsEnum, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
-import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/binance-pay/dto/binance.dto';
 import { Util } from 'src/shared/utils/util';
 import { DfxPhoneTransform, IsDfxPhone } from 'src/subdomains/generic/user/models/user-data/is-dfx-phone.validator';
+import { GoodsCategory, GoodsType, MerchantCategory, StoreType } from '../enums/merchant.enum';
 import { PaymentLinkRecipientAddressDto } from './payment-link-recipient-address.dto';
 
 export class PaymentLinkRecipientDto {
@@ -47,10 +47,10 @@ export class PaymentLinkRecipientDto {
   @IsEnum(StoreType)
   storeType?: StoreType;
 
-  @ApiPropertyOptional({ enum: MerchantMCC })
+  @ApiPropertyOptional({ enum: MerchantCategory })
   @IsOptional()
-  @IsEnum(MerchantMCC)
-  merchantMcc?: MerchantMCC;
+  @IsEnum(MerchantCategory)
+  merchantCategory?: MerchantCategory;
 
   @ApiPropertyOptional({ enum: GoodsType })
   @IsOptional()
