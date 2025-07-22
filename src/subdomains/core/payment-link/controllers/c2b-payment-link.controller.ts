@@ -66,8 +66,8 @@ export class C2BPaymentLinkController {
     await this.paymentLinkService.activateC2BPaymentLink(id, C2BPaymentProvider.KUCOIN_PAY);
   }
 
-  @Post('integration/kucoin/webhook/success')
-  @Post('integration/kucoin/webhook/cancel')
+  @Post('integrations/kucoin/webhook/success')
+  @Post('integrations/kucoin/webhook/cancel')
   @ApiExcludeEndpoint()
   @UseGuards(KucoinPayWebhookGuard)
   async kucoinPayWebhook(@Body() dto: any): Promise<{ returnCode: string; returnMessage: string }> {
