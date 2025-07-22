@@ -7,14 +7,18 @@ import {
   Headers,
   InternalServerErrorException,
   Param,
+  ParseFilePipeBuilder,
   Post,
   Put,
   Query,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -38,13 +42,11 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
   KycBeneficialData,
   KycContactData,
-  KycFileData,
   KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
@@ -194,13 +196,14 @@ export class KycController {
   @Put('data/owner/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
+  @UseInterceptors(FileInterceptor('file'))
   async updateOwnerDirectoryData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycFileData,
+    @UploadedFile(new ParseFilePipeBuilder().build({ fileIsRequired: true })) file: Express.Multer.File,
   ): Promise<KycStepBase> {
-    data.fileName = this.fileName('stock-register', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.STOCK_REGISTER);
+    const document = { fileName: file.originalname, file: file.buffer.toString('base64') };
+    return this.kycService.updateFileData(code, +id, document, FileType.STOCK_REGISTER);
   }
 
   @Put('data/nationality/:id')
@@ -217,49 +220,54 @@ export class KycController {
   @Put('data/legal/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
+  @UseInterceptors(FileInterceptor('file'))
   async updateCommercialRegisterData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycLegalEntityData,
+    @UploadedFile(new ParseFilePipeBuilder().build({ fileIsRequired: true })) file: Express.Multer.File,
   ): Promise<KycStepBase> {
-    data.fileName = this.fileName('commercial-register', data.fileName);
-    return this.kycService.updateLegalData(code, +id, data, FileType.COMMERCIAL_REGISTER);
+    const document = { fileName: file.originalname, file: file.buffer.toString('base64') };
+    return this.kycService.updateLegalData(code, +id, data, document, FileType.COMMERCIAL_REGISTER);
   }
 
   @Put('data/residence/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
+  @UseInterceptors(FileInterceptor('file'))
   async updateResidencePermitData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycFileData,
+    @UploadedFile(new ParseFilePipeBuilder().build({ fileIsRequired: true })) file: Express.Multer.File,
   ): Promise<KycStepBase> {
-    data.fileName = this.fileName('residence-permit', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.RESIDENCE_PERMIT);
+    const document = { fileName: file.originalname, file: file.buffer.toString('base64') };
+    return this.kycService.updateFileData(code, +id, document, FileType.RESIDENCE_PERMIT);
   }
 
   @Put('data/statutes/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
+  @UseInterceptors(FileInterceptor('file'))
   async updateStatutesData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycFileData,
+    @UploadedFile(new ParseFilePipeBuilder().build({ fileIsRequired: true })) file: Express.Multer.File,
   ): Promise<KycStepBase> {
-    data.fileName = this.fileName('statutes', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.STATUTES);
+    const document = { fileName: file.originalname, file: file.buffer.toString('base64') };
+    return this.kycService.updateFileData(code, +id, document, FileType.STATUTES);
   }
 
   @Put('data/additional/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
+  @UseInterceptors(FileInterceptor('file'))
   async updateAdditionalDocumentsData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycFileData,
+    @UploadedFile(new ParseFilePipeBuilder().build({ fileIsRequired: true })) file: Express.Multer.File,
   ): Promise<KycStepBase> {
-    data.fileName = this.fileName('additional-documents', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
+    const document = { fileName: file.originalname, file: file.buffer.toString('base64') };
+    return this.kycService.updateFileData(code, +id, document, FileType.ADDITIONAL_DOCUMENTS);
   }
 
   @Put('data/signatory/:id')
@@ -298,13 +306,14 @@ export class KycController {
   @Put('data/authority/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
+  @UseInterceptors(FileInterceptor('file'))
   async updateAuthorityData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycFileData,
+    @UploadedFile(new ParseFilePipeBuilder().build({ fileIsRequired: true })) file: Express.Multer.File,
   ): Promise<KycStepBase> {
-    data.fileName = this.fileName('authority', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.AUTHORITY);
+    const document = { fileName: file.originalname, file: file.buffer.toString('base64') };
+    return this.kycService.updateFileData(code, +id, document, FileType.AUTHORITY);
   }
 
   @Get('data/financial/:id')
@@ -365,12 +374,15 @@ export class KycController {
   @Put('ident/manual/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
+  @UseInterceptors(FileInterceptor('file'))
   async updateIdentData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycManualIdentData,
+    @UploadedFile(new ParseFilePipeBuilder().build({ fileIsRequired: true })) file: Express.Multer.File,
   ): Promise<KycStepBase> {
-    return this.kycService.updateIdentManual(code, +id, data);
+    const document = { fileName: file.originalname, file: file.buffer.toString('base64') };
+    return this.kycService.updateIdentManual(code, +id, data, document);
   }
 
   @Post('ident/:type')
@@ -415,9 +427,5 @@ export class KycController {
       .filter((p) => !p.includes('frame-ancestors'))
       .join(';');
     res.setHeader('Content-Security-Policy', updatedPolicy);
-  }
-
-  private fileName(type: string, file: string): string {
-    return `${Util.isoDateTime(new Date())}_${type}_user-upload_${Util.randomId()}_${file}`;
   }
 }

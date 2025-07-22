@@ -184,31 +184,7 @@ export class KycNationalityData {
   nationality: Country;
 }
 
-export class KycFileData {
-  @ApiProperty({ description: 'Base64 encoded file' })
-  @IsNotEmpty()
-  @IsString()
-  file: string;
-
-  @ApiProperty({ description: 'Name of the file' })
-  @IsNotEmpty()
-  @IsString()
-  @Transform(Util.sanitize)
-  fileName: string;
-}
-
 export class KycLegalEntityData {
-  @ApiProperty({ description: 'Base64 encoded commercial register file' })
-  @IsNotEmpty()
-  @IsString()
-  file: string;
-
-  @ApiProperty({ description: 'Name of the commercial register file' })
-  @IsNotEmpty()
-  @IsString()
-  @Transform(Util.sanitize)
-  fileName: string;
-
   @ApiProperty({ enum: LegalEntity })
   @IsNotEmpty()
   @IsEnum(LegalEntity)
@@ -267,12 +243,6 @@ export class KycManualIdentData {
   @IsString()
   @Transform(Util.sanitize)
   documentNumber: string;
-
-  @ApiProperty({ type: KycFileData })
-  @IsNotEmptyObject()
-  @ValidateNested()
-  @Type(() => KycFileData)
-  document: KycFileData;
 }
 
 export class PaymentDataDto {

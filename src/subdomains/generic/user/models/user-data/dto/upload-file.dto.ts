@@ -11,17 +11,13 @@ export class UploadFileDto {
   @IsEnum(FileSubType)
   documentSubType: FileSubType;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  originalName: string;
+  originalName?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  contentType: ContentType;
-
-  @IsNotEmpty()
-  @IsString()
-  data: string;
+  contentType?: ContentType;
 
   @ValidateIf((dto: UploadFileDto) => dto.documentType === FileType.NAME_CHECK)
   @IsNotEmpty()
