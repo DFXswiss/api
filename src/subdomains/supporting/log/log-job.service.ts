@@ -132,7 +132,7 @@ export class LogJobService {
         }),
         valid:
           Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
-          Util.minutesDiff(lastLog.created) > 10,
+          Util.minutesDiff(lastLog.created) > 11,
         category: null,
       });
 
