@@ -31,6 +31,7 @@ export class TestExchangeService extends ExchangeService {
     Arweave: undefined,
     Railgun: undefined,
     BinancePay: undefined,
+    KucoinPay: undefined,
     Solana: undefined,
     Tron: undefined,
     Kraken: undefined,

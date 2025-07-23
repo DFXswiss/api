@@ -2,6 +2,7 @@ import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { BinancePayWebhookGuard } from 'src/integration/binance-pay/guards/binance-pay-webhook.guard';
+import { KucoinPayWebhookGuard } from 'src/integration/kucoin-pay/kucoin-pay.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -56,5 +57,34 @@ export class C2BPaymentLinkController {
       this.logger.error(`Error processing BinancePay webhook with content ${JSON.stringify(dto)}:`, e);
       return { returnCode: 'SUCCESS', returnMessage: { status: 'REJECTED', code: 'UNSUPPORTED_QR_CODE' } };
     }
+  }
+
+  @Post('integration/kucoin/activate/:id')
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async activateKucoinPay(@Param('id') id: string): Promise<void> {
+    await this.paymentLinkService.activateC2BPaymentLink(id, C2BPaymentProvider.KUCOIN_PAY);
+  }
+
+  @Post('integrations/kucoin/webhook/success')
+  @Post('integrations/kucoin/webhook/cancel')
+  @ApiExcludeEndpoint()
+  @UseGuards(KucoinPayWebhookGuard)
+  async kucoinPayWebhook(@Body() dto: any): Promise<{ returnCode: string; returnMessage: string }> {
+    try {
+      const result = await this.c2bPaymentLinkService.handleWebhook(C2BPaymentProvider.KUCOIN_PAY, dto);
+
+      if (result) {
+        switch (result.status) {
+          case C2BPaymentStatus.COMPLETED:
+            this.payInWebHookService.processKucoinTransaction(result);
+            break;
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Error processing KucoinPay webhook with content ${JSON.stringify(dto)}:`, error);
+    }
+
+    return { returnCode: 'SUCCESS', returnMessage: null };
   }
 }

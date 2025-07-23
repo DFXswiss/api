@@ -198,6 +198,7 @@ export class PaymentActivationService implements OnModuleInit {
       case Blockchain.SOLANA:
         return this.createPaymentRequest(this.solanaDepositAddress, transferInfo);
 
+      case Blockchain.KUCOIN_PAY:
       case Blockchain.BINANCE_PAY:
         return this.createC2BPaymentRequest(payment, transferInfo, quote);
 
