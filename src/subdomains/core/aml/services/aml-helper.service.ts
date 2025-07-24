@@ -433,7 +433,7 @@ export class AmlHelperService {
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
       if (Util.daysDiff(entity.created) > 14) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
-      if (entity.comment !== AmlError.BANK_DATA_MANUAL_REVIEW || comment === AmlError.BANK_DATA_MANUAL_REVIEW)
+      if (entity.amlReason !== AmlReason.MANUAL_CHECK_BANK_DATA || comment.includes(AmlError.BANK_DATA_MANUAL_REVIEW))
         return {};
     }
 
