@@ -257,6 +257,7 @@ export class TransactionHelper implements OnModuleInit {
     user?: User,
     walletName?: string,
     specialCodes: string[] = [],
+    ibanCountry?: string,
   ): Promise<TransactionDetails> {
     const txAsset = targetAmount ? to : from;
     const txAmount = targetAmount ?? sourceAmount;
@@ -299,6 +300,7 @@ export class TransactionHelper implements OnModuleInit {
       defaultLimit,
       kycLimit,
       user,
+      ibanCountry,
     );
 
     // target estimation
@@ -801,11 +803,14 @@ export class TransactionHelper implements OnModuleInit {
     maxAmountChf: number,
     kycLimitChf: number,
     user?: User,
+    ibanCountry?: string,
   ): QuoteError | undefined {
     const nationality = user?.userData.nationality;
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
+
+    if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
     if (
       nationality &&
