@@ -23,9 +23,9 @@ export class FiatDtoMapper {
   }
 
   static toDetailDto(fiat: Fiat, spec: TxMinSpec, countries: Country[]): FiatDetailDto {
-    const allowedCountries = countries
-      .filter((c) => c.dfxEnable && fiat.isIbanCountryAllowed(c.symbol))
-      .map((c) => c.symbol);
+    const allowedIbanCountries = fiat.buyable
+      ? countries.filter((c) => c.dfxEnable && fiat.isIbanCountryAllowed(c.symbol)).map((c) => c.symbol)
+      : [];
 
     return Object.assign(this.toDto(fiat), {
       limits: {
@@ -42,7 +42,7 @@ export class FiatDtoMapper {
             ? this.convert(spec.minVolume, Config.tradingLimits.cardDefault, fiat)
             : this.zeroLimits,
       },
-      allowedIbanCountries: allowedCountries,
+      allowedIbanCountries,
     });
   }
 

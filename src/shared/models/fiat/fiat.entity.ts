@@ -55,7 +55,11 @@ export class Fiat extends IEntity {
 
     if (config?.allowed?.includes(ibanCountry)) {
       return true;
-    } else if (config?.notAllowed?.includes(ibanCountry) || config?.notAllowed?.includes('*')) {
+    } else if (
+      config?.notAllowed?.includes(ibanCountry) ||
+      config?.notAllowed?.includes('*') ||
+      config?.allowed?.length
+    ) {
       return false;
     } else {
       return true;
