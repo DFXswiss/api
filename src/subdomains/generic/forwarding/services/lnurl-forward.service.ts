@@ -13,6 +13,7 @@ import {
 import { PaymentLinkPaymentMode, PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
+import { PaymentQuoteService } from 'src/subdomains/core/payment-link/services/payment-quote.service';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
 import { LnurlWithdrawRequestDto, LnurlwInvoiceDto } from '../../../../integration/lightning/dto/lnurlw.dto';
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
@@ -31,6 +32,7 @@ export class LnUrlForwardService {
     lightningService: LightningService,
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly paymentQuoteService: PaymentQuoteService,
   ) {
     this.client = lightningService.getDefaultClient();
   }
@@ -69,9 +71,25 @@ export class LnUrlForwardService {
   }
 
   // callback
-  async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
+  async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto | any> {
     if (id.startsWith(this.PAYMENT_LINK_PREFIX) || id.startsWith(this.PAYMENT_LINK_PAYMENT_PREFIX)) {
       const transferInfo = this.getPaymentTransferInfo(params);
+      
+      // Handle ARK method
+      if (params.method === 'ark') {
+        const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(id);
+        if (!payment) throw new NotFoundException('No pending payment found');
+        
+        const quote = await this.paymentQuoteService.getActualQuote(payment, transferInfo);
+        if (!quote) throw new NotFoundException('Quote not found');
+        
+        return {
+          expiryDate: quote.expiryDate.toISOString(),
+          address: 'ark1qp9wsjfpsj5v5ex022v6tmhukkw3erjpv68xvl0af5zzukrk6dr529ecxra5lpyt4jfhqtnj4kmr3mtgg9urn55ffypduxwn5k454vpcgw3z44',
+          hint: 'Send the specified amount of sat in the specified time to the ark address given above.'
+        };
+      }
+      
       return this.paymentLinkPaymentService.createActivationRequest(id, transferInfo);
     }
 
