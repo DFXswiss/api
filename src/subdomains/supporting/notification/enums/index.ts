@@ -86,6 +86,7 @@ export const MailContextTypeMapper: {
   [MailContext.CUSTOM]: MailContextType.INFO,
   [MailContext.SUPPORT_MESSAGE]: MailContextType.INFO,
   [MailContext.UNASSIGNED_TX]: MailContextType.INFO,
+  [MailContext.ACCOUNT_DEACTIVATION]: MailContextType.INFO,
   [MailContext.LOGIN]: MailContextType.AUTH,
   [MailContext.VERIFICATION_MAIL]: MailContextType.AUTH,
   [MailContext.EMAIL_VERIFICATION]: MailContextType.AUTH,
