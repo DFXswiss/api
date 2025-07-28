@@ -290,7 +290,7 @@ export class PaymentActivationService implements OnModuleInit {
     quote: PaymentQuote,
   ): Promise<{ paymentRequest: string; paymentHash: string }> {
     const arkAddress = 'ark1qp9wsjfpsj5v5ex022v6tmhukkw3erjpv68xvl0af5zzukrk6dr529ecxra5lpyt4jfhqtnj4kmr3mtgg9urn55ffypduxwn5k454vpcgw3z44';
-    const uniqueId = Util.createUniqueId();
+    const uniqueId = Util.createUniqueId('ark');
     return { paymentRequest: arkAddress, paymentHash: uniqueId };
   }
 
