@@ -83,9 +83,15 @@ export class LnUrlForwardService {
         const quote = await this.paymentQuoteService.getActualQuote(payment, transferInfo);
         if (!quote) throw new NotFoundException('Quote not found');
         
+        // Get the ARK transfer amount from the quote
+        const arkTransferAmount = quote.getTransferAmountFor('Ark' as any, 'BTC');
+        const amount = arkTransferAmount?.amount || transferInfo.amount;
+        
         return {
           expiryDate: quote.expiryDate.toISOString(),
           address: 'ark1qp9wsjfpsj5v5ex022v6tmhukkw3erjpv68xvl0af5zzukrk6dr529ecxra5lpyt4jfhqtnj4kmr3mtgg9urn55ffypduxwn5k454vpcgw3z44',
+          asset: 'BTC',
+          amount: amount.toString(),
           hint: 'Send the specified amount of sat in the specified time to the ark address given above.'
         };
       }
