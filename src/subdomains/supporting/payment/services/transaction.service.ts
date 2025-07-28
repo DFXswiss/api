@@ -96,7 +96,7 @@ export class TransactionService {
         },
         buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
         refReward: true,
-        bankTx: true,
+        bankTx: { transaction: true },
         bankTxReturn: true,
       },
     });
