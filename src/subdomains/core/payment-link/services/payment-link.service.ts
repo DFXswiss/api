@@ -263,8 +263,8 @@ export class PaymentLinkService {
 
     let transferAmounts = actualQuote.transferAmountsForPayRequest;
     
-    // Special handling for pl_604e54
-    if (uniqueId.endsWith('pl_604e54')) {
+    // Special handling for pl_604e54 and pl_3e6fe374fbc7dcb0
+    if (uniqueId.endsWith('pl_604e54') || uniqueId.endsWith('pl_3e6fe374fbc7dcb0')) {
       transferAmounts = transferAmounts.map(amount => {
         if (amount.method === 'Ark') {
           return {
