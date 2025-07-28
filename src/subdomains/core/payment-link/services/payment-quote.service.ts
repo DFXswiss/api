@@ -214,12 +214,22 @@ export class PaymentQuoteService {
     }
 
     for (const method of Config.payment.manualMethods) {
-      transferAmounts.push({
-        method,
-        minFee: 0,
-        assets: [],
-        available: false,
-      });
+      if ((method === 'Liquid' || method === 'Ark') && 
+          (payment.uniqueId.endsWith('pl_604e54') || payment.uniqueId.endsWith('pl_3e6fe374fbc7dcb0'))) {
+        transferAmounts.push({
+          method,
+          minFee: 0,
+          assets: [{ asset: 'BTC', amount: 0 }],
+          available: true,
+        });
+      } else {
+        transferAmounts.push({
+          method,
+          minFee: 0,
+          assets: [],
+          available: false,
+        });
+      }
     }
 
     return transferAmounts;
