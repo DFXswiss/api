@@ -261,6 +261,20 @@ export class PaymentLinkService {
 
     const msatTransferAmount = LightningHelper.btcToMsat(btcTransferAmount.amount);
 
+    let transferAmounts = actualQuote.transferAmountsForPayRequest;
+
+    if (uniqueId.endsWith('pl_604e54') || uniqueId.endsWith('pl_3e6fe374fbc7dcb0')) {
+      transferAmounts = transferAmounts.map((amount) => {
+        if (amount.method === 'Ark') {
+          return {
+            ...amount,
+            available: true,
+          };
+        }
+        return amount;
+      });
+    }
+
     const payRequest: PaymentLinkPayRequestDto = {
       id: pendingPayment.link.uniqueId,
       externalId: pendingPayment.link.externalId,
@@ -285,7 +299,7 @@ export class PaymentLinkService {
         asset: pendingPayment.currency.name,
         amount: pendingPayment.amount,
       },
-      transferAmounts: actualQuote.transferAmountsForPayRequest,
+      transferAmounts,
     };
 
     return payRequest;

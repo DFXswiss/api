@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
-import { Config, Environment } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
@@ -216,12 +216,12 @@ export class PaymentLinkPaymentService {
     const savedPayment = await this.doSave(payment, false);
 
     // auto confirm (DEV only)
-    if (Config.environment !== Environment.PRD && paymentLink.configObj.autoConfirmSecs != null) {
-      setTimeout(async () => {
-        payment.amount === 0.01 ? payment.cancel() : payment.complete();
-        await this.doSave(payment, true);
-      }, paymentLink.configObj.autoConfirmSecs * 1000);
-    }
+    // if (Config.environment !== Environment.PRD && paymentLink.configObj.autoConfirmSecs != null) {
+    //   setTimeout(async () => {
+    //     payment.amount === 0.01 ? payment.cancel() : payment.complete();
+    //     await this.doSave(payment, true);
+    //   }, paymentLink.configObj.autoConfirmSecs * 1000);
+    // }
 
     // expiry timers
     const scanTimeout = paymentLink.configObj.scanTimeout;
