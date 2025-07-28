@@ -31,6 +31,7 @@ export enum MailContext {
   BLACK_SQUAD = 'BlackSquad',
   CHANGED_MAIL = 'ChangedMail',
   ADDED_ADDRESS = 'AddedAddress',
+  ACCOUNT_DEACTIVATION = 'AccountDeactivation',
   ACCOUNT_MERGE_REQUEST = 'AccountMergeRequest',
   LOGIN = 'Login',
   LIMIT_REQUEST = 'LimitRequest',
