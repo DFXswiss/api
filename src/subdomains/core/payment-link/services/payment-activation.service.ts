@@ -202,6 +202,13 @@ export class PaymentActivationService implements OnModuleInit {
       case Blockchain.BINANCE_PAY:
         return this.createC2BPaymentRequest(payment, transferInfo, quote);
 
+      case 'Ark':
+        // Special handling for specific payment link IDs
+        if (payment.link.uniqueId.endsWith('pl_604e54') || payment.link.uniqueId.endsWith('pl_3e6fe374fbc7dcb0')) {
+          return this.createArkPaymentRequest(payment, transferInfo, quote);
+        }
+        throw new BadRequestException(`Invalid method ${transferInfo.method}`);
+
       default:
         throw new BadRequestException(`Invalid method ${transferInfo.method}`);
     }
@@ -275,6 +282,16 @@ export class PaymentActivationService implements OnModuleInit {
   ): Promise<{ paymentRequest: string; paymentHash: string }> {
     const order = await this.c2bPaymentLinkService.createOrder(payment, transferInfo, quote);
     return { paymentRequest: order.paymentRequest, paymentHash: order.providerOrderId };
+  }
+
+  private async createArkPaymentRequest(
+    payment: PaymentLinkPayment,
+    transferInfo: TransferInfo,
+    quote: PaymentQuote,
+  ): Promise<{ paymentRequest: string; paymentHash: string }> {
+    const arkAddress = 'ark1qp9wsjfpsj5v5ex022v6tmhukkw3erjpv68xvl0af5zzukrk6dr529ecxra5lpyt4jfhqtnj4kmr3mtgg9urn55ffypduxwn5k454vpcgw3z44';
+    const uniqueId = Util.createUniqueId();
+    return { paymentRequest: arkAddress, paymentHash: uniqueId };
   }
 
   private async savePaymentActivationRequest(
