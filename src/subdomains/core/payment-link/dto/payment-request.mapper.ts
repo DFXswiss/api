@@ -26,6 +26,9 @@ export class PaymentRequestMapper {
       case Blockchain.BINANCE_PAY:
         return this.toC2BPayment(paymentActivation.method, paymentActivation);
 
+      case 'Ark':
+        return this.toArkPayment(paymentActivation);
+
       default:
         throw new BadRequestException(`Invalid method ${paymentActivation?.method}`);
     }
@@ -60,6 +63,14 @@ export class PaymentRequestMapper {
       expiryDate: paymentActivation.expiryDate,
       uri: paymentActivation.paymentRequest,
       hint: `Pay in the ${appName} app by following the deep link ${paymentActivation.paymentRequest}.`,
+    };
+  }
+
+  private static toArkPayment(paymentActivation: PaymentActivation): any {
+    return {
+      expiryDate: paymentActivation.expiryDate,
+      address: 'ark1qp9wsjfpsj5v5ex022v6tmhukkw3erjpv68xvl0af5zzukrk6dr529ecxra5lpyt4jfhqtnj4kmr3mtgg9urn55ffypduxwn5k454vpcgw3z44',
+      hint: 'Send the specified amount of sat in the specified time to the ark address given above.',
     };
   }
 }
