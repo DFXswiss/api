@@ -115,8 +115,8 @@ export class PaymentLinkService {
     const route = dto.route
       ? await this.sellService.getByLabel(userId, dto.route)
       : dto.routeId
-        ? await this.sellService.get(userId, dto.routeId)
-        : await this.sellService.getLatest(userId);
+      ? await this.sellService.get(userId, dto.routeId)
+      : await this.sellService.getLatest(userId);
 
     this.sellService.validateLightningRoute(route);
 
@@ -264,11 +264,11 @@ export class PaymentLinkService {
     let transferAmounts = actualQuote.transferAmountsForPayRequest;
 
     if (uniqueId.endsWith('pl_604e54') || uniqueId.endsWith('pl_3e6fe374fbc7dcb0')) {
-      transferAmounts = transferAmounts.map(amount => {
+      transferAmounts = transferAmounts.map((amount) => {
         if (amount.method === 'Ark') {
           return {
             ...amount,
-            available: true
+            available: true,
           };
         }
         return amount;
@@ -561,8 +561,8 @@ export class PaymentLinkService {
     const paymentLink = Boolean(userId)
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
       : Boolean(key)
-        ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
-        : await this.getPublicPaymentLink(routeLabel, externalLinkId);
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
+      : await this.getPublicPaymentLink(routeLabel, externalLinkId);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
