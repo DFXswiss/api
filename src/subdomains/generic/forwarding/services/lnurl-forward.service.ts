@@ -76,7 +76,7 @@ export class LnUrlForwardService {
       const transferInfo = this.getPaymentTransferInfo(params);
       
       // Handle ARK method
-      if (params.method === 'ark') {
+      if (params.method && params.method.toLowerCase() === 'ark') {
         const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(id);
         if (!payment) throw new NotFoundException('No pending payment found');
         
