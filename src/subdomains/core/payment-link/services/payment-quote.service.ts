@@ -213,12 +213,16 @@ export class PaymentQuoteService {
       if (transferAmount.assets.length) transferAmounts.push(transferAmount);
     }
 
+    // Find Bitcoin BTC amount to reuse for Liquid and Ark
+    const bitcoinTransfer = transferAmounts.find(t => t.method === Blockchain.BITCOIN);
+    const btcAsset = bitcoinTransfer?.assets.find(a => a.asset === 'BTC');
+
     for (const method of Config.payment.manualMethods) {
       if (method === 'Liquid' || method === 'Ark') {
         transferAmounts.push({
           method,
           minFee: 0,
-          assets: [{ asset: 'BTC', amount: 0 }],
+          assets: btcAsset ? [{ asset: 'BTC', amount: btcAsset.amount }] : [{ asset: 'BTC', amount: 0 }],
           available: true,
         });
       } else {
