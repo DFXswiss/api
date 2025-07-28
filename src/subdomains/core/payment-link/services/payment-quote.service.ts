@@ -214,8 +214,7 @@ export class PaymentQuoteService {
     }
 
     for (const method of Config.payment.manualMethods) {
-      if ((method === 'Liquid' || method === 'Ark') && 
-          (payment.uniqueId.endsWith('pl_604e54') || payment.uniqueId.endsWith('pl_3e6fe374fbc7dcb0'))) {
+      if (method === 'Liquid' || method === 'Ark') {
         transferAmounts.push({
           method,
           minFee: 0,
