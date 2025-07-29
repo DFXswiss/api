@@ -25,6 +25,38 @@ export class UserDataNotificationService {
     await this.blackSquadInvitation();
   }
 
+  async deactivateAccountMail(userData: UserData): Promise<void> {
+    try {
+      if (userData.mail) {
+        await this.notificationService.sendMail({
+          type: MailType.USER_V2,
+          context: MailContext.ACCOUNT_DEACTIVATION,
+          input: {
+            userData,
+            wallet: userData.wallet,
+            title: `${MailTranslationKey.ACCOUNT_DEACTIVATION}.title`,
+            salutation: { key: `${MailTranslationKey.ACCOUNT_DEACTIVATION}.salutation` },
+            texts: [
+              { key: MailKey.SPACE, params: { value: '3' } },
+              {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: userData.organizationName ?? userData.firstname },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              { key: `${MailTranslationKey.ACCOUNT_DEACTIVATION}.message` },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+      } else {
+        this.logger.warn(`Failed to send userData (${userData.id}) deactivation mail: user has no email`);
+      }
+    } catch (e) {
+      this.logger.error(`Failed to send userData (${userData.id}) deactivation mail:`, e);
+    }
+  }
+
   async userDataAddedAddressInfo(master: UserData, slave: UserData): Promise<void> {
     try {
       if (master.mail) {
