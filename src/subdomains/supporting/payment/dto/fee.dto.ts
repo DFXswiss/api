@@ -33,6 +33,8 @@ export class InternalBaseFeeDto extends BaseFeeDto {
   fees: Fee[];
   bankRate: number; // bank fee rate
   bankFixed: number; // bank fixed fee
+  partnerRate: number; // partner fee rate
+  partnerFixed: number; // partner fixed rate
 }
 
 export class InternalFeeDto extends InternalBaseFeeDto {
