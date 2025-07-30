@@ -512,7 +512,7 @@ export class UserService {
       usedRef === user.ref ||
       (usedRef && !refUser) ||
       user?.userData?.id === refUser?.userData?.id
-      ? '000-000'
+      ? Config.defaultRef
       : usedRef;
   }
 

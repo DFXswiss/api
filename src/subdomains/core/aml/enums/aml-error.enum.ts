@@ -22,6 +22,7 @@ export enum AmlError {
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
   INVALID_USER_DATA_STATUS = 'InvalidUserDataStatus',
   INVALID_KYC_STATUS = 'InvalidKycStatus',
+  INVALID_KYC_STATUS_REF_USER = 'InvalidKycStatusRefUser',
   INVALID_KYC_TYPE = 'InvalidKycType',
   NO_VERIFIED_NAME = 'NoVerifiedName',
   NAME_MISSING = 'NameMissing',
@@ -131,6 +132,7 @@ export const AmlErrorResult: {
   [AmlError.USER_DATA_DEACTIVATED]: null,
   [AmlError.INVALID_USER_DATA_STATUS]: null,
   [AmlError.INVALID_KYC_STATUS]: null,
+  [AmlError.INVALID_KYC_STATUS_REF_USER]: null,
   [AmlError.INVALID_KYC_TYPE]: null,
   [AmlError.NO_VERIFIED_NAME]: null,
   [AmlError.NAME_MISSING]: {
