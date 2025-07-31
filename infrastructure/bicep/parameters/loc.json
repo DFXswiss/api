@@ -287,6 +287,9 @@
     "moneroRpcCertificate": {
       "value": "xxx"
     },
+    "zanoWalletAddress": {
+      "value": "xxx"
+    },
     "solanaWalletSeed": {
       "value": "xxx"
     },
