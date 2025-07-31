@@ -212,6 +212,14 @@ export class BuyService {
       .getOne();
   }
 
+  async getAllUserBuys(userIds: number[]): Promise<Buy[]> {
+    return this.buyRepo.find({
+      where: { user: { id: In(userIds) } },
+      relations: { user: true },
+      order: { id: 'DESC' },
+    });
+  }
+
   async updateBuy(userId: number, buyId: number, dto: UpdateBuyDto): Promise<Buy> {
     const buy = await this.buyRepo.findOneBy({ id: buyId, user: { id: userId } });
     if (!buy) throw new NotFoundException('Buy route not found');
