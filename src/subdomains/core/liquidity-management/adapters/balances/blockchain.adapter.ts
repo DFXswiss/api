@@ -96,7 +96,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.MONERO:
-          await this.updateMoneroBalance(assets);
+        case Blockchain.ZANO:
+          await this.updateCoinOnlyBalance(assets);
           break;
 
         case Blockchain.ETHEREUM:
@@ -147,7 +148,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async updateMoneroBalance(assets: Asset[]): Promise<void> {
+  private async updateCoinOnlyBalance(assets: Asset[]): Promise<void> {
     for (const asset of assets) {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
