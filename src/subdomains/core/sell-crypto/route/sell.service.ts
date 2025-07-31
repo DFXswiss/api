@@ -292,6 +292,14 @@ export class SellService {
       .then((r) => r.volume);
   }
 
+  async getAllUserSells(userIds: number[]): Promise<Sell[]> {
+    return this.sellRepo.find({
+      where: { user: { id: In(userIds) } },
+      relations: { user: true },
+      order: { id: 'DESC' },
+    });
+  }
+
   // --- CONFIRMATION --- //
   async confirmSell(request: TransactionRequest, dto: ConfirmDto): Promise<BuyFiatExtended> {
     try {
