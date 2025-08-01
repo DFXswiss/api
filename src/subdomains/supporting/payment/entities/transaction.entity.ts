@@ -44,6 +44,7 @@ export enum TransactionSourceType {
   CRYPTO_INPUT = 'CryptoInput',
   CHECKOUT_TX = 'CheckoutTx',
   REF = 'Ref',
+  MANUAL_REF = 'ManualRef',
 }
 
 @Entity()
@@ -160,6 +161,7 @@ export class Transaction extends IEntity {
       case TransactionSourceType.CRYPTO_INPUT:
         return this.cryptoInput;
 
+      case TransactionSourceType.MANUAL_REF:
       case TransactionSourceType.REF:
         return this.refReward;
     }
