@@ -65,7 +65,7 @@ export class Country extends IEntity {
   enabledKycDocuments: string; // semicolon separated KycDocuments
 
   get enabledKycDocumentList(): KycDocument[] {
-    return this.enabledKycDocuments ? (this.enabledKycDocuments?.split(';') as KycDocument[]) : [];
+    return (this.enabledKycDocuments?.split(';') ?? []) as KycDocument[];
   }
 
   isKycDocEnabled(kycDoc: string): boolean {
