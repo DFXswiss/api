@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -72,7 +72,7 @@ export class BuyCryptoOutService {
       for (const transaction of transactionsToPayout) {
         try {
           if (transaction.user.isBlockedOrDeleted || transaction.userData.isBlocked)
-            throw new InternalServerErrorException('Payout stopped for blocked user');
+            throw new Error('Payout stopped for blocked user');
 
           await this.doPayout(transaction);
           successfulRequests.push(transaction);

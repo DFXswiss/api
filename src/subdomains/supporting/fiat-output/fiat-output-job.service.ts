@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
@@ -148,7 +148,7 @@ export class FiatOutputJobService {
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
           if (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked)
-            throw new InternalServerErrorException('Payout stopped for blocked user');
+            throw new Error('Payout stopped for blocked user');
 
           const asset = assets.find((a) => a.bank.iban === entity.accountIban);
 
