@@ -27,9 +27,4 @@ export class PaymentCronService {
   async checkTxConfirmations(): Promise<void> {
     await this.paymentLinkPaymentService.checkTxConfirmations();
   }
-
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT_CONFIG_SYNC })
-  async syncPaymentRecipients(): Promise<void> {
-    await this.paymentLinkService.syncPaymentRecipients();
-  }
 }

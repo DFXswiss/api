@@ -20,6 +20,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { LessThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
@@ -569,6 +570,17 @@ export class KycService {
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     if (data.contractAccepted) {
+      const recipient: PaymentLinkRecipientDto = {
+        ...user.paymentLinksConfigObj.recipient,
+        website: data.website,
+        registrationNumber: data.registrationNumber,
+        storeType: data.storeType,
+        merchantCategory: data.merchantCategory,
+        goodsType: data.goodsType,
+        goodsCategory: data.goodsCategory,
+      };
+
+      await this.userDataService.updatePaymentLinksConfig(user, { recipient });
       await this.userDataService.updateUserDataInternal(user, { paymentLinksAllowed: true });
 
       await this.kycNotificationService.kycPaymentData(user, new Date());
