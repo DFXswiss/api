@@ -49,4 +49,7 @@ export class FiatLimitsDto {
 export class FiatDetailDto extends FiatDto {
   @ApiProperty()
   limits: FiatLimitsDto;
+
+  @ApiProperty()
+  allowedIbanCountries: string[];
 }

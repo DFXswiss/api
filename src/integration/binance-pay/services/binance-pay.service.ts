@@ -134,7 +134,7 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
     const recipient = paymentLink.recipient;
 
     const subMerchantData = {
-      merchantName: `${paymentLink.name} - ${paymentLink.label} - ${paymentLink.externalId}`,
+      merchantName: `${recipient.name} - ${paymentLink.label} - ${paymentLink.externalId}`,
       storeType: paymentLink.storeType || StoreType.PHYSICAL,
       merchantMcc: paymentLink.merchantMcc,
       country: recipient.address?.country,

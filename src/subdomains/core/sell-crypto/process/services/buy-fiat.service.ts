@@ -463,8 +463,13 @@ export class BuyFiatService {
     for (const ref of refs) {
       const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.getRefVolume(ref);
       const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.buyCryptoService.getRefVolume(ref);
+      const { volume: manualVolume, credit: manualCredit } = await this.transactionService.getManualRefVolume(ref);
 
-      await this.userService.updateRefVolume(ref, buyFiatVolume + buyCryptoVolume, buyFiatCredit + buyCryptoCredit);
+      await this.userService.updateRefVolume(
+        ref,
+        buyFiatVolume + buyCryptoVolume + manualVolume,
+        buyFiatCredit + buyCryptoCredit + manualCredit,
+      );
     }
   }
 
