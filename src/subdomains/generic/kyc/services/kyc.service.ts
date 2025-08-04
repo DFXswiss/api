@@ -1167,7 +1167,10 @@ export class KycService {
     const userCountry =
       identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {
-      if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry) {
+        if (!userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+        if (!userCountry.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+      }
 
       if (!identStep.userData.verifiedName && identStep.userData.status === UserDataStatus.ACTIVE) {
         errors.push(KycError.VERIFIED_NAME_MISSING);
@@ -1178,7 +1181,10 @@ export class KycService {
           errors.push(KycError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
     } else {
-      if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry) {
+        if (!userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+        if (!userCountry.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+      }
     }
 
     return errors;
