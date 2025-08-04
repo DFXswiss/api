@@ -669,7 +669,7 @@ export class PaymentLinkService {
     const pendingLinks = await this.paymentLinkRepo.findBy({ country: { id: Not(IsNull()) } });
 
     for (const link of pendingLinks) {
-      const update: PaymentLinkRecipientDto = {
+      const update: PaymentLinkRecipientDto = Util.removeNullFields({
         name: link.name,
         address: {
           street: link.street,
@@ -682,15 +682,23 @@ export class PaymentLinkService {
         mail: link.mail,
         website: link.website,
         registrationNumber: link.registrationNumber,
-        storeType: Object.entries(StoreTypeMap).find(([_, st]) => st === link.storeType)[0] as StoreType,
-        merchantCategory: Object.entries(MerchantCategoryMap).find(
-          ([_, mc]) => mc === link.merchantMcc,
-        )[0] as MerchantCategory,
-        goodsType: Object.entries(GoodsTypeMap).find(([_, gt]) => gt === link.goodsType)[0] as GoodsType,
-        goodsCategory: Object.entries(GoodsCategoryMap).find(
-          ([_, gc]) => gc === link.goodsCategory,
-        )[0] as GoodsCategory,
-      };
+        storeType:
+          link.storeType != null
+            ? (Object.entries(StoreTypeMap).find(([_, st]) => st === link.storeType)[0] as StoreType)
+            : undefined,
+        merchantCategory:
+          link.merchantMcc != null
+            ? (Object.entries(MerchantCategoryMap).find(([_, mc]) => mc === link.merchantMcc)[0] as MerchantCategory)
+            : undefined,
+        goodsType:
+          link.goodsType != null
+            ? (Object.entries(GoodsTypeMap).find(([_, gt]) => gt === link.goodsType)[0] as GoodsType)
+            : undefined,
+        goodsCategory:
+          link.goodsCategory != null
+            ? (Object.entries(GoodsCategoryMap).find(([_, gc]) => gc === link.goodsCategory)[0] as GoodsCategory)
+            : undefined,
+      });
 
       await this.paymentLinkRepo.update(link.id, {
         config: this.getMergedConfig(link, { recipient: { ...link.linkConfigObj.recipient, ...update } }),
