@@ -61,7 +61,7 @@ export class KycAdminController {
 
   @Post('log')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   @ApiExcludeEndpoint()
   async createLog(@GetJwt() jwt: JwtPayload, @Body() dto: CreateKycLogDto): Promise<void> {
     await this.kycLogService.createLog(jwt.account, dto);
