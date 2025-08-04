@@ -20,6 +20,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { LessThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
@@ -569,6 +570,17 @@ export class KycService {
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     if (data.contractAccepted) {
+      const recipient: PaymentLinkRecipientDto = {
+        ...user.paymentLinksConfigObj.recipient,
+        website: data.website,
+        registrationNumber: data.registrationNumber,
+        storeType: data.storeType,
+        merchantCategory: data.merchantCategory,
+        goodsType: data.goodsType,
+        goodsCategory: data.goodsCategory,
+      };
+
+      await this.userDataService.updatePaymentLinksConfig(user, { recipient });
       await this.userDataService.updateUserDataInternal(user, { paymentLinksAllowed: true });
 
       await this.kycNotificationService.kycPaymentData(user, new Date());
@@ -1155,7 +1167,10 @@ export class KycService {
     const userCountry =
       identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {
-      if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry) {
+        if (!userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+        if (!userCountry.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+      }
 
       if (!identStep.userData.verifiedName && identStep.userData.status === UserDataStatus.ACTIVE) {
         errors.push(KycError.VERIFIED_NAME_MISSING);
@@ -1166,7 +1181,10 @@ export class KycService {
           errors.push(KycError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
     } else {
-      if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry) {
+        if (!userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+        if (!userCountry.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+      }
     }
 
     return errors;

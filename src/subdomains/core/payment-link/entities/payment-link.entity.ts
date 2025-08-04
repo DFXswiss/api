@@ -1,8 +1,6 @@
 import { merge } from 'lodash';
 import { GetConfig } from 'src/config/config';
-import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/binance-pay/dto/binance.dto';
 import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
@@ -59,49 +57,6 @@ export class PaymentLink extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   config?: string; // PaymentLinkConfig
 
-  // recipient (TODO: move to config)
-  @Column({ length: 256, nullable: true })
-  name?: string;
-
-  @Column({ length: 256, nullable: true })
-  street?: string;
-
-  @Column({ length: 256, nullable: true })
-  houseNumber?: string;
-
-  @Column({ length: 256, nullable: true })
-  zip?: string;
-
-  @Column({ length: 256, nullable: true })
-  city?: string;
-
-  @ManyToOne(() => Country, { nullable: true, eager: true })
-  country?: Country;
-
-  @Column({ length: 256, nullable: true })
-  phone?: string;
-
-  @Column({ length: 256, nullable: true })
-  mail?: string;
-
-  @Column({ length: 256, nullable: true })
-  website?: string;
-
-  @Column({ nullable: true })
-  registrationNumber?: string; // Registration number/Company tax ID
-
-  @Column({ nullable: true })
-  storeType?: StoreType;
-
-  @Column({ nullable: true })
-  merchantMcc?: MerchantMCC;
-
-  @Column({ nullable: true })
-  goodsType?: GoodsType;
-
-  @Column({ nullable: true })
-  goodsCategory?: GoodsCategory;
-
   // --- ENTITY METHODS --- //
   get metaId(): string {
     return this.label ?? this.externalId ?? `${this.id}`;
@@ -113,28 +68,6 @@ export class PaymentLink extends IEntity {
       : `Payment link ${this.metaId}`;
 
     return this.route.userData.paymentLinksName ?? this.route.userData.verifiedName ?? defaultDisplayName;
-  }
-
-  get recipient(): PaymentLinkRecipientDto {
-    const configRecipient = this.configObj.recipient;
-
-    const linkRecipient: PaymentLinkRecipientDto = Util.removeNullFields({
-      name: this.name,
-      address: this.city
-        ? {
-            street: this.street,
-            houseNumber: this.houseNumber,
-            zip: this.zip,
-            city: this.city,
-            country: this.country?.name,
-          }
-        : undefined,
-      phone: this.phone,
-      mail: this.mail,
-      website: this.website,
-    });
-
-    return Object.assign(configRecipient, linkRecipient);
   }
 
   get configObj(): PaymentLinkConfig {

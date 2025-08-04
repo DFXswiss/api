@@ -3,6 +3,11 @@ import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.
 import { Column, Entity } from 'typeorm';
 import { IEntity } from '../entity';
 
+export enum KycDocument {
+  ID_CARD = 'IdCard',
+  PASSPORT = 'Passport',
+}
+
 @Entity()
 export class Country extends IEntity {
   @Column({ unique: true, length: 10 })
@@ -55,6 +60,17 @@ export class Country extends IEntity {
 
   @Column({ default: AmlRule.DEFAULT })
   amlRule: AmlRule;
+
+  @Column({ length: 'MAX', nullable: true })
+  enabledKycDocuments: string; // semicolon separated KycDocuments
+
+  get enabledKycDocumentList(): KycDocument[] {
+    return (this.enabledKycDocuments?.split(';') ?? []) as KycDocument[];
+  }
+
+  isKycDocEnabled(kycDoc: string): boolean {
+    return this.enabledKycDocumentList.map((d) => d.toLocaleLowerCase()).includes(kycDoc.toLocaleLowerCase());
+  }
 
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {

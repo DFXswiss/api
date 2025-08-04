@@ -7,12 +7,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import {
-  GoodsCategoryMap,
-  GoodsTypeMap,
-  MerchantCategoryMap,
-  StoreTypeMap,
-} from 'src/integration/binance-pay/dto/binance-enum.mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -20,14 +14,12 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { IsNull, Not } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
-import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
 import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -41,7 +33,6 @@ import {
   PaymentLinkStatus,
   PaymentStandard,
 } from '../enums';
-import { GoodsCategory, GoodsType, MerchantCategory, StoreType } from '../enums/merchant.enum';
 import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
@@ -199,10 +190,6 @@ export class PaymentLinkService {
   }
 
   private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
-    const country = dto.config?.recipient?.address?.country
-      ? await this.countryService.getCountryWithSymbol(dto.config?.recipient?.address?.country)
-      : undefined;
-
     const paymentLink = this.paymentLinkRepo.create({
       route,
       externalId: dto.externalId,
@@ -211,17 +198,7 @@ export class PaymentLinkService {
       mode: dto.mode,
       uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
       webhookUrl: dto.webhookUrl,
-      name: dto.config?.recipient?.name,
-      street: dto.config?.recipient?.address?.street,
-      houseNumber: dto.config?.recipient?.address?.houseNumber,
-      zip: dto.config?.recipient?.address?.zip,
-      city: dto.config?.recipient?.address?.city,
-      country: country,
-      phone: dto.config?.recipient?.phone,
-      mail: dto.config?.recipient?.mail,
-      website: dto.config?.recipient?.website,
       payments: [],
-      registrationNumber: dto.config?.recipient?.registrationNumber,
       config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),
     });
 
@@ -279,7 +256,7 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       displayQr,
-      recipient: pendingPayment.link.recipient,
+      recipient: pendingPayment.link.configObj.recipient,
       route: pendingPayment.link.route.route.label,
       quote: {
         id: actualQuote.uniqueId,
@@ -356,7 +333,7 @@ export class PaymentLinkService {
       route: paymentLink.route.route.label,
       currency: paymentLink.route.fiat?.name,
       displayQr,
-      recipient: paymentLink.recipient,
+      recipient: paymentLink.configObj.recipient,
       mode: paymentLink.mode,
       statusCode: undefined,
       message: undefined,
@@ -380,30 +357,13 @@ export class PaymentLinkService {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
 
     const { status, label, webhookUrl, config } = dto;
-    const { name, address, phone, mail, website } = config?.recipient ?? {};
-    const { street, houseNumber, zip, city, country } = address ?? {};
 
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
       label,
       webhookUrl,
-      street,
-      houseNumber,
-      zip,
-      city,
-      name,
-      phone,
-      mail,
-      website,
       config: this.getMergedConfig(paymentLink, config),
     };
-
-    if (country === null) {
-      updatePaymentLink.country = null;
-    } else if (country) {
-      updatePaymentLink.country = await this.countryService.getCountryWithSymbol(country);
-      if (!updatePaymentLink.country) throw new NotFoundException('Country not found');
-    }
 
     await this.updatePaymentLinkInternal(paymentLink, updatePaymentLink);
 
@@ -663,49 +623,5 @@ export class PaymentLinkService {
     });
 
     return `${Config.frontend.services}/pl/pos?${search.toString()}`;
-  }
-
-  async syncPaymentRecipients(): Promise<void> {
-    const pendingLinks = await this.paymentLinkRepo.find({
-      where: { country: { id: Not(IsNull()) } },
-      relations: { route: { user: { userData: true } } },
-    });
-
-    for (const link of pendingLinks) {
-      const update: PaymentLinkRecipientDto = Util.removeNullFields({
-        name: link.name,
-        address: {
-          street: link.street,
-          houseNumber: link.houseNumber,
-          zip: link.zip,
-          city: link.city,
-          country: link.country?.symbol,
-        },
-        phone: link.phone,
-        mail: link.mail,
-        website: link.website,
-        registrationNumber: link.registrationNumber,
-        storeType:
-          link.storeType != null
-            ? (Object.entries(StoreTypeMap).find(([_, st]) => st === link.storeType)[0] as StoreType)
-            : undefined,
-        merchantCategory:
-          link.merchantMcc != null
-            ? (Object.entries(MerchantCategoryMap).find(([_, mc]) => mc === link.merchantMcc)[0] as MerchantCategory)
-            : undefined,
-        goodsType:
-          link.goodsType != null
-            ? (Object.entries(GoodsTypeMap).find(([_, gt]) => gt === link.goodsType)[0] as GoodsType)
-            : undefined,
-        goodsCategory:
-          link.goodsCategory != null
-            ? (Object.entries(GoodsCategoryMap).find(([_, gc]) => gc === link.goodsCategory)[0] as GoodsCategory)
-            : undefined,
-      });
-
-      await this.paymentLinkRepo.update(link.id, {
-        config: this.getMergedConfig(link, { recipient: { ...link.linkConfigObj.recipient, ...update } }),
-      });
-    }
   }
 }

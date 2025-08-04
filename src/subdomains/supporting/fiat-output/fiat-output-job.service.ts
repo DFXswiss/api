@@ -118,7 +118,12 @@ export class FiatOutputJobService {
 
     const entities = await this.fiatOutputRepo.find({
       where: { valutaDate: Not(IsNull()), amount: Not(IsNull()), isComplete: false },
-      relations: { buyCrypto: true, buyFiats: { sell: true, cryptoInput: true }, bankTx: true },
+      relations: {
+        buyCrypto: { transaction: { user: true, userData: true } },
+        buyFiats: { sell: true, cryptoInput: true, transaction: { user: true, userData: true } },
+        bankTx: true,
+        bankTxReturn: { userData: true },
+      },
     });
 
     const groupedEntities = Util.groupBy(entities, 'accountIban');
@@ -142,6 +147,9 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
+          if (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked)
+            throw new Error('Payout stopped for blocked user');
+
           const asset = assets.find((a) => a.bank.iban === entity.accountIban);
 
           const availableBalance =
@@ -162,7 +170,7 @@ export class FiatOutputJobService {
             break;
           }
         } catch (e) {
-          this.logger.error(`Failed to fill up fiat-output ${entity.id}:`, e);
+          this.logger.error(`Failed to set isReadyDate in fiat-output ${entity.id}:`, e);
         }
       }
     }
