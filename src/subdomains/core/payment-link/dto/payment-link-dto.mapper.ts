@@ -53,7 +53,7 @@ export class PaymentLinkDtoMapper {
       externalId: paymentLink.externalId,
       label: paymentLink.label,
       webhookUrl: paymentLink.webhookUrl ?? undefined,
-      recipient: paymentLink.recipient,
+      recipient: paymentLink.configObj.recipient,
       status: paymentLink.status,
       config: PaymentLinkDtoMapper.getConfigsWithoutSecrets(paymentLink.configObj),
       url: LightningHelper.createLnurlp(paymentLink.uniqueId),

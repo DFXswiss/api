@@ -1,13 +1,13 @@
 export interface PaymentInfo {
-    payMethod: string;
-    paymentInstructions: {
-        currency: string;
-        amount: number;
-        price: number;
-    }[];
-    channel?: string;
-    subChannel?: string;
-    payerDetail?: string;
+  payMethod: string;
+  paymentInstructions: {
+    currency: string;
+    amount: number;
+    price: number;
+  }[];
+  channel?: string;
+  subChannel?: string;
+  payerDetail?: string;
 }
 
 export enum TradeType {
@@ -79,8 +79,8 @@ export interface OrderData {
   description: string;
   orderExpireTime: number;
   goodsDetails: {
-    goodsType: string;
-    goodsCategory: string;
+    goodsType: GoodsType;
+    goodsCategory: GoodsCategory;
     referenceGoodsId: string;
     goodsName: string;
     goodsDetail: string;
@@ -223,4 +223,3 @@ export enum MerchantMCC {
   OtherCryptoWeb3Services = '1047',
   Other = '9999',
 }
-

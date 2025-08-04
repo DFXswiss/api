@@ -17,6 +17,7 @@ import {
   C2BPaymentLinkProvider,
   C2BWebhookResult,
 } from '../../../subdomains/core/payment-link/share/c2b-payment-link.provider';
+import { GoodsCategoryMap, GoodsTypeMap, MerchantCategoryMap, StoreTypeMap } from '../dto/binance-enum.mapper';
 import {
   AddSubMerchantResponse,
   BinanceBizType,
@@ -27,12 +28,9 @@ import {
   BinanceRefundStatus,
   CertificateResponse,
   ChannelPartnerOrderData,
-  GoodsCategory,
-  GoodsType,
   OrderData,
   OrderResponse,
   ResponseStatus,
-  StoreType,
   SubMerchantOrderData,
 } from '../dto/binance.dto';
 
@@ -107,7 +105,7 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
   }
 
   private validateEnrollmentRequiredFieldsOrThrow(paymentLink: PaymentLink): void {
-    const recipient = paymentLink.recipient;
+    const recipient = paymentLink.configObj.recipient;
 
     const missing = [
       'externalId',
@@ -131,16 +129,16 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
   public async enrollPaymentLink(paymentLink: PaymentLink): Promise<Record<string, string>> {
     this.validateEnrollmentRequiredFieldsOrThrow(paymentLink);
 
-    const recipient = paymentLink.recipient;
+    const recipient = paymentLink.configObj.recipient;
 
     const subMerchantData = {
       merchantName: `${recipient.name} - ${paymentLink.label} - ${paymentLink.externalId}`,
-      storeType: paymentLink.storeType || StoreType.PHYSICAL,
-      merchantMcc: paymentLink.merchantMcc,
+      storeType: StoreTypeMap[recipient.storeType],
+      merchantMcc: MerchantCategoryMap[recipient.merchantCategory],
       country: recipient.address?.country,
       siteUrl: recipient.website,
       address: `${recipient.address?.street} ${recipient.address?.houseNumber}, ${recipient.address?.zip} ${recipient.address?.city}`,
-      registrationNumber: paymentLink.registrationNumber,
+      registrationNumber: recipient.registrationNumber,
       registrationCountry: recipient.address?.country,
       registrationAddress: `${recipient.address?.street} ${recipient.address?.houseNumber}, ${recipient.address?.zip} ${recipient.address?.city}`,
     };
@@ -166,6 +164,8 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
     transferInfo: TransferInfo,
     quote: PaymentQuote,
   ): Promise<C2BOrderResult> {
+    const recipient = payment.link.configObj.recipient;
+
     const orderDetails: OrderData = {
       env: {
         terminalType: BinancePayTerminalType.OTHERS,
@@ -178,8 +178,8 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
       orderExpireTime: quote.expiryDate.getTime(),
       goodsDetails: [
         {
-          goodsType: payment.link.goodsType || GoodsType.TangibleGoods, // TODO: Remove default values
-          goodsCategory: payment.link.goodsCategory || GoodsCategory.FoodGroceryHealthProducts,
+          goodsType: GoodsTypeMap[recipient.goodsType],
+          goodsCategory: GoodsCategoryMap[recipient.goodsCategory],
           referenceGoodsId: '01',
           goodsName: payment.memo,
           goodsDetail: payment.memo,
