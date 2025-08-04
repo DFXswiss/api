@@ -1,6 +1,8 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, JoinColumn, OneToMany, OneToOne } from 'typeorm';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
@@ -158,5 +160,13 @@ export class FiatOutput extends IEntity {
 
   get originEntity(): BuyCrypto | BuyFiat | BankTxReturn {
     return this.buyCrypto ?? this.buyFiats[0] ?? this.bankTxReturn;
+  }
+
+  get user(): User | undefined {
+    return this.buyCrypto?.user ?? this.buyFiats[0]?.user;
+  }
+
+  get userData(): UserData | undefined {
+    return this.originEntity?.userData;
   }
 }

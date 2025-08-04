@@ -71,6 +71,9 @@ export class BuyCryptoOutService {
 
       for (const transaction of transactionsToPayout) {
         try {
+          if (transaction.user.isBlockedOrDeleted || transaction.userData.isBlocked)
+            throw new Error('Payout stopped for blocked user');
+
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
         } catch (e) {
