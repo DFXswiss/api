@@ -666,7 +666,10 @@ export class PaymentLinkService {
   }
 
   async syncPaymentRecipients(): Promise<void> {
-    const pendingLinks = await this.paymentLinkRepo.findBy({ country: { id: Not(IsNull()) } });
+    const pendingLinks = await this.paymentLinkRepo.find({
+      where: { country: { id: Not(IsNull()) } },
+      relations: { route: { user: { userData: true } } },
+    });
 
     for (const link of pendingLinks) {
       const update: PaymentLinkRecipientDto = Util.removeNullFields({
