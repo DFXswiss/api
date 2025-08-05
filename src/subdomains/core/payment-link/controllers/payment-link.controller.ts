@@ -342,7 +342,7 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
   @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: false })
   @ApiQuery({ name: 'ids', description: 'Comma-separated payment link IDs', required: false })
-  @ApiQuery({ name: 'type', description: 'Sticker type', required: false, enum: StickerQrMode })
+  @ApiQuery({ name: 'type', description: 'Sticker type', required: false, enum: StickerType })
   @ApiQuery({ name: 'lang', description: 'Language code', required: false })
   @ApiQuery({ name: 'mode', description: 'QR code mode (PaymentLink or Pos)', required: false, enum: StickerQrMode })
   async generateOcpStickers(
