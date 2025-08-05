@@ -254,13 +254,15 @@ export class PaymentQuoteService {
       available: true,
     };
 
-    if (currency && amount && minFee != null) {
-      for (const asset of assets) {
-        const transferAmountAsset = await this.getTransferAmountAsset(standard, currency, asset, amount);
-        if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
+    if (minFee != null) {
+      if (currency && amount) {
+        for (const asset of assets) {
+          const transferAmountAsset = await this.getTransferAmountAsset(standard, currency, asset, amount);
+          if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
+        }
+      } else {
+        transferAmount.assets = assets.map((asset) => ({ asset: asset.name }));
       }
-    } else {
-      transferAmount.assets = assets.map((asset) => ({ asset: asset.name }));
     }
 
     if (C2BPaymentLinkService.isC2BProvider(blockchain)) {
