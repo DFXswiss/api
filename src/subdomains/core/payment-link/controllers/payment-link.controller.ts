@@ -11,6 +11,7 @@ import {
   Query,
   Res,
   StreamableFile,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -50,7 +51,7 @@ import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { StickerType } from '../enums';
+import { StickerQrMode, StickerType } from '../enums';
 import { JwtOrPaymentLinkKeyGuard } from '../guards/jwt-or-payment-link-key.guard';
 import { OCPStickerService } from '../services/ocp-sticker.service';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
@@ -334,23 +335,32 @@ export class PaymentLinkController {
   }
 
   @Get('stickers')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: StreamableFile })
   @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
   @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: false })
   @ApiQuery({ name: 'ids', description: 'Comma-separated payment link IDs', required: false })
-  @ApiQuery({ name: 'type', description: 'Sticker type', required: false })
+  @ApiQuery({ name: 'type', description: 'Sticker type', required: false, enum: StickerQrMode })
   @ApiQuery({ name: 'lang', description: 'Language code', required: false })
+  @ApiQuery({ name: 'mode', description: 'QR code mode (PaymentLink or Pos)', required: false, enum: StickerQrMode })
   async generateOcpStickers(
+    @GetJwt() jwt: JwtPayload,
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
     @Query('ids') ids: string,
     @Query('type') type: StickerType,
     @Query('lang') lang: string,
+    @Query('mode') mode: StickerQrMode,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     if (!externalIds && !ids) {
       throw new BadRequestException('Either externalIds or ids parameter must be provided');
+    }
+
+    if (mode === StickerQrMode.POS && !jwt) {
+      throw new UnauthorizedException('Authentication required for POS mode');
     }
 
     const idArray = ids?.split(',').map((id) => +id);
@@ -361,11 +371,15 @@ export class PaymentLinkController {
       idArray,
       type,
       lang,
+      mode,
+      jwt?.user,
     );
 
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="DFX_OCP_stickers_${Util.filenameDate()}.pdf"`,
+      'Content-Disposition': `attachment; filename="DFX_OCP_${
+        mode === StickerQrMode.POS ? 'POS_' : ''
+      }stickers_${Util.filenameDate()}.pdf"`,
     });
 
     return new StreamableFile(pdfBuffer);

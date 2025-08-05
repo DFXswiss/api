@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { I18nService } from 'nestjs-i18n';
 import { join } from 'path';
@@ -8,11 +8,16 @@ import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { StickerType } from '../enums';
+import { StickerQrMode, StickerType } from '../enums';
+import { PaymentLinkService } from './payment-link.service';
 
 @Injectable()
 export class OCPStickerService {
-  constructor(private readonly sellService: SellService, private readonly i18n: I18nService) {}
+  constructor(
+    private readonly sellService: SellService,
+    private readonly i18n: I18nService,
+    private readonly paymentLinkService: PaymentLinkService,
+  ) {}
 
   async generateOcpStickersPdf(
     routeIdOrLabel: string,
@@ -20,11 +25,13 @@ export class OCPStickerService {
     ids?: number[],
     type = StickerType.BITCOIN_FOCUS,
     lang = 'en',
+    mode = StickerQrMode.CUSTOMER,
+    userId?: number,
   ): Promise<Buffer> {
     if (type === StickerType.BITCOIN_FOCUS) {
-      return this.generateBitcoinFocusStickersPdf(routeIdOrLabel, externalIds, ids, lang);
+      return this.generateBitcoinFocusStickersPdf(routeIdOrLabel, externalIds, ids, lang, mode, userId);
     } else {
-      return this.generateClassicStickersPdf(routeIdOrLabel, externalIds, ids, lang);
+      return this.generateClassicStickersPdf(routeIdOrLabel, externalIds, ids, lang, mode, userId);
     }
   }
 
@@ -33,11 +40,26 @@ export class OCPStickerService {
     externalIds?: string[],
     ids?: number[],
     lang = 'en',
+    mode = StickerQrMode.CUSTOMER,
+    userId?: number,
   ): Promise<Buffer> {
     const links = await this.fetchPaymentLinks(routeIdOrLabel, externalIds, ids);
 
+    const posUrls: Map<string, string> = new Map();
+    if (mode === StickerQrMode.POS) {
+      if (!userId) throw new UnauthorizedException('User ID required for POS mode');
+
+      for (const link of links) {
+        const posUrl = await this.paymentLinkService.createPosLinkUser(userId, link.id, link.externalId, undefined);
+        posUrls.set(link.uniqueId, posUrl);
+      }
+    }
+
     // Translated sticker title
-    const stickerTitle = this.i18n.translate('payment.sticker.pay_with_crypto', { lang: lang.toLowerCase() });
+    const stickerTitle = this.i18n.translate(
+      mode === StickerQrMode.POS ? 'payment.sticker.payment_activation' : 'payment.sticker.pay_with_crypto',
+      { lang: lang.toLowerCase() },
+    );
 
     // Classic (blue) OCP Sticker
     const stickerPath = join(process.cwd(), 'assets', 'ocp-classic-sticker.png');
@@ -98,9 +120,14 @@ export class OCPStickerService {
           const x = startX + col * (stickerWidth + stickerSpacing);
           const y = startY + row * (stickerHeight + stickerSpacing);
 
-          // QR Code URL
-          const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
-          const qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
+          // Generate QR code URL based on mode
+          let qrCodeUrl: string;
+          if (mode === StickerQrMode.POS) {
+            qrCodeUrl = posUrls.get(uniqueId);
+          } else {
+            const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
+            qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
+          }
           const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
             width: 400,
             margin: 0,
@@ -166,11 +193,27 @@ export class OCPStickerService {
     externalIds?: string[],
     ids?: number[],
     lang = 'en',
+    mode = StickerQrMode.CUSTOMER,
+    userId?: number,
   ): Promise<Buffer> {
     const links = await this.fetchPaymentLinks(routeIdOrLabel, externalIds, ids);
 
+    const posUrls: Map<string, string> = new Map();
+    if (mode === StickerQrMode.POS) {
+      if (!userId) throw new UnauthorizedException('User ID required for POS mode');
+
+      for (const link of links) {
+        const posUrl = await this.paymentLinkService.createPosLinkUser(userId, link.id, link.externalId, undefined);
+        posUrls.set(link.uniqueId, posUrl);
+      }
+    }
+
     // Bitcoin Focus OCP Sticker
-    const stickerPath = join(process.cwd(), 'assets', `ocp-bitcoin-focus-sticker_${lang.toLowerCase()}.png`);
+    const stickerFileName =
+      mode === StickerQrMode.POS
+        ? `ocp-bitcoin-focus-sticker-pos_${lang.toLowerCase()}.png`
+        : `ocp-bitcoin-focus-sticker_${lang.toLowerCase()}.png`;
+    const stickerPath = join(process.cwd(), 'assets', stickerFileName);
     const stickerBuffer = readFileSync(stickerPath);
 
     // OCP Logo
@@ -226,9 +269,14 @@ export class OCPStickerService {
           const x = startX + col * (stickerWidth + stickerSpacing);
           const y = startY + row * (stickerHeight + stickerSpacing);
 
-          // QR Code URL
-          const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
-          const qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
+          // Generate QR code URL based on mode
+          let qrCodeUrl: string;
+          if (mode === StickerQrMode.POS) {
+            qrCodeUrl = posUrls.get(uniqueId);
+          } else {
+            const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
+            qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
+          }
 
           // Generate QR code matrix data
           const qrData = QRCode.create(qrCodeUrl, {});
