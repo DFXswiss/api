@@ -49,7 +49,12 @@ export class UserDataController {
     @Param('id') id: string,
     @Body() dto: UpdateUserDataDto,
   ): Promise<UserData> {
-    if (jwt.role === UserRole.SUPPORT) dto = dto.kycStatus ? { kycStatus: KycStatus.CHECK } : {};
+    if (jwt.role === UserRole.SUPPORT)
+      dto =
+        dto.kycStatus || dto.status
+          ? { kycStatus: dto.kycStatus ? KycStatus.CHECK : undefined, status: dto.status }
+          : {};
+
     return this.userDataService.updateUserData(+id, dto);
   }
 

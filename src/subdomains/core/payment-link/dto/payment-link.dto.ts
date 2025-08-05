@@ -32,7 +32,7 @@ export interface TransferAmount {
 
 export interface TransferAmountAsset {
   asset: string;
-  amount: number;
+  amount?: number;
 }
 
 export type RequestedAmountAsset = TransferAmountAsset;
@@ -48,6 +48,7 @@ export interface PaymentLinkRequestDto {
   mode: PaymentLinkMode;
   route?: string;
   currency?: string;
+  transferAmounts: TransferAmount[];
 }
 
 export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
@@ -62,7 +63,6 @@ export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
     payment: string;
   };
   requestedAmount: RequestedAmountAsset;
-  transferAmounts: TransferAmount[];
 }
 
 export interface PaymentLinkPaymentErrorResponseDto extends PaymentLinkRequestDto, ErrorDto {}

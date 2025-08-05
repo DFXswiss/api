@@ -6,6 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { merge } from 'lodash';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -338,11 +339,17 @@ export class PaymentLinkService {
       statusCode: undefined,
       message: undefined,
       error: undefined,
+      transferAmounts: await this.paymentQuoteService.createTransferAmounts(usedStandard, paymentLink),
     };
   }
 
   private getMergedConfig(paymentLink: PaymentLink, config: Partial<PaymentLinkConfig>): string | null {
-    const mergedConfig = { ...JSON.parse(paymentLink.config || '{}'), ...config };
+    const existingConfig: PaymentLinkConfig = JSON.parse(paymentLink.config || '{}');
+    const mergedConfig: PaymentLinkConfig = {
+      ...existingConfig,
+      ...config,
+      recipient: merge(existingConfig.recipient, config.recipient),
+    };
     const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
     return Object.keys(customConfig).length === 0 ? null : (JSON.stringify(customConfig) as string);
   }

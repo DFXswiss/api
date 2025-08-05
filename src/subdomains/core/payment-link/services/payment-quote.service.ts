@@ -15,6 +15,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { Equal, In, LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
 import {
   PaymentActivationStatus,
@@ -190,7 +191,9 @@ export class PaymentQuoteService {
     const quote = this.paymentQuoteRepo.create({
       uniqueId: Util.createUniqueId(Config.prefixes.paymentQuoteUidPrefix, 16),
       status: PaymentQuoteStatus.ACTUAL,
-      transferAmounts: await this.createTransferAmounts(standard, payment).then(JSON.stringify),
+      transferAmounts: await this.createTransferAmounts(standard, payment.link, payment.amount, payment.currency).then(
+        JSON.stringify,
+      ),
       expiryDate,
       standard,
       payment,
@@ -199,16 +202,25 @@ export class PaymentQuoteService {
     return this.paymentQuoteRepo.save(quote);
   }
 
-  private async createTransferAmounts(
+  async createTransferAmounts(
     standard: PaymentStandard,
-    payment: PaymentLinkPayment,
+    paymentLink: PaymentLink,
+    amount?: number,
+    currency?: Fiat,
   ): Promise<TransferAmount[]> {
     const transferAmounts: TransferAmount[] = [];
 
-    const paymentAssetMap = await this.createOrderedPaymentAssetMap(payment.link.configObj.blockchains);
+    const paymentAssetMap = await this.createOrderedPaymentAssetMap(paymentLink.configObj.blockchains);
 
     for (const [blockchain, assets] of paymentAssetMap.entries()) {
-      const transferAmount = await this.createTransferAmount(standard, payment, blockchain, assets);
+      const transferAmount = await this.createTransferAmount(
+        standard,
+        blockchain,
+        assets,
+        paymentLink,
+        amount,
+        currency,
+      );
 
       if (transferAmount.assets.length) transferAmounts.push(transferAmount);
     }
@@ -227,9 +239,11 @@ export class PaymentQuoteService {
 
   private async createTransferAmount(
     standard: PaymentStandard,
-    payment: PaymentLinkPayment,
     blockchain: Blockchain,
     assets: Asset[],
+    paymentLink: PaymentLink,
+    amount?: number,
+    currency?: Fiat,
   ): Promise<TransferAmount> {
     const minFee = await this.feeService.getMinFee(blockchain);
 
@@ -241,19 +255,18 @@ export class PaymentQuoteService {
     };
 
     if (minFee != null) {
-      for (const asset of assets) {
-        const transferAmountAsset = await this.getTransferAmountAsset(
-          standard,
-          payment.currency,
-          asset,
-          payment.amount,
-        );
-        if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
+      if (currency && amount) {
+        for (const asset of assets) {
+          const transferAmountAsset = await this.getTransferAmountAsset(standard, currency, asset, amount);
+          if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
+        }
+      } else {
+        transferAmount.assets = assets.map((asset) => ({ asset: asset.name }));
       }
     }
 
     if (C2BPaymentLinkService.isC2BProvider(blockchain)) {
-      if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(blockchain, payment.link)) {
+      if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(blockchain, paymentLink)) {
         transferAmount.available = false;
         transferAmount.assets = [];
       }
