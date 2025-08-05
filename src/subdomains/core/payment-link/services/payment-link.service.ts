@@ -338,6 +338,7 @@ export class PaymentLinkService {
       statusCode: undefined,
       message: undefined,
       error: undefined,
+      transferAmounts: await this.paymentQuoteService.createTransferAmounts(usedStandard, paymentLink),
     };
   }
 

@@ -11,7 +11,7 @@ import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';
 
 export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
-  standards: Object.values(PaymentStandard),
+  standards: [PaymentStandard.OPEN_CRYPTO_PAY],
   blockchains: Object.values(PaymentLinkBlockchain),
   minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
   displayQr: false,
