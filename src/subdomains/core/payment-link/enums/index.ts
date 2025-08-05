@@ -82,3 +82,8 @@ export enum PaymentLinkMode {
   MULTIPLE = 'Multiple',
   PUBLIC = 'Public',
 }
+
+export enum StickerQrMode {
+  CUSTOMER = 'Customer',
+  POS = 'Pos',
+}
