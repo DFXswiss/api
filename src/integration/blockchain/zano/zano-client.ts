@@ -189,7 +189,7 @@ export class ZanoClient extends BlockchainClient {
         `${Config.blockchain.zano.wallet.url}/json_rpc`,
         params,
       )
-      .then((r) => this.mapTransfer(r.result.transfers));
+      .then((r) => (r.result.transfers ? this.mapTransfer(r.result.transfers) : []));
   }
 
   private mapTransfer(transferResults: ZanoGetTransferResultDto[]): ZanoTransferDto[] {
