@@ -66,4 +66,12 @@ export class UpdatePaymentLinkInternalDto {
   @IsOptional()
   @IsString()
   config?: string;
+
+  @IsOptional()
+  @IsString()
+  publicStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
