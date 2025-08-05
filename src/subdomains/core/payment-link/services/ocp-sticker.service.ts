@@ -45,7 +45,7 @@ export class OCPStickerService {
   ): Promise<Buffer> {
     const links = await this.fetchPaymentLinks(routeIdOrLabel, externalIds, ids);
 
-    let posUrls: Map<string, string> = new Map();
+    const posUrls: Map<string, string> = new Map();
     if (mode === StickerQrMode.POS) {
       if (!userId) throw new UnauthorizedException('User ID required for POS mode');
 
@@ -198,7 +198,7 @@ export class OCPStickerService {
   ): Promise<Buffer> {
     const links = await this.fetchPaymentLinks(routeIdOrLabel, externalIds, ids);
 
-    let posUrls: Map<string, string> = new Map();
+    const posUrls: Map<string, string> = new Map();
     if (mode === StickerQrMode.POS) {
       if (!userId) throw new UnauthorizedException('User ID required for POS mode');
 
