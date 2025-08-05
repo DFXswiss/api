@@ -27,7 +27,7 @@ import { ApiKeyDto } from './dto/api-key.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
-import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
+import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
@@ -194,8 +194,15 @@ export class UserController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async updateUserAdmin(@Param('id') id: string, @Body() dto: UpdateUserAdminDto): Promise<User> {
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async updateUserAdmin(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserInternalDto,
+  ): Promise<User> {
+    if ([UserRole.SUPPORT, UserRole.COMPLIANCE].includes(jwt.role))
+      dto = dto.status || dto.setRef ? { status: dto.status, setRef: dto.setRef } : {};
+
     return this.userService.updateUserInternal(+id, dto);
   }
 }

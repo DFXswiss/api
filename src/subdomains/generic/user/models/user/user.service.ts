@@ -34,7 +34,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
-import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
+import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
@@ -287,7 +287,7 @@ export class UserService {
     return this.toDto(user, true);
   }
 
-  async updateUserInternal(id: number, update: UpdateUserAdminDto): Promise<User> {
+  async updateUserInternal(id: number, update: UpdateUserInternalDto): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id }, relations: { userData: true } });
     if (!user) throw new NotFoundException('User not found');
 
