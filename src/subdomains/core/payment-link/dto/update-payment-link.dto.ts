@@ -93,4 +93,12 @@ export class UpdatePaymentLinkInternalDto {
   @IsOptional()
   @IsString()
   label?: string;
+
+  @IsOptional()
+  @IsString()
+  publicStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
