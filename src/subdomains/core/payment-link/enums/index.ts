@@ -84,6 +84,6 @@ export enum PaymentLinkMode {
 }
 
 export enum StickerQrMode {
-  PAYMENT_LINK = 'PaymentLink',
+  CUSTOMER = 'Customer',
   POS = 'Pos',
 }

@@ -25,7 +25,7 @@ export class OCPStickerService {
     ids?: number[],
     type = StickerType.BITCOIN_FOCUS,
     lang = 'en',
-    mode = StickerQrMode.PAYMENT_LINK,
+    mode = StickerQrMode.CUSTOMER,
     userId?: number,
   ): Promise<Buffer> {
     if (type === StickerType.BITCOIN_FOCUS) {
@@ -40,7 +40,7 @@ export class OCPStickerService {
     externalIds?: string[],
     ids?: number[],
     lang = 'en',
-    mode = StickerQrMode.PAYMENT_LINK,
+    mode = StickerQrMode.CUSTOMER,
     userId?: number,
   ): Promise<Buffer> {
     const links = await this.fetchPaymentLinks(routeIdOrLabel, externalIds, ids);
@@ -193,7 +193,7 @@ export class OCPStickerService {
     externalIds?: string[],
     ids?: number[],
     lang = 'en',
-    mode = StickerQrMode.PAYMENT_LINK,
+    mode = StickerQrMode.CUSTOMER,
     userId?: number,
   ): Promise<Buffer> {
     const links = await this.fetchPaymentLinks(routeIdOrLabel, externalIds, ids);
