@@ -39,6 +39,12 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256 })
   status: PaymentLinkStatus;
 
+  @Column({ length: 256, nullable: true })
+  publicStatus?: string;
+
+  @Column({ length: 256, nullable: true })
+  comment?: string;
+
   @Column({ length: 256, default: PaymentLinkMode.MULTIPLE })
   mode: PaymentLinkMode;
 

@@ -111,14 +111,14 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
       'externalId',
       'label',
       'name',
-      'merchantMcc',
-      'country',
-      'website',
+      'merchantCategory',
+      'storeType',
+      'registrationNumber',
       'street',
       'houseNumber',
       'zip',
       'city',
-      'registrationNumber',
+      'country',
     ].filter((f) => !(paymentLink[f] ?? recipient[f] ?? recipient.address?.[f]));
 
     if (missing.length) {

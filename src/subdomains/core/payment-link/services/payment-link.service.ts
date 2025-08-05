@@ -356,10 +356,12 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
 
-    const { status, label, webhookUrl, config } = dto;
+    const { status, mode, label, webhookUrl, config } = dto;
+    if (mode === PaymentLinkMode.SINGLE) throw new BadRequestException('Cannot update mode to single');
 
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
+      mode,
       label,
       webhookUrl,
       config: this.getMergedConfig(paymentLink, config),
@@ -376,11 +378,6 @@ export class PaymentLinkService {
       relations: { route: { user: { userData: true } } },
     });
     if (!entity) throw new NotFoundException('PaymentLink not found');
-
-    if (dto.country) {
-      dto.country = await this.countryService.getCountry(dto.country.id);
-      if (!dto.country) throw new NotFoundException('Country not found');
-    }
 
     return this.updatePaymentLinkInternal(entity, dto);
   }

@@ -293,8 +293,8 @@ export class PaymentDataDto {
   @IsBoolean()
   contractAccepted: boolean;
 
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsUrl()
   website: string;
 
@@ -303,22 +303,22 @@ export class PaymentDataDto {
   @IsString()
   registrationNumber: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: StoreType })
   @IsNotEmpty()
   @IsEnum(StoreType)
   storeType: StoreType;
 
-  @ApiProperty()
+  @ApiProperty({ enum: MerchantCategory })
   @IsNotEmpty()
   @IsEnum(MerchantCategory)
   merchantCategory: MerchantCategory;
 
-  @ApiProperty()
+  @ApiProperty({ enum: GoodsType })
   @IsNotEmpty()
   @IsEnum(GoodsType)
   goodsType: GoodsType;
 
-  @ApiProperty()
+  @ApiProperty({ enum: GoodsCategory })
   @IsNotEmpty()
   @IsEnum(GoodsCategory)
   goodsCategory: GoodsCategory;
