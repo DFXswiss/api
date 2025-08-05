@@ -177,7 +177,7 @@ export class GsService {
       const [field, jsonPath] = select.split('-');
 
       data.map((d) => {
-        const parsedJsonData = this.getParsedJsonData(d[field], jsonPath);
+        const parsedJsonData = this.getParsedJsonData(d[field.replace(/[.]/g, '_')], jsonPath);
 
         d[select] =
           typeof parsedJsonData === 'object' && parsedJsonData !== null

@@ -345,11 +345,14 @@ export class PaymentLinkService {
 
   private getMergedConfig(paymentLink: PaymentLink, config: Partial<PaymentLinkConfig>): string | null {
     const existingConfig: PaymentLinkConfig = JSON.parse(paymentLink.config || '{}');
+
     const mergedConfig: PaymentLinkConfig = {
       ...existingConfig,
       ...config,
-      recipient: merge(existingConfig.recipient, config.recipient),
     };
+    if (existingConfig.recipient || config.recipient)
+      mergedConfig.recipient = merge(existingConfig.recipient, config.recipient);
+
     const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
     return Object.keys(customConfig).length === 0 ? null : (JSON.stringify(customConfig) as string);
   }
