@@ -73,7 +73,12 @@ export class PaymentLink extends IEntity {
       ? `Payment ${paymentMetaId} to ${this.metaId}`
       : `Payment link ${this.metaId}`;
 
-    return this.route.userData.paymentLinksName ?? this.route.userData.verifiedName ?? defaultDisplayName;
+    return (
+      this.route.userData.paymentLinksName ??
+      this.route.userData.verifiedName ??
+      this.configObj.recipient?.name ??
+      defaultDisplayName
+    );
   }
 
   get configObj(): PaymentLinkConfig {
