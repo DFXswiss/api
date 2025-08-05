@@ -379,7 +379,7 @@ export class PaymentLinkController {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="DFX_OCP_${
         mode === StickerQrMode.POS ? 'POS_' : ''
-      }_stickers${Util.filenameDate()}.pdf"`,
+      }stickers_${Util.filenameDate()}.pdf"`,
     });
 
     return new StreamableFile(pdfBuffer);
