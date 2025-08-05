@@ -146,7 +146,7 @@ export class LogJobService {
       });
     } catch (e) {
       await this.processService.setSafetyModeActive(true);
-      this.logger.error('Error in logJobService financeLog', e);
+      throw e;
     }
   }
 

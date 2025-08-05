@@ -84,7 +84,7 @@ export class PaymentLink extends IEntity {
       address: userData.address.country
         ? {
             ...userData.address,
-            country: userData.address.country?.name,
+            country: userData.address.country?.symbol,
           }
         : undefined,
       phone: userData.phone,
