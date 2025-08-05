@@ -147,7 +147,10 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
-          if (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked)
+          if (
+            (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
+            entity.type === FiatOutputType.BUY_FIAT
+          )
             throw new Error('Payout stopped for blocked user');
 
           const asset = assets.find((a) => a.bank.iban === entity.accountIban);
