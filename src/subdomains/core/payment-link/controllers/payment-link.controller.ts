@@ -331,7 +331,7 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createPosLinkAdmin(@Param('id') id: string, @Query('scoped') scoped: string): Promise<string> {
-    return this.paymentLinkService.createPosLinkAdmin(+id, scoped === 'true');
+    return this.paymentLinkService.createPosLinkAdmin(+id, scoped && scoped === 'true');
   }
 
   @Get('stickers')
