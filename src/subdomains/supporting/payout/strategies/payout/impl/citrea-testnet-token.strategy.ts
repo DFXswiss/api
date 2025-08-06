@@ -1,14 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
-import { PayoutOrderContext } from '../../../entities/payout-order.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PayoutOrder } from '../../../entities/payout-order.entity';
+import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutCitreaTestnetService } from '../../../services/payout-citrea-testnet.service';
-import { EvmTokenStrategy } from './base/evm-token.strategy';
+import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
-export class CitreaTestnetTokenStrategy extends EvmTokenStrategy {
-  constructor(citreaTestnetService: PayoutCitreaTestnetService) {
-    super(citreaTestnetService);
+export class CitreaTestnetTokenStrategy extends EvmStrategy {
+  constructor(
+    protected readonly citreaTestnetService: PayoutCitreaTestnetService,
+    protected readonly assetService: AssetService,
+    payoutOrderRepo: PayoutOrderRepository,
+  ) {
+    super(citreaTestnetService, payoutOrderRepo);
   }
 
   get blockchain(): Blockchain {
@@ -19,15 +25,21 @@ export class CitreaTestnetTokenStrategy extends EvmTokenStrategy {
     return AssetType.TOKEN;
   }
 
-  async doPayoutForContext(context: PayoutOrderContext): Promise<void> {
-    const { payoutOrder, payoutRequest } = context;
+  protected async dispatchPayout(order: PayoutOrder): Promise<string> {
+    const nonce = await this.getOrderNonce(order);
 
-    const txId = await this.evmService.sendTokenFromDex(
-      payoutRequest.destinationAddress,
-      payoutRequest.asset,
-      +payoutOrder.amount,
-    );
+    return this.citreaTestnetService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
+  }
 
-    await this.updatePayoutOrder(payoutOrder, txId);
+  protected getCurrentGasForTransaction(): Promise<number> {
+    // CitreaTestnet gas calculation for token transfers
+    // For now, return a default value until properly implemented
+    return Promise.resolve(0.002);
+  }
+
+  protected async getFeeAsset(): Promise<Asset> {
+    // Should return the native CitreaTestnet token for gas fees
+    // For now, returning undefined until proper asset is configured
+    return undefined;
   }
 }
