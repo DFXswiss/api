@@ -46,8 +46,8 @@ import { SolanaCoinStrategy as SolanaCoinStrategyPO } from './strategies/payout/
 import { SolanaTokenStrategy as SolanaTokenStrategyPO } from './strategies/payout/impl/solana-token.strategy';
 import { TronCoinStrategy as TronCoinStrategyPO } from './strategies/payout/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyPO } from './strategies/payout/impl/tron-token.strategy';
-import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyPO } from './strategies/impl/citrea-testnet-coin.strategy';
-import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyPO } from './strategies/impl/citrea-testnet-token.strategy';
+import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyPO } from './strategies/payout/impl/citrea-testnet-coin.strategy';
+import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyPO } from './strategies/payout/impl/citrea-testnet-token.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyPR } from './strategies/prepare/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyPR } from './strategies/prepare/impl/base.strategy';
 import { PrepareStrategyRegistry } from './strategies/prepare/impl/base/prepare.strategy-registry';
