@@ -595,10 +595,10 @@ export class PaymentLinkService {
   ): Promise<string> {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
 
-    return this.createPosLinkFor(paymentLink, false);
+    return this.createPosLinkFor(paymentLink);
   }
 
-  async createPosLinkAdmin(paymentLinkId: number, scoped: boolean): Promise<string> {
+  async createPosLinkAdmin(paymentLinkId: number, scoped?: boolean): Promise<string> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { id: paymentLinkId },
       relations: { route: { user: { userData: true } } },
@@ -608,8 +608,13 @@ export class PaymentLinkService {
     return this.createPosLinkFor(paymentLink, scoped);
   }
 
-  private async createPosLinkFor(paymentLink: PaymentLink, scoped: boolean): Promise<string> {
-    const config = scoped ? paymentLink.linkConfigObj : paymentLink.route.userData.paymentLinksConfigObj;
+  private async createPosLinkFor(paymentLink: PaymentLink, scoped?: boolean): Promise<string> {
+    const config =
+      scoped == null
+        ? paymentLink.configObj
+        : scoped
+        ? paymentLink.linkConfigObj
+        : paymentLink.route.userData.paymentLinksConfigObj;
 
     let accessKey = config.accessKeys?.at(0);
     if (!accessKey) {
