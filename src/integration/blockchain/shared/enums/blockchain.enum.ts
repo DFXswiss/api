@@ -18,6 +18,7 @@ export enum Blockchain {
   SOLANA = 'Solana',
   GNOSIS = 'Gnosis',
   TRON = 'Tron',
+  CITREA_TESTNET = 'CitreaTestnet',
 
   // Payment Provider
   BINANCE_PAY = 'BinancePay',

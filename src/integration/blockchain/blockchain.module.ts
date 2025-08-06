@@ -21,6 +21,7 @@ import { CryptoService } from './shared/services/crypto.service';
 import { SolanaModule } from './solana/solana.module';
 import { TronModule } from './tron/tron.module';
 import { ZanoModule } from './zano/zano.module';
+import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
 
 @Module({
   providers: [EvmDecimalsService, CryptoService, BlockchainRegistryService],
@@ -44,6 +45,7 @@ import { ZanoModule } from './zano/zano.module';
     RailgunModule,
     SolanaModule,
     TronModule,
+    CitreaTestnetModule,
   ],
   exports: [
     BitcoinModule,
@@ -63,6 +65,7 @@ import { ZanoModule } from './zano/zano.module';
     RailgunModule,
     SolanaModule,
     TronModule,
+    CitreaTestnetModule,
     CryptoService,
     BlockchainRegistryService,
   ],

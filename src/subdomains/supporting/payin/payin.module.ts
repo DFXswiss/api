@@ -28,6 +28,7 @@ import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInPolygonService } from './services/payin-polygon.service';
 import { PayInSolanaService } from './services/payin-solana.service';
 import { PayInTronService } from './services/payin-tron.service';
+import { PayInCitreaTestnetService } from './services/payin-citrea-testnet.service';
 import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
@@ -44,6 +45,7 @@ import { OptimismStrategy as OptimismStrategyR } from './strategies/register/imp
 import { PolygonStrategy as PolygonStrategyR } from './strategies/register/impl/polygon.strategy';
 import { SolanaStrategy as SolanaStrategyR } from './strategies/register/impl/solana.strategy';
 import { TronStrategy as TronStrategyR } from './strategies/register/impl/tron.strategy';
+import { CitreaTestnetStrategy as CitreaTestnetStrategyR } from './strategies/register/impl/citrea-testnet.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
 import { BaseCoinStrategy as BaseCoinStrategyS } from './strategies/send/impl/base-coin.strategy';
@@ -68,6 +70,8 @@ import { SolanaCoinStrategy as SolanaCoinStrategyS } from './strategies/send/imp
 import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/impl/solana-token.strategy';
 import { TronCoinStrategy as TronCoinStrategyS } from './strategies/send/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/tron-token.strategy';
+import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyS } from './strategies/send/impl/citrea-testnet-coin.strategy';
+import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyS } from './strategies/send/impl/citrea-testnet-token.strategy';
 
 @Module({
   imports: [
@@ -103,6 +107,7 @@ import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/
     PayInSolanaService,
     PayInGnosisService,
     PayInTronService,
+    PayInCitreaTestnetService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
     BitcoinStrategyR,
@@ -138,6 +143,9 @@ import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/
     TronStrategyR,
     TronCoinStrategyS,
     TronTokenStrategyS,
+    CitreaTestnetStrategyR,
+    CitreaTestnetCoinStrategyS,
+    CitreaTestnetTokenStrategyS,
     BinancePayStrategyR,
     BinancePayStrategyS,
     KucoinPayStrategyR,
