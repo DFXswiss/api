@@ -1,5 +1,6 @@
-import { Body, Controller, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -63,8 +64,14 @@ export class KycAdminController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   @ApiExcludeEndpoint()
-  async createLog(@GetJwt() jwt: JwtPayload, @Body() dto: CreateKycLogDto): Promise<void> {
-    await this.kycLogService.createLog(jwt.account, dto);
+  @UseInterceptors(FileInterceptor('file'))
+  async createLog(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: CreateKycLogDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ): Promise<void> {
+    const document = file ? { fileName: file.originalname, file: file.buffer.toString('base64') } : undefined;
+    await this.kycLogService.createLog(jwt.account, dto, document);
   }
 
   @Put('log/:id')

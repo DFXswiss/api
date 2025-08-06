@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { FileUploadData } from 'src/shared/dto/file-upload.dto';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
@@ -27,7 +28,7 @@ export class KycLogService {
     await this.kycLogRepo.save(entity);
   }
 
-  async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
+  async createLog(creatorUserDataId: number, dto: CreateKycLogDto, document?: FileUploadData): Promise<void> {
     const entity = this.kycLogRepo.create({
       type: KycLogType.MANUAL,
       comment: dto.comment,
@@ -38,13 +39,13 @@ export class KycLogService {
     entity.userData = await this.userDataService.getUserData(dto.userData.id);
     if (!entity.userData) throw new NotFoundException('UserData not found');
 
-    if (dto.file) {
-      const { contentType, buffer } = Util.fromBase64(dto.file);
+    if (document) {
+      const { contentType, buffer } = Util.fromBase64(document.file);
 
       const { file, url } = await this.kycDocumentService.uploadUserFile(
         entity.userData,
         FileType.USER_NOTES,
-        `Manual/${Util.isoDateTime(new Date())}_manual-upload_${Util.randomId()}_${dto.fileName}`,
+        `Manual/${Util.isoDateTime(new Date())}_manual-upload_${Util.randomId()}_${document.fileName}`,
         buffer,
         contentType as ContentType,
         true,

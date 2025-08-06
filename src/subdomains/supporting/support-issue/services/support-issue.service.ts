@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { FileUploadData } from 'src/shared/dto/file-upload.dto';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -46,7 +47,10 @@ export class SupportIssueService {
     private readonly supportLogService: SupportLogService,
   ) {}
 
-  async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
+  async createTransactionRequestIssue(
+    dto: CreateSupportIssueBaseDto,
+    document?: FileUploadData,
+  ): Promise<SupportIssueDto> {
     if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
     const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
       dto.transaction.orderUid,
@@ -54,17 +58,25 @@ export class SupportIssueService {
     );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
 
-    return this.createIssueInternal(transactionRequest.userData, dto);
+    return this.createIssueInternal(transactionRequest.userData, dto, document);
   }
 
-  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+  async createIssue(
+    userDataId: number,
+    dto: CreateSupportIssueDto,
+    document?: FileUploadData,
+  ): Promise<SupportIssueDto> {
     const userData = await this.userDataService.getUserData(userDataId, { wallet: true });
     if (!userData) throw new NotFoundException('UserData not found');
 
-    return this.createIssueInternal(userData, dto);
+    return this.createIssueInternal(userData, dto, document);
   }
 
-  async createIssueInternal(userData: UserData, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+  async createIssueInternal(
+    userData: UserData,
+    dto: CreateSupportIssueDto,
+    document?: FileUploadData,
+  ): Promise<SupportIssueDto> {
     // mail is required
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
@@ -132,7 +144,7 @@ export class SupportIssueService {
     }
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
-    const supportMessage = await this.createMessageInternal(entity, dto);
+    const supportMessage = await this.createMessageInternal(entity, dto, document);
 
     const issue = SupportIssueDtoMapper.mapSupportIssue(entity);
     issue.messages.push(supportMessage);
@@ -155,21 +167,30 @@ export class SupportIssueService {
     return this.supportIssueRepo.save(entity);
   }
 
-  async createMessage(id: string, dto: CreateSupportMessageDto, userDataId?: number): Promise<SupportMessageDto> {
+  async createMessage(
+    id: string,
+    dto: CreateSupportMessageDto,
+    userDataId?: number,
+    document?: FileUploadData,
+  ): Promise<SupportMessageDto> {
     const issue = await this.supportIssueRepo.findOne({
       where: this.getIssueSearch(id, userDataId),
       relations: { userData: { wallet: true } },
     });
     if (!issue) throw new NotFoundException('Support issue not found');
 
-    return this.createMessageInternal(issue, { ...dto, author: CustomerAuthor });
+    return this.createMessageInternal(issue, { ...dto, author: CustomerAuthor }, document);
   }
 
-  async createMessageSupport(id: number, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
+  async createMessageSupport(
+    id: number,
+    dto: CreateSupportMessageDto,
+    document?: FileUploadData,
+  ): Promise<SupportMessageDto> {
     const issue = await this.supportIssueRepo.findOne({ where: { id }, relations: { userData: { wallet: true } } });
     if (!issue) throw new NotFoundException('Support issue not found');
 
-    return this.createMessageInternal(issue, dto);
+    return this.createMessageInternal(issue, dto, document);
   }
 
   async getIssues(userDataId: number): Promise<SupportIssueDto[]> {
@@ -218,20 +239,26 @@ export class SupportIssueService {
 
   // --- HELPER METHODS --- //
 
-  private async createMessageInternal(issue: SupportIssue, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
+  private async createMessageInternal(
+    issue: SupportIssue,
+    dto: CreateSupportMessageDto,
+    document?: FileUploadData,
+  ): Promise<SupportMessageDto> {
     if (!dto.author) throw new BadRequestException('Author for message is missing');
     if (dto.message?.length > 4000) throw new BadRequestException('Message has too many characters');
 
     const entity = this.messageRepo.create({ ...dto, issue });
 
     // upload document
-    if (dto.file) {
-      const { contentType, buffer } = Util.fromBase64(dto.file);
+    if (document) {
+      const { contentType, buffer } = Util.fromBase64(document.file);
 
       entity.fileUrl = await this.documentService.uploadUserFile(
         entity.userData.id,
         entity.issue.id,
-        `${Util.isoDateTime(new Date())}_${dto.author?.toLowerCase() ?? 'support'}_${Util.randomId()}_${dto.fileName}`,
+        `${Util.isoDateTime(new Date())}_${dto.author?.toLowerCase() ?? 'support'}_${Util.randomId()}_${
+          document.fileName
+        }`,
         buffer,
         contentType as ContentType,
       );

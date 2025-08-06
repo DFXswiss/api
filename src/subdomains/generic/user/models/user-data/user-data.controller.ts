@@ -1,5 +1,20 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  StreamableFile,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -7,6 +22,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
+import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -124,22 +140,30 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadKycFile(
+    @Param('id') id: string,
+    @Body() dto: UploadFileDto,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<string> {
     const userData = await this.userDataService.getUserData(+id);
+
+    const fileName = dto.originalName || file.originalname;
+    const contentType = dto.contentType || (file.mimetype as ContentType);
 
     const { url } = await this.documentService.uploadUserFile(
       userData,
       dto.documentType,
-      dto.originalName,
-      Buffer.from(dto.data, 'base64'),
-      dto.contentType,
+      fileName,
+      file.buffer,
+      contentType,
       true,
       undefined,
       dto.documentSubType,
       {
         document: dto.documentType.toString(),
         creationTime: new Date().toISOString(),
-        fileName: dto.originalName,
+        fileName: fileName,
       },
     );
 

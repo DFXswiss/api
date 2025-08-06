@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsObject, IsOptional, IsString, ValidateIf, ValidateNested } from 'class-validator';
+import { IsDate, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 
@@ -27,13 +27,4 @@ export class CreateKycLogDto extends UpdateKycLogDto {
   @ValidateNested()
   @Type(() => EntityDto)
   userData: UserData;
-
-  @IsOptional()
-  @IsString()
-  file?: string;
-
-  @ValidateIf((d: CreateKycLogDto) => d.file != null)
-  @IsNotEmpty()
-  @IsString()
-  fileName?: string;
 }
