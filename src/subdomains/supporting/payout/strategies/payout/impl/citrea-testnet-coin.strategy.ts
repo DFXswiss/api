@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
-import { PayoutOrderContext } from '../../entities/payout-order.entity';
-import { PayoutCitreaTestnetService } from '../../services/payout-citrea-testnet.service';
+import { PayoutOrderContext } from '../../../entities/payout-order.entity';
+import { PayoutCitreaTestnetService } from '../../../services/payout-citrea-testnet.service';
 import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()

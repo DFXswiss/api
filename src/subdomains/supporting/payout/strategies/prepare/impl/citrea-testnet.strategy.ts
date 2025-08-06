@@ -1,22 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { PayoutRequest } from '../../../entities/payout-request.entity';
-import { PayoutCitreaTestnetService } from '../../../services/payout-citrea-testnet.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class CitreaTestnetStrategy extends EvmStrategy {
-  constructor(citreaTestnetService: PayoutCitreaTestnetService) {
-    super(citreaTestnetService);
+  constructor(private readonly assetService: AssetService, payoutOrderRepo: PayoutOrderRepository) {
+    super(payoutOrderRepo);
   }
 
   get blockchain(): Blockchain {
     return Blockchain.CITREA_TESTNET;
   }
 
-  async preparePayout(_: PayoutRequest): Promise<void> {
-    // CitreaTestnet preparation logic if needed
-    // Currently using default EVM preparation
-    return;
+  protected async getFeeAsset(): Promise<Asset> {
+    // CitreaTestnet uses native token for fees
+    // This should return the native CitreaTestnet token
+    // For now, returning undefined until proper asset is configured
+    return undefined;
   }
 }
