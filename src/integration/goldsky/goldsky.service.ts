@@ -2,6 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { request, gql } from 'graphql-request';
 import { GetConfig } from 'src/config/config';
 
+/**
+ * IMPORTANT: This Goldsky integration requires a deployed subgraph to function.
+ * 
+ * Prerequisites:
+ * 1. Deploy a Citrea subgraph to Goldsky with transfer entities
+ * 2. Configure CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL environment variable
+ * 3. Ensure the subgraph schema matches the expected entity structure below
+ * 
+ * Without a deployed subgraph, all queries will return empty arrays.
+ * 
+ * To deploy a subgraph:
+ * ```bash
+ * goldsky subgraph deploy citrea-transfers/1.0.0 --from-abi ./abi.json --chain citrea-testnet
+ * ```
+ */
+
+// Expected entity structure from the subgraph (must be verified against actual deployment)
 export interface GoldskyTransfer {
   id: string;
   from: string;
@@ -42,6 +59,8 @@ export class GoldskyService {
       return [];
     }
 
+    // NOTE: This query assumes a specific subgraph schema with 'transfers' entity
+    // The actual entity name and filter syntax must match the deployed subgraph
     const query = gql`
       query GetNativeTransfers($address: String!, $fromBlock: Int!, $toBlock: Int) {
         transfers(
@@ -98,6 +117,8 @@ export class GoldskyService {
       return [];
     }
 
+    // NOTE: This query assumes a specific subgraph schema with 'tokenTransfers' entity
+    // The actual entity name and filter syntax must match the deployed subgraph
     const query = gql`
       query GetTokenTransfers($address: String!, $fromBlock: Int!, $toBlock: Int, $contractAddress: String) {
         tokenTransfers(
