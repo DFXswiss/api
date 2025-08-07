@@ -722,6 +722,7 @@ export class Configuration {
       citreaTestnetGatewayUrl: process.env.CITREA_TESTNET_GATEWAY_URL ?? 'https://rpc.testnet.citrea.xyz',
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
       citreaTestnetChainId: +(process.env.CITREA_TESTNET_CHAIN_ID ?? 5115),
+      goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
     },
     lightning: {
       lnbits: {

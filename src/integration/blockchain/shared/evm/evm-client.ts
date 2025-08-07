@@ -25,6 +25,7 @@ import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 export interface EvmClientParams {
   http: HttpService;
   alchemyService?: AlchemyService;
+  goldskyService?: any; // Optional Goldsky service for transaction history
   gatewayUrl: string;
   apiKey: string;
   walletPrivateKey: string;
@@ -52,6 +53,7 @@ export enum Direction {
 export abstract class EvmClient extends BlockchainClient {
   readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
+  protected readonly goldskyService: any; // Optional Goldsky service
   readonly chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
@@ -68,6 +70,7 @@ export abstract class EvmClient extends BlockchainClient {
     super();
     this.http = params.http;
     this.alchemyService = params.alchemyService;
+    this.goldskyService = params.goldskyService;
     this.chainId = params.chainId;
 
     const url = `${params.gatewayUrl}/${params.apiKey ?? ''}`;
