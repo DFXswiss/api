@@ -1,13 +1,16 @@
 import { ethers } from 'ethers';
-import { EvmClient, EvmClientParams, Direction } from '../shared/evm/evm-client';
-import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from '../shared/evm/interfaces';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
-import { EvmUtil } from '../shared/evm/evm.util';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
-import { GoldskyService, GoldskyTransfer, GoldskyTokenTransfer } from 'src/integration/goldsky/goldsky.service';
+import { GoldskyService, GoldskyTokenTransfer, GoldskyTransfer } from 'src/integration/goldsky/goldsky.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
+import { Direction, EvmClient, EvmClientParams } from '../shared/evm/evm-client';
+import { EvmUtil } from '../shared/evm/evm.util';
+import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from '../shared/evm/interfaces';
 
 export class CitreaTestnetClient extends EvmClient {
+  private readonly logger = new DfxLogger(CitreaTestnetClient);
+
   private readonly goldsky: GoldskyService;
 
   constructor(params: EvmClientParams) {
@@ -32,13 +35,13 @@ export class CitreaTestnetClient extends EvmClient {
   async getTokenBalance(asset: Asset, address?: string): Promise<number> {
     const owner = address ?? this.dfxAddress;
     const contract = new ethers.Contract(asset.chainId, ERC20_ABI, this.provider);
-    
+
     try {
       const balance = await contract.balanceOf(owner);
       const decimals = await contract.decimals();
       return EvmUtil.fromWeiAmount(balance.toString(), decimals);
     } catch (error) {
-      console.error(`Failed to get token balance for ${asset.chainId}:`, error);
+      this.logger.error(`Failed to get token balance for ${asset.chainId}:`, error);
       return 0;
     }
   }
@@ -67,21 +70,16 @@ export class CitreaTestnetClient extends EvmClient {
     direction = Direction.BOTH,
   ): Promise<EvmCoinHistoryEntry[]> {
     if (!this.goldsky) {
-      console.warn('CitreaTestnet: Goldsky service not configured, transaction history not available');
+      this.logger.warn('CitreaTestnet: Goldsky service not configured, transaction history not available');
       return [];
     }
 
     try {
-      const transfers = await this.goldsky.getNativeCoinTransfers(
-        'citrea-testnet',
-        walletAddress,
-        fromBlock,
-        toBlock,
-      );
+      const transfers = await this.goldsky.getNativeCoinTransfers('citrea-testnet', walletAddress, fromBlock, toBlock);
 
       return this.mapGoldskyToEvmCoinHistory(transfers, walletAddress, direction);
     } catch (error) {
-      console.error('Failed to fetch native coin transactions from Goldsky:', error);
+      this.logger.error('Failed to fetch native coin transactions from Goldsky:', error);
       return [];
     }
   }
@@ -93,21 +91,16 @@ export class CitreaTestnetClient extends EvmClient {
     direction = Direction.BOTH,
   ): Promise<EvmTokenHistoryEntry[]> {
     if (!this.goldsky) {
-      console.warn('CitreaTestnet: Goldsky service not configured, ERC20 transaction history not available');
+      this.logger.warn('CitreaTestnet: Goldsky service not configured, ERC20 transaction history not available');
       return [];
     }
 
     try {
-      const transfers = await this.goldsky.getTokenTransfers(
-        'citrea-testnet',
-        walletAddress,
-        fromBlock,
-        toBlock,
-      );
+      const transfers = await this.goldsky.getTokenTransfers('citrea-testnet', walletAddress, fromBlock, toBlock);
 
       return this.mapGoldskyToEvmTokenHistory(transfers, walletAddress, direction);
     } catch (error) {
-      console.error('Failed to fetch ERC20 transactions from Goldsky:', error);
+      this.logger.error('Failed to fetch ERC20 transactions from Goldsky:', error);
       return [];
     }
   }
@@ -120,7 +113,7 @@ export class CitreaTestnetClient extends EvmClient {
     const lowerWallet = walletAddress.toLowerCase();
 
     return transfers
-      .filter(tx => {
+      .filter((tx) => {
         if (direction === Direction.INCOMING) {
           return tx.to.toLowerCase() === lowerWallet;
         } else if (direction === Direction.OUTGOING) {
@@ -128,7 +121,7 @@ export class CitreaTestnetClient extends EvmClient {
         }
         return true; // Direction.BOTH
       })
-      .map(tx => ({
+      .map((tx) => ({
         blockNumber: tx.blockNumber.toString(),
         timeStamp: tx.blockTimestamp.toString(),
         hash: tx.transactionHash,
@@ -147,7 +140,7 @@ export class CitreaTestnetClient extends EvmClient {
     const lowerWallet = walletAddress.toLowerCase();
 
     return transfers
-      .filter(tx => {
+      .filter((tx) => {
         if (direction === Direction.INCOMING) {
           return tx.to.toLowerCase() === lowerWallet;
         } else if (direction === Direction.OUTGOING) {
@@ -155,7 +148,7 @@ export class CitreaTestnetClient extends EvmClient {
         }
         return true; // Direction.BOTH
       })
-      .map(tx => ({
+      .map((tx) => ({
         blockNumber: tx.blockNumber.toString(),
         timeStamp: tx.blockTimestamp.toString(),
         hash: tx.transactionHash,
