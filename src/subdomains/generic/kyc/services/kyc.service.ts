@@ -572,6 +572,7 @@ export class KycService {
     if (data.contractAccepted) {
       const recipient: PaymentLinkRecipientDto = {
         ...user.paymentLinksConfigObj.recipient,
+        name: data.name,
         website: data.website,
         registrationNumber: data.registrationNumber,
         storeType: data.storeType,
@@ -581,7 +582,10 @@ export class KycService {
       };
 
       await this.userDataService.updatePaymentLinksConfig(user, { recipient });
-      await this.userDataService.updateUserDataInternal(user, { paymentLinksAllowed: true });
+      await this.userDataService.updateUserDataInternal(user, {
+        paymentLinksAllowed: true,
+        paymentLinksName: data.name,
+      });
 
       await this.kycNotificationService.kycPaymentData(user, new Date());
     }

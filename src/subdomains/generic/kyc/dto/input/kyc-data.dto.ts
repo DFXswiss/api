@@ -286,12 +286,7 @@ export class PaymentDataDto {
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
-  purpose: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsBoolean()
-  contractAccepted: boolean;
+  name: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -301,6 +296,7 @@ export class PaymentDataDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.sanitize)
   registrationNumber: string;
 
   @ApiProperty({ enum: StoreType })
@@ -322,4 +318,15 @@ export class PaymentDataDto {
   @IsNotEmpty()
   @IsEnum(GoodsCategory)
   goodsCategory: GoodsCategory;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  purpose: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsBoolean()
+  contractAccepted: boolean;
 }
