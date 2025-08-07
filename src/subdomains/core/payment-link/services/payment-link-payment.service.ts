@@ -177,7 +177,7 @@ export class PaymentLinkPaymentService {
   }
 
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
-    if (paymentLink.status === PaymentLinkStatus.INACTIVE) throw new BadRequestException('Payment link is inactive');
+    if (paymentLink.status !== PaymentLinkStatus.ACTIVE) throw new BadRequestException('Payment link is not active');
 
     const pendingPayment = paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (pendingPayment)
