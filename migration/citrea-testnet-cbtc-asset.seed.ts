@@ -1,13 +1,17 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
- * Seed CitreaTestnet BTC Asset with same PriceRule as Bitcoin
+ * Seed CitreaTestnet cBTC Native Coin Asset with same PriceRule as Bitcoin
  * 
- * This migration adds BTC support on CitreaTestnet using the exact same
+ * IMPORTANT: cBTC is the NATIVE COIN on CitreaTestnet (like ETH on Ethereum),
+ * NOT an ERC20 token. It uses the same price as Bitcoin since it represents
+ * wrapped Bitcoin on the Citrea L2.
+ * 
+ * This migration adds cBTC support on CitreaTestnet using the exact same
  * price rule as the native Bitcoin asset, ensuring price consistency.
  */
-export class CitreaTestnetBtcAssetSeed implements MigrationInterface {
-  name = 'CitreaTestnetBtcAssetSeed1234567890';
+export class CitreaTestnetCBtcAssetSeed implements MigrationInterface {
+  name = 'CitreaTestnetCBtcAssetSeed1234567890';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Find existing Bitcoin asset and its price rule
@@ -25,20 +29,20 @@ export class CitreaTestnetBtcAssetSeed implements MigrationInterface {
 
     const bitcoinPriceRuleId = bitcoinAsset[0].priceRuleId;
 
-    // Check if CitreaTestnet BTC already exists
+    // Check if CitreaTestnet cBTC already exists
     const existingAsset = await queryRunner.query(`
       SELECT id 
       FROM asset 
       WHERE blockchain = 'CitreaTestnet' 
-        AND symbol = 'BTC'
+        AND symbol = 'cBTC'
     `);
 
     if (existingAsset && existingAsset.length > 0) {
-      console.log('CitreaTestnet BTC asset already exists, skipping...');
+      console.log('CitreaTestnet cBTC asset already exists, skipping...');
       return;
     }
 
-    // Insert CitreaTestnet BTC with same price rule as Bitcoin
+    // Insert CitreaTestnet cBTC as NATIVE COIN with same price rule as Bitcoin
     await queryRunner.query(`
       INSERT INTO asset (
         blockchain,
@@ -59,12 +63,12 @@ export class CitreaTestnetBtcAssetSeed implements MigrationInterface {
         updated
       ) VALUES (
         'CitreaTestnet',
-        'TOKEN',
-        'Bitcoin',
-        'BTC',
-        'CitreaTestnet/BTC',
-        '0x0000000000000000000000000000000000000000', -- TODO: Replace with actual wrapped BTC contract address
-        18,
+        'COIN',  -- NATIVE COIN, not TOKEN!
+        'Citrea Bitcoin',
+        'cBTC',  -- Using cBTC to clearly indicate it's Citrea's native currency
+        'CitreaTestnet/cBTC',
+        NULL,  -- Native coins don't have contract addresses
+        18,  -- Citrea uses 18 decimals for cBTC (EVM standard)
         1,
         1,
         0,
@@ -77,15 +81,15 @@ export class CitreaTestnetBtcAssetSeed implements MigrationInterface {
       )
     `);
 
-    console.log('Successfully added CitreaTestnet BTC asset with Bitcoin price rule');
+    console.log('Successfully added CitreaTestnet cBTC native coin asset with Bitcoin price rule');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Remove CitreaTestnet BTC asset
+    // Remove CitreaTestnet cBTC asset
     await queryRunner.query(`
       DELETE FROM asset 
       WHERE blockchain = 'CitreaTestnet' 
-        AND symbol = 'BTC'
+        AND symbol = 'cBTC'
     `);
   }
 }
@@ -93,7 +97,7 @@ export class CitreaTestnetBtcAssetSeed implements MigrationInterface {
 /**
  * Alternative approach using TypeORM repository pattern
  */
-export async function seedCitreaTestnetBTC(assetRepository: any, priceRuleRepository: any): Promise<void> {
+export async function seedCitreaTestnetCBTC(assetRepository: any, priceRuleRepository: any): Promise<void> {
   // Find Bitcoin and its price rule
   const bitcoin = await assetRepository.findOne({
     where: { 
@@ -108,37 +112,37 @@ export async function seedCitreaTestnetBTC(assetRepository: any, priceRuleReposi
     throw new Error('Bitcoin or its price rule not found');
   }
 
-  // Check if CitreaTestnet BTC already exists
+  // Check if CitreaTestnet cBTC already exists
   const existingAsset = await assetRepository.findOne({
     where: {
       blockchain: 'CitreaTestnet',
-      symbol: 'BTC'
+      symbol: 'cBTC'
     }
   });
 
   if (existingAsset) {
-    console.log('CitreaTestnet BTC already exists');
+    console.log('CitreaTestnet cBTC already exists');
     return;
   }
 
-  // Create CitreaTestnet BTC with same price rule
-  const citreaTestnetBTC = assetRepository.create({
+  // Create CitreaTestnet cBTC as NATIVE COIN with same price rule
+  const citreaTestnetCBTC = assetRepository.create({
     blockchain: 'CitreaTestnet',
-    type: 'TOKEN', // Wrapped BTC on CitreaTestnet
-    name: 'Bitcoin',
-    symbol: 'BTC',
-    uniqueName: 'CitreaTestnet/BTC',
-    chainId: '0x...', // TODO: Add actual wrapped BTC contract address
-    decimals: 18, // TODO: Verify actual decimals
+    type: 'COIN',  // NATIVE COIN on CitreaTestnet
+    name: 'Citrea Bitcoin',
+    symbol: 'cBTC',
+    uniqueName: 'CitreaTestnet/cBTC',
+    chainId: null,  // Native coins don't have contract addresses
+    decimals: 18,  // Citrea uses 18 decimals for cBTC (EVM standard)
     buyable: true,
     sellable: true,
     cardBuyable: false,
     cardSellable: false,
     instantBuyable: false,
     instantSellable: false,
-    priceRule: bitcoin.priceRule, // USE SAME PRICE RULE AS BITCOIN
+    priceRule: bitcoin.priceRule,  // USE SAME PRICE RULE AS BITCOIN
   });
 
-  await assetRepository.save(citreaTestnetBTC);
-  console.log('Successfully created CitreaTestnet BTC with Bitcoin price rule');
+  await assetRepository.save(citreaTestnetCBTC);
+  console.log('Successfully created CitreaTestnet cBTC native coin with Bitcoin price rule');
 }
