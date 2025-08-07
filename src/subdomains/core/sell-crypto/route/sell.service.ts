@@ -381,4 +381,15 @@ export class SellService {
 
     return sellDto;
   }
+
+  async getPaymentRouteForPublicName(publicName: string): Promise<Sell | undefined> {
+    return this.sellRepo.findOne({
+      where: {
+        active: true,
+        deposit: { blockchains: Blockchain.LIGHTNING },
+        user: { userData: { paymentLinksName: publicName } },
+      },
+      relations: { user: { userData: true } },
+    });
+  }
 }

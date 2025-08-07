@@ -3,6 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 export enum PaymentLinkStatus {
   ACTIVE = 'Active',
   INACTIVE = 'Inactive',
+  UNASSIGNED = 'Unassigned',
 }
 
 export enum PaymentLinkPaymentStatus {
