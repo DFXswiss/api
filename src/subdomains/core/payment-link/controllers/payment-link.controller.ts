@@ -154,7 +154,7 @@ export class PaymentLinkController {
       .then((url) => ({ url }));
   }
 
-  @Put(':id/assign')
+  @Put('assign')
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
