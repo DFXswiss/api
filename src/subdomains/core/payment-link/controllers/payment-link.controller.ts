@@ -334,6 +334,14 @@ export class PaymentLinkController {
     return this.paymentLinkService.createPosLinkAdmin(+id, scoped && scoped === 'true');
   }
 
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async deletePaymentLink(@Param('id') id: string): Promise<void> {
+    return this.paymentLinkService.deletePaymentLink(+id);
+  }
+
   @Get('stickers')
   @UseGuards(OptionalJwtAuthGuard)
   @ApiBearerAuth()

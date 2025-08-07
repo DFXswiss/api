@@ -274,6 +274,19 @@ export class PaymentLinkPaymentService {
     await this.cancelQuotesForPayment(payment);
   }
 
+  async deletePayment(payment: PaymentLinkPayment): Promise<void> {
+    if (payment.status === PaymentLinkPaymentStatus.COMPLETED)
+      throw new BadRequestException('PaymentLinkPayment is already completed, cannot be deleted');
+
+    for (const quote of payment.quotes) {
+      await this.paymentQuoteService.deleteQuote(quote);
+    }
+    for (const activation of payment.activations) {
+      await this.paymentActivationService.deleteActivation(activation);
+    }
+    await this.paymentLinkPaymentRepo.delete(payment.id);
+  }
+
   private async cancelQuotesForPayment(payment: PaymentLinkPayment): Promise<void> {
     await this.paymentQuoteService.cancelAllForPayment(payment.id);
     await this.paymentActivationService.closeAllForPayment(payment.id);
