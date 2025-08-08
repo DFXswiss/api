@@ -47,7 +47,7 @@ export class AmlHelperService {
     if (entity.userData.isDeactivated) errors.push(AmlError.USER_DATA_DEACTIVATED);
     if (!entity.userData.isPaymentStatusEnabled) errors.push(AmlError.INVALID_USER_DATA_STATUS);
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
-    if (refUser && !refUser.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
+    if (refUser && !refUser.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS_REF_USER);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
     if (!entity.userData.verifiedName && !bankData?.name && !entity.userData.completeName)
