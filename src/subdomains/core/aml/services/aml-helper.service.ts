@@ -75,13 +75,52 @@ export class AmlHelperService {
     }
 
     // AmlRule asset/fiat check
-    errors.push(...this.amlRuleCheck(inputAsset.amlRuleFrom, entity, amountInChf, last7dCheckoutVolume));
-    errors.push(...this.amlRuleCheck(entity.outputAsset.amlRuleTo, entity, amountInChf, last7dCheckoutVolume));
-    if (ibanCountry) errors.push(...this.amlRuleCheck(ibanCountry.amlRule, entity, amountInChf, last7dCheckoutVolume));
+    errors.push(
+      ...this.amlRuleCheck(
+        inputAsset.amlRuleFrom,
+        entity.wallet.exceptAmlRuleList,
+        entity,
+        amountInChf,
+        last7dCheckoutVolume,
+      ),
+    );
+    errors.push(
+      ...this.amlRuleCheck(
+        entity.outputAsset.amlRuleTo,
+        entity.wallet.exceptAmlRuleList,
+        entity,
+        amountInChf,
+        last7dCheckoutVolume,
+      ),
+    );
+    if (ibanCountry)
+      errors.push(
+        ...this.amlRuleCheck(
+          ibanCountry.amlRule,
+          entity.wallet.exceptAmlRuleList,
+          entity,
+          amountInChf,
+          last7dCheckoutVolume,
+        ),
+      );
     if (entity.userData.nationality)
-      errors.push(...this.amlRuleCheck(entity.userData.nationality.amlRule, entity, amountInChf, last7dCheckoutVolume));
+      errors.push(
+        ...this.amlRuleCheck(
+          entity.userData.nationality.amlRule,
+          entity.wallet.exceptAmlRuleList,
+          entity,
+          amountInChf,
+          last7dCheckoutVolume,
+        ),
+      );
     for (const amlRule of entity.wallet.amlRuleList) {
-      const error = this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume);
+      const error = this.amlRuleCheck(
+        amlRule,
+        entity.wallet.exceptAmlRuleList,
+        entity,
+        amountInChf,
+        last7dCheckoutVolume,
+      );
       if (
         !entity.wallet.amlRuleList.includes(AmlRule.RULE_11) ||
         (!error.includes(AmlError.KYC_LEVEL_30_NOT_REACHED) && !error.includes(AmlError.KYC_LEVEL_50_NOT_REACHED))
@@ -122,7 +161,9 @@ export class AmlHelperService {
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
       for (const amlRule of entity.user.wallet.amlRuleList) {
-        errors.push(...this.amlRuleCheck(amlRule, entity, amountInChf, last7dCheckoutVolume));
+        errors.push(
+          ...this.amlRuleCheck(amlRule, entity.wallet.exceptAmlRuleList, entity, amountInChf, last7dCheckoutVolume),
+        );
       }
 
       if (entity.bankTx) {
@@ -226,10 +267,13 @@ export class AmlHelperService {
 
   static amlRuleCheck(
     amlRule: AmlRule,
+    exceptAmlRules: AmlRule[],
     entity: BuyCrypto | BuyFiat,
     amountInChf: number,
     last7dCheckoutVolume: number,
   ): AmlError[] {
+    if (exceptAmlRules.includes(amlRule)) return [];
+
     const errors: AmlError[] = [];
 
     switch (amlRule) {
@@ -326,10 +370,16 @@ export class AmlHelperService {
     return errors;
   }
 
-  static amlRuleQuoteCheck(amlRules: AmlRule[], user: User, paymentMethodIn: PaymentMethod): QuoteError | undefined {
+  static amlRuleQuoteCheck(
+    amlRules: AmlRule[],
+    exceptAmlRules: AmlRule[],
+    user: User,
+    paymentMethodIn: PaymentMethod,
+  ): QuoteError | undefined {
     if (!user) return undefined;
-
     if (amlRules.includes(AmlRule.RULE_11) && SpecialIpCountries.includes(user.ipCountry)) return undefined;
+
+    if (exceptAmlRules?.length) amlRules = amlRules.filter((a) => !exceptAmlRules.includes(a));
 
     if (
       amlRules.includes(AmlRule.RULE_2) &&
