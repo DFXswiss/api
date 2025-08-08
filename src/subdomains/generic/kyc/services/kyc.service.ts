@@ -700,7 +700,7 @@ export class KycService {
     const kycStep = user.getStepOrThrow(transaction.stepId);
 
     if (result === IdentShortResult.MEDIA) {
-      await this.downloadMedia(user, kycStep);
+      await this.downloadMedia(user, kycStep, true);
       this.logger.info(`Media download finished for KYC step: ${kycStep.id}`);
       return;
     }
@@ -735,7 +735,7 @@ export class KycService {
 
       case IdentShortResult.SUCCESS:
         await this.kycStepRepo.update(...kycStep.internalReview(dto));
-        await this.downloadIdentDocuments(user, kycStep);
+        await this.downloadIdentDocuments(user, kycStep, true);
         break;
 
       case IdentShortResult.FAIL:
@@ -749,7 +749,7 @@ export class KycService {
         await this.kycStepRepo.update(
           ...(result === IdentShortResult.FAIL ? kycStep.fail(dto) : kycStep.inProgress(dto)),
         );
-        await this.downloadIdentDocuments(user, kycStep, 'fail/');
+        await this.downloadIdentDocuments(user, kycStep, false);
         await this.kycNotificationService.kycStepFailed(
           user,
           this.getMailStepName(kycStep.name, kycStep.userData.language.symbol),
@@ -1250,14 +1250,14 @@ export class KycService {
     await this.tfaService.checkVerification(user, ip, TfaLevel.STRICT);
   }
 
-  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix?: string) {
+  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, isValid: boolean) {
     const documents = await this.sumsubService.getDocuments(kycStep);
-    await this.storeDocuments(documents, user, kycStep, namePrefix);
+    await this.storeDocuments(documents, user, kycStep, isValid);
   }
 
-  private async downloadMedia(user: UserData, kycStep: KycStep, namePrefix?: string) {
+  private async downloadMedia(user: UserData, kycStep: KycStep, isValid: boolean) {
     const documents = await this.sumsubService.getMedia(kycStep);
-    await this.storeDocuments(documents, user, kycStep, namePrefix);
+    await this.storeDocuments(documents, user, kycStep, isValid);
   }
 
   async syncIdentFiles(stepId: number): Promise<void> {
@@ -1283,23 +1283,24 @@ export class KycService {
             f.contentType === d.contentType,
         ),
     );
-    await this.storeDocuments(missingDocuments, kycStep.userData, kycStep);
+    await this.storeDocuments(missingDocuments, kycStep.userData, kycStep, true);
   }
 
   private async storeDocuments(
     documents: IdentDocument[],
     user: UserData,
     kycStep: KycStep,
-    namePrefix = '',
+    isValid: boolean,
   ): Promise<void> {
     for (const { name, content, contentType, fileSubType } of documents) {
       await this.documentService.uploadFile(
         user,
         FileType.IDENTIFICATION,
-        `${namePrefix}${name}`,
+        `${isValid ? '' : 'fail/'}${name}`,
         content,
         contentType,
         true,
+        isValid,
         kycStep,
         fileSubType,
       );
