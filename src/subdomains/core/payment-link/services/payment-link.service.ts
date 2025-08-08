@@ -543,6 +543,21 @@ export class PaymentLinkService {
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
 
+  async deletePaymentLink(linkId: number): Promise<void> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { id: linkId },
+      relations: { payments: { quotes: true, activations: true, cryptoInputs: true } },
+    });
+    if (!paymentLink) throw new NotFoundException('PaymentLink not found');
+    if (paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.COMPLETED || p.cryptoInputs?.length))
+      throw new BadRequestException('PaymentLink cannot be deleted with active payments');
+
+    for (const payment of paymentLink.payments) {
+      await this.paymentLinkPaymentService.deletePayment(payment);
+    }
+    await this.paymentLinkRepo.delete(paymentLink.id);
+  }
+
   async getPaymentLinkByAccessKey(
     key: string,
     externalLinkId?: string,
