@@ -12,13 +12,14 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 import { XOR } from 'src/shared/validators/xor.validator';
 
 export class GetSwapQuoteDto {
-  @ApiProperty({ type: EntityDto, description: 'Source asset' })
+  @ApiProperty({ type: AssetInDto, description: 'Source asset' })
   @IsNotEmptyObject()
   @ValidateNested()
-  @Type(() => EntityDto)
+  @Type(() => AssetInDto)
   sourceAsset: Asset;
 
   @ApiPropertyOptional({ description: 'Amount in source asset' })

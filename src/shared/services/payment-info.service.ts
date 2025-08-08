@@ -24,7 +24,9 @@ export class PaymentInfoService {
       if (!dto.currency) throw new NotFoundException('Currency not found');
     }
 
-    dto.asset = await this.assetService.getAssetById(dto.asset.id);
+    dto.asset = dto.asset.id
+      ? await this.assetService.getAssetById(dto.asset.id)
+      : await this.assetService.getAssetByChainId(dto.asset.blockchain, dto.asset.chainId);
     if (!dto.asset) throw new NotFoundException('Asset not found');
     if (jwt && !dto.asset.isBuyableOn(jwt.blockchains)) throw new BadRequestException('Asset blockchain mismatch');
 
@@ -50,7 +52,9 @@ export class PaymentInfoService {
     jwt?: JwtPayload,
   ): Promise<T> {
     if ('asset' in dto) {
-      dto.asset = await this.assetService.getAssetById(dto.asset.id);
+      dto.asset = dto.asset.id
+        ? await this.assetService.getAssetById(dto.asset.id)
+        : await this.assetService.getAssetByChainId(dto.asset.blockchain, dto.asset.chainId);
       if (!dto.asset) throw new NotFoundException('Asset not found');
       if (!dto.asset.sellable) throw new BadRequestException('Asset not sellable');
       if (jwt && !dto.asset.isBuyableOn(jwt.blockchains)) throw new BadRequestException('Asset blockchain mismatch');
@@ -79,7 +83,9 @@ export class PaymentInfoService {
     jwt?: JwtPayload,
   ): Promise<T> {
     if ('sourceAsset' in dto) {
-      dto.sourceAsset = await this.assetService.getAssetById(dto.sourceAsset.id);
+      dto.sourceAsset = dto.sourceAsset.id
+        ? await this.assetService.getAssetById(dto.sourceAsset.id)
+        : await this.assetService.getAssetByChainId(dto.sourceAsset.blockchain, dto.sourceAsset.chainId);
       if (!dto.sourceAsset) throw new NotFoundException('Source asset not found');
       if (!dto.sourceAsset.sellable) throw new BadRequestException('Source asset not sellable');
       if (NoSwapBlockchains.includes(dto.sourceAsset.blockchain))
@@ -91,7 +97,9 @@ export class PaymentInfoService {
         throw new BadRequestException('Assets on this blockchain are not swappable');
     }
 
-    dto.targetAsset = await this.assetService.getAssetById(dto.targetAsset.id);
+    dto.targetAsset = dto.targetAsset.id
+      ? await this.assetService.getAssetById(dto.targetAsset.id)
+      : await this.assetService.getAssetByChainId(dto.targetAsset.blockchain, dto.targetAsset.chainId);
     if (!dto.targetAsset) throw new NotFoundException('Asset not found');
     if (!dto.targetAsset.buyable) throw new BadRequestException('Asset not buyable');
     if (jwt && !dto.targetAsset.isBuyableOn(jwt.blockchains))
