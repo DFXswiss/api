@@ -19,6 +19,7 @@ export class PaymentLinkDtoMapper {
   static toLinkHistoryDto(paymentLink: PaymentLink): PaymentLinkHistoryDto {
     const dto = <PaymentLinkHistoryDto>PaymentLinkDtoMapper.createPaymentLinkBaseDto(paymentLink);
     dto.payments = PaymentLinkDtoMapper.toPaymentDtoList(paymentLink.payments);
+    dto.totalCompletedAmount = paymentLink.totalCompletedAmount;
 
     return Object.assign(new PaymentLinkHistoryDto(), dto);
   }
@@ -31,8 +32,8 @@ export class PaymentLinkDtoMapper {
     return PaymentLinkDtoMapper.createPaymentLinkPaymentDto(payment);
   }
 
-  static toPaymentDtoList(payments: PaymentLinkPayment[]): PaymentLinkPaymentDto[] {
-    return payments.map(PaymentLinkDtoMapper.createPaymentLinkPaymentDto);
+  static toPaymentDtoList(payments?: PaymentLinkPayment[]): PaymentLinkPaymentDto[] {
+    return payments?.map(PaymentLinkDtoMapper.createPaymentLinkPaymentDto) ?? [];
   }
 
   private static getConfigsWithoutSecrets(config: PaymentLinkConfig): PaymentLinkConfig | null {
