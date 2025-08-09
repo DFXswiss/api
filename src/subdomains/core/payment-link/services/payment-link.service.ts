@@ -11,12 +11,10 @@ import { merge } from 'lodash';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Not } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
@@ -53,8 +51,6 @@ export class PaymentLinkService {
     private readonly userDataService: UserDataService,
     private readonly sellService: SellService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
-    private readonly pricingService: PricingService,
-    private readonly fiatService: FiatService,
   ) {}
 
   async getOrThrow(

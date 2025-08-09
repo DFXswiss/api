@@ -5,7 +5,6 @@ import { KucoinPayModule } from 'src/integration/kucoin-pay/kucoin-pay.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { PayInWebhookModule } from 'src/subdomains/supporting/payin/payin-webhook.module';
-import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { C2BPaymentLinkController } from './controllers/c2b-payment-link.controller';
 import { PaymentLinkController, PaymentLinkShortController } from './controllers/payment-link.controller';
@@ -27,7 +26,6 @@ import { PaymentLinkService } from './services/payment-link.service';
     PaymentLinkPaymentModule,
     BinancePayModule,
     KucoinPayModule,
-    PricingModule,
   ],
   controllers: [PaymentLinkController, PaymentLinkShortController, C2BPaymentLinkController],
   providers: [
