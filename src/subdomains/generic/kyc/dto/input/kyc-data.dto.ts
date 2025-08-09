@@ -290,7 +290,7 @@ export class PaymentDataDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_protocol: true })
   website: string;
 
   @ApiProperty()

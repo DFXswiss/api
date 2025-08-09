@@ -61,7 +61,7 @@ export class KycDocumentService {
     if (!this.isPermittedFileType(contentType))
       throw new UnsupportedMediaTypeException('Supported file types: PNG, JPEG, JPG, PDF');
 
-    return this.uploadFile(userData, type, name, data, contentType, isProtected, kycStep, subType, metadata);
+    return this.uploadFile(userData, type, name, data, contentType, isProtected, true, kycStep, subType, metadata);
   }
 
   async uploadFile(
@@ -71,6 +71,7 @@ export class KycDocumentService {
     data: Buffer,
     contentType: ContentType,
     isProtected: boolean,
+    isValid: boolean,
     kycStep?: KycStep,
     subType?: FileSubType,
     metadata?: Record<string, string>,

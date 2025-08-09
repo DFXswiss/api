@@ -143,7 +143,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
           );
           const id = await this.updateOrderPrice(order, price).catch(async (e: ExchangeError) => {
             try {
-              const updatedOrder = await this.getTrade(id, from, to);
+              const updatedOrder = await this.getTrade(order.id, from, to);
               this.logger.verbose(`Could not update order ${order.id} price: ${JSON.stringify(updatedOrder)}`);
             } catch (e) {
               this.logger.error(`Failed to fetch order ${order.id} after update price error:`, e);

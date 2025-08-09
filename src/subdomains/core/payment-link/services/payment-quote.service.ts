@@ -182,6 +182,10 @@ export class PaymentQuoteService {
     return this.paymentQuoteRepo.countBy({ payment: { id: payment.id }, status: In(allowedStates) });
   }
 
+  async deleteQuote(quote: PaymentQuote): Promise<void> {
+    await this.paymentQuoteRepo.delete(quote.id);
+  }
+
   // --- CREATE --- //
   async createQuote(standard: PaymentStandard, payment: PaymentLinkPayment): Promise<PaymentQuote> {
     const timeoutSeconds = Config.payment.quoteTimeout(standard);
