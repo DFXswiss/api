@@ -117,12 +117,10 @@ export class PaymentLink extends IEntity {
     return this.configObj.standards[0];
   }
 
-  get approxCompletedPaymentTotalInChf(): number {
+  get totalCompletedAmount(): number {
     return (
       this.payments?.reduce((total, payment) => {
-        return payment.status === PaymentLinkPaymentStatus.COMPLETED
-          ? total + payment.amount * (payment.currency.approxPriceChf ?? 0)
-          : total;
+        return payment.status === PaymentLinkPaymentStatus.COMPLETED ? total + payment.amount : total;
       }, 0) ?? 0
     );
   }

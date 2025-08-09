@@ -1,8 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ErrorDto } from 'src/shared/dto/error.dto';
-import { FiatValueDto } from 'src/shared/dto/fiat-value.dto';
-import { PaymentLink } from '../entities/payment-link.entity';
 import {
   PaymentLinkMode,
   PaymentLinkPaymentMode,
@@ -78,10 +76,6 @@ export interface PaymentLinkEvmPaymentDto {
 
 export interface PaymentLinkHexResultDto {
   txId: string;
-}
-
-export interface PaymentLinkWithTotals extends PaymentLink {
-  totalValue: FiatValueDto;
 }
 
 export class PaymentLinkPaymentDto {
@@ -169,8 +163,8 @@ export class PaymentLinkHistoryDto extends PaymentLinkBaseDto {
   @ApiPropertyOptional({ type: PaymentLinkPaymentDto, isArray: true })
   payments?: PaymentLinkPaymentDto[];
 
-  @ApiPropertyOptional({ type: FiatValueDto, description: 'Total value of completed payments' })
-  totalValue?: FiatValueDto;
+  @ApiPropertyOptional()
+  totalCompletedAmount?: number;
 }
 
 export class PaymentLinkPosDto {

@@ -2,13 +2,7 @@ import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLinkConfig } from '../entities/payment-link.config';
 import { PaymentLink } from '../entities/payment-link.entity';
-import {
-  PaymentLinkBaseDto,
-  PaymentLinkDto,
-  PaymentLinkHistoryDto,
-  PaymentLinkPaymentDto,
-  PaymentLinkWithTotals,
-} from './payment-link.dto';
+import { PaymentLinkBaseDto, PaymentLinkDto, PaymentLinkHistoryDto, PaymentLinkPaymentDto } from './payment-link.dto';
 
 export class PaymentLinkDtoMapper {
   static toLinkDto(paymentLink: PaymentLink): PaymentLinkDto {
@@ -22,15 +16,15 @@ export class PaymentLinkDtoMapper {
     return paymentLinks.map(PaymentLinkDtoMapper.toLinkDto);
   }
 
-  static toLinkHistoryDto(paymentLink: PaymentLinkWithTotals): PaymentLinkHistoryDto {
+  static toLinkHistoryDto(paymentLink: PaymentLink): PaymentLinkHistoryDto {
     const dto = <PaymentLinkHistoryDto>PaymentLinkDtoMapper.createPaymentLinkBaseDto(paymentLink);
     dto.payments = PaymentLinkDtoMapper.toPaymentDtoList(paymentLink.payments);
-    dto.totalValue = paymentLink.totalValue;
+    dto.totalCompletedAmount = paymentLink.totalCompletedAmount;
 
     return Object.assign(new PaymentLinkHistoryDto(), dto);
   }
 
-  static toLinkHistoryDtoList(paymentLinks: PaymentLinkWithTotals[]): PaymentLinkHistoryDto[] {
+  static toLinkHistoryDtoList(paymentLinks: PaymentLink[]): PaymentLinkHistoryDto[] {
     return paymentLinks.map(PaymentLinkDtoMapper.toLinkHistoryDto);
   }
 

@@ -1,5 +1,4 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { FiatValueDto } from 'src/shared/dto/fiat-value.dto';
 
 export class CustodyAssetDto {
   @ApiProperty({ description: 'Asset name' })
@@ -9,6 +8,16 @@ export class CustodyAssetDto {
   description: string;
 }
 
+export class CustodyFiatValueDto {
+  @ApiProperty({ description: 'Value in Swiss Franc' })
+  chf: number;
+
+  @ApiProperty({ description: 'Value in Euro' })
+  eur: number;
+
+  @ApiProperty({ description: 'Value in US Dollar' })
+  usd: number;
+}
 
 export class CustodyAssetBalanceDto {
   @ApiProperty({ type: CustodyAssetDto, description: 'Asset' })
@@ -18,12 +27,12 @@ export class CustodyAssetBalanceDto {
   balance: number;
 
   @ApiProperty({ description: 'Balances in fiat values' })
-  value: FiatValueDto;
+  value: CustodyFiatValueDto;
 }
 
 export class CustodyBalanceDto {
   @ApiProperty({ description: 'Total balance in fiat values' })
-  totalValue: FiatValueDto;
+  totalValue: CustodyFiatValueDto;
 
   @ApiProperty({ type: CustodyAssetBalanceDto, description: 'Asset balances', isArray: true })
   balances: CustodyAssetBalanceDto[];
@@ -33,8 +42,8 @@ export class CustodyHistoryEntryDto {
   @ApiProperty({ description: 'Entry timestamp' })
   date: Date;
 
-  @ApiProperty({ type: FiatValueDto, description: 'Fiat values' })
-  value: FiatValueDto;
+  @ApiProperty({ type: CustodyFiatValueDto, description: 'Fiat values' })
+  value: CustodyFiatValueDto;
 }
 
 export class CustodyHistoryDto {
