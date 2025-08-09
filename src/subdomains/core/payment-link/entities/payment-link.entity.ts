@@ -111,6 +111,14 @@ export class PaymentLink extends IEntity {
     return this.configObj.standards[0];
   }
 
+  get approxCompletedPaymentTotalInChf(): number {
+    return (
+      this.payments?.reduce((total, payment) => {
+        return payment.complete ? total + payment.amount * (payment.currency.approxPriceChf ?? 0) : total;
+      }, 0) ?? 0
+    );
+  }
+
   getMatchingStandard(param?: PaymentStandard): PaymentStandard {
     return this.configObj.standards.includes(param) ? param : this.defaultStandard;
   }

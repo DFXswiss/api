@@ -11,10 +11,12 @@ import { merge } from 'lodash';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Not } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
@@ -23,7 +25,11 @@ import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
-import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
+import {
+  PaymentLinkPaymentErrorResponseDto,
+  PaymentLinkPayRequestDto,
+  PaymentLinkWithTotals,
+} from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLinkConfig } from '../entities/payment-link.config';
@@ -51,6 +57,8 @@ export class PaymentLinkService {
     private readonly userDataService: UserDataService,
     private readonly sellService: SellService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
   ) {}
 
   async getOrThrow(
@@ -95,7 +103,7 @@ export class PaymentLinkService {
     to?: Date,
     key?: string,
     externalLinkId?: string,
-  ): Promise<PaymentLink[]> {
+  ): Promise<PaymentLinkWithTotals[]> {
     const ownerUserId = Boolean(userId)
       ? userId
       : (await this.getPaymentLinkByAccessKey(key, externalLinkId)).route.user.id;
@@ -110,7 +118,28 @@ export class PaymentLinkService {
     fromDate.setHours(0, 0, 0, 0);
     toDate.setHours(23, 59, 59, 999);
 
-    return this.paymentLinkRepo.getHistoryByStatus(ownerUserId, paymentStatus, fromDate, toDate, externalLinkId);
+    const paymentLinks = (await this.paymentLinkRepo.getHistoryByStatus(
+      ownerUserId,
+      paymentStatus,
+      fromDate,
+      toDate,
+      externalLinkId,
+    )) as PaymentLinkWithTotals[];
+
+    const eurPrice = await this.pricingService.getPrice(PriceCurrency.CHF, PriceCurrency.EUR, false);
+    const usdPrice = await this.pricingService.getPrice(PriceCurrency.CHF, PriceCurrency.USD, false);
+
+    for (const link of paymentLinks) {
+      let totalChf = link.approxCompletedPaymentTotalInChf;
+
+      link.totalValue = {
+        chf: Util.roundReadable(totalChf, AmountType.FIAT),
+        eur: Util.roundReadable(eurPrice.convert(totalChf), AmountType.FIAT),
+        usd: Util.roundReadable(usdPrice.convert(totalChf), AmountType.FIAT),
+      };
+    }
+
+    return paymentLinks;
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
