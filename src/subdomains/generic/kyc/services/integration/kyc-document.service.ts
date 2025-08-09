@@ -81,6 +81,7 @@ export class KycDocumentService {
       type,
       subType,
       protected: isProtected,
+      valid: isValid,
       userData,
       kycStep,
     });
