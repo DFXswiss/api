@@ -32,8 +32,8 @@ export class PaymentLinkDtoMapper {
     return PaymentLinkDtoMapper.createPaymentLinkPaymentDto(payment);
   }
 
-  static toPaymentDtoList(payments: PaymentLinkPayment[]): PaymentLinkPaymentDto[] {
-    return payments.map(PaymentLinkDtoMapper.createPaymentLinkPaymentDto);
+  static toPaymentDtoList(payments?: PaymentLinkPayment[]): PaymentLinkPaymentDto[] {
+    return payments?.map(PaymentLinkDtoMapper.createPaymentLinkPaymentDto) ?? [];
   }
 
   private static getConfigsWithoutSecrets(config: PaymentLinkConfig): PaymentLinkConfig | null {
