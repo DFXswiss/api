@@ -6,7 +6,13 @@ import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
-import { PaymentLinkMode, PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
+import {
+  PaymentLinkMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentQuoteStatus,
+  PaymentStandard,
+} from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';
 
@@ -114,7 +120,9 @@ export class PaymentLink extends IEntity {
   get approxCompletedPaymentTotalInChf(): number {
     return (
       this.payments?.reduce((total, payment) => {
-        return payment.complete ? total + payment.amount * (payment.currency.approxPriceChf ?? 0) : total;
+        return payment.status === PaymentLinkPaymentStatus.COMPLETED
+          ? total + payment.amount * (payment.currency.approxPriceChf ?? 0)
+          : total;
       }, 0) ?? 0
     );
   }
