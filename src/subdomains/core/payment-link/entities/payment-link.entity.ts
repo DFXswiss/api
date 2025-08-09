@@ -119,9 +119,10 @@ export class PaymentLink extends IEntity {
 
   get totalCompletedAmount(): number {
     return (
-      this.payments?.reduce((total, payment) => {
-        return payment.status === PaymentLinkPaymentStatus.COMPLETED ? total + payment.amount : total;
-      }, 0) ?? 0
+      Util.sumObjValue(
+        this.payments?.filter((p) => p.status === PaymentLinkPaymentStatus.COMPLETED),
+        'amount',
+      ) ?? 0
     );
   }
 
