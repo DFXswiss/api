@@ -130,7 +130,7 @@ export class PaymentLinkService {
     const usdPrice = await this.pricingService.getPrice(PriceCurrency.CHF, PriceCurrency.USD, false);
 
     for (const link of paymentLinks) {
-      let totalChf = link.approxCompletedPaymentTotalInChf;
+      const totalChf = link.approxCompletedPaymentTotalInChf;
 
       link.totalValue = {
         chf: Util.roundReadable(totalChf, AmountType.FIAT),
