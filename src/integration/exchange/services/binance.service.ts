@@ -31,6 +31,7 @@ export class BinanceService extends ExchangeService {
     KucoinPay: undefined,
     Solana: 'SOL',
     Tron: 'TRX',
+    CitreaTestnet: undefined,
     Kraken: undefined,
     Binance: undefined,
     XT: undefined,

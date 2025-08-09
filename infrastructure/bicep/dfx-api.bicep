@@ -131,6 +131,16 @@ param bscGatewayUrl string
 param bscSwapContractAddress string
 param bscQuoteContractAddress string
 param bscChainId string
+param gasPrice string
+
+param citreaTestnetWalletAddress string
+@secure()
+param citreaTestnetWalletPrivateKey string
+param citreaTestnetGatewayUrl string
+@secure()
+param citreaTestnetApiKey string
+param citreaTestnetChainId string
+param goldskySubgraphUrl string
 
 @secure()
 param lightningApiCertificate string
@@ -931,6 +941,34 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BSC_CHAIN_ID'
           value: bscChainId
+        }
+        {
+          name: 'BSC_GAS_PRICE'
+          value: gasPrice
+        }
+        {
+          name: 'CITREA_TESTNET_WALLET_ADDRESS'
+          value: citreaTestnetWalletAddress
+        }
+        {
+          name: 'CITREA_TESTNET_WALLET_PRIVATE_KEY'
+          value: citreaTestnetWalletPrivateKey
+        }
+        {
+          name: 'CITREA_TESTNET_GATEWAY_URL'
+          value: citreaTestnetGatewayUrl
+        }
+        {
+          name: 'CITREA_TESTNET_API_KEY'
+          value: citreaTestnetApiKey
+        }
+        {
+          name: 'CITREA_TESTNET_CHAIN_ID'
+          value: citreaTestnetChainId
+        }
+        {
+          name: 'CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL'
+          value: goldskySubgraphUrl
         }
         {
           name: 'LIGHTNING_API_CERTIFICATE'

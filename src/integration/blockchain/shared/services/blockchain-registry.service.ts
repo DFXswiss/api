@@ -14,6 +14,7 @@ import { SolanaService } from '../../solana/services/solana.service';
 import { SolanaClient } from '../../solana/solana-client';
 import { TronService } from '../../tron/services/tron.service';
 import { TronClient } from '../../tron/tron-client';
+import { CitreaTestnetService } from '../../citrea-testnet/citrea-testnet.service';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from '../evm/evm-client';
 import { EvmService } from '../evm/evm.service';
@@ -36,6 +37,7 @@ export class BlockchainRegistryService {
     private readonly bitcoinService: BitcoinService,
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
+    private readonly citreaTestnetService: CitreaTestnetService,
   ) {}
 
   getClient(blockchain: Blockchain): BlockchainClientType {
@@ -79,6 +81,8 @@ export class BlockchainRegistryService {
         return this.solanaService;
       case Blockchain.TRON:
         return this.tronService;
+      case Blockchain.CITREA_TESTNET:
+        return this.citreaTestnetService;
 
       default:
         throw new Error(`No service found for blockchain ${blockchain}`);
