@@ -79,7 +79,7 @@ export class ZanoStrategy extends RegisterStrategy {
     const payInEntries: PayInEntry[] = [];
 
     for (const transferResult of transferResults) {
-      const depositAddress = await this.getDepositAddress(this.blockchain, transferResult.paymentId);
+      const depositAddress = await this.getDepositAddress(transferResult.paymentId);
 
       if (depositAddress) {
         payInEntries.push({
@@ -97,14 +97,11 @@ export class ZanoStrategy extends RegisterStrategy {
     return payInEntries;
   }
 
-  private async getDepositAddress(
-    blockchain: Blockchain,
-    paymentIdHex: string,
-  ): Promise<BlockchainAddress | undefined> {
+  private async getDepositAddress(paymentIdHex: string): Promise<BlockchainAddress | undefined> {
     const index = ZanoHelper.mapPaymentIdHexToIndex(paymentIdHex);
     if (index === undefined) return;
 
-    const deposit = await this.payInZanoService.getDepositByBlockchainAndIndex(blockchain, index);
+    const deposit = await this.payInZanoService.getDeposit(index);
     if (deposit) return BlockchainAddress.create(deposit.address, this.blockchain);
   }
 

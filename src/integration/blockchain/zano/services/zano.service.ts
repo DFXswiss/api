@@ -33,10 +33,7 @@ export class ZanoService extends BlockchainService implements OnModuleInit {
   async isHealthy(): Promise<boolean> {
     try {
       const status = await this.client.getInfo();
-      if (!status) return false;
-      if ('OK' !== status) return false;
-
-      return true;
+      return 'OK' === status;
     } catch {
       return false;
     }
@@ -82,8 +79,8 @@ export class ZanoService extends BlockchainService implements OnModuleInit {
     return this.client.sendTransfers(payout);
   }
 
-  async getDepositByBlockchainAndIndex(blockchain: Blockchain, index: number): Promise<Deposit> {
-    return this.depositService.getDepositByBlockchainAndIndex(blockchain, index);
+  async getDeposit(index: number): Promise<Deposit> {
+    return this.depositService.getDepositByBlockchainAndIndex(Blockchain.ZANO, index);
   }
 
   getPaymentRequest(address: string, amount: number): string {

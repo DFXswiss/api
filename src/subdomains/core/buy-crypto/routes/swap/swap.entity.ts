@@ -9,7 +9,7 @@ import { ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 
 import { Deposit } from '../../../../supporting/address-pool/deposit/deposit.entity';
 import { DepositRoute } from '../../../../supporting/address-pool/route/deposit-route.entity';
 
-export const NoSwapBlockchains: Blockchain[] = [Blockchain.MONERO, Blockchain.ZANO];
+export const NoSwapBlockchains: Blockchain[] = [Blockchain.MONERO];
 
 @ChildEntity('Crypto')
 export class Swap extends DepositRoute {

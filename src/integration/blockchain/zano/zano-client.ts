@@ -121,7 +121,7 @@ export class ZanoClient extends BlockchainClient {
   }
 
   async getNativeCoinBalanceForAddress(_: string): Promise<number> {
-    throw new Error('Coin balance for address not possible for monero');
+    throw new Error('Coin balance for address not possible for zano');
   }
 
   async signMessage(message: string): Promise<any> {
@@ -219,15 +219,15 @@ export class ZanoClient extends BlockchainClient {
   // --- UNIMPLEMENTED METHODS --- //
 
   async getToken(_: Asset): Promise<Currency> {
-    throw new Error('Monero has no token');
+    throw new Error('Zano has no token');
   }
 
   async getTokenBalance(_: Asset, __?: string): Promise<number> {
-    throw new Error('Monero has no token');
+    throw new Error('Zano has no token');
   }
 
   async getTokenBalances(_: Asset[], __?: string): Promise<BlockchainTokenBalance[]> {
-    throw new Error('Monero has no token');
+    throw new Error('Zano has no token');
   }
 
   async sendSignedTransaction(_: string): Promise<SignedTransactionResponse> {

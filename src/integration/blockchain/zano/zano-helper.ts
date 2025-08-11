@@ -10,8 +10,8 @@ export class ZanoHelper {
 
   // --- CONVERT --- /
 
-  static zanoToAu(xmrAmount?: number): number | undefined {
-    return xmrAmount && Util.round(xmrAmount * ZanoHelper.AU_ZANO_FACTOR, 0);
+  static zanoToAu(zanoAmount?: number): number | undefined {
+    return zanoAmount && Util.round(zanoAmount * ZanoHelper.AU_ZANO_FACTOR, 0);
   }
 
   static auToZano(auAmount?: number): number | undefined {

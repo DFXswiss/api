@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ZanoTransferDto } from 'src/integration/blockchain/zano/dto/zano.dto';
 import { ZanoService } from 'src/integration/blockchain/zano/services/zano.service';
 import { Deposit } from '../../address-pool/deposit/deposit.entity';
@@ -12,8 +11,8 @@ export class PayInZanoService extends PayInBitcoinBasedService {
     super();
   }
 
-  async getDepositByBlockchainAndIndex(blockchain: Blockchain, index: number): Promise<Deposit> {
-    return this.zanoService.getDepositByBlockchainAndIndex(blockchain, index);
+  async getDeposit(index: number): Promise<Deposit> {
+    return this.zanoService.getDeposit(index);
   }
 
   async checkHealthOrThrow(): Promise<void> {
