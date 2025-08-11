@@ -37,8 +37,9 @@ export class PaymentQuoteService {
     Blockchain.BASE,
     Blockchain.GNOSIS,
     Blockchain.ETHEREUM,
-    Blockchain.MONERO,
     Blockchain.BITCOIN,
+    Blockchain.MONERO,
+    Blockchain.ZANO,
     Blockchain.SOLANA,
   ];
 
@@ -378,6 +379,7 @@ export class PaymentQuoteService {
           break;
 
         case Blockchain.MONERO:
+        case Blockchain.ZANO:
         case Blockchain.SOLANA:
           await this.doTxIdPayment(transferInfo, quote);
           break;

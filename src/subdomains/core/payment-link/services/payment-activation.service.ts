@@ -29,8 +29,9 @@ export class PaymentActivationService implements OnModuleInit {
   private readonly client: LightningClient;
 
   private evmDepositAddress: string;
-  private moneroDepositAddress: string;
   private bitcoinDepositAddress: string;
+  private moneroDepositAddress: string;
+  private zanoDepositAddress: string;
   private solanaDepositAddress: string;
 
   constructor(
@@ -46,8 +47,9 @@ export class PaymentActivationService implements OnModuleInit {
 
   onModuleInit() {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
-    this.moneroDepositAddress = Config.payment.moneroAddress;
     this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
+    this.moneroDepositAddress = Config.payment.moneroAddress;
+    this.zanoDepositAddress = Config.payment.zanoAddress;
     this.solanaDepositAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
   }
 
@@ -198,6 +200,9 @@ export class PaymentActivationService implements OnModuleInit {
 
       case Blockchain.MONERO:
         return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
+
+      case Blockchain.ZANO:
+        return this.createPaymentRequest(this.zanoDepositAddress, transferInfo);
 
       case Blockchain.SOLANA:
         return this.createPaymentRequest(this.solanaDepositAddress, transferInfo);

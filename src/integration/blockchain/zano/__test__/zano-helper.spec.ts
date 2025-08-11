@@ -11,7 +11,7 @@ describe('ZanoHelper', () => {
     const config = {
       blockchain: {
         zano: {
-          wallet: {
+          liquidityWallet: {
             address:
               'ZxCkEgHf3ci8hgBfboZeCENaYrHBYZ1bLFi5cgWvn4WJLaxfgs4kqG6cJi9ai2zrXWSCpsvRXit14gKjeijx6YPC1zT8rneEf',
           },

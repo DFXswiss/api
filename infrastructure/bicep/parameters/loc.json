@@ -125,10 +125,13 @@
     "paymentTronSeed": {
       "value": "xxx"
     },
+    "paymentBitcoinAddress": {
+      "value": "xxx"
+    },
     "paymentMoneroAddress": {
       "value": "xxx"
     },
-    "paymentBitcoinAddress": {
+    "paymentZanoAddress": {
       "value": "xxx"
     },
     "paymentCheckbotSignTx": {
@@ -287,7 +290,16 @@
     "moneroRpcCertificate": {
       "value": "xxx"
     },
-    "zanoWalletAddress": {
+    "zanoNodeUrl": {
+      "value": "xxx"
+    },
+    "zanoLiquidityWalletUrl": {
+      "value": "xxx"
+    },
+    "zanoLiquidityWalletAddress": {
+      "value": "xxx"
+    },
+    "zanoPaymentWalletUrl": {
       "value": "xxx"
     },
     "solanaWalletSeed": {

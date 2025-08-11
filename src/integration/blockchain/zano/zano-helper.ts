@@ -21,14 +21,15 @@ export class ZanoHelper {
   // --- DEPOSIT ADDRESS / PAYMENT ADDRESS --- //
 
   static createDepositAddress(accountIndex: number): string {
-    return createIntegratedAddress(
-      Config.blockchain.zano.wallet.address,
-      ZanoHelper.mapIndexToPaymentIdHex(accountIndex),
-    );
+    return this.createAddress(Config.blockchain.zano.liquidityWallet.address, accountIndex);
   }
 
   static createPaymentAddress(accountIndex: number): string {
-    return createIntegratedAddress(Config.payment.zanoAddress, ZanoHelper.mapIndexToPaymentIdHex(accountIndex));
+    return this.createAddress(Config.blockchain.zano.paymentWallet.address, accountIndex);
+  }
+
+  static createAddress(zanoAddress: string, accountIndex: number): string {
+    return createIntegratedAddress(zanoAddress, ZanoHelper.mapIndexToPaymentIdHex(accountIndex));
   }
 
   static splitIntegratedAddress(integratedAddress: string): ZanoAddressDto | undefined {

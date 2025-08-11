@@ -22,6 +22,7 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Util } from 'src/shared/utils/util';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
 import { Like } from 'typeorm';
+import { PayInType } from '../../payin/entities/crypto-input.entity';
 import { Deposit } from './deposit.entity';
 import { CreateDepositDto } from './dto/create-deposit.dto';
 
@@ -76,7 +77,7 @@ export class DepositService {
     return deposit;
   }
 
-  async createDeposits({ blockchain, count }: CreateDepositDto): Promise<void> {
+  async createDeposits({ blockchain, count, payInType }: CreateDepositDto): Promise<void> {
     if ([Blockchain.BITCOIN].includes(blockchain)) {
       return this.createBitcoinDeposits(blockchain, count);
     } else if (CryptoService.EthereumBasedChains.includes(blockchain)) {
@@ -86,7 +87,7 @@ export class DepositService {
     } else if (blockchain === Blockchain.MONERO) {
       return this.createMoneroDeposits(blockchain, count);
     } else if (blockchain === Blockchain.ZANO) {
-      return this.createZanoDeposits(blockchain, count);
+      return this.createZanoDeposits(blockchain, count, payInType);
     } else if (blockchain === Blockchain.SOLANA) {
       return this.createSolanaDeposits(blockchain, count);
     } else if (blockchain === Blockchain.TRON) {
@@ -201,12 +202,16 @@ export class DepositService {
     }
   }
 
-  private async createZanoDeposits(blockchain: Blockchain, count: number): Promise<void> {
+  private async createZanoDeposits(blockchain: Blockchain, count: number, payInType?: PayInType): Promise<void> {
     const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
 
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
-      const zanoAddress = ZanoHelper.createDepositAddress(accountIndex);
+
+      const zanoAddress =
+        payInType === PayInType.PAYMENT
+          ? ZanoHelper.createPaymentAddress(accountIndex)
+          : ZanoHelper.createDepositAddress(accountIndex);
 
       const deposit = Deposit.create(zanoAddress, [blockchain], accountIndex);
       await this.depositRepo.save(deposit);

@@ -5,8 +5,8 @@ import { HttpService } from 'src/shared/services/http.service';
 import { ZanoBaseService } from './zano-base.service';
 
 @Injectable()
-export class ZanoService extends ZanoBaseService {
+export class ZanoPaymentService extends ZanoBaseService {
   constructor(readonly moduleRef: ModuleRef, readonly http: HttpService) {
-    super(moduleRef, http, Config.blockchain.zano.liquidityWallet.url);
+    super(moduleRef, http, Config.blockchain.zano.paymentWallet.url);
   }
 }
