@@ -142,6 +142,7 @@ export class NameCheckService implements OnModuleInit {
       buffer,
       contentType as ContentType,
       true,
+      true,
       undefined,
       isBusiness ? FileSubType.BUSINESS_NAME_CHECK : FileSubType.PERSONAL_NAME_CHECK,
     );

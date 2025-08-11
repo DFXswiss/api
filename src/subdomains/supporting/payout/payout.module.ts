@@ -23,6 +23,7 @@ import { PayoutPolygonService } from './services/payout-polygon.service';
 import { PayoutSolanaService } from './services/payout-solana.service';
 import { PayoutTronService } from './services/payout-tron.service';
 import { PayoutCitreaTestnetService } from './services/payout-citrea-testnet.service';
+import { PayoutZanoService } from './services/payout-zano.service';
 import { PayoutService } from './services/payout.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPO } from './strategies/payout/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPO } from './strategies/payout/impl/arbitrum-token.strategy';
@@ -48,6 +49,7 @@ import { TronCoinStrategy as TronCoinStrategyPO } from './strategies/payout/impl
 import { TronTokenStrategy as TronTokenStrategyPO } from './strategies/payout/impl/tron-token.strategy';
 import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyPO } from './strategies/payout/impl/citrea-testnet-coin.strategy';
 import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyPO } from './strategies/payout/impl/citrea-testnet-token.strategy';
+import { ZanoStrategy as ZanoStrategyPO } from './strategies/payout/impl/zano.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyPR } from './strategies/prepare/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyPR } from './strategies/prepare/impl/base.strategy';
 import { PrepareStrategyRegistry } from './strategies/prepare/impl/base/prepare.strategy-registry';
@@ -62,6 +64,7 @@ import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/
 import { SolanaStrategy as SolanaStrategyPR } from './strategies/prepare/impl/solana.strategy';
 import { TronStrategy as TronStrategyPR } from './strategies/prepare/impl/tron.strategy';
 import { CitreaTestnetStrategy as CitreaTestnetStrategyPR } from './strategies/prepare/impl/citrea-testnet.strategy';
+import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.strategy';
 
 @Module({
   imports: [
@@ -81,6 +84,7 @@ import { CitreaTestnetStrategy as CitreaTestnetStrategyPR } from './strategies/p
     PayoutBitcoinService,
     PayoutLightningService,
     PayoutMoneroService,
+    PayoutZanoService,
     PayoutArbitrumService,
     PayoutOptimismService,
     PayoutPolygonService,
@@ -99,6 +103,8 @@ import { CitreaTestnetStrategy as CitreaTestnetStrategyPR } from './strategies/p
     LightningStrategyPO,
     MoneroStrategyPR,
     MoneroStrategyPO,
+    ZanoStrategyPR,
+    ZanoStrategyPO,
     EthereumStrategyPR,
     EthereumCoinStrategyPO,
     EthereumTokenStrategyPO,
@@ -129,7 +135,9 @@ import { CitreaTestnetStrategy as CitreaTestnetStrategyPR } from './strategies/p
     CitreaTestnetStrategyPR,
     CitreaTestnetCoinStrategyPO,
     CitreaTestnetTokenStrategyPO,
+    ZanoStrategyPR,
+    ZanoStrategyPO,
   ],
-  exports: [PayoutService, PayoutMoneroService, PayoutBitcoinService, PayoutSolanaService],
+  exports: [PayoutService, PayoutBitcoinService, PayoutMoneroService, PayoutZanoService, PayoutSolanaService],
 })
 export class PayoutModule {}

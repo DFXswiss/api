@@ -17,6 +17,7 @@ import { PayoutOptimismService } from '../../../services/payout-optimism.service
 import { PayoutPolygonService } from '../../../services/payout-polygon.service';
 import { PayoutSolanaService } from '../../../services/payout-solana.service';
 import { PayoutTronService } from '../../../services/payout-tron.service';
+import { PayoutZanoService } from '../../../services/payout-zano.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -39,11 +40,13 @@ import { SolanaCoinStrategy } from '../impl/solana-coin.strategy';
 import { SolanaTokenStrategy } from '../impl/solana-token.strategy';
 import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
+import { ZanoStrategy } from '../impl/zano.strategy';
 
 describe('PayoutStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
   let lightning: LightningStrategy;
   let monero: MoneroStrategy;
+  let zano: ZanoStrategy;
   let arbitrumCoin: ArbitrumCoinStrategy;
   let arbitrumToken: ArbitrumTokenStrategy;
   let bscCoin: BscCoinStrategy;
@@ -83,6 +86,13 @@ describe('PayoutStrategyRegistry', () => {
       mock<PayoutOrderRepository>(),
       mock<AssetService>(),
     );
+    zano = new ZanoStrategy(
+      mock<NotificationService>(),
+      mock<PayoutZanoService>(),
+      mock<PayoutOrderRepository>(),
+      mock<AssetService>(),
+    );
+
     arbitrumCoin = new ArbitrumCoinStrategy(
       mock<PayoutArbitrumService>(),
       mock<AssetService>(),
@@ -155,6 +165,7 @@ describe('PayoutStrategyRegistry', () => {
       bitcoin,
       lightning,
       monero,
+      zano,
       arbitrumCoin,
       arbitrumToken,
       bscCoin,
@@ -200,6 +211,14 @@ describe('PayoutStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(MoneroStrategy);
+      });
+
+      it('gets ZANO strategy for ZANO', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.ZANO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ZanoStrategy);
       });
 
       it('gets ARBITRUM_COIN strategy', () => {
@@ -364,6 +383,7 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     bitcoin: BitcoinStrategy,
     lightning: LightningStrategy,
     monero: MoneroStrategy,
+    zano: ZanoStrategy,
     arbitrumCoin: ArbitrumCoinStrategy,
     arbitrumToken: ArbitrumTokenStrategy,
     bscCoin: BscCoinStrategy,
@@ -388,6 +408,7 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     this.add({ blockchain: Blockchain.BITCOIN, assetType: AssetType.COIN }, bitcoin);
     this.add({ blockchain: Blockchain.LIGHTNING, assetType: AssetType.COIN }, lightning);
     this.add({ blockchain: Blockchain.MONERO, assetType: AssetType.COIN }, monero);
+    this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.COIN }, zano);
 
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.COIN }, arbitrumCoin);
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);

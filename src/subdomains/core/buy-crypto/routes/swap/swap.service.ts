@@ -31,7 +31,7 @@ import {
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { IsNull, Like, Not } from 'typeorm';
+import { In, IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { BuyCryptoWebhookService } from '../../process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
@@ -141,6 +141,14 @@ export class SwapService {
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `swap.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getAllUserSwaps(userIds: number[]): Promise<Swap[]> {
+    return this.swapRepo.find({
+      where: { user: { id: In(userIds) } },
+      relations: { user: true },
+      order: { id: 'DESC' },
+    });
   }
 
   async createSwapPaymentInfo(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {

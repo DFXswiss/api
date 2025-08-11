@@ -48,10 +48,10 @@ export class KrakenService extends ExchangeService {
     super(kraken, GetConfig().kraken);
   }
 
-  protected async updateOrderPrice(order: Order, price: number): Promise<string> {
+  protected async updateOrderPrice(order: Order, amount: number, price: number): Promise<string> {
     // order ID does not change for Kraken
-    return this.callApi((e) =>
-      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price),
-    ).then(() => order.id);
+    return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, amount, price)).then(
+      () => order.id,
+    );
   }
 }

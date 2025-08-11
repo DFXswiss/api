@@ -23,11 +23,13 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { Setup2faDto, TfaType } from '../dto/output/setup-2fa.dto';
 
 const TfaValidityHours = 24;
+const TfaMaxTryCount = 5;
 
 interface SecretCacheEntry {
   type: TfaType;
   secret: string;
   expiryDate: Date;
+  tryCount: number;
 }
 
 export enum TfaLevel {
@@ -72,6 +74,7 @@ export class TfaService {
         type,
         secret,
         expiryDate: Util.minutesAfter(codeExpiryMinutes),
+        tryCount: 0,
       });
 
       // send mail
@@ -89,6 +92,7 @@ export class TfaService {
         type,
         secret,
         expiryDate: Util.hoursAfter(3),
+        tryCount: 0,
       });
 
       return { type, secret, uri };
@@ -103,21 +107,32 @@ export class TfaService {
 
     const cacheEntry = this.secretCache.get(user.id);
 
-    if (cacheEntry?.type === TfaType.MAIL) {
-      if (token !== cacheEntry.secret) throw new ForbiddenException('Invalid or expired 2FA token');
+    if (cacheEntry?.tryCount >= TfaMaxTryCount) {
+      this.secretCache.delete(user.id);
+      throw new ForbiddenException('Invalid or expired 2FA token');
+    }
 
-      level = user.users.length > 0 ? TfaLevel.STRICT : TfaLevel.BASIC;
-      type = TfaType.MAIL;
-    } else {
-      const secret = user.totpSecret ?? cacheEntry?.secret;
-      if (!secret) throw new NotFoundException('2FA not set up');
+    try {
+      if (cacheEntry?.type === TfaType.MAIL) {
+        if (token !== cacheEntry.secret) throw new ForbiddenException('Invalid or expired 2FA token');
 
-      this.verifyOrThrow(secret, token);
+        level = user.users.length > 0 ? TfaLevel.STRICT : TfaLevel.BASIC;
+        type = TfaType.MAIL;
+      } else {
+        const secret = user.totpSecret ?? cacheEntry?.secret;
+        if (!secret) throw new NotFoundException('2FA not set up');
 
-      if (!user.totpSecret) await this.userDataService.updateTotpSecret(user, secret);
+        this.verifyOrThrow(secret, token);
 
-      level = TfaLevel.STRICT;
-      type = TfaType.APP;
+        if (!user.totpSecret) await this.userDataService.updateTotpSecret(user, secret);
+
+        level = TfaLevel.STRICT;
+        type = TfaType.APP;
+      }
+    } catch (e) {
+      if (cacheEntry) cacheEntry.tryCount++;
+
+      throw e;
     }
 
     this.secretCache.delete(user.id);

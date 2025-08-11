@@ -557,11 +557,12 @@ export class Configuration {
     evmSeed: process.env.PAYMENT_EVM_SEED,
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
-    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     citreaTestnetAddress: process.env.PAYMENT_CITREA_TESTNET_ADDRESS,
+    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
     minConfirmations: (blockchain: Blockchain) =>
-      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO].includes(blockchain) ? 6 : 100,
+      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
@@ -790,9 +791,12 @@ export class Configuration {
       node: {
         url: process.env.ZANO_NODE_URL,
       },
-      rpc: {
-        url: process.env.ZANO_RPC_URL,
+      wallet: {
+        url: process.env.ZANO_WALLET_URL,
+        address: process.env.ZANO_WALLET_ADDRESS,
       },
+      coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
+      fee: 0.01,
     },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,

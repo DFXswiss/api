@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -10,13 +11,14 @@ import { merge } from 'lodash';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
-import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { Not } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
+import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
@@ -47,7 +49,6 @@ export class PaymentLinkService {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly userDataService: UserDataService,
-    private readonly countryService: CountryService,
     private readonly sellService: SellService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
@@ -220,8 +221,10 @@ export class PaymentLinkService {
   ): Promise<PaymentLinkPayRequestDto> {
     const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(uniqueId);
 
-    if (mostRecentPayment.status === PaymentLinkPaymentStatus.COMPLETED)
-      throw new ConflictException(await this.paymentCompleteErrorResponse(uniqueId, standardParam));
+    if (mostRecentPayment.status === PaymentLinkPaymentStatus.COMPLETED) {
+      const paymentLink = await this.getActivePaymentLink(uniqueId);
+      return this.handleError(paymentLink, standardParam, ConflictException, 'Payment complete');
+    }
 
     return this.createPayRequest(uniqueId, standardParam);
   }
@@ -232,7 +235,7 @@ export class PaymentLinkService {
     waitTimeout = 10,
   ): Promise<PaymentLinkPayRequestDto> {
     const pendingPayment = await this.waitForPendingPayment(uniqueId, waitTimeout);
-    if (!pendingPayment) throw new NotFoundException(await this.noPendingPaymentErrorResponse(uniqueId, standardParam));
+    if (!pendingPayment) await this.handleNoPendingPayment(uniqueId, standardParam);
 
     const { standards, displayQr } = pendingPayment.link.configObj;
     const usedStandard = pendingPayment.link.getMatchingStandard(standardParam);
@@ -283,45 +286,34 @@ export class PaymentLinkService {
     );
   }
 
-  private async noPendingPaymentErrorResponse(
-    uniqueId: string,
-    standardParam: PaymentStandard,
-  ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
-    const response = await this.createDefaultErrorResponse(uniqueId, standardParam);
-    if (typeof response === 'string') return response;
+  private async handleNoPendingPayment(uniqueId: string, standardParam: PaymentStandard): Promise<never> {
+    const paymentLink = await this.getActivePaymentLink(uniqueId);
 
-    response.statusCode = new NotFoundException().getStatus();
-    response.message = 'No pending payment found';
-    response.error = 'Not Found';
-
-    return response;
+    if (paymentLink.status === PaymentLinkStatus.UNASSIGNED) {
+      return this.handleError(paymentLink, standardParam, BadRequestException, 'Payment link not assigned');
+    } else {
+      return this.handleError(paymentLink, standardParam, NotFoundException, 'No pending payment found');
+    }
   }
 
-  private async paymentCompleteErrorResponse(
-    uniqueId: string,
+  private async handleError(
+    paymentLink: PaymentLink,
     standardParam: PaymentStandard,
-  ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
-    const response = await this.createDefaultErrorResponse(uniqueId, standardParam);
-    if (typeof response === 'string') return response;
+    ErrorType: new (...args: any[]) => HttpException,
+    message: string,
+  ): Promise<never> {
+    const response = await this.createDefaultErrorResponse(paymentLink, standardParam);
 
-    response.statusCode = new ConflictException().getStatus();
-    response.message = 'Payment complete';
-    response.error = 'Conflict';
+    const error = new ErrorType(message);
+    Object.assign(response, error.getResponse());
 
-    return response;
+    throw new ErrorType(response);
   }
 
   private async createDefaultErrorResponse(
-    uniqueId: string,
+    paymentLink: PaymentLink,
     standardParam: PaymentStandard,
-  ): Promise<PaymentLinkPaymentErrorResponseDto | string> {
-    const paymentLink = await this.paymentLinkRepo.findOne({
-      where: { uniqueId, status: PaymentLinkStatus.ACTIVE },
-      relations: { route: { user: { userData: true } } },
-    });
-
-    if (!paymentLink) return `Active payment link not found by id ${uniqueId}`;
-
+  ): Promise<PaymentLinkPaymentErrorResponseDto> {
     const { standards, displayQr } = paymentLink.configObj;
     const usedStandard = paymentLink.getMatchingStandard(standardParam);
 
@@ -367,6 +359,7 @@ export class PaymentLinkService {
     const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId, false);
 
     const { status, mode, label, webhookUrl, config } = dto;
+    if (status === PaymentLinkStatus.UNASSIGNED) throw new BadRequestException('Cannot update status to unassigned');
     if (mode === PaymentLinkMode.SINGLE) throw new BadRequestException('Cannot update mode to single');
 
     const updatePaymentLink: Partial<PaymentLink> = {
@@ -387,7 +380,7 @@ export class PaymentLinkService {
       where: { id },
       relations: { route: { user: { userData: true } } },
     });
-    if (!entity) throw new NotFoundException('PaymentLink not found');
+    if (!entity) throw new NotFoundException('Payment link not found');
 
     return this.updatePaymentLinkInternal(entity, dto);
   }
@@ -407,11 +400,7 @@ export class PaymentLinkService {
   }
 
   async activateC2BPaymentLink(paymentLinkUniqueId: string, provider: C2BPaymentProvider): Promise<void> {
-    const paymentLink = await this.paymentLinkRepo.findOne({
-      where: { uniqueId: paymentLinkUniqueId },
-      relations: { route: { user: { userData: true } } },
-    });
-    if (!paymentLink) throw new NotFoundException('Payment link not found');
+    const paymentLink = await this.getActivePaymentLink(paymentLinkUniqueId);
 
     const ids = await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
     const config = this.getMergedConfig(paymentLink, ids);
@@ -435,6 +424,35 @@ export class PaymentLinkService {
     await this.paymentLinkRepo.update(paymentLink.id, dto);
 
     return Object.assign(paymentLink, dto);
+  }
+
+  private async getActivePaymentLink(uniqueId: string): Promise<PaymentLink> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { uniqueId, status: Not(PaymentLinkStatus.INACTIVE) },
+      relations: { route: { user: { userData: true } } },
+    });
+    if (!paymentLink) throw new NotFoundException('Payment link not found');
+
+    return paymentLink;
+  }
+
+  public async assignPaymentLink(
+    id: number | undefined,
+    externalId: string | undefined,
+    dto: AssignPaymentLinkDto,
+  ): Promise<PaymentLink> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { id, externalId, status: PaymentLinkStatus.UNASSIGNED },
+      relations: { route: { user: { userData: true } } },
+    });
+    if (!paymentLink) throw new NotFoundException('Payment link not found');
+
+    const route = await this.sellService.getPaymentRouteForPublicName(dto.publicName);
+    if (!route) throw new NotFoundException('No matching payment route found');
+
+    await this.updatePaymentLinkInternal(paymentLink, { status: PaymentLinkStatus.ACTIVE, route });
+
+    return paymentLink;
   }
 
   // --- PAYMENTS --- //
@@ -525,6 +543,21 @@ export class PaymentLinkService {
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
 
+  async deletePaymentLink(linkId: number): Promise<void> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { id: linkId },
+      relations: { payments: { quotes: true, activations: true, cryptoInputs: true } },
+    });
+    if (!paymentLink) throw new NotFoundException('PaymentLink not found');
+    if (paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.COMPLETED || p.cryptoInputs?.length))
+      throw new BadRequestException('PaymentLink cannot be deleted with active payments');
+
+    for (const payment of paymentLink.payments) {
+      await this.paymentLinkPaymentService.deletePayment(payment);
+    }
+    await this.paymentLinkRepo.delete(paymentLink.id);
+  }
+
   async getPaymentLinkByAccessKey(
     key: string,
     externalLinkId?: string,
@@ -603,7 +636,7 @@ export class PaymentLinkService {
       where: { id: paymentLinkId },
       relations: { route: { user: { userData: true } } },
     });
-    if (!paymentLink) throw new NotFoundException('PaymentLink not found');
+    if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     return this.createPosLinkFor(paymentLink, scoped);
   }

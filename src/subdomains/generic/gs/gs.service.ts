@@ -165,6 +165,9 @@ export class GsService {
         request: true,
         custodyOrder: true,
       }),
+      buy: await this.buyService.getAllUserBuys(userIds),
+      sell: await this.sellService.getAllUserSells(userIds),
+      swap: await this.swapService.getAllUserSwaps(userIds),
     };
   }
 

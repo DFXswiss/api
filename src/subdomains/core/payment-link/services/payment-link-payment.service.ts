@@ -177,7 +177,7 @@ export class PaymentLinkPaymentService {
   }
 
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
-    if (paymentLink.status === PaymentLinkStatus.INACTIVE) throw new BadRequestException('Payment link is inactive');
+    if (paymentLink.status !== PaymentLinkStatus.ACTIVE) throw new BadRequestException('Payment link is not active');
 
     const pendingPayment = paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (pendingPayment)
@@ -272,6 +272,19 @@ export class PaymentLinkPaymentService {
   async cancelByPayment(payment: PaymentLinkPayment): Promise<void> {
     await this.doSave(payment.cancel(), true);
     await this.cancelQuotesForPayment(payment);
+  }
+
+  async deletePayment(payment: PaymentLinkPayment): Promise<void> {
+    if (payment.status === PaymentLinkPaymentStatus.COMPLETED)
+      throw new BadRequestException('PaymentLinkPayment is already completed, cannot be deleted');
+
+    for (const quote of payment.quotes) {
+      await this.paymentQuoteService.deleteQuote(quote);
+    }
+    for (const activation of payment.activations) {
+      await this.paymentActivationService.deleteActivation(activation);
+    }
+    await this.paymentLinkPaymentRepo.delete(payment.id);
   }
 
   private async cancelQuotesForPayment(payment: PaymentLinkPayment): Promise<void> {

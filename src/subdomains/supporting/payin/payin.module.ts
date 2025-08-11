@@ -29,6 +29,7 @@ import { PayInPolygonService } from './services/payin-polygon.service';
 import { PayInSolanaService } from './services/payin-solana.service';
 import { PayInTronService } from './services/payin-tron.service';
 import { PayInCitreaTestnetService } from './services/payin-citrea-testnet.service';
+import { PayInZanoService } from './services/payin-zano.service';
 import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
@@ -46,6 +47,7 @@ import { PolygonStrategy as PolygonStrategyR } from './strategies/register/impl/
 import { SolanaStrategy as SolanaStrategyR } from './strategies/register/impl/solana.strategy';
 import { TronStrategy as TronStrategyR } from './strategies/register/impl/tron.strategy';
 import { CitreaTestnetStrategy as CitreaTestnetStrategyR } from './strategies/register/impl/citrea-testnet.strategy';
+import { ZanoStrategy as ZanoStrategyR } from './strategies/register/impl/zano.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
 import { BaseCoinStrategy as BaseCoinStrategyS } from './strategies/send/impl/base-coin.strategy';
@@ -72,6 +74,7 @@ import { TronCoinStrategy as TronCoinStrategyS } from './strategies/send/impl/tr
 import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/tron-token.strategy';
 import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyS } from './strategies/send/impl/citrea-testnet-coin.strategy';
 import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyS } from './strategies/send/impl/citrea-testnet-token.strategy';
+import { ZanoStrategy as ZanoStrategyS } from './strategies/send/impl/zano.strategy';
 
 @Module({
   imports: [
@@ -98,6 +101,7 @@ import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyS } from './str
     PayInBitcoinService,
     PayInLightningService,
     PayInMoneroService,
+    PayInZanoService,
     PayInEthereumService,
     PayInBscService,
     PayInArbitrumService,
@@ -116,6 +120,8 @@ import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyS } from './str
     LightningStrategyS,
     MoneroStrategyR,
     MoneroStrategyS,
+    ZanoStrategyR,
+    ZanoStrategyS,
     EthereumStrategyR,
     EthereumCoinStrategyS,
     EthereumTokenStrategyS,

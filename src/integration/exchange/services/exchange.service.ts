@@ -138,13 +138,28 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
         // price changed -> update price
         if (price !== order.price) {
+          // adapt amount to price change (for buy orders)
+          let remainingAmount = order.remaining;
+          if (order.side === OrderSide.BUY) {
+            const { amount: amountPrecision } = await this.getPrecision(order.symbol);
+
+            remainingAmount = Util.floorToValue((order.remaining * order.price) / price, amountPrecision);
+          }
           this.logger.verbose(
-            `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${order.remaining}`,
+            `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${remainingAmount}`,
           );
-          const id = await this.updateOrderPrice(order, price).catch(async (e: ExchangeError) => {
-            await this.callApi((e) => e.cancelOrder(order.id, order.symbol)).catch((e) => {
-              this.logger.error(`Error while cancelling order ${order.id}:`, e);
-            });
+
+          const id = await this.updateOrderPrice(order, remainingAmount, price).catch(async (e: ExchangeError) => {
+            try {
+              const updatedOrder = await this.getTrade(order.id, from, to);
+              this.logger.verbose(`Could not update order ${order.id} price: ${JSON.stringify(updatedOrder)}`);
+            } catch (e) {
+              this.logger.error(`Failed to fetch order ${order.id} after update price error:`, e);
+            }
+
+            await this.callApi((e) => e.cancelOrder(order.id, order.symbol)).catch((e) =>
+              this.logger.error(`Error while cancelling order ${order.id}:`, e),
+            );
 
             throw e;
           });
@@ -286,7 +301,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const id = await this.placeOrder(pair, direction, orderAmount, price);
 
     this.logger.verbose(
-      `Order ${id} placed (pair: ${pair}, direction: ${direction}, amount: ${amount}, price: ${price})`,
+      `Order ${id} placed (pair: ${pair}, direction: ${direction}, amount: ${orderAmount}, price: ${price})`,
     );
 
     return id;
@@ -302,10 +317,10 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.callApi((e) => e.createOrder(pair, 'limit', direction, amount, price));
   }
 
-  protected async updateOrderPrice(order: Order, price: number): Promise<string> {
-    return this.callApi((e) =>
-      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price),
-    ).then((o) => o.id);
+  protected async updateOrderPrice(order: Order, amount: number, price: number): Promise<string> {
+    return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, amount, price)).then(
+      (o) => o.id,
+    );
   }
 
   // other

@@ -33,6 +33,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
@@ -151,6 +152,22 @@ export class PaymentLinkController {
     return this.paymentLinkService
       .createPosLinkUser(+jwt.user, +linkId, externalLinkId, externalPaymentId)
       .then((url) => ({ url }));
+  }
+
+  @Put('assign')
+  @ApiOkResponse({ type: PaymentLinkDto })
+  @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  async assignPaymentLink(
+    @Query('linkId') linkId: string,
+    @Query('externalLinkId') externalLinkId: string,
+    @Body() dto: AssignPaymentLinkDto,
+  ): Promise<PaymentLinkDto> {
+    if (!linkId && !externalLinkId) throw new BadRequestException('id or externalId is required');
+
+    return this.paymentLinkService
+      .assignPaymentLink(linkId && +linkId, externalLinkId, dto)
+      .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   // -- CONFIG --- //
@@ -332,6 +349,14 @@ export class PaymentLinkController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createPosLinkAdmin(@Param('id') id: string, @Query('scoped') scoped: string): Promise<string> {
     return this.paymentLinkService.createPosLinkAdmin(+id, scoped && scoped === 'true');
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async deletePaymentLink(@Param('id') id: string): Promise<void> {
+    return this.paymentLinkService.deletePaymentLink(+id);
   }
 
   @Get('stickers')

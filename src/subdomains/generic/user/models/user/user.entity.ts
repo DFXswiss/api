@@ -35,6 +35,7 @@ export enum UserAddressType {
   MONERO = 'Monero',
   LIQUID = 'Liquid',
   ARWEAVE = 'Arweave',
+  RAILGUN = 'Railgun',
   CARDANO = 'Cardano',
   SOLANA = 'Solana',
   TRON = 'Tron',

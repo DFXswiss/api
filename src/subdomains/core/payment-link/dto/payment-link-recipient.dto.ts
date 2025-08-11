@@ -33,7 +33,7 @@ export class PaymentLinkRecipientDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_protocol: true })
   website?: string;
 
   @ApiPropertyOptional()
