@@ -44,11 +44,11 @@ import {
   getIdentResult,
 } from '../dto/ident-result.dto';
 import { IdentDocument, IdentStatus } from '../dto/ident.dto';
+import { FileUploadData } from 'src/shared/dto/file-upload.dto';
 import {
   ContactPersonData,
   KycBeneficialData,
   KycContactData,
-  KycFileData,
   KycLegalEntityData,
   KycManualIdentData,
   KycNationalityData,
@@ -58,7 +58,7 @@ import {
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError } from '../dto/kyc-error.enum';
-import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
+import { FileType, KycFileDataDto, fileLabel } from '../dto/kyc-file.dto';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
@@ -481,16 +481,21 @@ export class KycService {
     return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
-  async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
+  async updateFileData(
+    kycHash: string,
+    stepId: number,
+    document: FileUploadData,
+    fileType: FileType,
+  ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     // upload file
-    const { contentType, buffer } = Util.fromBase64(data.file);
+    const { contentType, buffer } = Util.fromBase64(document.file);
     const { url } = await this.documentService.uploadUserFile(
       user,
       fileType,
-      data.fileName,
+      this.fileName(fileType, document.fileName),
       buffer,
       contentType as ContentType,
       false,
@@ -504,16 +509,22 @@ export class KycService {
     return KycStepMapper.toStepBase(kycStep);
   }
 
-  async updateLegalData(kycHash: string, stepId: number, data: KycLegalEntityData, fileType: FileType) {
+  async updateLegalData(
+    kycHash: string,
+    stepId: number,
+    data: KycLegalEntityData,
+    document: FileUploadData,
+    fileType: FileType,
+  ) {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     // upload file
-    const { contentType, buffer } = Util.fromBase64(data.file);
+    const { contentType, buffer } = Util.fromBase64(document.file);
     const { url } = await this.documentService.uploadUserFile(
       user,
       fileType,
-      data.fileName,
+      this.fileName(fileType, document.fileName),
       buffer,
       contentType as ContentType,
       false,
@@ -766,18 +777,23 @@ export class KycService {
     await this.updateProgress(user, false);
   }
 
-  async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycStepBase> {
+  async updateIdentManual(
+    kycHash: string,
+    stepId: number,
+    dto: KycManualIdentData,
+    document: FileUploadData,
+  ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     dto.nationality = await this.countryService.getCountry(dto.nationality.id);
     if (!dto.nationality) throw new NotFoundException('Country not found');
 
-    const { contentType, buffer } = Util.fromBase64(dto.document.file);
+    const { contentType, buffer } = Util.fromBase64(document.file);
     const { url } = await this.documentService.uploadUserFile(
       user,
       FileType.IDENTIFICATION,
-      `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${dto.document.fileName}`,
+      `${Util.isoDateTime(new Date()).split('-').join('')}_manual-ident_${Util.randomId()}_${document.fileName}`,
       buffer,
       contentType as ContentType,
       false,
@@ -1305,5 +1321,9 @@ export class KycService {
         fileSubType,
       );
     }
+  }
+
+  private fileName(type: FileType, fileName: string): string {
+    return `${Util.isoDateTime(new Date())}_${fileLabel[type]}_user-upload_${Util.randomId()}_${fileName}`;
   }
 }

@@ -1,5 +1,17 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -26,11 +38,17 @@ export class SupportIssueController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
-  async createIssue(@Body() dto: CreateSupportIssueDto, @GetJwt() jwt?: JwtPayload): Promise<SupportIssueDto> {
+  @UseInterceptors(FileInterceptor('file'))
+  async createIssue(
+    @Body() dto: CreateSupportIssueDto,
+    @GetJwt() jwt?: JwtPayload,
+    @UploadedFile() file?: Express.Multer.File,
+  ): Promise<SupportIssueDto> {
+    const document = file ? { fileName: file.originalname, file: file.buffer.toString('base64') } : undefined;
     const input: CreateSupportIssueDto = { ...dto, author: CustomerAuthor, department: Department.SUPPORT };
     return jwt?.account
-      ? this.supportIssueService.createIssue(jwt.account, input)
-      : this.supportIssueService.createTransactionRequestIssue(input);
+      ? this.supportIssueService.createIssue(jwt.account, input, document)
+      : this.supportIssueService.createTransactionRequestIssue(input, document);
   }
 
   @Post('support')
@@ -65,14 +83,17 @@ export class SupportIssueController {
   @Post(':id/message')
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
   async createSupportMessage(
-    @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
     @Body() dto: CreateSupportMessageDto,
+    @GetJwt() jwt?: JwtPayload,
+    @UploadedFile() file?: Express.Multer.File,
   ): Promise<SupportMessageDto> {
+    const document = file ? { fileName: file.originalname, file: file.buffer.toString('base64') } : undefined;
     return [UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN].includes(jwt.role)
-      ? this.supportIssueService.createMessageSupport(+id, dto)
-      : this.supportIssueService.createMessage(id, dto, jwt?.account);
+      ? this.supportIssueService.createMessageSupport(+id, dto, document)
+      : this.supportIssueService.createMessage(id, dto, jwt?.account, document);
   }
 
   @Get(':id/message/:messageId/file')

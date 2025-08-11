@@ -20,6 +20,20 @@ export enum FileType {
   AUTHORITY = 'Authority',
 }
 
+export const fileLabel: { [key in FileType]: string } = {
+  [FileType.NAME_CHECK]: 'name-check',
+  [FileType.USER_INFORMATION]: 'user-information',
+  [FileType.IDENTIFICATION]: 'identification',
+  [FileType.USER_NOTES]: 'user-notes',
+  [FileType.TRANSACTION_NOTES]: 'transaction-notes',
+  [FileType.STOCK_REGISTER]: 'stock-register',
+  [FileType.COMMERCIAL_REGISTER]: 'commercial-register',
+  [FileType.RESIDENCE_PERMIT]: 'residence-permit',
+  [FileType.STATUTES]: 'statutes',
+  [FileType.ADDITIONAL_DOCUMENTS]: 'additional-documents',
+  [FileType.AUTHORITY]: 'authority',
+};
+
 export enum FileSubType {
   GWG_FILE_COVER = 'GwGFileCover',
   BLOCKCHAIN_ADDRESS_ANALYSIS = 'BlockchainAddressAnalysis',
