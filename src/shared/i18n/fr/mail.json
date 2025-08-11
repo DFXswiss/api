@@ -289,6 +289,11 @@
         "title": "Transaction volume approved",
         "message": "Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you."
     },
+    "account_deactivation": {
+        "title": "Compte désactivé",
+        "salutation": "Compte désactivé avec succès",
+        "message": "Vous avez maintenant désactivé votre compte avec succès. Si vous souhaitez réactiver votre compte, vous devez vous connecter via votre adresse e-mail."
+    },
     "support_message": {
         "title": "Nouveau message de soutien",
         "salutation": "Vous avez reçu un message d'assistance",

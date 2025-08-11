@@ -289,6 +289,11 @@
         "title": "Transaktionsvolumen genehmigt",
         "message": "Deine Anfrage von {limitAmount} EUR Transaktionsvolumen wurde genehmigt und steht dir nun frei zur Verfügung."
     },
+    "account_deactivation": {
+        "title": "Account deaktiviert",
+        "salutation": "Account erfolgreich deaktiviert",
+        "message": "Du hast deinen Account nun erfolgreich deaktiviert. Wenn du deinen Account wieder aktivieren möchtest musst du einen Login per Mail durchführen."
+    },
     "support_message": {
         "title": "Neue Support Nachricht",
         "salutation": "Du hast eine Support Nachricht erhalten",
