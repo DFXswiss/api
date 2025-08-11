@@ -49,6 +49,19 @@ describe('CryptoService', () => {
     ).toEqual(Blockchain.MONERO);
   });
 
+  it('should match zano addresses', async () => {
+    expect(
+      getBlockchain(
+        'ZxCkEgHf3ci8hgBfboZeCENaYrHBYZ1bLFi5cgWvn4WJLaxfgs4kqG6cJi9ai2zrXWSCpsvRXit14gKjeijx6YPC1zT8rneEf',
+      ),
+    ).toEqual(Blockchain.ZANO);
+    expect(
+      getBlockchain(
+        'iZ2EMyPD7g28hgBfboZeCENaYrHBYZ1bLFi5cgWvn4WJLaxfgs4kqG6cJi9ai2zrXWSCpsvRXit14gKjeijx6YPCLJCxmeGP5Bm1R1rRJiNz',
+      ),
+    ).toEqual(Blockchain.ZANO);
+  });
+
   it('should match liquid addresses', async () => {
     expect(getBlockchain('VTpwKsrwasw7VnNf4GHMmcjNY3MR2Q81GaxDv7EyhVS8rzj5exX5b5PF6g29Szb4jrMqKSUwP2ZGnXt4')).toEqual(
       Blockchain.LIQUID,

@@ -36,14 +36,14 @@ export class CryptoService {
   ];
 
   constructor(
+    private readonly bitcoinService: BitcoinService,
     private readonly lightningService: LightningService,
     private readonly moneroService: MoneroService,
     private readonly zanoService: ZanoService,
-    private readonly arweaveService: ArweaveService,
-    private readonly bitcoinService: BitcoinService,
-    private readonly railgunService: RailgunService,
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
+    private readonly arweaveService: ArweaveService,
+    private readonly railgunService: RailgunService,
   ) {}
 
   // --- PAYMENT REQUEST --- //
@@ -57,11 +57,17 @@ export class CryptoService {
     if (!isValid) return undefined;
 
     switch (asset.blockchain) {
+      case Blockchain.BITCOIN:
+        return this.bitcoinService.getPaymentRequest(address, amount, label);
+
       case Blockchain.LIGHTNING:
         return this.lightningService.getInvoiceByLnurlp(address, amount);
 
-      case Blockchain.BITCOIN:
-        return this.bitcoinService.getPaymentRequest(address, amount, label);
+      case Blockchain.MONERO:
+        return this.moneroService.getPaymentRequest(address, amount);
+
+      case Blockchain.ZANO:
+        return this.zanoService.getPaymentRequest(address, amount);
 
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
@@ -72,9 +78,6 @@ export class CryptoService {
       case Blockchain.HAQQ:
       case Blockchain.BINANCE_SMART_CHAIN:
         return EvmUtil.getPaymentRequest(address, asset, amount);
-
-      case Blockchain.MONERO:
-        return this.moneroService.getPaymentRequest(address, amount);
 
       case Blockchain.SOLANA:
         return this.solanaService.getPaymentRequest(address, amount);
@@ -97,6 +100,12 @@ export class CryptoService {
         if (address.startsWith('$')) return UserAddressType.UMA;
         return LightningHelper.getAddressType(address) as unknown as UserAddressType;
 
+      case Blockchain.MONERO:
+        return UserAddressType.MONERO;
+
+      case Blockchain.ZANO:
+        return UserAddressType.ZANO;
+
       case Blockchain.ETHEREUM:
       case Blockchain.BINANCE_SMART_CHAIN:
       case Blockchain.POLYGON:
@@ -106,12 +115,6 @@ export class CryptoService {
       case Blockchain.GNOSIS:
       case Blockchain.HAQQ:
         return UserAddressType.EVM;
-
-      case Blockchain.MONERO:
-        return UserAddressType.MONERO;
-
-      case Blockchain.ZANO:
-        return UserAddressType.ZANO;
 
       case Blockchain.SOLANA:
         return UserAddressType.SOLANA;
@@ -127,6 +130,9 @@ export class CryptoService {
 
       case Blockchain.CARDANO:
         return UserAddressType.CARDANO;
+
+      case Blockchain.RAILGUN:
+        return UserAddressType.RAILGUN;
 
       default:
         return UserAddressType.OTHER;
@@ -217,10 +223,10 @@ export class CryptoService {
       if (blockchain === Blockchain.TRON) return await this.verifyTron(message, address, signature);
       if (blockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
       if (blockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
-      if (blockchain === Blockchain.DEFICHAIN)
-        return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
       if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
       if (blockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
+      if (blockchain === Blockchain.DEFICHAIN)
+        return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
     } catch {}
 
     return false;

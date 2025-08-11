@@ -6,15 +6,15 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { SellLiquidityStrategy } from './base/sell-liquidity.strategy';
 
 @Injectable()
-export class MoneroStrategy extends SellLiquidityStrategy {
-  protected readonly logger = new DfxLogger(MoneroStrategy);
+export class ZanoStrategy extends SellLiquidityStrategy {
+  protected readonly logger = new DfxLogger(ZanoStrategy);
 
   constructor(protected readonly assetService: AssetService) {
     super();
   }
 
   get blockchain(): Blockchain {
-    return Blockchain.MONERO;
+    return Blockchain.ZANO;
   }
 
   get assetType(): AssetType {
@@ -22,14 +22,14 @@ export class MoneroStrategy extends SellLiquidityStrategy {
   }
 
   sellLiquidity(): Promise<void> {
-    throw new Error('Selling liquidity on DEX is not supported for monero');
+    throw new Error('Selling liquidity on DEX is not supported for zano');
   }
 
   addSellData(): Promise<void> {
-    throw new Error('Selling liquidity on DEX is not supported for monero');
+    throw new Error('Selling liquidity on DEX is not supported for zano');
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getMoneroCoin();
+    return this.assetService.getZanoCoin();
   }
 }
