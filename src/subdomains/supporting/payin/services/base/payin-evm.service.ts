@@ -50,6 +50,6 @@ export abstract class PayInEvmService {
   }
 
   async getCurrentBlockNumber(): Promise<number> {
-    return this.#client.provider.getBlockNumber();
+    return this.#client.getCurrentBlock();
   }
 }

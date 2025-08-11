@@ -54,7 +54,7 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
   @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     if (this.isProcessing) {
-      this.logger.debug('Previous CitreaTestnet processing still running, skipping this iteration');
+      this.logger.verbose('Previous CitreaTestnet processing still running, skipping this iteration');
       return;
     }
     
@@ -104,7 +104,7 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
         return { entries: [], processedBlock: null };
       }
       
-      this.logger.debug(`Processing CitreaTestnet blocks ${fromBlock} to ${toBlock}`);
+      this.logger.verbose(`Processing CitreaTestnet blocks ${fromBlock} to ${toBlock}`);
       
       // Get all transactions for monitored addresses
       const allEntries = await this.fetchTransactionsForBlockRange(fromBlock, toBlock);
@@ -202,7 +202,7 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
     
     // Prevent memory leaks by clearing old transactions
     if (this.processedTransactions.size > this.MAX_PROCESSED_TRANSACTIONS) {
-      this.logger.debug('Clearing processed transactions cache to prevent memory leaks');
+      this.logger.verbose('Clearing processed transactions cache to prevent memory leaks');
       this.processedTransactions.clear();
     }
   }
@@ -224,7 +224,7 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
       senderAddresses: tx.from,
       receiverAddress: BlockchainAddress.create(tx.to, Blockchain.CITREA_TESTNET),
       txId: tx.hash,
-      txType: this.getTxType(monitoredAddress),
+      txType: this.determineTxType(monitoredAddress),
       txSequence: 0, // EVM coin transactions have single output
       blockHeight: parseInt(tx.blockNumber),
       amount: parseFloat(tx.value),
@@ -248,13 +248,13 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
         const tx = txGroup[i];
         try {
           // Get the asset for this token by contract address
-          const asset = await this.assetService.getAssetByChainId(tx.contractAddress, Blockchain.CITREA_TESTNET);
+          const asset = await this.assetService.getAssetByChainId(Blockchain.CITREA_TESTNET, tx.contractAddress);
           
           entries.push({
             senderAddresses: tx.from,
             receiverAddress: BlockchainAddress.create(tx.to, Blockchain.CITREA_TESTNET),
             txId: tx.hash,
-            txType: this.getTxType(monitoredAddress),
+            txType: this.determineTxType(monitoredAddress),
             txSequence: i, // Use index for multiple token transfers in same transaction
             blockHeight: parseInt(tx.blockNumber),
             amount: parseFloat(tx.value),
@@ -270,7 +270,7 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
     return entries;
   }
   
-  private getTxType(monitoredAddress: string): PayInType | undefined {
+  private determineTxType(monitoredAddress: string): PayInType | undefined {
     // Determine if this is a payment or deposit based on the address
     return Util.equalsIgnoreCase(Config.payment.citreaTestnetAddress, monitoredAddress) 
       ? PayInType.PAYMENT 
