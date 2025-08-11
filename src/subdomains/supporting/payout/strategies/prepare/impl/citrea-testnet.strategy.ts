@@ -16,9 +16,6 @@ export class CitreaTestnetStrategy extends EvmStrategy {
   }
 
   protected async getFeeAsset(): Promise<Asset> {
-    // CitreaTestnet uses native token for fees
-    // This should return the native CitreaTestnet token
-    // For now, returning undefined until proper asset is configured
-    return undefined;
+    return this.assetService.getCitreaTestnetCoin();
   }
 }

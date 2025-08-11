@@ -70,8 +70,7 @@ export class CitreaTestnetClient extends EvmClient {
     direction = Direction.BOTH,
   ): Promise<EvmCoinHistoryEntry[]> {
     if (!this.goldsky) {
-      this.logger.warn('CitreaTestnet: Goldsky service not configured, transaction history not available');
-      return [];
+      throw new Error('CitreaTestnet: Goldsky service is required for transaction history. Please configure CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL.');
     }
 
     try {
@@ -91,8 +90,7 @@ export class CitreaTestnetClient extends EvmClient {
     direction = Direction.BOTH,
   ): Promise<EvmTokenHistoryEntry[]> {
     if (!this.goldsky) {
-      this.logger.warn('CitreaTestnet: Goldsky service not configured, ERC20 transaction history not available');
-      return [];
+      throw new Error('CitreaTestnet: Goldsky service is required for ERC20 transaction history. Please configure CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL.');
     }
 
     try {

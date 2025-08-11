@@ -20,8 +20,8 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
     this.addressWebhookMessageQueue = new QueueHandler();
     this.assetTransfersMessageQueue = new QueueHandler();
 
-    // Note: CitreaTestnet doesn't have Alchemy support yet
-    // Webhook and asset transfer subscriptions would need alternative implementation
+    // CitreaTestnet uses Goldsky instead of Alchemy for transaction monitoring
+    // Webhook subscriptions are not yet implemented for this network
   }
 
   get blockchain(): Blockchain {
@@ -36,6 +36,10 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
    * cannot be filtered as a dust input, because fees can go high
    */
   protected getOwnAddresses(): string[] {
-    return [Config.blockchain.citreaTestnet?.citreaTestnetWalletAddress ?? ''];
+    const citreaConfig = Config.blockchain.citreaTestnet;
+    if (!citreaConfig || !citreaConfig.citreaTestnetWalletAddress) {
+      throw new Error('CitreaTestnet configuration is missing. CITREA_TESTNET_WALLET_ADDRESS must be configured.');
+    }
+    return [citreaConfig.citreaTestnetWalletAddress];
   }
 }

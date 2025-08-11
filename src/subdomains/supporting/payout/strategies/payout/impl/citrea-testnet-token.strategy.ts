@@ -31,15 +31,11 @@ export class CitreaTestnetTokenStrategy extends EvmStrategy {
     return this.citreaTestnetService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(): Promise<number> {
-    // CitreaTestnet gas calculation for token transfers
-    // For now, return a default value until properly implemented
-    return Promise.resolve(0.002);
+  protected getCurrentGasForTransaction(token: Asset): Promise<number> {
+    return this.citreaTestnetService.getCurrentGasForTokenTransaction(token);
   }
 
   protected async getFeeAsset(): Promise<Asset> {
-    // Should return the native CitreaTestnet token for gas fees
-    // For now, returning undefined until proper asset is configured
-    return undefined;
+    return this.assetService.getCitreaTestnetCoin();
   }
 }

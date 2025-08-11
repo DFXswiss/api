@@ -27,8 +27,12 @@ export class GoldskyService {
   private readonly logger = new DfxLogger(GoldskyService);
 
   private getEndpoints() {
+    const config = GetConfig().blockchain.citreaTestnet;
+    if (!config) {
+      throw new Error('CitreaTestnet configuration is missing');
+    }
     return {
-      'citrea-testnet': GetConfig().blockchain?.citreaTestnet?.goldskySubgraphUrl,
+      'citrea-testnet': config.goldskySubgraphUrl,
       'citrea-devnet': undefined, // Add when needed
     };
   }
@@ -41,8 +45,7 @@ export class GoldskyService {
   ): Promise<GoldskyTransfer[]> {
     const endpoint = this.getEndpoint(network);
     if (!endpoint) {
-      this.logger.warn(`No Goldsky endpoint configured for ${network}`);
-      return [];
+      throw new Error(`No Goldsky endpoint configured for ${network}. Please configure the subgraph URL.`);
     }
 
     const query = gql`
@@ -90,8 +93,7 @@ export class GoldskyService {
   ): Promise<GoldskyTokenTransfer[]> {
     const endpoint = this.getEndpoint(network);
     if (!endpoint) {
-      this.logger.warn(`No Goldsky endpoint configured for ${network}`);
-      return [];
+      throw new Error(`No Goldsky endpoint configured for ${network}. Please configure the subgraph URL.`);
     }
 
     const query = gql`
@@ -148,10 +150,6 @@ export class GoldskyService {
 
   private getEndpoint(network: 'citrea-testnet' | 'citrea-devnet'): string | undefined {
     const endpoints = this.getEndpoints();
-    const endpoint = endpoints[network];
-    if (!endpoint) {
-      return undefined;
-    }
-    return endpoint;
+    return endpoints[network];
   }
 }

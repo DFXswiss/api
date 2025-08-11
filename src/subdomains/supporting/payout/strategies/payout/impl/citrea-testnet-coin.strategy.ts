@@ -32,14 +32,10 @@ export class CitreaTestnetCoinStrategy extends EvmStrategy {
   }
 
   protected getCurrentGasForTransaction(): Promise<number> {
-    // CitreaTestnet gas calculation
-    // For now, return a default value until properly implemented
-    return Promise.resolve(0.001);
+    return this.citreaTestnetService.getCurrentGasForCoinTransaction();
   }
 
   protected async getFeeAsset(): Promise<Asset> {
-    // Should return the native CitreaTestnet token
-    // For now, returning undefined until proper asset is configured
-    return undefined;
+    return this.assetService.getCitreaTestnetCoin();
   }
 }
