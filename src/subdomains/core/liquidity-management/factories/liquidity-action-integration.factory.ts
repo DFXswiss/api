@@ -7,6 +7,7 @@ import { DfxDexAdapter } from '../adapters/actions/dfx-dex.adapter';
 import { FrankencoinAdapter } from '../adapters/actions/frankencoin.adapter';
 import { KrakenAdapter } from '../adapters/actions/kraken.adapter';
 import { LiquidityPipelineAdapter } from '../adapters/actions/liquidity-pipeline.adapter';
+import { MexcAdapter } from '../adapters/actions/mexc.adapter';
 import { OptimismL2BridgeAdapter } from '../adapters/actions/optimism-l2-bridge.adapter';
 import { PolygonL2BridgeAdapter } from '../adapters/actions/polygon-l2-bridge.adapter';
 import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
@@ -25,6 +26,7 @@ export class LiquidityActionIntegrationFactory {
     readonly baseL2BridgeAdapter: BaseL2BridgeAdapter,
     readonly krakenAdapter: KrakenAdapter,
     readonly binanceAdapter: BinanceAdapter,
+    readonly mexcAdapter: MexcAdapter,
     readonly liquidityPipelineAdapter: LiquidityPipelineAdapter,
     readonly frankencoinAdapter: FrankencoinAdapter,
     readonly deuroAdapter: DEuroAdapter,
@@ -36,6 +38,7 @@ export class LiquidityActionIntegrationFactory {
     this.adapters.set(LiquidityManagementSystem.BASE_L2_BRIDGE, baseL2BridgeAdapter);
     this.adapters.set(LiquidityManagementSystem.KRAKEN, krakenAdapter);
     this.adapters.set(LiquidityManagementSystem.BINANCE, binanceAdapter);
+    this.adapters.set(LiquidityManagementSystem.MEXC, mexcAdapter);
     this.adapters.set(LiquidityManagementSystem.LIQUIDITY_PIPELINE, liquidityPipelineAdapter);
 
     this.adapters.set(LiquidityManagementSystem.FRANKENCOIN, frankencoinAdapter);
