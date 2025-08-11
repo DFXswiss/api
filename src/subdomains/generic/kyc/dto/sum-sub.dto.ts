@@ -375,7 +375,7 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
     }
 
     case SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED:
-      if (dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN) return IdentShortResult.MEDIA;
+      if (dto.reviewResult?.reviewAnswer === ReviewAnswer.GREEN) return IdentShortResult.MEDIA;
       break;
   }
 }
