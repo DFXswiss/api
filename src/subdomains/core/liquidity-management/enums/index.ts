@@ -8,7 +8,7 @@ export enum LiquidityManagementSystem {
   CAKE = 'Cake',
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
-  MEXC = 'Mexc',
+  MEXC = 'MEXC',
   DFX_DEX = 'DfxDex',
   ARBITRUM_L2_BRIDGE = 'ArbitrumL2Bridge',
   OPTIMISM_L2_BRIDGE = 'OptimismL2Bridge',
