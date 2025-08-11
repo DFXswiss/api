@@ -48,4 +48,8 @@ export abstract class PayInEvmService {
 
     return [allCoinTransactions, allTokenTransactions];
   }
+
+  async getCurrentBlockNumber(): Promise<number> {
+    return this.#client.provider.getBlockNumber();
+  }
 }

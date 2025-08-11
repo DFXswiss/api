@@ -27,12 +27,8 @@ export class GoldskyService {
   private readonly logger = new DfxLogger(GoldskyService);
 
   private getEndpoints() {
-    const config = GetConfig().blockchain.citreaTestnet;
-    if (!config) {
-      throw new Error('CitreaTestnet configuration is missing');
-    }
     return {
-      'citrea-testnet': config.goldskySubgraphUrl,
+      'citrea-testnet': GetConfig().blockchain.citreaTestnet.goldskySubgraphUrl,
       'citrea-devnet': undefined, // Add when needed
     };
   }

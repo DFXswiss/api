@@ -559,6 +559,7 @@ export class Configuration {
     tronSeed: process.env.PAYMENT_TRON_SEED,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
+    citreaTestnetAddress: process.env.PAYMENT_CITREA_TESTNET_ADDRESS,
     minConfirmations: (blockchain: Blockchain) =>
       [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF

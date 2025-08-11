@@ -11,7 +11,7 @@ import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from '../shared/evm/interfa
 export class CitreaTestnetClient extends EvmClient {
   private readonly logger = new DfxLogger(CitreaTestnetClient);
 
-  private readonly goldsky: GoldskyService;
+  private readonly goldsky?: GoldskyService;
 
   constructor(params: EvmClientParams) {
     // Pass params without alchemyService since Citrea isn't supported by Alchemy
@@ -62,7 +62,7 @@ export class CitreaTestnetClient extends EvmClient {
     return balances;
   }
 
-  // Transaction history methods - Use Goldsky if available, otherwise return empty
+  // Transaction history methods - Require Goldsky service for transaction history
   async getNativeCoinTransactions(
     walletAddress: string,
     fromBlock: number,
@@ -73,14 +73,8 @@ export class CitreaTestnetClient extends EvmClient {
       throw new Error('CitreaTestnet: Goldsky service is required for transaction history. Please configure CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL.');
     }
 
-    try {
-      const transfers = await this.goldsky.getNativeCoinTransfers('citrea-testnet', walletAddress, fromBlock, toBlock);
-
-      return this.mapGoldskyToEvmCoinHistory(transfers, walletAddress, direction);
-    } catch (error) {
-      this.logger.error('Failed to fetch native coin transactions from Goldsky:', error);
-      return [];
-    }
+    const transfers = await this.goldsky.getNativeCoinTransfers('citrea-testnet', walletAddress, fromBlock, toBlock);
+    return this.mapGoldskyToEvmCoinHistory(transfers, walletAddress, direction);
   }
 
   async getERC20Transactions(
@@ -93,14 +87,8 @@ export class CitreaTestnetClient extends EvmClient {
       throw new Error('CitreaTestnet: Goldsky service is required for ERC20 transaction history. Please configure CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL.');
     }
 
-    try {
-      const transfers = await this.goldsky.getTokenTransfers('citrea-testnet', walletAddress, fromBlock, toBlock);
-
-      return this.mapGoldskyToEvmTokenHistory(transfers, walletAddress, direction);
-    } catch (error) {
-      this.logger.error('Failed to fetch ERC20 transactions from Goldsky:', error);
-      return [];
-    }
+    const transfers = await this.goldsky.getTokenTransfers('citrea-testnet', walletAddress, fromBlock, toBlock);
+    return this.mapGoldskyToEvmTokenHistory(transfers, walletAddress, direction);
   }
 
   private mapGoldskyToEvmCoinHistory(

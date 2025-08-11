@@ -54,7 +54,7 @@ export enum Direction {
 export abstract class EvmClient extends BlockchainClient {
   readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
-  protected readonly goldskyService: GoldskyService; // Optional Goldsky service
+  protected readonly goldskyService?: GoldskyService; // Optional Goldsky service
   readonly chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;

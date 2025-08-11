@@ -35,7 +35,7 @@ export class CitreaTestnetCoinStrategy extends EvmStrategy {
     return this.citreaTestnetService.getCurrentGasForCoinTransaction();
   }
 
-  protected async getFeeAsset(): Promise<Asset> {
+  protected getFeeAsset(): Promise<Asset> {
     return this.assetService.getCitreaTestnetCoin();
   }
 }
