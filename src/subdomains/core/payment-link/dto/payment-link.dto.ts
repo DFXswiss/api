@@ -160,10 +160,10 @@ export class PaymentLinkDto extends PaymentLinkBaseDto {
 }
 
 export class PaymentLinkHistoryDto extends PaymentLinkBaseDto {
-  @ApiPropertyOptional({ type: PaymentLinkPaymentDto, isArray: true })
+  @ApiProperty({ type: PaymentLinkPaymentDto, isArray: true })
   payments: PaymentLinkPaymentDto[];
 
-  @ApiPropertyOptional()
+  @ApiProperty()
   totalCompletedAmount: number;
 }
 
