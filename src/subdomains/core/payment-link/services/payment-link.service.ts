@@ -111,7 +111,7 @@ export class PaymentLinkService {
     externalLinkId?: string,
   ): Promise<PaymentLink[]> {
     const ownerUserId = Boolean(key)
-      ? (await this.getPaymentLinkByAccessKey(key, externalLinkId)).route.user.id
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId).then((pl) => pl.route.user.id)
       : userId;
 
     const paymentStatus = status?.split(',').map((s) => Util.toEnum(PaymentLinkPaymentStatus, s)) ?? [
