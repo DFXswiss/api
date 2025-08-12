@@ -393,6 +393,7 @@ export class TransactionHelper implements OnModuleInit {
     isFiat: boolean,
   ): Promise<RefundDataDto> {
     const inputCurrency = await this.getRefundActive(refundEntity);
+    if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
     const price = await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, false);
 

@@ -73,6 +73,9 @@ export class Asset extends IEntity {
   @Column({ default: false })
   paymentEnabled: boolean;
 
+  @Column({ default: true })
+  refundEnabled: boolean;
+
   @Column({ default: false })
   ikna: boolean;
 
@@ -108,7 +111,7 @@ export class Asset extends IEntity {
 
   @OneToOne(() => Bank, (bank) => bank.asset)
   bank?: Bank;
-  
+
   @OneToOne(() => LiquidityBalance, (b) => b.asset)
   balance?: LiquidityBalance;
 
