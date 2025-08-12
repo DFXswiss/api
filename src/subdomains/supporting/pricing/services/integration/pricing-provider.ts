@@ -5,12 +5,6 @@ export abstract class PricingProvider {
   abstract getPrice(from: string, to: string, param?: string): Promise<Price>;
 
   getPriceStep(rule: PriceRule): PriceStep {
-    return PriceStep.create(
-      rule.rule.source,
-      rule.priceAsset,
-      rule.priceReference,
-      rule.currentPrice,
-      rule.priceTimestamp,
-    );
+    return PriceStep.create(rule.rule.source, rule.from, rule.to, rule.currentPrice, rule.priceTimestamp);
   }
 }
