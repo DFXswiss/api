@@ -199,6 +199,14 @@ export class AssetService {
     });
   }
 
+  async getZanoCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ZANO',
+      blockchain: Blockchain.ZANO,
+      type: AssetType.COIN,
+    });
+  }
+
   async getSolanaCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'SOL',

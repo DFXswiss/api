@@ -147,6 +147,8 @@ param moneroWalletAddress string
 @secure()
 param moneroRpcCertificate string
 
+param zanoWalletAddress string
+
 @secure()
 param solanaWalletSeed string
 param solanaGatewayUrl string
@@ -336,7 +338,7 @@ var lnBitsPort = '5000'
 var moneroNodePort = '18081'
 var moneroRpcPort = '18082'
 var zanoNodePort = '33122'
-var zanoRpcPort = '12233'
+var zanoWalletPort = '12233'
 
 var nodeProps = [
   {
@@ -985,12 +987,16 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: moneroRpcCertificate
         }
         {
+          name: 'ZANO_WALLET_ADDRESS'
+          value: zanoWalletAddress
+        }
+        {
           name: 'ZANO_NODE_URL'
           value: 'http://${btcNodes[1].outputs.ip}:${zanoNodePort}'
         }
         {
-          name: 'ZANO_RPC_URL'
-          value: 'http://${btcNodes[1].outputs.ip}:${zanoRpcPort}'
+          name: 'ZANO_WALLET_URL'
+          value: 'http://${btcNodes[1].outputs.ip}:${zanoWalletPort}'
         }
         {
           name: 'SOLANA_WALLET_SEED'

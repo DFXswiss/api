@@ -69,6 +69,7 @@ export class CreateKycFileDto {
   name: string;
   type: FileType;
   protected: boolean;
+  valid: boolean;
   userData: UserData;
   kycStep?: KycStep;
   subType?: FileSubType;
