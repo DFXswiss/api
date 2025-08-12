@@ -508,7 +508,7 @@ export class TransactionHelper implements OnModuleInit {
     throw new BadRequestException('Transaction type not supported for invoice generation');
   }
 
-  private async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat): Promise<Active> {
+  async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat): Promise<Active> {
     if (refundEntity instanceof BankTx) return this.fiatService.getFiatByName(refundEntity.currency);
     if (refundEntity instanceof BuyCrypto && refundEntity.bankTx)
       return this.fiatService.getFiatByName(refundEntity.bankTx.currency);
