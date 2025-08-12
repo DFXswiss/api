@@ -205,7 +205,7 @@ export class BuyCryptoPreparationService {
         cryptoInput: true,
         buy: true,
         cryptoRoute: true,
-        transaction: { user: { wallet: true, userData: true }, userData: true },
+        transaction: { user: { wallet: true }, userData: true },
       },
     });
 
@@ -240,6 +240,7 @@ export class BuyCryptoPreparationService {
           bankIn,
           undefined,
           entity.user,
+          entity.userData,
         );
 
         const maxNetworkFee = fee.network ? fee.network : referenceChfPrice.invert().convert(Config.maxBlockchainFee);

@@ -418,7 +418,8 @@ export class UserService {
     if (!user) throw new NotFoundException('User not found');
 
     return this.feeService.getUserFee({
-      user,
+      userData: user.userData,
+      wallet: user.wallet,
       paymentMethodIn,
       paymentMethodOut,
       from,
