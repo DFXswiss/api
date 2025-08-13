@@ -138,6 +138,6 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     ZanoStrategyPR,
     ZanoStrategyPO,
   ],
-  exports: [PayoutService, PayoutBitcoinService, PayoutMoneroService, PayoutZanoService, PayoutSolanaService],
+  exports: [PayoutService, PayoutBitcoinService, PayoutMoneroService, PayoutZanoService, PayoutSolanaService, PayoutCitreaTestnetService],
 })
 export class PayoutModule {}

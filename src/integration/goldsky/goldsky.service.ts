@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { gql, request } from 'graphql-request';
 import { GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { GoldskyNetwork } from './goldsky.types';
 
 export interface GoldskyTransfer {
   id: string;
@@ -26,15 +27,15 @@ export interface GoldskyTokenTransfer extends GoldskyTransfer {
 export class GoldskyService {
   private readonly logger = new DfxLogger(GoldskyService);
 
-  private getEndpoints() {
+  private getEndpoints(): Record<GoldskyNetwork, string | undefined> {
     return {
-      'citrea-testnet': GetConfig().blockchain.citreaTestnet.goldskySubgraphUrl,
-      'citrea-devnet': undefined, // Add when needed
+      [GoldskyNetwork.CitreaTestnet]: GetConfig().blockchain.citreaTestnet.goldskySubgraphUrl,
+      [GoldskyNetwork.CitreaDevnet]: undefined, // Add when needed
     };
   }
 
   async getNativeCoinTransfers(
-    network: 'citrea-testnet' | 'citrea-devnet',
+    network: GoldskyNetwork,
     address: string,
     fromBlock: number,
     toBlock?: number,
@@ -81,7 +82,7 @@ export class GoldskyService {
   }
 
   async getTokenTransfers(
-    network: 'citrea-testnet' | 'citrea-devnet',
+    network: GoldskyNetwork,
     address: string,
     fromBlock: number,
     toBlock?: number,
@@ -144,7 +145,7 @@ export class GoldskyService {
     }
   }
 
-  private getEndpoint(network: 'citrea-testnet' | 'citrea-devnet'): string | undefined {
+  private getEndpoint(network: GoldskyNetwork): string | undefined {
     const endpoints = this.getEndpoints();
     return endpoints[network];
   }
