@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import { GoldskyService, GoldskyTokenTransfer, GoldskyTransfer } from 'src/integration/goldsky/goldsky.service';
+import { GoldskyNetwork } from 'src/integration/goldsky/goldsky.types';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
@@ -73,7 +74,7 @@ export class CitreaTestnetClient extends EvmClient {
       throw new Error('CitreaTestnet: Goldsky service is required for transaction history. Please configure CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL.');
     }
 
-    const transfers = await this.goldsky.getNativeCoinTransfers('citrea-testnet', walletAddress, fromBlock, toBlock);
+    const transfers = await this.goldsky.getNativeCoinTransfers(GoldskyNetwork.CitreaTestnet, walletAddress, fromBlock, toBlock);
     return this.mapGoldskyToEvmCoinHistory(transfers, walletAddress, direction);
   }
 
@@ -87,7 +88,7 @@ export class CitreaTestnetClient extends EvmClient {
       throw new Error('CitreaTestnet: Goldsky service is required for ERC20 transaction history. Please configure CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL.');
     }
 
-    const transfers = await this.goldsky.getTokenTransfers('citrea-testnet', walletAddress, fromBlock, toBlock);
+    const transfers = await this.goldsky.getTokenTransfers(GoldskyNetwork.CitreaTestnet, walletAddress, fromBlock, toBlock);
     return this.mapGoldskyToEvmTokenHistory(transfers, walletAddress, direction);
   }
 

@@ -8,7 +8,6 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInCitreaTestnetService } from '../../../services/payin-citrea-testnet.service';
 import { PayInEntry } from '../../../interfaces';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { PayInType } from '../../../entities/crypto-input.entity';
@@ -20,7 +19,7 @@ import { EvmStrategy } from './base/evm.strategy';
 export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(CitreaTestnetStrategy);
   
-  private static readonly LAST_PROCESSED_BLOCK_KEY = 'citrea_testnet_last_processed_block';
+  private static readonly LAST_PROCESSED_BLOCK_KEY = 'citreaTestnetLastProcessedBlock';
   private lastProcessedBlock: number | null = null;
   private readonly processedTransactions = new Set<string>(); // For deduplication
   private readonly MAX_PROCESSED_TRANSACTIONS = 10000; // Prevent memory leaks
@@ -119,7 +118,7 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
       // Return entries and the block number to process AFTER successful save
       return { entries: newEntries, processedBlock: toBlock };
     } catch (error) {
-      this.logger.error('Failed to fetch new CitreaTestnet transactions:', error);
+      // Error logging is done by @DfxCron
       return { entries: [], processedBlock: null };
     }
   }
@@ -208,13 +207,7 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
   }
   
   private async getCurrentBlock(): Promise<number> {
-    try {
-      return await this.citreaTestnetService.getCurrentBlockNumber();
-    } catch (error) {
-      this.logger.warn('Failed to get current block number from RPC, using fallback:', error);
-      // Return a reasonable fallback - this should rarely happen
-      return (this.lastProcessedBlock || 0) + 1;
-    }
+    return this.citreaTestnetService.getCurrentBlockNumber();
   }
   
   private async mapCoinTransactionsToEntries(transactions: EvmCoinHistoryEntry[], monitoredAddress: string): Promise<PayInEntry[]> {
@@ -243,7 +236,7 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
       txGroups.set(tx.hash, existing);
     });
     
-    for (const [txHash, txGroup] of txGroups) {
+    for (const [_txHash, txGroup] of txGroups) {
       for (let i = 0; i < txGroup.length; i++) {
         const tx = txGroup[i];
         try {
@@ -324,14 +317,9 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
    * cannot be filtered as a dust input, because fees can go high
    */
   protected getOwnAddresses(): string[] {
-    const addresses = [Config.blockchain.citreaTestnet.citreaTestnetWalletAddress];
-    
-    // Also monitor payment address if it's different from wallet address
-    if (Config.payment.citreaTestnetAddress && 
-        !Util.equalsIgnoreCase(Config.payment.citreaTestnetAddress, Config.blockchain.citreaTestnet.citreaTestnetWalletAddress)) {
-      addresses.push(Config.payment.citreaTestnetAddress);
-    }
-    
-    return addresses;
+    return [
+      Config.blockchain.citreaTestnet.citreaTestnetWalletAddress,
+      Config.payment.citreaTestnetAddress
+    ];
   }
 }

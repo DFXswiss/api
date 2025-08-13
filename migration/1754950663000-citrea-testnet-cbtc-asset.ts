@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CitreaTestnetCbtcAssetSeed1754950663000 implements MigrationInterface {
-  name = 'CitreaTestnetCbtcAssetSeed1754950663000';
+export class CitreaTestnetCbtcAsset1754950663000 implements MigrationInterface {
+  name = 'CitreaTestnetCbtcAsset1754950663000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Insert cBTC as native COIN asset for CitreaTestnet
