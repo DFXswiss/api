@@ -99,6 +99,7 @@ import { ArbitrumStrategy as ArbitrumStrategyS } from './strategies/supplementar
 import { BaseStrategy as BaseStrategyS } from './strategies/supplementary/impl/base.strategy';
 import { SupplementaryStrategyRegistry } from './strategies/supplementary/impl/base/supplementary.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/supplementary/impl/bitcoin.strategy';
+import { CitreaTestnetStrategy as CitreaTestnetStrategyS } from './strategies/supplementary/impl/citrea-testnet.strategy';
 import { BscStrategy as BscStrategyS } from './strategies/supplementary/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyS } from './strategies/supplementary/impl/ethereum.strategy';
 import { GnosisStrategy as GnosisStrategyS } from './strategies/supplementary/impl/gnosis.strategy';
@@ -213,6 +214,7 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     OptimismStrategyS,
     PolygonStrategyS,
     BaseStrategyS,
+    CitreaTestnetStrategyS,
     SolanaStrategyS,
     GnosisStrategyS,
     TronStrategyS,
