@@ -197,13 +197,12 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     );
 
     for (const asset of assets) {
-      const balance =
-        asset.type === AssetType.COIN ? coinBalance : tokenToBalanceMap.get(asset.chainId?.toLowerCase()) ?? 0;
+      const balance = asset.type === AssetType.COIN ? coinBalance : tokenToBalanceMap.get(asset.chainId?.toLowerCase());
 
       const previousBalance = this.balanceCache.get(asset.id);
-      if (previousBalance && balance === 0) this.logger.error(`Balance for ${asset.uniqueName} went to 0`);
+      if (previousBalance && !balance) this.logger.error(`Balance for ${asset.uniqueName} went to ${null}`);
 
-      this.balanceCache.set(asset.id, balance);
+      balance != null && this.balanceCache.set(asset.id, balance);
     }
   }
 

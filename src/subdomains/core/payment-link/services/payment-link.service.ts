@@ -75,6 +75,20 @@ export class PaymentLinkService {
     return link;
   }
 
+  private async getForUserOrPublic(
+    userId?: number,
+    linkId?: number,
+    externalLinkId?: string,
+    externalPaymentId?: string,
+    routeLabel?: string,
+  ) {
+    const link = Boolean(userId)
+      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId).catch(() => undefined)
+      : undefined;
+
+    return link ?? this.getPublicPaymentLink(routeLabel, externalLinkId);
+  }
+
   async getAll(userId: number): Promise<PaymentLink[]> {
     const allPaymentLinks = await this.paymentLinkRepo.getAllPaymentLinks(userId);
 
@@ -96,9 +110,9 @@ export class PaymentLinkService {
     key?: string,
     externalLinkId?: string,
   ): Promise<PaymentLink[]> {
-    const ownerUserId = Boolean(userId)
-      ? userId
-      : (await this.getPaymentLinkByAccessKey(key, externalLinkId)).route.user.id;
+    const ownerUserId = Boolean(key)
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId).then((pl) => pl.route.user.id)
+      : userId;
 
     const paymentStatus = status?.split(',').map((s) => Util.toEnum(PaymentLinkPaymentStatus, s)) ?? [
       PaymentLinkPaymentStatus.COMPLETED,
@@ -457,12 +471,13 @@ export class PaymentLinkService {
 
   // --- PAYMENTS --- //
   async createPayment(
-    userId: number,
     dto: CreatePaymentLinkPaymentDto,
+    userId?: number,
     linkId?: number,
     externalLinkId?: string,
+    routeLabel?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = await this.getOrThrow(userId, linkId, externalLinkId);
+    const paymentLink = await this.getForUserOrPublic(userId, linkId, externalLinkId, undefined, routeLabel);
 
     paymentLink.payments = [await this.paymentLinkPaymentService.createPayment(paymentLink, dto)];
 
@@ -509,23 +524,6 @@ export class PaymentLinkService {
     return paymentLink;
   }
 
-  async createPublicPayment(
-    dto: CreatePaymentLinkPaymentDto,
-    routeLabel: string,
-    externalLinkId: string,
-  ): Promise<PaymentLink> {
-    if (dto.amount === 0) throw new BadRequestException('Amount must be greater than 0');
-
-    const paymentLink = await this.getPublicPaymentLink(routeLabel, externalLinkId);
-    if (paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING))
-      throw new ConflictException('There is already a pending payment for the specified payment link');
-
-    const payment = await this.paymentLinkPaymentService.createPayment(paymentLink, dto);
-    paymentLink.payments = [payment];
-
-    return paymentLink;
-  }
-
   async cancelPayment(
     userId?: number,
     linkId?: number,
@@ -534,11 +532,9 @@ export class PaymentLinkService {
     key?: string,
     routeLabel?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(userId)
-      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
-      : Boolean(key)
+    const paymentLink = Boolean(key)
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
-      : await this.getPublicPaymentLink(routeLabel, externalLinkId);
+      : await this.getForUserOrPublic(userId, linkId, externalLinkId, externalPaymentId, routeLabel);
 
     return this.paymentLinkPaymentService.cancelByLink(paymentLink);
   }
@@ -589,9 +585,9 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(userId)
-      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
-      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+    const paymentLink = Boolean(key)
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
+      : await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
     const pendingPayment = paymentLink.payments.find((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (!pendingPayment) throw new NotFoundException('No pending payment found');
@@ -608,9 +604,9 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(userId)
-      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId)
-      : await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId);
+    const paymentLink = Boolean(key)
+      ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
+      : await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
     const payment = paymentLink.payments[0];
     if (!payment) throw new NotFoundException('Payment not found');

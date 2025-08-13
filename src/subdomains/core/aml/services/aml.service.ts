@@ -74,12 +74,18 @@ export class AmlService {
     }
   }
 
-  async getAmlCheckInput(
-    entity: BuyFiat | BuyCrypto,
-  ): Promise<{ users: User[]; bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
+  async getAmlCheckInput(entity: BuyFiat | BuyCrypto): Promise<{
+    users: User[];
+    refUser: User;
+    bankData: BankData;
+    blacklist: SpecialExternalAccount[];
+    banks?: Bank[];
+  }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);
     let bankData = await this.getBankData(entity);
+    const refUser =
+      entity.user.usedRef !== Config.defaultRef ? await this.userService.getRefUser(entity.user.usedRef) : undefined;
 
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) {
@@ -132,11 +138,12 @@ export class AmlService {
       verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
     }
 
-    if (entity instanceof BuyFiat) return { users: entity.userData.users, bankData, blacklist };
-    if (entity.cryptoInput) return { users: entity.userData.users, bankData: undefined, blacklist, banks: undefined };
+    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist };
+    if (entity.cryptoInput)
+      return { users: entity.userData.users, refUser, bankData: undefined, blacklist, banks: undefined };
 
     const banks = await this.bankService.getAllBanks();
-    return { users: entity.userData.users, bankData, blacklist, banks };
+    return { users: entity.userData.users, refUser, bankData, blacklist, banks };
   }
 
   //*** HELPER METHODS ***//

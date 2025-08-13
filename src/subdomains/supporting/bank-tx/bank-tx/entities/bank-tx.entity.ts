@@ -378,7 +378,12 @@ export class BankTx extends IEntity {
   }
 }
 
-export const BankTxCompletedTypes = [BankTxType.BUY_CRYPTO, BankTxType.BANK_TX_REPEAT, BankTxType.BANK_TX_RETURN];
+export const BankTxCompletedTypes = [
+  BankTxType.BUY_CRYPTO,
+  BankTxType.BUY_FIAT,
+  BankTxType.BANK_TX_REPEAT,
+  BankTxType.BANK_TX_RETURN,
+];
 
 export function BankTxTypeCompleted(bankTxType?: BankTxType): boolean {
   return BankTxCompletedTypes.includes(bankTxType);
