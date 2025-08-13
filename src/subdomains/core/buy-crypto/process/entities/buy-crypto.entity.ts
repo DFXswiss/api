@@ -481,7 +481,7 @@ export class BuyCrypto extends IEntity {
             inputReferenceAmountMinusFee,
             usedRef,
             refProvision,
-            refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+            refFactor: !fee.payoutRefBonus || usedRef === Config.defaultRef ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             networkStartFeeAmount: fee.networkStart,
             status: this.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE ? BuyCryptoStatus.CREATED : undefined,
@@ -504,6 +504,7 @@ export class BuyCrypto extends IEntity {
     blacklist: SpecialExternalAccount[],
     banks: Bank[],
     ibanCountry: Country,
+    refUser?: User,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...AmlHelperService.getAmlResult(
@@ -517,6 +518,7 @@ export class BuyCrypto extends IEntity {
         bankData,
         blacklist,
         ibanCountry,
+        refUser,
         banks,
       ),
       amountInChf,

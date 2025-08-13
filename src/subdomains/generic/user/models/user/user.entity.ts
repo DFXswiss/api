@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -212,7 +213,7 @@ export class User extends IEntity {
   get specifiedRef(): { usedRef: string; refProvision: number } {
     return this.wallet?.name === 'CakeWallet'
       ? { usedRef: '160-195', refProvision: 2 }
-      : { usedRef: this.usedRef, refProvision: this.usedRef === '000-000' ? 0 : this.refFeePercent };
+      : { usedRef: this.usedRef, refProvision: this.usedRef === Config.defaultRef ? 0 : this.refFeePercent };
   }
 
   get blockchains(): Blockchain[] {

@@ -35,6 +35,7 @@ export class AmlHelperService {
     blacklist: SpecialExternalAccount[],
     banks?: Bank[],
     ibanCountry?: Country,
+    refUser?: User,
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -46,6 +47,7 @@ export class AmlHelperService {
     if (entity.userData.isDeactivated) errors.push(AmlError.USER_DATA_DEACTIVATED);
     if (!entity.userData.isPaymentStatusEnabled) errors.push(AmlError.INVALID_USER_DATA_STATUS);
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
+    if (refUser && !refUser.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS_REF_USER);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
     if (!entity.userData.verifiedName && !bankData?.name && !entity.userData.completeName)
@@ -443,6 +445,7 @@ export class AmlHelperService {
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     ibanCountry?: Country,
+    refUser?: User,
     banks?: Bank[],
   ): {
     bankData?: BankData;
@@ -464,6 +467,7 @@ export class AmlHelperService {
       blacklist,
       banks,
       ibanCountry,
+      refUser,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');
