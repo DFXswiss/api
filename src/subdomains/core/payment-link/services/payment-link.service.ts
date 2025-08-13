@@ -83,7 +83,7 @@ export class PaymentLinkService {
     routeLabel?: string,
   ) {
     const link = Boolean(userId)
-      ? this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId).catch(() => undefined)
+      ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId).catch(() => undefined)
       : undefined;
 
     return link ?? this.getPublicPaymentLink(routeLabel, externalLinkId);
@@ -478,9 +478,6 @@ export class PaymentLinkService {
     routeLabel?: string,
   ): Promise<PaymentLink> {
     const paymentLink = await this.getForUserOrPublic(userId, linkId, externalLinkId, undefined, routeLabel);
-
-    if (paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING))
-      throw new ConflictException('There is already a pending payment for the specified payment link');
 
     paymentLink.payments = [await this.paymentLinkPaymentService.createPayment(paymentLink, dto)];
 
