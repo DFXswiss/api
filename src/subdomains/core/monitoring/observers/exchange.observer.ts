@@ -63,19 +63,19 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
     return [
       {
         name: 'XT-dEURO-USDT',
-        deviation: Util.round(xtDeurUsdtPrice.price / referenceDeurUsdtPrice.price, 3),
+        deviation: Util.round(xtDeurUsdtPrice.price / referenceDeurUsdtPrice.price - 1, 3),
       },
       {
         name: 'XT-dEURO-BTC',
-        deviation: Util.round(xtDeurBtcPrice.price / referenceDeurBtcPrice.price, 3),
+        deviation: Util.round(xtDeurBtcPrice.price / referenceDeurBtcPrice.price - 1, 3),
       },
       {
         name: 'XT-DEPS-USDT',
-        deviation: Util.round(xtDepsUsdtPrice.price / referenceDepsUsdtPrice.price, 3),
+        deviation: Util.round(xtDepsUsdtPrice.price / referenceDepsUsdtPrice.price - 1, 3),
       },
       {
         name: 'XT-DEPS-BTC',
-        deviation: Util.round(xtDepsBtcPrice.price / referenceDepsBtcPrice.price, 3),
+        deviation: Util.round(xtDepsBtcPrice.price / referenceDepsBtcPrice.price - 1, 3),
       },
     ];
   }
