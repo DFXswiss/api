@@ -11,7 +11,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
-import { BankTx, BankTxType, BankTxUnassignedTypes } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { LogService } from '../log/log.service';
@@ -273,7 +273,7 @@ export class FiatOutputJobService {
         if (entity.type === FiatOutputType.BANK_TX_RETURN)
           await this.bankTxReturnService.updateInternal(entity.bankTxReturn, { chargebackBankTx: bankTx });
 
-        if (BankTxUnassignedTypes.includes(bankTx.type) || !bankTx.type) await this.setBankTxType(entity.type, bankTx);
+        if (!bankTx.type || BankTxTypeUnassigned(bankTx.type)) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
         this.logger.error(`Error in bankTx search fiatOutput ${entity.id}:`, e);
       }
