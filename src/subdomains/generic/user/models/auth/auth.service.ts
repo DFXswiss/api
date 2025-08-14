@@ -197,7 +197,7 @@ export class AuthService {
 
     if (dto.moderator) await this.userService.setModerator(user, dto.moderator);
 
-    await this.siftService.login(user, userIp);
+    this.siftService.login(user, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
   }
