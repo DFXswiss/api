@@ -17,6 +17,7 @@ export enum LiquidityManagementSystem {
   LIQUIDITY_PIPELINE = 'LiquidityPipeline',
   FRANKENCOIN = 'Frankencoin',
   DEURO = 'dEURO',
+  XT = 'XT',
 }
 
 export enum LiquidityManagementRuleStatus {
