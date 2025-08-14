@@ -273,7 +273,7 @@ export class FiatOutputJobService {
         if (entity.type === FiatOutputType.BANK_TX_RETURN)
           await this.bankTxReturnService.updateInternal(entity.bankTxReturn, { chargebackBankTx: bankTx });
 
-        if (BankTxUnassignedTypes.includes(bankTx.type)) await this.setBankTxType(entity.type, bankTx);
+        if (BankTxUnassignedTypes.includes(bankTx.type) || !bankTx.type) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
         this.logger.error(`Error in bankTx search fiatOutput ${entity.id}:`, e);
       }
