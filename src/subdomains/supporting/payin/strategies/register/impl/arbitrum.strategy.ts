@@ -4,16 +4,11 @@ import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-ma
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
-import { EvmStrategy } from './base/evm.strategy';
+import { AlchemyStrategy } from './base/alchemy.strategy';
 
 @Injectable()
-export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
+export class ArbitrumStrategy extends AlchemyStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(ArbitrumStrategy);
-
-  constructor(arbitrumService: PayInArbitrumService) {
-    super(arbitrumService);
-  }
 
   onModuleInit() {
     super.onModuleInit();

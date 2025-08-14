@@ -1,4 +1,4 @@
 export enum GoldskyNetwork {
-  CitreaTestnet = 'citrea-testnet',
-  CitreaDevnet = 'citrea-devnet',
+  CITREA_TESTNET = 'CitreaTestnet',
+  CITREA_DEVNET = 'CitreaDevnet',
 }

@@ -4,16 +4,11 @@ import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-ma
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { PayInBscService } from '../../../services/payin-bsc.service';
-import { EvmStrategy } from './base/evm.strategy';
+import { AlchemyStrategy } from './base/alchemy.strategy';
 
 @Injectable()
-export class BscStrategy extends EvmStrategy implements OnModuleInit {
+export class BscStrategy extends AlchemyStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(BscStrategy);
-
-  constructor(bscService: PayInBscService) {
-    super(bscService);
-  }
 
   onModuleInit() {
     super.onModuleInit();

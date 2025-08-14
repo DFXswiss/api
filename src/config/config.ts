@@ -558,7 +558,6 @@ export class Configuration {
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
-    citreaTestnetAddress: process.env.PAYMENT_CITREA_TESTNET_ADDRESS,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
     minConfirmations: (blockchain: Blockchain) =>
@@ -721,9 +720,9 @@ export class Configuration {
     citreaTestnet: {
       citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
       citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
-      citreaTestnetGatewayUrl: process.env.CITREA_TESTNET_GATEWAY_URL ?? 'https://rpc.testnet.citrea.xyz',
+      citreaTestnetGatewayUrl: process.env.CITREA_TESTNET_GATEWAY_URL,
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
-      citreaTestnetChainId: +(process.env.CITREA_TESTNET_CHAIN_ID ?? 5115),
+      citreaTestnetChainId: +process.env.CITREA_TESTNET_CHAIN_ID,
       goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
     },
     lightning: {

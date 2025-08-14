@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { gql, request } from 'graphql-request';
-import { GetConfig } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Config } from 'src/config/config';
 import { GoldskyNetwork } from './goldsky.types';
 
 export interface GoldskyTransfer {
@@ -25,12 +24,10 @@ export interface GoldskyTokenTransfer extends GoldskyTransfer {
 
 @Injectable()
 export class GoldskyService {
-  private readonly logger = new DfxLogger(GoldskyService);
-
   private getEndpoints(): Record<GoldskyNetwork, string | undefined> {
     return {
-      [GoldskyNetwork.CitreaTestnet]: GetConfig().blockchain.citreaTestnet.goldskySubgraphUrl,
-      [GoldskyNetwork.CitreaDevnet]: undefined, // Add when needed
+      [GoldskyNetwork.CITREA_TESTNET]: Config.blockchain.citreaTestnet.goldskySubgraphUrl,
+      [GoldskyNetwork.CITREA_DEVNET]: undefined,
     };
   }
 
@@ -41,9 +38,6 @@ export class GoldskyService {
     toBlock?: number,
   ): Promise<GoldskyTransfer[]> {
     const endpoint = this.getEndpoint(network);
-    if (!endpoint) {
-      throw new Error(`No Goldsky endpoint configured for ${network}. Please configure the subgraph URL.`);
-    }
 
     const query = gql`
       query GetNativeTransfers($address: String!, $fromBlock: Int!, $toBlock: Int) {
@@ -66,19 +60,14 @@ export class GoldskyService {
       }
     `;
 
-    try {
-      const variables = {
-        address: address.toLowerCase(),
-        fromBlock,
-        toBlock: toBlock || 999999999,
-      };
+    const variables = {
+      address: address.toLowerCase(),
+      fromBlock,
+      toBlock: toBlock || 999999999,
+    };
 
-      const data = await request<{ transfers: GoldskyTransfer[] }>(endpoint, query, variables);
-      return data.transfers || [];
-    } catch (error) {
-      this.logger.error(`Failed to fetch native transfers from Goldsky for ${network}:`, error);
-      return [];
-    }
+    const data = await request<{ transfers: GoldskyTransfer[] }>(endpoint, query, variables);
+    return data.transfers || [];
   }
 
   async getTokenTransfers(
@@ -89,9 +78,6 @@ export class GoldskyService {
     contractAddress?: string,
   ): Promise<GoldskyTokenTransfer[]> {
     const endpoint = this.getEndpoint(network);
-    if (!endpoint) {
-      throw new Error(`No Goldsky endpoint configured for ${network}. Please configure the subgraph URL.`);
-    }
 
     const query = gql`
       query GetTokenTransfers($address: String!, $fromBlock: Int!, $toBlock: Int, $contractAddress: String) {
@@ -126,27 +112,24 @@ export class GoldskyService {
       }
     `;
 
-    try {
-      const variables: any = {
-        address: address.toLowerCase(),
-        fromBlock,
-        toBlock: toBlock || 999999999,
-      };
+    const variables: any = {
+      address: address.toLowerCase(),
+      fromBlock,
+      toBlock: toBlock || 999999999,
+    };
 
-      if (contractAddress) {
-        variables.contractAddress = contractAddress.toLowerCase();
-      }
-
-      const data = await request<{ tokenTransfers: GoldskyTokenTransfer[] }>(endpoint, query, variables);
-      return data.tokenTransfers || [];
-    } catch (error) {
-      this.logger.error(`Failed to fetch token transfers from Goldsky for ${network}:`, error);
-      return [];
+    if (contractAddress) {
+      variables.contractAddress = contractAddress.toLowerCase();
     }
+
+    const data = await request<{ tokenTransfers: GoldskyTokenTransfer[] }>(endpoint, query, variables);
+    return data.tokenTransfers || [];
   }
 
-  private getEndpoint(network: GoldskyNetwork): string | undefined {
-    const endpoints = this.getEndpoints();
-    return endpoints[network];
+  private getEndpoint(network: GoldskyNetwork): string {
+    const endpoint = this.getEndpoints()[network];
+    if (!endpoint) throw new Error(`No Goldsky endpoint configured for ${network}`);
+
+    return endpoint;
   }
 }
