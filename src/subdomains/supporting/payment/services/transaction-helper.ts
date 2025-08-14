@@ -828,7 +828,14 @@ export class TransactionHelper implements OnModuleInit {
       user,
       paymentMethodIn,
     );
-    if (amlRuleError) return amlRuleError;
+    if (amlRuleError) {
+      if (
+        amlRuleError === QuoteError.BANK_TRANSACTION_MISSING &&
+        !user?.userData.nationality.bankTransactionVerificationEnable
+      )
+        return QuoteError.CARD_NOT_ALLOWED;
+      return amlRuleError;
+    }
 
     const walletAmlRuleError =
       isBuy &&
@@ -876,7 +883,7 @@ export class TransactionHelper implements OnModuleInit {
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
-      return QuoteError.BANK_TRANSACTION_MISSING;
+      return QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING;
 
     // amount checks
     if (txAmountChf < minAmountChf) return QuoteError.AMOUNT_TOO_LOW;

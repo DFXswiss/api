@@ -30,6 +30,7 @@ export enum AmlError {
   IBAN_COUNTRY_FATF_NOT_ALLOWED = 'IbanCountryFatfNotAllowed',
   TX_COUNTRY_NOT_ALLOWED = 'TxCountryNotAllowed',
   NO_BANK_TX_VERIFICATION = 'NoBankTxVerification',
+  NO_BANK_TX_VERIFICATION_CHECKOUT = 'NoBankTxVerificationCheckout',
   NO_LETTER = 'NoLetter',
   NAME_CHECK_WITHOUT_KYC = 'NameCheckWithoutKYC',
   NAME_CHECK_WITH_BIRTHDAY = 'NameCheckWithBirthday',
@@ -156,6 +157,7 @@ export const AmlErrorResult: {
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
   },
   [AmlError.NO_BANK_TX_VERIFICATION]: null,
+  [AmlError.NO_BANK_TX_VERIFICATION_CHECKOUT]: null,
   [AmlError.NO_LETTER]: null,
   [AmlError.NAME_CHECK_WITHOUT_KYC]: {
     type: AmlErrorType.MULTI,
