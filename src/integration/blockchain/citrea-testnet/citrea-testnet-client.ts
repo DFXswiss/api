@@ -15,15 +15,14 @@ export class CitreaTestnetClient extends EvmClient {
   private readonly goldsky?: GoldskyService;
 
   constructor(params: EvmClientParams) {
-    // Pass params without alchemyService since Citrea isn't supported by Alchemy
     super({
       ...params,
-      alchemyService: undefined, // Explicitly set to undefined
+      alchemyService: undefined, // Citrea not supported by Alchemy
     });
     this.goldsky = params.goldskyService;
   }
 
-  // Override Alchemy-dependent methods with direct RPC calls
+  // Alchemy method overrides
   async getNativeCoinBalance(): Promise<number> {
     return this.getNativeCoinBalanceForAddress(this.dfxAddress);
   }
@@ -63,18 +62,20 @@ export class CitreaTestnetClient extends EvmClient {
     return balances;
   }
 
-  // Transaction history methods - Require Goldsky service for transaction history
   async getNativeCoinTransactions(
     walletAddress: string,
     fromBlock: number,
     toBlock?: number,
     direction = Direction.BOTH,
   ): Promise<EvmCoinHistoryEntry[]> {
-    if (!this.goldsky) {
-      throw new Error('CitreaTestnet: Goldsky service is required for transaction history. Please configure CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL.');
-    }
+    if (!this.goldsky) throw new Error('Goldsky service is missing');
 
-    const transfers = await this.goldsky.getNativeCoinTransfers(GoldskyNetwork.CitreaTestnet, walletAddress, fromBlock, toBlock);
+    const transfers = await this.goldsky.getNativeCoinTransfers(
+      GoldskyNetwork.CITREA_TESTNET,
+      walletAddress,
+      fromBlock,
+      toBlock,
+    );
     return this.mapGoldskyToEvmCoinHistory(transfers, walletAddress, direction);
   }
 
@@ -84,11 +85,14 @@ export class CitreaTestnetClient extends EvmClient {
     toBlock?: number,
     direction = Direction.BOTH,
   ): Promise<EvmTokenHistoryEntry[]> {
-    if (!this.goldsky) {
-      throw new Error('CitreaTestnet: Goldsky service is required for ERC20 transaction history. Please configure CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL.');
-    }
+    if (!this.goldsky) throw new Error('Goldsky service is missing');
 
-    const transfers = await this.goldsky.getTokenTransfers(GoldskyNetwork.CitreaTestnet, walletAddress, fromBlock, toBlock);
+    const transfers = await this.goldsky.getTokenTransfers(
+      GoldskyNetwork.CITREA_TESTNET,
+      walletAddress,
+      fromBlock,
+      toBlock,
+    );
     return this.mapGoldskyToEvmTokenHistory(transfers, walletAddress, direction);
   }
 
@@ -115,7 +119,7 @@ export class CitreaTestnetClient extends EvmClient {
         from: tx.from,
         to: tx.to,
         value: tx.value,
-        contractAddress: '', // Native coin transfers don't have contract address
+        contractAddress: '',
       }));
   }
 
@@ -142,9 +146,9 @@ export class CitreaTestnetClient extends EvmClient {
         from: tx.from,
         contractAddress: tx.contractAddress,
         to: tx.to,
-        value: tx.value, // Token transfer amount
-        tokenName: tx.tokenName || tx.tokenSymbol || 'UNKNOWN',
-        tokenDecimal: tx.tokenDecimals?.toString() || '18',
+        value: tx.value,
+        tokenName: tx.tokenName || tx.tokenSymbol,
+        tokenDecimal: tx.tokenDecimals?.toString(),
       }));
   }
 }

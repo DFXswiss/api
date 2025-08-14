@@ -4,16 +4,11 @@ import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-ma
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { PayInPolygonService } from '../../../services/payin-polygon.service';
-import { EvmStrategy } from './base/evm.strategy';
+import { AlchemyStrategy } from './base/alchemy.strategy';
 
 @Injectable()
-export class PolygonStrategy extends EvmStrategy implements OnModuleInit {
+export class PolygonStrategy extends AlchemyStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(PolygonStrategy);
-
-  constructor(polygonService: PayInPolygonService) {
-    super(polygonService);
-  }
 
   onModuleInit() {
     super.onModuleInit();
