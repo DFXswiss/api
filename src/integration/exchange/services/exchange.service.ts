@@ -225,7 +225,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   // currency pairs
   private async getMarkets(): Promise<Market[]> {
     if (!this.markets) {
-      this.markets = await this.callApi((e) => e.fetchMarkets()).then((markets) => markets.filter((m) => m.active));
+      this.markets = await this.callApi((e) => e.fetchMarkets());
     }
 
     return this.markets;
