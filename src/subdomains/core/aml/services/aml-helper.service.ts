@@ -354,7 +354,7 @@ export class AmlHelperService {
       case AmlRule.RULE_12:
         if (entity instanceof BuyCrypto && entity.checkoutTx) {
           if (entity.userData.bankTransactionVerification !== CheckStatus.PASS)
-            errors.push(AmlError.NO_BANK_TX_VERIFICATION_CHECKOUT);
+            errors.push(AmlError.NO_BANK_TX_VERIFICATION);
           if (entity.userData.kycLevel < KycLevel.LEVEL_30) errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
         }
         break;
@@ -362,7 +362,7 @@ export class AmlHelperService {
       case AmlRule.RULE_13:
         if (entity instanceof BuyCrypto && entity.checkoutTx) {
           if (entity.userData.bankTransactionVerification !== CheckStatus.PASS)
-            errors.push(AmlError.NO_BANK_TX_VERIFICATION_CHECKOUT);
+            errors.push(AmlError.NO_BANK_TX_VERIFICATION);
           if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
         }
 

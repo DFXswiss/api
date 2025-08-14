@@ -828,14 +828,7 @@ export class TransactionHelper implements OnModuleInit {
       user,
       paymentMethodIn,
     );
-    if (amlRuleError) {
-      if (
-        amlRuleError === QuoteError.BANK_TRANSACTION_MISSING &&
-        !user?.userData.nationality.bankTransactionVerificationEnable
-      )
-        return QuoteError.CARD_NOT_ALLOWED;
-      return amlRuleError;
-    }
+    if (amlRuleError) return amlRuleError;
 
     const walletAmlRuleError =
       isBuy &&

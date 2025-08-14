@@ -1,9 +1,8 @@
 export enum QuoteError {
   AMOUNT_TOO_LOW = 'AmountTooLow',
   AMOUNT_TOO_HIGH = 'AmountTooHigh',
-  BANK_TRANSACTION_OR_VIDEO_MISSING = 'BankTransactionVideoMissing',
+  BANK_TRANSACTION_OR_VIDEO_MISSING = 'BankTransactionOrVideoMissing',
   BANK_TRANSACTION_MISSING = 'BankTransactionMissing',
-  CARD_NOT_ALLOWED = 'CardNotAllowed',
   KYC_REQUIRED = 'KycRequired',
   KYC_DATA_REQUIRED = 'KycDataRequired',
   KYC_REQUIRED_INSTANT = 'KycRequiredInstant',
