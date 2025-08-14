@@ -42,6 +42,7 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
     const data = [];
     data.push(await this.getKraken());
     data.push(await this.getBinance());
+    data.push(await this.getXtPriceDeviation());
     this.emit(data);
 
     return data;
