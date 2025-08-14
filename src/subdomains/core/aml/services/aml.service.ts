@@ -52,6 +52,8 @@ export class AmlService {
 
     if (entity.amlCheck === CheckStatus.PASS) {
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);
+      if (entity.bankTx && entity instanceof BuyCrypto && !entity.userData.hasBankTx)
+        await this.userDataService.updateUserDataInternal(entity.userData, { hasBankTx: true });
 
       await this.transactionService.updateInternal(entity.transaction, {
         amlCheck: entity.amlCheck,
