@@ -89,6 +89,10 @@ export abstract class EvmClient extends BlockchainClient {
 
   // --- PUBLIC API - GETTERS --- //
 
+  public getWalletAddress(): string {
+    return this.dfxAddress;
+  }
+
   async getNativeCoinTransactions(
     walletAddress: string,
     fromBlock: number,
