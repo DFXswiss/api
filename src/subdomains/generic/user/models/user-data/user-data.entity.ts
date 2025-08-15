@@ -309,6 +309,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   postAmlCheck?: string;
 
+  @Column({ nullable: true })
+  hasBankTx?: boolean;
+
   // Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail?: string;

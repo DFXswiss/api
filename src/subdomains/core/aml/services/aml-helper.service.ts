@@ -353,16 +353,14 @@ export class AmlHelperService {
 
       case AmlRule.RULE_12:
         if (entity instanceof BuyCrypto && entity.checkoutTx) {
-          if (entity.userData.bankTransactionVerification !== CheckStatus.PASS)
-            errors.push(AmlError.NO_BANK_TX_VERIFICATION);
+          if (!entity.userData.hasBankTx) errors.push(AmlError.NO_BANK_TX_VERIFICATION);
           if (entity.userData.kycLevel < KycLevel.LEVEL_30) errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
         }
         break;
 
       case AmlRule.RULE_13:
         if (entity instanceof BuyCrypto && entity.checkoutTx) {
-          if (entity.userData.bankTransactionVerification !== CheckStatus.PASS)
-            errors.push(AmlError.NO_BANK_TX_VERIFICATION);
+          if (!entity.userData.hasBankTx) errors.push(AmlError.NO_BANK_TX_VERIFICATION);
           if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
         }
 
@@ -424,12 +422,12 @@ export class AmlHelperService {
     }
 
     if (amlRules.includes(AmlRule.RULE_12) && paymentMethodIn === FiatPaymentMethod.CARD) {
-      if (user.userData.bankTransactionVerification !== CheckStatus.PASS) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (!user.userData.hasBankTx) return QuoteError.BANK_TRANSACTION_MISSING;
       if (user.userData.kycLevel < KycLevel.LEVEL_30) return QuoteError.KYC_REQUIRED;
     }
 
     if (amlRules.includes(AmlRule.RULE_13) && paymentMethodIn === FiatPaymentMethod.CARD) {
-      if (user.userData.bankTransactionVerification !== CheckStatus.PASS) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (!user.userData.hasBankTx) return QuoteError.BANK_TRANSACTION_MISSING;
       if (user.userData.kycLevel < KycLevel.LEVEL_50) return QuoteError.KYC_REQUIRED;
     }
   }
