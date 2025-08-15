@@ -5,15 +5,8 @@ import { TronService } from 'src/integration/blockchain/tron/services/tron.servi
 import { TatumWebhookService } from 'src/integration/tatum/services/tatum-webhook.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
-import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
-import { PayInBscService } from '../../../services/payin-bsc.service';
-import { PayInEthereumService } from '../../../services/payin-ethereum.service';
-import { PayInGnosisService } from '../../../services/payin-gnosis.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
-import { PayInOptimismService } from '../../../services/payin-optimism.service';
-import { PayInPolygonService } from '../../../services/payin-polygon.service';
 import { PayInWebHookService } from '../../../services/payin-webhhook.service';
 import { PayInZanoService } from '../../../services/payin-zano.service';
 import { ArbitrumStrategy } from '../impl/arbitrum.strategy';
@@ -57,19 +50,19 @@ describe('RegisterStrategyRegistry', () => {
 
     zanoStrategy = new ZanoStrategy(mock<PayInZanoService>());
 
-    ethereumStrategy = new EthereumStrategy(mock<PayInEthereumService>());
+    ethereumStrategy = new EthereumStrategy();
 
-    bscStrategy = new BscStrategy(mock<PayInBscService>());
+    bscStrategy = new BscStrategy();
 
-    arbitrumStrategy = new ArbitrumStrategy(mock<PayInArbitrumService>());
+    arbitrumStrategy = new ArbitrumStrategy();
 
-    optimismStrategy = new OptimismStrategy(mock<PayInOptimismService>());
+    optimismStrategy = new OptimismStrategy();
 
-    polygonStrategy = new PolygonStrategy(mock<PayInPolygonService>());
+    polygonStrategy = new PolygonStrategy();
 
-    baseStrategy = new BaseStrategy(mock<PayInBaseService>());
+    baseStrategy = new BaseStrategy();
 
-    gnosisStrategy = new GnosisStrategy(mock<PayInGnosisService>());
+    gnosisStrategy = new GnosisStrategy();
 
     solanaStrategy = new SolanaStrategy(mock<TatumWebhookService>(), mock<SolanaService>(), mock<RepositoryFactory>());
 

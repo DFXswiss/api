@@ -35,6 +35,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.GNOSIS]: 'https://gnosisscan.io',
   [Blockchain.SOLANA]: 'https://solscan.io',
   [Blockchain.TRON]: 'https://tronscan.org/#',
+  [Blockchain.CITREA_TESTNET]: 'https://explorer.testnet.citrea.xyz',
   [Blockchain.HAQQ]: 'https://explorer.haqq.network',
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
@@ -68,6 +69,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.GNOSIS]: 'tx',
   [Blockchain.SOLANA]: 'tx',
   [Blockchain.TRON]: 'transaction',
+  [Blockchain.CITREA_TESTNET]: 'tx',
   [Blockchain.HAQQ]: 'tx',
   [Blockchain.LIQUID]: 'tx',
   [Blockchain.ARWEAVE]: 'tx',
@@ -106,6 +108,7 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.POLYGON:
     case Blockchain.BASE:
     case Blockchain.GNOSIS:
+    case Blockchain.CITREA_TESTNET:
     case Blockchain.SOLANA:
     case Blockchain.HAQQ:
     case Blockchain.CARDANO:
@@ -132,6 +135,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.POLYGON:
     case Blockchain.BASE:
     case Blockchain.GNOSIS:
+    case Blockchain.CITREA_TESTNET:
     case Blockchain.TRON:
     case Blockchain.HAQQ:
     case Blockchain.LIQUID:

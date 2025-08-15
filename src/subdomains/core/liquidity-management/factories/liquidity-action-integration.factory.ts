@@ -10,6 +10,7 @@ import { LiquidityPipelineAdapter } from '../adapters/actions/liquidity-pipeline
 import { MexcAdapter } from '../adapters/actions/mexc.adapter';
 import { OptimismL2BridgeAdapter } from '../adapters/actions/optimism-l2-bridge.adapter';
 import { PolygonL2BridgeAdapter } from '../adapters/actions/polygon-l2-bridge.adapter';
+import { XtAdapter } from '../adapters/actions/xt.adapter';
 import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
 import { LiquidityManagementSystem } from '../enums';
 import { LiquidityActionIntegration } from '../interfaces';
@@ -30,6 +31,7 @@ export class LiquidityActionIntegrationFactory {
     readonly liquidityPipelineAdapter: LiquidityPipelineAdapter,
     readonly frankencoinAdapter: FrankencoinAdapter,
     readonly deuroAdapter: DEuroAdapter,
+    readonly xtAdapter: XtAdapter,
   ) {
     this.adapters.set(LiquidityManagementSystem.DFX_DEX, dfxDexAdapter);
     this.adapters.set(LiquidityManagementSystem.ARBITRUM_L2_BRIDGE, arbitrumL2BridgeAdapter);
@@ -40,9 +42,9 @@ export class LiquidityActionIntegrationFactory {
     this.adapters.set(LiquidityManagementSystem.BINANCE, binanceAdapter);
     this.adapters.set(LiquidityManagementSystem.MEXC, mexcAdapter);
     this.adapters.set(LiquidityManagementSystem.LIQUIDITY_PIPELINE, liquidityPipelineAdapter);
-
     this.adapters.set(LiquidityManagementSystem.FRANKENCOIN, frankencoinAdapter);
     this.adapters.set(LiquidityManagementSystem.DEURO, deuroAdapter);
+    this.adapters.set(LiquidityManagementSystem.XT, xtAdapter);
   }
 
   getIntegration(action: LiquidityManagementAction): LiquidityActionIntegration {

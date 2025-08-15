@@ -33,6 +33,7 @@ export class CryptoService {
     Blockchain.BASE,
     Blockchain.GNOSIS,
     Blockchain.HAQQ,
+    Blockchain.CITREA_TESTNET,
   ];
 
   constructor(
@@ -77,6 +78,7 @@ export class CryptoService {
       case Blockchain.GNOSIS:
       case Blockchain.HAQQ:
       case Blockchain.BINANCE_SMART_CHAIN:
+      case Blockchain.CITREA_TESTNET:
         return EvmUtil.getPaymentRequest(address, asset, amount);
 
       case Blockchain.SOLANA:
@@ -114,6 +116,7 @@ export class CryptoService {
       case Blockchain.BASE:
       case Blockchain.GNOSIS:
       case Blockchain.HAQQ:
+      case Blockchain.CITREA_TESTNET:
         return UserAddressType.EVM;
 
       case Blockchain.SOLANA:

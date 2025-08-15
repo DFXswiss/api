@@ -718,6 +718,14 @@ export class Configuration {
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
       gasPrice: process.env.BSC_GAS_PRICE,
     },
+    citreaTestnet: {
+      citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
+      citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
+      citreaTestnetGatewayUrl: process.env.CITREA_TESTNET_GATEWAY_URL,
+      citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
+      citreaTestnetChainId: +process.env.CITREA_TESTNET_CHAIN_ID,
+      goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
+    },
     lightning: {
       lnbits: {
         apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
