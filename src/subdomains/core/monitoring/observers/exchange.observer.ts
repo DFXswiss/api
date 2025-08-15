@@ -51,15 +51,15 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
   // *** HELPER METHODS *** //
 
   private async getXtPriceDeviation(): Promise<ExchangeDeviationData[]> {
-    const xtDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEURO', 'USDT');
-    const xtDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEURO', 'BTC');
-    const xtDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEPS', 'USDT');
-    const xtDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEPS', 'BTC');
+    const xtDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEURO');
+    const xtDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'BTC', 'DEURO');
+    const xtDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEPS');
+    const xtDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'BTC', 'DEPS');
 
-    const referenceDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEURO', 'USDT');
-    const referenceDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEURO', 'BTC');
-    const referenceDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEPS', 'USDT');
-    const referenceDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEPS', 'BTC');
+    const referenceDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'USDT', 'dEURO');
+    const referenceDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'BTC', 'dEURO');
+    const referenceDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'USDT', 'DEPS');
+    const referenceDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'BTC', 'DEPS');
 
     return [
       {
