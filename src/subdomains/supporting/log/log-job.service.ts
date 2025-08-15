@@ -241,7 +241,7 @@ export class LogJobService {
           },
         ];
 
-        if (![Blockchain.BITCOIN, Blockchain.MONERO, , Blockchain.ZANO].includes(e))
+        if (![Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(e))
           balances.push(
             ...(await this.getCustomBalances(
               client,

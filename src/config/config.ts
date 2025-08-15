@@ -782,13 +782,9 @@ export class Configuration {
       node: {
         url: process.env.ZANO_NODE_URL,
       },
-      liquidityWallet: {
-        url: process.env.ZANO_LIQUIDITY_WALLET_URL,
-        address: process.env.ZANO_LIQUIDITY_WALLET_ADDRESS,
-      },
-      paymentWallet: {
-        url: process.env.ZANO_PAYMENT_WALLET_URL,
-        address: process.env.PAYMENT_ZANO_ADDRESS,
+      wallet: {
+        url: process.env.ZANO_WALLET_URL,
+        address: process.env.ZANO_WALLET_ADDRESS,
       },
       coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
       fee: 0.01,

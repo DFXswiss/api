@@ -22,7 +22,7 @@ import {
 import { ZanoHelper } from './zano-helper';
 
 export class ZanoClient extends BlockchainClient {
-  constructor(private readonly http: HttpService, private readonly walletUrl) {
+  constructor(private readonly http: HttpService) {
     super();
   }
 
@@ -93,7 +93,7 @@ export class ZanoClient extends BlockchainClient {
     const params = this.httpParams('getaddress', []);
 
     return this.http
-      .post<{ result: { address: string } }>(`${this.walletUrl}/json_rpc`, params)
+      .post<{ result: { address: string } }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params)
       .then((r) => ({ address: r.result.address }));
   }
 
@@ -109,7 +109,7 @@ export class ZanoClient extends BlockchainClient {
     const params = this.httpParams('getbalance', []);
 
     return this.http
-      .post<{ result: ZanoGetBalanceResultDto }>(`${this.walletUrl}/json_rpc`, params)
+      .post<{ result: ZanoGetBalanceResultDto }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params)
       .then((r) => this.convertBalanceAuToZano(r.result));
   }
 
@@ -129,7 +129,9 @@ export class ZanoClient extends BlockchainClient {
       buff: Buffer.from(message).toString('base64'),
     });
 
-    return this.http.post<{ result: { sig: string } }>(`${this.walletUrl}/json_rpc`, params).then((r) => r.result.sig);
+    return this.http
+      .post<{ result: { sig: string } }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params)
+      .then((r) => r.result.sig);
   }
 
   async sendTransfer(destinationAddress: string, amount: number): Promise<ZanoSendTransferResultDto> {
@@ -159,7 +161,10 @@ export class ZanoClient extends BlockchainClient {
     });
 
     return this.http
-      .post<{ result: { tx_details: { tx_hash: string } } }>(`${this.walletUrl}/json_rpc`, transferParams)
+      .post<{ result: { tx_details: { tx_hash: string } } }>(
+        `${Config.blockchain.zano.wallet.url}/json_rpc`,
+        transferParams,
+      )
       .then((r) => ({
         txId: r.result.tx_details.tx_hash,
         amount: payoutAmount,
@@ -182,7 +187,10 @@ export class ZanoClient extends BlockchainClient {
     });
 
     return this.http
-      .post<{ result: { transfers: ZanoGetTransferResultDto[] } }>(`${this.walletUrl}/json_rpc`, params)
+      .post<{ result: { transfers: ZanoGetTransferResultDto[] } }>(
+        `${Config.blockchain.zano.wallet.url}/json_rpc`,
+        params,
+      )
       .then((r) => (r.result.transfers ? this.mapTransfer(r.result.transfers) : []));
   }
 

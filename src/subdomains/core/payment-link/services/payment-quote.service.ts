@@ -37,8 +37,8 @@ export class PaymentQuoteService {
     Blockchain.BASE,
     Blockchain.GNOSIS,
     Blockchain.ETHEREUM,
-    Blockchain.BITCOIN,
     Blockchain.MONERO,
+    Blockchain.BITCOIN,
     Blockchain.ZANO,
     Blockchain.SOLANA,
   ];

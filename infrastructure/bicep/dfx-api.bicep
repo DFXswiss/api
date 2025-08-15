@@ -69,9 +69,8 @@ param paymentEvmSeed string
 param paymentSolanaSeed string
 @secure()
 param paymentTronSeed string
-param paymentBitcoinAddress string
 param paymentMoneroAddress string
-param paymentZanoAddress string
+param paymentBitcoinAddress string
 param paymentCheckbotSignTx string
 param paymentCheckbotPubKey string
 
@@ -148,10 +147,7 @@ param moneroWalletAddress string
 @secure()
 param moneroRpcCertificate string
 
-param zanoNodeUrl string
-param zanoLiquidityWalletUrl string
-param zanoLiquidityWalletAddress string
-param zanoPaymentWalletUrl string
+param zanoWalletAddress string
 
 @secure()
 param solanaWalletSeed string
@@ -341,6 +337,8 @@ var btcNodePort = '8332'
 var lnBitsPort = '5000'
 var moneroNodePort = '18081'
 var moneroRpcPort = '18082'
+var zanoNodePort = '33122'
+var zanoWalletPort = '12233'
 
 var nodeProps = [
   {
@@ -749,16 +747,12 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: paymentTronSeed
         }
         {
-          name: 'PAYMENT_BITCOIN_ADDRESS'
-          value: paymentBitcoinAddress
-        }
-        {
           name: 'PAYMENT_MONERO_ADDRESS'
           value: paymentMoneroAddress
         }
         {
-          name: 'PAYMENT_ZANO_ADDRESS'
-          value: paymentZanoAddress
+          name: 'PAYMENT_BITCOIN_ADDRESS'
+          value: paymentBitcoinAddress
         }
         {
           name: 'PAYMENT_CHECKBOT_SIGN_TX'
@@ -993,20 +987,16 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: moneroRpcCertificate
         }
         {
+          name: 'ZANO_WALLET_ADDRESS'
+          value: zanoWalletAddress
+        }
+        {
           name: 'ZANO_NODE_URL'
-          value: zanoNodeUrl
+          value: 'http://${btcNodes[1].outputs.ip}:${zanoNodePort}'
         }
         {
-          name: 'ZANO_LIQUIDITY_WALLET_URL'
-          value: zanoLiquidityWalletUrl
-        }
-        {
-          name: 'ZANO_LIQUIDITY_WALLET_ADDRESS'
-          value: zanoLiquidityWalletAddress
-        }
-        {
-          name: 'ZANO_PAYMENT_WALLET_URL'
-          value: zanoPaymentWalletUrl
+          name: 'ZANO_WALLET_URL'
+          value: 'http://${btcNodes[1].outputs.ip}:${zanoWalletPort}'
         }
         {
           name: 'SOLANA_WALLET_SEED'
