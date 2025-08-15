@@ -55,9 +55,6 @@ export class AlchemyNetworkMapper {
       networks.push(Blockchain.BINANCE_SMART_CHAIN);
     }
 
-    // Note: CitreaTestnet is not supported by Alchemy
-    // It uses direct RPC connection instead
-
     return networks;
   }
 }
