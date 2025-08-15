@@ -17,8 +17,8 @@ export class PaymentRequestMapper {
       case Blockchain.BASE:
       case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
-      case Blockchain.BITCOIN:
       case Blockchain.MONERO:
+      case Blockchain.BITCOIN:
       case Blockchain.ZANO:
       case Blockchain.SOLANA:
         return this.toPaymentLinkPayment(paymentActivation.method, paymentActivation);

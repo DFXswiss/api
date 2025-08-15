@@ -16,7 +16,7 @@ export class ZanoService extends BlockchainService implements OnModuleInit {
 
   private depositService: DepositService;
 
-  constructor(readonly moduleRef: ModuleRef, readonly http: HttpService) {
+  constructor(private readonly moduleRef: ModuleRef, private readonly http: HttpService) {
     super();
 
     this.client = new ZanoClient(this.http);
