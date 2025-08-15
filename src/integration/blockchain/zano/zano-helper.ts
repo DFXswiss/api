@@ -27,10 +27,6 @@ export class ZanoHelper {
     );
   }
 
-  static createPaymentAddress(accountIndex: number): string {
-    return createIntegratedAddress(Config.payment.zanoAddress, ZanoHelper.mapIndexToPaymentIdHex(accountIndex));
-  }
-
   static splitIntegratedAddress(integratedAddress: string): ZanoAddressDto | undefined {
     if (/^iZ[a-zA-Z0-9]{106}$/.test(integratedAddress)) {
       const splittedAddress = splitIntegratedAddress(integratedAddress);

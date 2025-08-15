@@ -217,9 +217,13 @@ export class LogJobService {
     const paymentAssets = assets.filter(
       (a) =>
         a.paymentEnabled &&
-        ![Blockchain.LIGHTNING, Blockchain.MONERO, Blockchain.BINANCE_PAY, Blockchain.KUCOIN_PAY].includes(
-          a.blockchain,
-        ),
+        ![
+          Blockchain.LIGHTNING,
+          Blockchain.MONERO,
+          Blockchain.ZANO,
+          Blockchain.BINANCE_PAY,
+          Blockchain.KUCOIN_PAY,
+        ].includes(a.blockchain),
     );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 
@@ -237,7 +241,7 @@ export class LogJobService {
           },
         ];
 
-        if (![Blockchain.MONERO, Blockchain.BITCOIN].includes(e))
+        if (![Blockchain.MONERO, Blockchain.BITCOIN, Blockchain.ZANO].includes(e))
           balances.push(
             ...(await this.getCustomBalances(
               client,
@@ -395,7 +399,7 @@ export class LogJobService {
       // plus
       const liquidity = (curr.balance?.amount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
-      const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING].includes(curr.blockchain)
+      const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING, Blockchain.ZANO].includes(curr.blockchain)
         ? 0
         : pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -950,6 +954,9 @@ export class LogJobService {
 
       case Blockchain.BITCOIN:
         return Config.payment.bitcoinAddress;
+
+      case Blockchain.ZANO:
+        return Config.payment.zanoAddress;
 
       case Blockchain.SOLANA:
         return SolanaUtil.createWallet({

@@ -33,7 +33,10 @@ export class ZanoService extends BlockchainService implements OnModuleInit {
   async isHealthy(): Promise<boolean> {
     try {
       const status = await this.client.getInfo();
-      return 'OK' === status;
+      if (!status) return false;
+      if ('OK' !== status) return false;
+
+      return true;
     } catch {
       return false;
     }

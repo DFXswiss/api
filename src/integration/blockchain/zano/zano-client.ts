@@ -124,12 +124,14 @@ export class ZanoClient extends BlockchainClient {
     throw new Error('Coin balance for address not possible for zano');
   }
 
-  async signMessage(message: string): Promise<any> {
+  async signMessage(message: string): Promise<string> {
     const params = this.httpParams('sign_message', {
       buff: Buffer.from(message).toString('base64'),
     });
 
-    return this.http.post<any>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params);
+    return this.http
+      .post<{ result: { sig: string } }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params)
+      .then((r) => r.result.sig);
   }
 
   async sendTransfer(destinationAddress: string, amount: number): Promise<ZanoSendTransferResultDto> {
