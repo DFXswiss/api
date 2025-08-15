@@ -242,19 +242,11 @@ export class PaymentLinkController {
     @Query('route') route: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    if (jwt) {
-      return this.paymentLinkService
-        .createPayment(+jwt.user, dto, +linkId, externalLinkId)
-        .then(PaymentLinkDtoMapper.toLinkDto);
-    }
+    const link = Boolean(key)
+      ? await this.paymentLinkService.createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
+      : await this.paymentLinkService.createPayment(dto, +jwt.user, +linkId, externalLinkId, route);
 
-    if (key) {
-      return this.paymentLinkService
-        .createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
-        .then(PaymentLinkDtoMapper.toLinkDto);
-    }
-
-    return this.paymentLinkService.createPublicPayment(dto, route, externalLinkId).then(PaymentLinkDtoMapper.toLinkDto);
+    return PaymentLinkDtoMapper.toLinkDto(link);
   }
 
   @Get('payment/wait')
@@ -349,6 +341,14 @@ export class PaymentLinkController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createPosLinkAdmin(@Param('id') id: string, @Query('scoped') scoped: string): Promise<string> {
     return this.paymentLinkService.createPosLinkAdmin(+id, scoped && scoped === 'true');
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async deletePaymentLink(@Param('id') id: string): Promise<void> {
+    return this.paymentLinkService.deletePaymentLink(+id);
   }
 
   @Get('stickers')

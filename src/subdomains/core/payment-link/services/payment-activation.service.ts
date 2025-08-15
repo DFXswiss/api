@@ -79,6 +79,10 @@ export class PaymentActivationService implements OnModuleInit {
     });
   }
 
+  async deleteActivation(activation: PaymentActivation): Promise<void> {
+    await this.paymentActivationRepo.delete(activation.id);
+  }
+
   // --- HANDLE PENDING ACTIVATIONS --- //
   async processExpiredActivations(): Promise<void> {
     const maxDate = Util.secondsBefore(Config.payment.timeoutDelay);

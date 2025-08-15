@@ -9,6 +9,8 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
+import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { MoreThan } from 'typeorm';
 
 interface ExchangeData {
@@ -16,11 +18,20 @@ interface ExchangeData {
   volume30: number; //volume of the last 30 days
 }
 
+interface ExchangeDeviationData {
+  name: string;
+  deviation: number; // deviation of exchange pair to reference price
+}
+
 @Injectable()
 export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
   protected readonly logger = new DfxLogger(ExchangeObserver);
 
-  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
+  constructor(
+    monitoringService: MonitoringService,
+    private readonly repos: RepositoryFactory,
+    private readonly pricingService: PricingService,
+  ) {
     super(monitoringService, 'exchange', 'volume');
   }
 
@@ -31,12 +42,44 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
     const data = [];
     data.push(await this.getKraken());
     data.push(await this.getBinance());
+    data.push(await this.getXtPriceDeviation());
     this.emit(data);
 
     return data;
   }
 
   // *** HELPER METHODS *** //
+
+  private async getXtPriceDeviation(): Promise<ExchangeDeviationData[]> {
+    const xtDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEURO', 'USDT');
+    const xtDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEURO', 'BTC');
+    const xtDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEPS', 'USDT');
+    const xtDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEPS', 'BTC');
+
+    const referenceDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEURO', 'USDT');
+    const referenceDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEURO', 'BTC');
+    const referenceDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEPS', 'USDT');
+    const referenceDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEPS', 'BTC');
+
+    return [
+      {
+        name: 'XT-dEURO-USDT',
+        deviation: Util.round(xtDeurUsdtPrice.price / referenceDeurUsdtPrice.price - 1, 3),
+      },
+      {
+        name: 'XT-dEURO-BTC',
+        deviation: Util.round(xtDeurBtcPrice.price / referenceDeurBtcPrice.price - 1, 3),
+      },
+      {
+        name: 'XT-DEPS-USDT',
+        deviation: Util.round(xtDepsUsdtPrice.price / referenceDepsUsdtPrice.price - 1, 3),
+      },
+      {
+        name: 'XT-DEPS-BTC',
+        deviation: Util.round(xtDepsBtcPrice.price / referenceDepsBtcPrice.price - 1, 3),
+      },
+    ];
+  }
 
   private async getKraken(): Promise<ExchangeData> {
     const volume30 = await this.getVolume30(ExchangeName.KRAKEN);

@@ -398,6 +398,9 @@ export class TransactionController {
     if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data request invalid');
     this.refundList.delete(transaction.id);
 
+    const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
+    if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
+
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!transaction.targetEntity) {

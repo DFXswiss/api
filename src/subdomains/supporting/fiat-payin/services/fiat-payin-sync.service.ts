@@ -57,7 +57,7 @@ export class FiatPayInSyncService {
       try {
         const checkoutTx = await this.createCheckoutTx(refundedPayment);
         if (checkoutTx?.status === CheckoutPaymentStatus.REFUNDED) {
-          await this.siftService.createChargeback({
+          this.siftService.createChargeback({
             $user_id: checkoutTx.transaction.user?.id.toString(),
             $transaction_id: checkoutTx.transaction.id.toString(),
             $order_id: checkoutTx.transaction.request?.id.toString(),

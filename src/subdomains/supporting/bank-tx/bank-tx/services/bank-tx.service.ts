@@ -144,6 +144,8 @@ export class BankTxService {
         tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
         buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
+      if (!buy && (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) }))) continue;
+
       const update = buy
         ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id }
         : tx.name === 'Payward Trading Ltd.'

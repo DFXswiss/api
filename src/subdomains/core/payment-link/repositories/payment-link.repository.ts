@@ -33,7 +33,7 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
   ): Promise<PaymentLink[]> {
     return this.find({
       where: {
-        route: { user: { id: userId }, active: true },
+        route: { user: { id: Equal(userId) }, active: true },
         externalId: externalLinkId ? Equal(externalLinkId) : undefined,
         payments: { status: In(paymentStatus), created: Between(from, to) },
       },

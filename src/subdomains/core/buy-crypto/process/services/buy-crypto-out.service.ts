@@ -9,6 +9,7 @@ import { CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -37,6 +38,7 @@ export class BuyCryptoOutService {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly custodyOrderService: CustodyOrderService,
+    private readonly feeService: FeeService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
@@ -76,6 +78,14 @@ export class BuyCryptoOutService {
 
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
+
+          for (const feeId of transaction.usedFees?.split(';')) {
+            await this.feeService.increaseTxUsages(
+              transaction.amountInChf,
+              Number.parseInt(feeId),
+              transaction.userData,
+            );
+          }
         } catch (e) {
           this.logger.error(`Failed to initiate buy-crypto payout for transaction ${transaction.id}:`, e);
           // continue with next transaction in case payout initiation failed

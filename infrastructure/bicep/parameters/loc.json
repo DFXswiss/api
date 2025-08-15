@@ -260,6 +260,27 @@
     "bscChainId": {
       "value": "97"
     },
+    "gasPrice": {
+      "value": "100"
+    },
+    "citreaTestnetWalletAddress": {
+      "value": "xxx"
+    },
+    "citreaTestnetWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "citreaTestnetGatewayUrl": {
+      "value": "https://rpc.testnet.citrea.xyz"
+    },
+    "citreaTestnetApiKey": {
+      "value": "100"
+    },
+    "citreaTestnetChainId": {
+      "value": "5115"
+    },
+    "goldskySubgraphUrl": {
+      "value": "https://api.goldsky.com/api/public/project_xyz/subgraphs/citrea-transfers/1.0.0/gn"
+    },
     "bscSwapContractAddress": {
       "value": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"
     },
@@ -285,6 +306,9 @@
       "value": "xxx"
     },
     "moneroRpcCertificate": {
+      "value": "xxx"
+    },
+    "zanoWalletAddress": {
       "value": "xxx"
     },
     "solanaWalletSeed": {

@@ -71,20 +71,28 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   }
 
   defaultMessage(args: ValidationArguments): string | undefined {
+    const iban = args.value;
+
     // IBAN tools
-    const { valid } = IbanTools.validateIBAN(args.value);
-    if (!valid || (!this.currentBIC && !args.value.startsWith('CH') && !args.value.startsWith('LI')))
+    const { valid } = IbanTools.validateIBAN(iban);
+    if (!valid || (!this.currentBIC && !iban.startsWith('CH') && !iban.startsWith('LI')))
       return `${args.property} not valid`;
 
     // check blocked IBANs
-    const isBlocked = this.blockedIbans.some((i) => new RegExp(i.toLowerCase()).test(args.value.toLowerCase()));
+    const isBlocked = this.blockedIbans.some((i) => new RegExp(i.toLowerCase()).test(iban.toLowerCase()));
     if (isBlocked) return `${args.property} not allowed`;
 
     if (this.blockedBICs.some((b) => new RegExp(b.toLowerCase()).test(this.currentBIC?.toLowerCase())))
       return `${args.property} BIC not allowed`;
 
-    if (this.dfxBanks.some((b) => b.iban.toLowerCase() === args.value.toLowerCase()))
+    if (this.dfxBanks.some((b) => b.iban.toLowerCase() === iban.toLowerCase()))
       return `${args.property} DFX IBAN not allowed`;
+
+    // check if QR IBAN
+    if (iban.startsWith('CH') || iban.startsWith('LI')) {
+      const iid = +iban.substring(4, 9);
+      if (iid >= 30000 && iid <= 31999) return `${args.property} QR IBAN not allowed`;
+    }
   }
 }
 

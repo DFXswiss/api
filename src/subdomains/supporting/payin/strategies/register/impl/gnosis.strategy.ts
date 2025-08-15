@@ -7,16 +7,11 @@ import { AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.d
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { PayInGnosisService } from '../../../services/payin-gnosis.service';
-import { EvmStrategy } from './base/evm.strategy';
+import { AlchemyStrategy } from './base/alchemy.strategy';
 
 @Injectable()
-export class GnosisStrategy extends EvmStrategy implements OnModuleInit {
+export class GnosisStrategy extends AlchemyStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(GnosisStrategy);
-
-  constructor(gnosisService: PayInGnosisService) {
-    super(gnosisService);
-  }
 
   onModuleInit() {
     super.onModuleInit();

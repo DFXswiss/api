@@ -96,7 +96,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.MONERO:
-          await this.updateMoneroBalance(assets);
+        case Blockchain.ZANO:
+          await this.updateCoinOnlyBalance(assets);
           break;
 
         case Blockchain.ETHEREUM:
@@ -106,6 +107,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.BASE:
         case Blockchain.GNOSIS:
         case Blockchain.BINANCE_SMART_CHAIN:
+        case Blockchain.CITREA_TESTNET:
           await this.updateEvmBalance(assets);
           break;
 
@@ -147,7 +149,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async updateMoneroBalance(assets: Asset[]): Promise<void> {
+  private async updateCoinOnlyBalance(assets: Asset[]): Promise<void> {
     for (const asset of assets) {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
@@ -196,13 +198,12 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     );
 
     for (const asset of assets) {
-      const balance =
-        asset.type === AssetType.COIN ? coinBalance : tokenToBalanceMap.get(asset.chainId?.toLowerCase()) ?? 0;
+      const balance = asset.type === AssetType.COIN ? coinBalance : tokenToBalanceMap.get(asset.chainId?.toLowerCase());
 
       const previousBalance = this.balanceCache.get(asset.id);
-      if (previousBalance && balance === 0) this.logger.error(`Balance for ${asset.uniqueName} went to 0`);
+      if (previousBalance && !balance) this.logger.error(`Balance for ${asset.uniqueName} went to ${null}`);
 
-      this.balanceCache.set(asset.id, balance);
+      balance != null && this.balanceCache.set(asset.id, balance);
     }
   }
 

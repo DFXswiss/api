@@ -41,6 +41,7 @@ export class Configuration {
   defaultVersion: Version = '1';
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
+  defaultRef = '000-000';
   transactionRefundExpirySeconds = 30;
   refRewardManualCheckLimit = 3000; // EUR
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
@@ -557,10 +558,11 @@ export class Configuration {
     evmSeed: process.env.PAYMENT_EVM_SEED,
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
-    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
+    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
     minConfirmations: (blockchain: Blockchain) =>
-      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO].includes(blockchain) ? 6 : 100,
+      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
@@ -716,6 +718,14 @@ export class Configuration {
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
       gasPrice: process.env.BSC_GAS_PRICE,
     },
+    citreaTestnet: {
+      citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
+      citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
+      citreaTestnetGatewayUrl: process.env.CITREA_TESTNET_GATEWAY_URL,
+      citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
+      citreaTestnetChainId: +process.env.CITREA_TESTNET_CHAIN_ID,
+      goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
+    },
     lightning: {
       lnbits: {
         apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
@@ -781,9 +791,12 @@ export class Configuration {
       node: {
         url: process.env.ZANO_NODE_URL,
       },
-      rpc: {
-        url: process.env.ZANO_RPC_URL,
+      wallet: {
+        url: process.env.ZANO_WALLET_URL,
+        address: process.env.ZANO_WALLET_ADDRESS,
       },
+      coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
+      fee: 0.01,
     },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,

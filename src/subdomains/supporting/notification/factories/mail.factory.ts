@@ -36,6 +36,7 @@ export enum MailTranslationKey {
   ACCOUNT_MERGE_REQUEST = 'mail.account_merge.request',
   ACCOUNT_MERGE_ADDED_ADDRESS = 'mail.account_merge.added_address',
   ACCOUNT_MERGE_CHANGED_MAIL = 'mail.account_merge.changed_mail',
+  ACCOUNT_DEACTIVATION = 'mail.account_deactivation',
   LIMIT_REQUEST = 'mail.limit_request',
   BLACK_SQUAD = 'mail.black_squad',
   UNASSIGNED_FIAT_INPUT = 'mail.payment.fiat_input.unassigned',

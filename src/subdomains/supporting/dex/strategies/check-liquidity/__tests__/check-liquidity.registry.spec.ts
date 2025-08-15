@@ -17,6 +17,7 @@ import { DexOptimismService } from '../../../services/dex-optimism.service';
 import { DexPolygonService } from '../../../services/dex-polygon.service';
 import { DexSolanaService } from '../../../services/dex-solana.service';
 import { DexTronService } from '../../../services/dex-tron.service';
+import { DexZanoService } from '../../../services/dex-zano.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -39,6 +40,7 @@ import { SolanaCoinStrategy } from '../impl/solana-coin.strategy';
 import { SolanaTokenStrategy } from '../impl/solana-token.strategy';
 import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
+import { ZanoStrategy } from '../impl/zano.strategy';
 
 describe('CheckLiquidityStrategies', () => {
   let bitcoinService: BitcoinService;
@@ -46,6 +48,7 @@ describe('CheckLiquidityStrategies', () => {
   let bitcoin: BitcoinStrategy;
   let lightning: LightningStrategy;
   let monero: MoneroStrategy;
+  let zano: ZanoStrategy;
   let arbitrumCoin: ArbitrumCoinStrategy;
   let arbitrumToken: ArbitrumTokenStrategy;
   let bscCoin: BscCoinStrategy;
@@ -74,6 +77,7 @@ describe('CheckLiquidityStrategies', () => {
     bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<DexBitcoinService>());
     lightning = new LightningStrategy(mock<AssetService>(), mock<DexLightningService>());
     monero = new MoneroStrategy(mock<AssetService>(), mock<DexMoneroService>());
+    zano = new ZanoStrategy(mock<AssetService>(), mock<DexZanoService>());
     arbitrumCoin = new ArbitrumCoinStrategy(mock<AssetService>(), mock<DexArbitrumService>());
     arbitrumToken = new ArbitrumTokenStrategy(mock<AssetService>(), mock<DexArbitrumService>());
     bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<DexBscService>());
@@ -97,6 +101,7 @@ describe('CheckLiquidityStrategies', () => {
       bitcoin,
       lightning,
       monero,
+      zano,
       arbitrumCoin,
       arbitrumToken,
       bscCoin,
@@ -136,6 +141,12 @@ describe('CheckLiquidityStrategies', () => {
         const strategy = register.getCheckLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.MONERO }));
 
         expect(strategy).toBeInstanceOf(MoneroStrategy);
+      });
+
+      it('gets ZANO strategy for ZANO', () => {
+        const strategy = register.getCheckLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.ZANO }));
+
+        expect(strategy).toBeInstanceOf(ZanoStrategy);
       });
 
       it('gets ARBITRUM_COIN strategy', () => {
@@ -298,6 +309,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     bitcoin: BitcoinStrategy,
     lightning: LightningStrategy,
     monero: MoneroStrategy,
+    zano: ZanoStrategy,
     arbitrumCoin: ArbitrumCoinStrategy,
     arbitrumToken: ArbitrumTokenStrategy,
     bscCoin: BscCoinStrategy,
@@ -322,6 +334,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     this.add({ blockchain: Blockchain.BITCOIN }, bitcoin);
     this.add({ blockchain: Blockchain.LIGHTNING }, lightning);
     this.add({ blockchain: Blockchain.MONERO }, monero);
+    this.add({ blockchain: Blockchain.ZANO }, zano);
 
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.COIN }, arbitrumCoin);
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);

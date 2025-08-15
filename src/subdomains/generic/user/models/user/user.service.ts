@@ -205,7 +205,7 @@ export class UserService {
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, data.userData?.kycLevel));
 
-    await this.siftService.createAccount(user);
+    this.siftService.createAccount(user);
 
     try {
       if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
@@ -512,7 +512,7 @@ export class UserService {
       usedRef === user.ref ||
       (usedRef && !refUser) ||
       user?.userData?.id === refUser?.userData?.id
-      ? '000-000'
+      ? Config.defaultRef
       : usedRef;
   }
 

@@ -431,7 +431,7 @@ export class UserDataService {
     }
 
     for (const user of userData.users) {
-      await this.siftService.updateAccount({
+      this.siftService.updateAccount({
         $user_id: user.id.toString(),
         $time: Date.now(),
         $user_email: update.mail,
@@ -470,7 +470,7 @@ export class UserDataService {
 
   async updateUserName(userData: UserData, dto: UserNameDto) {
     for (const user of userData.users) {
-      await this.siftService.updateAccount({
+      this.siftService.updateAccount({
         $user_id: user.id.toString(),
         $time: Date.now(),
         $name: `${dto.firstName} ${dto.lastName}`,
@@ -483,6 +483,7 @@ export class UserDataService {
   async deactivateUserData(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.deactivateUserData());
     await this.kycAdminService.resetKyc(userData, KycError.USER_DATA_DEACTIVATED);
+    await this.userDataNotificationService.deactivateAccountMail(userData);
   }
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
@@ -565,7 +566,7 @@ export class UserDataService {
 
     for (const user of userData.users) {
       updateSiftAccount.$user_id = user.id.toString();
-      await this.siftService.updateAccount(updateSiftAccount);
+      this.siftService.updateAccount(updateSiftAccount);
     }
 
     await this.kycLogService.createMailChangeLog(userData, userData.mail, mail);
@@ -600,7 +601,7 @@ export class UserDataService {
     if (phoneChanged) {
       for (const user of userData.users) {
         updateSiftAccount.$user_id = user.id.toString();
-        await this.siftService.updateAccount(updateSiftAccount);
+        this.siftService.updateAccount(updateSiftAccount);
       }
     }
 

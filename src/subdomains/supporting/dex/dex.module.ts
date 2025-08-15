@@ -18,7 +18,9 @@ import { DexMoneroService } from './services/dex-monero.service';
 import { DexOptimismService } from './services/dex-optimism.service';
 import { DexPolygonService } from './services/dex-polygon.service';
 import { DexSolanaService } from './services/dex-solana.service';
+import { DexCitreaTestnetService } from './services/dex-citrea-testnet.service';
 import { DexTronService } from './services/dex-tron.service';
+import { DexZanoService } from './services/dex-zano.service';
 import { DexService } from './services/dex.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyCL } from './strategies/check-liquidity/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyCL } from './strategies/check-liquidity/impl/arbitrum-token.strategy';
@@ -26,6 +28,8 @@ import { BaseCoinStrategy as BaseCoinStrategyCL } from './strategies/check-liqui
 import { BaseTokenStrategy as BaseTokenStrategyCL } from './strategies/check-liquidity/impl/base-token.strategy';
 import { CheckLiquidityStrategyRegistry } from './strategies/check-liquidity/impl/base/check-liquidity.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyCL } from './strategies/check-liquidity/impl/bitcoin.strategy';
+import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyCL } from './strategies/check-liquidity/impl/citrea-testnet-coin.strategy';
+import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyCL } from './strategies/check-liquidity/impl/citrea-testnet-token.strategy';
 import { BscCoinStrategy as BscCoinStrategyCL } from './strategies/check-liquidity/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyCL } from './strategies/check-liquidity/impl/bsc-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyCL } from './strategies/check-liquidity/impl/ethereum-coin.strategy';
@@ -42,12 +46,15 @@ import { SolanaCoinStrategy as SolanaCoinStrategyCL } from './strategies/check-l
 import { SolanaTokenStrategy as SolanaTokenStrategyCL } from './strategies/check-liquidity/impl/solana-token.strategy';
 import { TronCoinStrategy as TronCoinStrategyCL } from './strategies/check-liquidity/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyCL } from './strategies/check-liquidity/impl/tron-token.strategy';
+import { ZanoStrategy as ZanoStrategyCL } from './strategies/check-liquidity/impl/zano.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPL } from './strategies/purchase-liquidity/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPL } from './strategies/purchase-liquidity/impl/arbitrum-token.strategy';
 import { BaseCoinStrategy as BaseCoinStrategyPL } from './strategies/purchase-liquidity/impl/base-coin.strategy';
 import { BaseTokenStrategy as BaseTokenStrategyPL } from './strategies/purchase-liquidity/impl/base-token.strategy';
 import { PurchaseLiquidityStrategyRegistry } from './strategies/purchase-liquidity/impl/base/purchase-liquidity.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyPL } from './strategies/purchase-liquidity/impl/bitcoin.strategy';
+import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyPL } from './strategies/purchase-liquidity/impl/citrea-testnet-coin.strategy';
+import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyPL } from './strategies/purchase-liquidity/impl/citrea-testnet-token.strategy';
 import { BscCoinStrategy as BscCoinStrategyPL } from './strategies/purchase-liquidity/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyPL } from './strategies/purchase-liquidity/impl/bsc-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-coin.strategy';
@@ -63,12 +70,15 @@ import { SolanaCoinStrategy as SolanaCoinStrategyPL } from './strategies/purchas
 import { SolanaTokenStrategy as SolanaTokenStrategyPL } from './strategies/purchase-liquidity/impl/solana-token.strategy';
 import { TronCoinStrategy as TronCoinStrategyPL } from './strategies/purchase-liquidity/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyPL } from './strategies/purchase-liquidity/impl/tron-token.strategy';
+import { ZanoStrategy as ZanoStrategyPL } from './strategies/purchase-liquidity/impl/zano.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategySL } from './strategies/sell-liquidity/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategySL } from './strategies/sell-liquidity/impl/arbitrum-token.strategy';
 import { BaseCoinStrategy as BaseCoinStrategySL } from './strategies/sell-liquidity/impl/base-coin.strategy';
 import { BaseTokenStrategy as BaseTokenStrategySL } from './strategies/sell-liquidity/impl/base-token.strategy';
 import { SellLiquidityStrategyRegistry } from './strategies/sell-liquidity/impl/base/sell-liquidity.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategySL } from './strategies/sell-liquidity/impl/bitcoin.strategy';
+import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategySL } from './strategies/sell-liquidity/impl/citrea-testnet-coin.strategy';
+import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategySL } from './strategies/sell-liquidity/impl/citrea-testnet-token.strategy';
 import { BscCoinStrategy as BscCoinStrategySL } from './strategies/sell-liquidity/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategySL } from './strategies/sell-liquidity/impl/bsc-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategySL } from './strategies/sell-liquidity/impl/ethereum-coin.strategy';
@@ -84,10 +94,12 @@ import { SolanaCoinStrategy as SolanaCoinStrategySL } from './strategies/sell-li
 import { SolanaTokenStrategy as SolanaTokenStrategySL } from './strategies/sell-liquidity/impl/solana-token.strategy';
 import { TronCoinStrategy as TronCoinStrategySL } from './strategies/sell-liquidity/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategySL } from './strategies/sell-liquidity/impl/tron-token.strategy';
+import { ZanoStrategy as ZanoStrategySL } from './strategies/sell-liquidity/impl/zano.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyS } from './strategies/supplementary/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyS } from './strategies/supplementary/impl/base.strategy';
 import { SupplementaryStrategyRegistry } from './strategies/supplementary/impl/base/supplementary.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/supplementary/impl/bitcoin.strategy';
+import { CitreaTestnetStrategy as CitreaTestnetStrategyS } from './strategies/supplementary/impl/citrea-testnet.strategy';
 import { BscStrategy as BscStrategyS } from './strategies/supplementary/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyS } from './strategies/supplementary/impl/ethereum.strategy';
 import { GnosisStrategy as GnosisStrategyS } from './strategies/supplementary/impl/gnosis.strategy';
@@ -96,6 +108,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
 import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/impl/polygon.strategy';
 import { SolanaStrategy as SolanaStrategyS } from './strategies/supplementary/impl/solana.strategy';
 import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/tron.strategy';
+import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/zano.strategy';
 
 @Module({
   imports: [TypeOrmModule.forFeature([LiquidityOrder]), BlockchainModule, NotificationModule, SharedModule],
@@ -112,8 +125,10 @@ import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/t
     DexGnosisService,
     DexBscService,
     DexBitcoinService,
+    DexCitreaTestnetService,
     DexLightningService,
     DexMoneroService,
+    DexZanoService,
     DexSolanaService,
     DexTronService,
     CheckLiquidityStrategyRegistry,
@@ -127,6 +142,7 @@ import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/t
     BitcoinStrategyCL,
     LightningStrategyCL,
     MoneroStrategyCL,
+    ZanoStrategyCL,
     BscTokenStrategyCL,
     EthereumTokenStrategyCL,
     OptimismCoinStrategyCL,
@@ -135,6 +151,8 @@ import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/t
     PolygonTokenStrategyCL,
     BaseCoinStrategyCL,
     BaseTokenStrategyCL,
+    CitreaTestnetCoinStrategyCL,
+    CitreaTestnetTokenStrategyCL,
     SolanaCoinStrategyCL,
     SolanaTokenStrategyCL,
     GnosisCoinStrategyCL,
@@ -145,6 +163,7 @@ import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/t
     BscCoinStrategyPL,
     BitcoinStrategyPL,
     MoneroStrategyPL,
+    ZanoStrategyPL,
     ArbitrumCoinStrategyPL,
     ArbitrumTokenStrategyPL,
     BscTokenStrategyPL,
@@ -155,6 +174,8 @@ import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/t
     PolygonTokenStrategyPL,
     BaseCoinStrategyPL,
     BaseTokenStrategyPL,
+    CitreaTestnetCoinStrategyPL,
+    CitreaTestnetTokenStrategyPL,
     SolanaCoinStrategyPL,
     SolanaTokenStrategyPL,
     GnosisCoinStrategyPL,
@@ -163,6 +184,7 @@ import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/t
     TronTokenStrategyPL,
     BitcoinStrategySL,
     MoneroStrategySL,
+    ZanoStrategySL,
     ArbitrumCoinStrategySL,
     ArbitrumTokenStrategySL,
     BscCoinStrategySL,
@@ -175,6 +197,8 @@ import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/t
     PolygonTokenStrategySL,
     BaseCoinStrategySL,
     BaseTokenStrategySL,
+    CitreaTestnetCoinStrategySL,
+    CitreaTestnetTokenStrategySL,
     SolanaCoinStrategySL,
     SolanaTokenStrategySL,
     GnosisCoinStrategySL,
@@ -184,11 +208,13 @@ import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/t
     ArbitrumStrategyS,
     BitcoinStrategyS,
     MoneroStrategyS,
+    ZanoStrategyS,
     BscStrategyS,
     EthereumStrategyS,
     OptimismStrategyS,
     PolygonStrategyS,
     BaseStrategyS,
+    CitreaTestnetStrategyS,
     SolanaStrategyS,
     GnosisStrategyS,
     TronStrategyS,
