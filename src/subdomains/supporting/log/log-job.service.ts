@@ -202,6 +202,18 @@ export class LogJobService {
     const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
     const customAssetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
 
+    const liqAddresses = await Promise.all(
+      Object.values(Blockchain).map(async (blockchain) => {
+        try {
+          const liqAddress = this.blockchainRegistryService.getClient(blockchain).getWalletAddress();
+
+          return { blockchain, liqAddress };
+        } catch (e) {
+          return { blockchain, liqAddress: undefined };
+        }
+      }),
+    );
+
     const customBalances = await Promise.all(
       Array.from(customAssetMap.entries()).map(async ([e, a]) => {
         const client = this.blockchainRegistryService.getClient(e);
@@ -375,6 +387,8 @@ export class LogJobService {
     // assetLog
     return assets.reduce((prev, curr) => {
       if ((curr.balance?.amount == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
+
+      const liqAddress = liqAddresses?.find((l) => l.blockchain === curr.blockchain)?.liqAddress;
 
       const customAddressBalances = customBalances
         .find((c) => c.blockchain === curr.blockchain)
@@ -606,9 +620,14 @@ export class LogJobService {
           liquidity: liquidity
             ? {
                 total: this.getJsonValue(liquidity, amountType(curr), true, true),
-                liquidityBalance: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
-                paymentDepositBalance: this.getJsonValue(paymentDepositBalance, amountType(curr)),
-                manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr), false, true),
+                liquidityBalance: curr.balance?.amount
+                  ? {
+                      total: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
+                      [liqAddress]: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
+                    }
+                  : undefined,
+                paymentDepositBalance: { total: this.getJsonValue(paymentDepositBalance, amountType(curr)) },
+                manualLiqPosition: { total: this.getJsonValue(manualLiqPosition, amountType(curr), false, true) },
               }
             : undefined,
           custom: totalCustomBalance

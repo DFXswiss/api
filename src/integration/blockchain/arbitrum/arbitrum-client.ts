@@ -11,12 +11,11 @@ import {
   L1ContractCallTransactionReceipt,
   L1EthDepositTransactionReceipt,
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
-import { Contract, ethers } from 'ethers';
+import { ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
@@ -144,9 +143,5 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     } catch (e) {
       this.logger.error('Error while trying to get L2 network for Arbitrum client:', e);
     }
-  }
-
-  private getERC20ContractForDexL1(chainId: string): Contract {
-    return new ethers.Contract(chainId, ERC20_ABI, this.l1Wallet);
   }
 }
