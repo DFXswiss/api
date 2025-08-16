@@ -14,6 +14,7 @@ import { FiatOutputModule } from '../fiat-output/fiat-output.module';
 import { NotificationModule } from '../notification/notification.module';
 import { TransactionModule } from '../payment/transaction.module';
 import { PricingModule } from '../pricing/pricing.module';
+import { BankTxReturnNotificationService } from './bank-tx-return/bank-tx-return-notification.service';
 import { BankTxReturnController } from './bank-tx-return/bank-tx-return.controller';
 import { BankTxReturn } from './bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnRepository } from './bank-tx-return/bank-tx-return.repository';
@@ -53,6 +54,7 @@ import { SepaParser } from './bank-tx/services/sepa-parser.service';
     BankTxRepeatService,
     BankTxBatchService,
     SepaParser,
+    BankTxReturnNotificationService,
   ],
   exports: [BankTxService, BankTxRepeatService, BankTxBatchService, BankTxReturnService],
 })
