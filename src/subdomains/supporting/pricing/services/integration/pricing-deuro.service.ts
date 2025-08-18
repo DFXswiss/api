@@ -24,6 +24,8 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
     PricingDeuroService.BTC,
   ];
 
+  private static readonly DEPS_ASSETS = [PricingDeuroService.NDEPS, PricingDeuroService.DEPS];
+
   private static readonly REFERENCE_ASSETS = [
     PricingDeuroService.USDT,
     PricingDeuroService.USDC,
@@ -47,6 +49,8 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
   async getPrice(from: string, to: string): Promise<Price> {
     if (!PricingDeuroService.ALLOWED_ASSETS.includes(from)) throw new Error(`from asset ${from} is not allowed`);
     if (!PricingDeuroService.ALLOWED_ASSETS.includes(to)) throw new Error(`to asset ${to} is not allowed`);
+    if (!PricingDeuroService.DEPS_ASSETS.includes(from) && !PricingDeuroService.DEPS_ASSETS.includes(to))
+      throw new Error(`from asset ${from} to asset ${to} is not allowed`);
 
     // TODO: This calculation is only correct for purchases
     const contractPrice = (await this.deuroService.getDEPSPrice()) * (1 + PricingDeuroService.CONTRACT_FEE);
