@@ -1,7 +1,6 @@
 import { FrankencoinBasedCollateralDto } from '../../shared/frankencoin/frankencoin-based.dto';
 
 export interface FrankencoinPositionGraphDto extends FrankencoinBasedCollateralDto {
-  id: string;
   position: string;
   owner: string;
   zchf: string;
@@ -16,7 +15,6 @@ export interface FrankencoinPositionGraphDto extends FrankencoinBasedCollateralD
 }
 
 export interface FrankencoinChallengeGraphDto {
-  id: string;
   challenger: string;
   position: string;
   start: string;
@@ -30,39 +28,8 @@ export interface FrankencoinChallengeGraphDto {
 }
 
 export interface FrankencoinFpsGraphDto {
-  id: string;
   profits: string;
-  loss: string;
-  reserve: string;
-}
-
-export interface FrankencoinMinterGraphDto {
-  id: string;
-  minter: string;
-  applicationPeriod: string;
-  applicationFee: string;
-  applyMessage: string;
-  applyDate: string;
-  suggestor: string;
-  denyMessage: string;
-  denyDate: string;
-  vetor: string;
-}
-
-export interface FrankencoinDelegationGraphDto {
-  id: string;
-  owner: string;
-  delegatedTo: string;
-  pureDelegatedFrom: [string];
-}
-
-export interface FrankencoinTradeGraphDto {
-  id: string;
-  trader: string;
-  amount: string;
-  shares: string;
-  price: string;
-  time: string;
+  losses: string;
 }
 
 export interface FrankencoinLogDto {
