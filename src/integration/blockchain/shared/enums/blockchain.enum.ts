@@ -48,6 +48,7 @@ export const PaymentLinkBlockchain = {
   POLYGON: Blockchain.POLYGON,
   GNOSIS: Blockchain.GNOSIS,
   BITCOIN: Blockchain.BITCOIN,
+  ZANO: Blockchain.ZANO,
   BINANCE_PAY: Blockchain.BINANCE_PAY,
   KUCOIN_PAY: Blockchain.KUCOIN_PAY,
   SOLANA: Blockchain.SOLANA,
