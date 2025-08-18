@@ -65,7 +65,8 @@ export class PaymentLinkFeeService implements OnModuleInit {
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
       case Blockchain.GNOSIS:
-      case Blockchain.POLYGON: {
+      case Blockchain.POLYGON:
+      case Blockchain.BINANCE_SMART_CHAIN: {
         const client = this.blockchainRegistryService.getEvmClient(blockchain);
         return +(await client.getRecommendedGasPrice());
       }
