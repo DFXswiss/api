@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -10,7 +13,7 @@ import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { MoreThan } from 'typeorm';
 
 interface ExchangeData {
@@ -31,6 +34,7 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
     monitoringService: MonitoringService,
     private readonly repos: RepositoryFactory,
     private readonly pricingService: PricingService,
+    private readonly assetService: AssetService,
   ) {
     super(monitoringService, 'exchange', 'volume');
   }
@@ -51,15 +55,26 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
   // *** HELPER METHODS *** //
 
   private async getXtPriceDeviation(): Promise<ExchangeDeviationData[]> {
-    const xtDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEURO', 'USDT');
-    const xtDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEURO', 'BTC');
-    const xtDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEPS', 'USDT');
-    const xtDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'DEPS', 'BTC');
+    const usdt = await this.assetService.getAssetByQuery({
+      name: 'USDT',
+      blockchain: Blockchain.ETHEREUM,
+      type: AssetType.TOKEN,
+    });
+    const btc = await this.assetService.getAssetByQuery({
+      name: 'BTC',
+      blockchain: Blockchain.BITCOIN,
+      type: AssetType.COIN,
+    });
 
-    const referenceDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEURO', 'USDT');
-    const referenceDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEURO', 'BTC');
-    const referenceDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEPS', 'USDT');
-    const referenceDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'DEPS', 'BTC');
+    const xtDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEURO');
+    const xtDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'BTC', 'DEURO');
+    const xtDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEPS');
+    const xtDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'BTC', 'DEPS');
+
+    const referenceDeurUsdtPrice = await this.pricingService.getPrice(usdt, PriceCurrency.EUR, false);
+    const referenceDeurBtcPrice = await this.pricingService.getPrice(btc, PriceCurrency.EUR, false);
+    const referenceDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'USDT', 'DEPS');
+    const referenceDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'BTC', 'DEPS');
 
     return [
       {

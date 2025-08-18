@@ -158,7 +158,14 @@ export class AmlService {
             .getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
             .then((c) => c?.bankTransactionVerificationEnable);
 
-    if (ibanCountryCheck)
+    const bicCountryCheck =
+      !ibanCountryCheck &&
+      entity.bankTx.bic &&
+      (await this.countryService
+        .getCountryWithSymbol(entity.bankTx.bic.substring(4, 6))
+        .then((c) => c?.bankTransactionVerificationEnable));
+
+    if (ibanCountryCheck || bicCountryCheck)
       entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
         bankTransactionVerification: CheckStatus.GSHEET,
       });

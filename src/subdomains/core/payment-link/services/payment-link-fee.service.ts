@@ -55,6 +55,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
       case Blockchain.KUCOIN_PAY:
       case Blockchain.LIGHTNING:
       case Blockchain.MONERO:
+      case Blockchain.ZANO:
       case Blockchain.SOLANA:
         return 0;
 
