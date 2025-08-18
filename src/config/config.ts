@@ -662,6 +662,15 @@ export class Configuration {
       swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.ETH_QUOTE_CONTRACT_ADDRESS,
     },
+    sepolia: {
+      sepoliaWalletAddress: process.env.SEPOLIA_WALLET_ADDRESS,
+      sepoliaWalletPrivateKey: process.env.SEPOLIA_WALLET_PRIVATE_KEY,
+      sepoliaGatewayUrl: process.env.SEPOLIA_GATEWAY_URL,
+      sepoliaApiKey: process.env.ALCHEMY_API_KEY,
+      sepoliaChainId: +process.env.SEPOLIA_CHAIN_ID,
+      swapContractAddress: process.env.SEPOLIA_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.SEPOLIA_QUOTE_CONTRACT_ADDRESS,
+    },
     optimism: {
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,

@@ -20,6 +20,7 @@ import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
+import { PayInSepoliaService } from './services/payin-sepolia.service';
 import { PayInGnosisService } from './services/payin-gnosis.service';
 import { PayInLightningService } from './services/payin-lightning.service';
 import { PayInMoneroService } from './services/payin-monero.service';
@@ -38,6 +39,7 @@ import { BinancePayStrategy as BinancePayStrategyR } from './strategies/register
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
+import { SepoliaStrategy as SepoliaStrategyR } from './strategies/register/impl/sepolia.strategy';
 import { GnosisStrategy as GnosisStrategyR } from './strategies/register/impl/gnosis.strategy';
 import { KucoinPayStrategy as KucoinPayStrategyR } from './strategies/register/impl/kucoin-pay.strategy';
 import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
@@ -59,6 +61,8 @@ import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/send/impl/ethereum-token.strategy';
+import { SepoliaCoinStrategy as SepoliaCoinStrategyS } from './strategies/send/impl/sepolia-coin.strategy';
+import { SepoliaTokenStrategy as SepoliaTokenStrategyS } from './strategies/send/impl/sepolia-token.strategy';
 import { GnosisCoinStrategy as GnosisCoinStrategyS } from './strategies/send/impl/gnosis-coin.strategy';
 import { GnosisTokenStrategy as GnosisTokenStrategyS } from './strategies/send/impl/gnosis-token.strategy';
 import { KucoinPayStrategy as KucoinPayStrategyS } from './strategies/send/impl/kucoin-pay.strategy';
@@ -103,6 +107,7 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/send/impl/zano.strat
     PayInMoneroService,
     PayInZanoService,
     PayInEthereumService,
+    PayInSepoliaService,
     PayInBscService,
     PayInArbitrumService,
     PayInOptimismService,
@@ -125,6 +130,9 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/send/impl/zano.strat
     EthereumStrategyR,
     EthereumCoinStrategyS,
     EthereumTokenStrategyS,
+    SepoliaStrategyR,
+    SepoliaCoinStrategyS,
+    SepoliaTokenStrategyS,
     BscStrategyR,
     BscCoinStrategyS,
     BscTokenStrategyS,
