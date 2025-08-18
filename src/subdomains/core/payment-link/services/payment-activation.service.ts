@@ -4,6 +4,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
+import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -33,6 +34,7 @@ export class PaymentActivationService implements OnModuleInit {
   private bitcoinDepositAddress: string;
   private zanoDepositAddress: string;
   private solanaDepositAddress: string;
+  private tronDepositAddress: string;
 
   constructor(
     readonly lightningService: LightningService,
@@ -51,6 +53,7 @@ export class PaymentActivationService implements OnModuleInit {
     this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
     this.zanoDepositAddress = Config.payment.zanoAddress;
     this.solanaDepositAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
+    this.tronDepositAddress = TronUtil.createWallet({ seed: Config.payment.tronSeed, index: 0 }).address;
   }
 
   async close(activation: PaymentActivation): Promise<void> {
@@ -206,6 +209,9 @@ export class PaymentActivationService implements OnModuleInit {
 
       case Blockchain.SOLANA:
         return this.createPaymentRequest(this.solanaDepositAddress, transferInfo);
+
+      case Blockchain.TRON:
+        return this.createPaymentRequest(this.tronDepositAddress, transferInfo);
 
       case Blockchain.KUCOIN_PAY:
       case Blockchain.BINANCE_PAY:

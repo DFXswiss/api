@@ -21,6 +21,7 @@ export class PaymentRequestMapper {
       case Blockchain.BITCOIN:
       case Blockchain.ZANO:
       case Blockchain.SOLANA:
+      case Blockchain.TRON:
         return this.toPaymentLinkPayment(paymentActivation.method, paymentActivation);
 
       case Blockchain.KUCOIN_PAY:
@@ -42,7 +43,7 @@ export class PaymentRequestMapper {
   ): PaymentLinkEvmPaymentDto {
     const infoUrl = `${Config.url()}/lnurlp/tx/${paymentActivation.payment.uniqueId}`;
 
-    const hint = [Blockchain.MONERO, Blockchain.ZANO, Blockchain.SOLANA].includes(method)
+    const hint = [Blockchain.MONERO, Blockchain.ZANO, Blockchain.SOLANA, Blockchain.TRON].includes(method)
       ? `Use this data to create a transaction and sign it. Broadcast the signed transaction to the blockchain and send the transaction hash back via the endpoint ${infoUrl}`
       : `Use this data to create a transaction and sign it. Send the signed transaction back as HEX via the endpoint ${infoUrl}. We check the transferred HEX and broadcast the transaction to the blockchain.`;
 

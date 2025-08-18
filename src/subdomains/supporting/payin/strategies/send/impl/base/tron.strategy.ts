@@ -1,4 +1,3 @@
-import { Config } from 'src/config/config';
 import { LogLevel } from 'src/shared/services/dfx-logger';
 import {
   CryptoInput,
@@ -41,13 +40,7 @@ export abstract class TronStrategy extends SendStrategy {
 
           CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount);
 
-          /**
-           * @note
-           * setting to some default minimal amount in case estimated fees go very low.
-           */
-          const effectivePreparationFee = Math.max(feeNativeAsset, Config.blockchain.solana.minimalPreparationFee);
-
-          await this.prepareSend(payIn, effectivePreparationFee);
+          await this.prepareSend(payIn, feeNativeAsset);
         }
 
         if (payIn.status === PayInStatus.PREPARED) {

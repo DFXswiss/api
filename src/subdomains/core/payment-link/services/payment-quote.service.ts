@@ -41,6 +41,7 @@ export class PaymentQuoteService {
     Blockchain.BITCOIN,
     Blockchain.ZANO,
     Blockchain.SOLANA,
+    Blockchain.TRON,
   ];
 
   private readonly transferAmountAssetOrder: string[] = ['dEURO', 'ZCHF', 'USDT', 'USDC', 'DAI'];
@@ -381,6 +382,7 @@ export class PaymentQuoteService {
         case Blockchain.MONERO:
         case Blockchain.ZANO:
         case Blockchain.SOLANA:
+        case Blockchain.TRON:
           await this.doTxIdPayment(transferInfo, quote);
           break;
 
