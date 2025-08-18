@@ -221,6 +221,19 @@ export class KycLegalEntityData {
   legalEntity: LegalEntity;
 }
 
+export class KycSoleProprietorshipConfirmationData {
+  @ApiProperty({ description: 'Base64 encoded sole proprietorship file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+
+  @ApiProperty({ description: 'Name of the sole proprietorship file' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  fileName: string;
+}
+
 export class KycManualIdentData {
   @ApiProperty()
   @IsNotEmpty()

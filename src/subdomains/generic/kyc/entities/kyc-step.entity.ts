@@ -77,6 +77,9 @@ export class KycStep extends IEntity {
       case KycStepName.LEGAL_ENTITY:
         return { url: `${apiUrl}/data/legal/${this.id}`, type: UrlType.API };
 
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
+        return { url: `${apiUrl}/data/confirmation/${this.id}`, type: UrlType.API };
+
       case KycStepName.SIGNATORY_POWER:
         return { url: `${apiUrl}/data/signatory/${this.id}`, type: UrlType.API };
 

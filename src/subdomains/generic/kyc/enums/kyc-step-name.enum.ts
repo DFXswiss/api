@@ -6,6 +6,7 @@ export enum KycStepName {
   OWNER_DIRECTORY = 'OwnerDirectory',
   COMMERCIAL_REGISTER = 'CommercialRegister', // deprecated
   LEGAL_ENTITY = 'LegalEntity',
+  SOLE_PROPRIETORSHIP_CONFIRMATION = 'SoleProprietorshipConfirmation',
   SIGNATORY_POWER = 'SignatoryPower',
   AUTHORITY = 'Authority',
   BENEFICIAL_OWNER = 'BeneficialOwner',
