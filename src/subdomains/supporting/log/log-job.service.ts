@@ -202,14 +202,14 @@ export class LogJobService {
     const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
     const customAssetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
 
-    const liqAddresses = await Promise.all(
-      Object.values(Blockchain).map(async (blockchain) => {
+    const liqAddresses = new Map(
+      Object.values(Blockchain).map((blockchain) => {
         try {
-          const liqAddress = this.blockchainRegistryService.getClient(blockchain).getWalletAddress();
+          const liqAddress = this.blockchainRegistryService.getClient(blockchain)?.getWalletAddress();
 
-          return { blockchain, liqAddress };
+          return [blockchain, liqAddress];
         } catch (e) {
-          return { blockchain, liqAddress: undefined };
+          return [blockchain, undefined];
         }
       }),
     );
