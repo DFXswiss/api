@@ -101,6 +101,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.ETHEREUM:
+        case Blockchain.SEPOLIA:
         case Blockchain.OPTIMISM:
         case Blockchain.ARBITRUM:
         case Blockchain.POLYGON:

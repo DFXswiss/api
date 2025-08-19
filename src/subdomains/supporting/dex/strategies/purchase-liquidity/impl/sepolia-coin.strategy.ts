@@ -25,6 +25,6 @@ export class SepoliaCoinStrategy extends PurchaseStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getSepoliaETH();
+    return this.assetService.getSepoliaCoin();
   }
 }

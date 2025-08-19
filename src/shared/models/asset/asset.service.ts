@@ -127,7 +127,7 @@ export class AssetService {
     });
   }
 
-  async getSepoliaETH(): Promise<Asset> {
+  async getSepoliaCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'ETH',
       blockchain: Blockchain.SEPOLIA,

@@ -30,6 +30,6 @@ export class SepoliaTokenStrategy extends EvmTokenStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getSepoliaETH();
+    return this.assetService.getSepoliaCoin();
   }
 }
