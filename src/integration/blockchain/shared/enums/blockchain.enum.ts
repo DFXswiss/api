@@ -47,6 +47,7 @@ export const PaymentLinkBlockchain = {
   OPTIMISM: Blockchain.OPTIMISM,
   POLYGON: Blockchain.POLYGON,
   GNOSIS: Blockchain.GNOSIS,
+  BINANCE_SMART_CHAIN: Blockchain.BINANCE_SMART_CHAIN,
   BITCOIN: Blockchain.BITCOIN,
   BINANCE_PAY: Blockchain.BINANCE_PAY,
   KUCOIN_PAY: Blockchain.KUCOIN_PAY,
