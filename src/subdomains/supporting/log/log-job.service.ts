@@ -388,7 +388,7 @@ export class LogJobService {
     return assets.reduce((prev, curr) => {
       if ((curr.balance?.amount == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
 
-      const liqAddress = liqAddresses?.find((l) => l.blockchain === curr.blockchain)?.liqAddress;
+      const liqAddress = liqAddresses?.get(curr.blockchain);
 
       const customAddressBalances = customBalances
         .find((c) => c.blockchain === curr.blockchain)
