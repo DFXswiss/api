@@ -28,7 +28,7 @@ export class UserDataJobService {
     const entities = await this.userDataRepo.find({
       where: { hasBankTx: IsNull() },
       relations: { transactions: { buyCrypto: true } },
-      take: 5000,
+      take: 20000,
     });
 
     for (const entity of entities) {
