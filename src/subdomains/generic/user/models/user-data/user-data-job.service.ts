@@ -32,11 +32,10 @@ export class UserDataJobService {
     });
 
     for (const entity of entities) {
-      if (entity.transactions.find((t) => t.buyCrypto.isComplete && t.sourceType === TransactionSourceType.BANK_TX)) {
-        await this.userDataRepo.update(entity.id, { hasBankTx: true });
-      } else {
-        await this.userDataRepo.update(entity.id, { hasBankTx: false });
-      }
+      const hasBankTx = entity.transactions.some(
+        (t) => t.buyCrypto?.isComplete && t.sourceType === TransactionSourceType.BANK_TX,
+      );
+      await this.userDataRepo.update(entity.id, { hasBankTx });
     }
   }
 
