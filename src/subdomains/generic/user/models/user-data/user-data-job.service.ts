@@ -33,7 +33,9 @@ export class UserDataJobService {
 
     for (const entity of entities) {
       const hasBankTx = entity.transactions.some(
-        (t) => t.buyCrypto?.isComplete && t.sourceType === TransactionSourceType.BANK_TX,
+        (t) =>
+          (t.buyCrypto?.isComplete || t.amlCheck === CheckStatus.PASS) &&
+          t.sourceType === TransactionSourceType.BANK_TX,
       );
       await this.userDataRepo.update(entity.id, { hasBankTx });
     }
