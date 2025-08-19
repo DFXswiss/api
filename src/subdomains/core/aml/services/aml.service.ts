@@ -126,6 +126,13 @@ export class AmlService {
         } else if (bankData.userData.id === entity.userData.id && !entity.userData.bankTransactionVerification)
           await this.checkBankTransactionVerification(entity);
       }
+    } else if (!entity.userData.hasValidNameCheckDate && entity instanceof BuyCrypto && entity.cryptoRoute) {
+      try {
+        const identBankData = await this.bankDataService.getIdentBankDataForUser(entity.userData.id);
+        if (identBankData) await this.checkNameCheck(entity, identBankData);
+      } catch (e) {
+        this.logger.error(`Error during aml ident nameCheck for ${entity.id}`, e);
+      }
     }
 
     if (entity.userData.isDeactivated)

@@ -268,6 +268,13 @@ export class BankDataService {
     return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
   }
 
+  async getIdentBankDataForUser(userDataId: number): Promise<BankData> {
+    return this.bankDataRepo.findOne({
+      where: { userData: { id: userDataId }, type: BankDataType.IDENT },
+      relations: { userData: true },
+    });
+  }
+
   async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
     const entity = await this.bankDataRepo.findOne({
       where: { id },
