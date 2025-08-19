@@ -71,6 +71,22 @@ export interface IbanDetailsDto {
   www_seen_until: string;
 }
 
+export interface BankDetailsDto {
+  result: string;
+  banks: [
+    {
+      name: string;
+      bic: string;
+      code: string;
+      address: string;
+      in_scl_directory: string;
+      sct: string;
+      sdd: string;
+      b2b: string;
+    },
+  ];
+}
+
 interface IbanBalance {
   message: string;
   balance: number;
@@ -89,6 +105,16 @@ export class IbanService {
       return await this.http.get<IbanDetailsDto>(url, Config.sepaTools);
     } catch (error) {
       throw new ServiceUnavailableException(`Failed to get IBAN infos for ${iban}:`, error);
+    }
+  }
+
+  async getBankInfos(bic: string): Promise<BankDetailsDto> {
+    const url = `${this.baseUrl}/find_bank/*/*/${bic}`;
+
+    try {
+      return await this.http.get<BankDetailsDto>(url, Config.sepaTools);
+    } catch (error) {
+      throw new ServiceUnavailableException(`Failed to get Bank infos for ${bic}:`, error);
     }
   }
 

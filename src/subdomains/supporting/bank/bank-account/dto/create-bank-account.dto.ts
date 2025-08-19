@@ -13,9 +13,16 @@ export class CreateBankAccountDto extends UpdateBankAccountDto {
   iban: string;
 }
 
-export class CreateBankAccountInternalDto {
+export class CreateIbanBankAccountInternalDto {
   @ApiProperty()
   @IsNotEmpty()
   @Transform(Util.trimAll)
   iban: string;
+}
+
+export class CreateBicBankAccountInternalDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @Transform(Util.trimAll)
+  bic: string;
 }

@@ -11,6 +11,10 @@ export class CreateBankDataDto {
 
   @IsOptional()
   @IsString()
+  bic?: string;
+
+  @IsOptional()
+  @IsString()
   name?: string;
 
   @IsOptional()

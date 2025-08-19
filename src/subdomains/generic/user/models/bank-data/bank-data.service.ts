@@ -172,7 +172,8 @@ export class BankDataService {
 
     if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
 
-    await this.bankAccountService.getOrCreateBankAccountInternal(bankData.iban, false);
+    const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(bankData.iban, false);
+    if (!bankAccount.bankName && dto.bic) await this.bankAccountService.getOrCreateBicBankAccountInternal(dto.bic);
 
     return this.bankDataRepo.save(bankData);
   }
@@ -341,7 +342,7 @@ export class BankDataService {
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
 
-    await this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
+    await this.bankAccountService.getOrCreateIbanBankAccountInternal(dto.iban);
 
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },
