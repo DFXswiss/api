@@ -172,6 +172,8 @@ export class BankDataService {
 
     if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
 
+    await this.bankAccountService.getOrCreateBankAccountInternal(bankData.iban, false);
+
     return this.bankDataRepo.save(bankData);
   }
 
