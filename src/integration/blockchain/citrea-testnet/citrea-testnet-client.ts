@@ -62,13 +62,15 @@ export class CitreaTestnetClient extends EvmClient {
     return balances;
   }
 
+  // --- HISTORY --- //
+  // TODO: test & cleanup
+
   async getNativeCoinTransactions(
     walletAddress: string,
     fromBlock: number,
     toBlock?: number,
     direction = Direction.BOTH,
   ): Promise<EvmCoinHistoryEntry[]> {
-    // Goldsky subgraph is no longer available, use direct RPC fallback
     try {
       if (this.goldsky) {
         const transfers = await this.goldsky.getNativeCoinTransfers(
@@ -83,7 +85,7 @@ export class CitreaTestnetClient extends EvmClient {
       this.logger.warn(`Goldsky service failed, using RPC fallback: ${error.message}`);
     }
 
-    // Fallback: Get transactions using RPC (limited functionality)
+    // fallback: get transactions using RPC (limited functionality)
     return this.getNativeCoinTransactionsViaRPC(walletAddress, fromBlock, toBlock, direction);
   }
 
@@ -93,7 +95,6 @@ export class CitreaTestnetClient extends EvmClient {
     toBlock?: number,
     direction = Direction.BOTH,
   ): Promise<EvmTokenHistoryEntry[]> {
-    // Goldsky subgraph is no longer available, use direct RPC fallback
     try {
       if (this.goldsky) {
         const transfers = await this.goldsky.getTokenTransfers(
@@ -108,7 +109,7 @@ export class CitreaTestnetClient extends EvmClient {
       this.logger.warn(`Goldsky service failed, using RPC fallback: ${error.message}`);
     }
 
-    // Fallback: Get token transactions using RPC (limited functionality)
+    // fallback: get token transactions using RPC (limited functionality)
     return this.getERC20TransactionsViaRPC(walletAddress, fromBlock, toBlock, direction);
   }
 
@@ -179,26 +180,26 @@ export class CitreaTestnetClient extends EvmClient {
     const transactions: EvmCoinHistoryEntry[] = [];
     const lowerWallet = walletAddress.toLowerCase();
     const endBlock = toBlock ?? (await this.provider.getBlockNumber());
-    
+
     // Limit the range to avoid overwhelming the RPC
     const maxBlockRange = 100;
     const startBlock = Math.max(fromBlock, endBlock - maxBlockRange);
-    
+
     this.logger.info(`Fetching transactions via RPC from block ${startBlock} to ${endBlock}`);
-    
+
     for (let blockNum = startBlock; blockNum <= endBlock; blockNum++) {
       try {
         const block = await this.provider.getBlockWithTransactions(blockNum);
         if (!block) continue;
-        
+
         for (const tx of block.transactions) {
           const fromMatch = tx.from?.toLowerCase() === lowerWallet;
           const toMatch = tx.to?.toLowerCase() === lowerWallet;
-          
+
           if (direction === Direction.INCOMING && !toMatch) continue;
           if (direction === Direction.OUTGOING && !fromMatch) continue;
           if (direction === Direction.BOTH && !fromMatch && !toMatch) continue;
-          
+
           transactions.push({
             blockNumber: blockNum.toString(),
             timeStamp: block.timestamp.toString(),
@@ -213,7 +214,7 @@ export class CitreaTestnetClient extends EvmClient {
         this.logger.warn(`Failed to fetch block ${blockNum}: ${error.message}`);
       }
     }
-    
+
     return transactions;
   }
 
@@ -227,20 +228,20 @@ export class CitreaTestnetClient extends EvmClient {
     const transactions: EvmTokenHistoryEntry[] = [];
     const lowerWallet = walletAddress.toLowerCase();
     const endBlock = toBlock ?? (await this.provider.getBlockNumber());
-    
+
     // Limit the range to avoid overwhelming the RPC
     const maxBlockRange = 100;
     const startBlock = Math.max(fromBlock, endBlock - maxBlockRange);
-    
+
     this.logger.info(`Fetching ERC20 transfers via RPC from block ${startBlock} to ${endBlock}`);
-    
+
     // ERC20 Transfer event signature
     const transferEventSignature = ethers.utils.id('Transfer(address,address,uint256)');
-    
+
     try {
       // Create filters for incoming and outgoing transfers
       const filters = [];
-      
+
       if (direction === Direction.INCOMING || direction === Direction.BOTH) {
         filters.push({
           topics: [
@@ -252,7 +253,7 @@ export class CitreaTestnetClient extends EvmClient {
           toBlock: endBlock,
         });
       }
-      
+
       if (direction === Direction.OUTGOING || direction === Direction.BOTH) {
         filters.push({
           topics: [
@@ -264,19 +265,16 @@ export class CitreaTestnetClient extends EvmClient {
           toBlock: endBlock,
         });
       }
-      
+
       for (const filter of filters) {
         const logs = await this.provider.getLogs(filter);
-        
+
         for (const log of logs) {
           const block = await this.provider.getBlock(log.blockNumber);
-          
+
           // Decode the transfer event
-          const decoded = ethers.utils.defaultAbiCoder.decode(
-            ['uint256'],
-            log.data
-          );
-          
+          const decoded = ethers.utils.defaultAbiCoder.decode(['uint256'], log.data);
+
           transactions.push({
             blockNumber: log.blockNumber.toString(),
             timeStamp: block.timestamp.toString(),
@@ -293,12 +291,13 @@ export class CitreaTestnetClient extends EvmClient {
     } catch (error) {
       this.logger.error(`Failed to fetch ERC20 transfers: ${error.message}`);
     }
-    
+
     // Remove duplicates (same tx might appear in both incoming and outgoing)
-    const uniqueTransactions = transactions.filter((tx, index, self) =>
-      index === self.findIndex((t) => t.hash === tx.hash && t.contractAddress === tx.contractAddress)
+    const uniqueTransactions = transactions.filter(
+      (tx, index, self) =>
+        index === self.findIndex((t) => t.hash === tx.hash && t.contractAddress === tx.contractAddress),
     );
-    
+
     return uniqueTransactions;
   }
 }
