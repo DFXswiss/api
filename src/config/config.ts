@@ -1000,6 +1000,7 @@ export class Configuration {
       secret: process.env.MEXC_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
       ...this.exchange,
+      timeout: 30_000,
     };
   }
 
