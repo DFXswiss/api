@@ -125,7 +125,7 @@ export class KucoinPayService
     this.logger.info(`Verifying Kucoin Pay signature for headers: ${JSON.stringify(headers)}`);
     this.logger.info(`Verifying Kucoin Pay signature for body: ${JSON.stringify(body)}`);
 
-    const { 'pay-api-sig': signature, 'pay-api-timestamp': timestamp } = headers;
+    const { 'pay-api-sign': signature, 'pay-api-timestamp': timestamp } = headers;
     if (!signature || !timestamp) return false;
 
     const variant = this.mapOrderTypeToSignatureVariant(body.orderType);
@@ -166,6 +166,7 @@ export class KucoinPayService
 
   private mapOrderTypeToSignatureVariant(orderType: KucoinOrderType): SignatureVariant {
     switch (orderType) {
+      case KucoinOrderType.TRADE:
       case KucoinOrderType.ORDER:
         return SignatureVariant.ORDER_NOTIFICATION;
 
