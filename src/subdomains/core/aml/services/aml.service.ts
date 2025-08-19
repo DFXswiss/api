@@ -160,7 +160,8 @@ export class AmlService {
 
     const bicCountryCheck =
       !ibanCountryCheck &&
-      entity.bankTx.bic &&
+      entity instanceof BuyCrypto &&
+      entity.bankTx?.bic &&
       (await this.countryService
         .getCountryWithSymbol(entity.bankTx.bic.substring(4, 6))
         .then((c) => c?.bankTransactionVerificationEnable));

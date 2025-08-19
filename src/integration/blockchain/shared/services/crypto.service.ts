@@ -84,6 +84,9 @@ export class CryptoService {
       case Blockchain.SOLANA:
         return this.solanaService.getPaymentRequest(address, amount);
 
+      case Blockchain.TRON:
+        return this.tronService.getPaymentRequest(address, amount);
+
       default:
         return undefined;
     }
