@@ -57,6 +57,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
       case Blockchain.MONERO:
       case Blockchain.ZANO:
       case Blockchain.SOLANA:
+      case Blockchain.TRON:
         return 0;
 
       case Blockchain.ETHEREUM:
@@ -64,7 +65,8 @@ export class PaymentLinkFeeService implements OnModuleInit {
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:
       case Blockchain.GNOSIS:
-      case Blockchain.POLYGON: {
+      case Blockchain.POLYGON:
+      case Blockchain.BINANCE_SMART_CHAIN: {
         const client = this.blockchainRegistryService.getEvmClient(blockchain);
         return +(await client.getRecommendedGasPrice());
       }
