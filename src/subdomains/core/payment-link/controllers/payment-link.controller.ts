@@ -37,6 +37,7 @@ import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
+import { CreatePaymentMerchantDto } from '../dto/create-payment-merchant.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
 import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
@@ -57,6 +58,7 @@ import { JwtOrPaymentLinkKeyGuard } from '../guards/jwt-or-payment-link-key.guar
 import { OCPStickerService } from '../services/ocp-sticker.service';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 import { PaymentLinkService } from '../services/payment-link.service';
+import { PaymentMerchantService } from '../services/payment-merchant.service';
 
 @ApiTags('Payment Link')
 @Controller('paymentLink')
@@ -67,6 +69,7 @@ export class PaymentLinkController {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly sellService: SellService,
     private readonly paymentLinkStickerService: OCPStickerService,
+    private readonly paymentMerchantService: PaymentMerchantService,
   ) {}
 
   @Get()
@@ -309,6 +312,18 @@ export class PaymentLinkController {
     return this.paymentLinkService
       .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key, route)
       .then(PaymentLinkDtoMapper.toLinkDto);
+  }
+
+  // --- MERCHANT --- //
+
+  @Post('merchant')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiCreatedResponse()
+  async createMerchant(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentMerchantDto): Promise<void> {
+    await this.checkPaymentLinksAllowed(jwt.account);
+
+    await this.paymentMerchantService.create(+jwt.user, dto);
   }
 
   // --- ADMIN --- //
