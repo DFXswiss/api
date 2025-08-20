@@ -122,18 +122,13 @@ export class KucoinPayService
     body: KucoinPayRefundNotification | KucoinPayOrderNotification,
     headers: any,
   ): Promise<boolean> {
-    this.logger.info(`Verifying Kucoin Pay signature for headers: ${JSON.stringify(headers)}`);
-    this.logger.info(`Verifying Kucoin Pay signature for body: ${JSON.stringify(body)}`);
-
     const { 'pay-api-sign': signature, 'pay-api-timestamp': timestamp } = headers;
     if (!signature || !timestamp) return false;
 
     const variant = this.mapOrderTypeToSignatureVariant(body.orderType);
     const content = this.getSignatureContent(variant, { ...body, timestamp });
 
-    const result = Util.verifySign(content, this.verificationKey, signature, 'sha256', 'base64');
-    this.logger.info(`Kucoin Pay signature verification result: ${result}`);
-    return result;
+    return Util.verifySign(content, this.verificationKey, signature, 'sha256', 'base64');
   }
 
   async handleWebhook(
