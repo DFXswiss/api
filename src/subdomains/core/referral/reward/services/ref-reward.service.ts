@@ -28,6 +28,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.ZANO]: undefined,
   [Blockchain.CARDANO]: undefined,
   [Blockchain.ETHEREUM]: 10,
+  [Blockchain.SEPOLIA]: undefined,
   [Blockchain.BINANCE_SMART_CHAIN]: undefined,
   [Blockchain.OPTIMISM]: undefined,
   [Blockchain.POLYGON]: undefined,

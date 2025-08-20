@@ -20,6 +20,7 @@ export class KrakenService extends ExchangeService {
     Cardano: false,
     DeFiChain: false,
     Ethereum: false,
+    Sepolia: undefined,
     Optimism: false,
     Polygon: false,
     Base: undefined,

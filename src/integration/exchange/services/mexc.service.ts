@@ -19,6 +19,7 @@ export class MexcService extends ExchangeService {
     Cardano: undefined,
     DeFiChain: undefined,
     Ethereum: undefined,
+    Sepolia: undefined,
     Optimism: undefined,
     Polygon: undefined,
     Base: undefined,
