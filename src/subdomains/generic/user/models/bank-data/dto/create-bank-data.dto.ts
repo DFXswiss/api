@@ -11,6 +11,7 @@ export class CreateBankDataDto {
 
   @IsOptional()
   @IsString()
+  @Transform(Util.trimAll)
   bic?: string;
 
   @IsOptional()

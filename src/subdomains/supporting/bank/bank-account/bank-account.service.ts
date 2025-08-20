@@ -65,8 +65,8 @@ export class BankAccountService {
   }
 
   private async createBankAccountInternal(
-    iban: string,
-    bic: string,
+    iban: string | undefined,
+    bic: string | undefined,
     validateIbanCountry: boolean,
   ): Promise<BankAccount> {
     if (validateIbanCountry && !(await this.isValidIbanCountry(iban)))
