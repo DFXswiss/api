@@ -77,12 +77,18 @@ export interface BankDetailsDto {
     {
       name: string;
       bic: string;
-      code: string;
       address: string;
       in_scl_directory: string;
+      scc: string;
       sct: string;
+      sct_inst: string;
+      sct_inst_readiness_date: string;
       sdd: string;
       b2b: string;
+      bankcode: string;
+      branchcode: string;
+      cor1: string;
+      country: string;
     },
   ];
 }

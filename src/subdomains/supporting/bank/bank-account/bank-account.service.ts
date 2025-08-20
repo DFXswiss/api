@@ -135,12 +135,18 @@ export class BankAccountService {
   private parseBankDetails(bankDetails: BankDetailsDto): BankAccountInfos {
     return {
       result: this.parseString(bankDetails.result),
-      bankName: this.parseString(bankDetails.banks[0].name),
-      bankCode: bankDetails.banks[0].code,
-      bankAddress: bankDetails.banks[0].address,
-      sct: this.parseBoolean(bankDetails.banks[0].sct),
-      sdd: this.parseBoolean(bankDetails.banks[0].sdd),
-      b2b: this.parseBoolean(bankDetails.banks[0].b2b),
+      bankName: this.parseString(bankDetails.banks?.[0].name),
+      bankCode: bankDetails.banks?.[0].bankcode,
+      bankAddress: bankDetails.banks?.[0].address,
+      sct: this.parseBoolean(bankDetails.banks?.[0].sct),
+      sdd: this.parseBoolean(bankDetails.banks?.[0].sdd),
+      b2b: this.parseBoolean(bankDetails.banks?.[0].b2b),
+      scc: this.parseBoolean(bankDetails.banks?.[0].scc),
+      sctInst: this.parseBoolean(bankDetails.banks?.[0].sct_inst),
+      sctInstReadinessDate: !bankDetails.banks?.[0].sct_inst_readiness_date
+        ? null
+        : new Date(bankDetails.banks?.[0].sct_inst_readiness_date),
+      branchCode: this.parseString(bankDetails.banks?.[0].branchcode),
     };
   }
 
