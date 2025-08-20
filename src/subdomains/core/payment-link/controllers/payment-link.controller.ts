@@ -96,7 +96,7 @@ export class PaymentLinkController {
 
   @Get('history')
   @ApiBearerAuth()
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(JwtOrPaymentLinkKeyGuard())
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
@@ -113,7 +113,7 @@ export class PaymentLinkController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(JwtOrPaymentLinkKeyGuard())
   @ApiCreatedResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   async createPaymentLink(
@@ -260,7 +260,7 @@ export class PaymentLinkController {
 
   @Get('payment/wait')
   @ApiBearerAuth()
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(JwtOrPaymentLinkKeyGuard())
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -280,7 +280,7 @@ export class PaymentLinkController {
 
   @Put('payment/confirm')
   @ApiBearerAuth()
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(JwtOrPaymentLinkKeyGuard())
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
