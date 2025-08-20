@@ -39,6 +39,7 @@ import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapp
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { SignatoryPower } from '../../user/models/user-data/user-data.entity';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
@@ -270,7 +271,12 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycSignatoryPowerData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, ReviewStatus.MANUAL_REVIEW);
+    return this.kycService.updateKycStep(
+      code,
+      +id,
+      data,
+      data.signatoryPower === SignatoryPower.SINGLE ? ReviewStatus.MANUAL_REVIEW : ReviewStatus.INTERNAL_REVIEW,
+    );
   }
 
   @Put('data/beneficial/:id')
