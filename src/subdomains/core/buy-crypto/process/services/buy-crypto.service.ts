@@ -119,6 +119,7 @@ export class BuyCryptoService {
           await this.bankDataService.createVerifyBankData(buy.userData, {
             name: bankDataName,
             iban: bankTx.senderAccount,
+            bic: bankTx.bic,
             type: BankDataType.BANK_IN,
           });
       }
