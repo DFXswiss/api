@@ -54,7 +54,6 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
-  KycSoleProprietorshipConfirmationData,
   PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -482,7 +481,13 @@ export class KycService {
     return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
-  async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
+  async updateFileData(
+    kycHash: string,
+    stepId: number,
+    data: KycFileData,
+    fileType: FileType,
+    urlAsJson = false,
+  ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -498,7 +503,7 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.manualReview(undefined, url));
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, urlAsJson ? { url } : url));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -522,35 +527,6 @@ export class KycService {
     );
 
     await this.kycStepRepo.update(...kycStep.manualReview(undefined, { url, legalEntity: data.legalEntity }));
-
-    await this.createStepLog(user, kycStep);
-    await this.updateProgress(user, false);
-
-    return KycStepMapper.toStepBase(kycStep);
-  }
-
-  async updateConfirmationData(
-    kycHash: string,
-    stepId: number,
-    data: KycSoleProprietorshipConfirmationData,
-    fileType: FileType,
-  ) {
-    const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
-
-    // upload file
-    const { contentType, buffer } = Util.fromBase64(data.file);
-    const { url } = await this.documentService.uploadUserFile(
-      user,
-      fileType,
-      data.fileName,
-      buffer,
-      contentType as ContentType,
-      false,
-      kycStep,
-    );
-
-    await this.kycStepRepo.update(...kycStep.manualReview(undefined, { url }));
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);

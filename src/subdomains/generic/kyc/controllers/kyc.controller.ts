@@ -51,7 +51,6 @@ import {
   KycOperationalData,
   KycPersonalData,
   KycSignatoryPowerData,
-  KycSoleProprietorshipConfirmationData,
   PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
@@ -233,10 +232,10 @@ export class KycController {
   async updateSoleProprietorshipConfirmationData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycSoleProprietorshipConfirmationData,
+    @Body() data: KycFileData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('sole-proprietorship-confirmation', data.fileName);
-    return this.kycService.updateConfirmationData(code, +id, data, FileType.SOLE_PROPRIETORSHIP_CONFIRMATION);
+    return this.kycService.updateFileData(code, +id, data, FileType.SOLE_PROPRIETORSHIP_CONFIRMATION, true);
   }
 
   @Put('data/residence/:id')
