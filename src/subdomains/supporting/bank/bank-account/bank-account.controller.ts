@@ -61,7 +61,7 @@ export class BankAccountController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   @ApiExcludeEndpoint()
   async addBankAccountIban(@Body() dto: CreateIbanBankAccountInternalDto): Promise<BankAccount> {
-    return this.bankAccountService.getOrCreateIbanBankAccountInternal(dto.iban);
+    return this.bankAccountService.getOrCreateIbanBankAccountInternal(dto.iban, dto.validateIban);
   }
 
   @Post('bic')
