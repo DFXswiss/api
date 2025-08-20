@@ -54,6 +54,14 @@ export class AmlService {
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);
       if (entity.bankTx && entity instanceof BuyCrypto && !entity.userData.hasBankTx)
         await this.userDataService.updateUserDataInternal(entity.userData, { hasBankTx: true });
+      if (
+        !entity.userData.bankTransactionVerification &&
+        entity instanceof BuyFiat &&
+        (entity.sell.iban.startsWith('LI') || entity.sell.iban.startsWith('CH'))
+      )
+        entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
+          bankTransactionVerification: CheckStatus.GSHEET,
+        });
 
       await this.transactionService.updateInternal(entity.transaction, {
         amlCheck: entity.amlCheck,
@@ -158,18 +166,17 @@ export class AmlService {
   //*** HELPER METHODS ***//
 
   private async checkBankTransactionVerification(entity: BuyFiat | BuyCrypto): Promise<void> {
-    if (entity instanceof BuyCrypto && !entity.bankTx?.iban) return;
+    if ((entity instanceof BuyCrypto && !entity.bankTx?.iban && !entity.bankTx?.bic) || entity instanceof BuyFiat)
+      return;
 
     const ibanCountryCheck =
-      entity instanceof BuyFiat
-        ? entity.sell.iban.startsWith('LI') || entity.sell.iban.startsWith('CH')
-        : await this.countryService
-            .getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
-            .then((c) => c?.bankTransactionVerificationEnable);
+      entity.bankTx?.iban &&
+      (await this.countryService
+        .getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
+        .then((c) => c?.bankTransactionVerificationEnable));
 
     const bicCountryCheck =
       !ibanCountryCheck &&
-      entity instanceof BuyCrypto &&
       entity.bankTx?.bic &&
       (await this.countryService
         .getCountryWithSymbol(entity.bankTx.bic.substring(4, 6))
