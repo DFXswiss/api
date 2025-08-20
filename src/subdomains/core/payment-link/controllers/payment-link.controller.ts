@@ -32,6 +32,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
@@ -112,12 +113,17 @@ export class PaymentLinkController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(JwtOrPaymentLinkKeyGuard)
   @ApiCreatedResponse({ type: PaymentLinkDto })
-  async createPaymentLink(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentLinkDto): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(jwt.account);
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
+  async createPaymentLink(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: CreatePaymentLinkDto,
+    @Query('key') key: string,
+  ): Promise<PaymentLinkDto> {
+    const userId = await this.getAndCheckUserId(jwt, key);
 
-    return this.paymentLinkService.create(+jwt.user, dto).then(PaymentLinkDtoMapper.toLinkDto);
+    return this.paymentLinkService.create(userId, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Put()
@@ -419,8 +425,26 @@ export class PaymentLinkController {
 
   // --- HELPER METHODS --- //
 
-  private async checkPaymentLinksAllowed(userDataId: number): Promise<void> {
-    const userData = await this.userDataService.getUserData(userDataId);
+  private async getAndCheckUserId(jwt?: JwtPayload, key?: string): Promise<number> {
+    if (key) {
+      const route = await this.sellService.getPaymentRouteForKey(key);
+      if (!route) throw new BadRequestException('Invalid access key');
+
+      await this.checkPaymentLinksAllowed(route.user.userData);
+
+      return route.user.id;
+    } else {
+      if (!jwt) throw new BadRequestException('Missing access key');
+
+      await this.checkPaymentLinksAllowed(jwt.account);
+
+      return jwt.user;
+    }
+  }
+
+  private async checkPaymentLinksAllowed(userDataOrId: number | UserData): Promise<void> {
+    const userData =
+      userDataOrId instanceof UserData ? userDataOrId : await this.userDataService.getUserData(userDataOrId);
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('Permission denied');
   }
 }
