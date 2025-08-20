@@ -139,24 +139,24 @@ export class KucoinPayService
   async handleWebhook(
     dto: KucoinPayOrderNotification | KucoinPayRefundNotification,
   ): Promise<C2BWebhookResult | undefined> {
-    if (dto.orderType === KucoinOrderType.ORDER) {
-      switch (dto.status) {
-        case KucoinOrderNotificationStatus.USER_PAY_COMPLETED:
-        case KucoinOrderNotificationStatus.SUCCEEDED:
-          return {
-            providerOrderId: dto.payOrderId,
-            status: C2BPaymentStatus.COMPLETED,
-            metadata: dto,
-          };
+    if (![KucoinOrderType.ORDER, KucoinOrderType.TRADE, KucoinOrderType.REFUND].includes(dto.orderType)) return;
 
-        case KucoinOrderNotificationStatus.CANCELLED:
-        case KucoinOrderNotificationStatus.FAILED:
-          return {
-            providerOrderId: dto.payOrderId,
-            status: C2BPaymentStatus.FAILED,
-            metadata: dto,
-          };
-      }
+    switch (dto.status) {
+      case KucoinOrderNotificationStatus.USER_PAY_COMPLETED:
+      case KucoinOrderNotificationStatus.SUCCEEDED:
+        return {
+          providerOrderId: dto.payOrderId,
+          status: C2BPaymentStatus.COMPLETED,
+          metadata: dto,
+        };
+
+      case KucoinOrderNotificationStatus.CANCELLED:
+      case KucoinOrderNotificationStatus.FAILED:
+        return {
+          providerOrderId: dto.payOrderId,
+          status: C2BPaymentStatus.FAILED,
+          metadata: dto,
+        };
     }
   }
 
