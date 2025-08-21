@@ -11,6 +11,7 @@ import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-r
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -102,11 +103,19 @@ export class GsService {
     const runTime = Util.round((Date.now() - startTime) / 1000, 1);
 
     if (runTime > 3) {
-      this.logger.info(
-        `Long DB runtime for ${query.identifier}: ${runTime}s for ${data.length} entries with query: ${JSON.stringify(
-          query,
-        )}`,
-      );
+      const message = `Long DB runtime for ${query.identifier}: ${runTime}s for ${
+        data.length
+      } entries with query: ${JSON.stringify(query)}`;
+
+      this.logger.info(message);
+
+      if (data.length > 100000) {
+        await this.notificationService.sendMail({
+          type: MailType.ERROR_MONITORING,
+          context: MailContext.MONITORING,
+          input: { subject: 'Excessive GS Request', errors: [message] },
+        });
+      }
     }
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
