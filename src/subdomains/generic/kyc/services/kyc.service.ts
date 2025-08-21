@@ -1104,7 +1104,9 @@ export class KycService {
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
           bankTransactionVerification:
-            identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
+            identificationType === KycIdentificationType.VIDEO_ID || kycStep.type === KycStepType.MANUAL
+              ? CheckStatus.UNNECESSARY
+              : undefined,
           identDocumentType: data.documentType,
           identDocumentId: kycStep.identDocumentId,
           olkypayAllowed: userData.olkypayAllowed ?? true,
