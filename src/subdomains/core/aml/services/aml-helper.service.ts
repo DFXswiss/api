@@ -40,7 +40,7 @@ export class AmlHelperService {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
 
-    if (entity.wallet.amlRuleList.includes(AmlRule.RULE_SKIP_AML_CHECK) && Config.environment !== Environment.PRD)
+    if (entity.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) && Config.environment !== Environment.PRD)
       return errors;
 
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);

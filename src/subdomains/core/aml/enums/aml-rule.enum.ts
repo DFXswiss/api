@@ -1,5 +1,5 @@
 export enum AmlRule {
-  RULE_SKIP_AML_CHECK = -1, // skip amlCheck only possible in dev or loc env
+  SKIP_AML_CHECK = -1, // skip amlCheck only possible in dev or loc env
   DEFAULT = 0, // default
   RULE_1 = 1, // IP Check
   RULE_2 = 2, // KycLevel 30
