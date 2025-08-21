@@ -19,6 +19,7 @@ export class BinanceService extends ExchangeService {
     Cardano: undefined,
     DeFiChain: undefined,
     Ethereum: 'ETH',
+    Sepolia: undefined,
     Optimism: 'OPTIMISM',
     Polygon: 'MATIC',
     Base: 'BASE',

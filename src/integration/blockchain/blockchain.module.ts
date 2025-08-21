@@ -10,6 +10,7 @@ import { BscModule } from './bsc/bsc.module';
 import { DEuroModule } from './deuro/deuro.module';
 import { Ebel2xModule } from './ebel2x/ebel2x.module';
 import { EthereumModule } from './ethereum/ethereum.module';
+import { SepoliaModule } from './sepolia/sepolia.module';
 import { FrankencoinModule } from './frankencoin/frankencoin.module';
 import { GnosisModule } from './gnosis/gnosis.module';
 import { MoneroModule } from './monero/monero.module';
@@ -30,6 +31,7 @@ import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
     BitcoinModule,
     BscModule,
     EthereumModule,
+    SepoliaModule,
     OptimismModule,
     ArbitrumModule,
     PolygonModule,
@@ -51,6 +53,7 @@ import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
     BitcoinModule,
     BscModule,
     EthereumModule,
+    SepoliaModule,
     OptimismModule,
     ArbitrumModule,
     PolygonModule,

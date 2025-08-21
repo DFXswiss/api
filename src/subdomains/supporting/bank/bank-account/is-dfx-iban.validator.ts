@@ -65,7 +65,7 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
       )
       .map((b) => b.value);
 
-    this.currentBIC = await this.bankAccountService.getOrCreateBankAccountInternal(args.value).then((b) => b.bic);
+    this.currentBIC = await this.bankAccountService.getOrCreateIbanBankAccountInternal(args.value).then((b) => b.bic);
 
     return this.defaultMessage(args) == null;
   }

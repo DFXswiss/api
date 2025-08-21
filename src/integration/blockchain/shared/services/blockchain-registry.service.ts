@@ -5,6 +5,7 @@ import { BitcoinClient } from '../../bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
+import { SepoliaService } from '../../sepolia/sepolia.service';
 import { GnosisService } from '../../gnosis/gnosis.service';
 import { MoneroClient } from '../../monero/monero-client';
 import { MoneroService } from '../../monero/services/monero.service';
@@ -29,6 +30,7 @@ type BlockchainServiceType = EvmService | BitcoinService | MoneroService | ZanoS
 export class BlockchainRegistryService {
   constructor(
     private readonly ethereumService: EthereumService,
+    private readonly sepoliaService: SepoliaService,
     private readonly bscService: BscService,
     private readonly arbitrumService: ArbitrumService,
     private readonly optimismService: OptimismService,
@@ -64,6 +66,8 @@ export class BlockchainRegistryService {
     switch (blockchain) {
       case Blockchain.ETHEREUM:
         return this.ethereumService;
+      case Blockchain.SEPOLIA:
+        return this.sepoliaService;
       case Blockchain.BINANCE_SMART_CHAIN:
         return this.bscService;
       case Blockchain.ARBITRUM:

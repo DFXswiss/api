@@ -24,6 +24,7 @@ export interface KucoinPayOrderResponse {
 export enum KucoinOrderType {
   ORDER = 'ORDER',
   REFUND = 'REFUND',
+  TRADE = 'TRADE',
 }
 
 export interface KucoinWebhookNotification {

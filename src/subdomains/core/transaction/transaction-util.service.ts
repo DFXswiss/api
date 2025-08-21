@@ -90,7 +90,7 @@ export class TransactionUtilService {
   }
 
   async validateChargebackIban(iban: string, validateIbanCountry: boolean): Promise<boolean> {
-    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban, validateIbanCountry);
+    const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(iban, validateIbanCountry);
     const blockedAccounts = await this.specialExternalAccountService.getBlacklist();
     const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
 

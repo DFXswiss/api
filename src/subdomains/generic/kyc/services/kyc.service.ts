@@ -1051,6 +1051,15 @@ export class KycService {
       });
   }
 
+  async completeAuthority(userData: UserData): Promise<void> {
+    const signatoryPower = userData
+      .getStepsWith(KycStepName.SIGNATORY_POWER)
+      .find((k) => k.status === ReviewStatus.INTERNAL_REVIEW);
+    if (!signatoryPower) throw new BadRequestException('SignatoryPower step missing');
+
+    await this.kycStepRepo.update(signatoryPower.id, { status: ReviewStatus.COMPLETED });
+  }
+
   async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {
     const data = kycStep.resultData;
     const userData = kycStep.userData;
@@ -1095,7 +1104,9 @@ export class KycService {
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
           bankTransactionVerification:
-            identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
+            identificationType === KycIdentificationType.VIDEO_ID || kycStep.type === KycStepType.MANUAL
+              ? CheckStatus.UNNECESSARY
+              : undefined,
           identDocumentType: data.documentType,
           identDocumentId: kycStep.identDocumentId,
           olkypayAllowed: userData.olkypayAllowed ?? true,

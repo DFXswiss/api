@@ -10,15 +10,18 @@ import { C2BPaymentLinkController } from './controllers/c2b-payment-link.control
 import { PaymentLinkController, PaymentLinkShortController } from './controllers/payment-link.controller';
 import { PaymentLinkGateway } from './controllers/payment-link.gateway';
 import { PaymentLink } from './entities/payment-link.entity';
+import { PaymentMerchant } from './entities/payment-merchant.entity';
 import { PaymentLinkPaymentModule } from './payment-link-payment.module';
 import { PaymentLinkRepository } from './repositories/payment-link.repository';
+import { PaymentMerchantRepository } from './repositories/payment-merchant.repository';
 import { OCPStickerService } from './services/ocp-sticker.service';
 import { PaymentCronService } from './services/payment-cron.service';
 import { PaymentLinkService } from './services/payment-link.service';
+import { PaymentMerchantService } from './services/payment-merchant.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PaymentLink]),
+    TypeOrmModule.forFeature([PaymentLink, PaymentMerchant]),
     UserModule,
     SharedModule,
     PayInWebhookModule,
@@ -31,6 +34,8 @@ import { PaymentLinkService } from './services/payment-link.service';
   providers: [
     PaymentLinkRepository,
     PaymentLinkService,
+    PaymentMerchantRepository,
+    PaymentMerchantService,
     OCPStickerService,
     PaymentCronService,
     PaymentLinkController,
