@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
@@ -17,6 +17,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -810,6 +811,8 @@ export class TransactionHelper implements OnModuleInit {
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
+
+    if (user?.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) && Config.environment !== Environment.PRD) return;
 
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 

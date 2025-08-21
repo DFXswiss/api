@@ -1,4 +1,4 @@
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
@@ -39,6 +39,9 @@ export class AmlHelperService {
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
+
+    if (entity.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) && Config.environment !== Environment.PRD)
+      return errors;
 
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
