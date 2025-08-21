@@ -5,7 +5,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { IsNull } from 'typeorm';
+import { Equal, IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 
@@ -55,13 +55,16 @@ export class BankAccountService {
 
   async getOrCreateIbanBankAccountInternal(iban: string, validateIbanCountry = true): Promise<BankAccount> {
     return (
-      (await this.bankAccountRepo.findOneBy({ iban })) ??
+      (await this.bankAccountRepo.findOneBy({ iban: Equal(iban) })) ??
       this.createBankAccountInternal(iban, undefined, validateIbanCountry)
     );
   }
 
   async getOrCreateBicBankAccountInternal(bic: string): Promise<BankAccount> {
-    return (await this.bankAccountRepo.findOneBy({ bic })) ?? this.createBankAccountInternal(undefined, bic, false);
+    return (
+      (await this.bankAccountRepo.findOneBy({ bic: Equal(bic) })) ??
+      this.createBankAccountInternal(undefined, bic, false)
+    );
   }
 
   private async createBankAccountInternal(
