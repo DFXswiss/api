@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ExchangeTxRepository } from 'src/integration/exchange/repositories/exchange-tx.repository';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
+import { LiquidityManagementOrderRepository } from 'src/subdomains/core/liquidity-management/repositories/liquidity-management-order.repository';
+import { LiquidityManagementRuleRepository } from 'src/subdomains/core/liquidity-management/repositories/liquidity-management-rule.repository';
 import { PaymentQuoteRepository } from 'src/subdomains/core/payment-link/repositories/payment-quote.repository';
 import { RefRewardRepository } from 'src/subdomains/core/referral/reward/ref-reward.repository';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
@@ -37,6 +39,8 @@ export class RepositoryFactory {
   public readonly tradingRule: TradingRuleRepository;
   public readonly paymentQuote: PaymentQuoteRepository;
   public readonly liquidityOrder: LiquidityOrderRepository;
+  public readonly lmOrder: LiquidityManagementOrderRepository;
+  public readonly lmRule: LiquidityManagementRuleRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -56,5 +60,7 @@ export class RepositoryFactory {
     this.tradingRule = new TradingRuleRepository(manager);
     this.paymentQuote = new PaymentQuoteRepository(manager);
     this.liquidityOrder = new LiquidityOrderRepository(manager);
+    this.lmOrder = new LiquidityManagementOrderRepository(manager);
+    this.lmRule = new LiquidityManagementRuleRepository(manager);
   }
 }
