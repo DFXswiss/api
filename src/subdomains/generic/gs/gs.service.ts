@@ -92,18 +92,21 @@ export class GsService {
       ),
     });
 
-    // Null all elements which are larger than 50k symbols
+    // null all elements which are larger than 50k symbols
     data.forEach((e) =>
       Object.entries(e).forEach(([key, value]) => {
         if (value?.toString().length >= 50000) delete e[key];
       }),
     );
 
-    const runTime = Date.now() - startTime;
+    const runTime = Util.round((Date.now() - startTime) / 1000, 1);
 
-    if (runTime > 1000 * 3) {
-      this.logger.info(`DB Runtime: ${runTime} with query ${JSON.stringify(query)}`);
-      this.logger.info(`DB Number of data: ${data.length}`);
+    if (runTime > 3) {
+      this.logger.info(
+        `Long DB runtime for ${query.identifier}: ${runTime}s for ${data.length} entries with query: ${JSON.stringify(
+          query,
+        )}`,
+      );
     }
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
