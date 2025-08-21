@@ -13,6 +13,7 @@ export class CitreaTestnetClient extends EvmClient {
   private readonly logger = new DfxLogger(CitreaTestnetClient);
 
   private readonly goldsky?: GoldskyService;
+  private readonly maxRpcBlockRange = 100;
 
   constructor(params: EvmClientParams) {
     super({
@@ -72,15 +73,13 @@ export class CitreaTestnetClient extends EvmClient {
     direction = Direction.BOTH,
   ): Promise<EvmCoinHistoryEntry[]> {
     try {
-      if (this.goldsky) {
-        const transfers = await this.goldsky.getNativeCoinTransfers(
-          GoldskyNetwork.CITREA_TESTNET,
-          walletAddress,
-          fromBlock,
-          toBlock,
-        );
-        return this.mapGoldskyToEvmCoinHistory(transfers, walletAddress, direction);
-      }
+      const transfers = await this.goldsky.getNativeCoinTransfers(
+        GoldskyNetwork.CITREA_TESTNET,
+        walletAddress,
+        fromBlock,
+        toBlock,
+      );
+      return this.mapGoldskyToEvmCoinHistory(transfers, walletAddress, direction);
     } catch (error) {
       this.logger.warn(`Goldsky service failed, using RPC fallback: ${error.message}`);
     }
@@ -96,15 +95,13 @@ export class CitreaTestnetClient extends EvmClient {
     direction = Direction.BOTH,
   ): Promise<EvmTokenHistoryEntry[]> {
     try {
-      if (this.goldsky) {
-        const transfers = await this.goldsky.getTokenTransfers(
-          GoldskyNetwork.CITREA_TESTNET,
-          walletAddress,
-          fromBlock,
-          toBlock,
-        );
-        return this.mapGoldskyToEvmTokenHistory(transfers, walletAddress, direction);
-      }
+      const transfers = await this.goldsky.getTokenTransfers(
+        GoldskyNetwork.CITREA_TESTNET,
+        walletAddress,
+        fromBlock,
+        toBlock,
+      );
+      return this.mapGoldskyToEvmTokenHistory(transfers, walletAddress, direction);
     } catch (error) {
       this.logger.warn(`Goldsky service failed, using RPC fallback: ${error.message}`);
     }
@@ -182,8 +179,7 @@ export class CitreaTestnetClient extends EvmClient {
     const endBlock = toBlock ?? (await this.provider.getBlockNumber());
 
     // Limit the range to avoid overwhelming the RPC
-    const maxBlockRange = 100;
-    const startBlock = Math.max(fromBlock, endBlock - maxBlockRange);
+    const startBlock = Math.max(fromBlock, endBlock - this.maxRpcBlockRange);
 
     this.logger.info(`Fetching transactions via RPC from block ${startBlock} to ${endBlock}`);
 
@@ -196,9 +192,12 @@ export class CitreaTestnetClient extends EvmClient {
           const fromMatch = tx.from?.toLowerCase() === lowerWallet;
           const toMatch = tx.to?.toLowerCase() === lowerWallet;
 
-          if (direction === Direction.INCOMING && !toMatch) continue;
-          if (direction === Direction.OUTGOING && !fromMatch) continue;
-          if (direction === Direction.BOTH && !fromMatch && !toMatch) continue;
+          if (
+            (direction === Direction.INCOMING && !toMatch) ||
+            (direction === Direction.OUTGOING && !fromMatch) ||
+            (direction === Direction.BOTH && !fromMatch && !toMatch)
+          )
+            continue;
 
           transactions.push({
             blockNumber: blockNum.toString(),
@@ -230,8 +229,7 @@ export class CitreaTestnetClient extends EvmClient {
     const endBlock = toBlock ?? (await this.provider.getBlockNumber());
 
     // Limit the range to avoid overwhelming the RPC
-    const maxBlockRange = 100;
-    const startBlock = Math.max(fromBlock, endBlock - maxBlockRange);
+    const startBlock = Math.max(fromBlock, endBlock - this.maxRpcBlockRange);
 
     this.logger.info(`Fetching ERC20 transfers via RPC from block ${startBlock} to ${endBlock}`);
 

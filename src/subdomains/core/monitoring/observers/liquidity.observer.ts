@@ -71,11 +71,11 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
       }),
       stuckTradingRuleCount: await this.repos.tradingRule.countBy({
         status: In([TradingRuleStatus.PAUSED, TradingRuleStatus.PROCESSING]),
-        updated: LessThan(Util.minutesBefore(30)),
+        updated: LessThan(Util.minutesBefore(60)),
       }),
       stuckLiquidityOrderCount: await this.repos.liquidityOrder.countBy({
         isComplete: false,
-        updated: LessThan(Util.minutesBefore(30)),
+        updated: LessThan(Util.minutesBefore(60)),
       }),
       safetyModeActive: this.processService.isSafetyModeActive(),
       binanceSyncDelay: Math.abs(Util.minutesDiff(lastBinanceTx?.externalCreated, binance?.updated)),
