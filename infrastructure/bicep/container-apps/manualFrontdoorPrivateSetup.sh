@@ -7,11 +7,9 @@ set -e
 # --- OPTIONS --- #
 environmentOptions=("loc" "dev" "prd")
 
-# "fcp":   Frankencoin Ponder
-# "dep":   dEuro Ponder
-# "dea":   dEuro API
-# "ded":   dEuro dApp
-appNameOptions=("fcp" "dep" "dea" "ded")
+# "zanod": Zano Node
+# "zanolw" Zano Liquidity Wallet
+appNameOptions=("zanod" "zanolw")
 
 # --- FUNCTIONS --- #
 selectOption() {
@@ -43,10 +41,11 @@ LOCATION="westeurope"
 ENVIRONMENT_NAME="cae-${COMP_NAME}-${API_NAME}-${ENV}"
 CONTAINERAPP_NAME="ca-${COMP_NAME}-${APP}-${ENV}"
 AFD_PROFILE="afd-${COMP_NAME}-${API_NAME}-${ENV}"
-AFD_ENDPOINT="fde-${COMP_NAME}-${APP}-${ENV}"
+AFD_ENDPOINT="fde-${COMP_NAME}-priv-${ENV}"
 AFD_ORIGIN_GROUP="fdog-${COMP_NAME}-${APP}-${ENV}"
 AFD_ORIGIN="fdon-${COMP_NAME}-${APP}-${ENV}"
 AFD_ROUTE="fdor-${COMP_NAME}-${APP}-${ENV}"
+URI_PATTERN="/${APP}/*"
 
 echo "Resource Group:        ${RESOURCE_GROUP}"
 echo "Location:              ${LOCATION}"
@@ -57,6 +56,7 @@ echo "Frontdoor Endpoint:    ${AFD_ENDPOINT}"
 echo "Frontdoor Origingroup: ${AFD_ORIGIN_GROUP}"
 echo "Frontdoor Origin:      ${AFD_ORIGIN}"
 echo "Frontdoor Route:       ${AFD_ROUTE}"
+echo "URI Pattern:           ${URI_PATTERN}"
 
 ENVIRONMENT_ID=$(az containerapp env show \
     --resource-group $RESOURCE_GROUP \
@@ -86,11 +86,12 @@ ACA_ENDPOINT=$(az containerapp show \
 echo "ACA Endpoint:"
 echo $ACA_ENDPOINT
 
-az afd endpoint create \
-    --resource-group $RESOURCE_GROUP \
-    --endpoint-name $AFD_ENDPOINT \
-    --profile-name $AFD_PROFILE \
-    --enabled-state Enabled
+#az afd endpoint create \
+#    --resource-group $RESOURCE_GROUP \
+#    --endpoint-name $AFD_ENDPOINT \
+#    --profile-name $AFD_PROFILE \
+#    --enabled-state Enabled
+#exit
 
 az afd origin-group create \
     --resource-group $RESOURCE_GROUP \
@@ -125,7 +126,9 @@ az afd route create \
     --endpoint-name $AFD_ENDPOINT \
     --forwarding-protocol MatchRequest \
     --route-name $AFD_ROUTE \
+    --patterns-to-match $URI_PATTERN \
     --https-redirect Enabled \
     --origin-group $AFD_ORIGIN_GROUP \
+    --origin-path "/" \
     --supported-protocols Http Https \
     --link-to-default-domain Enabled
