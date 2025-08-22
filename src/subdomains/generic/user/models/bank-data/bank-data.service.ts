@@ -78,7 +78,8 @@ export class BankDataService {
       if ([BankDataType.IDENT, BankDataType.NAME_CHECK].includes(entity.type)) {
         if (
           entity.userData.accountType === AccountType.PERSONAL ||
-          entity.userData.hasCompletedStep(KycStepName.LEGAL_ENTITY)
+          entity.userData.hasCompletedStep(KycStepName.LEGAL_ENTITY) ||
+          entity.userData.hasCompletedStep(KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION)
         ) {
           await this.nameCheckService.closeAndRefreshRiskStatus(entity);
           await this.bankDataRepo.update(...entity.complete());

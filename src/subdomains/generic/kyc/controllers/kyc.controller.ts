@@ -227,6 +227,18 @@ export class KycController {
     return this.kycService.updateLegalData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
+  @Put('data/confirmation/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateSoleProprietorshipConfirmationData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('sole-proprietorship-confirmation', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.SOLE_PROPRIETORSHIP_CONFIRMATION, true);
+  }
+
   @Put('data/residence/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
