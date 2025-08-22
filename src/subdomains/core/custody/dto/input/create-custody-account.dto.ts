@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, Matches } from 'class-validator';
 import { GetConfig } from 'src/config/config';
-import { Moderator } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Moderator } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { CustodyAddressType } from '../../enums/custody';
 
 export class CreateCustodyAccountDto {
