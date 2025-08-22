@@ -101,20 +101,13 @@ export class ZanoStrategy extends RegisterStrategy {
     const index = ZanoHelper.mapPaymentIdHexToIndex(paymentIdHex);
     if (index === undefined) return;
 
+    if (0 === index) return BlockchainAddress.create(ZanoHelper.createDepositAddress(index), this.blockchain);
+
     const deposit = await this.payInZanoService.getDeposit(index);
     if (deposit) return BlockchainAddress.create(deposit.address, this.blockchain);
   }
 
-  private getTxType(depositAddress: string): PayInType | undefined {
-    const zanoAddress = ZanoHelper.splitIntegratedAddress(depositAddress);
-
-    if (!zanoAddress) {
-      this.logger.error(`Invalid deposit address ${depositAddress}`);
-      return;
-    }
-
-    return Util.equalsIgnoreCase(Config.payment.zanoAddress, zanoAddress.address)
-      ? PayInType.PAYMENT
-      : PayInType.DEPOSIT;
+  private getTxType(depositAddress: string): PayInType {
+    return Util.equalsIgnoreCase(Config.payment.zanoAddress, depositAddress) ? PayInType.PAYMENT : PayInType.DEPOSIT;
   }
 }
