@@ -3,24 +3,24 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "fileShareQuota": {
-      "value": 1
+      "value": 2000
     },
     "containerImage": {
-      "value": "dfxswiss/deuro-ponder:latest"
+      "value": "lightninglabs/bitcoin-core"
     },
     "containerVolumeMounts": {
       "value": [
         {
           "volumeName": "volume",
-          "mountPath": "/app/.ponder"
+          "mountPath": "/home/bitcoin/.bitcoin"
         }
       ]
     },
     "containerCPU": {
-      "value": "0.5"
+      "value": "2"
     },
     "containerMemory": {
-      "value": "1Gi"
+      "value": "4Gi"
     },
     "containerMinReplicas": {
       "value": 1
@@ -29,32 +29,33 @@
       "value": 1
     },
     "containerIngressTargetPort": {
-      "value": 3000
+      "value": 8332
     },
     "containerIngressAdditionalPorts": {
       "value": []
     },
     "containerProbes": {
-      "value": []
-    },
-    "containerEnv": {
       "value": [
         {
-          "name": "PORT",
-          "value": "3000"
-        },
-        {
-          "name": "PONDER_PROFILE",
-          "value": "mainnet"
-        },
-        {
-          "name": "RPC_URL_MAINNET",
-          "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
+          "type": "Startup",
+          "initialDelaySeconds": 60,
+          "periodSeconds": 240,
+          "failureThreshold": 30,
+          "successThreshold": 1,
+          "tcpSocket": {
+            "port": 8332
+          },
+          "timeoutSeconds": 5
         }
       ]
     },
-    "containerCommand": {
+    "containerEnv": {
       "value": []
+    },
+    "containerCommand": {
+      "value": [
+        "bitcoind, -conf=/home/bitcoin/.bitcoin/bitcoin.conf"
+      ]
     },
     "containerArgs": {
       "value": []
