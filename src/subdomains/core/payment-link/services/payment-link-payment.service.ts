@@ -162,6 +162,7 @@ export class PaymentLinkPaymentService {
         'latest',
         'latest.linkId = plp.linkId AND latest.maxId = plp.id',
       )
+      .innerJoinAndSelect('plp.currency', 'currency')
       .innerJoinAndSelect('plp.link', 'link')
       .where('link.id IN (:...ids)', { ids: linkIds })
       .getMany();
