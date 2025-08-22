@@ -31,6 +31,10 @@ export class MoneroClient extends BlockchainClient {
 
   // --- MONERO DAEMON --- //
 
+  public getWalletAddress(): string {
+    return Config.blockchain.monero.walletAddress;
+  }
+
   async getInfo(): Promise<GetInfoResultDto> {
     return this.http
       .post<{ result: GetInfoResultDto }>(
