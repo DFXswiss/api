@@ -148,6 +148,25 @@ export class PaymentLinkPaymentService {
     });
   }
 
+  async getMostRecentPayments(linkIds: number[]): Promise<PaymentLinkPayment[]> {
+    return this.paymentLinkPaymentRepo
+      .createQueryBuilder('plp')
+      .innerJoin(
+        (qb) => {
+          return qb
+            .select('plp2.linkId', 'linkId')
+            .addSelect('MAX(plp2.id)', 'maxId')
+            .from(PaymentLinkPayment, 'plp2')
+            .groupBy('plp2.linkId');
+        },
+        'latest',
+        'latest.linkId = plp.linkId AND latest.maxId = plp.id',
+      )
+      .innerJoinAndSelect('plp.link', 'link')
+      .where('link.id IN (:...ids)', { ids: linkIds })
+      .getMany();
+  }
+
   // --- HANDLE WAITS --- //
   async waitForPayment(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
     return this.paymentWaitMap.wait(payment.id, 0);
