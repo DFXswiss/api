@@ -223,7 +223,6 @@ export class LogJobService {
           Blockchain.ZANO,
           Blockchain.BINANCE_PAY,
           Blockchain.KUCOIN_PAY,
-          Blockchain.TRON,
         ].includes(a.blockchain),
     );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
@@ -242,7 +241,7 @@ export class LogJobService {
           },
         ];
 
-        if (![Blockchain.MONERO, Blockchain.BITCOIN, Blockchain.ZANO].includes(e))
+        if (![Blockchain.MONERO, Blockchain.BITCOIN, Blockchain.ZANO, Blockchain.TRON].includes(e))
           balances.push(
             ...(await this.getCustomBalances(
               client,
