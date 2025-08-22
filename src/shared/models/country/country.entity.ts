@@ -1,5 +1,5 @@
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
-import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { Column, Entity } from 'typeorm';
 import { IEntity } from '../entity';
 

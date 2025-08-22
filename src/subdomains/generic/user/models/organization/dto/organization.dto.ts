@@ -1,5 +1,6 @@
 import { Country } from 'src/shared/models/country/country.entity';
-import { LegalEntity, SignatoryPower, UserData } from '../../user-data/user-data.entity';
+import { UserData } from '../../user-data/user-data.entity';
+import { LegalEntity, SignatoryPower } from '../../user-data/user-data.enum';
 import { AccountOpenerAuthorization } from '../organization.entity';
 
 export interface OrganizationDto {

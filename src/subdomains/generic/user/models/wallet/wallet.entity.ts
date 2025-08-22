@@ -5,7 +5,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MailContextType } from 'src/subdomains/supporting/notification/enums';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { WebhookType } from '../../services/webhook/dto/webhook.dto';
-import { KycType } from '../user-data/user-data.entity';
+import { KycType } from '../user-data/user-data.enum';
 
 export interface WebhookConfig {
   payment: WebhookConfigOption;

@@ -4,7 +4,8 @@ import {
   BuyFiatExtended,
   TransactionDtoMapper,
 } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
-import { KycCompleted, KycStatus, KycType, UserData } from '../../../models/user-data/user-data.entity';
+import { KycCompleted, UserData } from '../../../models/user-data/user-data.entity';
+import { KycStatus, KycType } from '../../../models/user-data/user-data.enum';
 import { AccountChangedWebhookData } from '../dto/account-changed-webhook.dto';
 import { KycWebhookData, KycWebhookStatus } from '../dto/kyc-webhook.dto';
 import { PaymentWebhookData } from '../dto/payment-webhook.dto';

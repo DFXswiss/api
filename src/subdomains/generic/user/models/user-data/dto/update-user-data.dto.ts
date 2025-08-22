@@ -20,7 +20,8 @@ import { AccountOpenerAuthorization, Organization } from '../../organization/org
 import { AccountType } from '../account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../is-dfx-phone.validator';
 import { KycIdentificationType } from '../kyc-identification-type.enum';
-import { KycLevel, KycStatus, LegalEntity, SignatoryPower, UserData, UserDataStatus } from '../user-data.entity';
+import { UserData } from '../user-data.entity';
+import { KycLevel, KycStatus, LegalEntity, SignatoryPower, UserDataStatus } from '../user-data.enum';
 
 export class UpdateUserDataDto {
   @IsOptional()

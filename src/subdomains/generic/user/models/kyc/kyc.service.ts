@@ -14,14 +14,9 @@ import { FileType, KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.d
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
-import {
-  Blank,
-  BlankType,
-  KycLevel,
-  KycState,
-  UserData,
-} from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Blank, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { getKycWebhookStatus } from '../../services/webhook/mapper/webhook-data.mapper';
+import { BlankType, KycLevel, KycState } from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';

@@ -16,7 +16,8 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { UserData } from './user-data.entity';
+import { KycStatus, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 import { UserDataService } from './user-data.service';
 

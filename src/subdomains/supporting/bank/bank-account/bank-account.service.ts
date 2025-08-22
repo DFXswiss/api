@@ -4,7 +4,7 @@ import { BankDetailsDto, IbanDetailsDto, IbanService } from 'src/integration/ban
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { Equal, IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';

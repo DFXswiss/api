@@ -1,7 +1,8 @@
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
-import { LegalEntity, SignatoryPower, UserData } from '../user-data/user-data.entity';
+import { UserData } from '../user-data/user-data.entity';
+import { LegalEntity, SignatoryPower } from '../user-data/user-data.enum';
 
 export enum AccountOpenerAuthorization {
   SINGLE_SIGNATURE = 'Einzelunterschrift',

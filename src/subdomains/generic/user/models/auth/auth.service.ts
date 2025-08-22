@@ -27,7 +27,8 @@ import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notificat
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { CustodyProviderService } from '../custody-provider/custody-provider.service';
-import { KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
+import { UserData } from '../user-data/user-data.entity';
+import { KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User } from '../user/user.entity';

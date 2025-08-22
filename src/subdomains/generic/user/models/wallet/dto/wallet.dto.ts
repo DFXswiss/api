@@ -1,6 +1,6 @@
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
-import { KycType } from '../../user-data/user-data.entity';
+import { KycType } from '../../user-data/user-data.enum';
 
 export class WalletDto {
   @IsOptional()

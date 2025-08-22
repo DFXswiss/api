@@ -8,7 +8,7 @@ import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { IsNull, Like, MoreThan, Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
-import { KycLevel, KycType, SignatoryPower, UserDataStatus } from './user-data.entity';
+import { KycLevel, KycType, SignatoryPower, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 @Injectable()

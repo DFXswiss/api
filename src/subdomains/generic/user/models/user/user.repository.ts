@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
 import { EntityManager, Like } from 'typeorm';
-import { KycLevel } from '../user-data/user-data.entity';
+import { KycLevel } from '../user-data/user-data.enum';
 import { User } from './user.entity';
 
 @Injectable()

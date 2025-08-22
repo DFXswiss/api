@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { KycStepType, UrlType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
-import { KycLevel } from '../../../user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { TradingLimit } from '../../../user/models/user/dto/user.dto';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
 

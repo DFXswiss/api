@@ -29,7 +29,7 @@ export class KycLogService {
 
   async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
     const entity = this.kycLogRepo.create({
-      type: KycLogType.MANUAL,
+      type: dto.type ?? KycLogType.MANUAL,
       comment: dto.comment,
       eventDate: dto.eventDate,
       result: `Created by user data ${creatorUserDataId}`,

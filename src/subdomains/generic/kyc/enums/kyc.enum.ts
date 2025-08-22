@@ -1,7 +1,8 @@
 import { Config } from 'src/config/config';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
-import { KycLevel, LegalEntity, SignatoryPower, UserData } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, LegalEntity, SignatoryPower } from '../../user/models/user-data/user-data.enum';
 import { IdentType } from '../dto/ident-result-data.dto';
 import { SumSubLevelName } from '../dto/sum-sub.dto';
 import { KycStepName } from './kyc-step-name.enum';
@@ -56,6 +57,7 @@ export enum KycLogType {
   TFA = 'TfaLog',
   FILE = 'KycFileLog',
   MANUAL = 'ManualLog',
+  RISK_STATUS = 'RiskStatusLog',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {

@@ -17,6 +17,7 @@ import { MailChangeLog } from './entities/mail-change-log.entity';
 import { ManualLog } from './entities/manual-log.entity';
 import { MergeLog } from './entities/merge-log.entity';
 import { NameCheckLog } from './entities/name-check-log.entity';
+import { RiskStatusLog } from './entities/risk-status-log.entity';
 import { StepLog } from './entities/step-log.entity';
 import { KycFileRepository } from './repositories/kyc-file.repository';
 import { KycLogRepository } from './repositories/kyc-log.repository';
@@ -40,7 +41,17 @@ import { TfaService } from './services/tfa.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([KycStep, KycLog, NameCheckLog, StepLog, MergeLog, MailChangeLog, ManualLog, KycFile]),
+    TypeOrmModule.forFeature([
+      KycStep,
+      KycLog,
+      NameCheckLog,
+      StepLog,
+      MergeLog,
+      MailChangeLog,
+      ManualLog,
+      RiskStatusLog,
+      KycFile,
+    ]),
     SharedModule,
     NotificationModule,
     forwardRef(() => UserModule),

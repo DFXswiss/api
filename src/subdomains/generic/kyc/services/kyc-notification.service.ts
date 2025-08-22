@@ -9,7 +9,8 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
-import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
