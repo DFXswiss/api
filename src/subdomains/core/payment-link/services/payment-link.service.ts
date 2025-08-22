@@ -92,11 +92,13 @@ export class PaymentLinkService {
   async getAll(userId: number): Promise<PaymentLink[]> {
     const allPaymentLinks = await this.paymentLinkRepo.getAllPaymentLinks(userId);
 
-    for (const paymentLink of allPaymentLinks) {
-      if (!paymentLink.payments) paymentLink.payments = [];
+    const mostRecentPayments = await this.paymentLinkPaymentService
+      .getMostRecentPayments(allPaymentLinks.map((pl) => pl.id))
+      .then((l) => new Map(l.map((p) => [p.link.id, p])));
 
-      const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(paymentLink.uniqueId);
-      if (mostRecentPayment) paymentLink.payments.push(mostRecentPayment);
+    for (const paymentLink of allPaymentLinks) {
+      const mostRecentPayment = mostRecentPayments.get(paymentLink.id);
+      paymentLink.payments = mostRecentPayment ? [mostRecentPayment] : [];
     }
 
     return allPaymentLinks;

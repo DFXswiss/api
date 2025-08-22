@@ -53,6 +53,10 @@ export class KycAdminService {
       );
 
     switch (kycStep.name) {
+      case KycStepName.AUTHORITY:
+        if (kycStep.isCompleted) await this.kycService.completeAuthority(kycStep.userData);
+        break;
+
       case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.LEGAL_ENTITY:
         if (kycStep.isCompleted) kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);

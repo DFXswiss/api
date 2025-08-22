@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLinkConfig } from '../entities/payment-link.config';
@@ -48,6 +49,8 @@ export class PaymentLinkDtoMapper {
   }
 
   private static createPaymentLinkBaseDto(paymentLink: PaymentLink): PaymentLinkBaseDto {
+    const lightning = LightningHelper.createEncodedLnurlp(paymentLink.uniqueId);
+
     return {
       id: paymentLink.id,
       routeId: paymentLink.route.id,
@@ -58,7 +61,8 @@ export class PaymentLinkDtoMapper {
       status: paymentLink.status,
       config: PaymentLinkDtoMapper.getConfigsWithoutSecrets(paymentLink.configObj),
       url: LightningHelper.createLnurlp(paymentLink.uniqueId),
-      lnurl: LightningHelper.createEncodedLnurlp(paymentLink.uniqueId),
+      lnurl: lightning,
+      frontendUrl: `${Config.frontend.services}/pl?${new URLSearchParams({ lightning })}`,
       mode: paymentLink.mode,
     };
   }

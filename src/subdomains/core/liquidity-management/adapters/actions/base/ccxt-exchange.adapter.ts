@@ -248,6 +248,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `No withdrawal id for id ${correlationId} and asset ${token} at ${this.exchangeService.name} found`,
       );
       return false;
+    } else if (withdrawal.status === 'failed') {
+      throw new OrderFailedException(`Withdrawal TX ${withdrawal.txid} has failed`);
     }
 
     order.outputAmount = withdrawal.amount;
@@ -323,6 +325,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `No withdrawal id for id ${correlationId} and asset ${targetAsset.dexName} at ${this.exchangeService.name} found`,
       );
       return false;
+    } else if (withdrawal.status === 'failed') {
+      throw new OrderFailedException(`Withdrawal TX ${withdrawal.txid} has failed`);
     }
 
     order.outputAmount = withdrawal.amount;

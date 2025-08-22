@@ -37,10 +37,12 @@ export class PaymentQuoteService {
     Blockchain.BASE,
     Blockchain.GNOSIS,
     Blockchain.ETHEREUM,
+    Blockchain.BINANCE_SMART_CHAIN,
     Blockchain.MONERO,
     Blockchain.BITCOIN,
     Blockchain.ZANO,
     Blockchain.SOLANA,
+    Blockchain.TRON,
   ];
 
   private readonly transferAmountAssetOrder: string[] = ['dEURO', 'ZCHF', 'USDT', 'USDC', 'DAI'];
@@ -371,6 +373,7 @@ export class PaymentQuoteService {
         case Blockchain.BASE:
         case Blockchain.GNOSIS:
         case Blockchain.POLYGON:
+        case Blockchain.BINANCE_SMART_CHAIN:
           await this.doEvmHexPayment(transferInfo.method, transferInfo, quote);
           break;
 
@@ -381,6 +384,7 @@ export class PaymentQuoteService {
         case Blockchain.MONERO:
         case Blockchain.ZANO:
         case Blockchain.SOLANA:
+        case Blockchain.TRON:
           await this.doTxIdPayment(transferInfo, quote);
           break;
 

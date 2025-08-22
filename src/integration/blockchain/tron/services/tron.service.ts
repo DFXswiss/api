@@ -35,6 +35,10 @@ export class TronService extends BlockchainService {
     return Util.equalsIgnoreCase(addressRecovered, address);
   }
 
+  getPaymentRequest(address: string, amount: number): string {
+    return `tron:${address}?amount=${Util.numberToFixedString(amount)}`;
+  }
+
   async getBlockHeight(): Promise<number> {
     return this.client.getBlockHeight();
   }

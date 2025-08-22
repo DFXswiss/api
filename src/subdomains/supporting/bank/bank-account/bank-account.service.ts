@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
+import { BankDetailsDto, IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { IsNull } from 'typeorm';
+import { Equal, IsNull } from 'typeorm';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
 
@@ -53,17 +53,29 @@ export class BankAccountService {
 
   // --- HELPER METHODS --- //
 
-  async getOrCreateBankAccountInternal(iban: string, validateIbanCountry = true): Promise<BankAccount> {
+  async getOrCreateIbanBankAccountInternal(iban: string, validateIbanCountry = true): Promise<BankAccount> {
     return (
-      (await this.bankAccountRepo.findOneBy({ iban })) ?? this.createBankAccountInternal(iban, validateIbanCountry)
+      (await this.bankAccountRepo.findOneBy({ iban: Equal(iban) })) ??
+      this.createBankAccountInternal(iban, undefined, validateIbanCountry)
     );
   }
 
-  private async createBankAccountInternal(iban: string, validateIbanCountry: boolean): Promise<BankAccount> {
+  async getOrCreateBicBankAccountInternal(bic: string): Promise<BankAccount> {
+    return (
+      (await this.bankAccountRepo.findOneBy({ bic: Equal(bic) })) ??
+      this.createBankAccountInternal(undefined, bic, false)
+    );
+  }
+
+  private async createBankAccountInternal(
+    iban: string | undefined,
+    bic: string | undefined,
+    validateIbanCountry: boolean,
+  ): Promise<BankAccount> {
     if (validateIbanCountry && !(await this.isValidIbanCountry(iban)))
       throw new BadRequestException('Iban country is currently not supported');
 
-    const bankAccount = await this.initBankAccount(iban);
+    const bankAccount = iban ? await this.initIbanBankAccount(iban) : await this.initBicBankAccount(bic);
 
     return this.bankAccountRepo.save(bankAccount);
   }
@@ -74,47 +86,70 @@ export class BankAccountService {
     return ibanCountry?.isEnabled(kycType);
   }
 
-  private async initBankAccount(iban: string): Promise<BankAccount> {
+  private async initIbanBankAccount(iban: string): Promise<BankAccount> {
     const bankDetails = await this.ibanService.getIbanInfos(iban);
-    return this.bankAccountRepo.create({ ...this.parseBankDetails(bankDetails), iban });
+    return this.bankAccountRepo.create({ ...this.parseIbanBankDetails(bankDetails), iban });
+  }
+
+  private async initBicBankAccount(bic: string): Promise<BankAccount> {
+    const bankDetails = await this.ibanService.getBankInfos(bic);
+    return this.bankAccountRepo.create({ ...this.parseBankDetails(bankDetails), bic });
   }
 
   private async reloadBankAccount(bankAccount: BankAccount): Promise<void> {
     const bankDetails = await this.ibanService.getIbanInfos(bankAccount.iban);
-    await this.bankAccountRepo.save({ ...bankAccount, ...this.parseBankDetails(bankDetails) });
+    await this.bankAccountRepo.save({ ...bankAccount, ...this.parseIbanBankDetails(bankDetails) });
   }
 
-  private parseBankDetails(bankDetails: IbanDetailsDto): BankAccountInfos {
+  private parseIbanBankDetails(ibanDetails: IbanDetailsDto): BankAccountInfos {
+    return {
+      result: this.parseString(ibanDetails.result),
+      returnCode: !ibanDetails.return_code ? null : ibanDetails.return_code,
+      checks: ibanDetails.checks.length > 0 ? ibanDetails.checks.join(',') : null,
+      bic: ibanDetails.bic_candidates.length > 0 ? ibanDetails.bic_candidates.map((c) => c.bic).join(',') : null,
+      bankName: this.parseString(ibanDetails.bank),
+      allBicCandidates:
+        ibanDetails.all_bic_candidates.length > 0 ? ibanDetails.all_bic_candidates.map((c) => c.bic).join(',') : null,
+      bankCode: this.parseString(ibanDetails.bank_code),
+      bankAndBranchCode: this.parseString(ibanDetails.bank_and_branch_code),
+      bankAddress: this.parseAddressString(
+        ibanDetails.bank_address,
+        ibanDetails.bank_street,
+        ibanDetails.bank_city,
+        ibanDetails.bank_state,
+        ibanDetails.bank_postal_code,
+      ),
+      bankUrl: this.parseString(ibanDetails.bank_url),
+      branch: this.parseString(ibanDetails.branch),
+      branchCode: this.parseString(ibanDetails.branch_code),
+      sct: this.parseBoolean(ibanDetails.sct),
+      sdd: this.parseBoolean(ibanDetails.sdd),
+      b2b: this.parseBoolean(ibanDetails.b2b),
+      scc: this.parseBoolean(ibanDetails.scc),
+      sctInst: this.parseBoolean(ibanDetails.sct_inst),
+      sctInstReadinessDate: !ibanDetails.sct_inst_readiness_date ? null : new Date(ibanDetails.sct_inst_readiness_date),
+      accountNumber: this.parseString(ibanDetails.account_number),
+      dataAge: this.parseString(ibanDetails.data_age),
+      ibanListed: this.parseString(ibanDetails.iban_listed),
+      ibanWwwOccurrences: !ibanDetails.iban_www_occurrences ? null : ibanDetails.iban_www_occurrences,
+    };
+  }
+
+  private parseBankDetails(bankDetails: BankDetailsDto): BankAccountInfos {
     return {
       result: this.parseString(bankDetails.result),
-      returnCode: !bankDetails.return_code ? null : bankDetails.return_code,
-      checks: bankDetails.checks.length > 0 ? bankDetails.checks.join(',') : null,
-      bic: bankDetails.bic_candidates.length > 0 ? bankDetails.bic_candidates.map((c) => c.bic).join(',') : null,
-      bankName: this.parseString(bankDetails.bank),
-      allBicCandidates:
-        bankDetails.all_bic_candidates.length > 0 ? bankDetails.all_bic_candidates.map((c) => c.bic).join(',') : null,
-      bankCode: this.parseString(bankDetails.bank_code),
-      bankAndBranchCode: this.parseString(bankDetails.bank_and_branch_code),
-      bankAddress: this.parseAddressString(
-        bankDetails.bank_address,
-        bankDetails.bank_street,
-        bankDetails.bank_city,
-        bankDetails.bank_state,
-        bankDetails.bank_postal_code,
-      ),
-      bankUrl: this.parseString(bankDetails.bank_url),
-      branch: this.parseString(bankDetails.branch),
-      branchCode: this.parseString(bankDetails.branch_code),
-      sct: this.parseBoolean(bankDetails.sct),
-      sdd: this.parseBoolean(bankDetails.sdd),
-      b2b: this.parseBoolean(bankDetails.b2b),
-      scc: this.parseBoolean(bankDetails.scc),
-      sctInst: this.parseBoolean(bankDetails.sct_inst),
-      sctInstReadinessDate: !bankDetails.sct_inst_readiness_date ? null : new Date(bankDetails.sct_inst_readiness_date),
-      accountNumber: this.parseString(bankDetails.account_number),
-      dataAge: this.parseString(bankDetails.data_age),
-      ibanListed: this.parseString(bankDetails.iban_listed),
-      ibanWwwOccurrences: !bankDetails.iban_www_occurrences ? null : bankDetails.iban_www_occurrences,
+      bankName: this.parseString(bankDetails.banks?.[0].name),
+      bankCode: bankDetails.banks?.[0].bankcode,
+      bankAddress: bankDetails.banks?.[0].address,
+      sct: this.parseBoolean(bankDetails.banks?.[0].sct),
+      sdd: this.parseBoolean(bankDetails.banks?.[0].sdd),
+      b2b: this.parseBoolean(bankDetails.banks?.[0].b2b),
+      scc: this.parseBoolean(bankDetails.banks?.[0].scc),
+      sctInst: this.parseBoolean(bankDetails.banks?.[0].sct_inst),
+      sctInstReadinessDate: !bankDetails.banks?.[0].sct_inst_readiness_date
+        ? null
+        : new Date(bankDetails.banks?.[0].sct_inst_readiness_date),
+      branchCode: this.parseString(bankDetails.banks?.[0].branchcode),
     };
   }
 

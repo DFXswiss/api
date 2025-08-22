@@ -5,11 +5,14 @@ param env string
 @description('Short name of the APP')
 param app string
 
+@description('Quota of the file share')
+param fileShareQuota int
+
 @description('Container image')
 param containerImage string
 
-@description('Container mount path')
-param containerMountPath string
+@description('Container volume mounts')
+param containerVolumeMounts array
 
 @description('Container CPU resource')
 param containerCPU string
@@ -23,8 +26,23 @@ param containerMinReplicas int
 @description('Container maximal replicas')
 param containerMaxReplicas int
 
+@description('Container ingress target port')
+param containerIngressTargetPort int
+
+@description('Container ingress additional ports')
+param containerIngressAdditionalPorts array
+
+@description('Probes of the container app')
+param containerProbes array
+
 @description('Environment of the container app')
 param containerEnv array
+
+@description('Command of the container app')
+param containerCommand array
+
+@description('Arguments of the container app')
+param containerArgs array
 
 @description('Tags to be applied to all resources')
 param tags object = {}
@@ -40,7 +58,7 @@ var environmentStorageName = 'share-${compName}-${app}-${env}'
 
 var appName = 'ca-${compName}-${app}-${env}'
 
-var withStorage = containerMountPath != ''
+var withStorage = !empty(containerVolumeMounts)
 
 // --- MODULES --- //
 module storage './modules/storage.bicep' = if (withStorage) {
@@ -48,6 +66,7 @@ module storage './modules/storage.bicep' = if (withStorage) {
   params: {
     storageAccountName: storageAccountName
     fileShareName: fileShareName
+    fileShareQuota: fileShareQuota
   }
 }
 
@@ -69,27 +88,32 @@ module containerApp './modules/containerApp.bicep' = {
     tags: tags
     containerAppsEnvironmentId: containerAppsEnv.outputs.containerAppsEnvironmentId
     containerImage: containerImage
-    containerMountPath: containerMountPath
+    containerVolumeMounts: containerVolumeMounts
     storageName: environmentStorageName
     containerCPU: containerCPU
     containerMemory: containerMemory
     containerMinReplicas: containerMinReplicas
     containerMaxReplicas: containerMaxReplicas
+    containerIngressTargetPort: containerIngressTargetPort
+    containerIngressAdditionalPorts: containerIngressAdditionalPorts
+    containerProbes: containerProbes
     containerEnv: containerEnv
+    containerCommand: containerCommand
+    containerArgs: containerArgs
     withStorage: withStorage
   }
 }
 
 output result object = {
   containerImage: containerImage
-  containerMountPath: containerMountPath
+  containerVolumeMounts: containerVolumeMounts
   containerCPU: containerCPU
   containerMemory: containerMemory
   containerMinReplicas: containerMinReplicas
   containerMaxReplicas: containerMaxReplicas
+  containerProbes: containerProbes
   containerEnv: containerEnv
-
-  withStorage: withStorage
+  containerCommand: containerCommand
 
   environmentName: environmentName
   storageAccountName: storageAccountName

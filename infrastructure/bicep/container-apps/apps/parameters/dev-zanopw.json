@@ -1,0 +1,86 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 1
+    },
+    "containerImage": {
+      "value": "canardleteer/zano:master-zano-runner"
+    },
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/home/ubuntu/private",
+          "subPath": "private"
+        }
+      ]
+    },
+    "containerCPU": {
+      "value": "1"
+    },
+    "containerMemory": {
+      "value": "2Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 12233
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": [
+        {
+          "type": "Startup",
+          "initialDelaySeconds": 10,
+          "periodSeconds": 30,
+          "failureThreshold": 10,
+          "successThreshold": 1,
+          "tcpSocket": {
+            "port": 12233
+          },
+          "timeoutSeconds": 5
+        },
+        {
+          "type": "Liveness",
+          "initialDelaySeconds": 30,
+          "periodSeconds": 10,
+          "failureThreshold": 10,
+          "successThreshold": 1,
+          "tcpSocket": {
+            "port": 12233
+          },
+          "timeoutSeconds": 5
+        }
+      ]
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "USE_WALLET_BINARY",
+          "value": "true"
+        }
+      ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": [
+        "--wallet=private/paymentwallet",
+        "--password=NKg3MCMFvC#a6aQA6jQy",
+        "--rpc-bind-ip=0.0.0.0",
+        "--rpc-bind-port=12233",
+        "--daemon-address=https://ca-dfx-zanod-dev.redground-e7b33dc9.westeurope.azurecontainerapps.io",
+        "--log-level=1"
+      ]
+    }
+  }
+}

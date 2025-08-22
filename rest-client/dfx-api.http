@@ -396,7 +396,7 @@ Authorization: Bearer {{authToken}}
 PUT {{url}}/v1/custody/admin/user/xxx/balance?assetId=337
 Authorization: Bearer {{authToken}}
 
-### 
+###
 
 // PAYMENT
 
@@ -405,10 +405,27 @@ Authorization: Bearer {{authToken}}
 POST {{url}}/v1/paymentLink/integration/binance/activate/xxx
 Authorization: Bearer {{authToken}}
 
-### 
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/paymentLink
+Authorization: Bearer {{authToken}}
+
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+PUT {{url}}/v1/paymentLink/xxx
+Authorization: Bearer {{authToken}}
+
+{}
+
+
+###
 
 @authToken = {{login.response.body.accessToken}}
 
 PUT {{url}}/v1/paymentLink/xxx/pos?scoped=false
 Authorization: Bearer {{authToken}}
-

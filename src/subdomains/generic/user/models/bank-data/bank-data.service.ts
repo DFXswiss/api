@@ -173,6 +173,11 @@ export class BankDataService {
 
     if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
 
+    if ([BankDataType.IDENT, BankDataType.NAME_CHECK, BankDataType.CARD_IN].includes(bankData.type)) {
+      const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(bankData.iban, false);
+      if (!bankAccount.bankName && dto.bic) await this.bankAccountService.getOrCreateBicBankAccountInternal(dto.bic);
+    }
+
     return this.bankDataRepo.save(bankData);
   }
 
@@ -267,6 +272,13 @@ export class BankDataService {
     return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
   }
 
+  async getIdentBankDataForUser(userDataId: number): Promise<BankData> {
+    return this.bankDataRepo.findOne({
+      where: { userData: { id: userDataId }, type: BankDataType.IDENT },
+      relations: { userData: true },
+    });
+  }
+
   async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
     const entity = await this.bankDataRepo.findOne({
       where: { id },
@@ -340,7 +352,7 @@ export class BankDataService {
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
 
-    await this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
+    await this.bankAccountService.getOrCreateIbanBankAccountInternal(dto.iban);
 
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },

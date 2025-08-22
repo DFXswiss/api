@@ -4,26 +4,34 @@ set -e
 # Documentation:
 # https://learn.microsoft.com/en-gb/azure/container-apps/how-to-integrate-with-azure-front-door
 
-# 1. Parameter "fcp": Frankencoin Ponder
-# 1. Parameter "dep": Decentralized Euro Ponder
-# 1. Parameter "ded": Decentralized Euro DApp
-# 1. Parameter "dea": Decentralized Euro API
-if [[ ! $1 =~ ^("fcp"|"dep"|"ded"|"dea")$ ]]; then
-  echo "Missing 1. parameter: 'fcp' or 'dep' or 'ded' or 'dea' expected ..."
-  exit
-fi
+# --- OPTIONS --- #
+environmentOptions=("loc" "dev" "prd")
 
-APP=$1
+# "fcp":   Frankencoin Ponder
+# "dep":   dEuro Ponder
+# "dea":   dEuro API
+# "ded":   dEuro dApp
+appNameOptions=("fcp" "dep" "dea" "ded")
 
-# 2. Parameter "loc": Local environment
-# 2. Parameter "dev": Development environment
-# 2. Parameter "prd": Production environment
-if [[ ! $2 =~ ^("loc"|"dev"|"prd")$ ]]; then
-  echo "Missing 2. parameter: 'loc' or 'dev' or 'prd' expected ..."
-  exit
-fi
+# --- FUNCTIONS --- #
+selectOption() {
+  PS3="${1}: "
+  shift
+  options=("$@")
 
-ENV=$2
+  select opt in "${options[@]}" "quit"; do 
+      case "$REPLY" in
+      *) selection="${opt}"; break ;;
+      esac
+  done
+
+  if [[ ! $selection || $selection == "quit" ]]; then exit -1; fi
+  echo "${selection}"
+}
+
+# --- MAIN --- #
+ENV=$(selectOption "Select Environment" "${environmentOptions[@]}")
+APP=$(selectOption "Select App Name" "${appNameOptions[@]}")
 
 # Global variables
 COMP_NAME="dfx"

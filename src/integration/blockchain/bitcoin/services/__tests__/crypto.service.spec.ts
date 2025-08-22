@@ -144,6 +144,7 @@ describe('CryptoService', () => {
   it('should return Blockchain.ETHEREUM and Blockchain.BINANCE_SMART_CHAIN for address 0x2d84553B3A4753009A314106d58F0CC21f441234', () => {
     expect(CryptoService.getBlockchainsBasedOn('0x2d84553B3A4753009A314106d58F0CC21f441234')).toEqual([
       Blockchain.ETHEREUM,
+      Blockchain.SEPOLIA,
       Blockchain.BINANCE_SMART_CHAIN,
       Blockchain.ARBITRUM,
       Blockchain.OPTIMISM,

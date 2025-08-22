@@ -59,6 +59,8 @@ export class ExchangeTxService {
               type: undefined,
               name: entity.feeCurrency,
             }));
+          if (!feeAsset) throw new Error(`Unknown fee currency ${entity.feeCurrency}`);
+
           const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, true);
 
           entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
@@ -78,6 +80,8 @@ export class ExchangeTxService {
               type: undefined,
               name: currencyName,
             }));
+          if (!currency) throw new Error(`Unknown currency ${currencyName}`);
+
           const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, true);
 
           entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);

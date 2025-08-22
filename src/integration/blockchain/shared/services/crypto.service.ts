@@ -26,6 +26,7 @@ export class CryptoService {
 
   static readonly EthereumBasedChains = [
     Blockchain.ETHEREUM,
+    Blockchain.SEPOLIA,
     Blockchain.BINANCE_SMART_CHAIN,
     Blockchain.ARBITRUM,
     Blockchain.OPTIMISM,
@@ -71,6 +72,7 @@ export class CryptoService {
         return this.zanoService.getPaymentRequest(address, amount);
 
       case Blockchain.ETHEREUM:
+      case Blockchain.SEPOLIA:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.POLYGON:
@@ -83,6 +85,9 @@ export class CryptoService {
 
       case Blockchain.SOLANA:
         return this.solanaService.getPaymentRequest(address, amount);
+
+      case Blockchain.TRON:
+        return this.tronService.getPaymentRequest(address, amount);
 
       default:
         return undefined;
@@ -109,6 +114,7 @@ export class CryptoService {
         return UserAddressType.ZANO;
 
       case Blockchain.ETHEREUM:
+      case Blockchain.SEPOLIA:
       case Blockchain.BINANCE_SMART_CHAIN:
       case Blockchain.POLYGON:
       case Blockchain.ARBITRUM:
