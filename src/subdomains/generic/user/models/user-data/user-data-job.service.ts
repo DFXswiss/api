@@ -6,7 +6,6 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
-import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { IsNull, Like, MoreThan, Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
 import { KycLevel, KycType, SignatoryPower, UserDataStatus } from './user-data.entity';
@@ -21,24 +20,6 @@ export class UserDataJobService {
     await this.bankTxVerification();
     await this.setAccountOpener();
     await this.setKycLevel40();
-    await this.fillHasBankTx();
-  }
-
-  private async fillHasBankTx(): Promise<void> {
-    const entities = await this.userDataRepo.find({
-      where: { hasBankTx: IsNull() },
-      relations: { transactions: { buyCrypto: true } },
-      take: 20000,
-    });
-
-    for (const entity of entities) {
-      const hasBankTx = entity.transactions.some(
-        (t) =>
-          (t.buyCrypto?.isComplete || t.amlCheck === CheckStatus.PASS) &&
-          t.sourceType === TransactionSourceType.BANK_TX,
-      );
-      await this.userDataRepo.update(entity.id, { hasBankTx });
-    }
   }
 
   private async bankTxVerification(): Promise<void> {
