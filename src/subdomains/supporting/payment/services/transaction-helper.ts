@@ -812,7 +812,11 @@ export class TransactionHelper implements OnModuleInit {
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
 
-    if (user?.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) && Config.environment !== Environment.PRD) return;
+    if (
+      user?.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) &&
+      [Environment.LOC, Environment.DEV].includes(Config.environment)
+    )
+      return;
 
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
