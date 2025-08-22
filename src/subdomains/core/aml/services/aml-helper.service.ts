@@ -1,4 +1,4 @@
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
@@ -39,6 +39,12 @@ export class AmlHelperService {
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
+
+    if (
+      entity.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) &&
+      [Environment.LOC, Environment.DEV].includes(Config.environment)
+    )
+      return errors;
 
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
@@ -412,12 +418,12 @@ export class AmlHelperService {
       return QuoteError.KYC_REQUIRED;
 
     if (amlRules.includes(AmlRule.RULE_9) && paymentMethodIn === FiatPaymentMethod.CARD) {
-      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING;
       if (user.userData.kycLevel < KycLevel.LEVEL_30) return QuoteError.KYC_REQUIRED;
     }
 
     if (amlRules.includes(AmlRule.RULE_10) && paymentMethodIn === FiatPaymentMethod.CARD) {
-      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING;
       if (user.userData.kycLevel < KycLevel.LEVEL_50) return QuoteError.KYC_REQUIRED;
     }
 

@@ -2,12 +2,20 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
+    "fileShareQuota": {
+      "value": 1
+    },
     "containerImage": {
       "value": "dfxswiss/frankencoin-ponder:latest"
     },
-    "containerMountPath": {
-      "value": "/app/.ponder"
-    },    
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/app/.ponder"
+        }
+      ]
+    },
     "containerCPU": {
       "value": "0.5"
     },
@@ -19,6 +27,15 @@
     },
     "containerMaxReplicas": {
       "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 3000
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
     },
     "containerEnv": {
       "value": [
@@ -35,6 +52,12 @@
           "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
         }
       ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": []
     }
   }
 }

@@ -43,7 +43,10 @@ export class TronClient extends BlockchainClient {
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
     const tatumSdk = await this.getTatumSdk();
     const addressBalanceResponse = await tatumSdk.address.getBalance({ address });
-    if (addressBalanceResponse.error) throw new Error(`Cannot detect native coin balance of address ${address}`);
+    if (addressBalanceResponse.error)
+      throw new Error(
+        `Cannot detect native coin balance of address ${address}: ${addressBalanceResponse.error.message.join('; ')}`,
+      );
 
     const allAddressBalanceCoinData = addressBalanceResponse.data.filter(
       (d) => d.asset === 'TRX' && Util.equalsIgnoreCase(d.type, 'native'),

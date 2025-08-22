@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
-import { LegalEntity, SignatoryPower, UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, LegalEntity, SignatoryPower, UserData } from '../../user/models/user-data/user-data.entity';
 import { IdentType } from '../dto/ident-result-data.dto';
 import { SumSubLevelName } from '../dto/sum-sub.dto';
 import { KycStepName } from './kyc-step-name.enum';
@@ -15,8 +15,9 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     KycStepName.CONTACT_DATA,
     KycStepName.PERSONAL_DATA,
     KycStepName.NATIONALITY_DATA,
-    [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
-      ? KycStepName.LEGAL_ENTITY
+    userData.accountType === AccountType.ORGANIZATION ? KycStepName.LEGAL_ENTITY : null,
+    userData.accountType === AccountType.SOLE_PROPRIETORSHIP && userData.kycLevel < KycLevel.LEVEL_50
+      ? KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION
       : null,
     userData.accountType === AccountType.ORGANIZATION &&
     !(userData.legalEntity === LegalEntity.GMBH && userData.organizationCountry?.symbol === 'CH')

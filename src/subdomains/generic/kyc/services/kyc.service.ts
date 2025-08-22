@@ -481,7 +481,13 @@ export class KycService {
     return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
-  async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
+  async updateFileData(
+    kycHash: string,
+    stepId: number,
+    data: KycFileData,
+    fileType: FileType,
+    urlAsJson = false,
+  ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -497,7 +503,7 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.manualReview(undefined, url));
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, urlAsJson ? { url } : url));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -906,6 +912,7 @@ export class KycService {
 
       case KycStepName.CONTACT_DATA:
       case KycStepName.LEGAL_ENTITY:
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.SIGNATORY_POWER:
       case KycStepName.BENEFICIAL_OWNER:
       case KycStepName.OPERATIONAL_ACTIVITY:
