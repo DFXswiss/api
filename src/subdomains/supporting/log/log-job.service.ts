@@ -223,6 +223,7 @@ export class LogJobService {
           Blockchain.ZANO,
           Blockchain.BINANCE_PAY,
           Blockchain.KUCOIN_PAY,
+          Blockchain.TRON,
         ].includes(a.blockchain),
     );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
