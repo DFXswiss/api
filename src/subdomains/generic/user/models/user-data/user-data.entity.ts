@@ -26,7 +26,18 @@ import { TradingLimit } from '../user/dto/user.dto';
 import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
 import { KycIdentificationType } from './kyc-identification-type.enum';
-import { BlankType, KycLevel, KycStatus, KycType, LegalEntity, LimitPeriod, Moderator, SignatoryPower, UserDataStatus } from './user-data.enum';
+import {
+  BlankType,
+  KycLevel,
+  KycStatus,
+  KycType,
+  LegalEntity,
+  LimitPeriod,
+  Moderator,
+  RiskStatus,
+  SignatoryPower,
+  UserDataStatus,
+} from './user-data.enum';
 
 @Entity()
 @Index(
@@ -42,6 +53,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, default: UserDataStatus.NA })
   status: UserDataStatus;
+
+  @Column({ length: 256, default: RiskStatus.NA })
+  riskStatus: RiskStatus;
 
   @Column({ length: 256, nullable: true })
   moderator: Moderator;

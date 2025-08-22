@@ -57,6 +57,7 @@ export enum KycLogType {
   TFA = 'TfaLog',
   FILE = 'KycFileLog',
   MANUAL = 'ManualLog',
+  RISK_STATUS = 'RiskStatusLog',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {

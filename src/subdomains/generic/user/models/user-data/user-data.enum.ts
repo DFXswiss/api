@@ -9,6 +9,13 @@ export enum KycStatus {
   TERMINATED = 'Terminated',
 }
 
+export enum RiskStatus {
+  NA = 'NA',
+  SUSPICION = 'Suspicion',
+  BLOCKED = 'Blocked',
+  RELEASED = 'Released',
+}
+
 export enum KycLevel {
   // automatic levels
   LEVEL_0 = 0, // nothing
