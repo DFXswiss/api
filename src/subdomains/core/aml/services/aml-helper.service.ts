@@ -418,12 +418,12 @@ export class AmlHelperService {
       return QuoteError.KYC_REQUIRED;
 
     if (amlRules.includes(AmlRule.RULE_9) && paymentMethodIn === FiatPaymentMethod.CARD) {
-      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING;
       if (user.userData.kycLevel < KycLevel.LEVEL_30) return QuoteError.KYC_REQUIRED;
     }
 
     if (amlRules.includes(AmlRule.RULE_10) && paymentMethodIn === FiatPaymentMethod.CARD) {
-      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_MISSING;
+      if (user.status !== UserStatus.ACTIVE) return QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING;
       if (user.userData.kycLevel < KycLevel.LEVEL_50) return QuoteError.KYC_REQUIRED;
     }
 

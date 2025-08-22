@@ -883,7 +883,7 @@ export class TransactionHelper implements OnModuleInit {
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
-      return QuoteError.BANK_TRANSACTION_MISSING;
+      return QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING;
 
     // amount checks
     if (txAmountChf < minAmountChf) return QuoteError.AMOUNT_TOO_LOW;
