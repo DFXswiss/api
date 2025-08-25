@@ -46,7 +46,7 @@ export class SolanaClient extends BlockchainClient {
     this.wallet = SolanaWallet.create(solanaWalletSeed);
   }
 
-  getWalletAddress(): string {
+  get walletAddress(): string {
     return this.wallet.address;
   }
 
@@ -55,7 +55,7 @@ export class SolanaClient extends BlockchainClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    return this.getNativeCoinBalanceForAddress(this.getWalletAddress());
+    return this.getNativeCoinBalanceForAddress(this.walletAddress);
   }
 
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
@@ -72,7 +72,7 @@ export class SolanaClient extends BlockchainClient {
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
     const tokenBalances: BlockchainTokenBalance[] = [];
 
-    const owner = address ?? this.getWalletAddress();
+    const owner = address ?? this.walletAddress;
 
     for (const asset of assets) {
       const mint = new Solana.PublicKey(asset.chainId);

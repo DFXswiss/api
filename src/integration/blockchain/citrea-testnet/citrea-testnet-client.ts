@@ -25,7 +25,7 @@ export class CitreaTestnetClient extends EvmClient {
 
   // Alchemy method overrides
   async getNativeCoinBalance(): Promise<number> {
-    return this.getNativeCoinBalanceForAddress(this.dfxAddress);
+    return this.getNativeCoinBalanceForAddress(this.walletAddress);
   }
 
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
@@ -34,7 +34,7 @@ export class CitreaTestnetClient extends EvmClient {
   }
 
   async getTokenBalance(asset: Asset, address?: string): Promise<number> {
-    const owner = address ?? this.dfxAddress;
+    const owner = address ?? this.walletAddress;
     const contract = new ethers.Contract(asset.chainId, ERC20_ABI, this.provider);
 
     try {
@@ -48,7 +48,7 @@ export class CitreaTestnetClient extends EvmClient {
   }
 
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
-    const owner = address ?? this.dfxAddress;
+    const owner = address ?? this.walletAddress;
     const balances: BlockchainTokenBalance[] = [];
 
     for (const asset of assets) {
