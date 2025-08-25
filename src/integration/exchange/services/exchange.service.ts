@@ -271,7 +271,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   private async fetchLastOrderPrice(from: string, to: string): Promise<number> {
     const pair = await this.getPair(from, to);
 
-    const trades = await this.callApi((e) => e.fetchTrades(pair));
+    const trades = await this.callApi((e) => e.fetchTrades(pair, undefined, 1));
     if (trades.length === 0) throw new Error(`${this.name}: no trades found for ${pair}`);
 
     return Util.sort(trades, 'timestamp', 'DESC')[0].price;
