@@ -29,7 +29,7 @@ export class GsEvmService {
 
     if (deposit?.accountIndex != null) {
       return client.sendRawTransactionFromAccount(Config.blockchain.evm.walletAccount(deposit.accountIndex), request);
-    } else if (request.from === client.dfxAddress) {
+    } else if (request.from === client.walletAddress) {
       return client.sendRawTransactionFromDex(request);
     }
 
@@ -79,7 +79,7 @@ export class GsEvmService {
         token,
         amount,
       );
-    } else if (fromAddress === client.dfxAddress) {
+    } else if (fromAddress === client.walletAddress) {
       return client.sendTokenFromDex(toAddress, token, amount);
     }
 
@@ -98,7 +98,7 @@ export class GsEvmService {
         toAddress,
         amount,
       );
-    } else if (fromAddress === client.dfxAddress) {
+    } else if (fromAddress === client.walletAddress) {
       return client.sendNativeCoinFromDex(toAddress, amount);
     }
 
