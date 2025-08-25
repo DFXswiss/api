@@ -43,6 +43,14 @@ export class NotificationJobService {
       const request = NotificationService.toRequest(notification);
       const mail = this.mailFactory.createMail(request);
 
+      if (!mail.to) {
+        await this.notificationService.updateNotification(notification, {
+          isComplete: true,
+          error: 'No target mail defined',
+        });
+        continue;
+      }
+
       Object.assign(mail, notification);
 
       const isSuppressed = await this.notificationService.isSuppressed(mail);

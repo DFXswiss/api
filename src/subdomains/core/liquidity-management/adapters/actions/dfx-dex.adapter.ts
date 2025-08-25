@@ -192,7 +192,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   } {
     const address = process.env[params.destinationAddress as string];
     const system = params.destinationSystem as LiquidityManagementSystem;
-    const assetId = params.assetId ? +params.assetId : undefined;
+    const assetId = params.assetId as number | undefined;
 
     const isValid = this.withdrawParamsValid(address, system);
     if (!isValid) throw new Error(`Params provided to DfxDexAdapter.withdraw(...) command are invalid.`);
