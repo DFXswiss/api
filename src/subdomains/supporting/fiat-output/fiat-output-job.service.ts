@@ -140,6 +140,11 @@ export class FiatOutputJobService {
         return a.amount - b.amount;
       });
 
+      const pendingBalance = accountIbanGroup.reduce(
+        (sum, tx) => sum + (tx.isReadyDate && !tx.bankTx ? tx.amount : 0),
+        0,
+      );
+
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
           if (
@@ -149,11 +154,6 @@ export class FiatOutputJobService {
             throw new Error('Payout stopped for blocked user');
 
           const asset = assets.find((a) => a.bank.iban === entity.accountIban);
-
-          const pendingBalance = accountIbanGroup.reduce(
-            (sum, tx) => sum + (tx.isReadyDate && !tx.bankTx && tx.outputDate < asset.balance.updated ? tx.amount : 0),
-            0,
-          );
 
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
