@@ -262,7 +262,31 @@ Authorization: Bearer {{authToken}}
 
 
 
-// ALCHEMY
+// Pay-In
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/payIn
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "senderAddresses": ["xxx"],
+  "receiverAddress": {
+    "address": "xxx",
+    "blockchain": "xxx"
+  },
+  "txId": "xxx",
+  "txType": "Deposit",
+  "txSequence": null,
+  "blockHeight": null,
+  "amount": 0,
+  "asset": {
+    "id": 1
+  }
+}
+
+###
 
 @authToken = {{login.response.body.accessToken}}
 
