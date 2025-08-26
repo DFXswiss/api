@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { isBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -377,24 +378,26 @@ export class BuyFiatPreparationService {
     }
 
     // daily payouts
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    if (!isBankHoliday()) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
 
-    const dailyOutputs = buyFiatsToPayout.filter(
-      (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
-    );
-    const sellGroups = Util.groupByAccessor(
-      dailyOutputs,
-      (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
-    );
-
-    for (const buyFiats of sellGroups.values()) {
-      await this.fiatOutputService.createInternal(
-        FiatOutputType.BUY_FIAT,
-        { buyFiats },
-        buyFiats[0].id,
-        buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+      const dailyOutputs = buyFiatsToPayout.filter(
+        (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
       );
+      const sellGroups = Util.groupByAccessor(
+        dailyOutputs,
+        (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
+      );
+
+      for (const buyFiats of sellGroups.values()) {
+        await this.fiatOutputService.createInternal(
+          FiatOutputType.BUY_FIAT,
+          { buyFiats },
+          buyFiats[0].id,
+          buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+        );
+      }
     }
   }
 

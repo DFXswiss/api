@@ -114,7 +114,9 @@ export class TronStrategy extends RegisterStrategy implements OnModuleInit {
 
   private getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
     return chainId
-      ? this.assetService.getByChainIdSync(supportedAssets, this.blockchain, chainId)
+      ? supportedAssets.find(
+          (a) => Util.equalsIgnoreCase(a.chainId, chainId) || a.name === chainId.replace('_TRON', ''),
+        )
       : this.getTransactionCoin(supportedAssets);
   }
 }

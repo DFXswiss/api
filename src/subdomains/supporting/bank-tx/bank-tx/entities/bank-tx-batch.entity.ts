@@ -68,4 +68,14 @@ export class BankTxBatch extends IEntity {
 
   @OneToMany(() => BankTx, (input) => input.batch)
   transactions: BankTx[];
+
+  //*** GETTER METHODS ***//
+
+  get bankBalanceBefore(): number {
+    return this.balanceBeforeCdi === 'CRDT' ? this.balanceBeforeAmount : -this.balanceBeforeAmount;
+  }
+
+  get bankBalanceAfter(): number {
+    return this.balanceAfterCdi === 'CRDT' ? this.balanceAfterAmount : -this.balanceAfterAmount;
+  }
 }

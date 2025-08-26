@@ -1,20 +1,32 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { FindOptionsRelations, In } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
 
+export interface BankBalanceUpdate {
+  bank: Bank;
+  balance: number;
+}
+
 @Injectable()
-export class LiquidityManagementBalanceService {
+export class LiquidityManagementBalanceService implements OnModuleInit {
   private readonly logger = new DfxLogger(LiquidityManagementBalanceService);
 
   constructor(
     private readonly balanceIntegrationFactory: LiquidityBalanceIntegrationFactory,
     private readonly balanceRepo: LiquidityBalanceRepository,
+    private readonly bankTxService: BankTxService,
   ) {}
+
+  onModuleInit() {
+    this.bankTxService.bankBalanceObservable.subscribe((dto) => this.refreshBankBalance(dto));
+  }
 
   //*** PUBLIC API ***//
 
@@ -42,6 +54,11 @@ export class LiquidityManagementBalanceService {
     await this.saveBalanceResults(balances);
 
     return balances;
+  }
+
+  async refreshBankBalance(dto: BankBalanceUpdate): Promise<void> {
+    const entity = await this.balanceRepo.findOne({ where: { asset: { bank: { id: dto.bank.id } } } });
+    await this.balanceRepo.update(entity.id, { amount: dto.balance });
   }
 
   findRelevantBalance(rule: LiquidityManagementRule, balances: LiquidityBalance[]): LiquidityBalance | undefined {

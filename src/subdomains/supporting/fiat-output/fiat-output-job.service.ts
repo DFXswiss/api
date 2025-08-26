@@ -101,7 +101,7 @@ export class FiatOutputJobService {
         if (!entity.buyFiats?.length && !entity.buyCrypto && !entity.bankTxReturn) continue;
 
         const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
-        const bank = await this.bankService.getSenderBank(entity.outputCurrency);
+        const bank = await this.bankService.getSenderBank(entity.bankAccountCurrency);
 
         await this.fiatOutputRepo.update(entity.id, {
           originEntityId: entity.originEntity?.id,

@@ -174,7 +174,7 @@ export class BankDataService {
 
     if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
 
-    if ([BankDataType.IDENT, BankDataType.NAME_CHECK, BankDataType.CARD_IN].includes(bankData.type)) {
+    if (![BankDataType.IDENT, BankDataType.NAME_CHECK, BankDataType.CARD_IN].includes(bankData.type)) {
       const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(bankData.iban, false);
       if (!bankAccount.bankName && dto.bic) await this.bankAccountService.getOrCreateBicBankAccountInternal(dto.bic);
     }

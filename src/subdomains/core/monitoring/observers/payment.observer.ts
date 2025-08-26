@@ -88,6 +88,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
           ]),
         ),
         action: In([PayInAction.FORWARD, PayInAction.RETURN]),
+        created: LessThan(Util.hoursBefore(1)),
       }),
       refRewardManualCheck: await this.repos.refReward.countBy({ status: RewardStatus.MANUAL_CHECK }),
       stuckPayments: await this.repos.paymentQuote.countBy({
