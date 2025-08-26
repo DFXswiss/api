@@ -53,6 +53,7 @@ export enum AmlError {
   VIDEO_IDENT_MISSING = 'VideoIdentMissing',
   LIQUIDITY_LIMIT_EXCEEDED = 'LiquidityLimitExceeded',
   IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
+  MERGE_MAIL_PENDING = 'MergeMailPending',
 }
 
 export const DelayResultError = [
@@ -238,5 +239,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
+  },
+  [AmlError.MERGE_MAIL_PENDING]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MERGE_PENDING,
   },
 };

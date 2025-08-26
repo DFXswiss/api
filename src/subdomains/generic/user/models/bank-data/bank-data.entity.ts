@@ -22,6 +22,7 @@ export enum BankDataVerificationError {
   VERIFIED_NAME_NOT_MATCHING = 'VerifiedNameNotMatching',
   ALREADY_ACTIVE_EXISTS = 'AlreadyActiveExists',
   NEW_BANK_IN_ACTIVE = 'NewBankInActive',
+  MERGE_PENDING = 'MergePending',
 }
 
 @Entity()
@@ -121,5 +122,24 @@ export class BankData extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  internalReview(comment?: string): UpdateResult<BankData> {
+    const update: Partial<BankData> = {
+      status: ReviewStatus.INTERNAL_REVIEW,
+      comment,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  get isInReview(): boolean {
+    return [ReviewStatus.MANUAL_REVIEW, ReviewStatus.INTERNAL_REVIEW].includes(this.status);
+  }
+
+  get isCompleted(): boolean {
+    return this.status === ReviewStatus.COMPLETED;
   }
 }

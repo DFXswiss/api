@@ -20,7 +20,7 @@ import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-accoun
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, FindOptionsWhere, IsNull, Not } from 'typeorm';
-import { MergeReason } from '../account-merge/account-merge.entity';
+import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
@@ -93,7 +93,11 @@ export class BankDataService {
         relations: { userData: true },
       });
 
-      const errors = this.getBankDataVerificationErrors(entity, existing);
+      const pendingMergeRequests = existing
+        ? await this.accountMergeService.getPendingMergeRequest(entity.userData.id, existing.userData.id)
+        : undefined;
+
+      const errors = this.getBankDataVerificationErrors(entity, existing, pendingMergeRequests);
 
       if (
         errors.length === 0 ||
@@ -112,6 +116,8 @@ export class BankDataService {
         await this.bankDataRepo.update(...entity.allow());
       } else if (errors.includes(BankDataVerificationError.VERIFIED_NAME_NOT_MATCHING)) {
         await this.bankDataRepo.update(...entity.manualReview(errors.join(';')));
+      } else if (errors.includes(BankDataVerificationError.MERGE_PENDING) && Util.daysDiff(entity.created) > 14) {
+        await this.bankDataRepo.update(...entity.internalReview(errors.join(';')));
       } else {
         await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
       }
@@ -120,7 +126,11 @@ export class BankDataService {
     }
   }
 
-  private getBankDataVerificationErrors(entity: BankData, existingActive?: BankData): BankDataVerificationError[] {
+  private getBankDataVerificationErrors(
+    entity: BankData,
+    existingActive?: BankData,
+    pendingMergeRequests?: AccountMerge,
+  ): BankDataVerificationError[] {
     const errors = [];
 
     if (!entity.userData.verifiedName) errors.push(BankDataVerificationError.VERIFIED_NAME_MISSING);
@@ -133,6 +143,7 @@ export class BankDataService {
         errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
       if (existingActive.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN)
         errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
+      if (pendingMergeRequests) errors.push(BankDataVerificationError.MERGE_PENDING);
     }
 
     return errors;

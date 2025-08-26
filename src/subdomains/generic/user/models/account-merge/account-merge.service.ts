@@ -104,6 +104,13 @@ export class AccountMergeService {
     return request;
   }
 
+  async getPendingMergeRequest(userDataId: number, referenceUserDataId: number): Promise<AccountMerge> {
+    return this.accountMergeRepo.findOneBy([
+      { master: { id: userDataId }, slave: { id: referenceUserDataId }, isCompleted: false },
+      { master: { id: referenceUserDataId }, slave: { id: userDataId }, isCompleted: false },
+    ]);
+  }
+
   private buildConfirmationUrl(code: string): string {
     return `${Config.frontend.services}/account-merge?otp=${code}`;
   }
