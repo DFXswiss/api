@@ -11,6 +11,7 @@ export const BankHolidays = [
   '2025-12-26',
 ];
 
-export function isBankHoliday(date?: Date): boolean {
-  return BankHolidays.includes(Util.isoDate(date ?? new Date()));
+export function isBankHoliday(date = new Date()): boolean {
+  const isWeekend = [0, 6].includes(date.getDay());
+  return BankHolidays.includes(Util.isoDate(date)) || isWeekend;
 }
