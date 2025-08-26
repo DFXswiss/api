@@ -259,9 +259,11 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   async getTradePair(from: string, to: string): Promise<{ pair: string; direction: OrderSide }> {
+    // sort by active pairs first
     const currencyPairs = await this.getMarkets().then((m) =>
       m.sort((a, b) => (a.active === b.active ? 0 : a.active ? -1 : 1)).map((m) => m.symbol),
     );
+
     const selectedPair = currencyPairs.find((p) => p === `${from}/${to}` || p === `${to}/${from}`);
     if (!selectedPair) throw new BadRequestException(`${this.name}: pair with ${from} and ${to} not supported`);
 
