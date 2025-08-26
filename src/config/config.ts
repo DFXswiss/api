@@ -585,6 +585,7 @@ export class Configuration {
     binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
     binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
 
+    kucoinPayBaseUrl: process.env.KUCOIN_PAY_BASE_URL,
     kucoinPayApiKey: process.env.KUCOIN_API_KEY,
     kucoinPaySigningKey: process.env.DFX_KUCOINPAY_PRIVATE_KEY?.split('<br>').join('\n'),
     kucoinPayPublicKey: process.env.KUCOIN_PUBLIC_KEY?.split('<br>').join('\n'),

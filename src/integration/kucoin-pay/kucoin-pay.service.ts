@@ -28,12 +28,14 @@ export class KucoinPayService
   implements C2BPaymentLinkProvider<KucoinPayOrderNotification | KucoinPayRefundNotification>
 {
   private readonly logger = new DfxLogger(KucoinPayService);
-  private readonly baseUrl = 'https://pay.tunas.io/api/kucoinpay';
+  private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly verificationKey: string;
   private readonly privateKey: crypto.KeyObject;
 
   constructor(private readonly http: HttpService) {
+    this.baseUrl = Config.payment.kucoinPayBaseUrl;
+
     this.apiKey = Config.payment.kucoinPayApiKey;
 
     const secretKey =
