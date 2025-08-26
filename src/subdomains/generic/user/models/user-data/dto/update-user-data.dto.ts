@@ -21,7 +21,7 @@ import { AccountType } from '../account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../is-dfx-phone.validator';
 import { KycIdentificationType } from '../kyc-identification-type.enum';
 import { UserData } from '../user-data.entity';
-import { KycLevel, KycStatus, LegalEntity, SignatoryPower, UserDataStatus } from '../user-data.enum';
+import { KycLevel, KycStatus, LegalEntity, RiskStatus, SignatoryPower, UserDataStatus } from '../user-data.enum';
 
 export class UpdateUserDataDto {
   @IsOptional()
@@ -273,4 +273,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   postAmlCheck?: string;
+
+  @IsOptional()
+  @IsEnum(RiskStatus)
+  riskStatus?: RiskStatus;
 }
