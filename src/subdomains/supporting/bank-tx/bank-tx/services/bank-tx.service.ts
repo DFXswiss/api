@@ -399,7 +399,7 @@ export class BankTxService {
 
     // update bank liq balance
     const bank = await this.bankService.getBankByIban(batch.iban);
-    this.bankBalanceSubject.next({ bank, balance: batch.balanceAfterAmount });
+    this.bankBalanceSubject.next({ bank, balance: batch.bankBalanceAfter });
 
     // avoid infinite loop in JSON
     batch.transactions = newTxs.map((tx) => {
