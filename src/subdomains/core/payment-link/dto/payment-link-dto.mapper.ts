@@ -73,6 +73,8 @@ export class PaymentLinkDtoMapper {
   }
 
   private static createPaymentLinkPaymentDto(payment?: PaymentLinkPayment): PaymentLinkPaymentDto {
+    const lightning = LightningHelper.createEncodedLnurlp(payment.uniqueId);
+
     return (
       payment && {
         id: payment.id,
@@ -87,7 +89,8 @@ export class PaymentLinkDtoMapper {
         txCount: payment.txCount,
         isConfirmed: payment.isConfirmed,
         url: LightningHelper.createLnurlp(payment.uniqueId),
-        lnurl: LightningHelper.createEncodedLnurlp(payment.uniqueId),
+        lnurl: lightning,
+        frontendUrl: `${Config.frontend.services}/pl?${new URLSearchParams({ lightning })}`,
       }
     );
   }
