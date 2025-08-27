@@ -226,7 +226,7 @@ export class BuyFiatService {
         sell: true,
         bankTx: true,
         cryptoInput: true,
-        transaction: { user: { wallet: true, userData: true } },
+        transaction: { user: { wallet: true }, userData: true },
       },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');
