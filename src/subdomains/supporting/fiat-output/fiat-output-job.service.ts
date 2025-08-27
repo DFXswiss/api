@@ -143,7 +143,7 @@ export class FiatOutputJobService {
       });
 
       const pendingFiatOutputs = accountIbanGroup.filter((tx) => tx.isReadyDate && !tx.bankTx);
-      const pendingBalance = Util.sum(pendingFiatOutputs.map((tx) => tx.bankAmount));
+      const pendingBalance = Util.sumObjValue(pendingFiatOutputs, 'bankAmount');
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
