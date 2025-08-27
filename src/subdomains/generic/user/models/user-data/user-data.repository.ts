@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { UserData, UserDataStatus } from './user-data.entity';
+import { UserData } from './user-data.entity';
+import { UserDataStatus } from './user-data.enum';
 
 @Injectable()
 export class UserDataRepository extends BaseRepository<UserData> {

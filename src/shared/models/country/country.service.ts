@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CountryRepository } from 'src/shared/models/country/country.repository';
-import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { Equal } from 'typeorm';
 import { Country } from './country.entity';
 
