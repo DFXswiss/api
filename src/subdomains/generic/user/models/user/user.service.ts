@@ -27,7 +27,7 @@ import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
-import { Between, FindOptionsRelations, IsNull, Not } from 'typeorm';
+import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { KycLevel, KycState, KycType, Moderator, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -606,14 +606,5 @@ export class UserService {
           refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: UserStatus.ACTIVE }),
         }
       : { refCount: 0, refCountActive: 0 };
-  }
-
-  @DfxCron(CronExpression.EVERY_MINUTE)
-  async setAddressTypes() {
-    const users = await this.userRepo.find({ where: { addressType: IsNull() }, take: 5000 });
-    for (const user of users) {
-      const addressType = CryptoService.getAddressType(user.address);
-      await this.userRepo.update(user.id, { addressType });
-    }
   }
 }

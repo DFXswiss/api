@@ -145,6 +145,13 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
+DELETE {{url}}/v1/buyFiat/xxx/amlCheck
+Authorization: Bearer {{authToken}}
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
 PUT {{url}}/v1/buyCrypto/refVolumes
 Authorization: Bearer {{authToken}}
 
@@ -271,7 +278,7 @@ content-type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-  "senderAddresses": ["xxx"],
+  "senderAddresses": "xxx",
   "receiverAddress": {
     "address": "xxx",
     "blockchain": "xxx"
