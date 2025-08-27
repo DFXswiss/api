@@ -329,7 +329,7 @@ export class BuyFiatPreparationService {
           bankTx: { id: Not(IsNull()) },
         },
       },
-      relations: { fiatOutput: { bankTx: true } },
+      relations: { fiatOutput: { bankTx: true }, transaction: { userData: true, user: { wallet: true } } },
     });
 
     for (const entity of entities) {
@@ -337,6 +337,9 @@ export class BuyFiatPreparationService {
         await this.buyFiatRepo.update(
           ...entity.complete(entity.fiatOutput.remittanceInfo, entity.fiatOutput.outputDate, entity.fiatOutput.bankTx),
         );
+
+        // send webhook
+        await this.buyFiatService.triggerWebhook(entity);
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} completion:`, e);
       }
