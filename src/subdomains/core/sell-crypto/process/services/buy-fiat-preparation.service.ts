@@ -329,7 +329,11 @@ export class BuyFiatPreparationService {
           bankTx: { id: Not(IsNull()) },
         },
       },
-      relations: { fiatOutput: { bankTx: true }, transaction: { userData: true, user: { wallet: true } } },
+      relations: {
+        fiatOutput: { bankTx: true },
+        transaction: { userData: true, user: { wallet: true } },
+        cryptoInput: true,
+      },
     });
 
     for (const entity of entities) {
