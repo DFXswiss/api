@@ -1,5 +1,6 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from '../../../shared/services/http.service';
 
 export interface IbanDetailsDto {
@@ -101,6 +102,7 @@ interface IbanBalance {
 @Injectable()
 export class IbanService {
   private readonly baseUrl = 'https://rest.sepatools.eu';
+  private readonly logger = new DfxLogger(IbanService);
 
   constructor(private readonly http: HttpService) {}
 
@@ -110,7 +112,7 @@ export class IbanService {
     try {
       return await this.http.get<IbanDetailsDto>(url, Config.sepaTools);
     } catch (error) {
-      throw new ServiceUnavailableException(`Failed to get IBAN infos for ${iban}:`, error);
+      this.logger.error(`Failed to get IBAN infos for ${iban}:`, error);
     }
   }
 
@@ -120,7 +122,7 @@ export class IbanService {
     try {
       return await this.http.get<BankDetailsDto>(url, Config.sepaTools);
     } catch (error) {
-      throw new ServiceUnavailableException(`Failed to get Bank infos for ${bic}:`, error);
+      this.logger.error(`Failed to get Bank infos for ${bic}:`, error);
     }
   }
 

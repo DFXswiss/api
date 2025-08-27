@@ -102,6 +102,7 @@ export class BankAccountService {
   }
 
   private parseIbanBankDetails(ibanDetails: IbanDetailsDto): BankAccountInfos {
+    if (!ibanDetails) return { result: 'Error' };
     return {
       result: this.parseString(ibanDetails.result),
       returnCode: !ibanDetails.return_code ? null : ibanDetails.return_code,
@@ -136,6 +137,7 @@ export class BankAccountService {
   }
 
   private parseBankDetails(bankDetails: BankDetailsDto): BankAccountInfos {
+    if (!bankDetails) return { result: 'Error' };
     return {
       result: this.parseString(bankDetails.result),
       bankName: this.parseString(bankDetails.banks?.[0].name),
