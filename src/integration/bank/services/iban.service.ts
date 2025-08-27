@@ -113,7 +113,7 @@ export class IbanService {
       return await this.http.get<IbanDetailsDto>(url, Config.sepaTools);
     } catch (error) {
       this.logger.error(`Failed to get IBAN infos for ${iban}:`, error);
-      return { result: 'Error' };
+      return { result: `Error: ${error}` };
     }
   }
 
@@ -124,7 +124,7 @@ export class IbanService {
       return await this.http.get<BankDetailsDto>(url, Config.sepaTools);
     } catch (error) {
       this.logger.error(`Failed to get Bank infos for ${bic}:`, error);
-      return { result: 'Error' };
+      return { result: `Error: ${error}` };
     }
   }
 
