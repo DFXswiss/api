@@ -53,7 +53,7 @@ export class BuyCryptoPreparationService {
       inputAsset: Not(IsNull()),
       chargebackAllowedDateUser: IsNull(),
       isComplete: false,
-      transaction: { userData: { riskStatus: Not(RiskStatus.SUSPICION) } },
+      transaction: { userData: { riskStatus: Not(RiskStatus.SUSPICIOUS) } },
     };
     const entities = await this.buyCryptoRepo.find({
       where: [

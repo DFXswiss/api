@@ -11,7 +11,7 @@ export enum KycStatus {
 
 export enum RiskStatus {
   NA = 'NA',
-  SUSPICION = 'Suspicion',
+  SUSPICIOUS = 'Suspicious',
   BLOCKED = 'Blocked',
   RELEASED = 'Released',
 }

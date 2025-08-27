@@ -535,7 +535,7 @@ export class UserData extends IEntity {
   }
 
   get isSuspicious(): boolean {
-    return this.riskStatus === RiskStatus.SUSPICION;
+    return this.riskStatus === RiskStatus.SUSPICIOUS;
   }
 
   get isBlockedOrDeactivated(): boolean {
