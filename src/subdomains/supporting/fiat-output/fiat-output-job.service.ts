@@ -126,6 +126,8 @@ export class FiatOutputJobService {
       },
     });
 
+    if (entities.every((f) => f.isReadyDate)) return;
+
     const groupedEntities = Util.groupBy(entities, 'accountIban');
 
     const assets = await this.assetService
@@ -137,11 +139,11 @@ export class FiatOutputJobService {
 
       const sortedEntities: FiatOutput[] = accountIbanGroup.sort((a, b) => {
         if (a.type !== b.type) return a.type.localeCompare(b.type);
-        return a.amount - b.amount;
+        return a.bankAmount - b.bankAmount;
       });
 
       const pendingBalance = accountIbanGroup.reduce(
-        (sum, tx) => sum + (tx.isReadyDate && !tx.bankTx ? tx.amount : 0),
+        (sum, tx) => sum + (tx.isReadyDate && !tx.bankTx ? tx.bankAmount : 0),
         0,
       );
 
@@ -152,14 +154,15 @@ export class FiatOutputJobService {
             entity.type === FiatOutputType.BUY_FIAT
           )
             throw new Error('Payout stopped for blocked user');
+          if (entity.originEntity && (!entity.originEntity.amountInChf || !entity.originEntity.amountInEur)) continue;
 
           const asset = assets.find((a) => a.bank.iban === entity.accountIban);
 
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
-          if (availableBalance > entity.amount) {
-            updatedFiatOutputAmount += entity.amount;
+          if (availableBalance > entity.bankAmount) {
+            updatedFiatOutputAmount += entity.bankAmount;
             const ibanCountry = entity.iban.substring(0, 2);
 
             if (
