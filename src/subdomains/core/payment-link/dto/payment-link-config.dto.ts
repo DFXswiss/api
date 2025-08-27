@@ -16,7 +16,7 @@ export class UpdatePaymentLinkConfigDto {
   @IsEnum(PaymentLinkBlockchain, { each: true })
   blockchains?: PaymentLinkBlockchain[];
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: PaymentQuoteStatus })
   @IsOptional()
   @IsEnum(PaymentQuoteStatus)
   minCompletionStatus?: PaymentQuoteStatus;
@@ -35,12 +35,20 @@ export class UpdatePaymentLinkConfigDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
+  scanTimeout?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   paymentTimeout?: number;
 }
 
 export class PaymentLinkConfigDto extends UpdatePaymentLinkConfigDto {
   @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
   fee?: number;
+}
+
+export class UserPaymentLinkConfigDto extends PaymentLinkConfigDto {
+  @ApiPropertyOptional()
+  accessKey: string;
 }

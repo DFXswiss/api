@@ -22,7 +22,8 @@ import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
+import { UpdatePaymentLinkConfigDto, UserPaymentLinkConfigDto } from '../dto/payment-link-config.dto';
+import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -401,11 +402,13 @@ export class PaymentLinkService {
     return this.updatePaymentLinkInternal(entity, dto);
   }
 
-  async getUserPaymentLinksConfig(userDataId: number): Promise<PaymentLinkConfigDto> {
+  async getUserPaymentLinksConfig(userDataId: number): Promise<UserPaymentLinkConfigDto> {
     const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true } });
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
 
-    return userData.paymentLinksConfigObj;
+    const config = userData.paymentLinksConfigObj;
+    const configDto = PaymentLinkDtoMapper.toConfigDto(userData.paymentLinksConfigObj);
+    return { ...configDto, accessKey: config.accessKeys?.at(0) };
   }
 
   async updateUserPaymentLinksConfig(userDataId: number, dto: UpdatePaymentLinkConfigDto): Promise<void> {

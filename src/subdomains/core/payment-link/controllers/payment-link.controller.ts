@@ -40,7 +40,7 @@ import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { CreatePaymentMerchantDto } from '../dto/create-payment-merchant.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
-import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
+import { UpdatePaymentLinkConfigDto, UserPaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import {
   PaymentLinkDto,
@@ -184,8 +184,8 @@ export class PaymentLinkController {
   @Get('config')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  @ApiOkResponse({ type: PaymentLinkConfigDto })
-  async getUserPaymentLinksConfig(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkConfigDto> {
+  @ApiOkResponse({ type: UserPaymentLinkConfigDto })
+  async getUserPaymentLinksConfig(@GetJwt() jwt: JwtPayload): Promise<UserPaymentLinkConfigDto> {
     return this.paymentLinkService.getUserPaymentLinksConfig(jwt.account);
   }
 
