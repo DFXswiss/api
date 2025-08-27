@@ -8,7 +8,6 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
@@ -35,6 +34,7 @@ import {
   TransactionStatus,
   TransactionType,
 } from '../dto/sift.dto';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 
 @Injectable()
 export class SiftService {
