@@ -74,7 +74,7 @@ export class BuyFiatService {
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
-      transaction: { id: cryptoInput.transaction.id },
+      transaction: cryptoInput.transaction,
       outputAsset: sell.fiat,
       outputReferenceAsset: sell.fiat,
     });
