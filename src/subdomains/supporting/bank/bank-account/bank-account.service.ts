@@ -102,15 +102,14 @@ export class BankAccountService {
   }
 
   private parseIbanBankDetails(ibanDetails: IbanDetailsDto): BankAccountInfos {
-    if (!ibanDetails) return { result: 'Error' };
     return {
       result: this.parseString(ibanDetails.result),
       returnCode: !ibanDetails.return_code ? null : ibanDetails.return_code,
-      checks: ibanDetails.checks.length > 0 ? ibanDetails.checks.join(',') : null,
-      bic: ibanDetails.bic_candidates.length > 0 ? ibanDetails.bic_candidates.map((c) => c.bic).join(',') : null,
+      checks: ibanDetails.checks?.length > 0 ? ibanDetails.checks.join(',') : null,
+      bic: ibanDetails.bic_candidates?.length > 0 ? ibanDetails.bic_candidates.map((c) => c.bic).join(',') : null,
       bankName: this.parseString(ibanDetails.bank),
       allBicCandidates:
-        ibanDetails.all_bic_candidates.length > 0 ? ibanDetails.all_bic_candidates.map((c) => c.bic).join(',') : null,
+        ibanDetails.all_bic_candidates?.length > 0 ? ibanDetails.all_bic_candidates.map((c) => c.bic).join(',') : null,
       bankCode: this.parseString(ibanDetails.bank_code),
       bankAndBranchCode: this.parseString(ibanDetails.bank_and_branch_code),
       bankAddress: this.parseAddressString(
@@ -137,18 +136,17 @@ export class BankAccountService {
   }
 
   private parseBankDetails(bankDetails: BankDetailsDto): BankAccountInfos {
-    if (!bankDetails) return { result: 'Error' };
     return {
       result: this.parseString(bankDetails.result),
       bankName: this.parseString(bankDetails.banks?.[0].name),
-      bankCode: bankDetails.banks?.[0].bankcode,
-      bankAddress: bankDetails.banks?.[0].address,
+      bankCode: bankDetails.banks?.length > 0 ? bankDetails.banks?.[0].bankcode : null,
+      bankAddress: bankDetails.banks?.length > 0 ? bankDetails.banks?.[0].address : null,
       sct: this.parseBoolean(bankDetails.banks?.[0].sct),
       sdd: this.parseBoolean(bankDetails.banks?.[0].sdd),
       b2b: this.parseBoolean(bankDetails.banks?.[0].b2b),
       scc: this.parseBoolean(bankDetails.banks?.[0].scc),
       sctInst: this.parseBoolean(bankDetails.banks?.[0].sct_inst),
-      sctInstReadinessDate: !bankDetails.banks?.[0].sct_inst_readiness_date
+      sctInstReadinessDate: !bankDetails.banks?.[0]?.sct_inst_readiness_date
         ? null
         : new Date(bankDetails.banks?.[0].sct_inst_readiness_date),
       branchCode: this.parseString(bankDetails.banks?.[0].branchcode),
