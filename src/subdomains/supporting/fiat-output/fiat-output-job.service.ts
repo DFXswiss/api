@@ -142,10 +142,8 @@ export class FiatOutputJobService {
         return a.bankAmount - b.bankAmount;
       });
 
-      const pendingBalance = accountIbanGroup.reduce(
-        (sum, tx) => sum + (tx.isReadyDate && !tx.bankTx ? tx.bankAmount : 0),
-        0,
-      );
+      const pendingFiatOutputs = accountIbanGroup.filter((tx) => tx.isReadyDate && !tx.bankTx);
+      const pendingBalance = Util.sum(pendingFiatOutputs.map((tx) => tx.bankAmount));
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
@@ -171,8 +169,16 @@ export class FiatOutputJobService {
               (entity.buyFiats?.[0]?.cryptoInput.isConfirmed &&
                 entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
                 (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
-            )
+            ) {
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
+              this.logger.info(
+                `FiatOutput ${entity.id} ready: LiqBalance ${
+                  asset.balance.amount
+                }, pendingFiatOutputs ${pendingFiatOutputs
+                  .map((f) => f.id)
+                  .join(';')}, updatedFiatOutputAmount: ${updatedFiatOutputAmount}`,
+              );
+            }
           } else {
             break;
           }
