@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -61,7 +62,7 @@ export class KucoinPayStrategy extends RegisterStrategy {
 
     return {
       senderAddresses: data.payerUserId,
-      receiverAddress: BlockchainAddress.create(null, this.blockchain),
+      receiverAddress: BlockchainAddress.create(Config.payment.kucoinPayMerchantId, this.blockchain),
       txId: payWebhook.providerOrderId,
       txType: PayInType.PAYMENT,
       blockHeight: null,
