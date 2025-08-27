@@ -141,8 +141,8 @@ export class AmlHelperService {
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
       if (!bankData || (bankData.approved === null && !bankData.isInReview)) {
         errors.push(AmlError.BANK_DATA_MISSING);
-      } else if (!bankData.isCompleted && bankData.comment.includes(BankDataVerificationError.MERGE_PENDING)) {
-        errors.push(AmlError.MERGE_MAIL_PENDING);
+      } else if (!bankData.isReviewed && bankData.comment.includes(BankDataVerificationError.MERGE_PENDING)) {
+        errors.push(AmlError.MERGE_PENDING);
       } else if (bankData.status === ReviewStatus.MANUAL_REVIEW) {
         errors.push(AmlError.BANK_DATA_MANUAL_REVIEW);
       } else if ((!bankData.approved && !bankData.manualApproved) || bankData.manualApproved === false) {

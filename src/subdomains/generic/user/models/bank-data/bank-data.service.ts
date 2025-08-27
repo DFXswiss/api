@@ -20,7 +20,7 @@ import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-accoun
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, FindOptionsWhere, IsNull, Not } from 'typeorm';
-import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
+import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
@@ -94,7 +94,7 @@ export class BankDataService {
       });
 
       const pendingMergeRequests = existing
-        ? await this.accountMergeService.getPendingMergeRequest(entity.userData.id, existing.userData.id)
+        ? await this.accountMergeService.hasPendingMergeRequest(entity.userData.id, existing.userData.id)
         : undefined;
 
       const errors = this.getBankDataVerificationErrors(entity, existing, pendingMergeRequests);
@@ -129,7 +129,7 @@ export class BankDataService {
   private getBankDataVerificationErrors(
     entity: BankData,
     existingActive?: BankData,
-    pendingMergeRequests?: AccountMerge,
+    pendingMergeRequests = false,
   ): BankDataVerificationError[] {
     const errors = [];
 

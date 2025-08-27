@@ -139,7 +139,7 @@ export class BankData extends IEntity {
     return [ReviewStatus.MANUAL_REVIEW, ReviewStatus.INTERNAL_REVIEW].includes(this.status);
   }
 
-  get isCompleted(): boolean {
+  get isReviewed(): boolean {
     return this.status === ReviewStatus.COMPLETED;
   }
 }
