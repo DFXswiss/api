@@ -159,7 +159,7 @@ export class FiatOutput extends IEntity {
   }
 
   get bankAmount(): number {
-    return this.bankAccountCurrency === this.currency
+    return this.bankAccountCurrency === this.currency || !this.originEntity
       ? this.amount
       : this.bankAccountCurrency === 'CHF'
       ? this.originEntity.amountInChf
