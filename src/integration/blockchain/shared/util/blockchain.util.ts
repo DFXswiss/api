@@ -1,6 +1,47 @@
+import { Environment, GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from '../enums/blockchain.enum';
 
+// --- CATEGORIES --- //
+
+export const EvmBlockchains = [
+  Blockchain.ETHEREUM,
+  Blockchain.SEPOLIA,
+  Blockchain.BINANCE_SMART_CHAIN,
+  Blockchain.ARBITRUM,
+  Blockchain.OPTIMISM,
+  Blockchain.POLYGON,
+  Blockchain.BASE,
+  Blockchain.GNOSIS,
+  Blockchain.HAQQ,
+  Blockchain.CITREA_TESTNET,
+];
+
+export const TestBlockchains =
+  GetConfig().environment === Environment.PRD
+    ? [Blockchain.SEPOLIA, Blockchain.CITREA_TESTNET, Blockchain.HAQQ, Blockchain.ARWEAVE]
+    : [];
+
+export const PaymentLinkBlockchains = [
+  Blockchain.ARBITRUM,
+  Blockchain.BASE,
+  Blockchain.ETHEREUM,
+  Blockchain.SEPOLIA,
+  Blockchain.LIGHTNING,
+  Blockchain.MONERO,
+  Blockchain.OPTIMISM,
+  Blockchain.POLYGON,
+  Blockchain.GNOSIS,
+  Blockchain.BINANCE_SMART_CHAIN,
+  Blockchain.BITCOIN,
+  Blockchain.ZANO,
+  Blockchain.BINANCE_PAY,
+  Blockchain.KUCOIN_PAY,
+  Blockchain.SOLANA,
+  Blockchain.TRON,
+].filter((b) => !TestBlockchains.includes(b));
+
+// --- EXPLORERS --- //
 export function txExplorerUrl(blockchain: Blockchain, txId: string): string | undefined {
   const baseUrl = BlockchainExplorerUrls[blockchain];
   const txPath = TxPaths[blockchain];
