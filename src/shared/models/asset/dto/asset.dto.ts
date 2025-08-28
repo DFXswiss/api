@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsString, ValidateIf } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { IsAssetIdentifier } from '../asset-in-validator';
 import { AssetCategory, AssetType } from '../asset.entity';
 
 // TODO: remove
@@ -77,21 +76,22 @@ export class AssetDto {
 
 export class AssetInDto {
   @ApiPropertyOptional()
-  @IsOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: AssetInDto) => Boolean(a.id || !(a.chainId || a.blockchain)))
+  @IsInt()
   id?: number;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: AssetInDto) => Boolean(a.chainId || !a.id))
+  @IsString()
   chainId?: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: AssetInDto) => Boolean(a.blockchain || !a.id))
+  @IsEnum(Blockchain)
   blockchain?: Blockchain;
-
-  @IsAssetIdentifier({
-    message: 'Either “id” or both ‘chainId’ and “blockchain” must be specified.',
-  })
-  private readonly _assetIdentifierValidator!: boolean; // Dummy-Property for validation
 }
 
 export class AssetLimitsDto {

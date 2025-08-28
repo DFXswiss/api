@@ -10,7 +10,6 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 import { XOR } from 'src/shared/validators/xor.validator';
@@ -29,10 +28,10 @@ export class GetSwapQuoteDto {
   @IsNumber()
   amount: number;
 
-  @ApiProperty({ type: EntityDto, description: 'Target asset' })
+  @ApiProperty({ type: AssetInDto, description: 'Target asset' })
   @IsNotEmptyObject()
   @ValidateNested()
-  @Type(() => EntityDto)
+  @Type(() => AssetInDto)
   targetAsset: Asset;
 
   @ApiPropertyOptional({ description: 'Amount in target asset' })

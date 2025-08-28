@@ -11,6 +11,7 @@ import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto
 import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { JwtPayload } from '../auth/jwt-payload.interface';
+import { Asset } from '../models/asset/asset.entity';
 import { AssetService } from '../models/asset/asset.service';
 import { FiatService } from '../models/fiat/fiat.service';
 
@@ -24,9 +25,7 @@ export class PaymentInfoService {
       if (!dto.currency) throw new NotFoundException('Currency not found');
     }
 
-    dto.asset = dto.asset.id
-      ? await this.assetService.getAssetById(dto.asset.id)
-      : await this.assetService.getAssetByChainId(dto.asset.blockchain, dto.asset.chainId);
+    dto.asset = await this.resolveAsset(dto.asset);
     if (!dto.asset) throw new NotFoundException('Asset not found');
     if (jwt && !dto.asset.isBuyableOn(jwt.blockchains)) throw new BadRequestException('Asset blockchain mismatch');
 
@@ -52,9 +51,7 @@ export class PaymentInfoService {
     jwt?: JwtPayload,
   ): Promise<T> {
     if ('asset' in dto) {
-      dto.asset = dto.asset.id
-        ? await this.assetService.getAssetById(dto.asset.id)
-        : await this.assetService.getAssetByChainId(dto.asset.blockchain, dto.asset.chainId);
+      dto.asset = await this.resolveAsset(dto.asset);
       if (!dto.asset) throw new NotFoundException('Asset not found');
       if (!dto.asset.sellable) throw new BadRequestException('Asset not sellable');
       if (jwt && !dto.asset.isBuyableOn(jwt.blockchains)) throw new BadRequestException('Asset blockchain mismatch');
@@ -83,9 +80,7 @@ export class PaymentInfoService {
     jwt?: JwtPayload,
   ): Promise<T> {
     if ('sourceAsset' in dto) {
-      dto.sourceAsset = dto.sourceAsset.id
-        ? await this.assetService.getAssetById(dto.sourceAsset.id)
-        : await this.assetService.getAssetByChainId(dto.sourceAsset.blockchain, dto.sourceAsset.chainId);
+      dto.sourceAsset = await this.resolveAsset(dto.sourceAsset);
       if (!dto.sourceAsset) throw new NotFoundException('Source asset not found');
       if (!dto.sourceAsset.sellable) throw new BadRequestException('Source asset not sellable');
       if (NoSwapBlockchains.includes(dto.sourceAsset.blockchain))
@@ -108,5 +103,12 @@ export class PaymentInfoService {
     if ('discountCode' in dto) dto.specialCode = dto.discountCode;
 
     return dto;
+  }
+
+  async resolveAsset(asset: Asset): Promise<Asset> {
+    if (asset.id) {
+      return this.assetService.getAssetById(asset.id);
+    }
+    return this.assetService.getAssetByChainId(asset.blockchain, asset.chainId);
   }
 }
