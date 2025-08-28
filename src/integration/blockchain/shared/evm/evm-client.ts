@@ -11,6 +11,7 @@ import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/se
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
+import { GoldskyService } from 'src/integration/goldsky/goldsky.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
@@ -25,6 +26,7 @@ import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 export interface EvmClientParams {
   http: HttpService;
   alchemyService?: AlchemyService;
+  goldskyService?: GoldskyService;
   gatewayUrl: string;
   apiKey: string;
   walletPrivateKey: string;
@@ -52,6 +54,7 @@ export enum Direction {
 export abstract class EvmClient extends BlockchainClient {
   readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
+  protected readonly goldskyService?: GoldskyService;
   readonly chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
@@ -68,6 +71,7 @@ export abstract class EvmClient extends BlockchainClient {
     super();
     this.http = params.http;
     this.alchemyService = params.alchemyService;
+    this.goldskyService = params.goldskyService;
     this.chainId = params.chainId;
 
     const url = `${params.gatewayUrl}/${params.apiKey ?? ''}`;
@@ -155,11 +159,11 @@ export abstract class EvmClient extends BlockchainClient {
   async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    return this.getTokenGasLimitForContact(contract);
+    return this.getTokenGasLimitForContact(contract, this.randomReceiverAddress);
   }
 
-  async getTokenGasLimitForContact(contract: Contract): Promise<EthersNumber> {
-    return contract.estimateGas.transfer(this.randomReceiverAddress, 1).then((l) => l.mul(12).div(10));
+  async getTokenGasLimitForContact(contract: Contract, to: string): Promise<EthersNumber> {
+    return contract.estimateGas.transfer(to, 1).then((l) => l.mul(12).div(10));
   }
 
   // --- PUBLIC API - WRITE TRANSACTIONS --- //
@@ -666,7 +670,7 @@ export abstract class EvmClient extends BlockchainClient {
   }
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const totalGas = await this.getCurrentGasForCoinTransaction(this.dfxAddress, 1e-18);
+    const totalGas = await this.getCurrentGasForCoinTransaction(this.dfxAddress, this.randomReceiverAddress, 1e-18);
     const gasPrice = await this.getRecommendedGasPrice();
 
     return EvmUtil.fromWeiAmount(totalGas.mul(gasPrice));
@@ -687,7 +691,7 @@ export abstract class EvmClient extends BlockchainClient {
   ): Promise<string> {
     const fromAddress = wallet.address;
 
-    const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
+    const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, toAddress, amount);
     const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
@@ -706,10 +710,10 @@ export abstract class EvmClient extends BlockchainClient {
     return tx.hash;
   }
 
-  protected async getCurrentGasForCoinTransaction(fromAddress: string, amount: number): Promise<EthersNumber> {
+  protected async getCurrentGasForCoinTransaction(from: string, to: string, amount: number): Promise<EthersNumber> {
     return this.provider.estimateGas({
-      from: fromAddress,
-      to: this.randomReceiverAddress,
+      from,
+      to,
       value: EvmUtil.toWeiAmount(amount),
     });
   }
@@ -721,7 +725,7 @@ export abstract class EvmClient extends BlockchainClient {
     amount: number,
     nonce?: number,
   ): Promise<string> {
-    const gasLimit = +(await this.getTokenGasLimitForContact(contract));
+    const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress));
     const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;

@@ -66,6 +66,7 @@ export enum Process {
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
+  BANK_TX_RETURN_MAIL = 'BankTxReturnMail',
   CUSTODY = 'Custody',
   EXCHANGE_WITHDRAWAL = 'ExchangeWithdrawal',
   EXCHANGE_TRADE = 'ExchangeTrade',

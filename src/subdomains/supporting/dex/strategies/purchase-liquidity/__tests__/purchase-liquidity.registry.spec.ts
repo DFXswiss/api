@@ -31,11 +31,13 @@ import { SolanaCoinStrategy } from '../impl/solana-coin.strategy';
 import { SolanaTokenStrategy } from '../impl/solana-token.strategy';
 import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
+import { ZanoStrategy } from '../impl/zano.strategy';
 
 describe('PurchaseLiquidityStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
   let lightning: LightningStrategy;
   let monero: MoneroStrategy;
+  let zano: ZanoStrategy;
   let arbitrumCoin: ArbitrumCoinStrategy;
   let arbitrumToken: ArbitrumTokenStrategy;
   let bscCoin: BscCoinStrategy;
@@ -61,6 +63,7 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
     bitcoin = new BitcoinStrategy();
     lightning = new LightningStrategy();
     monero = new MoneroStrategy();
+    zano = new ZanoStrategy();
 
     arbitrumCoin = new ArbitrumCoinStrategy(mock<DexArbitrumService>());
     arbitrumToken = new ArbitrumTokenStrategy(mock<DexArbitrumService>());
@@ -93,6 +96,7 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       bitcoin,
       lightning,
       monero,
+      zano,
       arbitrumCoin,
       arbitrumToken,
       bscCoin,
@@ -138,6 +142,14 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(MoneroStrategy);
+      });
+
+      it('gets ZANO strategy for ZANO Crypto', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.ZANO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ZanoStrategy);
       });
 
       it('gets ARBITRUM_COIN strategy', () => {
@@ -308,6 +320,7 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     bitcoin: BitcoinStrategy,
     lightning: LightningStrategy,
     monero: MoneroStrategy,
+    zano: ZanoStrategy,
     arbitrumCoin: ArbitrumCoinStrategy,
     arbitrumToken: ArbitrumTokenStrategy,
     bscCoin: BscCoinStrategy,
@@ -332,6 +345,7 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     this.add({ blockchain: Blockchain.BITCOIN, assetType: AssetType.COIN }, bitcoin);
     this.add({ blockchain: Blockchain.LIGHTNING, assetType: AssetType.COIN }, lightning);
     this.add({ blockchain: Blockchain.MONERO, assetType: AssetType.COIN }, monero);
+    this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.COIN }, zano);
 
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.COIN }, arbitrumCoin);
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);

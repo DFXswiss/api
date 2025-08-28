@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { isBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -8,7 +9,7 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus, RiskStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
@@ -46,6 +47,7 @@ export class BuyFiatPreparationService {
       inputAsset: Not(IsNull()),
       chargebackAllowedDateUser: IsNull(),
       isComplete: false,
+      transaction: { userData: { riskStatus: Not(RiskStatus.SUSPICIOUS) } },
     };
     const entities = await this.buyFiatRepo.find({
       where: [
@@ -86,7 +88,7 @@ export class BuyFiatPreparationService {
           isPayment,
         );
 
-        const { users, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        const { users, refUser, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.CHF, false);
@@ -130,6 +132,7 @@ export class BuyFiatPreparationService {
             bankData,
             blacklist,
             ibanCountry,
+            refUser,
           ),
         );
 
@@ -326,7 +329,12 @@ export class BuyFiatPreparationService {
           bankTx: { id: Not(IsNull()) },
         },
       },
-      relations: { fiatOutput: { bankTx: true } },
+      relations: {
+        fiatOutput: { bankTx: true },
+        transaction: { userData: true, user: { wallet: true } },
+        cryptoInput: true,
+        sell: true,
+      },
     });
 
     for (const entity of entities) {
@@ -334,6 +342,9 @@ export class BuyFiatPreparationService {
         await this.buyFiatRepo.update(
           ...entity.complete(entity.fiatOutput.remittanceInfo, entity.fiatOutput.outputDate, entity.fiatOutput.bankTx),
         );
+
+        // send webhook
+        await this.buyFiatService.triggerWebhook(entity);
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} completion:`, e);
       }
@@ -375,24 +386,26 @@ export class BuyFiatPreparationService {
     }
 
     // daily payouts
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    if (!isBankHoliday()) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
 
-    const dailyOutputs = buyFiatsToPayout.filter(
-      (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
-    );
-    const sellGroups = Util.groupByAccessor(
-      dailyOutputs,
-      (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
-    );
-
-    for (const buyFiats of sellGroups.values()) {
-      await this.fiatOutputService.createInternal(
-        FiatOutputType.BUY_FIAT,
-        { buyFiats },
-        buyFiats[0].id,
-        buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+      const dailyOutputs = buyFiatsToPayout.filter(
+        (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
       );
+      const sellGroups = Util.groupByAccessor(
+        dailyOutputs,
+        (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
+      );
+
+      for (const buyFiats of sellGroups.values()) {
+        await this.fiatOutputService.createInternal(
+          FiatOutputType.BUY_FIAT,
+          { buyFiats },
+          buyFiats[0].id,
+          buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+        );
+      }
     }
   }
 

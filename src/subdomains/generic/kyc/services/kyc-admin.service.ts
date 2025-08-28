@@ -2,7 +2,8 @@ import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/commo
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
-import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
@@ -42,7 +43,6 @@ export class KycAdminService {
 
     await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result, dto.comment));
 
-    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
     if (kycStep.isFailed && kycStep.comment)
       await this.kycNotificationService.kycStepFailed(
         kycStep.userData,
@@ -53,8 +53,13 @@ export class KycAdminService {
       );
 
     switch (kycStep.name) {
+      case KycStepName.AUTHORITY:
+        if (kycStep.isCompleted) await this.kycService.completeAuthority(kycStep.userData);
+        break;
+
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.LEGAL_ENTITY:
-        if (kycStep.isCompleted) kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
+        if (kycStep.isCompleted) await this.kycService.completeCommercialRegister(kycStep.userData);
         break;
 
       case KycStepName.IDENT:
@@ -69,6 +74,8 @@ export class KycAdminService {
           });
         break;
     }
+
+    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
   }
 
   async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {

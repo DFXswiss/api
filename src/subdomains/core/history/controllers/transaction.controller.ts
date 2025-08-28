@@ -30,7 +30,8 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
@@ -397,6 +398,9 @@ export class TransactionController {
     if (!refundData) throw new BadRequestException('Request refund data first');
     if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data request invalid');
     this.refundList.delete(transaction.id);
+
+    const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
+    if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 

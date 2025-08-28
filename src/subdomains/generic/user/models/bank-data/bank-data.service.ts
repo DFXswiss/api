@@ -13,7 +13,7 @@ import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.s
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
-import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
@@ -23,6 +23,7 @@ import { FindOptionsRelations, FindOptionsWhere, IsNull, Not } from 'typeorm';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
+import { KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
@@ -78,7 +79,8 @@ export class BankDataService {
       if ([BankDataType.IDENT, BankDataType.NAME_CHECK].includes(entity.type)) {
         if (
           entity.userData.accountType === AccountType.PERSONAL ||
-          entity.userData.hasCompletedStep(KycStepName.LEGAL_ENTITY)
+          entity.userData.hasCompletedStep(KycStepName.LEGAL_ENTITY) ||
+          entity.userData.hasCompletedStep(KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION)
         ) {
           await this.nameCheckService.closeAndRefreshRiskStatus(entity);
           await this.bankDataRepo.update(...entity.complete());
@@ -171,6 +173,11 @@ export class BankDataService {
     });
 
     if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
+
+    if (![BankDataType.IDENT, BankDataType.NAME_CHECK, BankDataType.CARD_IN].includes(bankData.type)) {
+      const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(bankData.iban, false);
+      if (!bankAccount.bankName && dto.bic) await this.bankAccountService.getOrCreateBicBankAccountInternal(dto.bic);
+    }
 
     return this.bankDataRepo.save(bankData);
   }
@@ -266,6 +273,13 @@ export class BankDataService {
     return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
   }
 
+  async getIdentBankDataForUser(userDataId: number): Promise<BankData> {
+    return this.bankDataRepo.findOne({
+      where: { userData: { id: userDataId }, type: BankDataType.IDENT },
+      relations: { userData: true },
+    });
+  }
+
   async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
     const entity = await this.bankDataRepo.findOne({
       where: { id },
@@ -339,7 +353,7 @@ export class BankDataService {
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
 
-    await this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
+    await this.bankAccountService.getOrCreateIbanBankAccountInternal(dto.iban);
 
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },

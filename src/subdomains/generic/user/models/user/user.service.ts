@@ -28,7 +28,8 @@ import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycLevel, KycState, KycType, Moderator, UserData, UserDataStatus } from '../user-data/user-data.entity';
+import { UserData } from '../user-data/user-data.entity';
+import { KycLevel, KycState, KycType, Moderator, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
@@ -205,7 +206,7 @@ export class UserService {
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, data.userData?.kycLevel));
 
-    await this.siftService.createAccount(user);
+    this.siftService.createAccount(user);
 
     try {
       if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
@@ -512,7 +513,7 @@ export class UserService {
       usedRef === user.ref ||
       (usedRef && !refUser) ||
       user?.userData?.id === refUser?.userData?.id
-      ? '000-000'
+      ? Config.defaultRef
       : usedRef;
   }
 

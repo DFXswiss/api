@@ -127,6 +127,14 @@ export class AssetService {
     });
   }
 
+  async getSepoliaCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ETH',
+      blockchain: Blockchain.SEPOLIA,
+      type: AssetType.COIN,
+    });
+  }
+
   async getBnbCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'BNB',
@@ -195,6 +203,22 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'XMR',
       blockchain: Blockchain.MONERO,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getCitreaTestnetCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'cBTC',
+      blockchain: Blockchain.CITREA_TESTNET,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getZanoCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ZANO',
+      blockchain: Blockchain.ZANO,
       type: AssetType.COIN,
     });
   }

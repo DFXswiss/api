@@ -19,7 +19,7 @@ import { BuyCryptoExtended } from 'src/subdomains/core/history/mappers/transacti
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { ConfirmDto } from 'src/subdomains/core/sell-crypto/route/dto/confirm.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
-import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -31,7 +31,7 @@ import {
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { IsNull, Like, Not } from 'typeorm';
+import { In, IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { BuyCryptoWebhookService } from '../../process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
@@ -141,6 +141,14 @@ export class SwapService {
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `swap.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getAllUserSwaps(userIds: number[]): Promise<Swap[]> {
+    return this.swapRepo.find({
+      where: { user: { id: In(userIds) } },
+      relations: { user: true },
+      order: { id: 'DESC' },
+    });
   }
 
   async createSwapPaymentInfo(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {

@@ -1,18 +1,24 @@
 import { merge } from 'lodash';
 import { GetConfig } from 'src/config/config';
-import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
-import { PaymentLinkMode, PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
+import {
+  PaymentLinkMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentQuoteStatus,
+  PaymentStandard,
+} from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';
 
 export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
   standards: [PaymentStandard.OPEN_CRYPTO_PAY],
-  blockchains: Object.values(PaymentLinkBlockchain),
+  blockchains: PaymentLinkBlockchains,
   minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
   displayQr: false,
   fee: 0.002,
@@ -109,6 +115,15 @@ export class PaymentLink extends IEntity {
 
   get defaultStandard(): PaymentStandard {
     return this.configObj.standards[0];
+  }
+
+  get totalCompletedAmount(): number {
+    return (
+      Util.sumObjValue(
+        this.payments?.filter((p) => p.status === PaymentLinkPaymentStatus.COMPLETED),
+        'amount',
+      ) ?? 0
+    );
   }
 
   getMatchingStandard(param?: PaymentStandard): PaymentStandard {

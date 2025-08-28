@@ -31,6 +31,9 @@ export class Fiat extends IEntity {
   @Column({ default: false })
   instantSellable: boolean;
 
+  @Column({ default: true })
+  refundEnabled: boolean;
+
   @ManyToOne(() => PriceRule)
   priceRule: PriceRule;
 

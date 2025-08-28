@@ -11,7 +11,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
-import { BankTx, BankTxType, BankTxUnassignedTypes } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { LogService } from '../log/log.service';
@@ -101,7 +101,7 @@ export class FiatOutputJobService {
         if (!entity.buyFiats?.length && !entity.buyCrypto && !entity.bankTxReturn) continue;
 
         const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
-        const bank = await this.bankService.getSenderBank(entity.outputCurrency);
+        const bank = await this.bankService.getSenderBank(entity.bankAccountCurrency);
 
         await this.fiatOutputRepo.update(entity.id, {
           originEntityId: entity.originEntity?.id,
@@ -126,6 +126,8 @@ export class FiatOutputJobService {
       },
     });
 
+    if (entities.every((f) => f.isReadyDate)) return;
+
     const groupedEntities = Util.groupBy(entities, 'accountIban');
 
     const assets = await this.assetService
@@ -137,29 +139,29 @@ export class FiatOutputJobService {
 
       const sortedEntities: FiatOutput[] = accountIbanGroup.sort((a, b) => {
         if (a.type !== b.type) return a.type.localeCompare(b.type);
-        return a.amount - b.amount;
+        return a.bankAmount - b.bankAmount;
       });
 
-      const pendingBalance = accountIbanGroup.reduce(
-        (sum, tx) => sum + (tx.isReadyDate && !tx.bankTx ? tx.amount : 0),
-        0,
-      );
+      const pendingFiatOutputs = accountIbanGroup.filter((tx) => tx.isReadyDate && !tx.bankTx);
+      const pendingBalance = Util.sumObjValue(pendingFiatOutputs, 'bankAmount');
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
+          if (entity.userData?.isSuspicious) continue;
           if (
-            (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
+            (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked || entity.userData?.isRisky) &&
             entity.type === FiatOutputType.BUY_FIAT
           )
             throw new Error('Payout stopped for blocked user');
+          if (entity.originEntity && (!entity.originEntity.amountInChf || !entity.originEntity.amountInEur)) continue;
 
           const asset = assets.find((a) => a.bank.iban === entity.accountIban);
 
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
-          if (availableBalance > entity.amount) {
-            updatedFiatOutputAmount += entity.amount;
+          if (availableBalance > entity.bankAmount) {
+            updatedFiatOutputAmount += entity.bankAmount;
             const ibanCountry = entity.iban.substring(0, 2);
 
             if (
@@ -167,8 +169,16 @@ export class FiatOutputJobService {
               (entity.buyFiats?.[0]?.cryptoInput.isConfirmed &&
                 entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
                 (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
-            )
+            ) {
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
+              this.logger.info(
+                `FiatOutput ${entity.id} ready: LiqBalance ${
+                  asset.balance.amount
+                }, pendingFiatOutputs ${pendingFiatOutputs
+                  .map((f) => f.id)
+                  .join(';')}, updatedFiatOutputAmount: ${updatedFiatOutputAmount}`,
+              );
+            }
           } else {
             break;
           }
@@ -273,7 +283,7 @@ export class FiatOutputJobService {
         if (entity.type === FiatOutputType.BANK_TX_RETURN)
           await this.bankTxReturnService.updateInternal(entity.bankTxReturn, { chargebackBankTx: bankTx });
 
-        if (BankTxUnassignedTypes.includes(bankTx.type)) await this.setBankTxType(entity.type, bankTx);
+        if (!bankTx.type || BankTxTypeUnassigned(bankTx.type)) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {
         this.logger.error(`Error in bankTx search fiatOutput ${entity.id}:`, e);
       }

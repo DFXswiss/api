@@ -292,6 +292,14 @@ export class SellService {
       .then((r) => r.volume);
   }
 
+  async getAllUserSells(userIds: number[]): Promise<Sell[]> {
+    return this.sellRepo.find({
+      where: { user: { id: In(userIds) } },
+      relations: { user: true },
+      order: { id: 'DESC' },
+    });
+  }
+
   // --- CONFIRMATION --- //
   async confirmSell(request: TransactionRequest, dto: ConfirmDto): Promise<BuyFiatExtended> {
     try {
@@ -391,5 +399,20 @@ export class SellService {
       },
       relations: { user: { userData: true } },
     });
+  }
+
+  async getPaymentRouteForKey(key: string): Promise<Sell | undefined> {
+    return this.sellRepo
+      .createQueryBuilder('sell')
+      .innerJoin('sell.deposit', 'deposit')
+      .innerJoinAndSelect('sell.user', 'user')
+      .innerJoinAndSelect('user.userData', 'userData')
+      .where(
+        `EXISTS (SELECT 1 FROM OPENJSON(userdata.paymentLinksConfig, '$.accessKeys') AS k WHERE k.value = :key )`,
+        { key },
+      )
+      .andWhere('sell.active = 1')
+      .andWhere('deposit.blockchains = :chain', { chain: Blockchain.LIGHTNING })
+      .getOne();
   }
 }

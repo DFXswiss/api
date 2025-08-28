@@ -14,6 +14,7 @@ export enum FileType {
   TRANSACTION_NOTES = 'TransactionNotes',
   STOCK_REGISTER = 'StockRegister',
   COMMERCIAL_REGISTER = 'CommercialRegister',
+  SOLE_PROPRIETORSHIP_CONFIRMATION = 'SoleProprietorshipConfirmation',
   RESIDENCE_PERMIT = 'ResidencePermit',
   STATUTES = 'Statutes',
   ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
@@ -69,6 +70,7 @@ export class CreateKycFileDto {
   name: string;
   type: FileType;
   protected: boolean;
+  valid: boolean;
   userData: UserData;
   kycStep?: KycStep;
   subType?: FileSubType;

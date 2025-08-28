@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
-import { KycLevel } from '../../../models/user-data/user-data.entity';
+import { KycLevel } from '../../../models/user-data/user-data.enum';
 import { TradingLimit } from '../../../models/user/dto/user.dto';
 import { WebhookDto, WebhookType } from './webhook.dto';
 

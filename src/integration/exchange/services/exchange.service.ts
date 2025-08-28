@@ -138,12 +138,20 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
         // price changed -> update price
         if (price !== order.price) {
+          // adapt amount to price change (for buy orders)
+          let remainingAmount = order.remaining;
+          if (order.side === OrderSide.BUY) {
+            const { amount: amountPrecision } = await this.getPrecision(order.symbol);
+
+            remainingAmount = Util.floorToValue((order.remaining * order.price) / price, amountPrecision);
+          }
           this.logger.verbose(
-            `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${order.remaining}`,
+            `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${remainingAmount}`,
           );
-          const id = await this.updateOrderPrice(order, price).catch(async (e: ExchangeError) => {
+
+          const id = await this.updateOrderPrice(order, remainingAmount, price).catch(async (e: ExchangeError) => {
             try {
-              const updatedOrder = await this.getTrade(id, from, to);
+              const updatedOrder = await this.getTrade(order.id, from, to);
               this.logger.verbose(`Could not update order ${order.id} price: ${JSON.stringify(updatedOrder)}`);
             } catch (e) {
               this.logger.error(`Failed to fetch order ${order.id} after update price error:`, e);
@@ -217,7 +225,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   // currency pairs
   private async getMarkets(): Promise<Market[]> {
     if (!this.markets) {
-      this.markets = await this.callApi((e) => e.fetchMarkets()).then((markets) => markets.filter((m) => m.active));
+      this.markets = await this.callApi((e) => e.fetchMarkets());
     }
 
     return this.markets;
@@ -251,7 +259,11 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   async getTradePair(from: string, to: string): Promise<{ pair: string; direction: OrderSide }> {
-    const currencyPairs = await this.getMarkets().then((m) => m.map((m) => m.symbol));
+    // sort by active pairs first
+    const currencyPairs = await this.getMarkets().then((m) =>
+      m.sort((a, b) => (a.active === b.active ? 0 : a.active ? -1 : 1)).map((m) => m.symbol),
+    );
+
     const selectedPair = currencyPairs.find((p) => p === `${from}/${to}` || p === `${to}/${from}`);
     if (!selectedPair) throw new BadRequestException(`${this.name}: pair with ${from} and ${to} not supported`);
 
@@ -263,7 +275,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   private async fetchLastOrderPrice(from: string, to: string): Promise<number> {
     const pair = await this.getPair(from, to);
 
-    const trades = await this.callApi((e) => e.fetchTrades(pair));
+    const trades = await this.callApi((e) => e.fetchTrades(pair, undefined, 1));
     if (trades.length === 0) throw new Error(`${this.name}: no trades found for ${pair}`);
 
     return Util.sort(trades, 'timestamp', 'DESC')[0].price;
@@ -293,7 +305,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const id = await this.placeOrder(pair, direction, orderAmount, price);
 
     this.logger.verbose(
-      `Order ${id} placed (pair: ${pair}, direction: ${direction}, amount: ${amount}, price: ${price})`,
+      `Order ${id} placed (pair: ${pair}, direction: ${direction}, amount: ${orderAmount}, price: ${price})`,
     );
 
     return id;
@@ -309,10 +321,10 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.callApi((e) => e.createOrder(pair, 'limit', direction, amount, price));
   }
 
-  protected async updateOrderPrice(order: Order, price: number): Promise<string> {
-    return this.callApi((e) =>
-      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price),
-    ).then((o) => o.id);
+  protected async updateOrderPrice(order: Order, amount: number, price: number): Promise<string> {
+    return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, amount, price)).then(
+      (o) => o.id,
+    );
   }
 
   // other

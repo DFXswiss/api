@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -302,7 +303,7 @@ export class BuyFiat extends IEntity {
             inputReferenceAmountMinusFee,
             usedRef,
             refProvision,
-            refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+            refFactor: !fee.payoutRefBonus || usedRef === Config.defaultRef ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
           };
 
@@ -342,7 +343,7 @@ export class BuyFiat extends IEntity {
             inputReferenceAmountMinusFee,
             amountInEur,
             amountInChf,
-            usedRef: '000-000',
+            usedRef: Config.defaultRef,
             refProvision: 0,
             refFactor: 0,
             usedFees: null,
@@ -393,6 +394,7 @@ export class BuyFiat extends IEntity {
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     ibanCountry: Country,
+    refUser?: User,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       ...AmlHelperService.getAmlResult(
@@ -406,6 +408,7 @@ export class BuyFiat extends IEntity {
         bankData,
         blacklist,
         ibanCountry,
+        refUser,
       ),
       amountInChf,
       amountInEur,

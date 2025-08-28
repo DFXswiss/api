@@ -27,12 +27,14 @@ export class EvmUtil {
 
   private static readonly blockchainToChainIdMap = new Map<Blockchain, number>([
     [Blockchain.ETHEREUM, this.blockchainConfig.ethereum.ethChainId],
+    [Blockchain.SEPOLIA, this.blockchainConfig.sepolia.sepoliaChainId],
     [Blockchain.ARBITRUM, this.blockchainConfig.arbitrum.arbitrumChainId],
     [Blockchain.OPTIMISM, this.blockchainConfig.optimism.optimismChainId],
     [Blockchain.POLYGON, this.blockchainConfig.polygon.polygonChainId],
     [Blockchain.BASE, this.blockchainConfig.base.baseChainId],
     [Blockchain.GNOSIS, this.blockchainConfig.gnosis.gnosisChainId],
     [Blockchain.BINANCE_SMART_CHAIN, this.blockchainConfig.bsc.bscChainId],
+    [Blockchain.CITREA_TESTNET, this.blockchainConfig.citreaTestnet.citreaTestnetChainId],
   ]);
 
   static getChainId(blockchain: Blockchain): number | undefined {

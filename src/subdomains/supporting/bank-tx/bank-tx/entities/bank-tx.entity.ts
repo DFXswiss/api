@@ -5,6 +5,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
@@ -117,9 +118,6 @@ export class BankTx extends IEntity {
   senderChargeCurrency?: string;
 
   @Column({ type: 'float', nullable: true })
-  senderChargeAmountChf?: number;
-
-  @Column({ type: 'float', nullable: true })
   accountingAmountBeforeFee?: number;
 
   @Column({ type: 'float', nullable: true })
@@ -228,6 +226,9 @@ export class BankTx extends IEntity {
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
   transaction?: Transaction;
+
+  @OneToOne(() => FiatOutput, (fiatOutput) => fiatOutput.bankTx, { nullable: true })
+  fiatOutput?: FiatOutput;
 
   //*** GETTER METHODS ***//
 
@@ -374,7 +375,12 @@ export class BankTx extends IEntity {
   }
 }
 
-export const BankTxCompletedTypes = [BankTxType.BUY_CRYPTO, BankTxType.BANK_TX_REPEAT, BankTxType.BANK_TX_RETURN];
+export const BankTxCompletedTypes = [
+  BankTxType.BUY_CRYPTO,
+  BankTxType.BUY_FIAT,
+  BankTxType.BANK_TX_REPEAT,
+  BankTxType.BANK_TX_RETURN,
+];
 
 export function BankTxTypeCompleted(bankTxType?: BankTxType): boolean {
   return BankTxCompletedTypes.includes(bankTxType);

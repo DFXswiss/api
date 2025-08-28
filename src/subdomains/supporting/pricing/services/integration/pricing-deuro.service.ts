@@ -13,6 +13,7 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
   private static readonly DEPS = 'DEPS';
   private static readonly USDT = 'USDT';
   private static readonly USDC = 'USDC';
+  private static readonly BTC = 'BTC';
 
   private static readonly ALLOWED_ASSETS = [
     PricingDeuroService.DEURO,
@@ -20,9 +21,16 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
     PricingDeuroService.DEPS,
     PricingDeuroService.USDT,
     PricingDeuroService.USDC,
+    PricingDeuroService.BTC,
   ];
 
-  private static readonly USD_ASSETS = [PricingDeuroService.USDT, PricingDeuroService.USDC];
+  private static readonly DEPS_ASSETS = [PricingDeuroService.NDEPS, PricingDeuroService.DEPS];
+
+  private static readonly REFERENCE_ASSETS = [
+    PricingDeuroService.USDT,
+    PricingDeuroService.USDC,
+    PricingDeuroService.BTC,
+  ];
 
   private static readonly CONTRACT_FEE = 0.02;
 
@@ -41,15 +49,17 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
   async getPrice(from: string, to: string): Promise<Price> {
     if (!PricingDeuroService.ALLOWED_ASSETS.includes(from)) throw new Error(`from asset ${from} is not allowed`);
     if (!PricingDeuroService.ALLOWED_ASSETS.includes(to)) throw new Error(`to asset ${to} is not allowed`);
+    if (!PricingDeuroService.DEPS_ASSETS.includes(from) && !PricingDeuroService.DEPS_ASSETS.includes(to))
+      throw new Error(`from asset ${from} to asset ${to} is not allowed`);
 
     // TODO: This calculation is only correct for purchases
     const contractPrice = (await this.deuroService.getDEPSPrice()) * (1 + PricingDeuroService.CONTRACT_FEE);
 
     let totalPrice = contractPrice;
 
-    for (const usd of PricingDeuroService.USD_ASSETS) {
-      if ([from, to].includes(usd)) {
-        const eurPrice = await this.krakenService.getPrice('EUR', usd);
+    for (const reference of PricingDeuroService.REFERENCE_ASSETS) {
+      if ([from, to].includes(reference)) {
+        const eurPrice = await this.krakenService.getPrice('EUR', reference);
         totalPrice = eurPrice.convert(contractPrice);
         break;
       }

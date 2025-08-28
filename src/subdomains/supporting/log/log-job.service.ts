@@ -7,6 +7,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockchain-client';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
+import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -217,9 +218,13 @@ export class LogJobService {
     const paymentAssets = assets.filter(
       (a) =>
         a.paymentEnabled &&
-        ![Blockchain.LIGHTNING, Blockchain.MONERO, Blockchain.BINANCE_PAY, Blockchain.KUCOIN_PAY].includes(
-          a.blockchain,
-        ),
+        ![
+          Blockchain.LIGHTNING,
+          Blockchain.MONERO,
+          Blockchain.ZANO,
+          Blockchain.BINANCE_PAY,
+          Blockchain.KUCOIN_PAY,
+        ].includes(a.blockchain),
     );
     const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
 
@@ -237,7 +242,7 @@ export class LogJobService {
           },
         ];
 
-        if (![Blockchain.MONERO, Blockchain.BITCOIN].includes(e))
+        if (![Blockchain.MONERO, Blockchain.BITCOIN, Blockchain.ZANO].includes(e))
           balances.push(
             ...(await this.getCustomBalances(
               client,
@@ -395,7 +400,7 @@ export class LogJobService {
       // plus
       const liquidity = (curr.balance?.amount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
-      const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING].includes(curr.blockchain)
+      const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING, Blockchain.ZANO].includes(curr.blockchain)
         ? 0
         : pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
       const exchangeOrder = pendingExchangeOrders.reduce(
@@ -951,6 +956,9 @@ export class LogJobService {
       case Blockchain.BITCOIN:
         return Config.payment.bitcoinAddress;
 
+      case Blockchain.ZANO:
+        return Config.payment.zanoAddress;
+
       case Blockchain.SOLANA:
         return SolanaUtil.createWallet({
           seed: Config.payment.solanaSeed,
@@ -958,7 +966,7 @@ export class LogJobService {
         }).address;
 
       case Blockchain.TRON:
-        return SolanaUtil.createWallet({
+        return TronUtil.createWallet({
           seed: Config.payment.tronSeed,
           index: 0,
         }).address;

@@ -4,16 +4,11 @@ import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-ma
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { PayInOptimismService } from '../../../services/payin-optimism.service';
-import { EvmStrategy } from './base/evm.strategy';
+import { AlchemyStrategy } from './base/alchemy.strategy';
 
 @Injectable()
-export class OptimismStrategy extends EvmStrategy implements OnModuleInit {
+export class OptimismStrategy extends AlchemyStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(OptimismStrategy);
-
-  constructor(optimismService: PayInOptimismService) {
-    super(optimismService);
-  }
 
   onModuleInit() {
     super.onModuleInit();

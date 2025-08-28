@@ -12,12 +12,15 @@ import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { In, LessThan } from 'typeorm';
+import { LiquidityManagementOrderStatus, LiquidityManagementRuleStatus } from '../../liquidity-management/enums';
 import { TradingOrderStatus, TradingRuleStatus } from '../../trading/enums';
 
 interface LiquidityData {
+  stuckLiquidityOrderCount: number;
   stuckTradingOrderCount: number;
   stuckTradingRuleCount: number;
-  stuckLiquidityOrderCount: number;
+  stuckLmOrderCount: number;
+  stuckLmRuleCount: number;
   safetyModeActive: boolean;
   krakenSyncDelay: number; // min
   binanceSyncDelay: number; // min
@@ -65,17 +68,25 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
     const lastKrakenTx = await this.exchangeTxService.getLastExchangeTx(ExchangeName.KRAKEN);
 
     return {
+      stuckLiquidityOrderCount: await this.repos.liquidityOrder.countBy({
+        isComplete: false,
+        updated: LessThan(Util.minutesBefore(60)),
+      }),
       stuckTradingOrderCount: await this.repos.tradingOrder.countBy({
         status: In([TradingOrderStatus.CREATED, TradingOrderStatus.IN_PROGRESS]),
         created: LessThan(Util.minutesBefore(15)),
       }),
       stuckTradingRuleCount: await this.repos.tradingRule.countBy({
         status: In([TradingRuleStatus.PAUSED, TradingRuleStatus.PROCESSING]),
-        updated: LessThan(Util.minutesBefore(30)),
+        updated: LessThan(Util.minutesBefore(60)),
       }),
-      stuckLiquidityOrderCount: await this.repos.liquidityOrder.countBy({
-        isComplete: false,
-        updated: LessThan(Util.minutesBefore(30)),
+      stuckLmOrderCount: await this.repos.lmOrder.countBy({
+        status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
+        created: LessThan(Util.minutesBefore(30)),
+      }),
+      stuckLmRuleCount: await this.repos.lmRule.countBy({
+        status: In([LiquidityManagementRuleStatus.PAUSED, LiquidityManagementRuleStatus.PROCESSING]),
+        updated: LessThan(Util.minutesBefore(60)),
       }),
       safetyModeActive: this.processService.isSafetyModeActive(),
       binanceSyncDelay: Math.abs(Util.minutesDiff(lastBinanceTx?.externalCreated, binance?.updated)),

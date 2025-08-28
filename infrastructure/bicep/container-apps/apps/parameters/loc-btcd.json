@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 2000
+    },
+    "containerImage": {
+      "value": "lightninglabs/bitcoin-core"
+    },
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/home/bitcoin/.bitcoin"
+        }
+      ]
+    },
+    "containerCPU": {
+      "value": "2"
+    },
+    "containerMemory": {
+      "value": "4Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 8332
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": [
+        {
+          "type": "Startup",
+          "initialDelaySeconds": 60,
+          "periodSeconds": 240,
+          "failureThreshold": 30,
+          "successThreshold": 1,
+          "tcpSocket": {
+            "port": 8332
+          },
+          "timeoutSeconds": 5
+        }
+      ]
+    },
+    "containerEnv": {
+      "value": []
+    },
+    "containerCommand": {
+      "value": [
+        "bitcoind, -conf=/home/bitcoin/.bitcoin/bitcoin.conf"
+      ]
+    },
+    "containerArgs": {
+      "value": []
+    }
+  }
+}

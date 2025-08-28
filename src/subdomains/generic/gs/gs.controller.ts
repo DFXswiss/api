@@ -20,19 +20,11 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getDbData(@Body() query: DbQueryDto): Promise<DbReturnData> {
-    const startTime = Date.now();
-
     try {
       return await this.gsService.getDbData(query);
     } catch (e) {
       this.logger.verbose(`DB data call for ${query.table} in ${query.identifier} failed:`, e);
       throw new BadRequestException(e.message);
-    } finally {
-      const runTime = Date.now() - startTime;
-
-      if (runTime > 1000 * 3) {
-        this.logger.info(`Endpoint Runtime: ${runTime} with query ${JSON.stringify(query)}`);
-      }
     }
   }
 

@@ -19,6 +19,7 @@ import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -41,6 +42,7 @@ export class Configuration {
   defaultVersion: Version = '1';
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
+  defaultRef = '000-000';
   transactionRefundExpirySeconds = 30;
   refRewardManualCheckLimit = 3000; // EUR
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
@@ -415,9 +417,12 @@ export class Configuration {
           filter: (file: KycFileBlob, userData: UserData) =>
             userData.kycSteps.some(
               (s) =>
-                [KycStepName.LEGAL_ENTITY, KycStepName.COMMERCIAL_REGISTER].includes(s.name) &&
                 s.isCompleted &&
-                s.result === file.url,
+                ((s.name === KycStepName.COMMERCIAL_REGISTER && s.result === file.url) ||
+                  (s.name === KycStepName.LEGAL_ENTITY &&
+                    s.getResult<{ url: string; legalEntity: LegalEntity }>().url === file.url) ||
+                  (s.name === KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION &&
+                    s.getResult<{ url: string }>().url === file.url)),
             ),
         },
       ],
@@ -557,10 +562,11 @@ export class Configuration {
     evmSeed: process.env.PAYMENT_EVM_SEED,
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
-    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
+    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
     minConfirmations: (blockchain: Blockchain) =>
-      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO].includes(blockchain) ? 6 : 100,
+      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
@@ -580,6 +586,8 @@ export class Configuration {
     binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
     binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
 
+    kucoinPayMerchantId: process.env.KUCOIN_PAY_MERCHANT_ID,
+    kucoinPayBaseUrl: process.env.KUCOIN_PAY_BASE_URL,
     kucoinPayApiKey: process.env.KUCOIN_API_KEY,
     kucoinPaySigningKey: process.env.DFX_KUCOINPAY_PRIVATE_KEY?.split('<br>').join('\n'),
     kucoinPayPublicKey: process.env.KUCOIN_PUBLIC_KEY?.split('<br>').join('\n'),
@@ -660,6 +668,15 @@ export class Configuration {
       swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.ETH_QUOTE_CONTRACT_ADDRESS,
     },
+    sepolia: {
+      sepoliaWalletAddress: process.env.SEPOLIA_WALLET_ADDRESS,
+      sepoliaWalletPrivateKey: process.env.SEPOLIA_WALLET_PRIVATE_KEY,
+      sepoliaGatewayUrl: process.env.SEPOLIA_GATEWAY_URL,
+      sepoliaApiKey: process.env.ALCHEMY_API_KEY,
+      sepoliaChainId: +process.env.SEPOLIA_CHAIN_ID,
+      swapContractAddress: process.env.SEPOLIA_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.SEPOLIA_QUOTE_CONTRACT_ADDRESS,
+    },
     optimism: {
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
@@ -715,6 +732,14 @@ export class Configuration {
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
       gasPrice: process.env.BSC_GAS_PRICE,
+    },
+    citreaTestnet: {
+      citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
+      citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
+      citreaTestnetGatewayUrl: process.env.CITREA_TESTNET_GATEWAY_URL,
+      citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
+      citreaTestnetChainId: +process.env.CITREA_TESTNET_CHAIN_ID,
+      goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
     },
     lightning: {
       lnbits: {
@@ -781,9 +806,12 @@ export class Configuration {
       node: {
         url: process.env.ZANO_NODE_URL,
       },
-      rpc: {
-        url: process.env.ZANO_RPC_URL,
+      wallet: {
+        url: process.env.ZANO_WALLET_URL,
+        address: process.env.ZANO_WALLET_ADDRESS,
       },
+      coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
+      fee: 0.01,
     },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
@@ -987,6 +1015,7 @@ export class Configuration {
       secret: process.env.MEXC_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
       ...this.exchange,
+      timeout: 30_000,
     };
   }
 

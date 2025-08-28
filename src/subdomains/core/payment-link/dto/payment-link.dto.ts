@@ -117,6 +117,9 @@ export class PaymentLinkPaymentDto {
 
   @ApiProperty()
   lnurl: string;
+
+  @ApiProperty()
+  frontendUrl: string;
 }
 
 export class PaymentLinkBaseDto {
@@ -144,6 +147,9 @@ export class PaymentLinkBaseDto {
   @ApiProperty()
   lnurl: string;
 
+  @ApiProperty()
+  frontendUrl: string;
+
   @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
   recipient?: PaymentLinkRecipientDto;
 
@@ -160,8 +166,11 @@ export class PaymentLinkDto extends PaymentLinkBaseDto {
 }
 
 export class PaymentLinkHistoryDto extends PaymentLinkBaseDto {
-  @ApiPropertyOptional({ type: PaymentLinkPaymentDto, isArray: true })
-  payments?: PaymentLinkPaymentDto[];
+  @ApiProperty({ type: PaymentLinkPaymentDto, isArray: true })
+  payments: PaymentLinkPaymentDto[];
+
+  @ApiProperty()
+  totalCompletedAmount: number;
 }
 
 export class PaymentLinkPosDto {

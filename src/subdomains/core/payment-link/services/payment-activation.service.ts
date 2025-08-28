@@ -4,6 +4,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
+import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -31,7 +32,9 @@ export class PaymentActivationService implements OnModuleInit {
   private evmDepositAddress: string;
   private moneroDepositAddress: string;
   private bitcoinDepositAddress: string;
+  private zanoDepositAddress: string;
   private solanaDepositAddress: string;
+  private tronDepositAddress: string;
 
   constructor(
     readonly lightningService: LightningService,
@@ -48,7 +51,9 @@ export class PaymentActivationService implements OnModuleInit {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
     this.moneroDepositAddress = Config.payment.moneroAddress;
     this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
+    this.zanoDepositAddress = Config.payment.zanoAddress;
     this.solanaDepositAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
+    this.tronDepositAddress = TronUtil.createWallet({ seed: Config.payment.tronSeed, index: 0 }).address;
   }
 
   async close(activation: PaymentActivation): Promise<void> {
@@ -77,6 +82,10 @@ export class PaymentActivationService implements OnModuleInit {
       where: { paymentHash: Equal(txHash), status: PaymentActivationStatus.OPEN },
       relations: { quote: { payment: true } },
     });
+  }
+
+  async deleteActivation(activation: PaymentActivation): Promise<void> {
+    await this.paymentActivationRepo.delete(activation.id);
   }
 
   // --- HANDLE PENDING ACTIVATIONS --- //
@@ -190,13 +199,20 @@ export class PaymentActivationService implements OnModuleInit {
       case Blockchain.BASE:
       case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
+      case Blockchain.BINANCE_SMART_CHAIN:
         return this.createPaymentRequest(this.evmDepositAddress, transferInfo);
 
       case Blockchain.MONERO:
         return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
 
+      case Blockchain.ZANO:
+        return this.createPaymentRequest(this.zanoDepositAddress, transferInfo);
+
       case Blockchain.SOLANA:
         return this.createPaymentRequest(this.solanaDepositAddress, transferInfo);
+
+      case Blockchain.TRON:
+        return this.createPaymentRequest(this.tronDepositAddress, transferInfo);
 
       case Blockchain.KUCOIN_PAY:
       case Blockchain.BINANCE_PAY:

@@ -18,8 +18,10 @@ import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { FrankencoinAdapter } from './adapters/actions/frankencoin.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
 import { LiquidityPipelineAdapter } from './adapters/actions/liquidity-pipeline.adapter';
+import { MexcAdapter } from './adapters/actions/mexc.adapter';
 import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.adapter';
 import { PolygonL2BridgeAdapter } from './adapters/actions/polygon-l2-bridge.adapter';
+import { XtAdapter } from './adapters/actions/xt.adapter';
 import { BankAdapter } from './adapters/balances/bank.adapter';
 import { BlockchainAdapter } from './adapters/balances/blockchain.adapter';
 import { ExchangeAdapter } from './adapters/balances/exchange.adapter';
@@ -91,6 +93,8 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     PolygonL2BridgeAdapter,
     BaseL2BridgeAdapter,
     BinanceAdapter,
+    MexcAdapter,
+    XtAdapter,
     KrakenAdapter,
     LiquidityPipelineAdapter,
     FrankencoinAdapter,
