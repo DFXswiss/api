@@ -154,12 +154,15 @@ export class FiatOutput extends IEntity {
 
   get bankAccountCurrency(): string {
     const currency =
-      this.buyCrypto?.bankTx?.currency ?? this.buyFiats?.[0]?.sell?.fiat?.name ?? this.bankTxReturn?.bankTx?.currency;
+      this.buyCrypto?.bankTx?.currency ??
+      this.buyFiats?.[0]?.sell?.fiat?.name ??
+      this.bankTxReturn?.bankTx?.currency ??
+      this.currency;
     return ['LI', 'CH'].includes(this.ibanCountry) && currency === 'CHF' ? currency : 'EUR';
   }
 
   get bankAmount(): number {
-    return this.bankAccountCurrency === this.currency
+    return this.bankAccountCurrency === this.currency || !this.originEntity
       ? this.amount
       : this.bankAccountCurrency === 'CHF'
       ? this.originEntity.amountInChf

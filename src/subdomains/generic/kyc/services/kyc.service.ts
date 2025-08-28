@@ -588,7 +588,11 @@ export class KycService {
         goodsCategory: data.goodsCategory,
       };
 
-      await this.userDataService.updatePaymentLinksConfig(user, { recipient });
+      await this.userDataService.updatePaymentLinksConfig(user, {
+        recipient,
+        accessKeys: user.paymentLinksConfigObj.accessKeys ?? [Util.secureRandomString()],
+      });
+
       await this.userDataService.updateUserDataInternal(user, {
         paymentLinksAllowed: true,
         paymentLinksName: data.name,
