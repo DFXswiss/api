@@ -56,6 +56,7 @@ import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { StickerQrMode, StickerType } from '../enums';
 import { JwtOrPaymentLinkKeyGuard } from '../guards/jwt-or-payment-link-key.guard';
+import { BlockchainAvailabilityService } from '../services/blockchain-availability.service';
 import { OCPStickerService } from '../services/ocp-sticker.service';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 import { PaymentLinkService } from '../services/payment-link.service';
@@ -71,7 +72,14 @@ export class PaymentLinkController {
     private readonly sellService: SellService,
     private readonly paymentLinkStickerService: OCPStickerService,
     private readonly paymentMerchantService: PaymentMerchantService,
+    private readonly blockchainAvailabilityService: BlockchainAvailabilityService,
   ) {}
+
+  @Get('available-blockchains')
+  @ApiOkResponse({ description: 'Returns available blockchains for current environment' })
+  async getAvailableBlockchains(): Promise<string[]> {
+    return this.blockchainAvailabilityService.getEnabledPaymentLinkBlockchains();
+  }
 
   @Get()
   @ApiBearerAuth()

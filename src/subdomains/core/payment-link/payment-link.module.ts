@@ -14,6 +14,7 @@ import { PaymentMerchant } from './entities/payment-merchant.entity';
 import { PaymentLinkPaymentModule } from './payment-link-payment.module';
 import { PaymentLinkRepository } from './repositories/payment-link.repository';
 import { PaymentMerchantRepository } from './repositories/payment-merchant.repository';
+import { BlockchainAvailabilityService } from './services/blockchain-availability.service';
 import { OCPStickerService } from './services/ocp-sticker.service';
 import { PaymentCronService } from './services/payment-cron.service';
 import { PaymentLinkService } from './services/payment-link.service';
@@ -36,11 +37,12 @@ import { PaymentMerchantService } from './services/payment-merchant.service';
     PaymentLinkService,
     PaymentMerchantRepository,
     PaymentMerchantService,
+    BlockchainAvailabilityService,
     OCPStickerService,
     PaymentCronService,
     PaymentLinkController,
     PaymentLinkGateway,
   ],
-  exports: [PaymentLinkService],
+  exports: [PaymentLinkService, BlockchainAvailabilityService],
 })
 export class PaymentLinkModule {}

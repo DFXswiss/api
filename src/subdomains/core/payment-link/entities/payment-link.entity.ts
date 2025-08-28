@@ -1,6 +1,6 @@
 import { merge } from 'lodash';
 import { GetConfig } from 'src/config/config';
-import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { getEnabledPaymentLinkBlockchains } from 'src/integration/blockchain/shared/enums/blockchain-config';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
@@ -18,7 +18,7 @@ import { PaymentLinkConfig } from './payment-link.config';
 
 export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
   standards: [PaymentStandard.OPEN_CRYPTO_PAY],
-  blockchains: Object.values(PaymentLinkBlockchain),
+  blockchains: getEnabledPaymentLinkBlockchains(GetConfig().environment),
   minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
   displayQr: false,
   fee: 0.002,
