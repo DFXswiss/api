@@ -43,7 +43,6 @@ export class KycAdminService {
 
     await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result, dto.comment));
 
-    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
     if (kycStep.isFailed && kycStep.comment)
       await this.kycNotificationService.kycStepFailed(
         kycStep.userData,
@@ -60,7 +59,7 @@ export class KycAdminService {
 
       case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.LEGAL_ENTITY:
-        if (kycStep.isCompleted) kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
+        if (kycStep.isCompleted) await this.kycService.completeCommercialRegister(kycStep.userData);
         break;
 
       case KycStepName.IDENT:
@@ -75,6 +74,8 @@ export class KycAdminService {
           });
         break;
     }
+
+    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
   }
 
   async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {
