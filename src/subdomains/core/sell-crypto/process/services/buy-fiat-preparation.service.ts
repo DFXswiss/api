@@ -333,6 +333,7 @@ export class BuyFiatPreparationService {
         fiatOutput: { bankTx: true },
         transaction: { userData: true, user: { wallet: true } },
         cryptoInput: true,
+        sell: true,
       },
     });
 
