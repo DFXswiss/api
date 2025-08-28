@@ -1,6 +1,6 @@
 import verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
 import { MainNet } from '@defichain/jellyfish-network';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
@@ -19,6 +19,7 @@ import { TronService } from '../../tron/services/tron.service';
 import { ZanoService } from '../../zano/services/zano.service';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmUtil } from '../evm/evm.util';
+import { SignatureException } from '../exceptions/signature.exception';
 import { EvmBlockchains, TestBlockchains } from '../util/blockchain.util';
 
 @Injectable()
@@ -227,7 +228,9 @@ export class CryptoService {
       if (blockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
       if (blockchain === Blockchain.DEFICHAIN)
         return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
-    } catch {}
+    } catch (e) {
+      if (e instanceof SignatureException) throw new BadRequestException(e.message);
+    }
 
     return false;
   }
@@ -250,7 +253,9 @@ export class CryptoService {
   }
 
   private async verifyLightning(address: string, message: string, signature: string): Promise<boolean> {
-    const key = await this.lightningService.getPublicKeyOfAddress(address);
+    const key = await this.lightningService.getPublicKeyOfAddress(address).catch(() => {
+      throw new SignatureException('Failed to get node public key (by invoice)');
+    });
 
     return this.lightningService.verifySignature(message, signature, key);
   }
