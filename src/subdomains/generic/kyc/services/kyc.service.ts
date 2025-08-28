@@ -1069,7 +1069,7 @@ export class KycService {
       .find((k) => k.status === ReviewStatus.INTERNAL_REVIEW);
     if (!signatoryPower) throw new BadRequestException('SignatoryPower step missing');
 
-    await this.kycStepRepo.update(signatoryPower.id, { status: ReviewStatus.COMPLETED });
+    await this.kycStepRepo.update(...signatoryPower.complete());
   }
 
   async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {

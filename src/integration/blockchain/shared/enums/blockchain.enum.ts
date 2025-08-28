@@ -38,24 +38,3 @@ export enum Blockchain {
   KALEIDO = 'Kaleido',
   SUMIXX = 'Sumixx',
 }
-
-export const PaymentLinkBlockchain = {
-  ARBITRUM: Blockchain.ARBITRUM,
-  BASE: Blockchain.BASE,
-  ETHEREUM: Blockchain.ETHEREUM,
-  SEPOLIA: Blockchain.SEPOLIA,
-  LIGHTNING: Blockchain.LIGHTNING,
-  MONERO: Blockchain.MONERO,
-  OPTIMISM: Blockchain.OPTIMISM,
-  POLYGON: Blockchain.POLYGON,
-  GNOSIS: Blockchain.GNOSIS,
-  BINANCE_SMART_CHAIN: Blockchain.BINANCE_SMART_CHAIN,
-  BITCOIN: Blockchain.BITCOIN,
-  ZANO: Blockchain.ZANO,
-  BINANCE_PAY: Blockchain.BINANCE_PAY,
-  KUCOIN_PAY: Blockchain.KUCOIN_PAY,
-  SOLANA: Blockchain.SOLANA,
-  TRON: Blockchain.TRON,
-} as const;
-
-export type PaymentLinkBlockchain = (typeof PaymentLinkBlockchain)[keyof typeof PaymentLinkBlockchain];

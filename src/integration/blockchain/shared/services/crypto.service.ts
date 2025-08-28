@@ -5,7 +5,6 @@ import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
@@ -18,24 +17,13 @@ import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { TronService } from '../../tron/services/tron.service';
 import { ZanoService } from '../../zano/services/zano.service';
+import { Blockchain } from '../enums/blockchain.enum';
 import { EvmUtil } from '../evm/evm.util';
+import { EvmBlockchains, TestBlockchains } from '../util/blockchain.util';
 
 @Injectable()
 export class CryptoService {
   private static readonly defaultEthereumChain = Blockchain.ETHEREUM;
-
-  static readonly EthereumBasedChains = [
-    Blockchain.ETHEREUM,
-    Blockchain.SEPOLIA,
-    Blockchain.BINANCE_SMART_CHAIN,
-    Blockchain.ARBITRUM,
-    Blockchain.OPTIMISM,
-    Blockchain.POLYGON,
-    Blockchain.BASE,
-    Blockchain.GNOSIS,
-    Blockchain.HAQQ,
-    Blockchain.CITREA_TESTNET,
-  ];
 
   constructor(
     private readonly bitcoinService: BitcoinService,
@@ -149,7 +137,11 @@ export class CryptoService {
   }
 
   public static getBlockchainsBasedOn(address: string): Blockchain[] {
-    if (isEthereumAddress(address)) return this.EthereumBasedChains;
+    return CryptoService.getAllBlockchainsBasedOn(address).filter((b) => !TestBlockchains.includes(b));
+  }
+
+  private static getAllBlockchainsBasedOn(address: string): Blockchain[] {
+    if (isEthereumAddress(address)) return EvmBlockchains;
     if (CryptoService.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
     if (CryptoService.isLightningAddress(address)) return [Blockchain.LIGHTNING];
     if (CryptoService.isMoneroAddress(address)) return [Blockchain.MONERO];
@@ -222,8 +214,7 @@ export class CryptoService {
     const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
 
     try {
-      if (CryptoService.EthereumBasedChains.includes(blockchain))
-        return this.verifyEthereumBased(message, address, signature);
+      if (EvmBlockchains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (blockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
       if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);

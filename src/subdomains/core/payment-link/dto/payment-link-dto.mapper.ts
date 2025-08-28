@@ -73,7 +73,7 @@ export class PaymentLinkDtoMapper {
   }
 
   private static createPaymentLinkPaymentDto(payment?: PaymentLinkPayment): PaymentLinkPaymentDto {
-    const lightning = LightningHelper.createEncodedLnurlp(payment.uniqueId);
+    const lightning = payment && LightningHelper.createEncodedLnurlp(payment.uniqueId);
 
     return (
       payment && {
