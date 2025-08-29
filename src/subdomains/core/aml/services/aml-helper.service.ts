@@ -81,6 +81,14 @@ export class AmlHelperService {
       )
         errors.push(AmlError.VIDEO_IDENT_MISSING);
     }
+    if (
+      entity.userData.phone &&
+      entity.userData.birthday &&
+      (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
+      entity.userData.status !== UserDataStatus.ACTIVE &&
+      Util.yearsDiff(entity.userData.birthday) > 55
+    )
+      errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
 
     // AmlRule asset/fiat check
     errors.push(

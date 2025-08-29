@@ -14,6 +14,7 @@ import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoAmlReasonPendingStates, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { Util } from 'src/shared/utils/util';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -202,6 +203,7 @@ export class BuyCryptoNotificationService {
                   params: {
                     url: entity.userData.kycUrl,
                     urlText: entity.userData.kycUrl,
+                    phone: Util.blankCenter(entity.userData.phone),
                   },
                 },
                 {

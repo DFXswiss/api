@@ -3,6 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
@@ -152,6 +153,7 @@ export class BuyFiatNotificationService {
                   params: {
                     url: entity.userData.kycUrl,
                     urlText: entity.userData.kycUrl,
+                    phone: Util.blankCenter(entity.userData.phone),
                   },
                 },
                 {
