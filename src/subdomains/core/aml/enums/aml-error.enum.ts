@@ -53,7 +53,7 @@ export enum AmlError {
   VIDEO_IDENT_MISSING = 'VideoIdentMissing',
   LIQUIDITY_LIMIT_EXCEEDED = 'LiquidityLimitExceeded',
   IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
-  MANUAL_CHECK_PHONE = 'ManualCheckPhone',
+  PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
 }
 
 export const DelayResultError = [
@@ -240,7 +240,7 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
   },
-  [AmlError.MANUAL_CHECK_PHONE]: {
+  [AmlError.PHONE_VERIFICATION_NEEDED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK_PHONE,

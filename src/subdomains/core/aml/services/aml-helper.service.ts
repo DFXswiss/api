@@ -88,7 +88,7 @@ export class AmlHelperService {
       entity.userData.status !== UserDataStatus.ACTIVE &&
       Util.yearsDiff(entity.userData.birthday) > 55
     )
-      errors.push(AmlError.MANUAL_CHECK_PHONE);
+      errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
 
     // AmlRule asset/fiat check
     errors.push(

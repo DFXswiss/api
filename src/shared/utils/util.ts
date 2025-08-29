@@ -285,7 +285,7 @@ export class Util {
   }
 
   static yearsDiff(from?: Date, to?: Date): number {
-    return to.getFullYear() - from.getFullYear();
+    return this.daysDiff(from, to) / 365;
   }
 
   static secondsAfter(seconds: number, from?: Date): Date {
