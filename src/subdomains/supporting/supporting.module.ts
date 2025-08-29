@@ -10,6 +10,7 @@ import { NotificationModule } from './notification/notification.module';
 import { PayInModule } from './payin/payin.module';
 import { PayoutModule } from './payout/payout.module';
 import { PricingModule } from './pricing/pricing.module';
+import { RecallModule } from './recall/recall.module';
 import { SupportIssueModule } from './support-issue/support-issue.module';
 
 @Module({
@@ -26,6 +27,7 @@ import { SupportIssueModule } from './support-issue/support-issue.module';
     FiatPayInModule,
     FiatOutputModule,
     SupportIssueModule,
+    RecallModule,
   ],
   controllers: [],
   providers: [],
