@@ -3,7 +3,7 @@ import { Active } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
-import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankData, BankDataVerificationError } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -139,8 +139,10 @@ export class AmlHelperService {
     if (!entity.outputAsset.buyable) errors.push(AmlError.ASSET_NOT_BUYABLE);
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
-      if (!bankData || (bankData.approved === null && bankData.status !== ReviewStatus.MANUAL_REVIEW)) {
+      if (!bankData || (bankData.approved === null && !bankData.isInReview)) {
         errors.push(AmlError.BANK_DATA_MISSING);
+      } else if (!bankData.isReviewed && bankData.comment.includes(BankDataVerificationError.MERGE_PENDING)) {
+        errors.push(AmlError.MERGE_PENDING);
       } else if (bankData.status === ReviewStatus.MANUAL_REVIEW) {
         errors.push(AmlError.BANK_DATA_MANUAL_REVIEW);
       } else if ((!bankData.approved && !bankData.manualApproved) || bankData.manualApproved === false) {
