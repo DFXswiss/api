@@ -90,7 +90,8 @@
                 "missing_liquidity": "DFX n'a pas été en mesure d'échanger la quantité requise de jetons dans le délai imparti",
                 "test_only": "Test",
                 "kyc_data_needed": "Vos données KYC sont nécessaires pour la transaction",
-                "bank_tx_needed": "Une transaction bancaire est nécessaire pour que cette opération puisse être effectuée"
+                "bank_tx_needed": "Une transaction bancaire est nécessaire pour que cette opération puisse être effectuée",
+                "manual_check_phone": "Nous n'avons pas réussi à vous joindre au numéro de téléphone que vous avez fourni"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -202,6 +203,15 @@
                 "line3": "Une fois cette transaction reçue et payée, la transaction en cours sera également payée automatiquement.",
                 "line4": "Cela signifie qu'une seule transaction à partir de votre compte bancaire est nécessaire.",
                 "line5": "Si vous ne souhaitez pas vous identifier, vous pouvez également demander un remboursement:<br>[url:cliquez ici]"
+            },
+            "manual_check_phone": {
+                "title": "Appel téléphonique requis",
+                "salutation": "Une vérification manuelle par téléphone est requise",
+                "line1": "Nous avons bien reçu votre acompte.",
+                "line2": "Nous vous contacterons sous peu au {phone}.",
+                "line3": "Une fois toutes les questions clarifiées, votre transaction sera traitée automatiquement.",
+                "line4": "",
+                "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             }
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]"
