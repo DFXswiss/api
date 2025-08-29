@@ -152,6 +152,7 @@ export class BuyFiatNotificationService {
                   params: {
                     url: entity.userData.kycUrl,
                     urlText: entity.userData.kycUrl,
+                    phone: entity.userData.phone,
                   },
                 },
                 {

@@ -90,7 +90,8 @@
                 "missing_liquidity": "DFX non è stata in grado di scambiare la quantità di token richiesta entro il tempo specificato",
                 "test_only": "Test",
                 "kyc_data_needed": "I dati KYC sono necessari per la transazione",
-                "bank_tx_needed": "Per effettuare questa transazione è necessaria una transazione bancaria"
+                "bank_tx_needed": "Per effettuare questa transazione è necessaria una transazione bancaria",
+                "manual_check_phone": "Non siamo riusciti a contattarti al numero di telefono che ci hai fornito"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },
@@ -202,6 +203,15 @@
                 "line3": "Dopo che la transazione è stata ricevuta e pagata, anche la transazione in sospeso verrà pagata automaticamente.",
                 "line4": "Ciò significa che è necessaria una sola transazione dal vostro conto bancario.",
                 "line5": "Se non volete verificare voi stessi, potete anche richiedere un rimborso:<br>[url:clicca qui]"
+            },
+            "manual_check_phone": {
+                "title": "È necessaria una telefonata",
+                "salutation": "È richiesta una verifica manuale tramite telefono.",
+                "line1": "Abbiamo ricevuto il tuo deposito.",
+                "line2": "Ti contatteremo a breve al numero {phone}.",
+                "line3": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
+                "line4": "",
+                "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
             }
         },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]"

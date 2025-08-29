@@ -202,6 +202,7 @@ export class BuyCryptoNotificationService {
                   params: {
                     url: entity.userData.kycUrl,
                     urlText: entity.userData.kycUrl,
+                    phone: entity.userData.phone,
                   },
                 },
                 {
