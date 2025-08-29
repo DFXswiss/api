@@ -2,6 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class InfoBannerDto {
   @ApiProperty()
+  id: string;
+
+  @ApiProperty()
   de: string;
 
   @ApiProperty()
