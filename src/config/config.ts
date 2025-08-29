@@ -568,6 +568,7 @@ export class Configuration {
     minConfirmations: (blockchain: Blockchain) =>
       [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
+    maxDepositBalance: 10000, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
