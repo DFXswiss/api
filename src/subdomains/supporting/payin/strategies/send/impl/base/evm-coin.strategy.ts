@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Util } from 'src/shared/utils/util';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
@@ -44,6 +45,12 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
     const groupAmount = this.getTotalGroupAmount(payInGroup, type);
     // subtract fee for forwarding
     const amount = type === SendType.FORWARD ? Util.round(groupAmount - estimatedNativeFee * 1.00001, 12) : groupAmount;
+
+    this.logger.verbose(
+      `Sending ${amount} from index ${account.index} (${
+        EvmUtil.createWallet(account).address
+      }) to ${destinationAddress}`,
+    );
 
     return this.payInEvmService.sendNativeCoin(account, destinationAddress, amount);
   }
