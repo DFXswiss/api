@@ -121,11 +121,11 @@ export class PaymentBalanceService implements OnModuleInit {
   }
 
   async forwardDeposits() {
-    const chainsToForward = [Blockchain.BITCOIN, ...this.chainsWithoutPaymentBalance];
+    const chainsWithoutForwarding = [Blockchain.BITCOIN, ...this.chainsWithoutPaymentBalance];
 
     const paymentAssets = await this.assetService
       .getPaymentAssets()
-      .then((l) => l.filter((a) => !chainsToForward.includes(a.blockchain)));
+      .then((l) => l.filter((a) => !chainsWithoutForwarding.includes(a.blockchain)));
 
     const balances = await this.getPaymentBalances(paymentAssets);
 
