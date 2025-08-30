@@ -219,6 +219,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   kycClients?: string; // semicolon separated wallet id's
 
+  @Column({ type: 'datetime2', nullable: true })
+  phoneCallCheckDate?: Date;
+
   // AML
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate?: Date;

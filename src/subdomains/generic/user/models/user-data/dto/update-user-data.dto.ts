@@ -277,4 +277,9 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(RiskStatus)
   riskStatus?: RiskStatus;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  phoneCallCheckDate?: Date;
 }
