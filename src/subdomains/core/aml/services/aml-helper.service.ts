@@ -85,7 +85,6 @@ export class AmlHelperService {
       entity.userData.phone &&
       entity.userData.birthday &&
       (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
-      entity.userData.status !== UserDataStatus.ACTIVE &&
       Util.yearsDiff(entity.userData.birthday) > 55
     )
       errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
