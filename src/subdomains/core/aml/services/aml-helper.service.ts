@@ -82,6 +82,8 @@ export class AmlHelperService {
         errors.push(AmlError.VIDEO_IDENT_MISSING);
     }
     if (
+      entity instanceof BuyCrypto &&
+      (entity.bankTx || entity.checkoutTx) &&
       !entity.userData.phoneCallCheckDate &&
       entity.userData.phone &&
       entity.userData.birthday &&
