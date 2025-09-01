@@ -27,7 +27,7 @@
             "value": [
                 {
                     "name": "BOT_DIR",
-                    "value": "deps-btc"
+                    "value": "deps-btc-dev"
                 }
             ]
         },
