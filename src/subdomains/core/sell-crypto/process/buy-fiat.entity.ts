@@ -417,7 +417,7 @@ export class BuyFiat extends IEntity {
     if (
       ((update.amlCheck && update.amlCheck !== this.amlCheck) ||
         (update.amlReason && update.amlReason !== this.amlReason)) &&
-      update.amlCheck !== CheckStatus.PASS
+      [CheckStatus.FAIL, CheckStatus.PENDING].includes(update.amlCheck)
     )
       update.mail2SendDate = null;
 
