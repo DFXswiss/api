@@ -529,6 +529,16 @@ export class PaymentLinkService {
     return paymentLink;
   }
 
+  async getPublicPaymentLinkByUniqueId(uniqueId: string): Promise<PaymentLink> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { uniqueId, mode: PaymentLinkMode.PUBLIC, status: PaymentLinkStatus.ACTIVE },
+      relations: { route: { user: { userData: true } } },
+    });
+    if (!paymentLink) throw new NotFoundException('Payment link not found');
+
+    return paymentLink;
+  }
+
   async cancelPayment(
     userId?: number,
     linkId?: number,
