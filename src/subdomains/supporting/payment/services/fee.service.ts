@@ -363,7 +363,7 @@ export class FeeService {
     const bankFees =
       paymentMethodIn === FiatPaymentMethod.BANK || paymentMethodIn === FiatPaymentMethod.INSTANT
         ? fees.filter((fee) => fee.type === FeeType.BANK)
-        : undefined;
+        : [];
     const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
     const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
 
@@ -423,7 +423,7 @@ export class FeeService {
     const bankFees =
       paymentMethodIn === FiatPaymentMethod.BANK || paymentMethodIn === FiatPaymentMethod.INSTANT
         ? fees.filter((fee) => fee.type === FeeType.CHARGEBACK_BANK)
-        : undefined;
+        : [];
     const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
     const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
 
