@@ -525,6 +525,13 @@ export class BuyCrypto extends IEntity {
       amountInEur,
     };
 
+    if (
+      ((update.amlCheck && update.amlCheck !== this.amlCheck) ||
+        (update.amlReason && update.amlReason !== this.amlReason)) &&
+      update.amlCheck !== CheckStatus.PASS
+    )
+      update.mailSendDate = null;
+
     Object.assign(this, update);
 
     return [this.id, update];

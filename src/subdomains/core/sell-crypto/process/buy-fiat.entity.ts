@@ -414,6 +414,13 @@ export class BuyFiat extends IEntity {
       amountInEur,
     };
 
+    if (
+      ((update.amlCheck && update.amlCheck !== this.amlCheck) ||
+        (update.amlReason && update.amlReason !== this.amlReason)) &&
+      update.amlCheck !== CheckStatus.PASS
+    )
+      update.mail2SendDate = null;
+
     Object.assign(this, update);
 
     return [this.id, update];
