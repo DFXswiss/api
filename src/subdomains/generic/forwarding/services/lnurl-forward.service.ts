@@ -2,13 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import { CreatePaymentLinkPaymentDto } from 'src/subdomains/core/payment-link/dto/create-payment-link-payment.dto';
 import { PaymentLinkDtoMapper } from 'src/subdomains/core/payment-link/dto/payment-link-dto.mapper';
 import {
   PaymentLinkEvmPaymentDto,
   PaymentLinkHexResultDto,
   PaymentLinkPayRequestDto,
   PaymentLinkPaymentDto,
-  TransferInfo,
+  TransferInfo
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPaymentMode, PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
@@ -151,5 +152,17 @@ export class LnUrlForwardService {
 
   async lnurldCallbackForward(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
     return this.client.getLnurlDeviceCallback(id, variable, params);
+  }
+
+  async activatePublicPayment(id: string, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayRequestDto> {
+    const paymentLink = await this.paymentLinkService.getPublicPaymentLinkByUniqueId(id);
+
+    const { payments: [ pendingPayment ] } = await this.paymentLinkService.createPayment(
+      dto,
+      paymentLink.route.user.id,
+      paymentLink.id,
+    );
+
+    return this.paymentLinkService.createPayRequest(pendingPayment.uniqueId);
   }
 }
