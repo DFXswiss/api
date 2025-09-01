@@ -18,25 +18,25 @@ export class TransactionRiskAssessment extends IEntity {
   type: RiskType;
 
   @Column({ length: 'MAX', nullable: true })
-  reason: string;
+  reason?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  methods: string;
+  methods?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  summary: string;
+  summary?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  result: string;
+  result?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  date: Date;
+  date?: Date;
 
   @Column({ nullable: true })
-  author: string;
+  author?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  pdf: string;
+  pdf?: string;
 
   @Column({ default: AssessmentStatus.CREATED })
   status: AssessmentStatus;

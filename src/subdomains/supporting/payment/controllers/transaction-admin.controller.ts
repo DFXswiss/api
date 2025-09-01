@@ -28,15 +28,15 @@ export class TransactionAdminController {
     return this.transactionService.update(+id, dto);
   }
 
-  @Post(':id/riskAssessment')
+  @Post(':txId/riskAssessment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   @ApiExcludeEndpoint()
   async createRiskAssessment(
-    @Param('id') id: string,
+    @Param('txId') txId: string,
     @Body() dto: CreateRiskAssessmentDto,
   ): Promise<TransactionRiskAssessment> {
-    return this.transactionRiskAssessmentService.create(+id, dto);
+    return this.transactionRiskAssessmentService.create(+txId, dto);
   }
 
   @Put(':txId/riskAssessment/:id')
