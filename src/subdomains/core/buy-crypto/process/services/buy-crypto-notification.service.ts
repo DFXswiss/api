@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -14,7 +15,6 @@ import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoAmlReasonPendingStates, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { Util } from 'src/shared/utils/util';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -203,7 +203,7 @@ export class BuyCryptoNotificationService {
                   params: {
                     url: entity.userData.kycUrl,
                     urlText: entity.userData.kycUrl,
-                    phone: Util.blankCenter(entity.userData.phone),
+                    phone: entity.userData.phone ? Util.blankCenter(entity.userData.phone) : undefined,
                   },
                 },
                 {
