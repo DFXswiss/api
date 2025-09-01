@@ -132,7 +132,7 @@ export class TransactionUtilService {
 
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
 
-    if (dto.permit.executorAddress.toLowerCase() !== client.dfxAddress.toLowerCase())
+    if (dto.permit.executorAddress.toLowerCase() !== client.walletAddress.toLowerCase())
       throw new BadRequestException('Invalid executor address');
 
     const contractValid = await client.isPermitContract(dto.permit.signatureTransferContract);

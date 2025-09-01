@@ -54,6 +54,7 @@ export enum Process {
   SANCTION_SYNC = 'SanctionSync',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
+  PAYMENT_FORWARDING = 'PaymentForwarding',
   FIAT_OUTPUT = 'FiatOutput',
   FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT = 'FiatOutputAssignBankAccount',
   FIAT_OUTPUT_READY_DATE = 'FiatOutputReadyDate',
