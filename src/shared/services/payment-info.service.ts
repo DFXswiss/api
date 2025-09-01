@@ -92,9 +92,7 @@ export class PaymentInfoService {
         throw new BadRequestException('Assets on this blockchain are not swappable');
     }
 
-    dto.targetAsset = dto.targetAsset.id
-      ? await this.assetService.getAssetById(dto.targetAsset.id)
-      : await this.assetService.getAssetByChainId(dto.targetAsset.blockchain, dto.targetAsset.chainId);
+    dto.targetAsset = await this.resolveAsset(dto.targetAsset);
     if (!dto.targetAsset) throw new NotFoundException('Asset not found');
     if (!dto.targetAsset.buyable) throw new BadRequestException('Asset not buyable');
     if (jwt && !dto.targetAsset.isBuyableOn(jwt.blockchains))
@@ -106,9 +104,8 @@ export class PaymentInfoService {
   }
 
   async resolveAsset(asset: Asset): Promise<Asset> {
-    if (asset.id) {
-      return this.assetService.getAssetById(asset.id);
-    }
-    return this.assetService.getAssetByChainId(asset.blockchain, asset.chainId);
+    return asset.id
+      ? this.assetService.getAssetById(asset.id)
+      : this.assetService.getAssetByChainId(asset.blockchain, asset.chainId);
   }
 }
