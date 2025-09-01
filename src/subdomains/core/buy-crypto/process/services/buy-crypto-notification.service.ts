@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -202,6 +203,7 @@ export class BuyCryptoNotificationService {
                   params: {
                     url: entity.userData.kycUrl,
                     urlText: entity.userData.kycUrl,
+                    phone: entity.userData.phone ? Util.blankCenter(entity.userData.phone) : undefined,
                   },
                 },
                 {

@@ -24,7 +24,7 @@ export class TronService extends BlockchainService {
   }
 
   getWalletAddress(): string {
-    return this.client.getWalletAddress();
+    return this.client.walletAddress;
   }
 
   async verifySignature(message: string, address: string, signature: string): Promise<boolean> {
@@ -33,6 +33,10 @@ export class TronService extends BlockchainService {
     const addressRecovered = await tronWeb.trx.verifyMessageV2(message, signature);
 
     return Util.equalsIgnoreCase(addressRecovered, address);
+  }
+
+  getPaymentRequest(address: string, amount: number): string {
+    return `tron:${address}?amount=${Util.numberToFixedString(amount)}`;
   }
 
   async getBlockHeight(): Promise<number> {
@@ -48,7 +52,7 @@ export class TronService extends BlockchainService {
   }
 
   async getTokenBalance(asset: Asset, address?: string): Promise<number> {
-    return this.client.getTokenBalance(asset, address ?? this.client.getWalletAddress());
+    return this.client.getTokenBalance(asset, address ?? this.client.walletAddress);
   }
 
   async getCreateAccountFee(address: string): Promise<number> {

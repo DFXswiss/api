@@ -5,7 +5,6 @@ import {
   ConstructorArgs,
   Dictionary,
   Exchange,
-  ExchangeError,
   Market,
   Order,
   Trade,
@@ -149,24 +148,25 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
             `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${remainingAmount}`,
           );
 
-          const id = await this.updateOrderPrice(order, remainingAmount, price).catch(async (e: ExchangeError) => {
-            try {
-              const updatedOrder = await this.getTrade(order.id, from, to);
-              this.logger.verbose(`Could not update order ${order.id} price: ${JSON.stringify(updatedOrder)}`);
-            } catch (e) {
-              this.logger.error(`Failed to fetch order ${order.id} after update price error:`, e);
+          try {
+            const id = await this.updateOrderPrice(order, remainingAmount, price);
+
+            if (id) {
+              this.logger.verbose(`Order ${order.id} changed to ${id}`);
+              throw new TradeChangedException(id);
             }
+          } catch (e) {
+            if (e instanceof TradeChangedException) throw e;
 
-            await this.callApi((e) => e.cancelOrder(order.id, order.symbol)).catch((e) =>
-              this.logger.error(`Error while cancelling order ${order.id}:`, e),
-            );
+            const updatedOrder = await this.getTrade(order.id, from, to);
+            if (updatedOrder.status === OrderStatus.CLOSED) return true;
 
-            throw e;
-          });
+            this.logger.verbose(`Could not update order ${order.id} price: ${JSON.stringify(updatedOrder)}`);
 
-          if (id) {
-            this.logger.verbose(`Order ${order.id} changed to ${id}`);
-            throw new TradeChangedException(id);
+            if (updatedOrder.status === OrderStatus.OPEN)
+              await this.callApi((e) => e.cancelOrder(order.id, order.symbol)).catch((e) =>
+                this.logger.error(`Error while cancelling order ${order.id}:`, e),
+              );
           }
         } else {
           this.logger.verbose(`Order ${order.id} open, price is still ${price}`);
@@ -259,7 +259,11 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   async getTradePair(from: string, to: string): Promise<{ pair: string; direction: OrderSide }> {
-    const currencyPairs = await this.getMarkets().then((m) => m.map((m) => m.symbol));
+    // sort by active pairs first
+    const currencyPairs = await this.getMarkets().then((m) =>
+      m.sort((a, b) => (a.active === b.active ? 0 : a.active ? -1 : 1)).map((m) => m.symbol),
+    );
+
     const selectedPair = currencyPairs.find((p) => p === `${from}/${to}` || p === `${to}/${from}`);
     if (!selectedPair) throw new BadRequestException(`${this.name}: pair with ${from} and ${to} not supported`);
 
@@ -271,7 +275,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   private async fetchLastOrderPrice(from: string, to: string): Promise<number> {
     const pair = await this.getPair(from, to);
 
-    const trades = await this.callApi((e) => e.fetchTrades(pair));
+    const trades = await this.callApi((e) => e.fetchTrades(pair, undefined, 1));
     if (trades.length === 0) throw new Error(`${this.name}: no trades found for ${pair}`);
 
     return Util.sort(trades, 'timestamp', 'DESC')[0].price;

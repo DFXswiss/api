@@ -2,9 +2,26 @@
 
 DFX is a crypto on- and off-ramp with an open API that can be integrated by anyone. This page explains the basic concepts of the API. If you don't want to bother with API calls, you can integrate our ready-to-use web widget with a few lines of code (see the [services repository](https://github.com/DFXswiss/services#dfx-services)) or use our [React API npm package](https://www.npmjs.com/package/@dfx.swiss/react).
 
-## API Documentation
+## Environments
 
-- [Swagger](#swagger)
+- Productive API URL: [api.dfx.swiss](https://api.dfx.swiss)
+- Test (sandbox) API URL: [dev.api.dfx.swiss](https://dev.api.dfx.swiss)
+
+Links to the productive API are used in the further documentation.
+
+### Swagger
+
+- Productive environment
+  - [Swagger UI](https://api.dfx.swiss)
+  - [Swagger JSON](https://api.dfx.swiss/swagger-json)
+- Test environment
+  - [Swagger UI](https://dev.api.dfx.swiss)
+  - [Swagger JSON](https://dev.api.dfx.swiss/swagger-json)
+
+## On-/Off-Ramp
+
+This section explains the key concepts for using the DFX on-ramp and off-ramp.
+
 - [Authentication](#authentication)
 - [KYC](#kyc-optional)
 - [Transactions](#transactions)
@@ -12,11 +29,6 @@ DFX is a crypto on- and off-ramp with an open API that can be integrated by anyo
   - [Sell Crypto](#sell-crypto)
   - [Bank Accounts](#bank-accounts-optional)
 - [Integration Example](#integration-example)
-
-### Swagger
-
-- [Swagger UI](https://api.dfx.swiss)
-- [Swagger JSON](https://api.dfx.swiss/swagger-json)
 
 ### Authentication
 
@@ -29,7 +41,7 @@ Contact [support](mailto:support@dfx.swiss) to register your wallet name. This i
 #### Sign-Up / Sign-In
 
 1. Get the sign message from [sign-message endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_getSignMessage) (with the user's address) and sign it with the corresponding private key
-1. Sign the user up or in with the [auth endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_authenticate). This call will register a new user, if the user does not exist yet. If there is already a user with the same address, the user will be signed in. The response contains a JWT access token, which can be used for further API calls. `usedRef`, `wallet` and `specialCode` parameters are optional. `usedRef` and `wallet` are only taken into account on user registration.
+1. Sign the user up or in with the [auth endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_authenticate). This call will register a new user, if the user does not exist yet. If there is already a user with the same address, the user will be signed in. The response contains a JWT access token, which can be used for further API calls (bearer authentication). `usedRef`, `wallet` and `specialCode` parameters are optional. `usedRef` and `wallet` are only taken into account on user registration.
    - Use the wallet name (`wallet`) from step [initial setup](#initial-wallet-setup-optional)
    - See [below](#referral-program) for more information on the referral program (`usedRef`)
 
@@ -118,3 +130,45 @@ _Get payment infos_
 ### Integration Example
 
 - DFX.swiss is integrated in the [DFX.swiss Services](https://github.com/DFXswiss/services)
+
+## Open CryptoPay
+
+This section explains the concepts behind the administrative API for the DFX implementation of the [Open CryptoPay](https://opencryptopay.io/) standard. There are two different ways to authenticate API requests. For admin access (only required for a one-time setup or configuration changes), a time-limited JWT access token must be used. For productive operation on POS systems, it is recommended to use a static access key with limited rights. The key can be obtained from payment link config (see [config](#config)).
+
+### Admin API
+
+#### Authentication
+
+Use the [auth endpoint](https://api.dfx.swiss/swagger#/Auth/AuthController_authenticate) to obtain a JWT access token with the credentials (`address` and `signature`) obtained during onboarding. This token can be used for further API calls (bearer authentication).
+
+#### History
+
+A list of payment links, including the processed payments, can be obtained from [history endpoint](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_getPaymentHistory). Query parameters can be used to pre-filter the list.
+
+#### Config
+
+The default payment link config can be fetched with [get config endpoint](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_getUserPaymentLinksConfig) and updated with [update config endpoint](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_updateUserPaymentLinksConfig). The static access key (from `accessKey` field) can be used for productive operation.
+
+### Operation API
+
+#### Create Payment Link
+
+For every POS terminal or cash register, a payment link should be created using the [payment link endpoint](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_createPaymentLink). This is a one-time setup call, but is recommended to be done at device (POS) boot up. The endpoint will return an HTTP 409 error if a payment link with the same `externalId` (see below) already exists.
+
+No parameters are required, it is though strongly recommended to provide an `externalId`, which should correspond to a unique POS ID. This ID is utilized in the payment process.
+
+The endpoint will return a URL in the `frontendUrl` field, which can be used to generate a static POS QR code. Customers can scan this QR with their camera or wallet to pay at the linked POS.
+
+#### Process Payments
+
+The following steps must be carried out at the POS if a customer wants to pay with crypto.
+
+1. [Create a payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_createPayment): A payment can be created for a specific payment link by sending the POS ID in the `externalLinkId` query parameter. `amount` and `externalId` should be sent in the body, whereas the latter is a unique payment ID. This ID is also used for all subsequent request. The currency is linked to the bank details provided during onboarding and does not need to be provided.
+
+   The endpoint will return a URL in the `payment.frontendUrl` field, which can be used to dynamically generate a payment QR code. Customers can scan this QR with their camera or wallet to execute the payment.
+
+1. [Wait for payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_waitForPayment): This API endpoint can be used to wait for a change on a pending payment. It blocks until the payment either is completed, cancelled or expired. The response will contain the result in the `payment.status` field. Please use the `externalPaymentId` query parameter to select the payment to be waited on.
+
+1. [Confirm a payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_confirmPayment) (optional): A payment can be confirmed for documentation purposes. This can only be done after it is completed (paid by the customer). Please use the `externalPaymentId` query parameter to select the payment to be confirmed.
+
+1. [Cancel a payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_cancelPayment) (optional): A payment can be cancelled as long at it is still pending. Please use the `externalPaymentId` query parameter to select the payment to be cancelled.

@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Observable, Subject } from 'rxjs';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -15,6 +16,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { BankBalanceUpdate } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -67,6 +69,7 @@ export const TransactionBankTxTypeMapper: {
 @Injectable()
 export class BankTxService {
   private readonly logger = new DfxLogger(BankTxService);
+  private readonly bankBalanceSubject: Subject<BankBalanceUpdate> = new Subject<BankBalanceUpdate>();
 
   constructor(
     private readonly bankTxRepo: BankTxRepository,
@@ -394,6 +397,10 @@ export class BankTxService {
       newTxs = await new BankTxRepository(manager).saveMany(newTxs, 1000, 20);
     });
 
+    // update bank liq balance
+    const bank = await this.bankService.getBankByIban(batch.iban);
+    this.bankBalanceSubject.next({ bank, balance: batch.bankBalanceAfter });
+
     // avoid infinite loop in JSON
     batch.transactions = newTxs.map((tx) => {
       tx.batch = null;
@@ -432,5 +439,9 @@ export class BankTxService {
 
   getBankTxRepo(): BankTxRepository {
     return this.bankTxRepo;
+  }
+
+  get bankBalanceObservable(): Observable<BankBalanceUpdate> {
+    return this.bankBalanceSubject.asObservable();
   }
 }

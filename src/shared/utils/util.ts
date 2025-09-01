@@ -284,6 +284,10 @@ export class Util {
     return this.secondsDiff(from, to) / (3600 * 24);
   }
 
+  static yearsDiff(from?: Date, to?: Date): number {
+    return this.daysDiff(from, to) / 365;
+  }
+
   static secondsAfter(seconds: number, from?: Date): Date {
     const date = from ? new Date(from) : new Date();
     date.setSeconds(date.getSeconds() + seconds);

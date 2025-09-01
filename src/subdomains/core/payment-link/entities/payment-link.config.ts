@@ -1,4 +1,4 @@
-import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
 
@@ -9,7 +9,7 @@ export enum PayoutFrequency {
 
 export interface PaymentLinkConfig {
   standards: PaymentStandard[];
-  blockchains: PaymentLinkBlockchain[];
+  blockchains: Blockchain[];
   minCompletionStatus: PaymentQuoteStatus;
   displayQr: boolean;
   fee: number;

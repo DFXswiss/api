@@ -22,7 +22,8 @@ import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
-import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
+import { UpdatePaymentLinkConfigDto, UserPaymentLinkConfigDto } from '../dto/payment-link-config.dto';
+import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -92,11 +93,13 @@ export class PaymentLinkService {
   async getAll(userId: number): Promise<PaymentLink[]> {
     const allPaymentLinks = await this.paymentLinkRepo.getAllPaymentLinks(userId);
 
-    for (const paymentLink of allPaymentLinks) {
-      if (!paymentLink.payments) paymentLink.payments = [];
+    const mostRecentPayments = await this.paymentLinkPaymentService
+      .getMostRecentPayments(allPaymentLinks.map((pl) => pl.id))
+      .then((l) => new Map(l.map((p) => [p.link.id, p])));
 
-      const mostRecentPayment = await this.paymentLinkPaymentService.getMostRecentPayment(paymentLink.uniqueId);
-      if (mostRecentPayment) paymentLink.payments.push(mostRecentPayment);
+    for (const paymentLink of allPaymentLinks) {
+      const mostRecentPayment = mostRecentPayments.get(paymentLink.id);
+      paymentLink.payments = mostRecentPayment ? [mostRecentPayment] : [];
     }
 
     return allPaymentLinks;
@@ -399,11 +402,13 @@ export class PaymentLinkService {
     return this.updatePaymentLinkInternal(entity, dto);
   }
 
-  async getUserPaymentLinksConfig(userDataId: number): Promise<PaymentLinkConfigDto> {
+  async getUserPaymentLinksConfig(userDataId: number): Promise<UserPaymentLinkConfigDto> {
     const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true } });
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('permission denied');
 
-    return userData.paymentLinksConfigObj;
+    const config = userData.paymentLinksConfigObj;
+    const configDto = PaymentLinkDtoMapper.toConfigDto(userData.paymentLinksConfigObj);
+    return { ...configDto, accessKey: config.accessKeys?.at(0) };
   }
 
   async updateUserPaymentLinksConfig(userDataId: number, dto: UpdatePaymentLinkConfigDto): Promise<void> {
@@ -520,6 +525,16 @@ export class PaymentLinkService {
 
     const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
     if (paymentLink.mode !== PaymentLinkMode.PUBLIC) throw new UnauthorizedException('Payment link is not public');
+
+    return paymentLink;
+  }
+
+  async getPublicPaymentLinkByUniqueId(uniqueId: string): Promise<PaymentLink> {
+    const paymentLink = await this.paymentLinkRepo.findOne({
+      where: { uniqueId, mode: PaymentLinkMode.PUBLIC, status: PaymentLinkStatus.ACTIVE },
+      relations: { route: { user: { userData: true } } },
+    });
+    if (!paymentLink) throw new NotFoundException('Payment link not found');
 
     return paymentLink;
   }

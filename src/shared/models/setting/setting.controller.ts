@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { getBankHolidayInfoBanner, isBankHoliday } from 'src/config/bank-holiday.config';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -21,6 +22,8 @@ export class SettingController {
   async getInfoBanner(): Promise<InfoBannerDto> {
     const banner = await this.settingService.getObj<InfoBannerSetting>('infoBanner', undefined);
     if (banner && new Date() > new Date(banner.from) && new Date() < new Date(banner.to)) return banner.content;
+
+    if (isBankHoliday()) return getBankHolidayInfoBanner();
   }
 
   // --- ADMIN --- //

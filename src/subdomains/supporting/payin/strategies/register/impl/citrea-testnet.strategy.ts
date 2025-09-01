@@ -1,13 +1,10 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
-import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayInEntry } from '../../../interfaces';
 import { PayInCitreaTestnetService } from '../../../services/payin-citrea-testnet.service';
@@ -36,7 +33,8 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
 
   // --- JOBS --- //
 
-  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PAY_IN, timeout: 7200 })
+  // Note: pay-in functionality currently not used/tested for Citrea
+  // @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
     const { entries, processedBlock } = await this.getNewEntriesWithBlock();

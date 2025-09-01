@@ -1,7 +1,8 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
-import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
@@ -76,6 +77,9 @@ export class KycStep extends IEntity {
 
       case KycStepName.LEGAL_ENTITY:
         return { url: `${apiUrl}/data/legal/${this.id}`, type: UrlType.API };
+
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
+        return { url: `${apiUrl}/data/confirmation/${this.id}`, type: UrlType.API };
 
       case KycStepName.SIGNATORY_POWER:
         return { url: `${apiUrl}/data/signatory/${this.id}`, type: UrlType.API };

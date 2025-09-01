@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
@@ -17,6 +17,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -26,7 +27,8 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
-import { KycLevel, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
@@ -811,6 +813,12 @@ export class TransactionHelper implements OnModuleInit {
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
 
+    if (
+      user?.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) &&
+      [Environment.LOC, Environment.DEV].includes(Config.environment)
+    )
+      return;
+
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
     if (
@@ -876,7 +884,7 @@ export class TransactionHelper implements OnModuleInit {
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
-      return QuoteError.BANK_TRANSACTION_MISSING;
+      return QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING;
 
     // amount checks
     if (txAmountChf < minAmountChf) return QuoteError.AMOUNT_TOO_LOW;

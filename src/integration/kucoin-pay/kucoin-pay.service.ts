@@ -14,6 +14,7 @@ import {
   C2BPaymentLinkProvider,
   C2BWebhookResult,
 } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
+import { LightningHelper } from '../lightning/lightning-helper';
 import {
   KucoinOrderNotificationStatus,
   KucoinOrderType,
@@ -28,12 +29,14 @@ export class KucoinPayService
   implements C2BPaymentLinkProvider<KucoinPayOrderNotification | KucoinPayRefundNotification>
 {
   private readonly logger = new DfxLogger(KucoinPayService);
-  private readonly baseUrl = 'https://pay.tunas.io/api/kucoinpay';
+  private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly verificationKey: string;
   private readonly privateKey: crypto.KeyObject;
 
   constructor(private readonly http: HttpService) {
+    this.baseUrl = Config.payment.kucoinPayBaseUrl;
+
     this.apiKey = Config.payment.kucoinPayApiKey;
 
     const secretKey =
@@ -59,6 +62,8 @@ export class KucoinPayService
     const timestamp = Date.now();
     const subMerchantId =
       payment.link.linkConfigObj.kucoinPaySubMerchantId ?? payment.link.configObj.kucoinPaySubMerchantId;
+    const lnurlp = LightningHelper.createEncodedLnurlp(payment.uniqueId);
+
     const orderDetails = {
       requestId: quote.uniqueId,
       expireTime: quote.expiryDate.getTime() - timestamp,
@@ -71,8 +76,8 @@ export class KucoinPayService
       ],
       orderAmount: transferInfo.amount,
       orderCurrency: transferInfo.asset,
-      returnUrl: 'https://www.kucoinpay.com/order/succ',
-      cancelUrl: 'https://www.kucoinpay.com/order/failed',
+      returnUrl: `${Config.frontend.services}/pl/result?status=Completed&lightning=${lnurlp}`,
+      cancelUrl: `${Config.frontend.services}/pl/result?status=Cancelled&lightning=${lnurlp}`,
       subMerchantId,
       timestamp,
     };
@@ -122,41 +127,36 @@ export class KucoinPayService
     body: KucoinPayRefundNotification | KucoinPayOrderNotification,
     headers: any,
   ): Promise<boolean> {
-    this.logger.info(`Verifying Kucoin Pay signature for headers: ${JSON.stringify(headers)}`);
-    this.logger.info(`Verifying Kucoin Pay signature for body: ${JSON.stringify(body)}`);
-
-    const { 'pay-api-sig': signature, 'pay-api-timestamp': timestamp } = headers;
+    const { 'pay-api-sign': signature, 'pay-api-timestamp': timestamp } = headers;
     if (!signature || !timestamp) return false;
 
     const variant = this.mapOrderTypeToSignatureVariant(body.orderType);
     const content = this.getSignatureContent(variant, { ...body, timestamp });
 
-    const result = Util.verifySign(content, this.verificationKey, signature, 'sha256', 'base64');
-    this.logger.info(`Kucoin Pay signature verification result: ${result}`);
-    return result;
+    return Util.verifySign(content, this.verificationKey, signature, 'sha256', 'base64');
   }
 
   async handleWebhook(
     dto: KucoinPayOrderNotification | KucoinPayRefundNotification,
   ): Promise<C2BWebhookResult | undefined> {
-    if (dto.orderType === KucoinOrderType.ORDER) {
-      switch (dto.status) {
-        case KucoinOrderNotificationStatus.USER_PAY_COMPLETED:
-        case KucoinOrderNotificationStatus.SUCCEEDED:
-          return {
-            providerOrderId: dto.payOrderId,
-            status: C2BPaymentStatus.COMPLETED,
-            metadata: dto,
-          };
+    if (![KucoinOrderType.ORDER, KucoinOrderType.TRADE, KucoinOrderType.REFUND].includes(dto.orderType)) return;
 
-        case KucoinOrderNotificationStatus.CANCELLED:
-        case KucoinOrderNotificationStatus.FAILED:
-          return {
-            providerOrderId: dto.payOrderId,
-            status: C2BPaymentStatus.FAILED,
-            metadata: dto,
-          };
-      }
+    switch (dto.status) {
+      case KucoinOrderNotificationStatus.USER_PAY_COMPLETED:
+      case KucoinOrderNotificationStatus.SUCCEEDED:
+        return {
+          providerOrderId: dto.payOrderId,
+          status: C2BPaymentStatus.COMPLETED,
+          metadata: dto,
+        };
+
+      case KucoinOrderNotificationStatus.CANCELLED:
+      case KucoinOrderNotificationStatus.FAILED:
+        return {
+          providerOrderId: dto.payOrderId,
+          status: C2BPaymentStatus.FAILED,
+          metadata: dto,
+        };
     }
   }
 
@@ -166,6 +166,7 @@ export class KucoinPayService
 
   private mapOrderTypeToSignatureVariant(orderType: KucoinOrderType): SignatureVariant {
     switch (orderType) {
+      case KucoinOrderType.TRADE:
       case KucoinOrderType.ORDER:
         return SignatureVariant.ORDER_NOTIFICATION;
 

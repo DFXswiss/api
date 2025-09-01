@@ -39,17 +39,17 @@ export class BankTxReturnService {
   async setFiatAmounts(): Promise<void> {
     const entities = await this.bankTxReturnRepo.find({
       where: {
-        chargebackBankTx: { id: Not(IsNull()) },
+        chargebackOutput: { id: Not(IsNull()), currency: Not(IsNull()), amount: Not(IsNull()) },
         bankTx: { id: Not(IsNull()) },
         amountInEur: IsNull(),
         chargebackRemittanceInfo: Not(IsNull()),
       },
-      relations: { chargebackBankTx: true, bankTx: true },
+      relations: { chargebackOutput: true, bankTx: true },
     });
 
     for (const entity of entities) {
       try {
-        const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.currency);
+        const inputCurrency = await this.fiatService.getFiatByName(entity.chargebackOutput.currency);
 
         const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, false);
         const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, false);
@@ -57,9 +57,9 @@ export class BankTxReturnService {
 
         await this.bankTxReturnRepo.update(
           ...entity.setFiatAmount(
-            eurPrice.convert(entity.bankTx.amount, 2),
-            chfPrice.convert(entity.bankTx.amount, 2),
-            usdPrice.convert(entity.bankTx.amount, 2),
+            eurPrice.convert(entity.chargebackOutput.amount, 2),
+            chfPrice.convert(entity.chargebackOutput.amount, 2),
+            usdPrice.convert(entity.chargebackOutput.amount, 2),
           ),
         );
       } catch (e) {

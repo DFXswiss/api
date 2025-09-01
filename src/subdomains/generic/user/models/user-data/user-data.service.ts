@@ -58,7 +58,8 @@ import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
-import { KycLevel, UserData, UserDataStatus } from './user-data.entity';
+import { UserData } from './user-data.entity';
+import { KycLevel, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';

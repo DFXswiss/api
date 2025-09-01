@@ -31,7 +31,8 @@ import { UserDataRelationState } from '../../user/models/user-data-relation/dto/
 import { UserDataRelationService } from '../../user/models/user-data-relation/user-data-relation.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
-import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -481,7 +482,13 @@ export class KycService {
     return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
-  async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
+  async updateFileData(
+    kycHash: string,
+    stepId: number,
+    data: KycFileData,
+    fileType: FileType,
+    urlAsJson = false,
+  ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -497,7 +504,7 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.manualReview(undefined, url));
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, urlAsJson ? { url } : url));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -581,7 +588,11 @@ export class KycService {
         goodsCategory: data.goodsCategory,
       };
 
-      await this.userDataService.updatePaymentLinksConfig(user, { recipient });
+      await this.userDataService.updatePaymentLinksConfig(user, {
+        recipient,
+        accessKeys: user.paymentLinksConfigObj.accessKeys ?? [Util.secureRandomString()],
+      });
+
       await this.userDataService.updateUserDataInternal(user, {
         paymentLinksAllowed: true,
         paymentLinksName: data.name,
@@ -906,6 +917,7 @@ export class KycService {
 
       case KycStepName.CONTACT_DATA:
       case KycStepName.LEGAL_ENTITY:
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.SIGNATORY_POWER:
       case KycStepName.BENEFICIAL_OWNER:
       case KycStepName.OPERATIONAL_ACTIVITY:
@@ -1051,6 +1063,15 @@ export class KycService {
       });
   }
 
+  async completeAuthority(userData: UserData): Promise<void> {
+    const signatoryPower = userData
+      .getStepsWith(KycStepName.SIGNATORY_POWER)
+      .find((k) => k.status === ReviewStatus.INTERNAL_REVIEW);
+    if (!signatoryPower) throw new BadRequestException('SignatoryPower step missing');
+
+    await this.kycStepRepo.update(...signatoryPower.complete());
+  }
+
   async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {
     const data = kycStep.resultData;
     const userData = kycStep.userData;
@@ -1095,7 +1116,9 @@ export class KycService {
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
           bankTransactionVerification:
-            identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
+            identificationType === KycIdentificationType.VIDEO_ID || kycStep.type === KycStepType.MANUAL
+              ? CheckStatus.UNNECESSARY
+              : undefined,
           identDocumentType: data.documentType,
           identDocumentId: kycStep.identDocumentId,
           olkypayAllowed: userData.olkypayAllowed ?? true,

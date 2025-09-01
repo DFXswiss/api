@@ -44,6 +44,7 @@ export class AlchemyNetworkMapper {
   static get availableNetworks(): Blockchain[] {
     const networks = [
       Blockchain.ETHEREUM,
+      Blockchain.SEPOLIA,
       Blockchain.ARBITRUM,
       Blockchain.OPTIMISM,
       Blockchain.POLYGON,

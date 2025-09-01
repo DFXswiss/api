@@ -88,3 +88,9 @@ export enum StickerQrMode {
   CUSTOMER = 'Customer',
   POS = 'Pos',
 }
+
+export enum PaymentMerchantStatus {
+  CREATED = 'Created',
+  PENDING = 'Pending',
+  PROCESSED = 'Processed',
+}

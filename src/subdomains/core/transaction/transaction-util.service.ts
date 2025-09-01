@@ -90,7 +90,7 @@ export class TransactionUtilService {
   }
 
   async validateChargebackIban(iban: string, validateIbanCountry: boolean): Promise<boolean> {
-    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban, validateIbanCountry);
+    const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(iban, validateIbanCountry);
     const blockedAccounts = await this.specialExternalAccountService.getBlacklist();
     const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
 
@@ -132,7 +132,7 @@ export class TransactionUtilService {
 
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
 
-    if (dto.permit.executorAddress.toLowerCase() !== client.dfxAddress.toLowerCase())
+    if (dto.permit.executorAddress.toLowerCase() !== client.walletAddress.toLowerCase())
       throw new BadRequestException('Invalid executor address');
 
     const contractValid = await client.isPermitContract(dto.permit.signatureTransferContract);

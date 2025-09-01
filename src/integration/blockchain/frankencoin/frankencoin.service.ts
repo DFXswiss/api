@@ -15,15 +15,12 @@ import { FrankencoinBasedService } from '../shared/frankencoin/frankencoin-based
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
 import {
   FrankencoinChallengeGraphDto,
-  FrankencoinDelegationGraphDto,
   FrankencoinInfoDto,
   FrankencoinLogDto,
-  FrankencoinMinterGraphDto,
   FrankencoinPoolSharesDto,
   FrankencoinPositionDto,
   FrankencoinPositionGraphDto,
   FrankencoinSwapDto,
-  FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
 import { FrankencoinClient } from './frankencoin-client';
 
@@ -151,7 +148,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
       Config.blockchain.frankencoin.contractAddress.zchf,
     );
 
-    const fps = await this.frankencoinClient.getFPS(Config.blockchain.frankencoin.contractAddress.zchf);
+    const fps = await this.frankencoinClient.getFPS();
 
     try {
       const totalSupply = await equityContract.totalSupply();
@@ -167,12 +164,12 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
         equityCapital: EvmUtil.fromWeiAmount(frankenEquity),
         minterReserve: EvmUtil.fromWeiAmount(frankenMinterReserve),
         totalIncome: EvmUtil.fromWeiAmount(fps.profits),
-        totalLosses: EvmUtil.fromWeiAmount(fps.loss),
+        totalLosses: EvmUtil.fromWeiAmount(fps.losses),
       };
 
       return fpsResult;
     } catch (e) {
-      this.logger.error(`Error while getting pool shares ${fps.id}`, e);
+      this.logger.error(`Error while getting pool shares`, e);
     }
   }
 
@@ -206,18 +203,6 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
     const price = await equityContract.price();
 
     return EvmUtil.fromWeiAmount(price);
-  }
-
-  async getMinters(): Promise<FrankencoinMinterGraphDto[]> {
-    return this.frankencoinClient.getMinters();
-  }
-
-  async getDelegation(owner: string): Promise<FrankencoinDelegationGraphDto> {
-    return this.frankencoinClient.getDelegation(owner);
-  }
-
-  async getTrades(): Promise<FrankencoinTradeGraphDto[]> {
-    return this.frankencoinClient.getTrades();
   }
 
   async getTvl(): Promise<number> {

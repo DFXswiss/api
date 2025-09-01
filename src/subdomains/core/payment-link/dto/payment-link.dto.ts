@@ -117,6 +117,9 @@ export class PaymentLinkPaymentDto {
 
   @ApiProperty()
   lnurl: string;
+
+  @ApiProperty()
+  frontendUrl: string;
 }
 
 export class PaymentLinkBaseDto {
@@ -143,6 +146,9 @@ export class PaymentLinkBaseDto {
 
   @ApiProperty()
   lnurl: string;
+
+  @ApiProperty()
+  frontendUrl: string;
 
   @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
   recipient?: PaymentLinkRecipientDto;

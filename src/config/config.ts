@@ -19,6 +19,7 @@ import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -416,9 +417,12 @@ export class Configuration {
           filter: (file: KycFileBlob, userData: UserData) =>
             userData.kycSteps.some(
               (s) =>
-                [KycStepName.LEGAL_ENTITY, KycStepName.COMMERCIAL_REGISTER].includes(s.name) &&
                 s.isCompleted &&
-                s.result === file.url,
+                ((s.name === KycStepName.COMMERCIAL_REGISTER && s.result === file.url) ||
+                  (s.name === KycStepName.LEGAL_ENTITY &&
+                    s.getResult<{ url: string; legalEntity: LegalEntity }>().url === file.url) ||
+                  (s.name === KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION &&
+                    s.getResult<{ url: string }>().url === file.url)),
             ),
         },
       ],
@@ -564,6 +568,7 @@ export class Configuration {
     minConfirmations: (blockchain: Blockchain) =>
       [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
+    maxDepositBalance: 10000, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
@@ -582,6 +587,8 @@ export class Configuration {
     binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
     binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
 
+    kucoinPayMerchantId: process.env.KUCOIN_PAY_MERCHANT_ID,
+    kucoinPayBaseUrl: process.env.KUCOIN_PAY_BASE_URL,
     kucoinPayApiKey: process.env.KUCOIN_API_KEY,
     kucoinPaySigningKey: process.env.DFX_KUCOINPAY_PRIVATE_KEY?.split('<br>').join('\n'),
     kucoinPayPublicKey: process.env.KUCOIN_PUBLIC_KEY?.split('<br>').join('\n'),
@@ -661,6 +668,15 @@ export class Configuration {
       ethChainId: +process.env.ETH_CHAIN_ID,
       swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.ETH_QUOTE_CONTRACT_ADDRESS,
+    },
+    sepolia: {
+      sepoliaWalletAddress: process.env.SEPOLIA_WALLET_ADDRESS,
+      sepoliaWalletPrivateKey: process.env.SEPOLIA_WALLET_PRIVATE_KEY,
+      sepoliaGatewayUrl: process.env.SEPOLIA_GATEWAY_URL,
+      sepoliaApiKey: process.env.ALCHEMY_API_KEY,
+      sepoliaChainId: +process.env.SEPOLIA_CHAIN_ID,
+      swapContractAddress: process.env.SEPOLIA_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.SEPOLIA_QUOTE_CONTRACT_ADDRESS,
     },
     optimism: {
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
@@ -1000,6 +1016,7 @@ export class Configuration {
       secret: process.env.MEXC_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
       ...this.exchange,
+      timeout: 30_000,
     };
   }
 

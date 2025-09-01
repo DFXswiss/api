@@ -15,6 +15,7 @@ import { PayoutBitcoinService } from './services/payout-bitcoin.service';
 import { PayoutBscService } from './services/payout-bsc.service';
 import { PayoutCitreaTestnetService } from './services/payout-citrea-testnet.service';
 import { PayoutEthereumService } from './services/payout-ethereum.service';
+import { PayoutSepoliaService } from './services/payout-sepolia.service';
 import { PayoutGnosisService } from './services/payout-gnosis.service';
 import { PayoutLightningService } from './services/payout-lightning.service';
 import { PayoutLogService } from './services/payout-log.service';
@@ -37,6 +38,8 @@ import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyPO } from './stra
 import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyPO } from './strategies/payout/impl/citrea-testnet-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyPO } from './strategies/payout/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPO } from './strategies/payout/impl/ethereum-token.strategy';
+import { SepoliaCoinStrategy as SepoliaCoinStrategyPO } from './strategies/payout/impl/sepolia-coin.strategy';
+import { SepoliaTokenStrategy as SepoliaTokenStrategyPO } from './strategies/payout/impl/sepolia-token.strategy';
 import { GnosisCoinStrategy as GnosisCoinStrategyPO } from './strategies/payout/impl/gnosis-coin.strategy';
 import { GnosisTokenStrategy as GnosisTokenStrategyPO } from './strategies/payout/impl/gnosis-token.strategy';
 import { LightningStrategy as LightningStrategyPO } from './strategies/payout/impl/lightning.strategy';
@@ -57,6 +60,7 @@ import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/
 import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.strategy';
 import { CitreaTestnetStrategy as CitreaTestnetStrategyPR } from './strategies/prepare/impl/citrea-testnet.strategy';
 import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/impl/ethereum.strategy';
+import { SepoliaStrategy as SepoliaStrategyPR } from './strategies/prepare/impl/sepolia.strategy';
 import { GnosisStrategy as GnosisStrategyPR } from './strategies/prepare/impl/gnosis.strategy';
 import { LightningStrategy as LightningStrategyPR } from './strategies/prepare/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyPR } from './strategies/prepare/impl/monero.strategy';
@@ -91,6 +95,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutBaseService,
     PayoutGnosisService,
     PayoutEthereumService,
+    PayoutSepoliaService,
     PayoutBscService,
     PayoutSolanaService,
     PayoutTronService,
@@ -108,6 +113,9 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     EthereumStrategyPR,
     EthereumCoinStrategyPO,
     EthereumTokenStrategyPO,
+    SepoliaStrategyPR,
+    SepoliaCoinStrategyPO,
+    SepoliaTokenStrategyPO,
     BscStrategyPR,
     BscCoinStrategyPO,
     BscTokenStrategyPO,
