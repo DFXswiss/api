@@ -205,7 +205,7 @@ export class LogJobService {
     const liqAddresses = new Map(
       Object.values(Blockchain).map((blockchain) => {
         try {
-          const liqAddress = this.blockchainRegistryService.getClient(blockchain)?.getWalletAddress();
+          const liqAddress = this.blockchainRegistryService.getClient(blockchain)?.walletAddress;
 
           return [blockchain, liqAddress];
         } catch (e) {

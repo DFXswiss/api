@@ -8,7 +8,7 @@ import { SignedTransactionResponse } from '../dto/signed-transaction-reponse.dto
 export type BlockchainCurrency = Currency | SolanaToken | TronToken;
 
 export abstract class BlockchainClient {
-  abstract getWalletAddress(): string;
+  abstract get walletAddress(): string;
   abstract getNativeCoinBalance(): Promise<number>;
   abstract getNativeCoinBalanceForAddress(address: string): Promise<number>;
   abstract getTokenBalance(asset: Asset, address?: string): Promise<number>;

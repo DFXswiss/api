@@ -28,7 +28,7 @@ export class ZanoClient extends BlockchainClient {
 
   // --- ZANO DAEMON --- //
 
-  public getWalletAddress(): string {
+  get walletAddress(): string {
     return Config.blockchain.zano.wallet.address;
   }
 

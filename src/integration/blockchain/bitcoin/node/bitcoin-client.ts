@@ -29,7 +29,7 @@ type AddressInfoInnerArray = AddressInfoArray[];
 type AddressInfoArray = [string, number, string];
 
 export class BitcoinClient extends NodeClient {
-  public getWalletAddress(): string {
+  get walletAddress(): string {
     return Config.blockchain.default.btcOutput.address;
   }
 
