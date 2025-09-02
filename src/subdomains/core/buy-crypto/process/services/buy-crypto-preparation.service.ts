@@ -331,7 +331,11 @@ export class BuyCryptoPreparationService {
         if (!bankTx) continue;
 
         await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN }, entity.user);
-        await this.buyCryptoRepo.update(entity.id, { chargebackBankTx: bankTx, isComplete: true });
+        await this.buyCryptoRepo.update(entity.id, {
+          chargebackBankTx: bankTx,
+          isComplete: true,
+          status: BuyCryptoStatus.COMPLETE,
+        });
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);
       }
