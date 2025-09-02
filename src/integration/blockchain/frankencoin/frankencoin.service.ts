@@ -183,7 +183,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
   }
 
   getWalletAddress(): string {
-    return this.frankencoinClient.getWalletAddress();
+    return this.frankencoinClient.walletAddress;
   }
 
   getEquityContract(): Contract {
