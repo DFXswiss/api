@@ -440,7 +440,7 @@ export class KycService {
       const nationality = await this.countryService.getCountry(data.nationality.id);
       if (!nationality) throw new BadRequestException('Nationality not found');
 
-      data.nationality = Object.assign({ id: nationality.id, symbol: nationality.symbol }, data.nationality);
+      data.nationality = Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
     } else {
       user = await this.userDataService.updateUserDataInternal(user, data);
     }
