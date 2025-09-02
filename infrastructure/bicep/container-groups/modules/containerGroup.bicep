@@ -77,7 +77,7 @@ resource containerGroup 'Microsoft.ContainerInstance/containerGroups@2023-05-01'
       }
     ]
     osType: 'Linux'
-    restartPolicy: 'Never'
+    restartPolicy: 'Always'
     volumes: [
       for mount in volumeMounts: {
         name: mount.name
