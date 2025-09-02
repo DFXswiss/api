@@ -4,6 +4,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -417,7 +418,8 @@ export class BuyFiat extends IEntity {
     if (
       ((update.amlCheck && update.amlCheck !== this.amlCheck) ||
         (update.amlReason && update.amlReason !== this.amlReason)) &&
-      [CheckStatus.FAIL, CheckStatus.PENDING].includes(update.amlCheck)
+      [CheckStatus.FAIL, CheckStatus.PENDING].includes(update.amlCheck) &&
+      !DisabledProcess(Process.AML_RECHECK_MAIL_RESET)
     )
       update.mail2SendDate = null;
 

@@ -3,6 +3,7 @@ import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
@@ -528,7 +529,8 @@ export class BuyCrypto extends IEntity {
     if (
       ((update.amlCheck && update.amlCheck !== this.amlCheck) ||
         (update.amlReason && update.amlReason !== this.amlReason)) &&
-      [CheckStatus.FAIL, CheckStatus.PENDING].includes(update.amlCheck)
+      [CheckStatus.FAIL, CheckStatus.PENDING].includes(update.amlCheck) &&
+      !DisabledProcess(Process.AML_RECHECK_MAIL_RESET)
     )
       update.mailSendDate = null;
 

@@ -78,6 +78,7 @@ export enum Process {
   SAFETY_MODULE = 'SafetyModule',
   SYNC_FILE_SUB_TYPE = 'SyncFileSubType',
   BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
+  AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
 }
 
 const safetyProcesses: Process[] = [
