@@ -76,7 +76,6 @@ export enum Process {
   USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
   SAFETY_MODULE = 'SafetyModule',
-  SYNC_FILE_SUB_TYPE = 'SyncFileSubType',
   BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
 }
 
