@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsInt, IsNotEmpty, IsString, ValidateIf } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetCategory, AssetType } from '../asset.entity';
 
@@ -71,6 +72,26 @@ export class AssetDto {
 
   @ApiPropertyOptional()
   sortOrder: number;
+}
+
+export class AssetInDto {
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: AssetInDto) => Boolean(a.id || !(a.chainId || a.blockchain)))
+  @IsInt()
+  id?: number;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: AssetInDto) => Boolean(a.chainId || !a.id))
+  @IsString()
+  chainId?: string;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: AssetInDto) => Boolean(a.blockchain || !a.id))
+  @IsEnum(Blockchain)
+  blockchain?: Blockchain;
 }
 
 export class AssetLimitsDto {
