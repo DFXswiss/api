@@ -304,16 +304,14 @@ export class BankTx extends IEntity {
 
   getSenderAccount(multiAccounts: SpecialExternalAccount[]): string | undefined {
     if (this.iban) {
-      if (
-        multiAccounts.some(
-          (m) =>
-            (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_IBAN && m.value === this.iban) ||
-            (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME &&
-              (this.name?.includes(m.value) || this.ultimateName?.includes(m.value))),
-        )
-      )
-        return `${this.iban};${this.completeName().replace(/ /g, '')}`;
+      const multiAccount = multiAccounts.find(
+        (m) =>
+          (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_IBAN && m.value === this.iban) ||
+          (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME &&
+            (this.name?.includes(m.value) || this.ultimateName?.includes(m.value))),
+      );
 
+      if (multiAccount) return `${this.iban};${this.completeName(multiAccount.name).replace(/ /g, '')}`;
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban};${this.completeName().replace(/ /g, '')}`;
       return this.iban;
     }
