@@ -21,6 +21,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
@@ -119,10 +120,10 @@ export class BankTxService {
     );
     const allTransactions = olkyTransactions.concat(revolutTransactions);
 
-    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
+    const multiAccounts = await this.specialAccountService.getMultiAccounts();
     for (const transaction of allTransactions) {
       try {
-        await this.create(transaction, multiAccountIbans);
+        await this.create(transaction, multiAccounts);
       } catch (e) {
         if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
       }
@@ -211,12 +212,12 @@ export class BankTxService {
     }
   }
 
-  async create(bankTx: Partial<BankTx>, multiAccountIbans: string[]): Promise<Partial<BankTx>> {
+  async create(bankTx: Partial<BankTx>, multiAccounts: SpecialExternalAccount[]): Promise<Partial<BankTx>> {
     let entity = await this.bankTxRepo.findOneBy({ accountServiceRef: bankTx.accountServiceRef });
     if (entity)
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
-    entity = this.createTx(bankTx, multiAccountIbans);
+    entity = this.createTx(bankTx, multiAccounts);
 
     entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
@@ -355,13 +356,13 @@ export class BankTxService {
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
     const sepaFile = this.sepaParser.parseSepaFile(xmlFile);
 
-    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
+    const multiAccounts = await this.specialAccountService.getMultiAccounts();
 
     // parse the file
     let batch = this.bankTxBatchRepo.create(this.sepaParser.parseBatch(sepaFile));
     const txList = await this.sepaParser
       .parseEntries(sepaFile, batch.iban)
-      .then((l) => l.map((e) => this.createTx(e, multiAccountIbans)));
+      .then((l) => l.map((e) => this.createTx(e, multiAccounts)));
 
     // find duplicate entries
     const duplicates = await this.bankTxRepo
@@ -429,9 +430,9 @@ export class BankTxService {
     });
   }
 
-  private createTx(entity: DeepPartial<BankTx>, multiAccountIbans: string[]): BankTx {
+  private createTx(entity: DeepPartial<BankTx>, multiAccounts: SpecialExternalAccount[]): BankTx {
     const tx = this.bankTxRepo.create(entity);
-    tx.senderAccount = tx.getSenderAccount(multiAccountIbans);
+    tx.senderAccount = tx.getSenderAccount(multiAccounts);
     return tx;
   }
 
