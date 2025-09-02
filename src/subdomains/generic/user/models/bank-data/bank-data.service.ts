@@ -96,7 +96,7 @@ export class BankDataService {
 
       const pendingMergeRequests = existing
         ? await this.accountMergeService.hasPendingMergeRequest(entity.userData.id, existing.userData.id)
-        : undefined;
+        : false;
 
       const errors = this.getBankDataVerificationErrors(entity, existing, pendingMergeRequests);
 
