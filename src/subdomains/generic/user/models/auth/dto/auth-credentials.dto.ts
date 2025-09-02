@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 import { GetConfig } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { Moderator } from '../../user-data/user-data.entity';
+import { Moderator } from '../../user-data/user-data.enum';
 
 export class SignInDto {
   @ApiProperty()

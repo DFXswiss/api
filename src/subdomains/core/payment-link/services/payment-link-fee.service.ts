@@ -1,11 +1,12 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
-import { Blockchain, PaymentLinkBlockchain } from '../../../../integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from '../../../../integration/blockchain/shared/services/blockchain-registry.service';
 
 interface FeeCacheData {
@@ -35,7 +36,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.UPDATE_BLOCKCHAIN_FEE })
   async updateFees(): Promise<void> {
-    for (const blockchain of Object.values(PaymentLinkBlockchain)) {
+    for (const blockchain of PaymentLinkBlockchains) {
       try {
         const fee = await this.calculateFee(blockchain);
         this.feeCache.set(blockchain, {

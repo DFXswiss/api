@@ -9,7 +9,7 @@ import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
-import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
 import { ZanoHelper } from 'src/integration/blockchain/zano/zano-helper';
@@ -79,7 +79,7 @@ export class DepositService {
   async createDeposits({ blockchain, count }: CreateDepositDto): Promise<void> {
     if ([Blockchain.BITCOIN].includes(blockchain)) {
       return this.createBitcoinDeposits(blockchain, count);
-    } else if (CryptoService.EthereumBasedChains.includes(blockchain)) {
+    } else if (EvmBlockchains.includes(blockchain)) {
       return this.createEvmDeposits(blockchain, count);
     } else if (blockchain === Blockchain.LIGHTNING) {
       return this.createLightningDeposits(blockchain, count);
@@ -111,7 +111,7 @@ export class DepositService {
   private async createEvmDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const addresses: string[] = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
 
-    const nextDepositIndex = await this.getNextDepositIndex(CryptoService.EthereumBasedChains);
+    const nextDepositIndex = await this.getNextDepositIndex(EvmBlockchains);
 
     const applicableChains = AlchemyNetworkMapper.availableNetworks.includes(blockchain)
       ? AlchemyNetworkMapper.availableNetworks
@@ -127,15 +127,15 @@ export class DepositService {
       addresses.push(deposit.address);
     }
 
-    addresses.push(this.createPaymentAddress(0));
+    addresses.push(this.createPaymentAddress());
 
     for (const chain of applicableChains) {
       await this.alchemyWebhookService.createAddressWebhook({ blockchain: chain, addresses: addresses });
     }
   }
 
-  private createPaymentAddress(accountIndex: number): string {
-    return EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: accountIndex }).address;
+  private createPaymentAddress(): string {
+    return EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
   }
 
   private async createLightningDeposits(blockchain: Blockchain, count: number): Promise<void> {

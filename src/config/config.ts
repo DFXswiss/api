@@ -18,7 +18,8 @@ import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enu
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
-import { LegalEntity, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -567,6 +568,7 @@ export class Configuration {
     minConfirmations: (blockchain: Blockchain) =>
       [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
+    maxDepositBalance: 10000, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
@@ -585,6 +587,7 @@ export class Configuration {
     binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
     binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
 
+    kucoinPayMerchantId: process.env.KUCOIN_PAY_MERCHANT_ID,
     kucoinPayBaseUrl: process.env.KUCOIN_PAY_BASE_URL,
     kucoinPayApiKey: process.env.KUCOIN_API_KEY,
     kucoinPaySigningKey: process.env.DFX_KUCOINPAY_PRIVATE_KEY?.split('<br>').join('\n'),

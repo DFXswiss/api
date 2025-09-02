@@ -1031,6 +1031,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.KYC_DATA_NEEDED]: DeclineCategory.OTHER,
   [AmlReason.BANK_TX_NEEDED]: DeclineCategory.OTHER,
   [AmlReason.MERGE_PENDING]: DeclineCategory.OTHER,
+  [AmlReason.MANUAL_CHECK_PHONE]: DeclineCategory.RISKY,
 };
 
 export interface ScoreRsponse {

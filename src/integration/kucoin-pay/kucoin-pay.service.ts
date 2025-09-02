@@ -14,6 +14,7 @@ import {
   C2BPaymentLinkProvider,
   C2BWebhookResult,
 } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
+import { LightningHelper } from '../lightning/lightning-helper';
 import {
   KucoinOrderNotificationStatus,
   KucoinOrderType,
@@ -61,6 +62,8 @@ export class KucoinPayService
     const timestamp = Date.now();
     const subMerchantId =
       payment.link.linkConfigObj.kucoinPaySubMerchantId ?? payment.link.configObj.kucoinPaySubMerchantId;
+    const lnurlp = LightningHelper.createEncodedLnurlp(payment.uniqueId);
+
     const orderDetails = {
       requestId: quote.uniqueId,
       expireTime: quote.expiryDate.getTime() - timestamp,
@@ -73,8 +76,8 @@ export class KucoinPayService
       ],
       orderAmount: transferInfo.amount,
       orderCurrency: transferInfo.asset,
-      returnUrl: 'https://www.kucoinpay.com/order/succ',
-      cancelUrl: 'https://www.kucoinpay.com/order/failed',
+      returnUrl: `${Config.frontend.services}/pl/result?status=Completed&lightning=${lnurlp}`,
+      cancelUrl: `${Config.frontend.services}/pl/result?status=Cancelled&lightning=${lnurlp}`,
       subMerchantId,
       timestamp,
     };

@@ -54,6 +54,7 @@ export enum AmlError {
   LIQUIDITY_LIMIT_EXCEEDED = 'LiquidityLimitExceeded',
   IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
   MERGE_PENDING = 'MergePending',
+  PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
 }
 
 export const DelayResultError = [
@@ -62,6 +63,12 @@ export const DelayResultError = [
   AmlError.NO_LETTER,
   AmlError.BANK_DATA_MISSING,
   AmlError.INPUT_NOT_CONFIRMED,
+];
+
+export const RecheckAmlReasons = [
+  AmlReason.MANUAL_CHECK_PHONE,
+  AmlReason.MANUAL_CHECK_BANK_DATA,
+  AmlReason.VIDEO_IDENT_NEEDED,
 ];
 
 export enum AmlErrorType {
@@ -244,5 +251,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MERGE_PENDING,
+  },
+  [AmlError.PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
   },
 };

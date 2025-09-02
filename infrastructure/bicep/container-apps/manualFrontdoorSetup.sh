@@ -7,11 +7,12 @@ set -e
 # --- OPTIONS --- #
 environmentOptions=("loc" "dev" "prd")
 
-# "fcp":   Frankencoin Ponder
-# "dep":   dEuro Ponder
-# "dea":   dEuro API
-# "ded":   dEuro dApp
-appNameOptions=("fcp" "dep" "dea" "ded")
+# "fcp": Frankencoin Ponder
+# "dep": dEuro Ponder
+# "dea": dEuro API
+# "ded": dEuro dApp
+# "dem": dEuro Monitoring
+appNameOptions=("fcp" "dep" "dea" "ded" "dem")
 
 # --- FUNCTIONS --- #
 selectOption() {

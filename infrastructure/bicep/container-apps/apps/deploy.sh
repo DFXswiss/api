@@ -12,9 +12,10 @@ environmentOptions=("loc" "dev" "prd")
 # "dep": dEuro Ponder
 # "dea": dEuro API
 # "ded": dEuro dApp
+# "dem": dEuro Monitoring
 # "zanod": Zano Node
-# "zanolw" Zano Liquidity Wallet
-appNameOptions=("fcp" "dep" "dea" "ded" "zanod" "zanolw")
+# "zanolw": Zano Liquidity Wallet
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw")
 
 # --- FUNCTIONS --- #
 selectOption() {

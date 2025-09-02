@@ -1,10 +1,7 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
-import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
 import { LnBitsWalletPaymentParamsDto } from 'src/integration/lightning/dto/lnbits.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -21,39 +18,25 @@ import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
 import { PaymentActivationStatus, PaymentLinkPaymentMode, PaymentStandard } from '../enums';
 import { PaymentActivationRepository } from '../repositories/payment-activation.repository';
+import { PaymentBalanceService } from './payment-balance.service';
 import { PaymentQuoteService } from './payment-quote.service';
 
 @Injectable()
-export class PaymentActivationService implements OnModuleInit {
+export class PaymentActivationService {
   private readonly logger = new DfxLogger(PaymentActivationService);
 
   private readonly client: LightningClient;
-
-  private evmDepositAddress: string;
-  private moneroDepositAddress: string;
-  private bitcoinDepositAddress: string;
-  private zanoDepositAddress: string;
-  private solanaDepositAddress: string;
-  private tronDepositAddress: string;
 
   constructor(
     readonly lightningService: LightningService,
     private readonly paymentActivationRepo: PaymentActivationRepository,
     private readonly paymentQuoteService: PaymentQuoteService,
+    private readonly paymentBalanceService: PaymentBalanceService,
     private readonly assetService: AssetService,
     private readonly cryptoService: CryptoService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {
     this.client = lightningService.getDefaultClient();
-  }
-
-  onModuleInit() {
-    this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
-    this.moneroDepositAddress = Config.payment.moneroAddress;
-    this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
-    this.zanoDepositAddress = Config.payment.zanoAddress;
-    this.solanaDepositAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
-    this.tronDepositAddress = TronUtil.createWallet({ seed: Config.payment.tronSeed, index: 0 }).address;
   }
 
   async close(activation: PaymentActivation): Promise<void> {
@@ -191,8 +174,6 @@ export class PaymentActivationService implements OnModuleInit {
         return this.createLightningRequest(payment, transferInfo, expirySec);
 
       case Blockchain.BITCOIN:
-        return this.createPaymentRequest(this.bitcoinDepositAddress, transferInfo, 'DFX Payment');
-
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
@@ -200,27 +181,22 @@ export class PaymentActivationService implements OnModuleInit {
       case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
       case Blockchain.BINANCE_SMART_CHAIN:
-        return this.createPaymentRequest(this.evmDepositAddress, transferInfo);
-
       case Blockchain.MONERO:
-        return this.createPaymentRequest(this.moneroDepositAddress, transferInfo);
-
       case Blockchain.ZANO:
-        return this.createPaymentRequest(this.zanoDepositAddress, transferInfo);
-
       case Blockchain.SOLANA:
-        return this.createPaymentRequest(this.solanaDepositAddress, transferInfo);
+      case Blockchain.TRON: {
+        const address = this.paymentBalanceService.getDepositAddress(transferInfo.method);
+        if (address) return this.createPaymentRequest(address, transferInfo, 'DFX Payment');
 
-      case Blockchain.TRON:
-        return this.createPaymentRequest(this.tronDepositAddress, transferInfo);
+        break;
+      }
 
       case Blockchain.KUCOIN_PAY:
       case Blockchain.BINANCE_PAY:
         return this.createC2BPaymentRequest(payment, transferInfo, quote);
-
-      default:
-        throw new BadRequestException(`Invalid method ${transferInfo.method}`);
     }
+
+    throw new BadRequestException(`Invalid method ${transferInfo.method}`);
   }
 
   private async createLightningRequest(

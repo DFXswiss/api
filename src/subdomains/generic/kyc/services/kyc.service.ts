@@ -31,7 +31,8 @@ import { UserDataRelationState } from '../../user/models/user-data-relation/dto/
 import { UserDataRelationService } from '../../user/models/user-data-relation/user-data-relation.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
-import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -587,7 +588,11 @@ export class KycService {
         goodsCategory: data.goodsCategory,
       };
 
-      await this.userDataService.updatePaymentLinksConfig(user, { recipient });
+      await this.userDataService.updatePaymentLinksConfig(user, {
+        recipient,
+        accessKeys: user.paymentLinksConfigObj.accessKeys ?? [Util.secureRandomString()],
+      });
+
       await this.userDataService.updateUserDataInternal(user, {
         paymentLinksAllowed: true,
         paymentLinksName: data.name,
@@ -1064,7 +1069,7 @@ export class KycService {
       .find((k) => k.status === ReviewStatus.INTERNAL_REVIEW);
     if (!signatoryPower) throw new BadRequestException('SignatoryPower step missing');
 
-    await this.kycStepRepo.update(signatoryPower.id, { status: ReviewStatus.COMPLETED });
+    await this.kycStepRepo.update(...signatoryPower.complete());
   }
 
   async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {

@@ -149,6 +149,8 @@ export class PaymentLinkPaymentService {
   }
 
   async getMostRecentPayments(linkIds: number[]): Promise<PaymentLinkPayment[]> {
+    if (!linkIds.length) return [];
+
     return this.paymentLinkPaymentRepo
       .createQueryBuilder('plp')
       .innerJoin(

@@ -33,6 +33,7 @@ export enum AmlReason {
   KYC_DATA_NEEDED = 'KycDataNeeded',
   BANK_TX_NEEDED = 'BankTxNeeded',
   MERGE_PENDING = 'MergePending',
+  MANUAL_CHECK_PHONE = 'ManualCheckPhone',
 }
 
 export const KycAmlReasons = [

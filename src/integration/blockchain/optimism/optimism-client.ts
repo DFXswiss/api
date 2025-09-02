@@ -147,7 +147,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
     const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
-      from: this.dfxAddress,
+      from: this.walletAddress,
       to: this.randomReceiverAddress,
       value: 1,
       type: 2,
@@ -158,7 +158,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
     const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
-      from: this.dfxAddress,
+      from: this.walletAddress,
       to: token.chainId,
       data: this.dummyTokenPayload,
       type: 2,
