@@ -17,7 +17,7 @@ import {
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { AmlError, AmlErrorResult, AmlErrorType, DelayResultError } from '../enums/aml-error.enum';
+import { AmlError, AmlErrorResult, AmlErrorType, DelayResultError, RecheckAmlReasons } from '../enums/aml-error.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
 import { AmlRule, SpecialIpCountries } from '../enums/aml-rule.enum';
 import { CheckStatus } from '../enums/check-status.enum';
@@ -501,8 +501,7 @@ export class AmlHelperService {
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
       if (Util.daysDiff(entity.created) > 14) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
-      if (entity.amlReason !== AmlReason.MANUAL_CHECK_BANK_DATA || comment.includes(AmlError.BANK_DATA_MANUAL_REVIEW))
-        return {};
+      if (!RecheckAmlReasons.includes(entity.amlReason) || comment === entity.comment) return {};
     }
 
     // Delay amlCheck for some specific errors
