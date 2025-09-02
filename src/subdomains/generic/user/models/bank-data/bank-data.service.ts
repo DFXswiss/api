@@ -115,7 +115,14 @@ export class BankDataService {
         }
 
         await this.bankDataRepo.update(...entity.allow());
-      } else if (errors.includes(BankDataVerificationError.VERIFIED_NAME_NOT_MATCHING)) {
+      } else if (
+        errors.some((e) =>
+          [
+            BankDataVerificationError.ALREADY_ACTIVE_EXISTS,
+            BankDataVerificationError.VERIFIED_NAME_NOT_MATCHING,
+          ].includes(e),
+        )
+      ) {
         await this.bankDataRepo.update(...entity.manualReview(errors.join(';')));
       } else if (errors.includes(BankDataVerificationError.MERGE_PENDING) && Util.daysDiff(entity.created) > 14) {
         await this.bankDataRepo.update(...entity.internalReview(errors.join(';')));
