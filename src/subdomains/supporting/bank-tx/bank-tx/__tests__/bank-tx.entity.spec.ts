@@ -1,7 +1,8 @@
+import { createDefaultSpecialExternalAccount } from 'src/subdomains/supporting/payment/__mocks__/special-external-account.entity.mock';
 import { BankTx } from '../entities/bank-tx.entity';
 
 describe('BankTx', () => {
-  const multiAccountIban = 'MULTI-ACCOUNT-IBAN';
+  const multiAccountIban = createDefaultSpecialExternalAccount();
 
   describe('#senderAccount(...)', () => {
     it('should return the IBAN', () => {
