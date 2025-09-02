@@ -3,11 +3,8 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { BlockchainClient } from 'src/integration/blockchain/shared/util/blockchain-client';
-import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
-import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
@@ -26,6 +23,7 @@ import {
   LiquidityManagementExchanges,
 } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
+import { PaymentBalanceService } from 'src/subdomains/core/payment-link/services/payment-balance.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -81,6 +79,7 @@ export class LogJobService {
     private readonly tradingOrderService: TradingOrderService,
     private readonly payoutService: PayoutService,
     private readonly processService: ProcessService,
+    private readonly paymentBalanceService: PaymentBalanceService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
@@ -203,6 +202,18 @@ export class LogJobService {
     const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
     const customAssetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
 
+    const liqAddresses = new Map(
+      Object.values(Blockchain).map((blockchain) => {
+        try {
+          const liqAddress = this.blockchainRegistryService.getClient(blockchain)?.walletAddress;
+
+          return [blockchain, liqAddress];
+        } catch (e) {
+          return [blockchain, undefined];
+        }
+      }),
+    );
+
     const customBalances = await Promise.all(
       Array.from(customAssetMap.entries()).map(async ([e, a]) => {
         const client = this.blockchainRegistryService.getClient(e);
@@ -215,45 +226,7 @@ export class LogJobService {
     );
 
     // payment deposit address balance (Monero/Lightning have no separated balance)
-    const paymentAssets = assets.filter(
-      (a) =>
-        a.paymentEnabled &&
-        ![
-          Blockchain.LIGHTNING,
-          Blockchain.MONERO,
-          Blockchain.ZANO,
-          Blockchain.BINANCE_PAY,
-          Blockchain.KUCOIN_PAY,
-        ].includes(a.blockchain),
-    );
-    const paymentAssetMap = Util.groupBy<Asset, Blockchain>(paymentAssets, 'blockchain');
-
-    const paymentDepositBalances = await Promise.all(
-      Array.from(paymentAssetMap.entries()).map(async ([e, a]) => {
-        const client = this.blockchainRegistryService.getClient(e);
-
-        const targetAddress = this.getPaymentDepositAddress(e);
-        const coin = a.find((asset) => asset.type === AssetType.COIN);
-        const balances: BlockchainTokenBalance[] = [
-          {
-            owner: targetAddress,
-            contractAddress: `${coin.id}`,
-            balance: await client.getNativeCoinBalanceForAddress(targetAddress),
-          },
-        ];
-
-        if (![Blockchain.MONERO, Blockchain.BITCOIN, Blockchain.ZANO].includes(e))
-          balances.push(
-            ...(await this.getCustomBalances(
-              client,
-              a.filter((asset) => asset.type !== AssetType.COIN),
-              [targetAddress],
-            ).then((b) => b.flat())),
-          );
-
-        return { blockchain: e, balances };
-      }),
-    );
+    const paymentDepositBalances = await this.paymentBalanceService.getPaymentBalances(assets);
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
@@ -381,19 +354,15 @@ export class LogJobService {
     return assets.reduce((prev, curr) => {
       if ((curr.balance?.amount == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
 
+      const liqAddress = liqAddresses?.get(curr.blockchain);
+
       const customAddressBalances = customBalances
         .find((c) => c.blockchain === curr.blockchain)
         ?.balances.filter((b) => b.contractAddress === curr.chainId);
 
       const totalCustomBalance = customAddressBalances && Util.sumObjValue(customAddressBalances, 'balance');
 
-      const paymentDepositBalance = paymentDepositBalances
-        .find((c) => c.blockchain === curr.blockchain)
-        ?.balances?.reduce(
-          (sum, result) =>
-            sum + (result.contractAddress === curr.chainId || `${curr.id}` === curr.chainId ? result.balance : 0),
-          0,
-        );
+      const paymentDepositBalance = paymentDepositBalances.get(curr.id)?.balance;
 
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
@@ -611,9 +580,14 @@ export class LogJobService {
           liquidity: liquidity
             ? {
                 total: this.getJsonValue(liquidity, amountType(curr), true, true),
-                liquidityBalance: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
-                paymentDepositBalance: this.getJsonValue(paymentDepositBalance, amountType(curr)),
-                manualLiqPosition: this.getJsonValue(manualLiqPosition, amountType(curr), false, true),
+                liquidityBalance: curr.balance?.amount
+                  ? {
+                      total: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
+                      [liqAddress]: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
+                    }
+                  : undefined,
+                paymentDepositBalance: { total: this.getJsonValue(paymentDepositBalance, amountType(curr)) },
+                manualLiqPosition: { total: this.getJsonValue(manualLiqPosition, amountType(curr), false, true) },
               }
             : undefined,
           custom: totalCustomBalance
@@ -946,36 +920,5 @@ export class LogJobService {
 
   private financialTypeAmountType(financialType: string): AmountType {
     return ['EUR', 'USD', 'CHF'].includes(financialType) ? AmountType.FIAT : AmountType.ASSET;
-  }
-
-  private getPaymentDepositAddress(blockchain: Blockchain): string {
-    switch (blockchain) {
-      case Blockchain.MONERO:
-        return Config.payment.moneroAddress;
-
-      case Blockchain.BITCOIN:
-        return Config.payment.bitcoinAddress;
-
-      case Blockchain.ZANO:
-        return Config.payment.zanoAddress;
-
-      case Blockchain.SOLANA:
-        return SolanaUtil.createWallet({
-          seed: Config.payment.solanaSeed,
-          index: 0,
-        }).address;
-
-      case Blockchain.TRON:
-        return TronUtil.createWallet({
-          seed: Config.payment.tronSeed,
-          index: 0,
-        }).address;
-
-      default:
-        return EvmUtil.createWallet({
-          seed: Config.payment.evmSeed,
-          index: 0,
-        }).address;
-    }
   }
 }

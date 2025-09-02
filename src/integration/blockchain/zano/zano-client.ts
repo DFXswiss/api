@@ -28,6 +28,10 @@ export class ZanoClient extends BlockchainClient {
 
   // --- ZANO DAEMON --- //
 
+  get walletAddress(): string {
+    return Config.blockchain.zano.wallet.address;
+  }
+
   async getInfo(): Promise<string> {
     const params = this.httpParams('getinfo', []);
 

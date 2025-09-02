@@ -5,7 +5,6 @@ import {
   ConstructorArgs,
   Dictionary,
   Exchange,
-  ExchangeError,
   Market,
   Order,
   Trade,
@@ -149,24 +148,25 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
             `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${remainingAmount}`,
           );
 
-          const id = await this.updateOrderPrice(order, remainingAmount, price).catch(async (e: ExchangeError) => {
-            try {
-              const updatedOrder = await this.getTrade(order.id, from, to);
-              this.logger.verbose(`Could not update order ${order.id} price: ${JSON.stringify(updatedOrder)}`);
-            } catch (e) {
-              this.logger.error(`Failed to fetch order ${order.id} after update price error:`, e);
+          try {
+            const id = await this.updateOrderPrice(order, remainingAmount, price);
+
+            if (id) {
+              this.logger.verbose(`Order ${order.id} changed to ${id}`);
+              throw new TradeChangedException(id);
             }
+          } catch (e) {
+            if (e instanceof TradeChangedException) throw e;
 
-            await this.callApi((e) => e.cancelOrder(order.id, order.symbol)).catch((e) =>
-              this.logger.error(`Error while cancelling order ${order.id}:`, e),
-            );
+            const updatedOrder = await this.getTrade(order.id, from, to);
+            if (updatedOrder.status === OrderStatus.CLOSED) return true;
 
-            throw e;
-          });
+            this.logger.verbose(`Could not update order ${order.id} price: ${JSON.stringify(updatedOrder)}`);
 
-          if (id) {
-            this.logger.verbose(`Order ${order.id} changed to ${id}`);
-            throw new TradeChangedException(id);
+            if (updatedOrder.status === OrderStatus.OPEN)
+              await this.callApi((e) => e.cancelOrder(order.id, order.symbol)).catch((e) =>
+                this.logger.error(`Error while cancelling order ${order.id}:`, e),
+              );
           }
         } else {
           this.logger.verbose(`Order ${order.id} open, price is still ${price}`);

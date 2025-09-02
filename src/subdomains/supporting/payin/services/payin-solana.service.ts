@@ -2,12 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class PayInSolanaService {
-  private readonly logger = new DfxLogger(PayInSolanaService);
-
   constructor(private readonly solanaService: SolanaService) {}
 
   getWalletAddress() {

@@ -149,7 +149,7 @@ export class FrankencoinClient {
     ).then((r) => r.frankencoinProfitLosss.items[0]);
   }
 
-  getWalletAddress(): string {
+  get walletAddress(): string {
     return this.evmClient.wallet.address;
   }
 

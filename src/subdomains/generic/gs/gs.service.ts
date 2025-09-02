@@ -354,7 +354,7 @@ export class GsService {
           .getTransactionByKey(query.key, query.value)
           .then((transaction) => transaction?.userData);
       case SupportTable.BANK_DATA:
-        return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD.userData);
+        return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD?.userData);
     }
   }
 

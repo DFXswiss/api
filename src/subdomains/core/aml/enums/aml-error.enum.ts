@@ -64,6 +64,12 @@ export const DelayResultError = [
   AmlError.INPUT_NOT_CONFIRMED,
 ];
 
+export const RecheckAmlReasons = [
+  AmlReason.MANUAL_CHECK_PHONE,
+  AmlReason.MANUAL_CHECK_BANK_DATA,
+  AmlReason.VIDEO_IDENT_NEEDED,
+];
+
 export enum AmlErrorType {
   SINGLE = 'Single', // Only one error may occur
   MULTI = 'Multi', // All errors must have the same amlCheck
