@@ -334,7 +334,7 @@ export class PaymentQuoteService {
   ): Promise<number | undefined> {
     try {
       const price = await this.pricingService.getPrice(asset, currency, true);
-      const fee = Config.payment.fee(standard, currency, asset);
+      const fee = Config.payment.forexFee(standard, currency, asset);
 
       return price.invert().convert(amount / (1 - fee), 8);
     } catch (e) {
