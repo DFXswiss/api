@@ -89,8 +89,9 @@ export class ExchangeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async syncExchange(@Param('exchange') exchange: string, @Query('from') from: string): Promise<void> {
-    await this.exchangeTxService.syncExchanges(from && new Date(from), exchange as ExchangeName);
+  async syncExchange(@Param('exchange') exchangeName: string, @Query('from') from: string): Promise<void> {
+    const exchange = Object.values(ExchangeName).find((e) => e.toLowerCase() === exchangeName.toLowerCase());
+    await this.exchangeTxService.syncExchanges(from && new Date(from), exchange);
   }
 
   @Post(':exchange/trade')
