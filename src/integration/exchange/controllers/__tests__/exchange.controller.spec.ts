@@ -1,24 +1,28 @@
-import { ExchangeController } from '../exchange.controller';
+import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { ExchangeRegistryService } from '../../services/exchange-registry.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { createMock } from '@golevelup/ts-jest';
 import { PartialTradeResponse } from '../../dto/trade-response.dto';
+import { ExchangeRegistryService } from '../../services/exchange-registry.service';
+import { ExchangeTxService } from '../../services/exchange-tx.service';
+import { ExchangeController } from '../exchange.controller';
 
 describe('ExchangeController', () => {
   let controller: ExchangeController;
 
   let exchangeRegistryService: ExchangeRegistryService;
+  let exchangeTxService: ExchangeTxService;
 
   beforeEach(async () => {
     exchangeRegistryService = createMock<ExchangeRegistryService>();
+    exchangeTxService = createMock<ExchangeTxService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
         ExchangeController,
         { provide: ExchangeRegistryService, useValue: exchangeRegistryService },
+        { provide: ExchangeTxService, useValue: exchangeTxService },
         TestUtil.provideConfig(),
       ],
     }).compile();
