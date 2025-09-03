@@ -28,6 +28,10 @@
                 {
                     "name": "BOT_DIR",
                     "value": "deuro-btc-dev"
+                },
+                {
+                    "name": "STRATEGY_FILE",
+                    "value": "deuro-btc-conf_pure_mm.yml"
                 }
             ]
         },

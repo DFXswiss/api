@@ -94,7 +94,11 @@ export class BankDataService {
         relations: { userData: true },
       });
 
-      const errors = this.getBankDataVerificationErrors(entity, existing);
+      const pendingMergeRequests = existing
+        ? await this.accountMergeService.hasPendingMergeRequest(entity.userData.id, existing.userData.id)
+        : false;
+
+      const errors = this.getBankDataVerificationErrors(entity, existing, pendingMergeRequests);
 
       if (
         errors.length === 0 ||
@@ -111,8 +115,17 @@ export class BankDataService {
         }
 
         await this.bankDataRepo.update(...entity.allow());
-      } else if (errors.includes(BankDataVerificationError.VERIFIED_NAME_NOT_MATCHING)) {
+      } else if (
+        errors.some((e) =>
+          [
+            BankDataVerificationError.ALREADY_ACTIVE_EXISTS,
+            BankDataVerificationError.VERIFIED_NAME_NOT_MATCHING,
+          ].includes(e),
+        )
+      ) {
         await this.bankDataRepo.update(...entity.manualReview(errors.join(';')));
+      } else if (errors.includes(BankDataVerificationError.MERGE_PENDING) && Util.daysDiff(entity.created) > 14) {
+        await this.bankDataRepo.update(...entity.internalReview(errors.join(';')));
       } else {
         await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
       }
@@ -121,7 +134,11 @@ export class BankDataService {
     }
   }
 
-  private getBankDataVerificationErrors(entity: BankData, existingActive?: BankData): BankDataVerificationError[] {
+  private getBankDataVerificationErrors(
+    entity: BankData,
+    existingActive?: BankData,
+    pendingMergeRequests = false,
+  ): BankDataVerificationError[] {
     const errors = [];
 
     if (!entity.userData.verifiedName) errors.push(BankDataVerificationError.VERIFIED_NAME_MISSING);
@@ -134,6 +151,7 @@ export class BankDataService {
         errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
       if (existingActive.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN)
         errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
+      if (pendingMergeRequests) errors.push(BankDataVerificationError.MERGE_PENDING);
     }
 
     return errors;

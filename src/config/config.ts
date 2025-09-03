@@ -596,7 +596,7 @@ export class Configuration {
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
 
-    fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
+    forexFee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
       if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
 
       switch (standard) {
@@ -607,6 +607,8 @@ export class Configuration {
           return this.payment.defaultForexFee;
       }
     },
+
+    fee: 0.002,
 
     quoteTimeout: (standard: PaymentStandard): number => {
       switch (standard) {

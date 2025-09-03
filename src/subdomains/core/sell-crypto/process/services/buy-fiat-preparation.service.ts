@@ -230,7 +230,11 @@ export class BuyFiatPreparationService {
         if (outputCurrency.id !== entity.paymentLinkPayment.currency.id) throw new Error('Payment currency mismatch');
 
         // fees
-        const feeRate = Config.payment.fee(entity.cryptoInput.paymentQuote.standard, outputCurrency, inputCurrency);
+        const feeRate = Config.payment.forexFee(
+          entity.cryptoInput.paymentQuote.standard,
+          outputCurrency,
+          inputCurrency,
+        );
         const totalFee = entity.inputReferenceAmount * feeRate;
         const inputReferenceAmountMinusFee = entity.inputReferenceAmount - totalFee;
 

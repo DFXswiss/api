@@ -6,7 +6,7 @@
             "value": 100
         },
         "containerImage": {
-            "value": "dfxswiss/hummingbot:beta"
+            "value": "dfxswiss/hummingbot:latest"
         },
         "containerVolumeMounts": {
             "value": [
@@ -27,7 +27,7 @@
             "value": [
                 {
                     "name": "BOT_DIR",
-                    "value": "deuro-usdt-dev"
+                    "value": "deuro-usdt"
                 },
                 {
                     "name": "STRATEGY_FILE",

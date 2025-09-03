@@ -124,6 +124,13 @@ Authorization: Bearer {{authToken}}
 GET {{url}}/v1/exchange/trade/xxx
 Authorization: Bearer {{authToken}}
 
+###
+
+PUT {{url}}/v1/exchange/kraken/sync?from=2025-08-26
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+
 
 ###
 

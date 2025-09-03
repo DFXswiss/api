@@ -13,7 +13,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process, ProcessService } from 'src/shared/services/process.service';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -110,8 +110,8 @@ export class LogJobService {
 
       // safety module
       const minTotalBalanceChf = await this.settingService.getObj<number>('minTotalBalanceChf', 100000);
-      if (!DisabledProcess(Process.SAFETY_MODULE))
-        await this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
+
+      await this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
 
       const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true);
       const lastTotalBalance = (JSON.parse(lastLog.message) as FinanceLog).balancesTotal.totalBalanceChf;
@@ -215,13 +215,18 @@ export class LogJobService {
     );
 
     const customBalances = await Promise.all(
-      Array.from(customAssetMap.entries()).map(async ([e, a]) => {
-        const client = this.blockchainRegistryService.getClient(e);
+      Array.from(customAssetMap.entries()).map(async ([b, a]) => {
+        try {
+          const client = this.blockchainRegistryService.getClient(b);
 
-        const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
-          b.flat(),
-        );
-        return { blockchain: e, balances };
+          const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
+            b.flat(),
+          );
+          return { blockchain: b, balances };
+        } catch (e) {
+          this.logger.error(`Error in FinanceLog customBalances for blockchain ${b}:`, e);
+          return { blockchain: b, balances: [] };
+        }
       }),
     );
 
@@ -586,8 +591,12 @@ export class LogJobService {
                       [liqAddress]: this.getJsonValue(curr.balance?.amount, amountType(curr), false, true),
                     }
                   : undefined,
-                paymentDepositBalance: { total: this.getJsonValue(paymentDepositBalance, amountType(curr)) },
-                manualLiqPosition: { total: this.getJsonValue(manualLiqPosition, amountType(curr), false, true) },
+                paymentDepositBalance: paymentDepositBalance
+                  ? { total: this.getJsonValue(paymentDepositBalance, amountType(curr)) }
+                  : undefined,
+                manualLiqPosition: manualLiqPosition
+                  ? { total: this.getJsonValue(manualLiqPosition, amountType(curr), false, true) }
+                  : undefined,
               }
             : undefined,
           custom: totalCustomBalance

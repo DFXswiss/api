@@ -37,7 +37,9 @@ export class AccountMerge extends IEntity {
     entity.slave = slave;
     entity.reason = reason;
 
-    entity.expiration = Util.daysAfter(1);
+    entity.expiration = [MergeReason.IBAN, MergeReason.IDENT_DOCUMENT].includes(reason)
+      ? Util.daysAfter(30)
+      : Util.daysAfter(1);
 
     return entity;
   }

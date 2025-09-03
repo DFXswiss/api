@@ -21,7 +21,7 @@ export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
   blockchains: PaymentLinkBlockchains,
   minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
   displayQr: false,
-  fee: 0.002,
+  fee: GetConfig().payment.fee,
   paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
 };
 

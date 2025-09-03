@@ -31,11 +31,15 @@ export class ExchangeTxService {
   //*** JOBS ***//
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.EXCHANGE_TX_SYNC, timeout: 1800 })
-  async syncExchanges() {
-    const since = Util.minutesBefore(Config.exchangeTxSyncLimit);
-    const transactions = await Promise.all(ExchangeSyncs.map((s) => this.getTransactionsFor(s, since))).then((tx) =>
-      tx.flat(),
-    );
+  async syncExchangeJob() {
+    await this.syncExchanges();
+  }
+
+  async syncExchanges(from?: Date, exchange?: ExchangeName) {
+    const syncs = ExchangeSyncs.filter((s) => !exchange || s.exchange === exchange);
+    const since = from ?? Util.minutesBefore(Config.exchangeTxSyncLimit);
+
+    const transactions = await Promise.all(syncs.map((s) => this.getTransactionsFor(s, since))).then((tx) => tx.flat());
 
     // sort by date
     transactions.sort((a, b) => a.externalCreated.getTime() - b.externalCreated.getTime());

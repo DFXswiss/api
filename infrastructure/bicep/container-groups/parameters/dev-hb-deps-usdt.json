@@ -28,6 +28,10 @@
                 {
                     "name": "BOT_DIR",
                     "value": "deps-usdt-dev"
+                },
+                {
+                    "name": "STRATEGY_FILE",
+                    "value": "deps-usdt-conf_pure_mm.yml"
                 }
             ]
         },

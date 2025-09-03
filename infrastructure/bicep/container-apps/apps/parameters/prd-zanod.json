@@ -3,7 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "fileShareQuota": {
-      "value": 1
+      "value": 500
     },
     "containerImage": {
       "value": "canardleteer/zano:master-zano-runner"
@@ -12,16 +12,16 @@
       "value": [
         {
           "volumeName": "volume",
-          "mountPath": "/home/ubuntu/private",
-          "subPath": "private"
+          "mountPath": "/home/ubuntu/.Zano",
+          "subPath": "data"
         }
       ]
     },
     "containerCPU": {
-      "value": "1"
+      "value": "2"
     },
     "containerMemory": {
-      "value": "2Gi"
+      "value": "4Gi"
     },
     "containerMinReplicas": {
       "value": 1
@@ -30,21 +30,27 @@
       "value": 1
     },
     "containerIngressTargetPort": {
-      "value": 12233
+      "value": 33112
     },
     "containerIngressAdditionalPorts": {
-      "value": []
+      "value": [
+        {
+          "external": true,
+          "targetPort": 11121,
+          "exposedPort": 11121
+        }
+      ]
     },
     "containerProbes": {
       "value": [
         {
           "type": "Startup",
-          "initialDelaySeconds": 10,
-          "periodSeconds": 30,
-          "failureThreshold": 10,
+          "initialDelaySeconds": 60,
+          "periodSeconds": 120,
+          "failureThreshold": 30,
           "successThreshold": 1,
           "tcpSocket": {
-            "port": 12233
+            "port": 33112
           },
           "timeoutSeconds": 5
         },
@@ -55,30 +61,22 @@
           "failureThreshold": 10,
           "successThreshold": 1,
           "tcpSocket": {
-            "port": 12233
+            "port": 33112
           },
           "timeoutSeconds": 5
         }
       ]
     },
     "containerEnv": {
-      "value": [
-        {
-          "name": "USE_WALLET_BINARY",
-          "value": "true"
-        }
-      ]
+      "value": []
     },
     "containerCommand": {
       "value": []
     },
     "containerArgs": {
       "value": [
-        "--wallet=private/paymentwallet",
-        "--password=[WALLET_PASSWORD]",
         "--rpc-bind-ip=0.0.0.0",
-        "--rpc-bind-port=12233",
-        "--daemon-address=https://ca-dfx-zanod-dev.redground-e7b33dc9.westeurope.azurecontainerapps.io",
+        "--rpc-bind-port=33112",
         "--log-level=1"
       ]
     }

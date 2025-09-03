@@ -451,6 +451,7 @@ export class BuyCrypto extends IEntity {
       mailSendDate: null,
       blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
+      status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
     };
 
     Object.assign(this, update);
@@ -739,6 +740,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.KYC_DATA_NEEDED,
   AmlReason.BANK_TX_NEEDED,
   AmlReason.MANUAL_CHECK_PHONE,
+  AmlReason.MERGE_PENDING,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];
