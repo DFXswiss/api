@@ -6,6 +6,7 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { KycNationalityData } from '../dto/input/kyc-data.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycError } from '../dto/kyc-error.enum';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
@@ -63,7 +64,12 @@ export class KycAdminService {
         break;
 
       case KycStepName.IDENT:
-        if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
+        if (kycStep.isCompleted) {
+          const nationalityData = kycStep.userData
+            .getCompletedStepWith(KycStepName.NATIONALITY_DATA)
+            ?.getResult<KycNationalityData>();
+          await this.kycService.completeIdent(kycStep, undefined, nationalityData);
+        }
         break;
 
       case KycStepName.DFX_APPROVAL:

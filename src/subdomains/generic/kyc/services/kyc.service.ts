@@ -1072,11 +1072,19 @@ export class KycService {
     await this.kycStepRepo.update(...signatoryPower.complete());
   }
 
-  async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {
+  async completeIdent(
+    kycStep: KycStep,
+    nationality?: Country,
+    nationalityStepData?: KycNationalityData,
+  ): Promise<void> {
     const data = kycStep.resultData;
     const userData = kycStep.userData;
     const identificationType = getIdentificationType(data.type, data.kycType);
-    nationality ??= data.nationality ? await this.countryService.getCountryWithSymbol(data.nationality) : null;
+    nationality ??= nationalityStepData?.nationality?.id
+      ? await this.countryService.getCountry(nationalityStepData.nationality.id)
+      : data.nationality
+      ? await this.countryService.getCountryWithSymbol(data.nationality)
+      : null;
 
     if (
       data.birthday &&
