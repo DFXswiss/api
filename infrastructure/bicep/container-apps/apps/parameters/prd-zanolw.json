@@ -74,11 +74,11 @@
     },
     "containerArgs": {
       "value": [
-        "--wallet=private/paymentwallet",
+        "--wallet=private/mainwallet",
         "--password=[WALLET_PASSWORD]",
         "--rpc-bind-ip=0.0.0.0",
         "--rpc-bind-port=12233",
-        "--daemon-address=https://ca-dfx-zanod-dev.redground-e7b33dc9.westeurope.azurecontainerapps.io",
+        "--daemon-address=https://ca-dfx-zanod-prd.agreeablerock-59158867.westeurope.azurecontainerapps.io",
         "--log-level=1"
       ]
     }
