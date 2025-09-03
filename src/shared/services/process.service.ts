@@ -75,7 +75,7 @@ export enum Process {
   USER_DATA = 'UserData',
   USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
-  SAFETY_MODULE = 'SafetyModule',
+  SAFETY_MODE = 'SafetyMode',
   BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
   AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
 }
@@ -118,7 +118,7 @@ export class ProcessService implements OnModuleInit {
   }
 
   public async setSafetyModeActive(active: boolean): Promise<void> {
-    this.safetyModeInactive = !active;
+    this.safetyModeInactive = DisabledProcess(Process.SAFETY_MODE) ? true : !active;
     await this.resyncDisabledProcesses();
   }
 
