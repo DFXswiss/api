@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Put,
   Query,
   ServiceUnavailableException,
   UseGuards,
@@ -26,8 +27,10 @@ import { TradeOrder } from '../dto/trade-order.dto';
 import { PartialTradeResponse, TradeResponse } from '../dto/trade-response.dto';
 import { TradeResult, TradeStatus } from '../dto/trade-result.dto';
 import { WithdrawalOrder } from '../dto/withdrawal-order.dto';
+import { ExchangeName } from '../enums/exchange.enum';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from '../services/exchange-registry.service';
+import { ExchangeTxService } from '../services/exchange-tx.service';
 import { ExchangeService, OrderSide } from '../services/exchange.service';
 
 @ApiTags('exchange')
@@ -37,7 +40,10 @@ export class ExchangeController {
 
   private trades: { [key: number]: TradeResult } = {};
 
-  constructor(private readonly exchangeRegistry: ExchangeRegistryService) {}
+  constructor(
+    private readonly exchangeRegistry: ExchangeRegistryService,
+    private readonly exchangeTxService: ExchangeTxService,
+  ) {}
 
   @Get(':exchange/balances')
   @ApiBearerAuth()
@@ -77,6 +83,14 @@ export class ExchangeController {
     @Query('to') to: string,
   ): Promise<Trade[]> {
     return this.call(exchange, (e) => e.getTrades(from?.toUpperCase(), to?.toUpperCase()));
+  }
+
+  @Put(':exchange/sync')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async syncExchange(@Param('exchange') exchange: string, @Query('from') from: string): Promise<void> {
+    await this.exchangeTxService.syncExchanges(from && new Date(from), exchange as ExchangeName);
   }
 
   @Post(':exchange/trade')
