@@ -139,7 +139,7 @@ export class LiquidityManagementService {
         const delay = await this.settingService.get('lmActivationDelay', '30');
         const requiredActivationTime = Util.minutesBefore(+delay);
 
-        if (this.ruleActivations.get(rule.id) < requiredActivationTime) {
+        if (!rule.delayActivation || this.ruleActivations.get(rule.id) < requiredActivationTime) {
           this.ruleActivations.delete(rule.id);
 
           await this.executeRule(rule, result);
