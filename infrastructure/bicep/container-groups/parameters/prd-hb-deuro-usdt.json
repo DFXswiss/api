@@ -18,10 +18,10 @@
             ]
         },
         "containerCPU": {
-            "value": 2
+            "value": 1
         },
         "containerMemory": {
-            "value": 4
+            "value": 2
         },
         "containerEnv": {
             "value": [
