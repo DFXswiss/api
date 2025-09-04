@@ -94,11 +94,11 @@ export class BankDataService {
         relations: { userData: true },
       });
 
-      const pendingMergeRequests = existing
+      const pendingMergeRequest = existing
         ? await this.accountMergeService.pendingMergeRequest(entity.userData.id, existing.userData.id)
         : undefined;
 
-      const errors = this.getBankDataVerificationErrors(entity, existing, pendingMergeRequests);
+      const errors = this.getBankDataVerificationErrors(entity, existing, pendingMergeRequest);
 
       if (
         errors.length === 0 ||
@@ -138,7 +138,7 @@ export class BankDataService {
   private getBankDataVerificationErrors(
     entity: BankData,
     existingActive?: BankData,
-    pendingMergeRequests?: AccountMerge,
+    pendingMergeRequest?: AccountMerge,
   ): BankDataVerificationError[] {
     const errors = [];
 
@@ -152,8 +152,8 @@ export class BankDataService {
         errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
       if (existingActive.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN)
         errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
-      if (pendingMergeRequests)
-        pendingMergeRequests.isExpired
+      if (pendingMergeRequest)
+        pendingMergeRequest.isExpired
           ? errors.push(BankDataVerificationError.MERGE_EXPIRED)
           : errors.push(BankDataVerificationError.MERGE_PENDING);
     }
