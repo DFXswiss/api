@@ -18,7 +18,11 @@ import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supportin
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -84,21 +88,30 @@ export class BuyFiatPreparationService {
           entity.cryptoInput.asset,
           entity.outputAsset,
           entity.cryptoInput.asset,
-          false,
+          PriceValidity.VALID_ONLY,
           isPayment,
         );
 
         const { users, refUser, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
 
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.CHF, false);
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.EUR, false);
+        const referenceChfPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.CHF,
+          PriceValidity.VALID_ONLY,
+        );
+        const referenceEurPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.EUR,
+          PriceValidity.VALID_ONLY,
+        );
 
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
           users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          PriceValidity.ANY,
           undefined,
           referenceChfPrice,
         );
@@ -108,6 +121,7 @@ export class BuyFiatPreparationService {
           users,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
+          PriceValidity.ANY,
           undefined,
           referenceChfPrice,
         );
@@ -172,8 +186,8 @@ export class BuyFiatPreparationService {
 
         const inputCurrency = entity.cryptoInput.asset;
 
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, PriceValidity.VALID_ONLY);
 
         const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
@@ -241,8 +255,8 @@ export class BuyFiatPreparationService {
         const { fee: paymentLinkFee } = entity.cryptoInput.paymentLinkPayment.link.configObj;
 
         // prices
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, PriceValidity.VALID_ONLY);
 
         const conversionPrice = Price.create(
           inputCurrency.name,
@@ -296,7 +310,7 @@ export class BuyFiatPreparationService {
         const asset = entity.cryptoInput.asset;
         const currency = entity.outputAsset;
         const price = !entity.outputReferenceAmount
-          ? await this.pricingService.getPrice(asset, currency, false)
+          ? await this.pricingService.getPrice(asset, currency, PriceValidity.VALID_ONLY)
           : undefined;
         const priceSteps = price?.steps ?? [
           PriceStep.create(

@@ -346,7 +346,7 @@ export class SellService {
       dto.currency,
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
-      !dto.exactPrice,
+      dto.exactPrice,
       user,
       undefined,
       undefined,

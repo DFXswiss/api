@@ -32,6 +32,12 @@ export enum PriceCurrency {
   USD = 'USD',
 }
 
+export enum PriceValidity {
+  ANY = 'Any',
+  PREFER_VALID = 'PreferValid',
+  VALID_ONLY = 'ValidOnly',
+}
+
 @Injectable()
 export class PricingService implements OnModuleInit {
   private readonly logger = new DfxLogger(PricingService);
@@ -86,36 +92,38 @@ export class PricingService implements OnModuleInit {
   async getPrice(
     from: Active | PriceCurrency,
     to: Active | PriceCurrency,
-    allowExpired: boolean,
+    validity: PriceValidity,
     tryCount = 2,
   ): Promise<Price> {
     const fromAsset = typeof from === 'object' ? from : this.fiatMap.get(from);
     const toAsset = typeof to === 'object' ? to : this.fiatMap.get(to);
 
-    return this.getAssetPrice(fromAsset, toAsset, allowExpired, tryCount);
+    return this.getAssetPrice(fromAsset, toAsset, validity, tryCount);
   }
 
-  private async getAssetPrice(from: Active, to: Active, allowExpired: boolean, tryCount: number): Promise<Price> {
+  private async getAssetPrice(from: Active, to: Active, validity: PriceValidity, tryCount: number): Promise<Price> {
     try {
       if (activesEqual(from, to)) return Price.create(from.name, to.name, 1);
+
+      const shouldUpdate = validity !== PriceValidity.ANY;
 
       const [fromRules, toRules] = await Promise.all([
         this.priceRuleCache.get(
           this.itemString(from),
-          () => this.getPriceRules(from, allowExpired),
-          (rules) => !allowExpired && !this.joinRules(rules).isValid,
+          () => this.getPriceRules(from, shouldUpdate),
+          (rules) => shouldUpdate && !this.joinRules(rules).isValid,
         ),
         this.priceRuleCache.get(
           this.itemString(to),
-          () => this.getPriceRules(to, allowExpired),
-          (rules) => !allowExpired && !this.joinRules(rules).isValid,
+          () => this.getPriceRules(to, shouldUpdate),
+          (rules) => shouldUpdate && !this.joinRules(rules).isValid,
         ),
       ]);
 
       const price = Price.join(this.joinRules(fromRules), this.joinRules(toRules).invert());
 
-      if (!price.isValid && !allowExpired) {
-        if (tryCount > 1) return await this.getPrice(from, to, allowExpired, tryCount - 1);
+      if (!price.isValid && validity === PriceValidity.VALID_ONLY) {
+        if (tryCount > 1) return await this.getPrice(from, to, validity, tryCount - 1);
         throw new Error(`Price invalid (fetched on ${price.timestamp})`);
       }
 
@@ -143,7 +151,7 @@ export class PricingService implements OnModuleInit {
   }
 
   // --- PRIVATE METHODS --- //
-  private async getPriceRules(item: Active, allowExpired: boolean): Promise<PriceRule[]> {
+  private async getPriceRules(item: Active, waitForUpdate: boolean): Promise<PriceRule[]> {
     const rules: { active: Active; rule: PriceRule }[] = [];
 
     let rule: PriceRule;
@@ -155,7 +163,7 @@ export class PricingService implements OnModuleInit {
       rules.push({ active, rule });
     } while (rule.reference);
 
-    return Promise.all(rules.map(({ active, rule }) => this.updatePriceForRule(rule, allowExpired, active)));
+    return Promise.all(rules.map(({ active, rule }) => this.updatePriceForRule(rule, waitForUpdate, active)));
   }
 
   private async getRuleFor(item: Active): Promise<PriceRule | undefined> {
@@ -165,11 +173,11 @@ export class PricingService implements OnModuleInit {
     return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }
 
-  private async updatePriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<PriceRule> {
+  private async updatePriceForRule(rule: PriceRule, waitForUpdate: boolean, active?: Active): Promise<PriceRule> {
     if (rule.shouldUpdate) {
       const updateTask = this.updateCalls.get(`${rule.id}`, () => this.doUpdatePriceFor(rule, active));
 
-      if (!allowExpired || rule.currentPrice == null || rule.isPriceObsolete) {
+      if (waitForUpdate || rule.currentPrice == null || rule.isPriceObsolete) {
         rule = await updateTask;
       } else {
         updateTask.catch((e) => this.logger.error(`Failed to update price for rule ${rule.id} in background:`, e));

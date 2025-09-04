@@ -10,7 +10,7 @@ import {
   PayoutBitcoinBasedService,
   PayoutGroup,
 } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
-import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategy } from './payout.strategy';
@@ -95,7 +95,7 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
         order.complete();
 
         const feeAsset = await this.feeAsset();
-        const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, true);
+        const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
         order.recordPayoutFee(feeAsset, orderPayoutFee, price.convert(orderPayoutFee, Config.defaultVolumeDecimal));
 
         await this.payoutOrderRepo.save(order);
