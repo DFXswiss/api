@@ -20,7 +20,7 @@ import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-accoun
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, FindOptionsWhere, IsNull, Not } from 'typeorm';
-import { MergeReason } from '../account-merge/account-merge.entity';
+import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { KycType, UserDataStatus } from '../user-data/user-data.enum';
@@ -95,8 +95,8 @@ export class BankDataService {
       });
 
       const pendingMergeRequests = existing
-        ? await this.accountMergeService.hasPendingMergeRequest(entity.userData.id, existing.userData.id)
-        : false;
+        ? await this.accountMergeService.pendingMergeRequest(entity.userData.id, existing.userData.id)
+        : undefined;
 
       const errors = this.getBankDataVerificationErrors(entity, existing, pendingMergeRequests);
 
@@ -115,7 +115,10 @@ export class BankDataService {
         }
 
         await this.bankDataRepo.update(...entity.allow());
+      } else if (errors.includes(BankDataVerificationError.MERGE_PENDING) || Util.minutesDiff(entity.created) < 5) {
+        await this.bankDataRepo.update(...entity.internalReview(errors.join(';')));
       } else if (
+        !errors.includes(BankDataVerificationError.MERGE_EXPIRED) &&
         errors.some((e) =>
           [
             BankDataVerificationError.ALREADY_ACTIVE_EXISTS,
@@ -124,8 +127,6 @@ export class BankDataService {
         )
       ) {
         await this.bankDataRepo.update(...entity.manualReview(errors.join(';')));
-      } else if (errors.includes(BankDataVerificationError.MERGE_PENDING) && Util.daysDiff(entity.created) > 14) {
-        await this.bankDataRepo.update(...entity.internalReview(errors.join(';')));
       } else {
         await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
       }
@@ -137,7 +138,7 @@ export class BankDataService {
   private getBankDataVerificationErrors(
     entity: BankData,
     existingActive?: BankData,
-    pendingMergeRequests = false,
+    pendingMergeRequests?: AccountMerge,
   ): BankDataVerificationError[] {
     const errors = [];
 
@@ -151,7 +152,10 @@ export class BankDataService {
         errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
       if (existingActive.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN)
         errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
-      if (pendingMergeRequests) errors.push(BankDataVerificationError.MERGE_PENDING);
+      if (pendingMergeRequests)
+        pendingMergeRequests.isExpired
+          ? errors.push(BankDataVerificationError.MERGE_EXPIRED)
+          : errors.push(BankDataVerificationError.MERGE_PENDING);
     }
 
     return errors;

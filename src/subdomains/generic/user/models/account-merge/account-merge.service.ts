@@ -104,8 +104,8 @@ export class AccountMergeService {
     return request;
   }
 
-  async hasPendingMergeRequest(userDataId: number, referenceUserDataId: number): Promise<boolean> {
-    return this.accountMergeRepo.existsBy([
+  async pendingMergeRequest(userDataId: number, referenceUserDataId: number): Promise<AccountMerge> {
+    return this.accountMergeRepo.findOneBy([
       { master: { id: userDataId }, slave: { id: referenceUserDataId }, isCompleted: false },
       { master: { id: referenceUserDataId }, slave: { id: userDataId }, isCompleted: false },
     ]);
