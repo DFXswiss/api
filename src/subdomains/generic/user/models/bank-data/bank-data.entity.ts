@@ -144,9 +144,13 @@ export class BankData extends IEntity {
     return this.status === ReviewStatus.COMPLETED;
   }
 
-  get hasMergeComment(): boolean {
-    return [BankDataVerificationError.MERGE_EXPIRED, BankDataVerificationError.MERGE_PENDING].some((e) =>
-      this.comment.includes(e),
+  get reviewErrors(): BankDataVerificationError[] {
+    return this.comment ? (this.comment?.split(';') as BankDataVerificationError[]) : [];
+  }
+
+  get mergeError(): BankDataVerificationError | undefined {
+    return this.reviewErrors.find((e) =>
+      [BankDataVerificationError.MERGE_EXPIRED, BankDataVerificationError.MERGE_PENDING].includes(e),
     );
   }
 }
