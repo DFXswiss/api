@@ -105,7 +105,7 @@ export const TransactionReasonMapper: {
   [AmlReason.TEST_ONLY]: TransactionReason.UNKNOWN,
   [AmlReason.KYC_DATA_NEEDED]: TransactionReason.KYC_DATA_NEEDED,
   [AmlReason.BANK_TX_NEEDED]: TransactionReason.BANK_TX_NEEDED,
-  [AmlReason.MERGE_PENDING]: TransactionReason.MERGE_PENDING,
+  [AmlReason.MERGE_NOT_COMPLETED]: TransactionReason.MERGE_PENDING,
   [AmlReason.MANUAL_CHECK_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
 };
 

@@ -92,7 +92,7 @@
                 "kyc_data_needed": "Vos données KYC sont nécessaires pour la transaction",
                 "bank_tx_needed": "Une transaction bancaire est nécessaire pour que cette opération puisse être effectuée",
                 "manual_check_phone": "Nous n'avons pas réussi à vous joindre au numéro de téléphone que vous avez fourni",
-                "merge_pending": "L'e-mail de confirmation n'a pas été accepté"
+                "merge_not_completed": "L'e-mail de confirmation n'a pas été accepté"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -214,7 +214,7 @@
                 "line4": "",
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             },
-            "merge_pending": {
+            "merge_not_completed": {
                 "title": "Confirmation par e-mail en attente",
                 "salutation": "Un e-mail de confirmation vous a été envoyé. Vous devez cliquer sur le lien contenu dans cet e-mail",
                 "line1": "Malheureusement, nous avons encore besoin de votre confirmation pour finaliser votre transaction.",
