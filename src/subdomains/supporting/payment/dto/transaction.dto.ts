@@ -57,7 +57,7 @@ export enum TransactionReason {
   MISSING_LIQUIDITY = 'MissingLiquidity',
   KYC_DATA_NEEDED = 'KycDataNeeded',
   BANK_TX_NEEDED = 'BankTxNeeded',
-  MERGE_PENDING = 'MergePending',
+  MERGE_INCOMPLETE = 'MergeIncomplete',
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
 }
 
@@ -105,7 +105,7 @@ export const TransactionReasonMapper: {
   [AmlReason.TEST_ONLY]: TransactionReason.UNKNOWN,
   [AmlReason.KYC_DATA_NEEDED]: TransactionReason.KYC_DATA_NEEDED,
   [AmlReason.BANK_TX_NEEDED]: TransactionReason.BANK_TX_NEEDED,
-  [AmlReason.MERGE_NOT_COMPLETED]: TransactionReason.MERGE_PENDING,
+  [AmlReason.MERGE_INCOMPLETE]: TransactionReason.MERGE_INCOMPLETE,
   [AmlReason.MANUAL_CHECK_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
 };
 

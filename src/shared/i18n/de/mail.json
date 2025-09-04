@@ -92,7 +92,7 @@
                 "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt",
                 "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich",
                 "manual_check_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
-                "merge_not_completed": "Die Email Bestätigung wurde nicht akzeptiert"
+                "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
@@ -214,7 +214,7 @@
                 "line4": "",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             },
-            "merge_not_completed": {
+            "merge_incomplete": {
                 "title": "E-Mail Bestätigung ausstehend",
                 "salutation": "Es wurde dir eine Bestätigungs-Email geschickt, dort musst du auf den Link klicken",
                 "line1": "Leider brauchen wir um deine Transaktion ausführen zu können noch eine Bestätigung von dir.",

@@ -566,7 +566,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.KYC_DATA_NEEDED,
   AmlReason.BANK_TX_NEEDED,
   AmlReason.MANUAL_CHECK_PHONE,
-  AmlReason.MERGE_NOT_COMPLETED,
+  AmlReason.MERGE_INCOMPLETE,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

@@ -32,7 +32,7 @@ export enum AmlReason {
   TEST_ONLY = 'TestOnly',
   KYC_DATA_NEEDED = 'KycDataNeeded',
   BANK_TX_NEEDED = 'BankTxNeeded',
-  MERGE_NOT_COMPLETED = 'MergeNotCompleted',
+  MERGE_INCOMPLETE = 'MergeIncomplete',
   MANUAL_CHECK_PHONE = 'ManualCheckPhone',
 }
 
