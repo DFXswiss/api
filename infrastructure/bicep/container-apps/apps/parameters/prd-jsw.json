@@ -36,7 +36,7 @@
       "value": [
         {
           "name": "CORS_ORIGIN",
-          "value": "https://dev.bapp.juiceswap.xyz,https://bapp.juiceswap.xyz"
+          "value": "http://localhost:3001,https://dev.bapp.juiceswap.xyz,https://bapp.juiceswap.xyz"
         },
         {
           "name": "ALCHEMY_1",
