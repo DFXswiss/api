@@ -47,6 +47,19 @@ export const KycAmlReasons = [
   AmlReason.KYC_DATA_NEEDED,
 ];
 
+export const RecheckAmlReasons = [
+  AmlReason.MANUAL_CHECK_PHONE,
+  AmlReason.MANUAL_CHECK_BANK_DATA,
+  AmlReason.VIDEO_IDENT_NEEDED,
+  AmlReason.MONTHLY_LIMIT,
+  AmlReason.OLKY_NO_KYC,
+  AmlReason.NAME_CHECK_WITHOUT_KYC,
+  AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
+  AmlReason.HIGH_RISK_KYC_NEEDED,
+  AmlReason.ASSET_KYC_NEEDED,
+  AmlReason.KYC_DATA_NEEDED,
+];
+
 export const AmlReasonWithoutReason = [
   AmlReason.NA,
   AmlReason.MANUAL_CHECK,
