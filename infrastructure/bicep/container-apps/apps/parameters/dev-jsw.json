@@ -6,7 +6,7 @@
       "value": 100
     },
     "containerImage": {
-      "value": "dfxswiss/deuro-monitoring:beta"
+      "value": "dfxswiss/juiceswap-api:beta"
     },
     "containerVolumeMounts": {
       "value": []
@@ -35,36 +35,36 @@
     "containerEnv": {
       "value": [
         {
-          "name": "PORT",
-          "value": "3000"
+          "name": "NODE_ENV",
+          "value": "development"
         },
         {
-          "name": "ALLOWED_ORIGINS",
-          "value": "https://dev.monitoring.deuro.com,https://monitoring.deuro.com"
+          "name": "CORS_ORIGIN",
+          "value": "https://dev.bapp.juiceswap.xyz,https://bapp.juiceswap.xyz"
         },
         {
-          "name": "DATABASE_URL",
-          "value": "[DATABASE_URL]"
+          "name": "ALCHEMY_1",
+          "value": "[ALCHEMY-API-KEY]"
         },
         {
-          "name": "RPC_URL",
-          "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
+          "name": "ALCHEMY_10",
+          "value": "[ALCHEMY-API-KEY]"
         },
         {
-          "name": "DEPLOYMENT_BLOCK",
-          "value": "22088283"
+          "name": "ALCHEMY_137",
+          "value": "[ALCHEMY-API-KEY]"
         },
         {
-          "name": "BLOCKCHAIN_ID",
-          "value": "1"
+          "name": "ALCHEMY_8453",
+          "value": "[ALCHEMY-API-KEY]"
         },
         {
-          "name": "PRICE_CACHE_TTL_MS",
-          "value": "120000"
+          "name": "ALCHEMY_42161",
+          "value": "[ALCHEMY-API-KEY]"
         },
         {
-          "name": "PG_MAX_CLIENTS",
-          "value": "10"
+          "name": "ALCHEMY_11155111",
+          "value": "[ALCHEMY-API-KEY]"
         }
       ]
     },

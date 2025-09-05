@@ -92,7 +92,7 @@
                 "kyc_data_needed": "Your KYC data is required for the transaction",
                 "bank_tx_needed": "A bank transaction is required before this transaction can be carried out",
                 "manual_check_phone": "We were unable to reach you at the phone number you provided",
-                "merge_pending": "The email confirmation was not accepted"
+                "merge_incomplete": "The email confirmation was not accepted"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -214,7 +214,7 @@
                 "line4": "",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
             },
-            "merge_pending": {
+            "merge_incomplete": {
                 "title": "Email confirmation pending",
                 "salutation": "A confirmation email has been sent to you. You must click on the link in the email",
                 "line1": "Unfortunately, we still need confirmation from you in order to complete your transaction.",

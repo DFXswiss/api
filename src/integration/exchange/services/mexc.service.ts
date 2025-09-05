@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { mexc } from 'ccxt';
-import { GetConfig } from 'src/config/config';
+import { mexc, Transaction } from 'ccxt';
+import { Config, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
+import { Deposit, DepositStatus } from '../dto/mexc.dto';
 import { ExchangeService } from './exchange.service';
 
 @Injectable()
@@ -44,11 +47,64 @@ export class MexcService extends ExchangeService {
     Sumixx: undefined,
   };
 
-  constructor() {
+  constructor(private readonly http: HttpService) {
     super(mexc, GetConfig().mexc);
   }
 
+  // --- OVERRIDES --- //
+
   get name(): string {
     return 'MEXC';
+  }
+
+  async getDeposits(token: string, from: Date): Promise<Transaction[]> {
+    const timestamp = Date.now().toString();
+    const startTime = from.getTime().toString();
+    const endTime = new Date().getTime().toString();
+
+    const deposits = await this.get<Deposit[]>('/capital/deposit/hisrec', {
+      timestamp,
+      startTime,
+      endTime,
+      coin: token,
+    });
+
+    return deposits.map((d) => ({
+      info: { ...d },
+      id: d.txId,
+      txid: d.txId,
+      timestamp: d.insertTime,
+      datetime: new Date(d.insertTime).toISOString(),
+      address: d.address,
+      addressFrom: undefined,
+      addressTo: undefined,
+      tag: d.addressTag,
+      tagFrom: undefined,
+      tagTo: undefined,
+      type: 'deposit',
+      amount: parseFloat(d.amount),
+      currency: d.coin.split('-')[0],
+      status: d.status === DepositStatus.INVALID ? 'failed' : d.status === DepositStatus.PENDING ? 'pending' : 'ok',
+      updated: undefined,
+      fee: undefined,
+      network: d.network,
+      comment: d.memo,
+      internal: undefined,
+    }));
+  }
+
+  // --- HELPER METHODS --- //
+  private readonly baseUrl = 'https://api.mexc.com/api/v3';
+
+  private async get<T>(path: string, params: Record<string, string>): Promise<T> {
+    const searchParams = new URLSearchParams(params);
+
+    searchParams.set('signature', Util.createHmac(Config.mexc.secret, searchParams.toString()));
+
+    const url = `${this.baseUrl}/${path}?${searchParams}`;
+
+    return this.http.get<T>(url, {
+      headers: { 'X-MEXC-APIKEY': Config.mexc.apiKey, 'Content-Type': 'application/json' },
+    });
   }
 }

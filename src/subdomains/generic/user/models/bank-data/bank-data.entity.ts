@@ -23,6 +23,7 @@ export enum BankDataVerificationError {
   ALREADY_ACTIVE_EXISTS = 'AlreadyActiveExists',
   NEW_BANK_IN_ACTIVE = 'NewBankInActive',
   MERGE_PENDING = 'MergePending',
+  MERGE_EXPIRED = 'MergeExpired',
 }
 
 @Entity()
@@ -141,5 +142,15 @@ export class BankData extends IEntity {
 
   get isReviewed(): boolean {
     return this.status === ReviewStatus.COMPLETED;
+  }
+
+  get reviewErrors(): BankDataVerificationError[] {
+    return this.comment ? (this.comment?.split(';') as BankDataVerificationError[]) : [];
+  }
+
+  get mergeError(): BankDataVerificationError | undefined {
+    return this.reviewErrors.find((e) =>
+      [BankDataVerificationError.MERGE_EXPIRED, BankDataVerificationError.MERGE_PENDING].includes(e),
+    );
   }
 }

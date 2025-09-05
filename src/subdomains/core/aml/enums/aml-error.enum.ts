@@ -54,6 +54,7 @@ export enum AmlError {
   LIQUIDITY_LIMIT_EXCEEDED = 'LiquidityLimitExceeded',
   IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
   MERGE_PENDING = 'MergePending',
+  MERGE_EXPIRED = 'MergeExpired',
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
 }
 
@@ -250,7 +251,12 @@ export const AmlErrorResult: {
   [AmlError.MERGE_PENDING]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MERGE_PENDING,
+    amlReason: AmlReason.MERGE_INCOMPLETE,
+  },
+  [AmlError.MERGE_EXPIRED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: AmlReason.MERGE_INCOMPLETE,
   },
   [AmlError.PHONE_VERIFICATION_NEEDED]: {
     type: AmlErrorType.CRUCIAL,

@@ -70,4 +70,7 @@ module containerGroup './modules/containerGroup.bicep' = {
     dockerPassword: dockerPassword
     withStorage: withStorage
   }
+  dependsOn: [
+    storage
+  ]
 }

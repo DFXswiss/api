@@ -46,6 +46,7 @@ import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
+import { BankDataVerificationError } from '../bank-data/bank-data.entity';
 import { BankDataService } from '../bank-data/bank-data.service';
 import { OrganizationDto } from '../organization/dto/organization.dto';
 import { OrganizationService } from '../organization/organization.service';
@@ -908,6 +909,12 @@ export class UserDataService {
           kycStep.sequenceNumber + sequenceNumberOffset,
         ),
       );
+    }
+
+    // Adapt slave bankData in review
+    for (const bankData of slave.bankDatas.filter((b) => b.isInReview)) {
+      if (bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS))
+        await this.bankDataService.updateBankDataInternal(bankData, { status: ReviewStatus.FAILED, approved: false });
     }
 
     // reassign bank datas, users and userDataRelations
