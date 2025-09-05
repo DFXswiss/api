@@ -624,28 +624,32 @@ export class KycService {
     await this.updateIdent(IdentType.ID_NOW, transactionId, dto, result, [reason]);
   }
 
-  async updateSumsubIdent(dto: SumSubWebhookResult): Promise<void> {
+  updateSumsubIdent(dto: SumSubWebhookResult): void {
     const { externalUserId: transactionId } = dto;
 
     const result = getSumsubResult(dto);
     if (!result) {
-      this.logger.info(`Ignoring Sumsub webhook call for ${transactionId} due to unknown result: ${dto.type}`);
+      this.logger.info(`Ignoring sumsub webhook call for ${transactionId} due to unknown result: ${dto.type}`);
       return;
     }
 
-    this.logger.info(`Received sumsub ident webhook call for transaction ${transactionId}: ${result}`);
+    this.logger.info(`Received sumsub webhook call for transaction ${transactionId}: ${result}`);
 
-    const data = await this.sumsubService.getApplicantData(dto.applicantId);
-
-    return this.webhookQueue.handle(() =>
-      this.updateIdent(
-        IdentType.SUM_SUB,
-        transactionId,
-        { webhook: dto, data },
-        result,
-        dto.reviewResult?.rejectLabels,
-      ),
-    );
+    // non-blocking update
+    this.sumsubService
+      .getApplicantData(dto.applicantId)
+      .then((data) =>
+        this.webhookQueue.handle(() =>
+          this.updateIdent(
+            IdentType.SUM_SUB,
+            transactionId,
+            { webhook: dto, data },
+            result,
+            dto.reviewResult?.rejectLabels,
+          ),
+        ),
+      )
+      .catch((e) => this.logger.error(`Error during sumsub webhook update for applicant ${dto.applicantId}:`, e));
   }
 
   private async updateKycStepAndLog(

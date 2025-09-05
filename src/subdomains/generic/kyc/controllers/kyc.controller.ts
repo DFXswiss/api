@@ -373,9 +373,9 @@ export class KycController {
     const result = JSON.parse(data) as SumSubWebhookResult;
 
     try {
-      await this.kycService.updateSumsubIdent(result);
+      this.kycService.updateSumsubIdent(result);
     } catch (e) {
-      this.logger.error(`Failed to handle sumsub ident webhook call for applicant ${result.applicantId}:`, e);
+      this.logger.error(`Failed to handle sumsub webhook call for applicant ${result.applicantId}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }
