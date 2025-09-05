@@ -348,35 +348,47 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
 };
 
 export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
-  switch (dto.type) {
-    case SumSubWebhookType.APPLICANT_PENDING:
-    case SumSubWebhookType.APPLICANT_REVIEWED:
-    case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED: {
-      switch (dto.reviewStatus) {
-        case SumSubReviewStatus.INIT:
-          return IdentShortResult.PENDING;
-
-        case SumSubReviewStatus.PENDING:
-          if (dto.levelName === SumSubLevelName.CH_STANDARD) return IdentShortResult.REVIEW;
-          break;
-
-        case SumSubReviewStatus.QUEUED:
+  switch (dto.levelName) {
+    // auto ident
+    case SumSubLevelName.CH_STANDARD: {
+      switch (dto.type) {
+        case SumSubWebhookType.APPLICANT_PENDING:
           return IdentShortResult.REVIEW;
 
-        case SumSubReviewStatus.COMPLETED:
+        case SumSubWebhookType.APPLICANT_REVIEWED:
           return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
             ? IdentShortResult.SUCCESS
-            : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY &&
-              dto.levelName === SumSubLevelName.CH_STANDARD_VIDEO
-            ? IdentShortResult.RETRY
             : IdentShortResult.FAIL;
       }
+
       break;
     }
 
-    case SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED:
-      if (dto.reviewResult?.reviewAnswer === ReviewAnswer.GREEN) return IdentShortResult.MEDIA;
+    // video ident
+    case SumSubLevelName.CH_STANDARD_VIDEO: {
+      switch (dto.type) {
+        case SumSubWebhookType.APPLICANT_PENDING:
+          return IdentShortResult.PENDING;
+
+        case SumSubWebhookType.APPLICANT_REVIEWED: {
+          return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
+            ? IdentShortResult.SUCCESS
+            : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY
+            ? IdentShortResult.RETRY
+            : IdentShortResult.FAIL;
+        }
+
+        case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED: {
+          if (dto.reviewStatus === SumSubReviewStatus.QUEUED) return IdentShortResult.REVIEW;
+          break;
+        }
+
+        case SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED:
+          if (dto.reviewResult?.reviewAnswer === ReviewAnswer.GREEN) return IdentShortResult.MEDIA;
+          break;
+      }
       break;
+    }
   }
 }
 
