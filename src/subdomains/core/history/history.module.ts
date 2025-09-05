@@ -12,7 +12,6 @@ import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { StakingModule } from '../staking/staking.module';
 import { TransactionUtilModule } from '../transaction/transaction-util.module';
 import { HistoryController } from './controllers/history.controller';
-import { TransactionAdminController } from './controllers/transaction-admin.controller';
 import { TransactionController } from './controllers/transaction.controller';
 import { HistoryService } from './services/history.service';
 
@@ -31,7 +30,7 @@ import { HistoryService } from './services/history.service';
     TransactionUtilModule,
     BankModule,
   ],
-  controllers: [HistoryController, TransactionController, TransactionAdminController],
+  controllers: [HistoryController, TransactionController],
   providers: [HistoryService, TransactionController],
   exports: [],
 })

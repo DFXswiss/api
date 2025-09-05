@@ -16,6 +16,7 @@ import { MailContext } from '../../notification/enums';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
 import { TransactionRequest } from './transaction-request.entity';
+import { TransactionRiskAssessment } from './transaction-risk-assessment.entity';
 
 export enum TransactionTypeInternal {
   BUY_CRYPTO = 'BuyCrypto',
@@ -79,6 +80,9 @@ export class Transaction extends IEntity {
 
   @Column({ nullable: true })
   highRisk: boolean;
+
+  @OneToMany(() => TransactionRiskAssessment, (t) => t.transaction)
+  riskAssessments: TransactionRiskAssessment[];
 
   // Mail
   @Column({ length: 256, nullable: true })
