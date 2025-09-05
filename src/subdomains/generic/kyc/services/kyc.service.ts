@@ -173,6 +173,10 @@ export class KycService {
         entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
         const result = entity.getResult<KycNationalityData>();
         const nationality = await this.countryService.getCountry(result.nationality.id);
+
+        //Skip nationalities which needs a residencePermit first
+        if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) continue;
+
         const errors = this.getNationalityErrors(entity, nationality);
         const comment = errors.join(';');
 
@@ -435,6 +439,8 @@ export class KycService {
     if (data.nationality) {
       const nationality = await this.countryService.getCountry(data.nationality.id);
       if (!nationality) throw new BadRequestException('Nationality not found');
+
+      Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
     } else {
       user = await this.userDataService.updateUserDataInternal(user, data);
     }
@@ -1063,13 +1069,11 @@ export class KycService {
       });
   }
 
-  async completeAuthority(userData: UserData): Promise<void> {
-    const signatoryPower = userData
-      .getStepsWith(KycStepName.SIGNATORY_POWER)
-      .find((k) => k.status === ReviewStatus.INTERNAL_REVIEW);
-    if (!signatoryPower) throw new BadRequestException('SignatoryPower step missing');
+  async completeReferencedSteps(userData: UserData, referenceStepName: KycStepName): Promise<void> {
+    const referenceStep = userData.getStepsWith(referenceStepName).find((k) => k.isInReview);
+    if (!referenceStep) throw new BadRequestException(`${referenceStepName} step missing`);
 
-    await this.kycStepRepo.update(...signatoryPower.complete());
+    await this.kycStepRepo.update(...referenceStep.complete());
   }
 
   async completeIdent(

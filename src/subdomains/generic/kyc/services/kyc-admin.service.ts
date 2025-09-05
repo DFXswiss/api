@@ -55,7 +55,13 @@ export class KycAdminService {
 
     switch (kycStep.name) {
       case KycStepName.AUTHORITY:
-        if (kycStep.isCompleted) await this.kycService.completeAuthority(kycStep.userData);
+        if (kycStep.isCompleted)
+          await this.kycService.completeReferencedSteps(kycStep.userData, KycStepName.SIGNATORY_POWER);
+        break;
+
+      case KycStepName.RESIDENCE_PERMIT:
+        if (kycStep.isCompleted)
+          await this.kycService.completeReferencedSteps(kycStep.userData, KycStepName.NATIONALITY_DATA);
         break;
 
       case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
