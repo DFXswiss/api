@@ -398,6 +398,7 @@ export class AuthService {
       userStatus: user.status,
       account: user.userData.id,
       accountStatus: user.userData.status,
+      riskStatus: user.userData.riskStatus,
       blockchains: user.blockchains,
       ip,
     };
@@ -409,6 +410,7 @@ export class AuthService {
       role: UserRole.ACCOUNT,
       account: userData.id,
       accountStatus: userData.status,
+      riskStatus: userData.riskStatus,
       blockchains: [],
       ip,
     };
