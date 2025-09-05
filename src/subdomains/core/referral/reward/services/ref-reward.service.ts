@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -154,6 +154,8 @@ export class RefRewardService {
   async updateRefReward(id: number, dto: UpdateRefRewardDto): Promise<RefReward> {
     const entity = await this.rewardRepo.findOneBy({ id });
     if (!entity) throw new Error('RefReward not found');
+    if ([RewardStatus.COMPLETE, RewardStatus.PAYING_OUT].includes(entity.status))
+      throw new BadRequestException('RefReward already complete');
 
     Object.assign(entity, dto);
 
