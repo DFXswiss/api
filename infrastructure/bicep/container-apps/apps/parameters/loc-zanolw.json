@@ -18,10 +18,10 @@
       ]
     },
     "containerCPU": {
-      "value": "1"
+      "value": "0.25"
     },
     "containerMemory": {
-      "value": "2Gi"
+      "value": "0.5Gi"
     },
     "containerMinReplicas": {
       "value": 1
