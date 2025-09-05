@@ -913,7 +913,19 @@ export class UserDataService {
 
     // Adapt slave bankData in review
     for (const bankData of slave.bankDatas.filter((b) => b.isInReview)) {
-      if (bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS))
+      if (
+        bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) &&
+        master.bankDatas.some((b) => b.iban === bankData.iban && b.approved)
+      )
+        await this.bankDataService.updateBankDataInternal(bankData, { status: ReviewStatus.FAILED, approved: false });
+    }
+
+    // Adapt master bankData in review
+    for (const bankData of master.bankDatas.filter((b) => b.isInReview)) {
+      if (
+        bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) &&
+        slave.bankDatas.some((b) => b.iban === bankData.iban && b.approved)
+      )
         await this.bankDataService.updateBankDataInternal(bankData, { status: ReviewStatus.FAILED, approved: false });
     }
 

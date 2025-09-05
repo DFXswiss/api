@@ -173,6 +173,10 @@ export class KycService {
         entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
         const result = entity.getResult<KycNationalityData>();
         const nationality = await this.countryService.getCountry(result.nationality.id);
+
+        //Skip nationalities which needs a residencePermit first
+        if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) continue;
+
         const errors = this.getNationalityErrors(entity, nationality);
         const comment = errors.join(';');
 
@@ -435,6 +439,8 @@ export class KycService {
     if (data.nationality) {
       const nationality = await this.countryService.getCountry(data.nationality.id);
       if (!nationality) throw new BadRequestException('Nationality not found');
+
+      Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
     } else {
       user = await this.userDataService.updateUserDataInternal(user, data);
     }
@@ -624,28 +630,32 @@ export class KycService {
     await this.updateIdent(IdentType.ID_NOW, transactionId, dto, result, [reason]);
   }
 
-  async updateSumsubIdent(dto: SumSubWebhookResult): Promise<void> {
+  updateSumsubIdent(dto: SumSubWebhookResult): void {
     const { externalUserId: transactionId } = dto;
 
     const result = getSumsubResult(dto);
     if (!result) {
-      this.logger.info(`Ignoring Sumsub webhook call for ${transactionId} due to unknown result: ${dto.type}`);
+      this.logger.info(`Ignoring sumsub webhook call for ${transactionId} due to unknown result: ${dto.type}`);
       return;
     }
 
-    this.logger.info(`Received sumsub ident webhook call for transaction ${transactionId}: ${result}`);
+    this.logger.info(`Received sumsub webhook call for transaction ${transactionId}: ${result}`);
 
-    const data = await this.sumsubService.getApplicantData(dto.applicantId);
-
-    return this.webhookQueue.handle(() =>
-      this.updateIdent(
-        IdentType.SUM_SUB,
-        transactionId,
-        { webhook: dto, data },
-        result,
-        dto.reviewResult?.rejectLabels,
-      ),
-    );
+    // non-blocking update
+    this.sumsubService
+      .getApplicantData(dto.applicantId)
+      .then((data) =>
+        this.webhookQueue.handle(() =>
+          this.updateIdent(
+            IdentType.SUM_SUB,
+            transactionId,
+            { webhook: dto, data },
+            result,
+            dto.reviewResult?.rejectLabels,
+          ),
+        ),
+      )
+      .catch((e) => this.logger.error(`Error during sumsub webhook update for applicant ${dto.applicantId}:`, e));
   }
 
   private async updateKycStepAndLog(
@@ -1063,13 +1073,11 @@ export class KycService {
       });
   }
 
-  async completeAuthority(userData: UserData): Promise<void> {
-    const signatoryPower = userData
-      .getStepsWith(KycStepName.SIGNATORY_POWER)
-      .find((k) => k.status === ReviewStatus.INTERNAL_REVIEW);
-    if (!signatoryPower) throw new BadRequestException('SignatoryPower step missing');
+  async completeReferencedSteps(userData: UserData, referenceStepName: KycStepName): Promise<void> {
+    const referenceStep = userData.getStepsWith(referenceStepName).find((k) => k.isInReview);
+    if (!referenceStep) throw new BadRequestException(`${referenceStepName} step missing`);
 
-    await this.kycStepRepo.update(...signatoryPower.complete());
+    await this.kycStepRepo.update(...referenceStep.complete());
   }
 
   async completeIdent(

@@ -6,7 +6,7 @@
       "value": 100
     },
     "containerImage": {
-      "value": "dfxswiss/juiceswap-api:beta"
+      "value": "dfxswiss/juiceswap-api:latest"
     },
     "containerVolumeMounts": {
       "value": []
