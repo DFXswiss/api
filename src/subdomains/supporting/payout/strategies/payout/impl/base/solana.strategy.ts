@@ -5,7 +5,7 @@ import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutOrderRepository } from 'src/subdomains/supporting/payout/repositories/payout-order.repository';
 import { PayoutSolanaService } from 'src/subdomains/supporting/payout/services/payout-solana.service';
-import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutStrategy } from './payout.strategy';
 
@@ -56,7 +56,7 @@ export abstract class SolanaStrategy extends PayoutStrategy {
           order.complete();
 
           const feeAsset = await this.feeAsset();
-          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, true);
+          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
           order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
 
           await this.payoutOrderRepo.save(order);

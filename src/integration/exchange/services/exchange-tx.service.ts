@@ -7,7 +7,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
@@ -65,7 +69,7 @@ export class ExchangeTxService {
             }));
           if (!feeAsset) throw new Error(`Unknown fee currency ${entity.feeCurrency}`);
 
-          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, true);
+          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
 
           entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
         }
@@ -86,7 +90,7 @@ export class ExchangeTxService {
             }));
           if (!currency) throw new Error(`Unknown currency ${currencyName}`);
 
-          const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, true);
+          const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY);
 
           entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
         }

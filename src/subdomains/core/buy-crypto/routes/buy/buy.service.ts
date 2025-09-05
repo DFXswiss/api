@@ -259,7 +259,7 @@ export class BuyService {
       dto.asset,
       dto.paymentMethod,
       CryptoPaymentMethod.CRYPTO,
-      !dto.exactPrice,
+      dto.exactPrice,
       user,
     );
 

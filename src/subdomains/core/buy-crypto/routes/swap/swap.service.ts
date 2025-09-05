@@ -274,7 +274,7 @@ export class SwapService {
       dto.targetAsset,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
-      !dto.exactPrice,
+      dto.exactPrice,
       user,
     );
 

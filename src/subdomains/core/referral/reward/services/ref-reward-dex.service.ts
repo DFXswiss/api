@@ -8,7 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
 
@@ -48,7 +48,7 @@ export class RefRewardDexService {
         const asset = await this.assetService.getNativeAsset(blockchain);
 
         // payout asset Price
-        const assetPrice = await this.priceService.getPrice(eur, asset, false);
+        const assetPrice = await this.priceService.getPrice(eur, asset, PriceValidity.ANY);
 
         for (const reward of groupedRewards.get(blockchain)) {
           const outputAmount = assetPrice.convert(reward.amountInEur, 8);

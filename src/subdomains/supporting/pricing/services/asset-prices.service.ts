@@ -11,7 +11,7 @@ import { Util } from 'src/shared/utils/util';
 import { In, MoreThanOrEqual } from 'typeorm';
 import { AssetPrice } from '../domain/entities/asset-price.entity';
 import { AssetPriceRepository } from '../repositories/asset-price.repository';
-import { PriceCurrency, PricingService } from './pricing.service';
+import { PriceCurrency, PriceValidity, PricingService } from './pricing.service';
 
 @Injectable()
 export class AssetPricesService {
@@ -33,9 +33,9 @@ export class AssetPricesService {
     // fetch prices
     for (const asset of assetsToUpdate) {
       try {
-        const usdPrice = await this.pricingService.getPrice(asset, PriceCurrency.USD, false);
-        const chfPrice = await this.pricingService.getPrice(asset, PriceCurrency.CHF, false);
-        const eurPrice = await this.pricingService.getPrice(asset, PriceCurrency.EUR, false);
+        const usdPrice = await this.pricingService.getPrice(asset, PriceCurrency.USD, PriceValidity.VALID_ONLY);
+        const chfPrice = await this.pricingService.getPrice(asset, PriceCurrency.CHF, PriceValidity.VALID_ONLY);
+        const eurPrice = await this.pricingService.getPrice(asset, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
 
         updates.push(asset.updatePrice(usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1)));
 
@@ -56,7 +56,7 @@ export class AssetPricesService {
 
     for (const asset of relevantAssets) {
       try {
-        await Promise.all(relevantFiats.map((f) => this.pricingService.getPrice(asset, f, false)));
+        await Promise.all(relevantFiats.map((f) => this.pricingService.getPrice(asset, f, PriceValidity.VALID_ONLY)));
       } catch (e) {
         this.logger.error(`Failed to update price of payment asset ${asset.uniqueName}:`, e);
       }

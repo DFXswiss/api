@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 
 @Injectable()
 export class BuyCryptoPricingService {
@@ -17,7 +17,7 @@ export class BuyCryptoPricingService {
 
   // allows expired prices!
   private async convertToTargetAsset(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    const price = await this.pricingService.getPrice(sourceAsset, targetAsset, true);
+    const price = await this.pricingService.getPrice(sourceAsset, targetAsset, PriceValidity.ANY);
 
     return price.convert(sourceAmount, 8);
   }

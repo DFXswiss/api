@@ -11,7 +11,11 @@ import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementRuleStatus } from '../../liquidity-management/enums';
 import { LiquidityManagementService } from '../../liquidity-management/services/liquidity-management.service';
 import { TradingOrder } from '../entities/trading-order.entity';
@@ -186,9 +190,9 @@ export class TradingOrderService {
       const swapFee = order.amountIn * EvmUtil.poolFeeFactor(order.tradingRule.poolFee);
 
       const coin = await this.assetService.getNativeAsset(order.assetIn.blockchain);
-      const coinChfPrice = await this.pricingService.getPrice(coin, PriceCurrency.CHF, true);
-      const inChfPrice = await this.pricingService.getPrice(order.assetIn, PriceCurrency.CHF, true);
-      const outChfPrice = await this.pricingService.getPrice(order.assetOut, PriceCurrency.CHF, true);
+      const coinChfPrice = await this.pricingService.getPrice(coin, PriceCurrency.CHF, PriceValidity.ANY);
+      const inChfPrice = await this.pricingService.getPrice(order.assetIn, PriceCurrency.CHF, PriceValidity.ANY);
+      const outChfPrice = await this.pricingService.getPrice(order.assetOut, PriceCurrency.CHF, PriceValidity.ANY);
 
       order.complete(
         outputAmount,

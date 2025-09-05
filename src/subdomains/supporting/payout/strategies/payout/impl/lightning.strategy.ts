@@ -4,7 +4,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
@@ -66,7 +66,7 @@ export class LightningStrategy extends PayoutStrategy {
             order.complete();
 
             const feeAsset = await this.feeAsset();
-            const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, true);
+            const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
             order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
 
             await this.payoutOrderRepo.save(order);

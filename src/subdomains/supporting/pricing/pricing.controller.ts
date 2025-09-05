@@ -30,7 +30,7 @@ export class PricingController {
     const to = await this.getCurrency(dto.toType, +dto.toId);
     if (!from || !to) throw new NotFoundException('Currency not found');
 
-    return this.pricingService.getPrice(from, to, dto.allowExpired === 'true');
+    return this.pricingService.getPrice(from, to, dto.validity);
   }
 
   @Get()

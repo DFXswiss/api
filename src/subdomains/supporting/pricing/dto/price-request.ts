@@ -1,4 +1,5 @@
 import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { PriceValidity } from '../services/pricing.service';
 
 export enum CurrencyType {
   ASSET = 'Asset',
@@ -23,6 +24,6 @@ export class PriceRequest {
   toId: string;
 
   @IsNotEmpty()
-  @IsString()
-  allowExpired: string;
+  @IsEnum(PriceValidity)
+  validity: PriceValidity;
 }

@@ -11,7 +11,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { PaymentLinkFeeService } from 'src/subdomains/core/payment-link/services/payment-link-fee.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Equal, In, LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -333,7 +333,7 @@ export class PaymentQuoteService {
     amount: number,
   ): Promise<number | undefined> {
     try {
-      const price = await this.pricingService.getPrice(asset, currency, true);
+      const price = await this.pricingService.getPrice(asset, currency, PriceValidity.ANY);
       const fee = Config.payment.forexFee(standard, currency, asset);
 
       return price.invert().convert(amount / (1 - fee), 8);
