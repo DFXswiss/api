@@ -32,6 +32,7 @@ export class BitstampService extends ExchangeService {
     KucoinPay: undefined,
     Solana: undefined,
     Tron: undefined,
+    Spark: undefined,
     CitreaTestnet: undefined,
     Kraken: undefined,
     Binance: undefined,

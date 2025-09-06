@@ -42,6 +42,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.KUCOIN_PAY]: undefined,
   [Blockchain.GNOSIS]: undefined,
   [Blockchain.TRON]: undefined,
+  [Blockchain.SPARK]: undefined,
   [Blockchain.CITREA_TESTNET]: undefined,
   [Blockchain.KRAKEN]: undefined,
   [Blockchain.BINANCE]: undefined,
