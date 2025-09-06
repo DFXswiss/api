@@ -5,6 +5,7 @@ import { MoneroService } from 'src/integration/blockchain/monero/services/monero
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { SparkService } from 'src/integration/blockchain/spark/services/spark.service';
 import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
 import { ZanoService } from 'src/integration/blockchain/zano/services/zano.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
@@ -22,6 +23,7 @@ describe('CryptoService', () => {
   let zanoService: ZanoService;
   let solanaService: SolanaService;
   let tronService: TronService;
+  let sparkService: SparkService;
   let arweaveService: ArweaveService;
   let railgunService: RailgunService;
 
@@ -32,6 +34,7 @@ describe('CryptoService', () => {
     zanoService = createMock<ZanoService>();
     solanaService = createMock<SolanaService>();
     tronService = createMock<TronService>();
+    sparkService = createMock<SparkService>();
     arweaveService = createMock<ArweaveService>();
     railgunService = createMock<RailgunService>();
 
@@ -44,6 +47,7 @@ describe('CryptoService', () => {
         { provide: ZanoService, useValue: zanoService },
         { provide: SolanaService, useValue: solanaService },
         { provide: TronService, useValue: tronService },
+        { provide: SparkService, useValue: sparkService },
         { provide: ArweaveService, useValue: arweaveService },
         { provide: RailgunService, useValue: railgunService },
         TestUtil.provideConfig(),
