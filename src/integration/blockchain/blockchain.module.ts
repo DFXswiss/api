@@ -20,6 +20,7 @@ import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
 import { SolanaModule } from './solana/solana.module';
+import { SparkModule } from './spark/spark.module';
 import { TronModule } from './tron/tron.module';
 import { ZanoModule } from './zano/zano.module';
 import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
@@ -47,6 +48,7 @@ import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
     RailgunModule,
     SolanaModule,
     TronModule,
+    SparkModule,
     CitreaTestnetModule,
   ],
   exports: [
@@ -68,6 +70,7 @@ import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
     RailgunModule,
     SolanaModule,
     TronModule,
+    SparkModule,
     CitreaTestnetModule,
     CryptoService,
     BlockchainRegistryService,

@@ -146,8 +146,9 @@ export class Configuration {
   solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{43,44}';
   tronAddressFormat = 'T[1-9A-HJ-NP-Za-km-z]{32,34}';
   zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
+  sparkAddressFormat = 'sp1[a-z0-9]{58,89}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.sparkAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';

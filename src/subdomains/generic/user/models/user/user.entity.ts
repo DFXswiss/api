@@ -41,6 +41,7 @@ export enum UserAddressType {
   SOLANA = 'Solana',
   TRON = 'Tron',
   ZANO = 'Zano',
+  SPARK = 'Spark',
   OTHER = 'Other',
 }
 
