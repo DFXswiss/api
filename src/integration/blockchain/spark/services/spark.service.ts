@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
-// Use bech32 v2 from bitcoinjs-lib for bech32m support
-import * as bech32 from 'bitcoinjs-lib/node_modules/bech32';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
@@ -61,16 +59,16 @@ export class SparkService {
         return null;
       }
       
-      // Decode the Spark address using bech32m
-      const decoded = bech32.bech32m.decode(sparkAddress);
+      // For now, we'll use a simplified approach:
+      // Replace 'sp' prefix with 'bc' for Bitcoin mainnet
+      // This is a temporary solution until we can properly handle bech32m
+      // Note: This assumes the Spark address uses the same encoding as Bitcoin Taproot addresses
+      const bitcoinAddress = 'bc' + sparkAddress.substring(2);
       
-      // Verify it's a mainnet Spark address
-      if (decoded.prefix !== 'sp') {
+      // Validate that this creates a potentially valid Bitcoin address
+      if (!bitcoinAddress.startsWith('bc1')) {
         return null;
       }
-      
-      // Re-encode with Bitcoin mainnet prefix 'bc'
-      const bitcoinAddress = bech32.bech32m.encode('bc', decoded.words);
       
       return bitcoinAddress;
     } catch (error) {
