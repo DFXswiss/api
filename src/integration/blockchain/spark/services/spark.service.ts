@@ -2,9 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
 // Use bech32 v2 from bitcoinjs-lib for bech32m support
 import * as bech32 from 'bitcoinjs-lib/node_modules/bech32';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class SparkService {
+  private readonly logger = new DfxLogger(SparkService);
   async verifySignature(message: string, address: string, signature: string): Promise<boolean> {
     try {
       // Spark uses Bitcoin-compatible message signing with bech32m addresses
@@ -13,7 +15,7 @@ export class SparkService {
       // Convert Spark address to Bitcoin address
       const bitcoinAddress = this.convertSparkToBitcoinAddress(address);
       if (!bitcoinAddress) {
-        console.error('Failed to convert Spark address to Bitcoin address:', address);
+        this.logger.error(`Failed to convert Spark address to Bitcoin address: ${address}`);
         return false;
       }
       
@@ -47,7 +49,7 @@ export class SparkService {
       
       return isValid;
     } catch (error) {
-      console.error('Spark signature verification failed:', error);
+      this.logger.error(`Spark signature verification failed: ${error}`);
       return false;
     }
   }
@@ -72,7 +74,7 @@ export class SparkService {
       
       return bitcoinAddress;
     } catch (error) {
-      console.error('Failed to convert Spark address:', error);
+      this.logger.error(`Failed to convert Spark address: ${error}`);
       return null;
     }
   }
