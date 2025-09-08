@@ -71,8 +71,8 @@ export class MexcService extends ExchangeService {
 
     return deposits.map((d) => ({
       info: { ...d },
-      id: d.txId,
-      txid: d.txId,
+      id: d.transHash,
+      txid: d.transHash,
       timestamp: d.insertTime,
       datetime: new Date(d.insertTime).toISOString(),
       address: d.address,

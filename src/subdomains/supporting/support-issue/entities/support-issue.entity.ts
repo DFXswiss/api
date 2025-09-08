@@ -6,7 +6,7 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'type
 import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { Department } from '../enums/department.enum';
-import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../enums/support-issue.enum';
+import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportIssueLog } from './support-issue-log.entity';
 import { SupportMessage } from './support-message.entity';
 
@@ -15,8 +15,8 @@ export class SupportIssue extends IEntity {
   @Column({ length: 256, unique: true })
   uid: string;
 
-  @Column({ length: 256, default: SupportIssueState.CREATED })
-  state: SupportIssueState;
+  @Column({ length: 256, default: SupportIssueInternalState.CREATED })
+  state: SupportIssueInternalState;
 
   @Column({ length: 256 })
   type: SupportIssueType;
@@ -57,7 +57,7 @@ export class SupportIssue extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  setState(state: SupportIssueState): UpdateResult<SupportIssue> {
+  setState(state: SupportIssueInternalState): UpdateResult<SupportIssue> {
     const update: Partial<SupportIssue> = { state };
 
     Object.assign(this, update);

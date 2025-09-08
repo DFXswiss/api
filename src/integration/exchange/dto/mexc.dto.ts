@@ -21,6 +21,7 @@ export interface Deposit {
   address: string;
   addressTag?: string;
   txId: string;
+  transHash: string;
   insertTime: number;
   updateTime: number;
   unlockConfirm: string;

@@ -40,6 +40,8 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
     const integrations = this.balanceIntegrationFactory.getIntegrations(rules);
 
+    const startDate = new Date();
+
     const balanceRequests = integrations.map(({ integration, rules }) =>
       integration.getBalances(rules.map((r) => Object.assign(r.target, { context: r.context }))).catch((e) => {
         this.logger.warn(`Error getting liquidity management balances for rules ${rules.map((r) => r.id)}:`, e);
@@ -51,7 +53,7 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
       balances.reduce((prev, curr) => prev.concat(curr), []),
     );
 
-    await this.saveBalanceResults(balances);
+    await this.saveBalanceResults(startDate, balances);
 
     return balances;
   }
@@ -76,10 +78,12 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
 
   //*** HELPER METHODS ***//
 
-  private async saveBalanceResults(balances: LiquidityBalance[]): Promise<void> {
+  private async saveBalanceResults(startDate: Date, balances: LiquidityBalance[]): Promise<void> {
     for (const balance of balances) {
       try {
         const existingBalance = await this.balanceRepo.findOneBy({ asset: { id: balance.asset?.id } });
+
+        if (existingBalance.updated > startDate) continue;
 
         if (existingBalance) {
           existingBalance.updateBalance(balance.amount ?? 0);

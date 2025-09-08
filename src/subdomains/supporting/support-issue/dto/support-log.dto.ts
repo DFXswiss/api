@@ -1,7 +1,7 @@
 import { LimitRequest, LimitRequestDecision } from '../entities/limit-request.entity';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { Department } from '../enums/department.enum';
-import { SupportIssueState } from '../enums/support-issue.enum';
+import { SupportIssueInternalState } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 
 export interface SupportLogDto {
@@ -12,7 +12,7 @@ export interface SupportLogDto {
   eventDate?: Date;
   department?: Department;
   decision?: LimitRequestDecision;
-  state?: SupportIssueState;
+  state?: SupportIssueInternalState;
   supportIssue?: SupportIssue;
   limitRequest?: LimitRequest;
 }

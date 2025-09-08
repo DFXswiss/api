@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -24,10 +25,10 @@ export class GetBuyQuoteDto {
   @Type(() => EntityDto)
   currency: Fiat;
 
-  @ApiProperty({ type: EntityDto, description: 'Target asset' })
+  @ApiProperty({ type: AssetInDto, description: 'Target asset' })
   @IsNotEmptyObject()
   @ValidateNested()
-  @Type(() => EntityDto)
+  @Type(() => AssetInDto)
   asset: Asset;
 
   @ApiPropertyOptional({ description: 'Amount in source currency' })

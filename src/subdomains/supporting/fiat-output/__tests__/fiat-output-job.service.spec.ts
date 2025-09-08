@@ -230,7 +230,7 @@ describe('FiatOutputJobService', () => {
           type: FiatOutputType.BUY_FIAT,
         }),
       ]);
-      jest.spyOn(assetService, 'getAllAssets').mockResolvedValue([
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
         createCustomAsset({
           id: 1,
           type: AssetType.CUSTODY,
