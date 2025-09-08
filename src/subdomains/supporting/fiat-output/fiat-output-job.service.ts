@@ -131,7 +131,7 @@ export class FiatOutputJobService {
     const groupedEntities = Util.groupBy(entities, 'accountIban');
 
     const assets = await this.assetService
-      .getAllAssets({ bank: true, balance: true })
+      .getAssetsWith({ bank: true, balance: true })
       .then((assets) => assets.filter((a) => a.type === AssetType.CUSTODY && a.bank));
 
     for (const accountIbanGroup of groupedEntities.values()) {
