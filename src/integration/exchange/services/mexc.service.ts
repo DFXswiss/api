@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { mexc, Transaction } from 'ccxt';
+import { Method } from 'axios';
 import { Config, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -17,7 +18,7 @@ export class MexcService extends ExchangeService {
     BinanceSmartChain: undefined,
     Bitcoin: undefined,
     Lightning: undefined,
-    Monero: undefined,
+    Monero: 'XMR',
     Zano: 'ZANO',
     Cardano: undefined,
     DeFiChain: undefined,
@@ -58,12 +59,10 @@ export class MexcService extends ExchangeService {
   }
 
   async getDeposits(token: string, from: Date): Promise<Transaction[]> {
-    const timestamp = Date.now().toString();
     const startTime = from.getTime().toString();
     const endTime = new Date().getTime().toString();
 
-    const deposits = await this.get<Deposit[]>('/capital/deposit/hisrec', {
-      timestamp,
+    const deposits = await this.request<Deposit[]>('GET', '/capital/config/getall', {
       startTime,
       endTime,
       coin: token,
@@ -96,14 +95,18 @@ export class MexcService extends ExchangeService {
   // --- HELPER METHODS --- //
   private readonly baseUrl = 'https://api.mexc.com/api/v3';
 
-  private async get<T>(path: string, params: Record<string, string>): Promise<T> {
+  private async request<T>(method: Method, path: string, params: Record<string, string>): Promise<T> {
+    params.timestamp = Date.now().toString();
+
     const searchParams = new URLSearchParams(params);
 
     searchParams.set('signature', Util.createHmac(Config.mexc.secret, searchParams.toString()));
 
     const url = `${this.baseUrl}/${path}?${searchParams}`;
 
-    return this.http.get<T>(url, {
+    return this.http.request<T>({
+      url,
+      method,
       headers: { 'X-MEXC-APIKEY': Config.mexc.apiKey, 'Content-Type': 'application/json' },
     });
   }
