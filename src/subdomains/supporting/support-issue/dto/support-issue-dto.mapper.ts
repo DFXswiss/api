@@ -5,6 +5,7 @@ import { SupportMessage } from '../entities/support-message.entity';
 import {
   SupportIssueDto,
   SupportIssueLimitRequestDto,
+  SupportIssueStateMapper,
   SupportIssueTransactionDto,
   SupportMessageDto,
 } from './support-issue.dto';
@@ -13,7 +14,7 @@ export class SupportIssueDtoMapper {
   static mapSupportIssue(supportIssue: SupportIssue): SupportIssueDto {
     const dto: SupportIssueDto = {
       uid: supportIssue.uid,
-      state: supportIssue.state,
+      state: SupportIssueStateMapper[supportIssue.state],
       type: supportIssue.type,
       reason: supportIssue.reason,
       name: supportIssue.name,

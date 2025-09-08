@@ -9,7 +9,7 @@ import { WebhookService } from '../../../generic/user/services/webhook/webhook.s
 import { LimitRequestDto } from '../dto/limit-request.dto';
 import { UpdateLimitRequestDto } from '../dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted, LimitRequestFinal } from '../entities/limit-request.entity';
-import { SupportIssueState, SupportIssueType } from '../enums/support-issue.enum';
+import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -67,7 +67,7 @@ export class LimitRequestService {
 
     if (dto.decision !== entity.decision && LimitRequestFinal(dto.decision)) {
       await this.supportIssueRepo.update(entity.supportIssue.id, {
-        state: SupportIssueState.COMPLETED,
+        state: SupportIssueInternalState.COMPLETED,
       });
       if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
     }

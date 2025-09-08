@@ -23,7 +23,7 @@ import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { Department } from '../enums/department.enum';
-import { SupportIssueState } from '../enums/support-issue.enum';
+import { SupportIssueInternalState } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -74,7 +74,7 @@ export class SupportIssueService {
       userData: { id: userData.id },
       type: dto.type,
       reason: dto.reason,
-      state: dto.limitRequest ? Not(SupportIssueState.COMPLETED) : undefined,
+      state: dto.limitRequest ? Not(SupportIssueInternalState.COMPLETED) : undefined,
     };
 
     if (dto.transaction?.id || dto.transaction?.uid?.startsWith(Config.prefixes.transactionUidPrefix)) {
@@ -244,8 +244,8 @@ export class SupportIssueService {
       await this.supportIssueNotificationService.newSupportMessage(entity);
     }
 
-    if (issue.state === SupportIssueState.COMPLETED)
-      await this.supportIssueRepo.update(...issue.setState(SupportIssueState.PENDING));
+    if (issue.state === SupportIssueInternalState.COMPLETED)
+      await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.PENDING));
 
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }
