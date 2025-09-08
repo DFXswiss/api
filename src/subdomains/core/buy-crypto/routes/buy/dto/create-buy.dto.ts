@@ -1,13 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsNotEmptyObject, ValidateNested } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 
 export class CreateBuyDto {
-  @ApiProperty({ type: EntityDto })
+  @ApiProperty({ type: AssetInDto })
   @IsNotEmptyObject()
   @ValidateNested()
-  @Type(() => EntityDto)
+  @Type(() => AssetInDto)
   asset: Asset;
 }
