@@ -18,7 +18,7 @@ class UserActiveGuardClass implements CanActivate {
     return this.blockedUserDataStatus.length || this.blockedUserStatus.length || this.blockedUserDataRiskStatus.length
       ? !this.blockedUserStatus.includes(userStatus) &&
           !this.blockedUserDataStatus.includes(accountStatus) &&
-          !this.blockedUserDataRiskStatus.includes(riskStatus)
+          (!riskStatus || !this.blockedUserDataRiskStatus.includes(riskStatus))
       : ![UserStatus.BLOCKED, UserStatus.DELETED].includes(userStatus) &&
           ![UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED].includes(accountStatus) &&
           (!riskStatus || ![RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS].includes(riskStatus));
