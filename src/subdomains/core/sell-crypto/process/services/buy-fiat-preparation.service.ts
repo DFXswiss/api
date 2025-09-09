@@ -111,7 +111,7 @@ export class BuyFiatPreparationService {
           users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
-          PriceValidity.ANY,
+          PriceValidity.VALID_ONLY,
           undefined,
           referenceChfPrice,
         );
@@ -121,7 +121,7 @@ export class BuyFiatPreparationService {
           users,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
-          PriceValidity.ANY,
+          PriceValidity.VALID_ONLY,
           undefined,
           referenceChfPrice,
         );

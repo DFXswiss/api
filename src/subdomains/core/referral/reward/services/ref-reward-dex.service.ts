@@ -48,7 +48,7 @@ export class RefRewardDexService {
         const asset = await this.assetService.getNativeAsset(blockchain);
 
         // payout asset Price
-        const assetPrice = await this.priceService.getPrice(eur, asset, PriceValidity.ANY);
+        const assetPrice = await this.priceService.getPrice(eur, asset, PriceValidity.VALID_ONLY);
 
         for (const reward of groupedRewards.get(blockchain)) {
           const outputAmount = assetPrice.convert(reward.amountInEur, 8);
