@@ -70,3 +70,5 @@ export const AmlReasonWithoutReason = [
   AmlReason.USER_DATA_BLOCKED,
   AmlReason.BANK_RELEASE_PENDING,
 ];
+
+export const NotRefundableAmlReasons = [AmlReason.BANK_RELEASE_PENDING];

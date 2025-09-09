@@ -60,6 +60,7 @@ import {
   TransactionTarget,
   UnassignedTransactionDto,
 } from '../../../supporting/payment/dto/transaction.dto';
+import { NotRefundableAmlReasons } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
@@ -339,6 +340,8 @@ export class TransactionController {
         throw new BadRequestException('You can only refund a transaction once');
       if (transaction.refundTargetEntity.cryptoInput?.txType === PayInType.PAYMENT)
         throw new BadRequestException('You cannot refund payment transactions');
+      if (NotRefundableAmlReasons.includes(transaction.refundTargetEntity.amlReason))
+        throw new BadRequestException('You cannot refund with this aml reason');
 
       userData = transaction.userData;
     }
@@ -423,6 +426,9 @@ export class TransactionController {
         ...refundDto,
       });
     }
+
+    if (NotRefundableAmlReasons.includes(transaction.targetEntity.amlReason))
+      throw new BadRequestException('You cannot refund with this aml reason');
 
     if (transaction.targetEntity instanceof BuyFiat)
       return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
