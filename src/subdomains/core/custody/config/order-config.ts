@@ -9,7 +9,10 @@ export const OrderConfig: {
     { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.SEND_TO_ROUTE },
   ],
   [CustodyOrderType.RECEIVE]: [],
-  [CustodyOrderType.SEND]: [], // TODO
+  [CustodyOrderType.SEND]: [
+    { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.CHARGE_ROUTE },
+    { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.SEND_TO_ROUTE },
+  ],
   [CustodyOrderType.SWAP]: [
     { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.CHARGE_ROUTE },
     { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.SEND_TO_ROUTE },
