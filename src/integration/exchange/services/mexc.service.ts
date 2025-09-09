@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { mexc, Transaction } from 'ccxt';
 import { Method } from 'axios';
+import { mexc, Transaction } from 'ccxt';
 import { Config, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -62,7 +62,7 @@ export class MexcService extends ExchangeService {
     const startTime = from.getTime().toString();
     const endTime = new Date().getTime().toString();
 
-    const deposits = await this.request<Deposit[]>('GET', '/capital/config/getall', {
+    const deposits = await this.request<Deposit[]>('GET', 'capital/deposit/hisrec', {
       startTime,
       endTime,
       coin: token,
