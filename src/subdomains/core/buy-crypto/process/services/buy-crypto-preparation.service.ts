@@ -337,7 +337,7 @@ export class BuyCryptoPreparationService {
           status: BuyCryptoStatus.COMPLETE,
         });
 
-        // payment webhook
+        // send webhook
         await this.buyCryptoWebhookService.triggerWebhook(entity);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);
