@@ -341,7 +341,7 @@ export class TransactionController {
       if (transaction.refundTargetEntity.cryptoInput?.txType === PayInType.PAYMENT)
         throw new BadRequestException('You cannot refund payment transactions');
       if (NotRefundableAmlReasons.includes(transaction.refundTargetEntity.amlReason))
-        throw new BadRequestException('You cannot refund with this aml reason');
+        throw new BadRequestException('You cannot refund with this reason');
 
       userData = transaction.userData;
     }
@@ -428,7 +428,7 @@ export class TransactionController {
     }
 
     if (NotRefundableAmlReasons.includes(transaction.targetEntity.amlReason))
-      throw new BadRequestException('You cannot refund with this aml reason');
+      throw new BadRequestException('You cannot refund with this reason');
 
     if (transaction.targetEntity instanceof BuyFiat)
       return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
