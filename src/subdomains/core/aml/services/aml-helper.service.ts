@@ -191,6 +191,7 @@ export class AmlHelperService {
       if (entity.bankTx) {
         // bank
         if (nationality && !nationality.bankEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+        if (!entity.bankTx.bankReleaseDate) errors.push(AmlError.BANK_RELEASE_DATE_MISSING);
 
         if (
           blacklist.some((b) =>
