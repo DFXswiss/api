@@ -669,7 +669,7 @@ export class BuyCryptoService {
 
     entity = await this.buyCryptoRepo.save(entity);
 
-    if (dto.user.role === UserRole.CUSTODY) {
+    if (dto.user.role === UserRole.CUSTODY || request?.custodyOrder) {
       if (request?.custodyOrder) {
         await this.custodyOrderService.updateCustodyOrderInternal(request.custodyOrder, {
           transaction: entity.transaction,
