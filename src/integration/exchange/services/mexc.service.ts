@@ -108,7 +108,7 @@ export class MexcService extends ExchangeService {
 
     return withdrawals.map((d) => ({
       info: { ...d },
-      id: d.transHash,
+      id: d.id,
       txid: d.transHash,
       timestamp: d.applyTime,
       datetime: new Date(d.applyTime).toISOString(),
@@ -118,10 +118,9 @@ export class MexcService extends ExchangeService {
       tag: undefined,
       tagFrom: undefined,
       tagTo: undefined,
-      type: 'deposit',
+      type: 'withdrawal',
       amount: parseFloat(d.amount),
       currency: d.coin.split('-')[0],
-
       status: [WithdrawalStatus.FAILED, WithdrawalStatus.CANCEL].includes(d.status)
         ? 'failed'
         : [WithdrawalStatus.SUCCESS].includes(d.status)
@@ -133,6 +132,11 @@ export class MexcService extends ExchangeService {
       comment: d.memo,
       internal: undefined,
     }));
+  }
+
+  async getWithdraw(id: string, token: string): Promise<Transaction | undefined> {
+    const withdrawals = await this.getWithdrawals(token, Util.hoursBefore(24));
+    return withdrawals.find((w) => w.id === id);
   }
 
   // --- HELPER METHODS --- //
