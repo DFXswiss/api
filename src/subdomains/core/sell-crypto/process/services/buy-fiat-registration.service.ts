@@ -32,12 +32,15 @@ export class BuyFiatRegistrationService {
         cryptoInput: { returnTxId: Not(IsNull()), status: PayInStatus.RETURN_CONFIRMED },
         chargebackTxId: IsNull(),
       },
-      relations: { cryptoInput: true },
+      relations: { cryptoInput: true, sell: true, transaction: { user: { wallet: true }, userData: true } },
     });
 
     for (const entity of entities) {
       try {
         await this.buyFiatRepo.update(entity.id, { chargebackTxId: entity.cryptoInput.returnTxId, isComplete: true });
+
+        // send webhook
+        await this.buyFiatService.triggerWebhook(entity);
       } catch (e) {
         this.logger.error(`Error during buyFiat payIn returnTxId sync (${entity.id}):`, e);
       }
