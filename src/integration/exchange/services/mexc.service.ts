@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { mexc, Transaction } from 'ccxt';
 import { Method } from 'axios';
+import { mexc, Transaction } from 'ccxt';
 import { Config, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { Deposit, DepositStatus } from '../dto/mexc.dto';
+import { Deposit, DepositStatus, Withdrawal, WithdrawalStatus } from '../dto/mexc.dto';
 import { ExchangeService } from './exchange.service';
 
 @Injectable()
@@ -62,7 +62,7 @@ export class MexcService extends ExchangeService {
     const startTime = from.getTime().toString();
     const endTime = new Date().getTime().toString();
 
-    const deposits = await this.request<Deposit[]>('GET', '/capital/config/getall', {
+    const deposits = await this.request<Deposit[]>('GET', 'capital/deposit/hisrec', {
       startTime,
       endTime,
       coin: token,
@@ -83,7 +83,50 @@ export class MexcService extends ExchangeService {
       type: 'deposit',
       amount: parseFloat(d.amount),
       currency: d.coin.split('-')[0],
-      status: d.status === DepositStatus.INVALID ? 'failed' : d.status === DepositStatus.PENDING ? 'pending' : 'ok',
+      status: [DepositStatus.INVALID, DepositStatus.REJECTED].includes(d.status)
+        ? 'failed'
+        : [DepositStatus.SUCCESS, DepositStatus.COMPLETED].includes(d.status)
+        ? 'ok'
+        : 'pending',
+      updated: undefined,
+      fee: undefined,
+      network: d.network,
+      comment: d.memo,
+      internal: undefined,
+    }));
+  }
+
+  async getWithdrawals(token: string, from: Date): Promise<Transaction[]> {
+    const startTime = from.getTime().toString();
+    const endTime = new Date().getTime().toString();
+
+    const withdrawals = await this.request<Withdrawal[]>('GET', 'capital/withdraw/history', {
+      startTime,
+      endTime,
+      coin: token,
+    });
+
+    return withdrawals.map((d) => ({
+      info: { ...d },
+      id: d.transHash,
+      txid: d.transHash,
+      timestamp: d.applyTime,
+      datetime: new Date(d.applyTime).toISOString(),
+      address: d.address,
+      addressFrom: undefined,
+      addressTo: undefined,
+      tag: undefined,
+      tagFrom: undefined,
+      tagTo: undefined,
+      type: 'deposit',
+      amount: parseFloat(d.amount),
+      currency: d.coin.split('-')[0],
+
+      status: [WithdrawalStatus.FAILED, WithdrawalStatus.CANCEL].includes(d.status)
+        ? 'failed'
+        : [WithdrawalStatus.SUCCESS].includes(d.status)
+        ? 'ok'
+        : 'pending',
       updated: undefined,
       fee: undefined,
       network: d.network,

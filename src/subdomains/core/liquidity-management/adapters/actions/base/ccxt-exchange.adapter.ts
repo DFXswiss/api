@@ -317,7 +317,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       correlationId,
     } = order;
 
-    const { target } = this.parseTransferParams(paramMap);
+    const { target, network } = this.parseTransferParams(paramMap);
 
     const withdrawal = await this.exchangeService.getWithdraw(correlationId, targetAsset.dexName);
     if (!withdrawal?.txid) {
@@ -334,7 +334,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const targetExchange = this.exchangeRegistry.get(target);
 
     const deposit = await targetExchange
-      .getDeposits(targetAsset.dexName, order.created)
+      .getDeposits(targetAsset.dexName, order.created, network)
       .then((deposits) => deposits.find((d) => d.txid === withdrawal.txid));
 
     return deposit && deposit.status === 'ok';

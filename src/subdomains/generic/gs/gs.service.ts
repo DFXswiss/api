@@ -118,8 +118,10 @@ export class GsService {
       }
     }
 
-    if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
+    if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents')))) {
+      this.logger.info(`GS userDataDoc use, with query: ${JSON.stringify(query)}`);
       await this.setUserDataDocs(data, query.select, query.sorting);
+    }
 
     if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) this.setJsonData(data, query.select);
 

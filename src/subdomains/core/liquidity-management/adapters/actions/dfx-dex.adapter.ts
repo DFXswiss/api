@@ -161,9 +161,13 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     const { system, assetId } = this.parseWithdrawParams(order.action.paramMap);
 
     const exchange = this.exchangeRegistry.get(system);
-    const asset = assetId ? await this.assetService.getAssetById(assetId) : order.pipeline.rule.targetAsset;
 
-    const deposits = await exchange.getDeposits(asset.dexName, order.created);
+    const sourceAsset = assetId ? await this.assetService.getAssetById(assetId) : undefined;
+    const sourceChain = sourceAsset && exchange.mapNetwork(sourceAsset.blockchain);
+
+    const targetAsset = order.pipeline.rule.targetAsset;
+
+    const deposits = await exchange.getDeposits(targetAsset.dexName, order.created, sourceChain || undefined);
     const deposit = deposits.find((d) => d.amount === order.maxAmount && d.timestamp > order.created.getTime());
 
     const isComplete = deposit && deposit.status === 'ok';
