@@ -57,8 +57,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     return balances.reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  async getNumberOfPendingOrders(asset: Asset): Promise<number> {
-    return this.dexService.getPendingOrdersCount(asset);
+  async hasPendingOrders(asset: Asset): Promise<boolean> {
+    return this.dexService.hasPendingOrders(asset);
   }
 
   private async getForBlockchain(blockchain: Blockchain, assets: Asset[]): Promise<LiquidityBalance[]> {

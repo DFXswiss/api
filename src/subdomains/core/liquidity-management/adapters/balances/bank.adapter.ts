@@ -40,8 +40,8 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     return balances.reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  async getNumberOfPendingOrders(_asset: Asset): Promise<number> {
-    return 0;
+  async hasPendingOrders(_asset: Asset): Promise<boolean> {
+    return false;
   }
 
   // --- HELPER METHODS --- //

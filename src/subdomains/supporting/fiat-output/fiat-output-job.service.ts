@@ -172,8 +172,8 @@ export class FiatOutputJobService {
             ) {
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
               this.logger.info(
-                `FiatOutput ${entity.id} ready: LiqBalance ${
-                  asset.balance.amount
+                `FiatOutput ${entity.id} ready: LiqBalance ${asset.balance.amount} ${
+                  asset.name
                 }, pendingFiatOutputs ${pendingFiatOutputs
                   .map((f) => f.id)
                   .join(';')}, updatedFiatOutputAmount: ${updatedFiatOutputAmount}`,
