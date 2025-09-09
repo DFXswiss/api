@@ -11,7 +11,7 @@ export type LiquidityManagementAsset = Asset & { context: LiquidityManagementCon
 
 export interface LiquidityBalanceIntegration {
   getBalances(assets: Active[]): Promise<LiquidityBalance[]>;
-  getNumberOfPendingOrders(asset: Active, context: LiquidityManagementContext): Promise<number>;
+  hasPendingOrders(asset: Active, context: LiquidityManagementContext): Promise<boolean>;
 }
 
 export interface LiquidityActionIntegration {

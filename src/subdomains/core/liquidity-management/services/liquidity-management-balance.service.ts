@@ -71,9 +71,9 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
     return this.balanceRepo.find();
   }
 
-  async getNumberOfPendingOrders(rule: LiquidityManagementRule): Promise<number> {
+  async hasPendingOrders(rule: LiquidityManagementRule): Promise<boolean> {
     const integration = this.balanceIntegrationFactory.getIntegration(rule);
-    return integration.getNumberOfPendingOrders(rule.target, rule.context);
+    return integration.hasPendingOrders(rule.target, rule.context);
   }
 
   //*** HELPER METHODS ***//

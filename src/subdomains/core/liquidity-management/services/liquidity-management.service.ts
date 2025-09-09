@@ -110,8 +110,8 @@ export class LiquidityManagementService {
         return;
       }
 
-      const numberOfPendingOrders = await this.balanceService.getNumberOfPendingOrders(rule);
-      if (numberOfPendingOrders > 0) {
+      const hasPendingOrders = await this.balanceService.hasPendingOrders(rule);
+      if (hasPendingOrders) {
         this.logger.info(`Could not verify rule ${rule.id}: pending orders found`);
         return;
       }
