@@ -179,6 +179,7 @@ export class AmlHelperService {
 
       if (
         !entity.userData.phoneCallCheckDate &&
+        !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_14) &&
         (entity.bankTx || entity.checkoutTx) &&
         entity.userData.phone &&
         entity.userData.birthday &&
