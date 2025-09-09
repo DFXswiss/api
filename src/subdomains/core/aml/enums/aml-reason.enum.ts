@@ -68,4 +68,5 @@ export const AmlReasonWithoutReason = [
   AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.USER_BLOCKED,
   AmlReason.USER_DATA_BLOCKED,
+  AmlReason.BANK_RELEASE_PENDING,
 ];

@@ -222,6 +222,15 @@
                 "line3": "Une fois cette confirmation donnée, la transaction en cours sera également payée automatiquement.",
                 "line4": "",
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
+            },
+            "bank_release_pending": {
+                "title": "En attente d'approbation bancaire",
+                "salutation": "L'autorisation bancaire pour votre transaction est toujours en attente",
+                "line1": "Nous avons bien reçu votre transaction, mais elle n'a pas encore été validée pour traitement.",
+                "line2": "Vous n'avez rien d'autre à faire, la banque approuvera automatiquement la transaction..",
+                "line3": "",
+                "line4": "",
+                "line5": "Pour consulter le statut actuel de votre transaction:<br>[url:cliquez ici]"
             }
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]"

@@ -741,6 +741,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.BANK_TX_NEEDED,
   AmlReason.MANUAL_CHECK_PHONE,
   AmlReason.MERGE_INCOMPLETE,
+  AmlReason.BANK_RELEASE_PENDING,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];
