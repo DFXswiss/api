@@ -222,6 +222,15 @@
                 "line3": "Once this confirmation has been given, the outstanding transaction will also be paid out automatically.",
                 "line4": "",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
+            },
+            "bank_release_pending": {
+                "title": "Bank approval pending",
+                "salutation": "The bank approval for your transaction is still pending",
+                "line1": "We have received your transaction but it has not yet been released for further processing.",
+                "line2": "You don't need to do anything else, the bank will automatically approve the transaction.",
+                "line3": "",
+                "line4": "",
+                "line5": "To view the current status of your transaction:<br>[url:click here]"
             }
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]"
