@@ -65,10 +65,10 @@ export class CustodyOrderService {
     switch (dto.type) {
       case CustodyOrderType.DEPOSIT: {
         const sourceCurrency = await this.fiatService.getFiatByName(dto.sourceAsset);
-        if (!sourceCurrency) throw new NotFoundException('Currency not found');
+        if (!sourceCurrency) throw new NotFoundException('Source currency not found');
 
         const targetAsset = await this.getCustodyAsset(dto.targetAsset);
-        if (!targetAsset) throw new NotFoundException('Asset not found');
+        if (!targetAsset) throw new NotFoundException('Target asset not found');
 
         const buyPaymentInfo = await this.buyService.createBuyPaymentInfo(
           jwt,
@@ -76,16 +76,16 @@ export class CustodyOrderService {
         );
 
         orderDto.buy = await this.buyService.getById(buyPaymentInfo.routeId);
-        orderDto.inputAsset = await this.assetService.getAssetById(buyPaymentInfo.asset.id);
+        orderDto.inputAsset = targetAsset;
         paymentInfo = CustodyOrderResponseDtoMapper.mapBuyPaymentInfo(buyPaymentInfo);
         break;
       }
       case CustodyOrderType.WITHDRAWAL: {
         const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
-        if (!sourceAsset) throw new NotFoundException('Asset not found');
+        if (!sourceAsset) throw new NotFoundException('Source asset not found');
 
         const targetCurrency = await this.fiatService.getFiatByName(dto.targetAsset);
-        if (!targetCurrency) throw new NotFoundException('Currency not found');
+        if (!targetCurrency) throw new NotFoundException('Target currency not found');
 
         this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
 
@@ -95,17 +95,17 @@ export class CustodyOrderService {
         );
 
         orderDto.sell = await this.sellService.getById(sellPaymentInfo.routeId);
-        orderDto.outputAsset = await this.assetService.getAssetById(sellPaymentInfo.asset.id);
+        orderDto.outputAsset = sourceAsset;
         orderDto.outputAmount = sellPaymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSellPaymentInfo(sellPaymentInfo);
         break;
       }
       case CustodyOrderType.SWAP: {
         const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
-        if (!sourceAsset) throw new NotFoundException('Asset not found');
+        if (!sourceAsset) throw new NotFoundException('Source asset not found');
 
         const targetAsset = await this.getCustodyAsset(dto.targetAsset);
-        if (!targetAsset) throw new NotFoundException('Asset not found');
+        if (!targetAsset) throw new NotFoundException('Target asset not found');
 
         this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
 
@@ -115,7 +115,35 @@ export class CustodyOrderService {
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
-        orderDto.outputAsset = await this.assetService.getAssetById(swapPaymentInfo.sourceAsset.id);
+        orderDto.outputAsset = targetAsset;
+        orderDto.outputAmount = swapPaymentInfo.amount;
+        paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
+        break;
+      }
+      case CustodyOrderType.SEND: {
+        const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
+        if (!sourceAsset) throw new NotFoundException('Source asset not found');
+
+        const targetAsset = await this.assetService.getAssetByQuery({
+          name: dto.targetAsset,
+          blockchain: dto.targetBlockchain,
+          type: undefined,
+        });
+        if (!targetAsset) throw new NotFoundException('Target asset not found');
+
+        this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
+
+        const targetUser = await this.userService.getUserByAddress(dto.targetAddress, { userData: true });
+        if (!targetUser || targetUser.userData.id !== user.userData.id)
+          throw new BadRequestException('Invalid target address');
+
+        const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
+          targetUser.id,
+          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+        );
+
+        orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
+        orderDto.outputAsset = targetAsset;
         orderDto.outputAmount = swapPaymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
