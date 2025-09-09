@@ -229,23 +229,15 @@ export class TransactionRequestService {
         sourceId,
         targetId,
         isComplete: false,
-        created: MoreThan(Util.daysBefore(2)),
+        created: MoreThan(Util.daysBefore(Config.txRequestWaitingExpiryDays)),
       },
       order: { created: 'DESC' },
       relations: { user: true, custodyOrder: true },
     });
 
     const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
-
-    const pendingTransactionRequests = transactionRequests.filter(
-      (t) => t.status === TransactionRequestStatus.WAITING_FOR_PAYMENT,
-    );
-    if (pendingTransactionRequests) {
-      for (const pendingRequest of pendingTransactionRequests) {
-        await this.complete(pendingRequest.id);
-      }
-    }
     if (transactionRequest) await this.complete(transactionRequest.id);
+
     return transactionRequest;
   }
 
