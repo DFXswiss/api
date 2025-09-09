@@ -120,6 +120,35 @@ export class CustodyOrderService {
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
       }
+      case CustodyOrderType.SEND: {
+        const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
+        if (!sourceAsset) throw new NotFoundException('Asset not found');
+
+        const targetAsset = await this.assetService.getAssetByQuery({
+          name: dto.targetAsset,
+          blockchain: dto.targetBlockchain,
+          type: undefined,
+        });
+        if (!targetAsset) throw new NotFoundException('Asset not found');
+
+        this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
+
+        const targetUser = await this.userService.getUserByAddress(dto.targetAddress, { userData: true });
+        if (!targetUser) throw new NotFoundException('Target user not found');
+        if (targetUser.userData.id !== user.userData.id)
+          throw new BadRequestException('Target user has not the same account like custody user');
+
+        const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
+          targetUser.id,
+          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+        );
+
+        orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
+        orderDto.outputAsset = await this.assetService.getAssetById(swapPaymentInfo.sourceAsset.id);
+        orderDto.outputAmount = swapPaymentInfo.amount;
+        paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
+        break;
+      }
       case CustodyOrderType.RECEIVE: {
         const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
         if (!sourceAsset) throw new NotFoundException('Asset not found');

@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsNotEmpty, IsNumber, IsString, Validate, ValidateIf } from 'class-validator';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
@@ -44,6 +45,18 @@ export class GetCustodyInfoDto {
   @Validate(XOR, ['amount'])
   @IsNumber()
   targetAmount: number;
+
+  @ApiPropertyOptional({ description: 'Target address' })
+  @IsNotEmpty()
+  @ValidateIf((b: GetCustodyInfoDto) => Boolean(CustodyOrderType.SEND === b.type))
+  @IsString()
+  targetAddress: string;
+
+  @ApiPropertyOptional({ description: 'Target blockchain' })
+  @IsNotEmpty()
+  @ValidateIf((b: GetCustodyInfoDto) => Boolean(CustodyOrderType.SEND === b.type))
+  @IsEnum(Blockchain)
+  targetBlockchain: Blockchain;
 
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
