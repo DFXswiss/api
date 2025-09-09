@@ -222,6 +222,15 @@
                 "line3": "Nachdem diese Bestätigung erteilt ist wird die ausstehende Transaktion ebenfalls automatisch ausgezahlt werden.",
                 "line4": "",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
+            },
+            "bank_release_pending": {
+                "title": "Bankfreigabe ausstehend",
+                "salutation": "Die Bankfreigabe für deine Transaktion steht noch aus",
+                "line1": "Deine Transaktion ist bei uns eingetroffen aber wurde noch nicht zur weiteren Verwendung freigegeben.",
+                "line2": "Du brauchst nichts weiter zu tun, die Bank gibt die Transaktion automatisch frei.",
+                "line3": "",
+                "line4": "",
+                "line5": "Um den aktuellen Stand deiner Transaktion einsehen zu können:<br>[url:Klick hier]"
             }
         },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]"

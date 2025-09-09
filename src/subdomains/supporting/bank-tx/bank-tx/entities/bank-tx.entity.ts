@@ -51,6 +51,9 @@ export class BankTx extends IEntity {
   accountServiceRef: string;
 
   @Column({ type: 'datetime2', nullable: true })
+  bankReleaseDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
   bookingDate?: Date;
 
   @Column({ type: 'datetime2', nullable: true })

@@ -222,6 +222,15 @@
                 "line3": "Una vez dada esta confirmación, la transacción pendiente también se pagará automáticamente.",
                 "line4": "",
                 "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
+            },
+            "bank_release_pending": {
+                "title": "Aprobación bancaria pendiente",
+                "salutation": "La aprobación bancaria de tu transacción aún está pendiente",
+                "line1": "Hemos recibido su transacción, pero aún no se ha liberado para su posterior procesamiento.",
+                "line2": "No es necesario que haga nada más, el banco aprobará automáticamente la transacción.",
+                "line3": "",
+                "line4": "",
+                "line5": "Para ver el estado actual de su transacción:<br>[url:haga clic aquí]"
             }
         },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]"

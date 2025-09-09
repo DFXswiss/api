@@ -56,6 +56,7 @@ export enum AmlError {
   MERGE_PENDING = 'MergePending',
   MERGE_EXPIRED = 'MergeExpired',
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
+  BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
 }
 
 export const DelayResultError = [
@@ -64,6 +65,7 @@ export const DelayResultError = [
   AmlError.NO_LETTER,
   AmlError.BANK_DATA_MISSING,
   AmlError.INPUT_NOT_CONFIRMED,
+  AmlError.BANK_RELEASE_DATE_MISSING,
 ];
 
 export enum AmlErrorType {
@@ -256,5 +258,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK_PHONE,
+  },
+  [AmlError.BANK_RELEASE_DATE_MISSING]: {
+    type: AmlErrorType.SINGLE,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.BANK_RELEASE_PENDING,
   },
 };

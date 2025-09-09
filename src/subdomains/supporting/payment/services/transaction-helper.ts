@@ -54,7 +54,9 @@ import { TransactionService } from './transaction.service';
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
   private readonly logger = new DfxLogger(TransactionHelper);
+
   private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
+  private readonly user30dVolumeCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
 
   private transactionSpecifications: TransactionSpecification[];
 
@@ -785,7 +787,9 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
     const volume30d =
       user?.userData.kycLevel < KycLevel.LEVEL_50
-        ? await this.getVolumeSince(Util.daysBefore(30), Util.daysAfter(30), [user])
+        ? await this.user30dVolumeCache.get(user.id.toString(), () =>
+            this.getVolumeSince(Util.daysBefore(30), Util.daysAfter(30), [user]),
+          )
         : 0;
 
     const kycLimit = (user?.userData.availableTradingLimit ?? Number.MAX_VALUE) - volume30d;

@@ -222,6 +222,15 @@
                 "line3": "Una volta fornita tale conferma, anche la transazione in sospeso verrà pagata automaticamente.",
                 "line4": "",
                 "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
+            },
+            "bank_release_pending": {
+                "title": "In attesa dell'approvazione della banca",
+                "salutation": "L'approvazione della banca per la tua transazione è ancora in sospeso",
+                "line1": "Abbiamo ricevuto la tua transazione, ma non è ancora stata rilasciata per l'ulteriore elaborazione.",
+                "line2": "Non devi fare altro, la banca approverà automaticamente la transazione.",
+                "line3": "",
+                "line4": "",
+                "line5": "Per visualizzare lo stato attuale della transazione:<br>[url:clicca qui]"
             }
         },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]"

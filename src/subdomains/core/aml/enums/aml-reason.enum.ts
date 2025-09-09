@@ -34,6 +34,7 @@ export enum AmlReason {
   BANK_TX_NEEDED = 'BankTxNeeded',
   MERGE_INCOMPLETE = 'MergeIncomplete',
   MANUAL_CHECK_PHONE = 'ManualCheckPhone',
+  BANK_RELEASE_PENDING = 'BankReleasePending',
 }
 
 export const KycAmlReasons = [
@@ -58,6 +59,7 @@ export const RecheckAmlReasons = [
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.KYC_DATA_NEEDED,
+  AmlReason.BANK_RELEASE_PENDING,
 ];
 
 export const AmlReasonWithoutReason = [
@@ -66,4 +68,7 @@ export const AmlReasonWithoutReason = [
   AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.USER_BLOCKED,
   AmlReason.USER_DATA_BLOCKED,
+  AmlReason.BANK_RELEASE_PENDING,
 ];
+
+export const NotRefundableAmlReasons = [AmlReason.BANK_RELEASE_PENDING];

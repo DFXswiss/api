@@ -27,6 +27,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -59,6 +60,7 @@ import {
   TransactionTarget,
   UnassignedTransactionDto,
 } from '../../../supporting/payment/dto/transaction.dto';
+import { NotRefundableAmlReasons } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
@@ -85,6 +87,7 @@ import { ExportType, HistoryService } from '../services/history.service';
 export class TransactionController {
   private files: { [key: string]: StreamableFile } = {};
   private readonly refundList = new Map<number, RefundDataDto>();
+  private readonly logger = new DfxLogger(TransactionController);
 
   constructor(
     private readonly historyService: HistoryService,
@@ -337,6 +340,8 @@ export class TransactionController {
         throw new BadRequestException('You can only refund a transaction once');
       if (transaction.refundTargetEntity.cryptoInput?.txType === PayInType.PAYMENT)
         throw new BadRequestException('You cannot refund payment transactions');
+      if (NotRefundableAmlReasons.includes(transaction.refundTargetEntity.amlReason))
+        throw new BadRequestException('You cannot refund with this reason');
 
       userData = transaction.userData;
     }
@@ -375,6 +380,8 @@ export class TransactionController {
     @Param('id') id: string,
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
+    const timeArray = [Date.now()];
+
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { transaction: { userData: true } },
       bankTxReturn: { bankTx: true, chargebackOutput: true },
@@ -383,6 +390,7 @@ export class TransactionController {
       buyFiat: { cryptoInput: true, transaction: { userData: true } },
       refReward: true,
     });
+    timeArray.push(Date.now());
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
@@ -402,6 +410,8 @@ export class TransactionController {
     const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
+    timeArray.push(Date.now());
+
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!transaction.targetEntity) {
@@ -416,6 +426,9 @@ export class TransactionController {
         ...refundDto,
       });
     }
+
+    if (NotRefundableAmlReasons.includes(transaction.targetEntity.amlReason))
+      throw new BadRequestException('You cannot refund with this reason');
 
     if (transaction.targetEntity instanceof BuyFiat)
       return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
@@ -432,10 +445,14 @@ export class TransactionController {
     if (transaction.targetEntity.checkoutTx)
       return this.buyCryptoService.refundCheckoutTx(transaction.targetEntity, { ...refundDto });
 
-    return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
+    await this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
       ...refundDto,
     });
+
+    timeArray.push(Date.now());
+
+    this.logger.info(`Refund transaction time log: ${Util.createTimeString(timeArray)}`);
   }
 
   @Put(':id/invoice')

@@ -14,6 +14,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -64,6 +65,8 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoService {
+  private readonly logger = new DfxLogger(BuyCryptoService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -446,6 +449,8 @@ export class BuyCryptoService {
   }
 
   async refundBankTx(buyCrypto: BuyCrypto, dto: BankTxRefund): Promise<void> {
+    const timeArray = [Date.now()];
+
     if (!dto.refundIban && !buyCrypto.chargebackIban)
       throw new BadRequestException('You have to define a chargebackIban');
 
@@ -465,6 +470,8 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
+    timeArray.push(Date.now());
+
     if (dto.chargebackAllowedDate && chargebackAmount)
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
@@ -483,6 +490,10 @@ export class BuyCryptoService {
         buyCrypto.chargebackBankRemittanceInfo,
       ),
     );
+
+    timeArray.push(Date.now());
+
+    this.logger.info(`Refund bankTx time log: ${Util.createTimeString(timeArray)}`);
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {
