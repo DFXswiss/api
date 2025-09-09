@@ -134,9 +134,8 @@ export class CustodyOrderService {
         this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
 
         const targetUser = await this.userService.getUserByAddress(dto.targetAddress, { userData: true });
-        if (!targetUser) throw new NotFoundException('Target user not found');
-        if (targetUser.userData.id !== user.userData.id)
-          throw new BadRequestException('Target user has not the same account like custody user');
+        if (!targetUser || targetUser.userData.id !== user.userData.id)
+          throw new BadRequestException('Invalid target address');
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           targetUser.id,
