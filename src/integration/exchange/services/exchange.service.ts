@@ -213,7 +213,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return withdrawals.find((w) => w.id === id);
   }
 
-  async getDeposits(token: string, since?: Date): Promise<Transaction[]> {
+  async getDeposits(token: string, since?: Date, _chain?: string): Promise<Transaction[]> {
     return this.callApi((e) => e.fetchDeposits(token, this.toCcxtDate(since), 200, { limit: 200 }));
   }
 
@@ -344,7 +344,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.networks[blockchain];
   }
 
-  private toCcxtDate(date?: Date): number | undefined {
+  protected toCcxtDate(date?: Date): number | undefined {
     // ignore milliseconds
     return date ? Util.round(date?.getTime(), -3) : undefined;
   }

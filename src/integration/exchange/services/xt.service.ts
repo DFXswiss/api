@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { xt } from 'ccxt';
+import { Transaction, xt } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -18,7 +18,7 @@ export class XtService extends ExchangeService {
     Zano: undefined,
     Cardano: undefined,
     DeFiChain: undefined,
-    Ethereum: undefined,
+    Ethereum: 'Ethereum',
     Sepolia: undefined,
     Optimism: undefined,
     Polygon: undefined,
@@ -46,5 +46,9 @@ export class XtService extends ExchangeService {
 
   constructor() {
     super(xt, GetConfig().xt);
+  }
+
+  async getDeposits(token: string, since?: Date, chain?: string): Promise<Transaction[]> {
+    return this.callApi((e) => e.fetchDeposits(token, this.toCcxtDate(since), 200, { limit: 200, chain }));
   }
 }
