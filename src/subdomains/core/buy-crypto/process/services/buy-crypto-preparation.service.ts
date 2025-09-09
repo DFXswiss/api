@@ -322,7 +322,7 @@ export class BuyCryptoPreparationService {
         chargebackRemittanceInfo: Not(IsNull()),
         chargebackOutput: { id: Not(IsNull()) },
       },
-      relations: { transaction: { user: { userData: true } } },
+      relations: { transaction: { user: { wallet: true }, userData: true }, cryptoInput: true },
     });
 
     for (const entity of entities) {
@@ -330,12 +330,15 @@ export class BuyCryptoPreparationService {
         const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.chargebackRemittanceInfo);
         if (!bankTx) continue;
 
-        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN }, entity.user);
+        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
         await this.buyCryptoRepo.update(entity.id, {
           chargebackBankTx: bankTx,
           isComplete: true,
           status: BuyCryptoStatus.COMPLETE,
         });
+
+        // payment webhook
+        await this.buyCryptoWebhookService.triggerWebhook(entity);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);
       }
