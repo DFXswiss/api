@@ -14,14 +14,6 @@ export class GetCustodyInfoDto {
   @IsEnum(CustodyOrderType)
   type: CustodyOrderType;
 
-  @ApiPropertyOptional()
-  @IsNotEmpty()
-  @ValidateIf((b: GetCustodyInfoDto) => Boolean(CustodyOrderType.WITHDRAWAL === b.type))
-  @IsString()
-  @IsDfxIban(IbanType.SELL)
-  @Transform(Util.trimAll)
-  iban?: string;
-
   @ApiProperty({ description: 'Source asset name, Asset or Fiat' })
   @IsNotEmpty()
   @IsString()
@@ -57,6 +49,14 @@ export class GetCustodyInfoDto {
   @ValidateIf((b: GetCustodyInfoDto) => Boolean(CustodyOrderType.SEND === b.type))
   @IsEnum(Blockchain)
   targetBlockchain: Blockchain;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((b: GetCustodyInfoDto) => Boolean(CustodyOrderType.WITHDRAWAL === b.type))
+  @IsString()
+  @IsDfxIban(IbanType.SELL)
+  @Transform(Util.trimAll)
+  targetIban?: string;
 
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
