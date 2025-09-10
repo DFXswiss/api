@@ -3,7 +3,11 @@ import { Config } from 'src/config/config';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SepaEntry } from '../dto/sepa-entry.dto';
 import { SepaFile } from '../dto/sepa-file.dto';
 import { ChargeRecord, SepaAddress, SepaCdi } from '../dto/sepa.dto';
@@ -150,8 +154,12 @@ export class SepaParser {
         const currency = charge.Amt['@_Ccy'];
         const chargeCurrency = await this.fiatService.getFiatByName(currency);
 
-        const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, PriceCurrency.CHF, true);
-        const chargeReferencePrice = await this.pricingService.getPrice(chargeCurrency, referenceCurrency, true);
+        const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, PriceCurrency.CHF, PriceValidity.ANY);
+        const chargeReferencePrice = await this.pricingService.getPrice(
+          chargeCurrency,
+          referenceCurrency,
+          PriceValidity.ANY,
+        );
 
         chargeAmount += chargeReferencePrice.convert(amount, Config.defaultVolumeDecimal);
         chargeAmountChf += chargeChfPrice.convert(amount, Config.defaultVolumeDecimal);

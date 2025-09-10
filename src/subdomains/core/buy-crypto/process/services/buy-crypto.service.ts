@@ -50,6 +50,7 @@ import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -321,10 +322,10 @@ export class BuyCryptoService {
           entity.userData.users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          PriceValidity.VALID_ONLY,
           undefined,
           undefined,
           inputReferenceCurrency,
-          false,
         );
 
         await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);

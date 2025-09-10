@@ -13,7 +13,11 @@ import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { MoreThan } from 'typeorm';
 
 interface ExchangeData {
@@ -71,8 +75,12 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
     const xtDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEPS');
     const xtDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'BTC', 'DEPS');
 
-    const referenceDeurUsdtPrice = await this.pricingService.getPrice(usdt, PriceCurrency.EUR, false);
-    const referenceDeurBtcPrice = await this.pricingService.getPrice(btc, PriceCurrency.EUR, false);
+    const referenceDeurUsdtPrice = await this.pricingService.getPrice(
+      usdt,
+      PriceCurrency.EUR,
+      PriceValidity.VALID_ONLY,
+    );
+    const referenceDeurBtcPrice = await this.pricingService.getPrice(btc, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
     const referenceDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'USDT', 'DEPS');
     const referenceDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'BTC', 'DEPS');
 

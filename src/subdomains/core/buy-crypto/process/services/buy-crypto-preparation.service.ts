@@ -18,7 +18,11 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
@@ -95,21 +99,30 @@ export class BuyCryptoPreparationService {
           inputCurrency,
           entity.outputAsset,
           inputReferenceCurrency,
-          false,
+          PriceValidity.VALID_ONLY,
           isPayment,
         );
 
         const { users, refUser, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
         if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
 
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.CHF, false);
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.EUR, false);
+        const referenceChfPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.CHF,
+          PriceValidity.VALID_ONLY,
+        );
+        const referenceEurPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.EUR,
+          PriceValidity.VALID_ONLY,
+        );
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
           users,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
+          PriceValidity.VALID_ONLY,
           'checkoutTx',
           referenceChfPrice,
         );
@@ -119,6 +132,7 @@ export class BuyCryptoPreparationService {
           users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          PriceValidity.VALID_ONLY,
           undefined,
           referenceChfPrice,
         );
@@ -128,6 +142,7 @@ export class BuyCryptoPreparationService {
           users,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
+          PriceValidity.VALID_ONLY,
           undefined,
           referenceChfPrice,
         );
@@ -220,8 +235,16 @@ export class BuyCryptoPreparationService {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.EUR, false);
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, PriceCurrency.CHF, false);
+        const referenceEurPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.EUR,
+          PriceValidity.VALID_ONLY,
+        );
+        const referenceChfPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.CHF,
+          PriceValidity.VALID_ONLY,
+        );
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 
@@ -348,7 +371,7 @@ export class BuyCryptoPreparationService {
   private async convertNetworkFee(from: Active, to: Active, fee: number): Promise<number> {
     if (isAsset(to) && [AssetType.CUSTOM, AssetType.PRESALE].includes(to.type)) return 0;
 
-    const referenceOutputPrice = await this.pricingService.getPrice(from, to, false);
+    const referenceOutputPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
 
     return referenceOutputPrice.convert(fee);
   }

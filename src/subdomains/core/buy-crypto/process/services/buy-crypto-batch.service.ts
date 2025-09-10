@@ -18,7 +18,7 @@ import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
@@ -129,7 +129,11 @@ export class BuyCryptoBatchService {
           const inputReferenceCurrency =
             tx.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(tx.inputReferenceAsset));
 
-          const price = await this.pricingService.getPrice(inputReferenceCurrency, tx.outputReferenceAsset, false);
+          const price = await this.pricingService.getPrice(
+            inputReferenceCurrency,
+            tx.outputReferenceAsset,
+            PriceValidity.VALID_ONLY,
+          );
 
           tx.calculateOutputReferenceAmount(price);
         }
