@@ -113,7 +113,7 @@ export class OlkypayService {
         remittanceInfo: tx.line2,
         accountIban: accountIban,
         type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.BANK_ACCOUNT_FEE : null,
-        bankReleaseDate: new Date(), // Automatically set for Olkypay transactions
+        bankReleaseDate: new Date(),
       };
     } catch (e) {
       throw new Error(`Failed to parse transaction ${tx.idCtp}: ${e.message}`);
