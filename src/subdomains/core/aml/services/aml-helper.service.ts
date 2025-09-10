@@ -520,7 +520,12 @@ export class AmlHelperService {
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
     if (crucialErrorResults.length) {
+      // Prioritize BANK_RELEASE_DATE_MISSING over other crucial errors
+      const bankReleaseMissingResult = crucialErrorResults.find(
+        (c) => c.amlError === AmlError.BANK_RELEASE_DATE_MISSING,
+      );
       const crucialErrorResult =
+        bankReleaseMissingResult ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.PENDING) ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.GSHEET) ??
