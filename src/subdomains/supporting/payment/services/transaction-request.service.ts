@@ -232,7 +232,7 @@ export class TransactionRequestService {
         created: MoreThan(Util.daysBefore(Config.txRequestWaitingExpiryDays)),
       },
       order: { created: 'DESC' },
-      relations: { user: true, custodyOrder: true },
+      relations: { user: true, custodyOrder: { user: true } },
     });
 
     const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
