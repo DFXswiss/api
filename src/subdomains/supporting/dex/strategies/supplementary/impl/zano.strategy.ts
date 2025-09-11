@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ZanoTransferDto } from 'src/integration/blockchain/zano/dto/zano.dto';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
 import { DexZanoService } from '../../../services/dex-zano.service';
@@ -18,9 +18,11 @@ export class ZanoStrategy extends SupplementaryStrategy {
   }
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
-    const { destinationAddress, amount } = request;
+    const { destinationAddress, asset, amount } = request;
 
-    return this.dexZanoService.sendTransfer(destinationAddress, amount);
+    return asset.type === AssetType.COIN
+      ? this.dexZanoService.sendCoin(destinationAddress, amount)
+      : this.dexZanoService.sendToken(destinationAddress, asset, amount);
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {

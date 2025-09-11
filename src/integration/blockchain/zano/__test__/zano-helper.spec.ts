@@ -25,13 +25,23 @@ describe('ZanoHelper', () => {
   });
 
   it('should convert zano to au', () => {
-    const au = ZanoHelper.zanoToAu(0.01);
+    const au = ZanoHelper.toAuAmount(0.01);
     expect(au).toEqual(10000000000);
   });
 
   it('should convert au to zano', () => {
-    const zano = ZanoHelper.auToZano(10000000000);
+    const zano = ZanoHelper.fromAuAmount(10000000000);
     expect(zano).toEqual(0.01);
+  });
+
+  it('should convert fusd to au', () => {
+    const au = ZanoHelper.toAuAmount(20, 4);
+    expect(au).toEqual(200000);
+  });
+
+  it('should convert au to fusd', () => {
+    const fusd = ZanoHelper.fromAuAmount(200000, 4);
+    expect(fusd).toEqual(20);
   });
 
   it('should convert index to payment id hex', () => {

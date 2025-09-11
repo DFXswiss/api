@@ -75,6 +75,6 @@ export class BitcoinStrategy extends BitcoinBasedStrategy {
   }
 
   private async sendBTC(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    await this.send(context, orders, 'BTC');
+    await this.send(context, orders);
   }
 }

@@ -77,6 +77,10 @@ export class AssetService {
     return this.assetRepo.findOneCachedBy(`native-${blockchain}`, { blockchain, type: AssetType.COIN });
   }
 
+  async getTokens(blockchain: Blockchain): Promise<Asset[]> {
+    return this.assetRepo.findCachedBy(`token-${blockchain}`, { blockchain, type: AssetType.TOKEN });
+  }
+
   async getSellableBlockchains(): Promise<Blockchain[]> {
     return this.assetRepo
       .findCachedBy('sellable', { sellable: true })

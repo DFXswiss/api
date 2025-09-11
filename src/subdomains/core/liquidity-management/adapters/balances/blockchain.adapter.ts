@@ -7,6 +7,7 @@ import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
 import { TronClient } from 'src/integration/blockchain/tron/tron-client';
+import { ZanoClient } from 'src/integration/blockchain/zano/zano-client';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { isAsset } from 'src/shared/models/active';
@@ -18,7 +19,7 @@ import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityManagementContext } from '../../enums';
 import { LiquidityBalanceIntegration } from '../../interfaces';
 
-type TokenClient = EvmClient | SolanaClient | TronClient;
+type TokenClient = EvmClient | SolanaClient | TronClient | ZanoClient;
 
 @Injectable()
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
@@ -96,8 +97,11 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.MONERO:
-        case Blockchain.ZANO:
           await this.updateCoinOnlyBalance(assets);
+          break;
+
+        case Blockchain.ZANO:
+          await this.updateZanoBalance(assets);
           break;
 
         case Blockchain.ETHEREUM:
@@ -163,6 +167,17 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         this.invalidateCacheFor([asset]);
       }
     }
+  }
+
+  private async updateZanoBalance(assets: Asset[]): Promise<void> {
+    if (assets.length === 0) return;
+
+    const blockchain = assets[0].blockchain;
+    const client = this.blockchainRegistryService.getClient(blockchain) as ZanoClient;
+    await this.updateCoinAndTokenBalance(
+      assets.filter((a) => a.type !== AssetType.POOL),
+      client,
+    );
   }
 
   private async updateEvmBalance(assets: Asset[]): Promise<void> {

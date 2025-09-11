@@ -8,7 +8,7 @@ import { CheckLiquidityUtil } from '../utils/check-liquidity.util';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
-export class ZanoStrategy extends CheckLiquidityStrategy {
+export class ZanoCoinStrategy extends CheckLiquidityStrategy {
   constructor(protected readonly assetService: AssetService, private readonly dexZanoService: DexZanoService) {
     super();
   }
@@ -18,7 +18,7 @@ export class ZanoStrategy extends CheckLiquidityStrategy {
   }
 
   get assetType(): AssetType {
-    return undefined;
+    return AssetType.COIN;
   }
 
   get assetCategory(): AssetCategory {
@@ -26,10 +26,10 @@ export class ZanoStrategy extends CheckLiquidityStrategy {
   }
 
   async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
-    const { context, correlationId, referenceAsset, referenceAmount: zanoAmount } = request;
+    const { referenceAsset, referenceAmount: nativeCoinAmount, context, correlationId } = request;
 
-    if (referenceAsset.dexName === 'ZANO') {
-      const [targetAmount, availableAmount] = await this.dexZanoService.checkAvailableTargetLiquidity(zanoAmount);
+    if (referenceAsset.dexName === this.dexZanoService.getNativeCoin()) {
+      const [targetAmount, availableAmount] = await this.dexZanoService.checkCoinAvailability(nativeCoinAmount);
 
       return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
         request,

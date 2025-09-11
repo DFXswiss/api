@@ -1,10 +1,3 @@
-export class TronToken {
-  readonly isNative = false;
-  readonly isToken = true;
-
-  constructor(readonly address: string, readonly decimals: number) {}
-}
-
 export interface TronChainParameterDto {
   bandwidthUnitPrice: number;
   energyUnitPrice: number;

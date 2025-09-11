@@ -7,9 +7,8 @@ import { AsyncCache } from 'src/shared/utils/async-cache';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
-import { BlockchainClient } from '../shared/util/blockchain-client';
+import { BlockchainClient, BlockchainToken } from '../shared/util/blockchain-client';
 import {
-  SolanaToken as SolanaBlockchainToken,
   SolanaNativeInstructionsDto,
   SolanaTokenDto,
   SolanaTokenInstructionsDto,
@@ -34,7 +33,7 @@ export class SolanaClient extends BlockchainClient {
   private readonly wallet: SolanaWallet;
   private readonly connection: Solana.Connection;
 
-  private readonly tokens = new AsyncCache<SolanaBlockchainToken>();
+  private readonly tokens = new AsyncCache<BlockchainToken>();
 
   constructor(private readonly http: HttpService) {
     super();
@@ -115,16 +114,16 @@ export class SolanaClient extends BlockchainClient {
     return false;
   }
 
-  async getToken(asset: Asset): Promise<SolanaBlockchainToken> {
+  async getToken(asset: Asset): Promise<BlockchainToken> {
     return this.getTokenByAddress(asset.chainId);
   }
 
-  private async getTokenByAddress(address: string): Promise<SolanaBlockchainToken> {
+  private async getTokenByAddress(address: string): Promise<BlockchainToken> {
     return this.tokens.get(address, async () => {
       const mintAccount = await SolanaToken.getMint(this.connection, new Solana.PublicKey(address));
       const mintAddress = mintAccount.address.toBase58();
       const decimals = mintAccount.decimals;
-      return new SolanaBlockchainToken(mintAddress, decimals);
+      return new BlockchainToken(mintAddress, decimals);
     });
   }
 

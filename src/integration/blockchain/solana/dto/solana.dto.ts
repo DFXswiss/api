@@ -1,10 +1,3 @@
-export class SolanaToken {
-  readonly isNative = false;
-  readonly isToken = true;
-
-  constructor(readonly address: string, readonly decimals: number) {}
-}
-
 export interface SolanaTokenDto {
   address: string;
   mint: string;

@@ -6,8 +6,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { SellLiquidityStrategy } from './base/sell-liquidity.strategy';
 
 @Injectable()
-export class ZanoStrategy extends SellLiquidityStrategy {
-  protected readonly logger = new DfxLogger(ZanoStrategy);
+export class ZanoTokenStrategy extends SellLiquidityStrategy {
+  protected readonly logger = new DfxLogger(ZanoTokenStrategy);
 
   constructor(protected readonly assetService: AssetService) {
     super();
@@ -18,15 +18,15 @@ export class ZanoStrategy extends SellLiquidityStrategy {
   }
 
   get assetType(): AssetType {
-    return undefined;
+    return AssetType.TOKEN;
   }
 
   sellLiquidity(): Promise<void> {
-    throw new Error('Selling liquidity on DEX is not supported for zano');
+    throw new Error('Selling liquidity on DEX is not supported for Zano token');
   }
 
   addSellData(): Promise<void> {
-    throw new Error('Selling liquidity on DEX is not supported for zano');
+    throw new Error('Selling liquidity on DEX is not supported for Zano token');
   }
 
   protected getFeeAsset(): Promise<Asset> {
