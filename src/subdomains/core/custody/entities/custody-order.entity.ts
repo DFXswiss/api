@@ -19,7 +19,6 @@ export class CustodyOrder extends IEntity {
   @Column({ nullable: false, default: CustodyOrderStatus.CREATED })
   status: CustodyOrderStatus;
 
-  // TODO fill
   @Column({ type: 'float', nullable: true })
   inputAmount?: number;
 
@@ -33,7 +32,7 @@ export class CustodyOrder extends IEntity {
   outputAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
-  amountInChf?: number;
+  amountInChf?: number; // unused
 
   @ManyToOne(() => User, (user) => user.custodyOrders, { nullable: false })
   user: User;

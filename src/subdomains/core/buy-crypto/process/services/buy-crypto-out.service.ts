@@ -13,7 +13,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
@@ -136,7 +136,11 @@ export class BuyCryptoOutService {
       const nativeAsset = await this.assetService.getNativeAsset(transaction.outputAsset.blockchain);
       const inputReferenceCurrency =
         transaction.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(transaction.inputReferenceAsset));
-      const networkStartFeePrice = await this.pricingService.getPrice(inputReferenceCurrency, nativeAsset, true);
+      const networkStartFeePrice = await this.pricingService.getPrice(
+        inputReferenceCurrency,
+        nativeAsset,
+        PriceValidity.ANY,
+      );
 
       const networkStartFeeRequest: PayoutRequest = {
         context: PayoutOrderContext.BUY_CRYPTO,

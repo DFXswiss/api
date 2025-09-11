@@ -62,8 +62,12 @@ export class BankService {
       account = this.getMatchingBank(banks, IbanBankName.FRICK, currency, fallBackCurrency);
     }
     if (!account) {
-      // Default => MB
+      // default => MB
       account = this.getMatchingBank(banks, IbanBankName.MAERKI, currency, fallBackCurrency);
+    }
+    if (!account) {
+      // fallback => any active bank
+      account = this.getMatchingBank(banks, undefined, currency);
     }
 
     return account;
@@ -83,10 +87,15 @@ export class BankService {
   }
 
   // --- HELPER METHODS --- //
-  private getMatchingBank(banks: Bank[], bankName: string, currencyName: string, fallBackCurrencyName: string): Bank {
+  private getMatchingBank(
+    banks: Bank[],
+    bankName: string | undefined,
+    currencyName: string,
+    fallBackCurrencyName?: string,
+  ): Bank {
     return (
-      banks.find((b) => b.name === bankName && b.currency === currencyName && b.receive) ??
-      banks.find((b) => b.name === bankName && b.currency === fallBackCurrencyName && b.receive)
+      banks.find((b) => (!bankName || b.name === bankName) && b.currency === currencyName && b.receive) ??
+      banks.find((b) => (!bankName || b.name === bankName) && b.currency === fallBackCurrencyName && b.receive)
     );
   }
 }

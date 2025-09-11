@@ -116,7 +116,7 @@ export class SellController {
       currency,
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
-      true,
+      false,
       undefined,
       dto.wallet,
       specialCode ? [specialCode] : [],

@@ -14,7 +14,11 @@ import {
 } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SendStrategyRegistry } from './send.strategy-registry';
 
 export type SendGroupKey = string;
@@ -71,7 +75,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
         const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
         const feeAmountChf = feeAmount
           ? await this.pricingService
-              .getPrice(feeAsset, PriceCurrency.CHF, true)
+              .getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY)
               .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
           : null;
 
@@ -101,9 +105,6 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   }
 
   // --- FEES --- //
-  protected async getMinInputFee(asset: Asset): Promise<number> {
-    return this.transactionHelper.getBlockchainFeeInChf(asset, true);
-  }
 
   protected async getMinConfirmations(payIn: CryptoInput, direction: PayInConfirmationType): Promise<number> {
     return this.transactionHelper.getMinConfirmations(payIn, direction);
@@ -117,8 +118,8 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
     if (!nativeFee.amount) return { feeNativeAsset: 0, feeInputAsset: 0, maxFeeInputAsset: 0 };
 
-    const nativeAssetPrice = await this.priceProvider.getPrice(nativeFee.asset, asset, true);
-    const chfPrice = await this.priceProvider.getPrice(PriceCurrency.CHF, asset, true);
+    const nativeAssetPrice = await this.priceProvider.getPrice(nativeFee.asset, asset, PriceValidity.ANY);
+    const chfPrice = await this.priceProvider.getPrice(PriceCurrency.CHF, asset, PriceValidity.ANY);
 
     return {
       feeNativeAsset: nativeFee.amount,

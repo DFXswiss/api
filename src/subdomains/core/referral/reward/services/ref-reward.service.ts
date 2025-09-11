@@ -9,7 +9,11 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, Not } from 'typeorm';
 import { RefRewardExtended } from '../../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
@@ -71,7 +75,11 @@ export class RefRewardService {
     const asset = await this.assetService.getAssetById(dto.asset.id);
     if (!asset) throw new NotFoundException('Asset not found');
 
-    const eurChfPrice = await this.pricingService.getPrice(PriceCurrency.EUR, PriceCurrency.CHF, false);
+    const eurChfPrice = await this.pricingService.getPrice(
+      PriceCurrency.EUR,
+      PriceCurrency.CHF,
+      PriceValidity.VALID_ONLY,
+    );
 
     const entity = this.rewardRepo.create({
       user,
@@ -99,7 +107,11 @@ export class RefRewardService {
     const openCreditUser = await this.userService.getOpenRefCreditUser();
     if (openCreditUser.length == 0) return;
 
-    const eurChfPrice = await this.pricingService.getPrice(PriceCurrency.EUR, PriceCurrency.CHF, false);
+    const eurChfPrice = await this.pricingService.getPrice(
+      PriceCurrency.EUR,
+      PriceCurrency.CHF,
+      PriceValidity.VALID_ONLY,
+    );
 
     const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
       CryptoService.getDefaultBlockchainBasedOn(o.address),

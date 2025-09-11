@@ -12,7 +12,7 @@ import { FiatOutputType } from '../../fiat-output/fiat-output.entity';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
 import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 import { BankTxReturn } from './bank-tx-return.entity';
 import { BankTxReturnRepository } from './bank-tx-return.repository';
@@ -51,9 +51,9 @@ export class BankTxReturnService {
       try {
         const inputCurrency = await this.fiatService.getFiatByName(entity.chargebackOutput.currency);
 
-        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, false);
-        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, false);
-        const usdPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.USD, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, PriceValidity.VALID_ONLY);
+        const usdPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.USD, PriceValidity.VALID_ONLY);
 
         await this.bankTxReturnRepo.update(
           ...entity.setFiatAmount(

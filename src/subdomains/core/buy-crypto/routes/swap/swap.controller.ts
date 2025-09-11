@@ -114,7 +114,7 @@ export class SwapController {
       targetAsset,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
-      true,
+      false,
       undefined,
       dto.wallet,
       specialCode ? [specialCode] : [],
