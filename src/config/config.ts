@@ -117,7 +117,7 @@ export class Configuration {
   ];
 
   tradingLimits = {
-    monthlyDefaultWoKyc: 0, // CHF - TEMPORARY: KYC required for all purchases
+    monthlyDefaultWoKyc: 1000, // CHF
     weeklyAmlRule: 25000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
