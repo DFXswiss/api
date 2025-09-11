@@ -11,7 +11,7 @@ export class ZanoHelper {
   static toAuAmount(amount?: number, decimals?: number): number | undefined {
     const useDecimals = decimals ?? ZanoHelper.ZANO_DECIMALS;
     const factor = 10 ** useDecimals;
-    return amount && Util.roundByPrecision(amount * factor, 0);
+    return amount && Util.round(amount * factor, 0);
   }
 
   static fromAuAmount(auAmount?: number, decimals?: number): number | undefined {
