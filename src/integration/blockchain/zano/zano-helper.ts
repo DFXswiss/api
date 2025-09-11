@@ -6,16 +6,18 @@ import { ZanoAddressDto } from './dto/zano.dto';
 export class ZanoHelper {
   // AU = Atomic Unit (there is currently no official name for the smallest zano unit)
   static readonly ZANO_DECIMALS = 12;
-  private static readonly AU_ZANO_FACTOR = 10 ** ZanoHelper.ZANO_DECIMALS;
 
   // --- CONVERT --- /
-
-  static zanoToAu(zanoAmount?: number): number | undefined {
-    return zanoAmount && Util.round(zanoAmount * ZanoHelper.AU_ZANO_FACTOR, 0);
+  static toAuAmount(amount?: number, decimals?: number): number | undefined {
+    const useDecimals = decimals ?? ZanoHelper.ZANO_DECIMALS;
+    const factor = 10 ** useDecimals;
+    return amount && Util.roundByPrecision(amount * factor, 0);
   }
 
-  static auToZano(auAmount?: number): number | undefined {
-    return auAmount && Util.round(auAmount / ZanoHelper.AU_ZANO_FACTOR, ZanoHelper.ZANO_DECIMALS);
+  static fromAuAmount(auAmount?: number, decimals?: number): number | undefined {
+    const useDecimals = decimals ?? ZanoHelper.ZANO_DECIMALS;
+    const factor = 10 ** useDecimals;
+    return auAmount && Util.roundByPrecision(auAmount / factor, useDecimals);
   }
 
   // --- DEPOSIT ADDRESS / PAYMENT ADDRESS --- //
