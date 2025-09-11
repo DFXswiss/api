@@ -1,6 +1,7 @@
 import { Config, Environment } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { BankData, BankDataVerificationError } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -191,7 +192,8 @@ export class AmlHelperService {
       if (entity.bankTx) {
         // bank
         if (nationality && !nationality.bankEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
-        if (!entity.bankTx.bankReleaseDate) errors.push(AmlError.BANK_RELEASE_DATE_MISSING);
+        if (!DisabledProcess(Process.BANK_RELEASE_CHECK) && !entity.bankTx.bankReleaseDate)
+          errors.push(AmlError.BANK_RELEASE_DATE_MISSING);
 
         if (
           blacklist.some((b) =>
@@ -520,12 +522,7 @@ export class AmlHelperService {
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
     if (crucialErrorResults.length) {
-      // TEMPORARY: prioritize bank release date
-      const bankReleaseMissingResult = crucialErrorResults.find(
-        (c) => c.amlError === AmlError.BANK_RELEASE_DATE_MISSING,
-      );
       const crucialErrorResult =
-        bankReleaseMissingResult ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.PENDING) ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.GSHEET) ??

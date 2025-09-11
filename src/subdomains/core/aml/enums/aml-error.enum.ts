@@ -260,7 +260,7 @@ export const AmlErrorResult: {
     amlReason: AmlReason.MANUAL_CHECK_PHONE,
   },
   [AmlError.BANK_RELEASE_DATE_MISSING]: {
-    type: AmlErrorType.CRUCIAL,
+    type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.BANK_RELEASE_PENDING,
   },
