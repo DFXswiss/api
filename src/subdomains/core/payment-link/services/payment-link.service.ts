@@ -427,17 +427,15 @@ export class PaymentLinkService {
   }
 
   private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {
+    dto.config = this.getMergedConfig(paymentLink, JSON.parse(dto.config || '{}'));
+
     if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(Blockchain.BINANCE_PAY, paymentLink)) {
       const c2bIds = await this.tryEnrollC2BPaymentLink(
         Object.assign(paymentLink, dto),
         C2BPaymentProvider.BINANCE_PAY,
       );
 
-      if (c2bIds) {
-        const incomingNewConfig = JSON.parse(dto.config || '{}');
-        const configsWithKeys = { ...incomingNewConfig, ...c2bIds };
-        dto.config = this.getMergedConfig(paymentLink, configsWithKeys);
-      }
+      if (c2bIds) Object.assign(dto.config, c2bIds);
     }
 
     await this.paymentLinkRepo.update(paymentLink.id, dto);
