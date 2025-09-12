@@ -438,6 +438,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
   // --- HELPER METHODS --- //
   private isBalanceTooLowError(e: Error): boolean {
-    return ['Insufficient funds', 'insufficient balance', 'not enough balance'].some((m) => e.message?.includes(m));
+    return ['Insufficient funds', 'insufficient balance', 'Insufficient position', 'not enough balance'].some((m) =>
+      e.message?.includes(m),
+    );
   }
 }

@@ -222,7 +222,7 @@ export class PaymentLinkService {
     });
 
     const c2bIds = await this.tryEnrollC2BPaymentLink(paymentLink, C2BPaymentProvider.BINANCE_PAY);
-    if (c2bIds) paymentLink.config = this.getMergedConfig(paymentLink, c2bIds);
+    if (c2bIds) paymentLink.config = this.getMergedConfigString(paymentLink, c2bIds);
 
     await this.paymentLinkRepo.save(paymentLink);
 
@@ -352,7 +352,7 @@ export class PaymentLinkService {
     };
   }
 
-  private getMergedConfig(paymentLink: PaymentLink, config: Partial<PaymentLinkConfig>): string | null {
+  private getMergedConfig(paymentLink: PaymentLink, config: Partial<PaymentLinkConfig>): Partial<PaymentLinkConfig> {
     const existingConfig: PaymentLinkConfig = JSON.parse(paymentLink.config || '{}');
 
     const mergedConfig: PaymentLinkConfig = {
@@ -362,8 +362,16 @@ export class PaymentLinkService {
     if (existingConfig.recipient || config?.recipient)
       mergedConfig.recipient = merge(existingConfig.recipient, config?.recipient);
 
-    const customConfig = Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
-    return Object.keys(customConfig).length === 0 ? null : (JSON.stringify(customConfig) as string);
+    return Util.removeDefaultFields(mergedConfig, paymentLink.route.userData.paymentLinksConfigObj);
+  }
+
+  private getMergedConfigString(paymentLink: PaymentLink, config: Partial<PaymentLinkConfig>): string | null {
+    const customConfig = this.getMergedConfig(paymentLink, config);
+    return this.configToString(customConfig);
+  }
+
+  private configToString(config: Partial<PaymentLinkConfig>): string | null {
+    return Object.keys(config).length === 0 ? null : (JSON.stringify(config) as string);
   }
 
   async update(
@@ -384,7 +392,7 @@ export class PaymentLinkService {
       mode,
       label,
       webhookUrl,
-      config: this.getMergedConfig(paymentLink, config),
+      config: this.getMergedConfigString(paymentLink, config),
     };
 
     await this.updatePaymentLinkInternal(paymentLink, updatePaymentLink);
@@ -422,23 +430,25 @@ export class PaymentLinkService {
     const paymentLink = await this.getActivePaymentLink(paymentLinkUniqueId);
 
     const ids = await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
-    const config = this.getMergedConfig(paymentLink, ids);
+    const config = this.getMergedConfigString(paymentLink, ids);
     await this.paymentLinkRepo.update(paymentLink.id, { config });
   }
 
   private async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> {
+    const mergedConfig = this.getMergedConfig(paymentLink, JSON.parse(dto.config || '{}'));
+
     if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(Blockchain.BINANCE_PAY, paymentLink)) {
+      dto.config = this.configToString(mergedConfig);
+
       const c2bIds = await this.tryEnrollC2BPaymentLink(
         Object.assign(paymentLink, dto),
         C2BPaymentProvider.BINANCE_PAY,
       );
 
-      if (c2bIds) {
-        const incomingNewConfig = JSON.parse(dto.config || '{}');
-        const configsWithKeys = { ...incomingNewConfig, ...c2bIds };
-        dto.config = this.getMergedConfig(paymentLink, configsWithKeys);
-      }
+      if (c2bIds) Object.assign(mergedConfig, c2bIds);
     }
+
+    dto.config = this.configToString(mergedConfig);
 
     await this.paymentLinkRepo.update(paymentLink.id, dto);
 
@@ -667,7 +677,7 @@ export class PaymentLinkService {
       const update = { accessKeys: [accessKey] };
 
       if (scoped) {
-        await this.paymentLinkRepo.update(paymentLink.id, { config: this.getMergedConfig(paymentLink, update) });
+        await this.paymentLinkRepo.update(paymentLink.id, { config: this.getMergedConfigString(paymentLink, update) });
       } else {
         await this.userDataService.updatePaymentLinksConfig(paymentLink.route.user.userData, update);
       }
