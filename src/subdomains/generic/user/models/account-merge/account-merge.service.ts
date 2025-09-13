@@ -26,6 +26,8 @@ export class AccountMergeService {
 
   static masterFirst(users: UserData[]): UserData[] {
     return users.sort((a, b) => {
+      if (a.identDocumentId) return -1;
+      if (b.identDocumentId) return 1;
       if (a.kycLevel >= 20 || b.kycLevel >= 20 || (!a.surname && !b.surname)) return b.kycLevel - a.kycLevel;
       if (a.surname && !b.surname) return -1;
       if (!a.surname && b.surname) return 1;
