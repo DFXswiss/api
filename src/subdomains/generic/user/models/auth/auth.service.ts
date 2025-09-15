@@ -98,7 +98,7 @@ export class AuthService {
   }
 
   // --- AUTH METHODS --- //
-  async authenticate(dto: SignUpDto, userIp: string, userDataId: number): Promise<AuthResponseDto> {
+  async authenticate(dto: SignUpDto, userIp: string, userDataId?: number, userId?: number): Promise<AuthResponseDto> {
     const existingUser = await this.userCache.get(dto.address, () =>
       this.userService.getUserByAddress(dto.address, {
         userData: true,
@@ -112,7 +112,7 @@ export class AuthService {
 
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
-      : this.doSignUp(dto, userIp, false, userDataId).catch((e) => {
+      : this.doSignUp(dto, userIp, false, userDataId, userId).catch((e) => {
           if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
           throw e;
         });
@@ -130,8 +130,10 @@ export class AuthService {
     userIp: string,
     isCustodial: boolean,
     userDataId?: number,
+    userId?: number,
   ): Promise<AuthResponseDto> {
     const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
+    const primaryUser = userId && (await this.userService.getUser(userId));
 
     const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature);
     if (!custodyProvider && !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key))) {
@@ -152,6 +154,7 @@ export class AuthService {
         wallet,
         custodyProvider,
         userData,
+        primaryUser,
       },
       dto.specialCode ?? dto.discountCode,
       dto.moderator,

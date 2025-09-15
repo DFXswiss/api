@@ -185,6 +185,7 @@ export class UserService {
     user.custodyAddressType = data.custodyAddressType;
     user.custodyAddressIndex = data.custodyAddressIndex;
     user.role = data.role;
+    user.primaryUser = data.primaryUser;
 
     const language = await this.languageService.getLanguageByCountry(user.ipCountry);
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
