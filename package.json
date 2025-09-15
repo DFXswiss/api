@@ -167,7 +167,8 @@
     ],
     "rootDir": "src",
     "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1"
+      "^src/(.*)$": "<rootDir>/$1",
+      "@scure/base": "<rootDir>/../__mocks__/@scure/base.js"
     },
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
