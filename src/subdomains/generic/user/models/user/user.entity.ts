@@ -128,6 +128,9 @@ export class User extends IEntity {
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 
+  @ManyToOne(() => User, { nullable: true })
+  primaryUser: User;
+
   // --- REF --- //
   @Column({ length: 256, nullable: true })
   @Index({ unique: true, where: 'ref IS NOT NULL' })
