@@ -1,17 +1,10 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
 import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
@@ -40,8 +33,6 @@ import { PaymentWebhookService } from './payment-webhook.service';
 
 @Injectable()
 export class PaymentLinkPaymentService {
-  private readonly logger = new DfxLogger(PaymentLinkPaymentService);
-
   private readonly paymentWaitMap = new AsyncMap<number, PaymentLinkPayment>(this.constructor.name);
   private readonly deviceActivationSubject = new Subject<PaymentDevice>();
 
@@ -330,20 +321,16 @@ export class PaymentLinkPaymentService {
   }
 
   async handleHexPayment(uniqueId: string, transferInfo: TransferInfo): Promise<PaymentLinkHexResultDto> {
-    try {
-      const pendingPayment = await this.getPendingPaymentByUniqueId(uniqueId);
-      if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
+    const pendingPayment = await this.getPendingPaymentByUniqueId(uniqueId);
+    if (!pendingPayment) throw new NotFoundException(`Pending payment not found by id ${uniqueId}`);
 
-      const quote = await this.paymentQuoteService.executeHexPayment(transferInfo);
-      await this.handleQuoteChange(pendingPayment, quote);
+    const quote = await this.paymentQuoteService.executeHexPayment(transferInfo);
+    await this.handleQuoteChange(pendingPayment, quote);
 
-      if (quote.status === PaymentQuoteStatus.TX_FAILED) throw new ServiceUnavailableException(quote.errorMessage);
+    if (quote.status === PaymentQuoteStatus.TX_FAILED)
+      throw new BadRequestException(`Failed to handle hex payment ${uniqueId}: ${quote.errorMessage}`);
 
-      return { txId: quote.txId };
-    } catch (e) {
-      this.logger.error(`Handle hex payment ${uniqueId}:`, e);
-      throw new BadRequestException(`Failed to handle hex payment ${uniqueId}: ${e.message}`);
-    }
+    return { txId: quote.txId };
   }
 
   // --- HANDLE INPUTS --- //
