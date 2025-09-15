@@ -3,10 +3,27 @@ import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
 import { bech32m } from '@scure/base';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { BlockchainService } from '../shared/util/blockchain.service';
 
 @Injectable()
-export class SparkService {
+export class SparkService extends BlockchainService {
   private readonly logger = new DfxLogger(SparkService);
+
+  constructor() {
+    super();
+  }
+
+  getDefaultClient(): any {
+    // Spark doesn't use an external client as all operations are performed locally
+    // This method is required by BlockchainService but not applicable for Spark
+    return null;
+  }
+
+  async isHealthy(): Promise<boolean> {
+    // Spark service is always healthy as it doesn't depend on external nodes
+    // All operations are performed locally
+    return true;
+  }
 
   // --- SIGNATURE VERIFICATION --- //
   async verifySignature(message: string, address: string, signatureHex: string): Promise<boolean> {
