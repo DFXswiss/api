@@ -2,10 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
+import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
+import { OrderNotProcessableException } from '../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../interfaces';
 import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 
@@ -122,9 +124,30 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
   private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const { address, assetId } = this.parseWithdrawParams(order.action.paramMap);
-    const { maxAmount: amount } = order;
+    const { minAmount, maxAmount } = order;
 
     const asset = assetId ? await this.assetService.getAssetById(assetId) : order.pipeline.rule.targetAsset;
+
+    // fetch available liquidity
+    const liquidityRequest: ReserveLiquidityRequest = {
+      context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+      correlationId: `${order.id}`,
+      referenceAmount: order.minAmount,
+      referenceAsset: asset,
+      targetAsset: asset,
+    };
+
+    const {
+      reference: { availableAmount },
+    } = await this.dexService.checkLiquidity(liquidityRequest);
+
+    if (availableAmount < minAmount) {
+      throw new OrderNotProcessableException(
+        `Not enough balance for ${asset.name} (balance: ${availableAmount}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
+      );
+    }
+
+    const amount = Math.min(maxAmount, availableAmount);
 
     const request = {
       destinationAddress: address,
@@ -168,7 +191,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     const targetAsset = order.pipeline.rule.targetAsset;
 
     const deposits = await exchange.getDeposits(targetAsset.dexName, order.created, sourceChain || undefined);
-    const deposit = deposits.find((d) => d.amount === order.maxAmount && d.timestamp > order.created.getTime());
+    const deposit = deposits.find((d) => d.amount === order.inputAmount && d.timestamp > order.created.getTime());
 
     const isComplete = deposit && deposit.status === 'ok';
     if (isComplete) {
