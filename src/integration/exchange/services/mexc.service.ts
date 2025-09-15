@@ -18,6 +18,7 @@ export class MexcService extends ExchangeService {
     BinanceSmartChain: undefined,
     Bitcoin: undefined,
     Lightning: undefined,
+    Spark: undefined,
     Monero: 'XMR',
     Zano: 'ZANO',
     Cardano: undefined,

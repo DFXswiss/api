@@ -3,6 +3,7 @@ import { BitcoinModule } from 'src/integration/blockchain/bitcoin/bitcoin.module
 import { SharedModule } from 'src/shared/shared.module';
 import { LightningModule } from '../lightning/lightning.module';
 import { RailgunModule } from '../railgun/railgun.module';
+import { SparkModule } from './spark/spark.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { ArweaveModule } from './arweave/arweave.module';
 import { BaseModule } from './base/base.module';
@@ -38,6 +39,7 @@ import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
     BaseModule,
     GnosisModule,
     LightningModule,
+    SparkModule,
     MoneroModule,
     ZanoModule,
     FrankencoinModule,
@@ -60,6 +62,7 @@ import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
     BaseModule,
     GnosisModule,
     LightningModule,
+    SparkModule,
     MoneroModule,
     ZanoModule,
     FrankencoinModule,

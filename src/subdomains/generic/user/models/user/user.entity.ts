@@ -33,6 +33,7 @@ export enum UserAddressType {
   LN_NID = 'LNNID',
   LND_HUB = 'LNDHUB',
   UMA = 'UMA',
+  SPARK = 'Spark',
   MONERO = 'Monero',
   LIQUID = 'Liquid',
   ARWEAVE = 'Arweave',
