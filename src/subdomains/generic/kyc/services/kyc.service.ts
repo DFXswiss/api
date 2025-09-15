@@ -77,7 +77,7 @@ import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { KycLogType, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
@@ -892,6 +892,7 @@ export class KycService {
       if (nextLevel && nextLevel > user.kycLevel) {
         await this.userDataService.updateUserDataInternal(user, { kycLevel: nextLevel });
         await this.kycNotificationService.kycChanged(user, nextLevel);
+        await this.createKycLevelLog(user, nextLevel);
       }
 
       if (nextStep && shouldContinue && (autoStep || depth === 0)) {
@@ -1048,6 +1049,10 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
+  async createKycLevelLog(userData: UserData, newKycLevel: KycLevel): Promise<void> {
+    await this.kycLogService.createLogInternal(userData, KycLogType.KYC, `KycLevel changed to ${newKycLevel}`);
+  }
+
   async trySetMail(user: UserData, step: KycStep, mail: string): Promise<UpdateResult<KycStep>> {
     try {
       user = await this.userDataService.trySetUserMail(user, mail);
@@ -1141,6 +1146,7 @@ export class KycService {
           olkypayAllowed: userData.olkypayAllowed ?? true,
           nationality,
         });
+        await this.createKycLevelLog(userData, KycLevel.LEVEL_30);
 
         if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createVerifyBankData(kycStep.userData, {

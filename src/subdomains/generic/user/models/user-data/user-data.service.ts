@@ -31,7 +31,7 @@ import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
-import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycLogType, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
@@ -485,6 +485,12 @@ export class UserDataService {
   async deactivateUserData(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.deactivateUserData());
     await this.kycAdminService.resetKyc(userData, KycError.USER_DATA_DEACTIVATED);
+    await this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.KYC,
+      `UserData deactivated on ${userData.deactivationDate}`,
+    );
+    await this.kycLogService.createLogInternal(userData, KycLogType.KYC, `KycLevel changed to ${userData.kycLevel}`);
     await this.userDataNotificationService.deactivateAccountMail(userData);
   }
 
