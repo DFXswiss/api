@@ -1197,8 +1197,10 @@ export class KycService {
 
     if (!nationality) {
       errors.push(KycError.NATIONALITY_MISSING);
-    } else if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id) {
-      errors.push(KycError.NATIONALITY_NOT_MATCHING);
+    } else {
+      if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id)
+        errors.push(KycError.NATIONALITY_NOT_MATCHING);
+      if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
     }
 
     if (!['IDCARD', 'PASSPORT'].includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
@@ -1210,10 +1212,8 @@ export class KycService {
     const userCountry =
       identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {
-      if (userCountry) {
-        if (!userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
-        if (!userCountry.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
-      }
+      // Personal Account
+      if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
 
       if (!identStep.userData.verifiedName && identStep.userData.status === UserDataStatus.ACTIVE) {
         errors.push(KycError.VERIFIED_NAME_MISSING);
@@ -1224,10 +1224,8 @@ export class KycService {
           errors.push(KycError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
     } else {
-      if (userCountry) {
-        if (!userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
-        if (!userCountry.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
-      }
+      // Business Account
+      if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
     }
 
     return errors;

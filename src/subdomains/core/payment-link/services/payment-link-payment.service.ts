@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -333,7 +327,8 @@ export class PaymentLinkPaymentService {
     const quote = await this.paymentQuoteService.executeHexPayment(transferInfo);
     await this.handleQuoteChange(pendingPayment, quote);
 
-    if (quote.status === PaymentQuoteStatus.TX_FAILED) throw new ServiceUnavailableException(quote.errorMessage);
+    if (quote.status === PaymentQuoteStatus.TX_FAILED)
+      throw new BadRequestException(`Failed to handle hex payment ${uniqueId}: ${quote.errorMessage}`);
 
     return { txId: quote.txId };
   }
