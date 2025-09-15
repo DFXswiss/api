@@ -1,0 +1,41 @@
+{
+  "mnemonic": "flush fiscal rib invest then magic include frame balcony aerobic smile host laugh dune cannon praise circle ghost make mercy bid bounce file purchase",
+  "seed": "a5a0260a10a782b48e3e3eebc3e7e262f9be6ea9d91950f773738db23971daa6c7f459c7564936d3023a2daec0133b83766a23e5c608769d82df9e6e55647ac3",
+  "accounts": [
+    {
+      "path": "m/44'/0'/0'/0/0",
+      "privateKey": "abf3b042d6f0c9e304cfe2a2672c577c0273065e11aa4c3a4202cd196de01920",
+      "publicKey": "033bac09a39b6deba4b83e98e4b0b70f86fb16ca72e101a7c05ae3e72d2aaa0834",
+      "addresses": {
+        "p2pkh": "1C2jBc59h1CNoCEtdtgZ7w4mcWQrKwV3DL",
+        "p2wpkh": "bc1q0r7sx92k0vfqyzsu76slucq3knfc90z68r2uz2",
+        "p2sh": "3QbpsAFwtMQVnpKJ8H5RL9BaZLY5XzAzbN"
+      }
+    },
+    {
+      "path": "m/44'/0'/1'/0/0",
+      "privateKey": "e6ab93d6d2c413074d908aa8c293ce8d6d1102c5a6fd293c5444045cb6b6736d",
+      "publicKey": "02503dd641519606665c076a0cc1b03ba5d1a2a40d0790b0545591982326585a41",
+      "addresses": {
+        "p2pkh": "1H1TWXAkhow1jrDCWdKoC3Srg7so31KoNH",
+        "p2wpkh": "bc1q47vzg8lje5lfxgvznmzfyyhrex86d3xddsh3ku",
+        "p2sh": "3Bs1YAMJoGPhwH2zfa3kXf8csE8e49Qa3q"
+      }
+    },
+    {
+      "path": "m/44'/0'/2'/0/0",
+      "privateKey": "d838d23b7ffd4b0c37bee3076cd6f2558bea51c0a12e2bb4a8192842116ed29a",
+      "publicKey": "037a75dfbc0b26df24dcf6081824ee894d6ca6e1156f425d06fc61096db7326227",
+      "addresses": {
+        "p2pkh": "14Ejtp73C89fq3PECBAwo687DxmQwzBMTL",
+        "p2wpkh": "bc1qywqewga6skvxdj0tdrjcfkhv9aqymghu8evl85",
+        "p2sh": "34XJawvisrXcWssZyFCxkK4oCGmot7AoJ7"
+      }
+    }
+  ],
+  "testnet": {
+    "p2pkh": "mrYgUfA8W2ddaJiWMTevwrH6UW1ZEpn6Sa",
+    "p2wpkh": "tb1q0r7sx92k0vfqyzsu76slucq3knfc90z6d930ee"
+  },
+  "generated": "2025-09-15T11:43:02.440Z"
+}

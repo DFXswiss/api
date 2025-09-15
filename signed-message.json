@@ -1,0 +1,21 @@
+{
+  "message": "Hallo_Montag",
+  "account": {
+    "path": "m/44'/0'/0'/0/0",
+    "publicKey": "033bac09a39b6deba4b83e98e4b0b70f86fb16ca72e101a7c05ae3e72d2aaa0834",
+    "sparkAddress": {
+      "mainnet": "sp1qva6czdrndk7hf9c86vwfv9hp7r0k9k2wtssrf7qtt37wtf24gyrg9qf0pg",
+      "testnet": "spt1qva6czdrndk7hf9c86vwfv9hp7r0k9k2wtssrf7qtt37wtf24gyrgnela9c"
+    }
+  },
+  "signature": {
+    "messageHash": "9d213e5f41d6ca87e519bbd1795e468913c506086bf681e6ca0f6d50ec1eed5d",
+    "r": "993bd4ba86bf037948b31d7e70caacdd68d212310ffdcadb38f60e5c5ef975f5",
+    "s": "1cad30d87db0d6f654c5344771f886715b5c2d4e84197dc16a7ebcbe15617e24",
+    "recovery": 1,
+    "compact": "993bd4ba86bf037948b31d7e70caacdd68d212310ffdcadb38f60e5c5ef975f51cad30d87db0d6f654c5344771f886715b5c2d4e84197dc16a7ebcbe15617e24",
+    "der": "3045022100993bd4ba86bf037948b31d7e70caacdd68d212310ffdcadb38f60e5c5ef975f502201cad30d87db0d6f654c5344771f886715b5c2d4e84197dc16a7ebcbe15617e24"
+  },
+  "timestamp": "2025-09-15T11:49:36.767Z",
+  "verified": true
+}
