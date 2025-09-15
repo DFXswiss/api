@@ -281,7 +281,8 @@ export class KycService {
         kycStep.name !== KycStepName.DFX_APPROVAL)
     ) {
       const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isOnHold);
-      if (approvalStep) await this.kycStepRepo.update(...approvalStep.manualReview());
+      if (approvalStep && kycStep.userData.kycLevel >= KycLevel.LEVEL_40)
+        await this.kycStepRepo.update(...approvalStep.manualReview());
     }
   }
 
@@ -1149,6 +1150,10 @@ export class KycService {
           });
 
         return;
+      } else {
+        await this.kycStepRepo.update(
+          ...kycStep.fail(undefined, [kycStep.comment, KycError.NATIONALITY_MISSING].filter((c) => c).join(';')),
+        );
       }
     }
 
