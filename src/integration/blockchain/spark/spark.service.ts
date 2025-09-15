@@ -126,7 +126,7 @@ export class SparkService {
   }
 
   // --- PAYMENT REQUEST --- //
-  async getPaymentRequest(address: string, amount: number): Promise<string | undefined> {
+  async getPaymentRequest(_address: string, _amount: number): Promise<string | undefined> {
     // Spark uses Lightning-like invoices
     // For now, return undefined as this would need integration with Spark network
     return undefined;
