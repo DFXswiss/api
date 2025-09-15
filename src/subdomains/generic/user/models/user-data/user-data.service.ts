@@ -37,6 +37,7 @@ import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integrat
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -101,6 +102,8 @@ export class UserDataService {
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
+    @Inject(forwardRef(() => KycService))
+    private readonly kycService: KycService,
   ) {}
 
   // --- GETTERS --- //
@@ -490,7 +493,7 @@ export class UserDataService {
       KycLogType.KYC,
       `UserData deactivated on ${userData.deactivationDate}`,
     );
-    await this.kycLogService.createLogInternal(userData, KycLogType.KYC, `KycLevel changed to ${userData.kycLevel}`);
+    await this.kycService.createKycLevelLog(userData, userData.kycLevel);
     await this.userDataNotificationService.deactivateAccountMail(userData);
   }
 
