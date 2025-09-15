@@ -165,6 +165,7 @@
       "ts"
     ],
     "rootDir": "src",
+    "setupFilesAfterEnv": ["<rootDir>/../jest.setup.js"],
     "moduleNameMapper": {
       "^src/(.*)$": "<rootDir>/$1"
     },

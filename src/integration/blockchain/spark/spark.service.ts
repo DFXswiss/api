@@ -106,14 +106,35 @@ export class SparkService extends BlockchainService {
   // --- ADDRESS ENCODING --- //
   private encodeSparkAddress(publicKey: Uint8Array, originalAddress: string): string {
     try {
-      // Determine network from address prefix
+      // Decode the original address to get the full payload including metadata
+      const decoded = bech32m.decode(originalAddress as `${string}1${string}`, 1024);
+      const originalPayload = new Uint8Array(bech32m.fromWords(decoded.words));
+
+      // Check if the public key is contained in the original payload
+      // Spark addresses may have additional metadata before the public key
+      if (originalPayload.length >= 33) {
+        // Search for the public key in the payload
+        for (let i = 0; i <= originalPayload.length - publicKey.length; i++) {
+          let match = true;
+          for (let j = 0; j < publicKey.length; j++) {
+            if (originalPayload[i + j] !== publicKey[j]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) {
+            // Found the public key in the payload, reconstruct with original metadata
+            const prefix = this.getSparkPrefix(this.getNetworkFromAddress(originalAddress));
+            const words = bech32m.toWords(originalPayload);
+            return bech32m.encode(prefix, words, 1024);
+          }
+        }
+      }
+
+      // Fallback: encode just the public key
       const network = this.getNetworkFromAddress(originalAddress);
       const prefix = this.getSparkPrefix(network);
-
-      // Convert public key to 5-bit groups for bech32m
       const words = bech32m.toWords(publicKey);
-
-      // Encode with bech32m
       return bech32m.encode(prefix, words, 1024);
     } catch (error) {
       this.logger.error(`Error encoding Spark address: ${error.message}`);
@@ -122,28 +143,52 @@ export class SparkService extends BlockchainService {
   }
 
   // --- ADDRESS VALIDATION --- //
+  private readonly BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  private readonly NETWORK_PREFIXES = new Map([
+    ['sp', 'mainnet'],
+    ['spt', 'testnet'],
+    ['sprt', 'regtest'],
+    ['sps', 'signet'],
+    ['spl', 'local'],
+  ]);
+
   isValidSparkAddress(address: string): boolean {
     try {
-      // Check basic format
-      const regex = /^sp(1|t1|rt1|s1|l1)[a-z0-9]{58,89}$/;
-      if (!regex.test(address)) {
+      // Basic length check
+      if (!address || address.length < 14 || address.length > 90) {
         return false;
       }
 
-      // Try to decode the address
-      const network = this.getNetworkFromAddress(address);
-      const prefix = this.getSparkPrefix(network);
+      // Find the separator '1'
+      const separatorIndex = address.lastIndexOf('1');
+      if (separatorIndex === -1 || separatorIndex === address.length - 1) {
+        return false;
+      }
+
+      // Extract and validate prefix
+      const prefix = address.substring(0, separatorIndex);
+      if (!this.NETWORK_PREFIXES.has(prefix)) {
+        return false;
+      }
+
+      // Validate data part contains only bech32 characters
+      const dataPart = address.substring(separatorIndex + 1);
+      if (!dataPart.split('').every(char => this.BECH32_CHARSET.includes(char))) {
+        return false;
+      }
+
+      // Try to decode with bech32m
       const decoded = bech32m.decode(address as `${string}1${string}`, 1024);
 
-      // Check if prefix matches
+      // Verify prefix matches
       if (decoded.prefix !== prefix) {
         return false;
       }
 
-      // Convert back to bytes to validate
+      // Convert to bytes and validate length
       const publicKeyBytes = new Uint8Array(bech32m.fromWords(decoded.words));
 
-      // Valid public key should be 33 bytes (compressed) or potentially more with invoice data
+      // Should be at least 33 bytes (compressed pubkey)
       if (publicKeyBytes.length < 33) {
         return false;
       }
@@ -163,25 +208,20 @@ export class SparkService extends BlockchainService {
 
   // --- HELPER METHODS --- //
   private getNetworkFromAddress(address: string): 'mainnet' | 'testnet' | 'regtest' | 'signet' | 'local' {
-    if (address.startsWith('sp1')) return 'mainnet';
-    if (address.startsWith('spt1')) return 'testnet';
-    if (address.startsWith('sprt1')) return 'regtest';
-    if (address.startsWith('sps1')) return 'signet';
-    if (address.startsWith('spl1')) return 'local';
+    const separatorIndex = address.lastIndexOf('1');
+    if (separatorIndex === -1) return 'mainnet';
 
-    // Default to mainnet if not recognized
-    return 'mainnet';
+    const prefix = address.substring(0, separatorIndex);
+    return this.NETWORK_PREFIXES.get(prefix) as 'mainnet' | 'testnet' | 'regtest' | 'signet' | 'local' || 'mainnet';
   }
 
   private getSparkPrefix(network: 'mainnet' | 'testnet' | 'regtest' | 'signet' | 'local'): string {
-    const prefixes = {
-      mainnet: 'sp',
-      testnet: 'spt',
-      regtest: 'sprt',
-      signet: 'sps',
-      local: 'spl',
-    };
-
-    return prefixes[network];
+    // Reverse lookup in the NETWORK_PREFIXES map
+    for (const [prefix, net] of this.NETWORK_PREFIXES) {
+      if (net === network) {
+        return prefix;
+      }
+    }
+    return 'sp'; // Default to mainnet prefix
   }
 }
