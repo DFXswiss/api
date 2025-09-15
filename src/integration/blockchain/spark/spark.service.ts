@@ -34,9 +34,21 @@ export class SparkService extends BlockchainService {
         return false;
       }
 
+      // Validate address format early
+      if (!this.isValidSparkAddress(address)) {
+        this.logger.error(`Invalid Spark address format: ${address}`);
+        return false;
+      }
+
       // Validate signature format (64 bytes hex = 128 chars)
       if (signatureHex.length !== 128) {
         this.logger.error(`Invalid signature length: ${signatureHex.length}, expected 128`);
+        return false;
+      }
+
+      // Validate hex format
+      if (!/^[0-9a-fA-F]{128}$/.test(signatureHex)) {
+        this.logger.error('Invalid signature format: not a valid hex string');
         return false;
       }
 
