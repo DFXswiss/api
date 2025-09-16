@@ -2,8 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
 import { bech32m } from 'bech32';
+import { Config } from 'src/config/config';
+import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainService } from '../shared/util/blockchain.service';
+import { SparkClient, SparkTransaction, SparkUTXO } from './spark-client';
 
 enum SparkNetwork {
   MAINNET = 'mainnet',
@@ -13,18 +16,87 @@ enum SparkNetwork {
   LOCAL = 'local',
 }
 
+export enum SparkNodeType {
+  INPUT = 'Input',
+  OUTPUT = 'Output',
+}
+
 @Injectable()
 export class SparkService extends BlockchainService {
-  constructor() {
+  private readonly clients = new Map<SparkNodeType, SparkClient>();
+
+  constructor(private readonly http: HttpService) {
     super();
+    this.initializeClients();
   }
 
-  getDefaultClient(): BlockchainClient {
-    return null;
+  private initializeClients(): void {
+    // Initialize input and output clients
+    this.clients.set(SparkNodeType.INPUT, new SparkClient(this.http));
+    this.clients.set(SparkNodeType.OUTPUT, new SparkClient(this.http));
+  }
+
+  getDefaultClient(type: SparkNodeType = SparkNodeType.OUTPUT): SparkClient {
+    return this.clients.get(type);
   }
 
   async isHealthy(): Promise<boolean> {
-    return true;
+    try {
+      const client = this.getDefaultClient();
+      return await client.isHealthy();
+    } catch {
+      return false;
+    }
+  }
+
+  // --- TRANSACTION METHODS --- //
+
+  async getBalance(address?: string, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<number> {
+    const client = this.getDefaultClient(type);
+    return client.getBalance(address);
+  }
+
+  async sendTransaction(
+    to: string,
+    amount: number,
+    feeRate?: number,
+    type: SparkNodeType = SparkNodeType.OUTPUT,
+  ): Promise<{ txid: string; fee: number }> {
+    const client = this.getDefaultClient(type);
+    const effectiveFeeRate = feeRate ?? (await client.getNetworkFeeRate());
+    return client.sendTransaction(to, amount, effectiveFeeRate);
+  }
+
+  async sendMany(
+    outputs: { addressTo: string; amount: number }[],
+    feeRate?: number,
+    type: SparkNodeType = SparkNodeType.OUTPUT,
+  ): Promise<string> {
+    const client = this.getDefaultClient(type);
+    const effectiveFeeRate = feeRate ?? (await client.getNetworkFeeRate());
+    return client.sendMany(outputs, effectiveFeeRate);
+  }
+
+  async getTransaction(txId: string, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<SparkTransaction> {
+    const client = this.getDefaultClient(type);
+    return client.getTransaction(txId);
+  }
+
+  async estimateFee(blocks = 6, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<number> {
+    const client = this.getDefaultClient(type);
+    const estimate = await client.estimateFee(blocks);
+    return estimate.feerate;
+  }
+
+  async validateAddress(address: string, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<boolean> {
+    const client = this.getDefaultClient(type);
+    const result = await client.validateAddress(address);
+    return result.isvalid;
+  }
+
+  async getUTXOs(address: string, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<SparkUTXO[]> {
+    const client = this.getDefaultClient(type);
+    return client.getUTXOsForAddress(address);
   }
 
   // --- SIGNATURE VERIFICATION --- //
