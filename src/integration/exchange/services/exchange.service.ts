@@ -83,7 +83,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   }
 
   async getAvailableBalance(currency: string): Promise<number> {
-    return this.getBalances().then((b) => b.total[currency]);
+    return this.getBalances().then((b) => b.total[currency] ?? 0);
   }
 
   async getPrice(from: string, to: string): Promise<Price> {
