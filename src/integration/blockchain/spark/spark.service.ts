@@ -30,16 +30,26 @@ export class SparkService extends BlockchainService {
   // --- SIGNATURE VERIFICATION --- //
   async verifySignature(message: string, address: string, signatureHex: string): Promise<boolean> {
     try {
-      const messageHash = sha256(new TextEncoder().encode(message));
+      // Try different message formats
+      const messagesToTry = [
+        message, // Original message
+        `\x15SPARK Signed Message:\n${String.fromCharCode(message.length)}${message}`, // SPARK prefix
+        `\x18Bitcoin Signed Message:\n${String.fromCharCode(message.length)}${message}`, // Bitcoin prefix
+      ];
+
       const signatureBytes = Buffer.from(signatureHex, 'hex');
 
-      for (let recovery = 0; recovery <= 3; recovery++) {
-        const publicKey = this.recoverPublicKey(messageHash, signatureBytes, recovery);
-        if (!publicKey) continue;
+      for (const msg of messagesToTry) {
+        const messageHash = sha256(new TextEncoder().encode(msg));
 
-        const generatedAddress = this.publicKeyToAddress(publicKey, address);
+        for (let recovery = 0; recovery <= 3; recovery++) {
+          const publicKey = this.recoverPublicKey(messageHash, signatureBytes, recovery);
+          if (!publicKey) continue;
 
-        if (generatedAddress === address) return true;
+          const generatedAddress = this.publicKeyToAddress(publicKey, address);
+
+          if (generatedAddress === address) return true;
+        }
       }
 
       return false;
