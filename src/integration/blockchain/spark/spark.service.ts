@@ -6,6 +6,14 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainService } from '../shared/util/blockchain.service';
 
+enum SparkNetwork {
+  MAINNET = 'mainnet',
+  TESTNET = 'testnet',
+  REG_TEST = 'regtest',
+  SIGNET = 'signet',
+  LOCAL = 'local',
+}
+
 @Injectable()
 export class SparkService extends BlockchainService {
   private readonly logger = new DfxLogger(SparkService);
@@ -86,52 +94,28 @@ export class SparkService extends BlockchainService {
   }
 
   private publicKeyToAddress(publicKey: Buffer, originalAddress: string): string {
-    try {
-      // Decode the original address to get the full payload including metadata
-      const decoded = bech32m.decode(originalAddress, 1024);
-      const originalPayload = new Uint8Array(bech32m.fromWords(decoded.words));
+    const prefix = this.getAddressPrefix(originalAddress);
 
-      // Check if the public key is contained in the original payload
-      // Spark addresses may have additional metadata before the public key
-      if (originalPayload.length >= 33) {
-        // Search for the public key in the payload
-        for (let i = 0; i <= originalPayload.length - publicKey.length; i++) {
-          let match = true;
-          for (let j = 0; j < publicKey.length; j++) {
-            if (originalPayload[i + j] !== publicKey[j]) {
-              match = false;
-              break;
-            }
-          }
-          if (match) {
-            // Found the public key in the payload, reconstruct with original metadata
-            const prefix = this.getSparkPrefix(this.getNetworkFromAddress(originalAddress));
-            const words = bech32m.toWords(originalPayload);
-            return bech32m.encode(prefix, words, 1024);
-          }
-        }
+    // check if the public key is contained in the original payload
+    const decoded = bech32m.decode(originalAddress, 1024);
+    const originalPayload = new Uint8Array(bech32m.fromWords(decoded.words));
+    const originalContainsPubKey = originalPayload.length >= 33 && this.containsPublicKey(originalPayload, publicKey);
+
+    const words = originalContainsPubKey ? bech32m.toWords(originalPayload) : bech32m.toWords(publicKey);
+
+    return bech32m.encode(prefix, words, 1024);
+  }
+
+  private containsPublicKey(payload: Uint8Array, publicKey: Buffer): boolean {
+    for (let i = 0; i <= payload.length - publicKey.length; i++) {
+      if (payload.subarray(i, i + publicKey.length).every((byte, j) => byte === publicKey[j])) {
+        return true;
       }
-
-      // Fallback: encode just the public key
-      const network = this.getNetworkFromAddress(originalAddress);
-      const prefix = this.getSparkPrefix(network);
-      const words = bech32m.toWords(publicKey);
-      return bech32m.encode(prefix, words, 1024);
-    } catch (error) {
-      this.logger.error(`Error creating address from public key: ${error.message}`);
-      throw error;
     }
+    return false;
   }
 
   // --- ADDRESS VALIDATION --- //
-  private readonly NETWORK_PREFIXES = new Map([
-    ['sp', 'mainnet'],
-    ['spt', 'testnet'],
-    ['sprt', 'regtest'],
-    ['sps', 'signet'],
-    ['spl', 'local'],
-  ]);
-
   isValidSparkAddress(address: string): boolean {
     try {
       const decoded = bech32m.decode(address, 1024);
@@ -147,27 +131,23 @@ export class SparkService extends BlockchainService {
 
   // --- PAYMENT REQUEST --- //
   async getPaymentRequest(_address: string, _amount: number): Promise<string | undefined> {
-    // Spark uses Lightning-like invoices
-    // For now, return undefined as this would need integration with Spark network
+    // TODO: requires integration with Spark network
     return undefined;
   }
 
   // --- HELPER METHODS --- //
-  private getNetworkFromAddress(address: string): 'mainnet' | 'testnet' | 'regtest' | 'signet' | 'local' {
+  private readonly NETWORK_PREFIXES = new Map<SparkNetwork, string>([
+    [SparkNetwork.MAINNET, 'sp'],
+    [SparkNetwork.TESTNET, 'spt'],
+    [SparkNetwork.REG_TEST, 'sprt'],
+    [SparkNetwork.SIGNET, 'sps'],
+    [SparkNetwork.LOCAL, 'spl'],
+  ]);
+
+  private getAddressPrefix(address: string): string {
     const separatorIndex = address.lastIndexOf('1');
-    if (separatorIndex === -1) return 'mainnet';
+    if (separatorIndex === -1) return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET);
 
-    const prefix = address.substring(0, separatorIndex);
-    return (this.NETWORK_PREFIXES.get(prefix) as 'mainnet' | 'testnet' | 'regtest' | 'signet' | 'local') || 'mainnet';
-  }
-
-  private getSparkPrefix(network: 'mainnet' | 'testnet' | 'regtest' | 'signet' | 'local'): string {
-    for (const [prefix, net] of this.NETWORK_PREFIXES) {
-      if (net === network) {
-        return prefix;
-      }
-    }
-
-    return 'sp';
+    return address.substring(0, separatorIndex);
   }
 }
