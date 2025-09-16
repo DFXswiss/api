@@ -42,6 +42,7 @@ import { CreatePaymentMerchantDto } from '../dto/create-payment-merchant.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
 import { UpdatePaymentLinkConfigDto, UserPaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
+import { PaymentLinkRecipientAddressDto } from '../dto/payment-link-recipient-address.dto';
 import {
   PaymentLinkDto,
   PaymentLinkHistoryDto,
@@ -321,6 +322,12 @@ export class PaymentLinkController {
   }
 
   // --- MERCHANT --- //
+
+  @Get('locations')
+  @ApiOkResponse()
+  async getLocations(@Query('publicName') publicName: string): Promise<PaymentLinkRecipientAddressDto[]> {
+    return this.paymentLinkService.getLocations(publicName);
+  }
 
   @Post('merchant')
   @ApiBearerAuth()
