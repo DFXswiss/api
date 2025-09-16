@@ -49,46 +49,21 @@ export class SparkService extends BlockchainService {
         return false;
       }
 
-      // Hash the message
       const messageHash = sha256(new TextEncoder().encode(message));
 
-      // Parse the signature (R and S components)
       const signatureBytes = Buffer.from(signatureHex, 'hex');
-      const r = signatureBytes.slice(0, 32);
-      const s = signatureBytes.slice(32, 64);
 
-      // Try all 4 possible recovery values
       for (let recovery = 0; recovery <= 3; recovery++) {
-        try {
-          // Create signature object with recovery bit
-          const rBigInt = BigInt('0x' + Buffer.from(r).toString('hex'));
-          const sBigInt = BigInt('0x' + Buffer.from(s).toString('hex'));
+        const publicKey = this.recoverPublicKey(messageHash, signatureBytes, recovery);
+        if (!publicKey) continue;
 
-          const sig = new secp256k1.Signature(rBigInt, sBigInt);
-          const sigWithRecovery = sig.addRecoveryBit(recovery);
+        const generatedAddress = this.publicKeyToAddress(publicKey, address);
 
-          // Recover the public key
-          const recoveredPubKey = sigWithRecovery.recoverPublicKey(messageHash);
-          const recoveredPubKeyBytes = recoveredPubKey.toRawBytes(true); // compressed
-
-          // Generate Spark address from recovered public key
-          const generatedAddress = this.encodeSparkAddress(recoveredPubKeyBytes, address);
-
-          // Check if generated address matches the provided address
-          if (generatedAddress === address) {
-            // Verify the signature with this public key
-            const isValid = secp256k1.verify(Buffer.from(signatureHex, 'hex'), messageHash, recoveredPubKeyBytes);
-
-            if (isValid) {
-              this.logger.verbose(
-                `Spark signature verified successfully with recovery bit ${recovery} for address ${address}`,
-              );
-              return true;
-            }
-          }
-        } catch (error) {
-          // Continue to next recovery value
-          continue;
+        if (generatedAddress === address) {
+          this.logger.verbose(
+            `Spark signature verified successfully with recovery bit ${recovery} for address ${address}`,
+          );
+          return true;
         }
       }
 
@@ -100,8 +75,17 @@ export class SparkService extends BlockchainService {
     }
   }
 
-  // --- ADDRESS ENCODING --- //
-  private encodeSparkAddress(publicKey: Uint8Array, originalAddress: string): string {
+  private recoverPublicKey(messageHash: Uint8Array, signatureBytes: Buffer, recovery: number): Buffer | null {
+    try {
+      const signature = secp256k1.Signature.fromBytes(signatureBytes, 'compact').addRecoveryBit(recovery);
+      const recoveredPubKey = signature.recoverPublicKey(messageHash);
+      return Buffer.from(recoveredPubKey.toBytes(true));
+    } catch (error) {
+      return null;
+    }
+  }
+
+  private publicKeyToAddress(publicKey: Buffer, originalAddress: string): string {
     try {
       // Decode the original address to get the full payload including metadata
       const decoded = bech32m.decode(originalAddress, 1024);
@@ -134,13 +118,12 @@ export class SparkService extends BlockchainService {
       const words = bech32m.toWords(publicKey);
       return bech32m.encode(prefix, words, 1024);
     } catch (error) {
-      this.logger.error(`Error encoding Spark address: ${error.message}`);
+      this.logger.error(`Error creating address from public key: ${error.message}`);
       throw error;
     }
   }
 
   // --- ADDRESS VALIDATION --- //
-  private readonly BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
   private readonly NETWORK_PREFIXES = new Map([
     ['sp', 'mainnet'],
     ['spt', 'testnet'],
