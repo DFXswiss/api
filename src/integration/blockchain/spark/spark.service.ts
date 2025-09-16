@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
-import { sha256 } from '@noble/hashes/sha256';
-import { bech32m } from '@scure/base';
+import { sha256 } from '@noble/hashes/sha2';
+import { bech32m } from 'bech32';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainService } from '../shared/util/blockchain.service';
 
 @Injectable()
@@ -13,15 +14,11 @@ export class SparkService extends BlockchainService {
     super();
   }
 
-  getDefaultClient(): any {
-    // Spark doesn't use an external client as all operations are performed locally
-    // This method is required by BlockchainService but not applicable for Spark
+  getDefaultClient(): BlockchainClient {
     return null;
   }
 
   async isHealthy(): Promise<boolean> {
-    // Spark service is always healthy as it doesn't depend on external nodes
-    // All operations are performed locally
     return true;
   }
 
@@ -107,7 +104,7 @@ export class SparkService extends BlockchainService {
   private encodeSparkAddress(publicKey: Uint8Array, originalAddress: string): string {
     try {
       // Decode the original address to get the full payload including metadata
-      const decoded = bech32m.decode(originalAddress as `${string}1${string}`, 1024);
+      const decoded = bech32m.decode(originalAddress, 1024);
       const originalPayload = new Uint8Array(bech32m.fromWords(decoded.words));
 
       // Check if the public key is contained in the original payload
@@ -154,44 +151,10 @@ export class SparkService extends BlockchainService {
 
   isValidSparkAddress(address: string): boolean {
     try {
-      // Basic length check
-      if (!address || address.length < 14 || address.length > 90) {
-        return false;
-      }
+      const decoded = bech32m.decode(address, 1024);
 
-      // Find the separator '1'
-      const separatorIndex = address.lastIndexOf('1');
-      if (separatorIndex === -1 || separatorIndex === address.length - 1) {
-        return false;
-      }
-
-      // Extract and validate prefix
-      const prefix = address.substring(0, separatorIndex);
-      if (!this.NETWORK_PREFIXES.has(prefix)) {
-        return false;
-      }
-
-      // Validate data part contains only bech32 characters
-      const dataPart = address.substring(separatorIndex + 1);
-      if (!dataPart.split('').every(char => this.BECH32_CHARSET.includes(char))) {
-        return false;
-      }
-
-      // Try to decode with bech32m
-      const decoded = bech32m.decode(address as `${string}1${string}`, 1024);
-
-      // Verify prefix matches
-      if (decoded.prefix !== prefix) {
-        return false;
-      }
-
-      // Convert to bytes and validate length
       const publicKeyBytes = new Uint8Array(bech32m.fromWords(decoded.words));
-
-      // Should be at least 33 bytes (compressed pubkey)
-      if (publicKeyBytes.length < 33) {
-        return false;
-      }
+      if (publicKeyBytes.length < 33) return false;
 
       return true;
     } catch (error) {
@@ -212,16 +175,16 @@ export class SparkService extends BlockchainService {
     if (separatorIndex === -1) return 'mainnet';
 
     const prefix = address.substring(0, separatorIndex);
-    return this.NETWORK_PREFIXES.get(prefix) as 'mainnet' | 'testnet' | 'regtest' | 'signet' | 'local' || 'mainnet';
+    return (this.NETWORK_PREFIXES.get(prefix) as 'mainnet' | 'testnet' | 'regtest' | 'signet' | 'local') || 'mainnet';
   }
 
   private getSparkPrefix(network: 'mainnet' | 'testnet' | 'regtest' | 'signet' | 'local'): string {
-    // Reverse lookup in the NETWORK_PREFIXES map
     for (const [prefix, net] of this.NETWORK_PREFIXES) {
       if (net === network) {
         return prefix;
       }
     }
-    return 'sp'; // Default to mainnet prefix
+
+    return 'sp';
   }
 }
