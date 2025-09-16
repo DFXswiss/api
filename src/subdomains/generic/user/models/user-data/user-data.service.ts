@@ -491,7 +491,7 @@ export class UserDataService {
     await this.kycLogService.createLogInternal(
       userData,
       KycLogType.KYC,
-      `UserData deactivated on ${userData.deactivationDate}`,
+      `UserData deactivated on ${userData.deactivationDate.toISOString()}`,
     );
     await this.kycService.createKycLevelLog(userData, userData.kycLevel);
     await this.userDataNotificationService.deactivateAccountMail(userData);
