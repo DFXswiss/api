@@ -15,6 +15,7 @@ import { BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
+import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
 import { ZanoService } from '../../zano/services/zano.service';
 import { Blockchain } from '../enums/blockchain.enum';
@@ -29,6 +30,7 @@ export class CryptoService {
   constructor(
     private readonly bitcoinService: BitcoinService,
     private readonly lightningService: LightningService,
+    private readonly sparkService: SparkService,
     private readonly moneroService: MoneroService,
     private readonly zanoService: ZanoService,
     private readonly solanaService: SolanaService,
@@ -53,6 +55,9 @@ export class CryptoService {
 
       case Blockchain.LIGHTNING:
         return this.lightningService.getInvoiceByLnurlp(address, amount);
+
+      case Blockchain.SPARK:
+        return this.sparkService.getPaymentRequest(address, amount);
 
       case Blockchain.MONERO:
         return this.moneroService.getPaymentRequest(address, amount);
@@ -95,6 +100,9 @@ export class CryptoService {
       case Blockchain.LIGHTNING:
         if (address.startsWith('$')) return UserAddressType.UMA;
         return LightningHelper.getAddressType(address) as unknown as UserAddressType;
+
+      case Blockchain.SPARK:
+        return UserAddressType.SPARK;
 
       case Blockchain.MONERO:
         return UserAddressType.MONERO;
@@ -145,6 +153,7 @@ export class CryptoService {
     if (isEthereumAddress(address)) return EvmBlockchains;
     if (CryptoService.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
     if (CryptoService.isLightningAddress(address)) return [Blockchain.LIGHTNING];
+    if (CryptoService.isSparkAddress(address)) return [Blockchain.SPARK];
     if (CryptoService.isMoneroAddress(address)) return [Blockchain.MONERO];
     if (CryptoService.isZanoAddress(address)) return [Blockchain.ZANO];
     if (CryptoService.isSolanaAddress(address)) return [Blockchain.SOLANA];
@@ -169,6 +178,10 @@ export class CryptoService {
 
   private static isLightningAddress(address: string): boolean {
     return RegExp(`^(${Config.lightningAddressFormat})$`).test(address);
+  }
+
+  private static isSparkAddress(address: string): boolean {
+    return RegExp(`^(${Config.sparkAddressFormat})$`).test(address);
   }
 
   private static isMoneroAddress(address: string): boolean {
@@ -218,6 +231,7 @@ export class CryptoService {
       if (EvmBlockchains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (blockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
+      if (blockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
       if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
       if (blockchain === Blockchain.ZANO) return await this.verifyZano(message, address, signature);
       if (blockchain === Blockchain.SOLANA) return await this.verifySolana(message, address, signature);
@@ -258,6 +272,10 @@ export class CryptoService {
     });
 
     return this.lightningService.verifySignature(message, signature, key);
+  }
+
+  private async verifySpark(message: string, address: string, signature: string): Promise<boolean> {
+    return this.sparkService.verifySignature(message, address, signature);
   }
 
   private async verifyMonero(message: string, address: string, signature: string): Promise<boolean> {
