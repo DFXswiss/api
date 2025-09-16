@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
 import { bech32m } from 'bech32';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainService } from '../shared/util/blockchain.service';
 
@@ -16,8 +15,6 @@ enum SparkNetwork {
 
 @Injectable()
 export class SparkService extends BlockchainService {
-  private readonly logger = new DfxLogger(SparkService);
-
   constructor() {
     super();
   }
@@ -33,32 +30,7 @@ export class SparkService extends BlockchainService {
   // --- SIGNATURE VERIFICATION --- //
   async verifySignature(message: string, address: string, signatureHex: string): Promise<boolean> {
     try {
-      // Validate inputs
-      if (!message || !address || !signatureHex) {
-        this.logger.error('Invalid input parameters for Spark signature verification');
-        return false;
-      }
-
-      // Validate address format early
-      if (!this.isValidSparkAddress(address)) {
-        this.logger.error(`Invalid Spark address format: ${address}`);
-        return false;
-      }
-
-      // Validate signature format (64 bytes hex = 128 chars)
-      if (signatureHex.length !== 128) {
-        this.logger.error(`Invalid signature length: ${signatureHex.length}, expected 128`);
-        return false;
-      }
-
-      // Validate hex format
-      if (!/^[0-9a-fA-F]{128}$/.test(signatureHex)) {
-        this.logger.error('Invalid signature format: not a valid hex string');
-        return false;
-      }
-
       const messageHash = sha256(new TextEncoder().encode(message));
-
       const signatureBytes = Buffer.from(signatureHex, 'hex');
 
       for (let recovery = 0; recovery <= 3; recovery++) {
@@ -67,29 +39,22 @@ export class SparkService extends BlockchainService {
 
         const generatedAddress = this.publicKeyToAddress(publicKey, address);
 
-        if (generatedAddress === address) {
-          this.logger.verbose(
-            `Spark signature verified successfully with recovery bit ${recovery} for address ${address}`,
-          );
-          return true;
-        }
+        if (generatedAddress === address) return true;
       }
 
-      this.logger.error(`Failed to verify Spark signature for address ${address}`);
       return false;
-    } catch (error) {
-      this.logger.error(`Error verifying Spark signature: ${error.message}`, error);
+    } catch {
       return false;
     }
   }
 
-  private recoverPublicKey(messageHash: Uint8Array, signatureBytes: Buffer, recovery: number): Buffer | null {
+  private recoverPublicKey(messageHash: Uint8Array, signatureBytes: Buffer, recovery: number): Buffer | undefined {
     try {
       const signature = secp256k1.Signature.fromBytes(signatureBytes, 'compact').addRecoveryBit(recovery);
       const recoveredPubKey = signature.recoverPublicKey(messageHash);
       return Buffer.from(recoveredPubKey.toBytes(true));
     } catch (error) {
-      return null;
+      return undefined;
     }
   }
 
@@ -113,20 +78,6 @@ export class SparkService extends BlockchainService {
       }
     }
     return false;
-  }
-
-  // --- ADDRESS VALIDATION --- //
-  isValidSparkAddress(address: string): boolean {
-    try {
-      const decoded = bech32m.decode(address, 1024);
-
-      const publicKeyBytes = new Uint8Array(bech32m.fromWords(decoded.words));
-      if (publicKeyBytes.length < 33) return false;
-
-      return true;
-    } catch (error) {
-      return false;
-    }
   }
 
   // --- PAYMENT REQUEST --- //
