@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { Currency } from '@uniswap/sdk-core';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
+import { BlockchainClient } from '../shared/util/blockchain-client';
+import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 
 export interface SparkTransaction {
   txid: string;
@@ -62,23 +65,27 @@ export interface SparkFeeEstimate {
 }
 
 @Injectable()
-export class SparkClient {
+export class SparkClient extends BlockchainClient {
   private readonly logger = new DfxLogger(SparkClient);
 
-  constructor(private readonly http: HttpService) {}
+  constructor(private readonly http: HttpService) {
+    super();
+  }
 
   get nodeUrl(): string {
-    return Config.blockchain.spark?.nodeUrl ?? 'http://localhost:8332';
+    // TODO: Add spark configuration to Config.blockchain
+    return process.env.SPARK_NODE_URL ?? 'http://localhost:8332';
   }
 
   get walletAddress(): string {
-    return Config.blockchain.spark?.address ?? '';
+    // TODO: Add spark configuration to Config.blockchain
+    return process.env.SPARK_ADDRESS ?? '';
   }
 
   private get rpcAuth(): { username: string; password: string } {
     return {
-      username: Config.blockchain.spark?.rpcUser ?? 'spark',
-      password: Config.blockchain.spark?.rpcPassword ?? '',
+      username: process.env.SPARK_RPC_USER ?? 'spark',
+      password: process.env.SPARK_RPC_PASSWORD ?? '',
     };
   }
 
@@ -274,11 +281,12 @@ export class SparkClient {
         },
       );
 
-      if (response.error) {
-        throw new Error(`RPC Error: ${response.error.message || JSON.stringify(response.error)}`);
+      const data = response as any;
+      if (data.error) {
+        throw new Error(`RPC Error: ${data.error.message || JSON.stringify(data.error)}`);
       }
 
-      return response.result;
+      return data.result;
     } catch (error) {
       this.logger.error(`RPC call failed for ${method}:`, error);
       throw error;
@@ -305,5 +313,50 @@ export class SparkClient {
     } catch {
       return false;
     }
+  }
+
+  // --- BLOCKCHAIN CLIENT INTERFACE METHODS --- //
+
+  async sendSignedTransaction(hex: string): Promise<any> {
+    try {
+      const txid = await this.sendRawTransaction(hex);
+      return { hash: txid };
+    } catch (error) {
+      return {
+        error: {
+          code: error.code ?? -1,
+          message: error.message ?? 'Unknown error',
+        },
+      };
+    }
+  }
+
+  async getNativeCoinBalance(): Promise<number> {
+    return this.getWalletBalance();
+  }
+
+  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
+    return this.getBalance(address);
+  }
+
+  async getTokenBalance(_asset: Asset, _address?: string): Promise<number> {
+    throw new Error('Spark has no tokens');
+  }
+
+  async getTokenBalances(_assets: Asset[], _address?: string): Promise<BlockchainTokenBalance[]> {
+    throw new Error('Spark has no tokens');
+  }
+
+  async getToken(_asset: Asset): Promise<Currency> {
+    throw new Error('Spark has no tokens');
+  }
+
+  async getTx(txId: string): Promise<any> {
+    return this.getTransaction(txId);
+  }
+
+  async isTxComplete(txId: string, minConfirmations = 1): Promise<boolean> {
+    const tx = await this.getTransaction(txId);
+    return tx.blockhash && tx.confirmations >= minConfirmations;
   }
 }

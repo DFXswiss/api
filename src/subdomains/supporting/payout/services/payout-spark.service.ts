@@ -29,10 +29,14 @@ export class PayoutSparkService extends PayoutBitcoinBasedService {
     const feeRate = await this.getCurrentFeeRate();
 
     // Convert PayoutGroup to format expected by SparkClient
-    const outputs = Object.entries(payout).map(([addressTo, amount]) => ({
-      addressTo,
-      amount: typeof amount === 'string' ? parseFloat(amount) : amount,
-    }));
+    const outputs: { addressTo: string; amount: number }[] = [];
+
+    for (const [addressTo, amount] of Object.entries(payout)) {
+      outputs.push({
+        addressTo,
+        amount: typeof amount === 'string' ? parseFloat(amount) : Number(amount),
+      });
+    }
 
     return this.client.sendMany(outputs, feeRate);
   }
