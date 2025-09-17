@@ -1,10 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -30,16 +28,12 @@ export class LiquidityManagementPipelineService {
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
     private readonly notificationService: NotificationService,
-    private readonly exchangeRegistry: ExchangeRegistryService,
   ) {}
 
   //*** JOBS ***//
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
   async processPipelines() {
-    // temporary log
-    await this.usdtDebugLog();
-
     await this.checkRunningOrders();
     await this.startNewPipelines();
 
@@ -49,27 +43,6 @@ export class LiquidityManagementPipelineService {
 
       hasWaitingOrders = await this.startNewOrders();
     }
-  }
-
-  private async usdtDebugLog() {
-    // exchange balances
-    const [kraken, binance] = await Promise.all(
-      ['Kraken', 'Binance'].map((id) =>
-        this.exchangeRegistry
-          .get(id)
-          .getTotalBalances()
-          .then((b) => Math.round(b['USDT'] ?? 0)),
-      ),
-    );
-
-    // transfer
-    const lmOrders = await this.orderRepo.findBy({
-      status: LiquidityManagementOrderStatus.IN_PROGRESS,
-      action: { id: 138 },
-    });
-    const transfer = Math.round(Util.sumObjValue(lmOrders, 'inputAmount'));
-
-    this.logger.verbose(`USDT balances: Kraken ${kraken}, Binance ${binance}, Transfer ${transfer}`);
   }
 
   //*** PUBLIC API ***//

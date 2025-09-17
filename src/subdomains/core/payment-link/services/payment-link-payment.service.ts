@@ -297,9 +297,11 @@ export class PaymentLinkPaymentService {
     for (const quote of payment.quotes) {
       await this.paymentQuoteService.deleteQuote(quote);
     }
+
     for (const activation of payment.activations) {
       await this.paymentActivationService.deleteActivation(activation);
     }
+
     await this.paymentLinkPaymentRepo.delete(payment.id);
   }
 

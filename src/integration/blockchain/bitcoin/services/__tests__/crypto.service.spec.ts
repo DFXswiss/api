@@ -5,6 +5,7 @@ import { MoneroService } from 'src/integration/blockchain/monero/services/monero
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { SparkService } from 'src/integration/blockchain/spark/spark.service';
 import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
 import { ZanoService } from 'src/integration/blockchain/zano/services/zano.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
@@ -18,6 +19,7 @@ describe('CryptoService', () => {
 
   let bitcoinService: BitcoinService;
   let lightningService: LightningService;
+  let sparkService: SparkService;
   let moneroService: MoneroService;
   let zanoService: ZanoService;
   let solanaService: SolanaService;
@@ -28,6 +30,7 @@ describe('CryptoService', () => {
   beforeEach(async () => {
     bitcoinService = createMock<BitcoinService>();
     lightningService = createMock<LightningService>();
+    sparkService = createMock<SparkService>();
     moneroService = createMock<MoneroService>();
     zanoService = createMock<ZanoService>();
     solanaService = createMock<SolanaService>();
@@ -40,6 +43,7 @@ describe('CryptoService', () => {
         CryptoService,
         { provide: BitcoinService, useValue: bitcoinService },
         { provide: LightningService, useValue: lightningService },
+        { provide: SparkService, useValue: sparkService },
         { provide: MoneroService, useValue: moneroService },
         { provide: ZanoService, useValue: zanoService },
         { provide: SolanaService, useValue: solanaService },
