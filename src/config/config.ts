@@ -135,7 +135,7 @@ export class Configuration {
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
-  sparkAddressFormat = 'sp(1|t1|rt1|s1|l1)[a-z0-9]{58,89}';
+  sparkAddressFormat = 'sp1[a-z0-9]{6,87}';
   moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
