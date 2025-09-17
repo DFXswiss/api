@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { getBankHolidayInfoBanner, isBankHoliday } from 'src/config/bank-holiday.config';
@@ -7,6 +7,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { InfoBannerDto, InfoBannerSetting } from './dto/info-banner.dto';
+import { IpBlacklistDto } from './dto/ip-blacklist.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
@@ -49,6 +50,22 @@ export class SettingController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async updateProcess(@Body() dto: UpdateProcessDto): Promise<void> {
     return this.settingService.updateProcess(dto);
+  }
+
+  @Put('blacklist/ip')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async addIpToBlacklist(@Body() dto: IpBlacklistDto): Promise<void> {
+    return this.settingService.addIpToBlacklist(dto.ip);
+  }
+
+  @Delete('blacklist/ip')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async deleteIpToBlacklist(@Body() dto: IpBlacklistDto): Promise<void> {
+    return this.settingService.deleteIpFromBlacklist(dto.ip);
   }
 
   @Put(':key')

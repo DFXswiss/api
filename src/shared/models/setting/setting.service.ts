@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Process } from 'src/shared/services/process.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { IpLogService } from '../ip-log/ip-log.service';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
@@ -7,7 +9,11 @@ import { SettingRepository } from './setting.repository';
 
 @Injectable()
 export class SettingService {
-  constructor(private readonly settingRepo: SettingRepository) {}
+  constructor(
+    private readonly settingRepo: SettingRepository,
+    private readonly ipLogService: IpLogService,
+    private readonly userDataService: UserDataService,
+  ) {}
 
   async getAll(): Promise<Setting[]> {
     return this.settingRepo.find();
@@ -22,6 +28,35 @@ export class SettingService {
     entity.value = value;
 
     await this.settingRepo.save(entity);
+  }
+
+  async addIpToBlacklist(ip: string): Promise<void> {
+    const ipBlacklist = (await this.getObj<string[]>('ipBlacklist')) ?? [];
+
+    if (!ipBlacklist.some((blockedIp) => blockedIp === ip)) {
+      ipBlacklist.push(ip);
+
+      // // update userData
+      const ipLogs = await this.ipLogService
+        .getDistinctUserDataIpLogs(ip)
+        .then((logs) => logs.filter((l) => !l.user.userData.hasIpRisk));
+
+      for (const ipLog of ipLogs) {
+        await this.userDataService.updateUserDataInternal(ipLog.user.userData, { hasIpRisk: true });
+      }
+
+      await this.setObj<string[]>('ipBlacklist', ipBlacklist);
+    }
+  }
+
+  async deleteIpFromBlacklist(ip: string): Promise<void> {
+    const ipBlacklist = (await this.getObj<string[]>('ipBlacklist')) ?? [];
+    if (!ipBlacklist.some((blockedIp) => blockedIp === ip)) throw new BadRequestException('Blocked IP not found');
+
+    await this.setObj<string[]>(
+      'ipBlacklist',
+      ipBlacklist.filter((blockedIp) => blockedIp !== ip),
+    );
   }
 
   async updateCustomSignUpFees(dto: CustomSignUpFeesDto): Promise<void> {

@@ -31,6 +31,18 @@ export class IpLogService {
     return this.ipLogRepo.save(ipLog);
   }
 
+  async getDistinctUserDataIpLogs(ip: string): Promise<IpLog[]> {
+    return this.ipLogRepo
+      .createQueryBuilder('ipLog')
+      .select('ipLog')
+      .leftJoinAndSelect('ipLog.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .where('ipLog.ip = :ip', { ip })
+      .andWhere('ipLog.user.id IS NOT NULL')
+      .distinctOn(['ipLog.user.userData.id'])
+      .getMany();
+  }
+
   private async checkIpCountry(
     userIp: string,
     address: string,
