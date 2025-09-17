@@ -12,7 +12,7 @@ import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/d
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { Blockchain } from '../../shared/enums/blockchain.enum';
 import { BlockchainService } from '../../shared/util/blockchain.service';
-import { ZanoSendTransferResultDto, ZanoTransactionDto, ZanoTransferDto } from '../dto/zano.dto';
+import { ZanoAssetInfoDto, ZanoSendTransferResultDto, ZanoTransactionDto, ZanoTransferDto } from '../dto/zano.dto';
 import { ZanoClient } from '../zano-client';
 
 @Injectable()
@@ -40,14 +40,13 @@ export class ZanoService extends BlockchainService implements OnModuleInit {
   }
 
   // --- JOBS --- //
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.ZANO_ASSET_WHITELIST })
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.ZANO_ASSET_WHITELIST })
   async setupAssetWhitelist(): Promise<void> {
     if (await this.isHealthy()) {
       const zanoTokens = await this.assetService.getTokens(Blockchain.ZANO);
+      const chainIds = zanoTokens.filter((t) => t.chainId).map((t) => t.chainId);
 
-      for (const zanoToken of zanoTokens) {
-        await this.addAssetToWhitelist(zanoToken.chainId);
-      }
+      await this.addAssetsToWhitelist(chainIds);
     }
   }
 
@@ -89,15 +88,21 @@ export class ZanoService extends BlockchainService implements OnModuleInit {
     return this.client.getUnlockedTokenBalance(token);
   }
 
-  async addAssetToWhitelist(assetId: string): Promise<any> {
+  async addAssetsToWhitelist(assetIds: string[]): Promise<ZanoAssetInfoDto[]> {
+    const assetInfos: ZanoAssetInfoDto[] = [];
+
     const assetWhitelist = await this.client.getAssetWhitelist();
 
-    const globalFound = assetWhitelist.global_whitelist?.find((a) => Util.equalsIgnoreCase(a.asset_id, assetId));
-    const localFound = assetWhitelist.local_whitelist?.find((a) => Util.equalsIgnoreCase(a.asset_id, assetId));
+    for (const assetId of assetIds) {
+      const globalFound = assetWhitelist.global_whitelist?.find((a) => Util.equalsIgnoreCase(a.asset_id, assetId));
+      const localFound = assetWhitelist.local_whitelist?.find((a) => Util.equalsIgnoreCase(a.asset_id, assetId));
 
-    if (!globalFound && !localFound) {
-      return this.client.addAssetToWhitelist(assetId);
+      if (!globalFound && !localFound) {
+        assetInfos.push(await this.client.addAssetToWhitelist(assetId));
+      }
     }
+
+    return assetInfos;
   }
 
   getFeeEstimate(): number {

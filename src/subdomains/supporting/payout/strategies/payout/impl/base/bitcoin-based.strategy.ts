@@ -140,7 +140,7 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
       payoutTxId = await this.dispatchPayout(context, payout, orders[0].asset);
     } catch (e) {
       this.logger.error(
-        `Error on sending ${orders.map((o) => o.asset.name)} for payout. Order ID(s): ${orders.map((o) => o.id)}:`,
+        `Error on sending ${orders[0].asset.name} for payout. Order ID(s): ${orders.map((o) => o.id)}:`,
         e,
       );
 

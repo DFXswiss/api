@@ -43,7 +43,7 @@ export class ZanoTokenStrategy extends CheckLiquidityStrategy {
     }
 
     throw new Error(
-      `Only native coin reference is supported by Zano CheckLiquidity strategy. Provided reference asset: ${referenceAsset.dexName} Context: ${context}. CorrelationID: ${correlationId}`,
+      `Only token reference is supported by Zano CheckLiquidity strategy. Provided reference asset: ${referenceAsset.dexName} Context: ${context}. CorrelationID: ${correlationId}`,
     );
   }
 
