@@ -36,8 +36,8 @@ export class SparkClient extends BlockchainClient {
 
   constructor(private readonly http: HttpService) {
     super();
-    // Initialize wallet asynchronously
-    this.initPromise = this.initializeWallet();
+    // Initialize wallet lazily when first needed
+    this.initPromise = null;
   }
 
   private async initializeWallet(): Promise<void> {
@@ -89,6 +89,9 @@ export class SparkClient extends BlockchainClient {
   }
 
   private async ensureWallet(): Promise<SparkWallet> {
+    if (!this.initPromise && !this.wallet) {
+      this.initPromise = this.initializeWallet();
+    }
     if (this.initPromise) {
       await this.initPromise;
       this.initPromise = null;

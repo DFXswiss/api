@@ -37,7 +37,7 @@ export class PayoutSparkService extends PayoutBitcoinBasedService {
     const transaction = await this.client.getTransaction(payoutTxId);
 
     // SPARK has binary confirmation: confirmed (1) or pending (0)
-    const isComplete = transaction && transaction.confirmations === 1;
+    const isComplete = !!(transaction && transaction.confirmations === 1);
     // SPARK-to-SPARK transfers are fee-free on Layer 2
     const payoutFee = 0;
 

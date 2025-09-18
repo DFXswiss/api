@@ -1,7 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from 'src/shared/services/http.service';
 import { SparkClient } from '../spark-client';
-import { Config } from 'src/config/config';
+
+// Mock Config before importing it
+jest.mock('src/config/config', () => ({
+  Config: {
+    blockchain: {
+      spark: {
+        network: 'testnet'
+      }
+    }
+  }
+}));
 
 // Mock the Spark SDK
 jest.mock('@buildonspark/spark-sdk', () => ({
@@ -25,7 +35,11 @@ describe('SparkClient', () => {
   beforeEach(async () => {
     // Reset environment
     process.env.SPARK_WALLET_SEED = 'test-seed-12345';
-    Config.blockchain.spark.network = 'testnet';
+
+    // Mock SDK initialization BEFORE creating the module
+    const { SparkWallet } = require('@buildonspark/spark-sdk');
+    mockWallet.getSparkAddress.mockResolvedValue('sp1testaddress123');
+    SparkWallet.initialize.mockResolvedValue({ wallet: mockWallet });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -41,11 +55,6 @@ describe('SparkClient', () => {
     }).compile();
 
     httpService = module.get<HttpService>(HttpService);
-
-    // Mock SDK initialization
-    const { SparkWallet } = require('@buildonspark/spark-sdk');
-    SparkWallet.initialize.mockResolvedValue({ wallet: mockWallet });
-
     client = module.get<SparkClient>(SparkClient);
   });
 
@@ -257,7 +266,9 @@ describe('SparkClient', () => {
 
     it('should return false if wallet initialization fails', async () => {
       const newClient = new SparkClient(httpService);
+      // Force wallet to be null and mock ensureWallet to throw
       (newClient as any).wallet = null;
+      (newClient as any).ensureWallet = jest.fn().mockRejectedValue(new Error('Wallet not initialized'));
 
       const isHealthy = await newClient.isHealthy();
 
@@ -290,6 +301,8 @@ describe('SparkClient', () => {
   describe('Error Handling', () => {
     it('should handle wallet not initialized errors', async () => {
       const newClient = new SparkClient(httpService);
+      // Mock ensureWallet to throw the expected error
+      (newClient as any).ensureWallet = jest.fn().mockRejectedValue(new Error('SparkWallet not initialized'));
 
       await expect(newClient.getBalance()).rejects.toThrow('SparkWallet not initialized');
     });
