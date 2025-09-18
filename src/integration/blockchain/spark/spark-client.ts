@@ -7,6 +7,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
+import { SparkWallet, isValidSparkAddress } from '@buildonspark/spark-sdk';
 
 export interface SparkTransaction {
   txid: string;
@@ -15,48 +16,12 @@ export interface SparkTransaction {
   time?: number;
   blocktime?: number;
   fee?: number;
-  hex?: string;
-  vin?: SparkInput[];
-  vout?: SparkOutput[];
-}
-
-export interface SparkInput {
-  txid: string;
-  vout: number;
-  scriptSig?: {
-    asm: string;
-    hex: string;
-  };
-  sequence: number;
-}
-
-export interface SparkOutput {
-  value: number;
-  n: number;
-  scriptPubKey?: {
-    address?: string;
-    type: string;
-    hex: string;
-  };
-}
-
-export interface SparkUTXO {
-  txid: string;
-  vout: number;
-  address: string;
-  amount: number;
-  confirmations: number;
-  spendable: boolean;
 }
 
 export interface SparkNodeInfo {
   version: string;
-  protocolversion: number;
-  blocks: number;
-  connections: number;
-  difficulty: number;
   testnet: boolean;
-  relayfee: number;
+  connections: number;
 }
 
 export interface SparkFeeEstimate {
@@ -67,27 +32,57 @@ export interface SparkFeeEstimate {
 @Injectable()
 export class SparkClient extends BlockchainClient {
   private readonly logger = new DfxLogger(SparkClient);
+  private wallet: SparkWallet | null = null;
+  private initPromise: Promise<void> | null = null;
 
   constructor(private readonly http: HttpService) {
     super();
+    // Initialize wallet asynchronously
+    this.initPromise = this.initializeWallet();
   }
 
-  get nodeUrl(): string {
-    // TODO: Add spark configuration to Config.blockchain
-    return process.env.SPARK_NODE_URL ?? 'http://localhost:8332';
+  private async initializeWallet(): Promise<void> {
+    try {
+      // Initialize SparkWallet with config
+      const network = Config.blockchain.spark.network === 'testnet' ? 'TESTNET' : 'MAINNET';
+
+      const walletSeed = process.env.SPARK_WALLET_SEED;
+      if (!walletSeed) {
+        throw new Error('SPARK_WALLET_SEED environment variable is required');
+      }
+
+      const { wallet } = await SparkWallet.initialize({
+        mnemonicOrSeed: walletSeed,
+        accountNumber: 0,
+        options: {
+          network: network as any, // SDK expects specific type
+        },
+      });
+
+      this.wallet = wallet;
+      this.logger.info('SparkWallet initialized successfully');
+    } catch (error) {
+      this.logger.error('Failed to initialize SparkWallet:', error);
+      throw new Error(`Failed to initialize SparkWallet: ${error.message}`);
+    }
   }
 
   get walletAddress(): string {
-    // TODO: Add spark configuration to Config.blockchain
-    return process.env.SPARK_ADDRESS ?? '';
+    // Return configured wallet address or placeholder
+    return Config.blockchain.spark.walletAddress;
   }
 
-  private get rpcAuth(): { username: string; password: string } {
-    return {
-      username: process.env.SPARK_RPC_USER ?? 'spark',
-      password: process.env.SPARK_RPC_PASSWORD ?? '',
-    };
+  private async ensureWallet(): Promise<SparkWallet> {
+    if (this.initPromise) {
+      await this.initPromise;
+      this.initPromise = null;
+    }
+    if (!this.wallet) {
+      throw new Error('SparkWallet not initialized');
+    }
+    return this.wallet;
   }
+
 
   // --- TRANSACTION METHODS --- //
 
@@ -96,25 +91,26 @@ export class SparkClient extends BlockchainClient {
     feeRate: number,
   ): Promise<string> {
     try {
-      const recipients = outputs.reduce(
-        (acc, p) => ({ ...acc, [p.addressTo]: this.roundAmount(p.amount) }),
-        {},
-      );
+      const wallet = await this.ensureWallet();
 
-      const result = await this.rpcCall<string>('sendmany', [
-        '',
-        recipients,
-        1,
-        '',
-        [],
-        true,
-        feeRate,
-      ]);
+      // For multiple outputs, send transactions sequentially
+      // SDK doesn't support batch transfers in a single transaction
+      const txids: string[] = [];
 
-      this.logger.verbose(`Spark transaction sent: ${result}`);
-      return result;
+      for (const output of outputs) {
+        const amountSats = Math.round(output.amount * 1e8);
+        const result = await wallet.transfer({
+          amountSats,
+          receiverSparkAddress: output.addressTo,
+        });
+        txids.push(result.id);
+      }
+
+      const batchId = txids.join(',');
+      this.logger.verbose(`Spark batch transactions sent via SDK (fee-free): ${batchId}`);
+      return batchId;
     } catch (error) {
-      this.logger.error('Failed to send Spark transaction:', error);
+      this.logger.error('Failed to send Spark batch transaction:', error);
       throw error;
     }
   }
@@ -125,25 +121,17 @@ export class SparkClient extends BlockchainClient {
     feeRate: number,
   ): Promise<{ txid: string; fee: number }> {
     try {
-      const amountStr = this.roundAmount(amount).toString();
+      const wallet = await this.ensureWallet();
 
-      const txid = await this.rpcCall<string>('sendtoaddress', [
-        to,
-        amountStr,
-        '',
-        '',
-        true,
-        true,
-        null,
-        'unset',
-        null,
-        feeRate,
-      ]);
+      // Use real SDK transfer method
+      const amountSats = Math.round(amount * 1e8); // Convert BTC to satoshis
+      const result = await wallet.transfer({
+        amountSats,
+        receiverSparkAddress: to,
+      });
 
-      // Get transaction to determine actual fee
-      const tx = await this.getTransaction(txid);
-
-      return { txid, fee: Math.abs(tx.fee ?? 0) };
+      this.logger.verbose(`Spark transaction sent via SDK (fee-free): ${result.id}`);
+      return { txid: result.id, fee: 0 };
     } catch (error) {
       this.logger.error('Failed to send Spark transaction:', error);
       throw error;
@@ -152,108 +140,88 @@ export class SparkClient extends BlockchainClient {
 
   async getTransaction(txId: string): Promise<SparkTransaction> {
     try {
-      return await this.rpcCall<SparkTransaction>('gettransaction', [txId, true]);
+      const wallet = await this.ensureWallet();
+      const transfer = await wallet.getTransfer(txId);
+
+      if (!transfer) {
+        throw new Error(`Transaction ${txId} not found`);
+      }
+
+      // Map WalletTransfer to SparkTransaction format
+      // SPARK uses final confirmation - either confirmed (1) or not (0)
+      const isConfirmed = transfer.status === 'TRANSFER_STATUS_COMPLETED';
+
+      return {
+        txid: transfer.id,
+        blockhash: isConfirmed ? 'confirmed' : undefined,
+        confirmations: isConfirmed ? 1 : 0, // Binary: 1 = final, 0 = pending
+        time: transfer.createdTime ? Math.floor(transfer.createdTime.getTime() / 1000) : undefined,
+        blocktime: transfer.updatedTime ? Math.floor(transfer.updatedTime.getTime() / 1000) : undefined,
+        fee: 0, // SPARK has no fees
+      };
     } catch (error) {
       this.logger.error(`Failed to get transaction ${txId}:`, error);
       throw error;
     }
   }
 
-  async getRawTransaction(txId: string, verbose = true): Promise<SparkTransaction | string> {
-    return this.rpcCall<SparkTransaction | string>('getrawtransaction', [txId, verbose]);
-  }
 
-  async sendRawTransaction(hexString: string): Promise<string> {
-    return this.rpcCall<string>('sendrawtransaction', [hexString]);
-  }
-
-  // --- UTXO METHODS --- //
-
-  async listUnspent(
-    minConf = 1,
-    maxConf = 9999999,
-    addresses?: string[],
-  ): Promise<SparkUTXO[]> {
-    return this.rpcCall<SparkUTXO[]>('listunspent', [minConf, maxConf, addresses || []]);
-  }
-
-  async getUTXOsForAddress(address: string): Promise<SparkUTXO[]> {
-    return this.listUnspent(1, 9999999, [address]);
-  }
 
   // --- BALANCE METHODS --- //
 
   async getBalance(address?: string): Promise<number> {
-    if (address) {
-      const utxos = await this.getUTXOsForAddress(address);
-      return utxos.reduce((sum, utxo) => sum + utxo.amount, 0);
-    }
-    return this.rpcCall<number>('getbalance');
+    const wallet = await this.ensureWallet();
+
+    // Use real SDK getBalance method
+    const { balance, tokenBalances } = await wallet.getBalance();
+    // Convert satoshis to BTC
+    const btcBalance = Number(balance) / 1e8;
+    this.logger.verbose(`Spark balance from SDK: ${btcBalance} BTC`);
+    return btcBalance;
   }
 
   async getWalletBalance(): Promise<number> {
-    return this.rpcCall<number>('getbalance');
+    return this.getBalance();
   }
 
   // --- FEE METHODS --- //
 
   async estimateFee(blocks = 6): Promise<SparkFeeEstimate> {
-    try {
-      const feerate = await this.rpcCall<number>('estimatesmartfee', [blocks]);
-      return { feerate, blocks };
-    } catch (error) {
-      // Fallback to default fee if estimation fails
-      this.logger.warn('Fee estimation failed, using default:', error);
-      return { feerate: 0.00001, blocks };
-    }
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
+    return { feerate: 0, blocks };
   }
 
   async getNetworkFeeRate(): Promise<number> {
-    const estimate = await this.estimateFee(6);
-    // Convert from SPARK/kB to SPARK/vB
-    return estimate.feerate / 1000;
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
+    return 0;
   }
 
   // --- BLOCKCHAIN INFO --- //
 
   async getInfo(): Promise<SparkNodeInfo> {
-    return this.rpcCall<SparkNodeInfo>('getnetworkinfo');
+    // Return basic info - SDK doesn't provide detailed network info
+    const wallet = await this.ensureWallet();
+    return {
+      version: '1.0.0',
+      testnet: Config.blockchain.spark.network === 'testnet',
+      connections: wallet ? 1 : 0, // Assume connected if wallet exists
+    };
   }
 
-  async getBlockCount(): Promise<number> {
-    return this.rpcCall<number>('getblockcount');
-  }
-
-  async getBlockHash(height: number): Promise<string> {
-    return this.rpcCall<string>('getblockhash', [height]);
-  }
-
-  async getBlock(hashOrHeight: string | number): Promise<any> {
-    const hash = typeof hashOrHeight === 'number'
-      ? await this.getBlockHash(hashOrHeight)
-      : hashOrHeight;
-    return this.rpcCall('getblock', [hash]);
-  }
 
   // --- ADDRESS METHODS --- //
 
   async validateAddress(address: string): Promise<{ isvalid: boolean; address?: string }> {
-    return this.rpcCall('validateaddress', [address]);
+    // Use SDK validation
+    try {
+      const isValid = isValidSparkAddress(address);
+      return { isvalid: isValid, address: isValid ? address : undefined };
+    } catch {
+      return { isvalid: false };
+    }
   }
 
-  async getNewAddress(label = ''): Promise<string> {
-    return this.rpcCall<string>('getnewaddress', [label]);
-  }
 
-  // --- MEMPOOL METHODS --- //
-
-  async testMempoolAccept(rawtx: string): Promise<Array<{ txid: string; allowed: boolean; 'reject-reason'?: string }>> {
-    return this.rpcCall('testmempoolaccept', [[rawtx]]);
-  }
-
-  async getMempoolInfo(): Promise<any> {
-    return this.rpcCall('getmempoolinfo');
-  }
 
   // --- HELPER METHODS --- //
 
@@ -261,44 +229,13 @@ export class SparkClient extends BlockchainClient {
     return Util.round(amount, decimals);
   }
 
-  private async rpcCall<T>(method: string, params: any[] = []): Promise<T> {
-    const body = {
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method,
-      params,
-    };
-
-    try {
-      const response = await this.http.post(
-        this.nodeUrl,
-        body,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Basic ' + Buffer.from(`${this.rpcAuth.username}:${this.rpcAuth.password}`).toString('base64'),
-          },
-        },
-      );
-
-      const data = response as any;
-      if (data.error) {
-        throw new Error(`RPC Error: ${data.error.message || JSON.stringify(data.error)}`);
-      }
-
-      return data.result;
-    } catch (error) {
-      this.logger.error(`RPC call failed for ${method}:`, error);
-      throw error;
-    }
-  }
-
   // --- STATUS METHODS --- //
 
   async isHealthy(): Promise<boolean> {
     try {
-      const info = await this.getInfo();
-      return info.connections > 0;
+      const wallet = await this.ensureWallet();
+      // If wallet exists and is initialized, consider it healthy
+      return wallet !== null && wallet !== undefined;
     } catch {
       return false;
     }
@@ -306,10 +243,9 @@ export class SparkClient extends BlockchainClient {
 
   async isSynced(): Promise<boolean> {
     try {
-      const info = await this.getInfo();
-      const blockCount = await this.getBlockCount();
-      // Consider synced if we have connections and recent blocks
-      return info.connections > 0 && blockCount > 0;
+      const wallet = await this.ensureWallet();
+      // If wallet exists, assume it's synced (SDK handles sync internally)
+      return wallet !== null && wallet !== undefined;
     } catch {
       return false;
     }
@@ -318,17 +254,8 @@ export class SparkClient extends BlockchainClient {
   // --- BLOCKCHAIN CLIENT INTERFACE METHODS --- //
 
   async sendSignedTransaction(hex: string): Promise<any> {
-    try {
-      const txid = await this.sendRawTransaction(hex);
-      return { hash: txid };
-    } catch (error) {
-      return {
-        error: {
-          code: error.code ?? -1,
-          message: error.message ?? 'Unknown error',
-        },
-      };
-    }
+    // SPARK uses SDK methods, not raw hex transactions
+    throw new Error('SPARK does not support raw hex transactions - use SDK transfer methods');
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -356,7 +283,13 @@ export class SparkClient extends BlockchainClient {
   }
 
   async isTxComplete(txId: string, minConfirmations = 1): Promise<boolean> {
-    const tx = await this.getTransaction(txId);
-    return tx.blockhash && tx.confirmations >= minConfirmations;
+    try {
+      const tx = await this.getTransaction(txId);
+      // SPARK has binary confirmation: either final (1) or pending (0)
+      // Any minConfirmations > 0 requires the tx to be confirmed
+      return minConfirmations > 0 ? tx.confirmations === 1 : true;
+    } catch {
+      return false;
+    }
   }
 }

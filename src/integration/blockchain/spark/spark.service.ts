@@ -6,7 +6,7 @@ import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainService } from '../shared/util/blockchain.service';
-import { SparkClient, SparkTransaction, SparkUTXO } from './spark-client';
+import { SparkClient, SparkTransaction } from './spark-client';
 
 enum SparkNetwork {
   MAINNET = 'mainnet',
@@ -16,34 +16,24 @@ enum SparkNetwork {
   LOCAL = 'local',
 }
 
-export enum SparkNodeType {
-  INPUT = 'Input',
-  OUTPUT = 'Output',
-}
+// SparkNodeType removed - SPARK uses a single client unlike Bitcoin
 
 @Injectable()
 export class SparkService extends BlockchainService {
-  private readonly clients = new Map<SparkNodeType, SparkClient>();
+  private readonly client: SparkClient;
 
   constructor(private readonly http: HttpService) {
     super();
-    this.initializeClients();
+    this.client = new SparkClient(this.http);
   }
 
-  private initializeClients(): void {
-    // Initialize input and output clients
-    this.clients.set(SparkNodeType.INPUT, new SparkClient(this.http));
-    this.clients.set(SparkNodeType.OUTPUT, new SparkClient(this.http));
-  }
-
-  getDefaultClient(type: SparkNodeType = SparkNodeType.OUTPUT): SparkClient {
-    return this.clients.get(type);
+  getDefaultClient(): SparkClient {
+    return this.client;
   }
 
   async isHealthy(): Promise<boolean> {
     try {
-      const client = this.getDefaultClient();
-      return await client.isHealthy();
+      return await this.client.isHealthy();
     } catch {
       return false;
     }
@@ -51,53 +41,41 @@ export class SparkService extends BlockchainService {
 
   // --- TRANSACTION METHODS --- //
 
-  async getBalance(address?: string, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<number> {
-    const client = this.getDefaultClient(type);
-    return client.getBalance(address);
+  async getBalance(address?: string): Promise<number> {
+    return this.client.getBalance(address);
   }
 
   async sendTransaction(
     to: string,
     amount: number,
     feeRate?: number,
-    type: SparkNodeType = SparkNodeType.OUTPUT,
   ): Promise<{ txid: string; fee: number }> {
-    const client = this.getDefaultClient(type);
-    const effectiveFeeRate = feeRate ?? (await client.getNetworkFeeRate());
-    return client.sendTransaction(to, amount, effectiveFeeRate);
+    const effectiveFeeRate = feeRate ?? (await this.client.getNetworkFeeRate());
+    return this.client.sendTransaction(to, amount, effectiveFeeRate);
   }
 
   async sendMany(
     outputs: { addressTo: string; amount: number }[],
     feeRate?: number,
-    type: SparkNodeType = SparkNodeType.OUTPUT,
   ): Promise<string> {
-    const client = this.getDefaultClient(type);
-    const effectiveFeeRate = feeRate ?? (await client.getNetworkFeeRate());
-    return client.sendMany(outputs, effectiveFeeRate);
+    const effectiveFeeRate = feeRate ?? (await this.client.getNetworkFeeRate());
+    return this.client.sendMany(outputs, effectiveFeeRate);
   }
 
-  async getTransaction(txId: string, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<SparkTransaction> {
-    const client = this.getDefaultClient(type);
-    return client.getTransaction(txId);
+  async getTransaction(txId: string): Promise<SparkTransaction> {
+    return this.client.getTransaction(txId);
   }
 
-  async estimateFee(blocks = 6, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<number> {
-    const client = this.getDefaultClient(type);
-    const estimate = await client.estimateFee(blocks);
+  async estimateFee(blocks = 6): Promise<number> {
+    const estimate = await this.client.estimateFee(blocks);
     return estimate.feerate;
   }
 
-  async validateAddress(address: string, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<boolean> {
-    const client = this.getDefaultClient(type);
-    const result = await client.validateAddress(address);
+  async validateAddress(address: string): Promise<boolean> {
+    const result = await this.client.validateAddress(address);
     return result.isvalid;
   }
 
-  async getUTXOs(address: string, type: SparkNodeType = SparkNodeType.OUTPUT): Promise<SparkUTXO[]> {
-    const client = this.getDefaultClient(type);
-    return client.getUTXOsForAddress(address);
-  }
 
   // --- SIGNATURE VERIFICATION --- //
   async verifySignature(message: string, address: string, signatureHex: string): Promise<boolean> {
@@ -153,9 +131,10 @@ export class SparkService extends BlockchainService {
   }
 
   // --- PAYMENT REQUEST --- //
-  async getPaymentRequest(_address: string, _amount: number): Promise<string | undefined> {
-    // TODO: requires integration with Spark network
-    return undefined;
+  async getPaymentRequest(address: string, amount: number): Promise<string | undefined> {
+    // Generate Spark payment URI following BIP-21 style format
+    // Format: spark:address?amount=value
+    return `spark:${address}?amount=${amount.toFixed(8)}`;
   }
 
   // --- HELPER METHODS --- //

@@ -16,7 +16,8 @@ import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 export class SparkStrategy extends BitcoinBasedStrategy {
   protected readonly logger = new DfxLogger(SparkStrategy);
 
-  // Average transaction size for Spark transactions (similar to Bitcoin)
+  // SPARK-to-SPARK transfers are fee-free on Layer 2
+  // Transaction size is kept for potential future on-chain operations
   private readonly averageTransactionSize = 140; // vBytes
 
   constructor(
@@ -37,13 +38,10 @@ export class SparkStrategy extends BitcoinBasedStrategy {
   }
 
   async estimateFee(): Promise<FeeResult> {
-    const feeRate = await this.sparkService.getCurrentFeeRate();
-    const satoshiFeeAmount = this.averageTransactionSize * feeRate;
-    const sparkFeeAmount = Util.round(satoshiFeeAmount / 100000000, 8);
-
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
     return {
       asset: await this.feeAsset(),
-      amount: sparkFeeAmount
+      amount: 0
     };
   }
 

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { SparkService, SparkNodeType } from 'src/integration/blockchain/spark/spark.service';
+import { SparkService } from 'src/integration/blockchain/spark/spark.service';
 import { SparkFeeService, SparkFeeTarget } from 'src/integration/blockchain/spark/services/spark-fee.service';
 import { SparkClient } from 'src/integration/blockchain/spark/spark-client';
 import { PayoutSparkService } from '../payout-spark.service';
@@ -63,9 +63,9 @@ describe('PayoutSparkService', () => {
     it('should send multiple UTXOs successfully', async () => {
       const context = PayoutOrderContext.MANUAL;
       const payout = {
-        'sp1address1': 0.5,
-        'sp1address2': 1.0,
-        'sp1address3': 0.25,
+        'spark1address1': 0.5,
+        'spark1address2': 1.0,
+        'spark1address3': 0.25,
       };
 
       mockSparkClient.sendMany.mockResolvedValue('txid123');
@@ -74,24 +74,23 @@ describe('PayoutSparkService', () => {
 
       expect(result).toBe('txid123');
       expect(mockSparkClient.sendMany).toHaveBeenCalledWith([
-        { addressTo: 'sp1address1', amount: 0.5 },
-        { addressTo: 'sp1address2', amount: 1.0 },
-        { addressTo: 'sp1address3', amount: 0.25 },
+        { addressTo: 'spark1address1', amount: 0.5 },
+        { addressTo: 'spark1address2', amount: 1.0 },
+        { addressTo: 'spark1address3', amount: 0.25 },
       ], expect.any(Number));
     });
 
-    it('should apply 1.5x fee multiplier', async () => {
+    it('should use zero fee for SPARK transactions', async () => {
       const context = PayoutOrderContext.MANUAL;
-      const payout = { 'sp1address': 1 };
+      const payout = { 'spark1address': 1 };
 
-      mockFeeService.getRecommendedFeeRate.mockResolvedValue(10);
       mockSparkClient.sendMany.mockResolvedValue('txid');
 
       await service.sendUtxoToMany(context, payout);
 
       expect(mockSparkClient.sendMany).toHaveBeenCalledWith(
         expect.any(Array),
-        15, // 10 * 1.5
+        0, // SPARK has no fees
       );
     });
   });
@@ -109,7 +108,7 @@ describe('PayoutSparkService', () => {
       const [isComplete, fee] = await service.getPayoutCompletionData(PayoutOrderContext.MANUAL, txId);
 
       expect(isComplete).toBe(true);
-      expect(fee).toBe(0.0001);
+      expect(fee).toBe(0); // SPARK has no fees
     });
 
     it('should return incomplete status for unconfirmed transaction', async () => {
@@ -127,28 +126,18 @@ describe('PayoutSparkService', () => {
   });
 
   describe('getCurrentFeeRate', () => {
-    it('should get fee rate with 1.5x multiplier', async () => {
-      mockFeeService.getRecommendedFeeRate.mockResolvedValue(20);
-
+    it('should return 0 for SPARK fee rate', async () => {
       const rate = await service.getCurrentFeeRate();
 
-      expect(rate).toBe(30); // 20 * 1.5
-      expect(feeService.getRecommendedFeeRate).toHaveBeenCalledWith(SparkFeeTarget.NORMAL);
+      expect(rate).toBe(0); // SPARK has no fees
     });
   });
 
   describe('estimateFee', () => {
-    it('should estimate fee for batch transaction', async () => {
-      mockFeeService.estimateBatchTransactionFee.mockResolvedValue({
-        fee: 0.0002,
-        feeRate: 15,
-        size: 1000,
-      });
-
+    it('should return 0 fee for SPARK transactions', async () => {
       const fee = await service.estimateFee(10);
 
-      expect(fee).toBe(0.0002);
-      expect(feeService.estimateBatchTransactionFee).toHaveBeenCalledWith(10, SparkFeeTarget.NORMAL);
+      expect(fee).toBe(0); // SPARK has no fees
     });
   });
 
@@ -156,10 +145,10 @@ describe('PayoutSparkService', () => {
     it('should validate address through spark service', async () => {
       mockSparkService.validateAddress.mockResolvedValue(true);
 
-      const result = await service.validateAddress('sp1validaddress');
+      const result = await service.validateAddress('spark1validaddress');
 
       expect(result).toBe(true);
-      expect(sparkService.validateAddress).toHaveBeenCalledWith('sp1validaddress');
+      expect(sparkService.validateAddress).toHaveBeenCalledWith('spark1validaddress');
     });
   });
 
@@ -167,10 +156,10 @@ describe('PayoutSparkService', () => {
     it('should get balance through spark service', async () => {
       mockSparkService.getBalance.mockResolvedValue(10.5);
 
-      const balance = await service.getBalance('sp1address');
+      const balance = await service.getBalance('spark1address');
 
       expect(balance).toBe(10.5);
-      expect(sparkService.getBalance).toHaveBeenCalledWith('sp1address');
+      expect(sparkService.getBalance).toHaveBeenCalledWith('spark1address');
     });
   });
 

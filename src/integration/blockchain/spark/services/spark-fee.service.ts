@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
-import { SparkNodeType, SparkService } from '../spark.service';
 
 export enum SparkFeeTarget {
   SLOW = 12,    // ~2 hours
@@ -14,41 +12,35 @@ export enum SparkFeeTarget {
 export class SparkFeeService {
   private readonly logger = new DfxLogger(SparkFeeService);
 
-  // Transaction size constants (in vBytes)
+  // Transaction size constants (in vBytes) - kept for reference
+  // SPARK-to-SPARK transfers are fee-free on Layer 2
   private readonly OVERHEAD_SIZE = 10; // Version, locktime, etc.
   private readonly INPUT_SIZE = 148; // Typical P2PKH input
   private readonly OUTPUT_SIZE = 34; // Typical P2PKH output
   private readonly WITNESS_DISCOUNT = 0.25; // Witness data counts as 1/4
 
-  constructor(private readonly sparkService: SparkService) {}
+  constructor() {}
 
   async getRecommendedFeeRate(target: SparkFeeTarget = SparkFeeTarget.NORMAL): Promise<number> {
-    try {
-      const client = this.sparkService.getDefaultClient(SparkNodeType.OUTPUT);
-      const estimate = await client.estimateFee(target);
-
-      // Convert from SPARK/kB to sat/vByte
-      const feeRateInSatPerVByte = Math.ceil(estimate.feerate * 100000);
-
-      this.logger.verbose(`Recommended fee rate for ${target} blocks: ${feeRateInSatPerVByte} sat/vByte`);
-
-      return feeRateInSatPerVByte;
-    } catch (error) {
-      this.logger.error('Failed to get recommended fee rate, using fallback:', error);
-      return this.getFallbackFeeRate(target);
-    }
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
+    // Return 0 as we only use SPARK for SPARK-to-SPARK transfers
+    this.logger.verbose(`SPARK-to-SPARK transfers are fee-free, returning 0 sat/vByte`);
+    return 0;
   }
 
   async getCurrentFeeRate(): Promise<number> {
-    return this.getRecommendedFeeRate(SparkFeeTarget.NORMAL);
+    // SPARK-to-SPARK transfers are fee-free
+    return 0;
   }
 
   async getFastFeeRate(): Promise<number> {
-    return this.getRecommendedFeeRate(SparkFeeTarget.FAST);
+    // SPARK-to-SPARK transfers are fee-free
+    return 0;
   }
 
   async getSlowFeeRate(): Promise<number> {
-    return this.getRecommendedFeeRate(SparkFeeTarget.SLOW);
+    // SPARK-to-SPARK transfers are fee-free
+    return 0;
   }
 
   calculateTransactionSize(inputCount: number, outputCount: number, hasWitness = true): number {
@@ -67,9 +59,9 @@ export class SparkFeeService {
   }
 
   calculateFee(sizeInVBytes: number, feeRatePerVByte: number): number {
-    const feeInSatoshi = sizeInVBytes * feeRatePerVByte;
-    // Convert satoshi to SPARK (1 SPARK = 100,000,000 satoshi)
-    return Util.round(feeInSatoshi / 100000000, 8);
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
+    // Return 0 as we only use SPARK for SPARK-to-SPARK transfers
+    return 0;
   }
 
   async estimateTransactionFee(
@@ -78,8 +70,9 @@ export class SparkFeeService {
     target: SparkFeeTarget = SparkFeeTarget.NORMAL,
   ): Promise<{ fee: number; feeRate: number; size: number }> {
     const size = this.calculateTransactionSize(inputCount, outputCount);
-    const feeRate = await this.getRecommendedFeeRate(target);
-    const fee = this.calculateFee(size, feeRate);
+    // SPARK-to-SPARK transfers are fee-free
+    const feeRate = 0;
+    const fee = 0;
 
     return { fee, feeRate, size };
   }
@@ -89,26 +82,17 @@ export class SparkFeeService {
     target: SparkFeeTarget = SparkFeeTarget.NORMAL,
   ): Promise<{ fee: number; feeRate: number; size: number }> {
     // Estimate inputs based on typical UTXO set
-    // Assume we need 1 input per 10 outputs (can be adjusted based on actual UTXO distribution)
     const estimatedInputCount = Math.max(1, Math.ceil(outputCount / 10));
+    const size = this.calculateTransactionSize(estimatedInputCount, outputCount);
 
-    return this.estimateTransactionFee(estimatedInputCount, outputCount, target);
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
+    return { fee: 0, feeRate: 0, size };
   }
 
   private getFallbackFeeRate(target: SparkFeeTarget): number {
-    // Fallback fee rates in sat/vByte
-    switch (target) {
-      case SparkFeeTarget.INSTANT:
-        return 50;
-      case SparkFeeTarget.FAST:
-        return 30;
-      case SparkFeeTarget.NORMAL:
-        return 15;
-      case SparkFeeTarget.SLOW:
-        return 5;
-      default:
-        return 15;
-    }
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
+    // Return 0 for all targets as we only use SPARK for SPARK-to-SPARK transfers
+    return 0;
   }
 
   async validateFeeRate(feeRate: number): Promise<boolean> {

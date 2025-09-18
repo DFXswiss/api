@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SparkNodeType, SparkService } from 'src/integration/blockchain/spark/spark.service';
+import { SparkService } from 'src/integration/blockchain/spark/spark.service';
 import { SparkFeeService, SparkFeeTarget } from 'src/integration/blockchain/spark/services/spark-fee.service';
 import { SparkClient } from 'src/integration/blockchain/spark/spark-client';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
@@ -14,7 +14,7 @@ export class PayoutSparkService extends PayoutBitcoinBasedService {
     private readonly feeService: SparkFeeService,
   ) {
     super();
-    this.client = sparkService.getDefaultClient(SparkNodeType.OUTPUT);
+    this.client = sparkService.getDefaultClient();
   }
 
   async isHealthy(): Promise<boolean> {
@@ -26,7 +26,8 @@ export class PayoutSparkService extends PayoutBitcoinBasedService {
   }
 
   async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    const feeRate = await this.getCurrentFeeRate();
+    // SPARK-to-SPARK transfers are fee-free, so we pass 0 as fee rate
+    const feeRate = 0;
 
     // Convert PayoutGroup to format expected by SparkClient
     const outputs: { addressTo: string; amount: number }[] = [];
@@ -44,26 +45,22 @@ export class PayoutSparkService extends PayoutBitcoinBasedService {
   async getPayoutCompletionData(_context: PayoutOrderContext, payoutTxId: string): Promise<[boolean, number]> {
     const transaction = await this.client.getTransaction(payoutTxId);
 
-    const isComplete = transaction && transaction.blockhash && transaction.confirmations > 0;
-    const payoutFee = isComplete && transaction.fee ? Math.abs(transaction.fee) : 0;
+    // SPARK has binary confirmation: confirmed (1) or pending (0)
+    const isComplete = transaction && transaction.confirmations === 1;
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
+    const payoutFee = 0;
 
     return [isComplete, payoutFee];
   }
 
   async getCurrentFeeRate(): Promise<number> {
-    // Get recommended fee rate and apply a multiplier for priority
-    const baseFeeRate = await this.feeService.getRecommendedFeeRate(SparkFeeTarget.NORMAL);
-
-    // Apply 1.5x multiplier for higher priority (similar to Bitcoin implementation)
-    return Math.ceil(baseFeeRate * 1.5);
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
+    return 0;
   }
 
   async estimateFee(outputCount: number): Promise<number> {
-    const feeEstimate = await this.feeService.estimateBatchTransactionFee(
-      outputCount,
-      SparkFeeTarget.NORMAL
-    );
-    return feeEstimate.fee;
+    // SPARK-to-SPARK transfers are fee-free on Layer 2
+    return 0;
   }
 
   async validateAddress(address: string): Promise<boolean> {
@@ -77,6 +74,8 @@ export class PayoutSparkService extends PayoutBitcoinBasedService {
   async getConfirmationCount(txId: string): Promise<number> {
     try {
       const transaction = await this.client.getTransaction(txId);
+      // SPARK has binary status: return 1 if confirmed, 0 if pending
+      // There is no "confirmation count" in Layer-2 - transactions are either final or not
       return transaction?.confirmations ?? 0;
     } catch {
       return 0;
