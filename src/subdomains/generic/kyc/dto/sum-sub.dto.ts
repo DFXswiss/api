@@ -1,3 +1,4 @@
+import { IdentDocumentType } from './ident-result-data.dto';
 import { IdentShortResult } from './ident-result.dto';
 
 export interface SumsubResult {
@@ -123,13 +124,28 @@ export enum DocumentSource {
 }
 
 export enum IdDocType {
-  ID_CARD = 'ID_CARD',
-  PASSPORT = 'PASSPORT',
+  AGREEMENT = 'AGREEMENT',
+  ARBITRARY_DOC = 'ARBITRARY_DOC',
+  BANK_CARD = 'BANK_CARD',
+  CONTRACT = 'CONTRACT',
+  COVID_VACCINATION_FORM = 'COVID_VACCINATION_FORM',
   DRIVERS = 'DRIVERS',
   DRIVERS_TRANSLATION = 'DRIVERS_TRANSLATION',
+  FILE_ATTACHMENT = 'FILE_ATTACHMENT',
+  ID_CARD = 'ID_CARD',
   ID_DOC_PHOTO = 'ID_DOC_PHOTO',
+  INCOME_SOURCE = 'INCOME_SOURCE',
+  INVESTOR_DOC = 'INVESTOR_DOC',
+  PASSPORT = 'PASSPORT',
+  PAYMENT_SOURCE = 'PAYMENT_SOURCE',
+  PROFILE_IMAGE = 'PROFILE_IMAGE',
+  RESIDENCE_PERMIT = 'RESIDENCE_PERMIT',
   SELFIE = 'SELFIE',
+  UTILITY_BILL = 'UTILITY_BILL',
+  UTILITY_BILL2 = 'UTILITY_BILL2',
+  VEHICLE_REGISTRATION_CERTIFICATE = 'VEHICLE_REGISTRATION_CERTIFICATE',
   VIDEO_SELFIE = 'VIDEO_SELFIE',
+  OTHER = 'OTHER',
 }
 
 export enum IdDocSubType {
@@ -395,3 +411,28 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
 export function getSumSubReason(reasons: SumSubRejectionLabels[]): string {
   return `<ul>${reasons.map((r) => `<li>${SumSubReasonMap[r] ?? r}</li>`).join('')}</ul>`;
 }
+
+export const IdDocTypeMap: { [t in IdDocType]: IdentDocumentType } = {
+  [IdDocType.AGREEMENT]: undefined,
+  [IdDocType.ARBITRARY_DOC]: undefined,
+  [IdDocType.BANK_CARD]: undefined,
+  [IdDocType.CONTRACT]: undefined,
+  [IdDocType.COVID_VACCINATION_FORM]: undefined,
+  [IdDocType.DRIVERS]: IdentDocumentType.DRIVERS_LICENSE,
+  [IdDocType.DRIVERS_TRANSLATION]: IdentDocumentType.DRIVERS_LICENSE,
+  [IdDocType.FILE_ATTACHMENT]: undefined,
+  [IdDocType.ID_CARD]: IdentDocumentType.IDCARD,
+  [IdDocType.ID_DOC_PHOTO]: undefined,
+  [IdDocType.INCOME_SOURCE]: undefined,
+  [IdDocType.INVESTOR_DOC]: undefined,
+  [IdDocType.PASSPORT]: IdentDocumentType.PASSPORT,
+  [IdDocType.PAYMENT_SOURCE]: undefined,
+  [IdDocType.PROFILE_IMAGE]: undefined,
+  [IdDocType.RESIDENCE_PERMIT]: IdentDocumentType.RESIDENCE_PERMIT,
+  [IdDocType.SELFIE]: undefined,
+  [IdDocType.UTILITY_BILL]: undefined,
+  [IdDocType.UTILITY_BILL2]: undefined,
+  [IdDocType.VEHICLE_REGISTRATION_CERTIFICATE]: undefined,
+  [IdDocType.VIDEO_SELFIE]: undefined,
+  [IdDocType.OTHER]: undefined,
+};
