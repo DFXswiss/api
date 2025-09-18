@@ -223,7 +223,7 @@ export class TransactionRequestService {
     sourceId: number,
     targetId: number,
   ): Promise<TransactionRequest> {
-    const transactionRequests = await this.transactionRequestRepo.find({
+    const matchingRequests = await this.transactionRequestRepo.find({
       where: {
         routeId,
         sourceId,
@@ -231,29 +231,29 @@ export class TransactionRequestService {
         isComplete: false,
         created: MoreThan(Util.daysBefore(Config.txRequestWaitingExpiryDays)),
         status: In([TransactionRequestStatus.CREATED, TransactionRequestStatus.WAITING_FOR_PAYMENT]),
+        amount: Between(amount * 0.99, amount * 1.01),
       },
       order: { created: 'DESC' },
       relations: { user: true, custodyOrder: { user: true } },
     });
 
-    const pendingTxRequests = transactionRequests.filter(
-      (t) => Math.abs(amount - t.amount) / t.amount < 0.01 && t.status === TransactionRequestStatus.WAITING_FOR_PAYMENT,
-    );
+    const pendingRequests = matchingRequests.filter((t) => t.status === TransactionRequestStatus.WAITING_FOR_PAYMENT);
 
-    const transactionRequest = pendingTxRequests.length
-      ? pendingTxRequests.find((t) => t.amount === amount) ?? pendingTxRequests[0]
-      : transactionRequests.find((t) => amount === t.amount) ??
-        transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
+    const matchingRequest =
+      pendingRequests.find((t) => t.amount === amount) ??
+      pendingRequests.at(0) ??
+      matchingRequests.find((t) => t.amount === amount) ??
+      matchingRequests.at(0);
 
-    if (pendingTxRequests.length > 1) {
-      for (const pendingRequest of pendingTxRequests.filter((t) => t.id !== transactionRequest.id)) {
+    if (pendingRequests.length > 1) {
+      for (const pendingRequest of pendingRequests.filter((t) => t.id !== matchingRequest.id)) {
         await this.transactionRequestRepo.update(...pendingRequest.resetStatus());
       }
     }
 
-    if (transactionRequest) await this.complete(transactionRequest.id);
+    if (matchingRequest) await this.complete(matchingRequest.id);
 
-    return transactionRequest;
+    return matchingRequest;
   }
 
   async complete(id: number): Promise<void> {
