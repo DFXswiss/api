@@ -643,8 +643,7 @@ export class UserDataService {
   }
 
   async setCheckIpRisk(ip: string): Promise<void> {
-    // update userData
-    const userDataIdsWithIpRisk = await this.ipLogService.getDistinctUserDataIpLogs(ip);
+    const userDataIdsWithIpRisk = await this.ipLogService.getUserDataIdsWith(ip);
     await this.userDataRepo.update(userDataIdsWithIpRisk, { hasIpRisk: true });
   }
 

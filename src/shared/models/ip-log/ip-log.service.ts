@@ -31,7 +31,7 @@ export class IpLogService {
     return this.ipLogRepo.save(ipLog);
   }
 
-  async getDistinctUserDataIpLogs(ip: string): Promise<number[]> {
+  async getUserDataIdsWith(ip: string): Promise<number[]> {
     return this.ipLogRepo
       .createQueryBuilder('ipLog')
       .select('userData.id')

@@ -162,9 +162,7 @@ export class AuthService {
       dto.moderator,
     );
 
-    const ipBlacklist = await this.settingService.getIpBlacklist();
-    if (ipBlacklist.includes(userIp))
-      await this.userDataService.updateUserDataInternal(user.userData, { hasIpRisk: true });
+    await this.checkIpBlacklistFor(userData, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
   }
@@ -208,9 +206,7 @@ export class AuthService {
 
     if (dto.moderator) await this.userService.setModerator(user, dto.moderator);
 
-    const ipBlacklist = await this.settingService.getIpBlacklist();
-    if (ipBlacklist.includes(userIp))
-      await this.userDataService.updateUserDataInternal(user.userData, { hasIpRisk: true });
+    await this.checkIpBlacklistFor(user.userData, userIp);
 
     this.siftService.login(user, userIp);
 
@@ -242,8 +238,7 @@ export class AuthService {
         wallet: await this.walletService.getDefault(),
       }));
 
-    const ipBlacklist = await this.settingService.getIpBlacklist();
-    if (ipBlacklist.includes(userIp)) await this.userDataService.updateUserDataInternal(userData, { hasIpRisk: true });
+    await this.checkIpBlacklistFor(userData, userIp);
 
     // create random key
     const key = randomUUID();
@@ -299,8 +294,7 @@ export class AuthService {
       const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
       const token = this.generateAccountToken(account, ip);
 
-      const ipBlacklist = await this.settingService.getIpBlacklist();
-      if (ipBlacklist.includes(ip)) await this.userDataService.updateUserDataInternal(account, { hasIpRisk: true });
+      await this.checkIpBlacklistFor(account, ip);
 
       if (account.isDeactivated)
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
@@ -369,6 +363,13 @@ export class AuthService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async checkIpBlacklistFor(userData: UserData, ip: string): Promise<void> {
+    if (userData.hasIpRisk) return;
+
+    const ipBlacklist = await this.settingService.getIpBlacklist();
+    if (ipBlacklist.includes(ip)) await this.userDataService.updateUserDataInternal(userData, { hasIpRisk: true });
+  }
 
   private async getLinkedUser(userDataId: number, address: string): Promise<User> {
     const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true, userData: true } });

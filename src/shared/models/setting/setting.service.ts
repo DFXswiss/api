@@ -25,7 +25,7 @@ export class SettingService {
   }
 
   async getIpBlacklist(): Promise<string[]> {
-    return (await this.getObjCached<string[]>('ipBlacklist')) ?? [];
+    return this.getObjCached<string[]>('ipBlacklist', []);
   }
 
   async addIpToBlacklist(ip: string): Promise<void> {
@@ -35,6 +35,8 @@ export class SettingService {
       ipBlacklist.push(ip);
 
       await this.setObj<string[]>('ipBlacklist', ipBlacklist);
+
+      this.settingRepo.invalidateCache();
     }
   }
 
@@ -46,10 +48,12 @@ export class SettingService {
       'ipBlacklist',
       ipBlacklist.filter((blockedIp) => blockedIp !== ip),
     );
+
+    this.settingRepo.invalidateCache();
   }
 
   async updateCustomSignUpFees(dto: CustomSignUpFeesDto): Promise<void> {
-    const customSignUpFeesArray = (await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees')) ?? [];
+    const customSignUpFeesArray = await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees', []);
 
     const customSignUpFee = customSignUpFeesArray.find((customSignUpFee) => customSignUpFee.label === dto.label);
     customSignUpFee ? Object.assign(customSignUpFee, dto) : customSignUpFeesArray.push(dto);
