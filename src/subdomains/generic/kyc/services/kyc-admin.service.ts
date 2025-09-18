@@ -84,6 +84,7 @@ export class KycAdminService {
             kycLevel: KycLevel.LEVEL_50,
             kycStatus: KycStatus.COMPLETED,
           });
+        await this.kycService.createKycLevelLog(kycStep.userData, KycLevel.LEVEL_50);
         break;
     }
 
