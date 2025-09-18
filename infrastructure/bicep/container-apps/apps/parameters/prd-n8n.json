@@ -80,12 +80,20 @@
           "value": "false"
         },
         {
+          "name": "N8N_EDITOR_BASE_URL",
+          "value": "https://api.bas-member.ch"
+        },
+        {
           "name": "N8N_HOST",
           "value": "api.bas-member.ch"
         },
         {
           "name": "N8N_PROTOCOL",
           "value": "https"
+        },
+        {
+          "name": "N8N_PROXY_HOPS",
+          "value": "1"
         }
       ]
     },
