@@ -31,16 +31,17 @@ export class IpLogService {
     return this.ipLogRepo.save(ipLog);
   }
 
-  async getDistinctUserDataIpLogs(ip: string): Promise<IpLog[]> {
+  async getDistinctUserDataIpLogs(ip: string): Promise<number[]> {
     return this.ipLogRepo
       .createQueryBuilder('ipLog')
-      .select('ipLog')
-      .leftJoinAndSelect('ipLog.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
+      .select('userData.id')
+      .distinct()
+      .innerJoin(User, 'user', 'ipLog.address=user.address')
+      .innerJoin('user.userData', 'userData')
       .where('ipLog.ip = :ip', { ip })
-      .andWhere('ipLog.user.id IS NOT NULL')
-      .distinctOn(['ipLog.user.userData.id'])
-      .getMany();
+      .andWhere('userdata.hasIpRisk = 0')
+      .getRawMany<{ id: number }>()
+      .then((u) => u.map((userData) => userData.id));
   }
 
   private async checkIpCountry(

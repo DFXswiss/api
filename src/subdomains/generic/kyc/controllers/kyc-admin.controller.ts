@@ -6,7 +6,6 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { IpBlacklistDto } from 'src/shared/models/setting/dto/ip-blacklist.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
@@ -30,7 +29,6 @@ export class KycAdminController {
     private readonly kycService: KycService,
     private readonly kycLogService: KycLogService,
     private readonly settingService: SettingService,
-    private readonly ipLogService: IpLogService,
     private readonly userDataService: UserDataService,
   ) {}
 
@@ -66,13 +64,7 @@ export class KycAdminController {
     await this.settingService.addIpToBlacklist(dto.ip);
 
     // update userData
-    const ipLogs = await this.ipLogService
-      .getDistinctUserDataIpLogs(dto.ip)
-      .then((logs) => logs.filter((l) => !l.user.userData.hasIpRisk));
-
-    for (const ipLog of ipLogs) {
-      await this.userDataService.updateUserDataInternal(ipLog.user.userData, { hasIpRisk: true });
-    }
+    await this.userDataService.setCheckIpRisk(dto.ip);
   }
 
   @Delete('blacklist/ip')
