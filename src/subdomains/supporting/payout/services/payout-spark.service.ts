@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SparkService } from 'src/integration/blockchain/spark/spark.service';
-import { SparkFeeService, SparkFeeTarget } from 'src/integration/blockchain/spark/services/spark-fee.service';
+import { SparkFeeService } from 'src/integration/blockchain/spark/services/spark-fee.service';
 import { SparkClient } from 'src/integration/blockchain/spark/spark-client';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';

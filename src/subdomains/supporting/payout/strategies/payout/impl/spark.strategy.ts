@@ -16,10 +16,6 @@ import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 export class SparkStrategy extends BitcoinBasedStrategy {
   protected readonly logger = new DfxLogger(SparkStrategy);
 
-  // SPARK-to-SPARK transfers are fee-free on Layer 2
-  // Transaction size is kept for potential future on-chain operations
-  private readonly averageTransactionSize = 140; // vBytes
-
   constructor(
     notificationService: NotificationService,
     protected readonly sparkService: PayoutSparkService,
@@ -85,28 +81,5 @@ export class SparkStrategy extends BitcoinBasedStrategy {
 
   private async sendSPARK(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     await this.send(context, orders, 'SPARK');
-  }
-
-  // Override to add Spark-specific validations
-  protected async validatePayout(orders: PayoutOrder[]): Promise<boolean> {
-    // Validate all addresses are valid Spark addresses
-    for (const order of orders) {
-      const isValid = await this.sparkService.validateAddress(order.destinationAddress);
-      if (!isValid) {
-        this.logger.error(`Invalid Spark address: ${order.destinationAddress}`);
-        return false;
-      }
-    }
-
-    // Check if we have sufficient balance
-    const totalAmount = orders.reduce((sum, order) => sum + order.amount, 0);
-    const balance = await this.sparkService.getBalance();
-
-    if (balance < totalAmount) {
-      this.logger.error(`Insufficient balance. Required: ${totalAmount}, Available: ${balance}`);
-      return false;
-    }
-
-    return true;
   }
 }

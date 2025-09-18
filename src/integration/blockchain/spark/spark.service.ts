@@ -16,8 +16,6 @@ enum SparkNetwork {
   LOCAL = 'local',
 }
 
-// SparkNodeType removed - SPARK uses a single client unlike Bitcoin
-
 @Injectable()
 export class SparkService extends BlockchainService {
   private readonly client: SparkClient;
