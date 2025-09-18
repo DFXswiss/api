@@ -78,6 +78,14 @@
         {
           "name": "N8N_BLOCK_ENV_ACCESS_IN_NODE",
           "value": "false"
+        },
+        {
+          "name": "N8N_HOST",
+          "value": "api.bas-member.ch"
+        },
+        {
+          "name": "N8N_PROTOCOL",
+          "value": "https"
         }
       ]
     },
