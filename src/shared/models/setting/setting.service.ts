@@ -25,7 +25,7 @@ export class SettingService {
   }
 
   async getIpBlacklist(): Promise<string[]> {
-    return (await this.getObj<string[]>('ipBlacklist')) ?? [];
+    return (await this.getObjCached<string[]>('ipBlacklist')) ?? [];
   }
 
   async addIpToBlacklist(ip: string): Promise<void> {
@@ -77,6 +77,10 @@ export class SettingService {
 
   async getObj<T>(key: string, defaultValue?: T): Promise<T | undefined> {
     return this.settingRepo.findOneBy({ key }).then((d) => (d?.value ? JSON.parse(d?.value) : defaultValue));
+  }
+
+  async getObjCached<T>(key: string, defaultValue?: T): Promise<T | undefined> {
+    return this.settingRepo.findOneCachedBy(key, { key }).then((d) => (d?.value ? JSON.parse(d?.value) : defaultValue));
   }
 
   async setObj<T>(key: string, value: T): Promise<void> {
