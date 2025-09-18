@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsNumber, IsString, ValidateIf } from 'class-validator';
+import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
 
 export class RecallDto {
   @IsNotEmpty()
@@ -15,9 +15,9 @@ export class RecallDto {
   @IsInt()
   sequence: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsInt()
-  userId: number;
+  userId?: number;
 
   @IsNotEmpty()
   @IsString()
