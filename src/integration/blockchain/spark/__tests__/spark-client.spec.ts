@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from 'src/shared/services/http.service';
 import { SparkClient } from '../spark-client';
+import * as SparkSDK from '@buildonspark/spark-sdk';
 
 // Mock Config before importing it
 jest.mock('src/config/config', () => ({
@@ -37,7 +38,7 @@ describe('SparkClient', () => {
     process.env.SPARK_WALLET_SEED = 'test-seed-12345';
 
     // Mock SDK initialization BEFORE creating the module
-    const { SparkWallet } = require('@buildonspark/spark-sdk');
+    const { SparkWallet } = SparkSDK as any;
     mockWallet.getSparkAddress.mockResolvedValue('sp1testaddress123');
     SparkWallet.initialize.mockResolvedValue({ wallet: mockWallet });
 
@@ -64,7 +65,7 @@ describe('SparkClient', () => {
 
   describe('Wallet Initialization', () => {
     it('should initialize wallet with seed from environment', async () => {
-      const { SparkWallet } = require('@buildonspark/spark-sdk');
+      const { SparkWallet } = SparkSDK as any;
 
       // Trigger initialization by accessing wallet
       await (client as any).ensureWallet();
@@ -209,7 +210,7 @@ describe('SparkClient', () => {
 
   describe('Address Validation', () => {
     it('should validate Spark address using SDK', async () => {
-      const { isValidSparkAddress } = require('@buildonspark/spark-sdk');
+      const { isValidSparkAddress } = SparkSDK as any;
       isValidSparkAddress.mockReturnValue(true);
 
       const result = await client.validateAddress('sp1validaddress');
@@ -219,7 +220,7 @@ describe('SparkClient', () => {
     });
 
     it('should reject invalid address', async () => {
-      const { isValidSparkAddress } = require('@buildonspark/spark-sdk');
+      const { isValidSparkAddress } = SparkSDK as any;
       isValidSparkAddress.mockReturnValue(false);
 
       const result = await client.validateAddress('invalid');
@@ -228,7 +229,7 @@ describe('SparkClient', () => {
     });
 
     it('should handle SDK validation errors', async () => {
-      const { isValidSparkAddress } = require('@buildonspark/spark-sdk');
+      const { isValidSparkAddress } = SparkSDK as any;
       isValidSparkAddress.mockImplementation(() => {
         throw new Error('Invalid format');
       });

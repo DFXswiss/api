@@ -2,9 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
 import { bech32m } from 'bech32';
-import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainService } from '../shared/util/blockchain.service';
 import { SparkClient, SparkTransaction } from './spark-client';
 

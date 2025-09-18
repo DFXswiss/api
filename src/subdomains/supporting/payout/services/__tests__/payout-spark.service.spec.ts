@@ -8,7 +8,6 @@ import { PayoutOrderContext } from '../../entities/payout-order.entity';
 describe('PayoutSparkService', () => {
   let service: PayoutSparkService;
   let sparkService: SparkService;
-  let sparkClient: SparkClient;
 
   const mockSparkClient = createMock<SparkClient>();
   const mockSparkService = createMock<SparkService>();

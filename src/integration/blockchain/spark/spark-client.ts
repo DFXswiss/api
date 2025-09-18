@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Currency } from '@uniswap/sdk-core';
 import { Config } from 'src/config/config';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainClient } from '../shared/util/blockchain-client';
@@ -107,7 +106,7 @@ export class SparkClient extends BlockchainClient {
 
   async sendMany(
     outputs: { addressTo: string; amount: number }[],
-    feeRate: number,
+    _feeRate: number,
   ): Promise<string> {
     try {
       const wallet = await this.ensureWallet();
@@ -137,7 +136,7 @@ export class SparkClient extends BlockchainClient {
   async sendTransaction(
     to: string,
     amount: number,
-    feeRate: number,
+    _feeRate: number,
   ): Promise<{ txid: string; fee: number }> {
     try {
       const wallet = await this.ensureWallet();
@@ -188,11 +187,11 @@ export class SparkClient extends BlockchainClient {
 
   // --- BALANCE METHODS --- //
 
-  async getBalance(address?: string): Promise<number> {
+  async getBalance(_address?: string): Promise<number> {
     const wallet = await this.ensureWallet();
 
     // Use real SDK getBalance method
-    const { balance, tokenBalances } = await wallet.getBalance();
+    const { balance } = await wallet.getBalance();
     // Convert satoshis to BTC
     const btcBalance = Number(balance) / 1e8;
     this.logger.verbose(`Spark balance from SDK: ${btcBalance} BTC`);

@@ -6,7 +6,7 @@ import { SparkClient } from '../spark-client';
 
 describe('SparkService', () => {
   let service: SparkService;
-  let sparkClient: SparkClient;
+  let _sparkClient: SparkClient;
 
   const mockSparkClient = createMock<SparkClient>();
   const mockHttpService = createMock<HttpService>();
@@ -25,7 +25,7 @@ describe('SparkService', () => {
     service = module.get<SparkService>(SparkService);
     // Replace the client with mock
     (service as any).client = mockSparkClient;
-    sparkClient = mockSparkClient;
+    _sparkClient = mockSparkClient;
   });
 
   afterEach(() => {
