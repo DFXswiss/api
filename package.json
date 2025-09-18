@@ -170,5 +170,10 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "overrides": {
+    "request": {
+      "form-data": "2.5.5"
+    }
   }
 }
