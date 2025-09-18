@@ -39,7 +39,7 @@ export class IpLogService {
       .innerJoin(User, 'user', 'ipLog.address=user.address')
       .innerJoin('user.userData', 'userData')
       .where('ipLog.ip = :ip', { ip })
-      .andWhere('userdata.hasIpRisk = 0')
+      .andWhere('(userData.hasIpRisk = 0 OR userData.hasIpRisk IS NULL)')
       .getRawMany<{ id: number }>()
       .then((u) => u.map((userData) => userData.id));
   }
