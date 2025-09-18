@@ -19,7 +19,7 @@ import { TransactionRequestExtended } from 'src/subdomains/core/history/mappers/
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
-import { Between, FindOptionsRelations, IsNull, LessThan, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, LessThan, MoreThan } from 'typeorm';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import {
   TransactionRequest,
@@ -230,12 +230,27 @@ export class TransactionRequestService {
         targetId,
         isComplete: false,
         created: MoreThan(Util.daysBefore(Config.txRequestWaitingExpiryDays)),
+        status: In([TransactionRequestStatus.CREATED, TransactionRequestStatus.WAITING_FOR_PAYMENT]),
       },
       order: { created: 'DESC' },
       relations: { user: true, custodyOrder: { user: true } },
     });
 
-    const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
+    const pendingTxRequests = transactionRequests.filter(
+      (t) => Math.abs(amount - t.amount) / t.amount < 0.01 && t.status === TransactionRequestStatus.WAITING_FOR_PAYMENT,
+    );
+
+    const transactionRequest = pendingTxRequests.length
+      ? pendingTxRequests.find((t) => t.amount === amount) ?? pendingTxRequests[0]
+      : transactionRequests.find((t) => amount === t.amount) ??
+        transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
+
+    if (pendingTxRequests.length > 1) {
+      for (const pendingRequest of pendingTxRequests.filter((t) => t.id !== transactionRequest.id)) {
+        await this.transactionRequestRepo.update(...pendingRequest.resetStatus());
+      }
+    }
+
     if (transactionRequest) await this.complete(transactionRequest.id);
 
     return transactionRequest;
