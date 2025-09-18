@@ -4,7 +4,6 @@ import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/utils/util';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SparkWallet, isValidSparkAddress } from '@buildonspark/spark-sdk';
@@ -240,11 +239,6 @@ export class SparkClient extends BlockchainClient {
 
 
 
-  // --- HELPER METHODS --- //
-
-  private roundAmount(amount: number, decimals = 8): number {
-    return Util.round(amount, decimals);
-  }
 
   // --- STATUS METHODS --- //
 
@@ -279,8 +273,9 @@ export class SparkClient extends BlockchainClient {
     return this.getWalletBalance();
   }
 
-  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
-    return this.getBalance(address);
+  async getNativeCoinBalanceForAddress(_address: string): Promise<number> {
+    // Spark SDK doesn't support querying other addresses
+    return this.getBalance();
   }
 
   async getTokenBalance(_asset: Asset, _address?: string): Promise<number> {
