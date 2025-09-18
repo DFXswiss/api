@@ -60,16 +60,33 @@ export class SparkClient extends BlockchainClient {
       });
 
       this.wallet = wallet;
-      this.logger.info('SparkWallet initialized successfully');
+      // Cache the address immediately after initialization
+      this.cachedAddress = await wallet.getSparkAddress();
+      this.logger.info(`SparkWallet initialized successfully with address: ${this.cachedAddress}`);
     } catch (error) {
       this.logger.error('Failed to initialize SparkWallet:', error);
       throw new Error(`Failed to initialize SparkWallet: ${error.message}`);
     }
   }
 
+  private cachedAddress: string | null = null;
+
   get walletAddress(): string {
-    // Return configured wallet address or placeholder
-    return Config.blockchain.spark.walletAddress;
+    // Return cached address or placeholder
+    // Note: getSparkAddress() is async, but getter must be sync
+    if (!this.cachedAddress) {
+      if (!this.wallet) {
+        return 'spark-wallet-not-initialized';
+      }
+      // Cache the address asynchronously
+      this.wallet.getSparkAddress().then(address => {
+        this.cachedAddress = address;
+      }).catch(error => {
+        this.logger.warn('Failed to get Spark address from wallet:', error);
+      });
+      return 'spark-address-loading';
+    }
+    return this.cachedAddress;
   }
 
   private async ensureWallet(): Promise<SparkWallet> {

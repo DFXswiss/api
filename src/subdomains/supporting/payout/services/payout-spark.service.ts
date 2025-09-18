@@ -29,17 +29,8 @@ export class PayoutSparkService extends PayoutBitcoinBasedService {
     // SPARK-to-SPARK transfers are fee-free, so we pass 0 as fee rate
     const feeRate = 0;
 
-    // Convert PayoutGroup to format expected by SparkClient
-    const outputs: { addressTo: string; amount: number }[] = [];
-
-    for (const [addressTo, amount] of Object.entries(payout)) {
-      outputs.push({
-        addressTo,
-        amount: typeof amount === 'string' ? parseFloat(amount) : Number(amount),
-      });
-    }
-
-    return this.client.sendMany(outputs, feeRate);
+    // PayoutGroup is already in the correct format for SparkClient
+    return this.client.sendMany(payout, feeRate);
   }
 
   async getPayoutCompletionData(_context: PayoutOrderContext, payoutTxId: string): Promise<[boolean, number]> {

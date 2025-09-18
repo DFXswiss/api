@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
 import { SparkService } from 'src/integration/blockchain/spark/spark.service';
-import { SparkFeeService, SparkFeeTarget } from 'src/integration/blockchain/spark/services/spark-fee.service';
+import { SparkFeeService } from 'src/integration/blockchain/spark/services/spark-fee.service';
 import { SparkClient } from 'src/integration/blockchain/spark/spark-client';
 import { PayoutSparkService } from '../payout-spark.service';
 import { PayoutOrderContext } from '../../entities/payout-order.entity';
@@ -38,7 +38,7 @@ describe('PayoutSparkService', () => {
     // Setup default mocks
     mockSparkService.getDefaultClient.mockReturnValue(mockSparkClient);
     mockSparkService.isHealthy.mockResolvedValue(true);
-    mockFeeService.getRecommendedFeeRate.mockResolvedValue(15);
+    mockFeeService.getRecommendedFeeRate.mockResolvedValue(0); // SPARK has no fees
   });
 
   afterEach(() => {
@@ -60,13 +60,14 @@ describe('PayoutSparkService', () => {
   });
 
   describe('sendUtxoToMany', () => {
-    it('should send multiple UTXOs successfully', async () => {
+    it('should send to multiple addresses successfully', async () => {
       const context = PayoutOrderContext.MANUAL;
-      const payout = {
-        'spark1address1': 0.5,
-        'spark1address2': 1.0,
-        'spark1address3': 0.25,
-      };
+      // PayoutGroup is an array of { addressTo, amount }
+      const payout = [
+        { addressTo: 'sp1address1', amount: 0.5 },
+        { addressTo: 'sp1address2', amount: 1.0 },
+        { addressTo: 'sp1address3', amount: 0.25 },
+      ];
 
       mockSparkClient.sendMany.mockResolvedValue('txid123');
 
@@ -74,23 +75,43 @@ describe('PayoutSparkService', () => {
 
       expect(result).toBe('txid123');
       expect(mockSparkClient.sendMany).toHaveBeenCalledWith([
-        { addressTo: 'spark1address1', amount: 0.5 },
-        { addressTo: 'spark1address2', amount: 1.0 },
-        { addressTo: 'spark1address3', amount: 0.25 },
-      ], expect.any(Number));
+        { addressTo: 'sp1address1', amount: 0.5 },
+        { addressTo: 'sp1address2', amount: 1.0 },
+        { addressTo: 'sp1address3', amount: 0.25 },
+      ], 0); // SPARK has no fees
     });
 
-    it('should use zero fee for SPARK transactions', async () => {
+    it('should handle single address payout', async () => {
       const context = PayoutOrderContext.MANUAL;
-      const payout = { 'spark1address': 1 };
+      const payout = [{ addressTo: 'sp1singleaddress', amount: 1 }];
 
-      mockSparkClient.sendMany.mockResolvedValue('txid');
+      mockSparkClient.sendMany.mockResolvedValue('txid456');
 
-      await service.sendUtxoToMany(context, payout);
+      const result = await service.sendUtxoToMany(context, payout);
 
+      expect(result).toBe('txid456');
       expect(mockSparkClient.sendMany).toHaveBeenCalledWith(
-        expect.any(Array),
+        [{ addressTo: 'sp1singleaddress', amount: 1 }],
         0, // SPARK has no fees
+      );
+    });
+
+    it('should handle multiple outputs in single transaction', async () => {
+      const context = PayoutOrderContext.MANUAL;
+      const payout = [
+        { addressTo: 'sp1address1', amount: 123.456789 },
+        { addressTo: 'sp1address2', amount: 0.001 },
+        { addressTo: 'sp1address3', amount: 50 },
+      ];
+
+      mockSparkClient.sendMany.mockResolvedValue('txid789');
+
+      const result = await service.sendUtxoToMany(context, payout);
+
+      expect(result).toBe('txid789');
+      expect(mockSparkClient.sendMany).toHaveBeenCalledWith(
+        payout,
+        0,
       );
     });
   });
@@ -100,9 +121,9 @@ describe('PayoutSparkService', () => {
       const txId = 'txid123';
       mockSparkClient.getTransaction.mockResolvedValue({
         txid: txId,
-        blockhash: 'blockhash123',
-        confirmations: 3,
-        fee: -0.0001,
+        blockhash: 'confirmed',
+        confirmations: 1, // SPARK uses binary confirmation: 1 = confirmed
+        fee: 0, // SPARK has no fees
       });
 
       const [isComplete, fee] = await service.getPayoutCompletionData(PayoutOrderContext.MANUAL, txId);
@@ -145,10 +166,19 @@ describe('PayoutSparkService', () => {
     it('should validate address through spark service', async () => {
       mockSparkService.validateAddress.mockResolvedValue(true);
 
-      const result = await service.validateAddress('spark1validaddress');
+      const result = await service.validateAddress('sp1validaddress');
 
       expect(result).toBe(true);
-      expect(sparkService.validateAddress).toHaveBeenCalledWith('spark1validaddress');
+      expect(sparkService.validateAddress).toHaveBeenCalledWith('sp1validaddress');
+    });
+
+    it('should reject invalid address', async () => {
+      mockSparkService.validateAddress.mockResolvedValue(false);
+
+      const result = await service.validateAddress('invalid');
+
+      expect(result).toBe(false);
+      expect(sparkService.validateAddress).toHaveBeenCalledWith('invalid');
     });
   });
 
@@ -156,23 +186,43 @@ describe('PayoutSparkService', () => {
     it('should get balance through spark service', async () => {
       mockSparkService.getBalance.mockResolvedValue(10.5);
 
-      const balance = await service.getBalance('spark1address');
+      const balance = await service.getBalance('sp1address');
 
       expect(balance).toBe(10.5);
-      expect(sparkService.getBalance).toHaveBeenCalledWith('spark1address');
+      expect(sparkService.getBalance).toHaveBeenCalledWith('sp1address');
+    });
+
+    it('should get balance without address', async () => {
+      mockSparkService.getBalance.mockResolvedValue(100.25);
+
+      const balance = await service.getBalance();
+
+      expect(balance).toBe(100.25);
+      expect(sparkService.getBalance).toHaveBeenCalledWith(undefined);
     });
   });
 
   describe('getConfirmationCount', () => {
-    it('should return confirmation count for transaction', async () => {
+    it('should return 1 for confirmed transaction', async () => {
       mockSparkClient.getTransaction.mockResolvedValue({
         txid: 'txid',
-        confirmations: 6,
+        confirmations: 1, // SPARK: 1 = confirmed
       });
 
       const count = await service.getConfirmationCount('txid');
 
-      expect(count).toBe(6);
+      expect(count).toBe(1);
+    });
+
+    it('should return 0 for pending transaction', async () => {
+      mockSparkClient.getTransaction.mockResolvedValue({
+        txid: 'txid',
+        confirmations: 0, // SPARK: 0 = pending
+      });
+
+      const count = await service.getConfirmationCount('txid');
+
+      expect(count).toBe(0);
     });
 
     it('should return 0 for non-existent transaction', async () => {
@@ -188,6 +238,37 @@ describe('PayoutSparkService', () => {
     it('should return correct batch size limit', () => {
       const batchSize = service.getBatchSize();
       expect(batchSize).toBe(100);
+    });
+  });
+
+  describe('Edge Cases and Error Handling', () => {
+    it('should handle empty payout gracefully', async () => {
+      const context = PayoutOrderContext.MANUAL;
+      const payout = []; // Empty payout array
+
+      mockSparkClient.sendMany.mockResolvedValue('empty-tx');
+
+      const result = await service.sendUtxoToMany(context, payout);
+
+      expect(result).toBe('empty-tx');
+      expect(mockSparkClient.sendMany).toHaveBeenCalledWith([], 0);
+    });
+
+    it('should handle transaction not found in getPayoutCompletionData', async () => {
+      mockSparkClient.getTransaction.mockResolvedValue(null);
+
+      const [isComplete, fee] = await service.getPayoutCompletionData(PayoutOrderContext.MANUAL, 'unknown-tx');
+
+      expect(isComplete).toBe(false);
+      expect(fee).toBe(0);
+    });
+
+    it('should handle error in getConfirmationCount', async () => {
+      mockSparkClient.getTransaction.mockRejectedValue(new Error('Network error'));
+
+      const count = await service.getConfirmationCount('error-tx');
+
+      expect(count).toBe(0);
     });
   });
 });
