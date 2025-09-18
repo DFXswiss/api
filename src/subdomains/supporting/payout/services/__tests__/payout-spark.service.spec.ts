@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
 import { SparkService } from 'src/integration/blockchain/spark/spark.service';
-import { SparkFeeService } from 'src/integration/blockchain/spark/services/spark-fee.service';
 import { SparkClient } from 'src/integration/blockchain/spark/spark-client';
 import { PayoutSparkService } from '../payout-spark.service';
 import { PayoutOrderContext } from '../../entities/payout-order.entity';
@@ -9,12 +8,10 @@ import { PayoutOrderContext } from '../../entities/payout-order.entity';
 describe('PayoutSparkService', () => {
   let service: PayoutSparkService;
   let sparkService: SparkService;
-  let feeService: SparkFeeService;
   let sparkClient: SparkClient;
 
   const mockSparkClient = createMock<SparkClient>();
   const mockSparkService = createMock<SparkService>();
-  const mockFeeService = createMock<SparkFeeService>();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -24,21 +21,15 @@ describe('PayoutSparkService', () => {
           provide: SparkService,
           useValue: mockSparkService,
         },
-        {
-          provide: SparkFeeService,
-          useValue: mockFeeService,
-        },
       ],
     }).compile();
 
     service = module.get<PayoutSparkService>(PayoutSparkService);
     sparkService = module.get<SparkService>(SparkService);
-    feeService = module.get<SparkFeeService>(SparkFeeService);
 
     // Setup default mocks
     mockSparkService.getDefaultClient.mockReturnValue(mockSparkClient);
     mockSparkService.isHealthy.mockResolvedValue(true);
-    mockFeeService.getRecommendedFeeRate.mockResolvedValue(0); // SPARK has no fees
   });
 
   afterEach(() => {

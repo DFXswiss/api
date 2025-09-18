@@ -8,14 +8,6 @@ import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainService } from '../shared/util/blockchain.service';
 import { SparkClient, SparkTransaction } from './spark-client';
 
-enum SparkNetwork {
-  MAINNET = 'mainnet',
-  TESTNET = 'testnet',
-  REG_TEST = 'regtest',
-  SIGNET = 'signet',
-  LOCAL = 'local',
-}
-
 @Injectable()
 export class SparkService extends BlockchainService {
   private readonly client: SparkClient;
@@ -136,17 +128,9 @@ export class SparkService extends BlockchainService {
   }
 
   // --- HELPER METHODS --- //
-  private readonly NETWORK_PREFIXES = new Map<SparkNetwork, string>([
-    [SparkNetwork.MAINNET, 'sp'],
-    [SparkNetwork.TESTNET, 'spt'],
-    [SparkNetwork.REG_TEST, 'sprt'],
-    [SparkNetwork.SIGNET, 'sps'],
-    [SparkNetwork.LOCAL, 'spl'],
-  ]);
-
   private getAddressPrefix(address: string): string {
     const separatorIndex = address.lastIndexOf('1');
-    if (separatorIndex === -1) return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET);
+    if (separatorIndex === -1) return 'sp'; // Default mainnet prefix
 
     return address.substring(0, separatorIndex);
   }

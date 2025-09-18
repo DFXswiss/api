@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { SparkService } from 'src/integration/blockchain/spark/spark.service';
-import { SparkFeeService } from 'src/integration/blockchain/spark/services/spark-fee.service';
 import { SparkClient } from 'src/integration/blockchain/spark/spark-client';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
@@ -9,10 +8,7 @@ import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-ba
 export class PayoutSparkService extends PayoutBitcoinBasedService {
   private readonly client: SparkClient;
 
-  constructor(
-    private readonly sparkService: SparkService,
-    private readonly feeService: SparkFeeService,
-  ) {
+  constructor(private readonly sparkService: SparkService) {
     super();
     this.client = sparkService.getDefaultClient();
   }
