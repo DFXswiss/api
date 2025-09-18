@@ -1,78 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { SparkService } from 'src/integration/blockchain/spark/spark.service';
-import { SparkClient } from 'src/integration/blockchain/spark/spark-client';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 @Injectable()
 export class PayoutSparkService extends PayoutBitcoinBasedService {
-  private readonly client: SparkClient;
-
   constructor(private readonly sparkService: SparkService) {
     super();
-    this.client = sparkService.getDefaultClient();
   }
 
   async isHealthy(): Promise<boolean> {
-    try {
-      return await this.sparkService.isHealthy();
-    } catch {
-      return false;
-    }
+    return this.sparkService.isHealthy().catch(() => false);
   }
 
   async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    // SPARK-to-SPARK transfers are fee-free, so we pass 0 as fee rate
-    const feeRate = 0;
-
-    // PayoutGroup is already in the correct format for SparkClient
-    return this.client.sendMany(payout, feeRate);
+    return this.sparkService.getDefaultClient().sendMany(payout, 0);
   }
 
   async getPayoutCompletionData(_context: PayoutOrderContext, payoutTxId: string): Promise<[boolean, number]> {
-    const transaction = await this.client.getTransaction(payoutTxId);
-
-    // SPARK has binary confirmation: confirmed (1) or pending (0)
-    const isComplete = !!(transaction && transaction.confirmations === 1);
-    // SPARK-to-SPARK transfers are fee-free on Layer 2
-    const payoutFee = 0;
-
-    return [isComplete, payoutFee];
+    const tx = await this.sparkService.getDefaultClient().getTransaction(payoutTxId);
+    return [!!(tx && tx.confirmations === 1), 0];
   }
 
   async getCurrentFeeRate(): Promise<number> {
-    // SPARK-to-SPARK transfers are fee-free on Layer 2
     return 0;
   }
 
-  async estimateFee(outputCount: number): Promise<number> {
-    // SPARK-to-SPARK transfers are fee-free on Layer 2
-    return 0;
-  }
-
-  async validateAddress(address: string): Promise<boolean> {
-    return this.sparkService.validateAddress(address);
-  }
-
-  async getBalance(address?: string): Promise<number> {
-    return this.sparkService.getBalance(address);
-  }
-
-  async getConfirmationCount(txId: string): Promise<number> {
-    try {
-      const transaction = await this.client.getTransaction(txId);
-      // SPARK has binary status: return 1 if confirmed, 0 if pending
-      // There is no "confirmation count" in Layer-2 - transactions are either final or not
-      return transaction?.confirmations ?? 0;
-    } catch {
-      return 0;
-    }
-  }
-
-  // Helper method for batch size optimization
   getBatchSize(): number {
-    // Spark can handle similar batch sizes to Bitcoin
-    // Limiting to 100 outputs per transaction for safety
     return 100;
   }
 }

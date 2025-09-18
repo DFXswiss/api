@@ -121,7 +121,7 @@ describe('SparkClient', () => {
         tokenBalances: [],
       });
 
-      const balance = await client.getWalletBalance();
+      const balance = await client.getBalance();
 
       expect(balance).toBe(2.5);
     });
@@ -319,15 +319,13 @@ describe('SparkClient', () => {
 
   describe('Interface Compliance', () => {
     it('should throw for unsupported raw transaction methods', async () => {
-      await expect(client.sendSignedTransaction('0x1234')).rejects.toThrow(
-        'SPARK does not support raw hex transactions'
-      );
+      await expect(client.sendSignedTransaction()).rejects.toThrow('Use SDK transfer methods');
     });
 
-    it('should throw for token-related methods', async () => {
-      await expect(client.getTokenBalance(null, null)).rejects.toThrow('Spark has no tokens');
-      await expect(client.getTokenBalances([], null)).rejects.toThrow('Spark has no tokens');
-      await expect(client.getToken(null)).rejects.toThrow('Spark has no tokens');
+    it('should return 0 or empty for token-related methods', async () => {
+      expect(await client.getTokenBalance()).toBe(0);
+      expect(await client.getTokenBalances()).toEqual([]);
+      expect(await client.getToken()).toBe(null);
     });
 
     it('should confirm transactions based on binary status', async () => {

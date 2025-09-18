@@ -199,19 +199,14 @@ export class SparkClient extends BlockchainClient {
     return btcBalance;
   }
 
-  async getWalletBalance(): Promise<number> {
-    return this.getBalance();
-  }
 
-  // --- FEE METHODS --- //
+  // --- FEE METHODS (always 0 for Spark L2) --- //
 
   async estimateFee(blocks = 6): Promise<SparkFeeEstimate> {
-    // SPARK-to-SPARK transfers are fee-free on Layer 2
     return { feerate: 0, blocks };
   }
 
   async getNetworkFeeRate(): Promise<number> {
-    // SPARK-to-SPARK transfers are fee-free on Layer 2
     return 0;
   }
 
@@ -265,46 +260,39 @@ export class SparkClient extends BlockchainClient {
     }
   }
 
-  // --- BLOCKCHAIN CLIENT INTERFACE METHODS --- //
-
-  async sendSignedTransaction(hex: string): Promise<any> {
-    // SPARK uses SDK methods, not raw hex transactions
-    throw new Error('SPARK does not support raw hex transactions - use SDK transfer methods');
-  }
+  // --- BLOCKCHAIN CLIENT INTERFACE --- //
 
   async getNativeCoinBalance(): Promise<number> {
-    return this.getWalletBalance();
-  }
-
-  async getNativeCoinBalanceForAddress(_address: string): Promise<number> {
-    // Spark SDK doesn't support querying other addresses
     return this.getBalance();
   }
 
-  async getTokenBalance(_asset: Asset, _address?: string): Promise<number> {
-    throw new Error('Spark has no tokens');
-  }
-
-  async getTokenBalances(_assets: Asset[], _address?: string): Promise<BlockchainTokenBalance[]> {
-    throw new Error('Spark has no tokens');
-  }
-
-  async getToken(_asset: Asset): Promise<Currency> {
-    throw new Error('Spark has no tokens');
-  }
-
-  async getTx(txId: string): Promise<any> {
-    return this.getTransaction(txId);
+  async getNativeCoinBalanceForAddress(_address: string): Promise<number> {
+    return this.getBalance(); // SDK only supports own wallet
   }
 
   async isTxComplete(txId: string, minConfirmations = 1): Promise<boolean> {
     try {
       const tx = await this.getTransaction(txId);
-      // SPARK has binary confirmation: either final (1) or pending (0)
-      // Any minConfirmations > 0 requires the tx to be confirmed
       return minConfirmations > 0 ? tx.confirmations === 1 : true;
     } catch {
       return false;
     }
+  }
+
+  // Unsupported token operations (Spark has no tokens)
+  async getTokenBalance(): Promise<number> {
+    return 0;
+  }
+
+  async getTokenBalances(): Promise<BlockchainTokenBalance[]> {
+    return [];
+  }
+
+  async getToken(): Promise<Currency> {
+    return null;
+  }
+
+  async sendSignedTransaction(): Promise<any> {
+    throw new Error('Use SDK transfer methods');
   }
 }
