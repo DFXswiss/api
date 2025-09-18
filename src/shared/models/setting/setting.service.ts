@@ -24,8 +24,12 @@ export class SettingService {
     await this.settingRepo.save(entity);
   }
 
+  async getIpBlacklist(): Promise<string[]> {
+    return (await this.getObj<string[]>('ipBlacklist')) ?? [];
+  }
+
   async addIpToBlacklist(ip: string): Promise<void> {
-    const ipBlacklist = (await this.getObj<string[]>('ipBlacklist')) ?? [];
+    const ipBlacklist = await this.getIpBlacklist();
 
     if (!ipBlacklist.some((blockedIp) => blockedIp === ip)) {
       ipBlacklist.push(ip);
@@ -35,7 +39,7 @@ export class SettingService {
   }
 
   async deleteIpFromBlacklist(ip: string): Promise<void> {
-    const ipBlacklist = (await this.getObj<string[]>('ipBlacklist')) ?? [];
+    const ipBlacklist = await this.getIpBlacklist();
     if (!ipBlacklist.some((blockedIp) => blockedIp === ip)) throw new BadRequestException('Blocked IP not found');
 
     await this.setObj<string[]>(

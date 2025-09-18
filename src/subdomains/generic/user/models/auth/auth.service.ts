@@ -17,6 +17,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -80,6 +81,7 @@ export class AuthService {
     private readonly siftService: SiftService,
     private readonly languageService: LanguageService,
     private readonly geoLocationService: GeoLocationService,
+    private readonly settingService: SettingService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE)
@@ -159,6 +161,11 @@ export class AuthService {
       dto.specialCode ?? dto.discountCode,
       dto.moderator,
     );
+
+    const ipBlacklist = await this.settingService.getIpBlacklist();
+    if (ipBlacklist.includes(userIp))
+      await this.userDataService.updateUserDataInternal(user.userData, { hasIpRisk: true });
+
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
@@ -201,6 +208,10 @@ export class AuthService {
 
     if (dto.moderator) await this.userService.setModerator(user, dto.moderator);
 
+    const ipBlacklist = await this.settingService.getIpBlacklist();
+    if (ipBlacklist.includes(userIp))
+      await this.userDataService.updateUserDataInternal(user.userData, { hasIpRisk: true });
+
     this.siftService.login(user, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
@@ -230,6 +241,9 @@ export class AuthService {
         status: UserDataStatus.KYC_ONLY,
         wallet: await this.walletService.getDefault(),
       }));
+
+    const ipBlacklist = await this.settingService.getIpBlacklist();
+    if (ipBlacklist.includes(userIp)) await this.userDataService.updateUserDataInternal(userData, { hasIpRisk: true });
 
     // create random key
     const key = randomUUID();
@@ -284,6 +298,9 @@ export class AuthService {
 
       const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
       const token = this.generateAccountToken(account, ip);
+
+      const ipBlacklist = await this.settingService.getIpBlacklist();
+      if (ipBlacklist.includes(ip)) await this.userDataService.updateUserDataInternal(account, { hasIpRisk: true });
 
       if (account.isDeactivated)
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
