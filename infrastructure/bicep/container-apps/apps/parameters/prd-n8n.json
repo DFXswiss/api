@@ -45,7 +45,7 @@
         },
         {
           "name": "DB_POSTGRESDB_HOST",
-          "value": "psql-dfx-api-dev.postgres.database.azure.com"
+          "value": "psql-dfx-api-prd.postgres.database.azure.com"
         },
         {
           "name": "DB_POSTGRESDB_PORT",
