@@ -33,7 +33,7 @@ export class IpLogService {
   }
 
   async getUserDataIdsWith(ip: string): Promise<number[]> {
-    const addressIpLogs = await this.ipLogRepo
+    const addressLogUserDataIds = await this.ipLogRepo
       .createQueryBuilder('ipLog')
       .select('userData.id', 'id')
       .distinct()
@@ -44,17 +44,18 @@ export class IpLogService {
       .getRawMany<{ id: number }>()
       .then((u) => u.map((userData) => userData.id));
 
-    const mailIpLogs = await this.ipLogRepo
+    const mailLogUserDataIds = await this.ipLogRepo
       .createQueryBuilder('ipLog')
       .select('userData.id', 'id')
       .distinct()
       .innerJoin(UserData, 'userData', 'ipLog.address=userData.mail')
       .where('ipLog.ip = :ip', { ip })
+      .andWhere(`ipLog.address LIKE '%@%'`)
       .andWhere('(userData.hasIpRisk = 0 OR userData.hasIpRisk IS NULL)')
       .getRawMany<{ id: number }>()
       .then((u) => u.map((userData) => userData.id));
 
-    return [...addressIpLogs, ...mailIpLogs];
+    return [...addressLogUserDataIds, ...mailLogUserDataIds];
   }
 
   private async checkIpCountry(
