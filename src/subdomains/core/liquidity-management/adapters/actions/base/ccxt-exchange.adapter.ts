@@ -3,9 +3,12 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { ExchangeService } from 'src/integration/exchange/services/exchange.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
@@ -37,6 +40,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     private readonly exchangeRegistry: ExchangeRegistryService,
     private readonly dexService: DexService,
     private readonly orderRepo: LiquidityManagementOrderRepository,
+    private readonly pricingService: PricingService,
+    private readonly assetService: AssetService,
   ) {
     super(system);
 
@@ -131,7 +136,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       );
     }
 
-    const price = await this.exchangeService.getCurrentPrice(tradeAsset, asset);
+    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`${this.exchangeService.name}/${tradeAsset}`);
+
+    const price = await this.getAndCheckTradePrice(tradeAssetEntity, order.pipeline.rule.targetAsset);
 
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
     const maxSellAmount = Util.floor(maxAmount * price, 6);
@@ -168,6 +175,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
+    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`${this.exchangeService.name}/${tradeAsset}`);
+    await this.getAndCheckTradePrice(order.pipeline.rule.targetAsset, tradeAssetEntity);
+
     const availableBalance = await this.exchangeService.getAvailableBalance(asset);
     if (order.minAmount > availableBalance)
       throw new OrderNotProcessableException(
@@ -193,6 +203,20 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
       throw e;
     }
+  }
+
+  private async getAndCheckTradePrice(from: Asset, to: Asset): Promise<number> {
+    const price = await this.exchangeService.getCurrentPrice(from.name, to.name);
+
+    // price fetch should already throw error if out of range
+    const checkPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
+
+    if (Math.abs((price - checkPrice.price) / checkPrice.price) > 0.05)
+      throw new OrderFailedException(
+        `Trade price out of range: exchange price ${price}, check price ${checkPrice.price}`,
+      );
+
+    return price;
   }
 
   private async transfer(order: LiquidityManagementOrder): Promise<CorrelationId> {
