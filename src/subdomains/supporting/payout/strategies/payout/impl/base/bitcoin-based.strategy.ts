@@ -125,13 +125,9 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     return [...result.values()];
   }
 
-  protected abstract dispatchPayout(
-    context: PayoutOrderContext,
-    payout: PayoutGroup,
-    outputAssetName: string,
-  ): Promise<string>;
+  protected abstract dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup, token?: Asset): Promise<string>;
 
-  protected async send(context: PayoutOrderContext, orders: PayoutOrder[], outputAssetName: string): Promise<void> {
+  protected async send(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     let payoutTxId: string;
 
     if (orders.some((o) => o.payoutTxId) && !DisabledProcess(Process.TX_SPEEDUP))
@@ -141,9 +137,12 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
       const payout = this.aggregatePayout(orders);
 
       await this.designatePayout(orders);
-      payoutTxId = await this.dispatchPayout(context, payout, outputAssetName);
+      payoutTxId = await this.dispatchPayout(context, payout, orders[0].asset);
     } catch (e) {
-      this.logger.error(`Error on sending ${outputAssetName} for payout. Order ID(s): ${orders.map((o) => o.id)}:`, e);
+      this.logger.error(
+        `Error on sending ${orders[0].asset.name} for payout. Order ID(s): ${orders.map((o) => o.id)}:`,
+        e,
+      );
 
       if (e.message.includes('timeout')) throw e;
 

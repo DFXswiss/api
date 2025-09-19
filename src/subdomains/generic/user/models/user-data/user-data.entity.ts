@@ -222,6 +222,9 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   phoneCallCheckDate?: Date;
 
+  @Column({ type: 'datetime2', nullable: true })
+  phoneCallIpCheckDate?: Date;
+
   // AML
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate?: Date;
@@ -249,6 +252,9 @@ export class UserData extends IEntity {
 
   @Column({ nullable: true })
   hasBankTx?: boolean;
+
+  @Column({ nullable: true })
+  hasIpRisk?: boolean;
 
   // Mail
   @Column({ length: 256, nullable: true })

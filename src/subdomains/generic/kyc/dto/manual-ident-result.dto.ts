@@ -1,11 +1,5 @@
 import { Country } from 'src/shared/models/country/country.entity';
-
-export enum IdentDocumentType {
-  IDCARD = 'IDCARD',
-  PASSPORT = 'PASSPORT',
-  DRIVERS_LICENSE = 'DRIVERS_LICENSE',
-  RESIDENCE_PERMIT = 'RESIDENCE_PERMIT',
-}
+import { IdentDocumentType } from './ident-result-data.dto';
 
 export enum GenderType {
   MALE = 'Male',

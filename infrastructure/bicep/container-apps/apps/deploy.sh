@@ -16,7 +16,8 @@ environmentOptions=("loc" "dev" "prd")
 # "zanod": Zano Node
 # "zanolw": Zano Liquidity Wallet
 # "jsw": JuiceSwap API
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsw")
+# "n8n": N8N workflow automation
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsw" "n8n")
 
 # --- FUNCTIONS --- #
 selectOption() {

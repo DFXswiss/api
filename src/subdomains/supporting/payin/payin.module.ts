@@ -79,7 +79,8 @@ import { SolanaCoinStrategy as SolanaCoinStrategyS } from './strategies/send/imp
 import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/impl/solana-token.strategy';
 import { TronCoinStrategy as TronCoinStrategyS } from './strategies/send/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/tron-token.strategy';
-import { ZanoStrategy as ZanoStrategyS } from './strategies/send/impl/zano.strategy';
+import { ZanoCoinStrategy as ZanoCoinStrategyS } from './strategies/send/impl/zano-coin.strategy';
+import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/zano-token.strategy';
 
 @Module({
   imports: [
@@ -127,7 +128,8 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/send/impl/zano.strat
     MoneroStrategyR,
     MoneroStrategyS,
     ZanoStrategyR,
-    ZanoStrategyS,
+    ZanoCoinStrategyS,
+    ZanoTokenStrategyS,
     EthereumStrategyR,
     EthereumCoinStrategyS,
     EthereumTokenStrategyS,

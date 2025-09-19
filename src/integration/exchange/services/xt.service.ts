@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Transaction, xt } from 'ccxt';
+import { Transaction, WithdrawalResponse, xt } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -11,7 +11,7 @@ export class XtService extends ExchangeService {
 
   protected networks: { [b in Blockchain]: string } = {
     Arbitrum: undefined,
-    BinanceSmartChain: undefined,
+    BinanceSmartChain: 'BNB Smart Chain',
     Bitcoin: undefined,
     Lightning: undefined,
     Spark: undefined,
@@ -51,5 +51,15 @@ export class XtService extends ExchangeService {
 
   async getDeposits(token: string, since?: Date, chain?: string): Promise<Transaction[]> {
     return this.callApi((e) => e.fetchDeposits(token, this.toCcxtDate(since), 200, { limit: 200, chain }));
+  }
+
+  async withdrawFunds(
+    token: string,
+    amount: number,
+    address: string,
+    _key: string,
+    chain?: string,
+  ): Promise<WithdrawalResponse> {
+    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { chain }));
   }
 }

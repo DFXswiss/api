@@ -8,16 +8,16 @@ import { Util } from 'src/shared/utils/util';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
-import { BlockchainClient } from '../shared/util/blockchain-client';
+import { BlockchainClient, BlockchainToken } from '../shared/util/blockchain-client';
 import { TronTransactionMapper } from './dto/tron-transaction.mapper';
-import { TronChainParameterDto, TronToken, TronTransactionDto, TronTransactionResponse } from './dto/tron.dto';
+import { TronChainParameterDto, TronTransactionDto, TronTransactionResponse } from './dto/tron.dto';
 import { TronWallet } from './tron-wallet';
 import { TronUtil } from './tron.util';
 
 export class TronClient extends BlockchainClient {
   private readonly wallet: TronWallet;
 
-  private readonly tokens = new AsyncCache<TronToken>();
+  private readonly tokens = new AsyncCache<BlockchainToken>();
 
   private tatumSdk: Tron;
 
@@ -100,11 +100,11 @@ export class TronClient extends BlockchainClient {
     return false;
   }
 
-  async getToken(asset: Asset): Promise<TronToken> {
+  async getToken(asset: Asset): Promise<BlockchainToken> {
     return this.getTokenByAddress(asset.chainId);
   }
 
-  private async getTokenByAddress(address: string): Promise<TronToken> {
+  private async getTokenByAddress(address: string): Promise<BlockchainToken> {
     return this.tokens.get(address, async () => {
       const decimals = await this.http
         .post<any>(
@@ -125,7 +125,7 @@ export class TronClient extends BlockchainClient {
         )
         .then((r) => r.result);
 
-      return new TronToken(address, Number(decimals));
+      return new BlockchainToken(address, Number(decimals));
     });
   }
 

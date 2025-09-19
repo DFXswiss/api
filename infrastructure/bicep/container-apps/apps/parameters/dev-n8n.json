@@ -1,0 +1,107 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 100
+    },
+    "containerImage": {
+      "value": "docker.n8n.io/n8nio/n8n"
+    },
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/home/node/.n8n"
+        }
+      ]
+    },
+    "containerCPU": {
+      "value": "0.25"
+    },
+    "containerMemory": {
+      "value": "0.5Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 5678
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "DB_TYPE",
+          "value": "postgresdb"
+        },
+        {
+          "name": "DB_POSTGRESDB_HOST",
+          "value": "psql-dfx-api-dev.postgres.database.azure.com"
+        },
+        {
+          "name": "DB_POSTGRESDB_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "DB_POSTGRESDB_DATABASE",
+          "value": "n8n"
+        },
+        {
+          "name": "DB_POSTGRESDB_USER",
+          "value": "[DB_USER]"
+        },
+        {
+          "name": "DB_POSTGRESDB_PASSWORD",
+          "value": "[DB_PASSWORD]"
+        },
+        {
+          "name": "DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED",
+          "value": "false"
+        },
+        {
+          "name": "N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS",
+          "value": "false"
+        },
+        {
+          "name": "N8N_RUNNERS_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "N8N_BLOCK_ENV_ACCESS_IN_NODE",
+          "value": "false"
+        },
+        {
+          "name": "N8N_EDITOR_BASE_URL",
+          "value": "https://dev.api.bas-member.ch"
+        },
+        {
+          "name": "N8N_HOST",
+          "value": "dev.api.bas-member.ch"
+        },
+        {
+          "name": "N8N_PROTOCOL",
+          "value": "https"
+        },
+        {
+          "name": "N8N_PROXY_HOPS",
+          "value": "1"
+        }
+      ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": []
+    }
+  }
+}
