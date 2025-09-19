@@ -817,6 +817,12 @@ export class Configuration {
       coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
       fee: 0.01,
     },
+    spark: {
+      // SPARK configuration - SDK-based integration
+      // Wallet address is auto-generated from seed by SDK
+      // Explorer URL is managed centrally in blockchain.util.ts
+      network: process.env.SPARK_NETWORK ?? 'mainnet',
+    },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {

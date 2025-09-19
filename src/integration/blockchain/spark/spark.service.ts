@@ -2,30 +2,68 @@ import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
 import { bech32m } from 'bech32';
-import { BlockchainClient } from '../shared/util/blockchain-client';
+import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainService } from '../shared/util/blockchain.service';
-
-enum SparkNetwork {
-  MAINNET = 'mainnet',
-  TESTNET = 'testnet',
-  REG_TEST = 'regtest',
-  SIGNET = 'signet',
-  LOCAL = 'local',
-}
+import { SparkClient, SparkTransaction } from './spark-client';
 
 @Injectable()
 export class SparkService extends BlockchainService {
-  constructor() {
+  private readonly client: SparkClient;
+
+  constructor(private readonly http: HttpService) {
     super();
+    this.client = new SparkClient(this.http);
   }
 
-  getDefaultClient(): BlockchainClient {
-    return null;
+  getDefaultClient(): SparkClient {
+    return this.client;
   }
 
   async isHealthy(): Promise<boolean> {
-    return true;
+    try {
+      return await this.client.isHealthy();
+    } catch {
+      return false;
+    }
   }
+
+  // --- TRANSACTION METHODS --- //
+
+  async getBalance(address?: string): Promise<number> {
+    return this.client.getBalance(address);
+  }
+
+  async sendTransaction(
+    to: string,
+    amount: number,
+    feeRate?: number,
+  ): Promise<{ txid: string; fee: number }> {
+    const effectiveFeeRate = feeRate ?? (await this.client.getNetworkFeeRate());
+    return this.client.sendTransaction(to, amount, effectiveFeeRate);
+  }
+
+  async sendMany(
+    outputs: { addressTo: string; amount: number }[],
+    feeRate?: number,
+  ): Promise<string> {
+    const effectiveFeeRate = feeRate ?? (await this.client.getNetworkFeeRate());
+    return this.client.sendMany(outputs, effectiveFeeRate);
+  }
+
+  async getTransaction(txId: string): Promise<SparkTransaction> {
+    return this.client.getTransaction(txId);
+  }
+
+  async estimateFee(blocks = 6): Promise<number> {
+    const estimate = await this.client.estimateFee(blocks);
+    return estimate.feerate;
+  }
+
+  async validateAddress(address: string): Promise<boolean> {
+    const result = await this.client.validateAddress(address);
+    return result.isvalid;
+  }
+
 
   // --- SIGNATURE VERIFICATION --- //
   async verifySignature(message: string, address: string, signatureHex: string): Promise<boolean> {
@@ -81,23 +119,16 @@ export class SparkService extends BlockchainService {
   }
 
   // --- PAYMENT REQUEST --- //
-  async getPaymentRequest(_address: string, _amount: number): Promise<string | undefined> {
-    // TODO: requires integration with Spark network
-    return undefined;
+  async getPaymentRequest(address: string, amount: number): Promise<string | undefined> {
+    // Generate Spark payment URI following BIP-21 style format
+    // Format: spark:address?amount=value
+    return `spark:${address}?amount=${amount.toFixed(8)}`;
   }
 
   // --- HELPER METHODS --- //
-  private readonly NETWORK_PREFIXES = new Map<SparkNetwork, string>([
-    [SparkNetwork.MAINNET, 'sp'],
-    [SparkNetwork.TESTNET, 'spt'],
-    [SparkNetwork.REG_TEST, 'sprt'],
-    [SparkNetwork.SIGNET, 'sps'],
-    [SparkNetwork.LOCAL, 'spl'],
-  ]);
-
   private getAddressPrefix(address: string): string {
     const separatorIndex = address.lastIndexOf('1');
-    if (separatorIndex === -1) return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET);
+    if (separatorIndex === -1) return 'sp'; // Default mainnet prefix
 
     return address.substring(0, separatorIndex);
   }
