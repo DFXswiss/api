@@ -12,7 +12,7 @@ export class RecallService {
       ...dto,
       bankTx: { id: dto.bankTxId },
       checkoutTx: { id: dto.checkoutTxId },
-      user: dto.userId ? { id: dto.userId } : null,
+      user: { id: dto.userId },
     });
 
     return this.repo.save(entity);

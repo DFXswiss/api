@@ -17,7 +17,7 @@ export class Recall extends IEntity {
   sequence: number;
 
   @ManyToOne(() => User, { nullable: true })
-  user: User;
+  user?: User;
 
   @Column({ length: 'MAX' })
   comment: string;
