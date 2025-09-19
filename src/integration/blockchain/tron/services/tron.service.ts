@@ -6,7 +6,7 @@ import { TronWeb } from 'tronweb';
 import { SignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
 import { WalletAccount } from '../../shared/evm/domain/wallet-account';
 import { BlockchainService } from '../../shared/util/blockchain.service';
-import { TronToken, TronTransactionDto } from '../dto/tron.dto';
+import { TronTransactionDto } from '../dto/tron.dto';
 import { TronClient } from '../tron-client';
 
 @Injectable()
@@ -73,10 +73,6 @@ export class TronService extends BlockchainService {
 
   async sendNativeCoinFromDex(toAddress: string, amount: number): Promise<string> {
     return this.client.sendNativeCoinFromDex(toAddress, amount);
-  }
-
-  async getToken(asset: Asset): Promise<TronToken> {
-    return this.client.getToken(asset);
   }
 
   async sendTokenFromAccount(account: WalletAccount, toAddress: string, token: Asset, amount: number) {
