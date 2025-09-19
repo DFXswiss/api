@@ -31,7 +31,7 @@ export class SettingService {
   async addIpToBlacklist(ip: string): Promise<void> {
     const ipBlacklist = await this.getIpBlacklist();
 
-    if (!ipBlacklist.some((blockedIp) => blockedIp === ip)) {
+    if (!ipBlacklist.includes(ip)) {
       ipBlacklist.push(ip);
 
       await this.setObj<string[]>('ipBlacklist', ipBlacklist);
@@ -42,7 +42,7 @@ export class SettingService {
 
   async deleteIpFromBlacklist(ip: string): Promise<void> {
     const ipBlacklist = await this.getIpBlacklist();
-    if (!ipBlacklist.some((blockedIp) => blockedIp === ip)) throw new BadRequestException('Blocked IP not found');
+    if (!ipBlacklist.includes(ip)) throw new BadRequestException('Blocked IP not found');
 
     await this.setObj<string[]>(
       'ipBlacklist',

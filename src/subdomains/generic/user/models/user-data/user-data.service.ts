@@ -644,7 +644,7 @@ export class UserDataService {
 
   async setCheckIpRisk(ip: string): Promise<void> {
     const userDataIdsWithIpRisk = await this.ipLogService.getUserDataIdsWith(ip);
-    await this.userDataRepo.update(userDataIdsWithIpRisk, { hasIpRisk: true });
+    if (userDataIdsWithIpRisk.length) await this.userDataRepo.update(userDataIdsWithIpRisk, { hasIpRisk: true });
   }
 
   // --- API KEY --- //

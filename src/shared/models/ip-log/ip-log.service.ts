@@ -34,7 +34,7 @@ export class IpLogService {
   async getUserDataIdsWith(ip: string): Promise<number[]> {
     return this.ipLogRepo
       .createQueryBuilder('ipLog')
-      .select('userData.id')
+      .select('userData.id', 'id')
       .distinct()
       .innerJoin(User, 'user', 'ipLog.address=user.address')
       .innerJoin('user.userData', 'userData')
