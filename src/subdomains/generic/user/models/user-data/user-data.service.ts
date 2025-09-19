@@ -16,6 +16,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
@@ -101,6 +102,7 @@ export class UserDataService {
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
+    private readonly ipLogService: IpLogService,
   ) {}
 
   // --- GETTERS --- //
@@ -638,6 +640,11 @@ export class UserDataService {
 
   async triggerVideoIdent(userData: UserData): Promise<void> {
     await this.kycAdminService.triggerVideoIdentInternal(userData);
+  }
+
+  async setCheckIpRisk(ip: string): Promise<void> {
+    const userDataIdsWithIpRisk = await this.ipLogService.getUserDataIdsWith(ip);
+    if (userDataIdsWithIpRisk.length) await this.userDataRepo.update(userDataIdsWithIpRisk, { hasIpRisk: true });
   }
 
   // --- API KEY --- //

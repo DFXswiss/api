@@ -1,33 +1,19 @@
-import { Injectable } from '@nestjs/common';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { LogLevel } from 'src/shared/services/dfx-logger';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { PayInZanoService } from 'src/subdomains/supporting/payin/services/payin-zano.service';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
-import { PayInRepository } from '../../../repositories/payin.repository';
-import { PayInZanoService } from '../../../services/payin-zano.service';
-import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
-import { SendType } from './base/send.strategy';
+import { BitcoinBasedStrategy } from './bitcoin-based.strategy';
+import { SendType } from './send.strategy';
 
-@Injectable()
-export class ZanoStrategy extends BitcoinBasedStrategy {
-  protected readonly logger = new DfxLogger(ZanoStrategy);
-
-  constructor(private readonly payInZanoService: PayInZanoService, readonly payInRepo: PayInRepository) {
+export abstract class ZanoStrategy extends BitcoinBasedStrategy {
+  constructor(readonly payInZanoService: PayInZanoService, readonly payInRepo: PayInRepository) {
     super(payInZanoService, payInRepo);
   }
 
-  get blockchain(): Blockchain {
-    return Blockchain.ZANO;
-  }
-
-  get assetType(): AssetType {
-    return undefined;
-  }
-
-  get forwardRequired(): boolean {
-    return false;
+  protected getForwardAddress(): BlockchainAddress {
+    throw new Error('Method not implemented.');
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
@@ -64,10 +50,6 @@ export class ZanoStrategy extends BitcoinBasedStrategy {
         }
       }
     }
-  }
-
-  protected getForwardAddress(): BlockchainAddress {
-    throw new Error('Method not implemented.');
   }
 
   async checkTransactionCompletion(txId: string, minConfirmations: number): Promise<boolean> {
