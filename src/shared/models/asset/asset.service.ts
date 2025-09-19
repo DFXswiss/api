@@ -197,7 +197,7 @@ export class AssetService {
 
   async getSparkCoin(): Promise<Asset> {
     return this.getAssetByQuery({
-      name: 'SPARK',
+      name: 'BTC',
       blockchain: Blockchain.SPARK,
       type: AssetType.COIN,
     });

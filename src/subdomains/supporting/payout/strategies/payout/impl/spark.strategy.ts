@@ -79,6 +79,6 @@ export class SparkStrategy extends BitcoinBasedStrategy {
   }
 
   private async sendSPARK(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    await this.send(context, orders, 'SPARK');
+    await this.send(context, orders, 'BTC');
   }
 }
