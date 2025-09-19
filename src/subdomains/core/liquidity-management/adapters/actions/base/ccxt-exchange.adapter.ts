@@ -137,7 +137,6 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
 
     const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`${this.exchangeService.name}/${tradeAsset}`);
-
     const price = await this.getAndCheckTradePrice(tradeAssetEntity, order.pipeline.rule.targetAsset);
 
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
