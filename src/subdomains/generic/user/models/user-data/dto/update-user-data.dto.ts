@@ -282,4 +282,13 @@ export class UpdateUserDataDto {
   @IsDate()
   @Type(() => Date)
   phoneCallCheckDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  phoneCallIpCheckDate?: Date;
+
+  @IsOptional()
+  @IsBoolean()
+  hasIpRisk?: boolean;
 }
