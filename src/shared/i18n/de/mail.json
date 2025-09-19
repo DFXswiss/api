@@ -92,6 +92,7 @@
                 "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt",
                 "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich",
                 "manual_check_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
+                "manual_check_ip_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
@@ -231,6 +232,15 @@
                 "line3": "",
                 "line4": "",
                 "line5": "Um den aktuellen Stand deiner Transaktion einsehen zu können:<br>[url:Klick hier]"
+            },
+            "manual_check_ip_phone": {
+                "title": "Telefongespräch benötigt",
+                "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
+                "line1": "Wir haben deine Einzahlung erhalten.",
+                "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
+                "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
+                "line4": "",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]"

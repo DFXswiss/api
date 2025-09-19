@@ -31,6 +31,19 @@ export class IpLogService {
     return this.ipLogRepo.save(ipLog);
   }
 
+  async getUserDataIdsWith(ip: string): Promise<number[]> {
+    return this.ipLogRepo
+      .createQueryBuilder('ipLog')
+      .select('userData.id', 'id')
+      .distinct()
+      .innerJoin(User, 'user', 'ipLog.address=user.address')
+      .innerJoin('user.userData', 'userData')
+      .where('ipLog.ip = :ip', { ip })
+      .andWhere('(userData.hasIpRisk = 0 OR userData.hasIpRisk IS NULL)')
+      .getRawMany<{ id: number }>()
+      .then((u) => u.map((userData) => userData.id));
+  }
+
   private async checkIpCountry(
     userIp: string,
     address: string,
