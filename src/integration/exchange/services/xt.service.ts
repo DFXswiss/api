@@ -11,7 +11,7 @@ export class XtService extends ExchangeService {
 
   protected networks: { [b in Blockchain]: string } = {
     Arbitrum: undefined,
-    BinanceSmartChain: undefined,
+    BinanceSmartChain: 'BNB Smart Chain',
     Bitcoin: undefined,
     Lightning: undefined,
     Spark: undefined,
