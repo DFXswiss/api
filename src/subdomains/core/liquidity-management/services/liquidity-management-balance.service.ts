@@ -83,9 +83,9 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
       try {
         const existingBalance = await this.balanceRepo.findOneBy({ asset: { id: balance.asset?.id } });
 
-        if (existingBalance.updated > startDate) continue;
-
         if (existingBalance) {
+          if (existingBalance.updated > startDate) continue;
+
           existingBalance.updateBalance(balance.amount ?? 0);
           await this.balanceRepo.save(existingBalance);
 
