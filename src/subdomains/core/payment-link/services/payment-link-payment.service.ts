@@ -148,13 +148,12 @@ export class PaymentLinkPaymentService {
     return this.paymentLinkPaymentRepo
       .createQueryBuilder('plp')
       .innerJoin(
-        (qb) => {
-          return qb
+        (qb) =>
+          qb
             .select('plp2.linkId', 'linkId')
             .addSelect('MAX(plp2.id)', 'maxId')
             .from(PaymentLinkPayment, 'plp2')
-            .groupBy('plp2.linkId');
-        },
+            .groupBy('plp2.linkId'),
         'latest',
         'latest.linkId = plp.linkId AND latest.maxId = plp.id',
       )
