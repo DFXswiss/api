@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ZanoTransferDto } from 'src/integration/blockchain/zano/dto/zano.dto';
+import { ZanoTransferDto, ZanoTransferReceiveDto } from 'src/integration/blockchain/zano/dto/zano.dto';
 import { ZanoHelper } from 'src/integration/blockchain/zano/zano-helper';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -60,38 +61,58 @@ export class ZanoStrategy extends RegisterStrategy {
       .then((input) => input?.blockHeight ?? 0);
   }
 
-  private async getNewEntries(lastCheckedBlockHeight: number): Promise<PayInEntry[]> {
+  async getNewEntries(lastCheckedBlockHeight: number): Promise<PayInEntry[]> {
     await this.payInZanoService.checkHealthOrThrow();
 
     const transferInResults = await this.payInZanoService.getTransactionHistory(lastCheckedBlockHeight);
     const relevantTransferInResults = this.filterByRelevantPayments(transferInResults);
 
-    return this.mapToPayInEntries(relevantTransferInResults);
+    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+
+    return this.mapToPayInEntries(relevantTransferInResults, supportedAssets);
   }
 
   private filterByRelevantPayments(transferResults: ZanoTransferDto[]): ZanoTransferDto[] {
     return transferResults.filter((t) => t.receive && ZanoHelper.mapPaymentIdHexToIndex(t.paymentId) !== undefined);
   }
 
-  private async mapToPayInEntries(transferResults: ZanoTransferDto[]): Promise<PayInEntry[]> {
-    const asset = await this.assetService.getZanoCoin();
-
+  private async mapToPayInEntries(transferResults: ZanoTransferDto[], supportedAssets: Asset[]): Promise<PayInEntry[]> {
     const payInEntries: PayInEntry[] = [];
 
     for (const transferResult of transferResults) {
       const depositAddress = await this.getDepositAddress(transferResult.paymentId);
 
       if (depositAddress) {
-        payInEntries.push({
-          senderAddresses: null,
-          receiverAddress: depositAddress,
-          txId: transferResult.txId,
-          txType: this.getTxType(depositAddress.address),
-          blockHeight: transferResult.block,
-          amount: Util.sum(transferResult.receive.map((r) => r.amount)),
-          asset,
-        });
+        payInEntries.push(...this.doMapToPayInEntries(depositAddress, transferResult, supportedAssets));
       }
+    }
+
+    return payInEntries;
+  }
+
+  private doMapToPayInEntries(
+    depositAddress: BlockchainAddress,
+    transferResult: ZanoTransferDto,
+    supportedAssets: Asset[],
+  ): PayInEntry[] {
+    const payInEntries: PayInEntry[] = [];
+
+    const transferReceived = Util.groupBy<ZanoTransferReceiveDto, string>(transferResult.receive, 'assetId');
+
+    for (const [assetId, transferReceivedByAssetId] of transferReceived) {
+      const isNativeTransaction = Util.equalsIgnoreCase(assetId, Config.blockchain.zano.coinId);
+
+      payInEntries.push({
+        senderAddresses: null,
+        receiverAddress: depositAddress,
+        txId: transferResult.txId,
+        txType: this.getTxType(depositAddress.address),
+        blockHeight: transferResult.block,
+        amount: Util.sum(transferReceivedByAssetId.map((r) => r.amount)),
+        asset: isNativeTransaction
+          ? this.getTransactionCoin(supportedAssets)
+          : this.getTransactionAsset(supportedAssets, assetId),
+      });
     }
 
     return payInEntries;
@@ -109,5 +130,15 @@ export class ZanoStrategy extends RegisterStrategy {
 
   private getTxType(depositAddress: string): PayInType {
     return Util.equalsIgnoreCase(Config.payment.zanoAddress, depositAddress) ? PayInType.PAYMENT : PayInType.DEPOSIT;
+  }
+
+  private getTransactionCoin(supportedAssets: Asset[]): Asset | undefined {
+    return supportedAssets.find((a) => a.type === AssetType.COIN);
+  }
+
+  private getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
+    return chainId
+      ? supportedAssets.find((a) => Util.equalsIgnoreCase(a.chainId, chainId))
+      : this.getTransactionCoin(supportedAssets);
   }
 }
