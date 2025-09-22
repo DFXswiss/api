@@ -17,6 +17,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -80,6 +81,7 @@ export class AuthService {
     private readonly siftService: SiftService,
     private readonly languageService: LanguageService,
     private readonly geoLocationService: GeoLocationService,
+    private readonly settingService: SettingService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE)
@@ -98,7 +100,7 @@ export class AuthService {
   }
 
   // --- AUTH METHODS --- //
-  async authenticate(dto: SignUpDto, userIp: string, userDataId: number): Promise<AuthResponseDto> {
+  async authenticate(dto: SignUpDto, userIp: string, userDataId?: number, userId?: number): Promise<AuthResponseDto> {
     const existingUser = await this.userCache.get(dto.address, () =>
       this.userService.getUserByAddress(dto.address, {
         userData: true,
@@ -112,7 +114,7 @@ export class AuthService {
 
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
-      : this.doSignUp(dto, userIp, false, userDataId).catch((e) => {
+      : this.doSignUp(dto, userIp, false, userDataId, userId).catch((e) => {
           if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
           throw e;
         });
@@ -130,8 +132,10 @@ export class AuthService {
     userIp: string,
     isCustodial: boolean,
     userDataId?: number,
+    userId?: number,
   ): Promise<AuthResponseDto> {
     const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
+    const primaryUser = userId && (await this.userService.getUser(userId));
 
     const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature);
     if (!custodyProvider && !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key))) {
@@ -152,10 +156,14 @@ export class AuthService {
         wallet,
         custodyProvider,
         userData,
+        primaryUser,
       },
       dto.specialCode ?? dto.discountCode,
       dto.moderator,
     );
+
+    await this.checkIpBlacklistFor(user.userData, userIp);
+
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
@@ -198,6 +206,8 @@ export class AuthService {
 
     if (dto.moderator) await this.userService.setModerator(user, dto.moderator);
 
+    await this.checkIpBlacklistFor(user.userData, userIp);
+
     this.siftService.login(user, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
@@ -227,6 +237,8 @@ export class AuthService {
         status: UserDataStatus.KYC_ONLY,
         wallet: await this.walletService.getDefault(),
       }));
+
+    await this.checkIpBlacklistFor(userData, userIp);
 
     // create random key
     const key = randomUUID();
@@ -281,6 +293,8 @@ export class AuthService {
 
       const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
       const token = this.generateAccountToken(account, ip);
+
+      await this.checkIpBlacklistFor(account, ip);
 
       if (account.isDeactivated)
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
@@ -349,6 +363,13 @@ export class AuthService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async checkIpBlacklistFor(userData: UserData, ip: string): Promise<void> {
+    if (userData.hasIpRisk) return;
+
+    const ipBlacklist = await this.settingService.getIpBlacklist();
+    if (ipBlacklist.includes(ip)) await this.userDataService.updateUserDataInternal(userData, { hasIpRisk: true });
+  }
 
   private async getLinkedUser(userDataId: number, address: string): Promise<User> {
     const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true, userData: true } });

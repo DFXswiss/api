@@ -5,15 +5,15 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { NoPurchaseStrategy } from './base/no-purchase.strategy';
 
 @Injectable()
-export class ZanoStrategy extends NoPurchaseStrategy {
-  protected readonly logger = new DfxLogger(ZanoStrategy);
+export class ZanoCoinStrategy extends NoPurchaseStrategy {
+  protected readonly logger = new DfxLogger(ZanoCoinStrategy);
 
   get blockchain(): Blockchain {
     return Blockchain.ZANO;
   }
 
   get assetType(): AssetType {
-    return undefined;
+    return AssetType.COIN;
   }
 
   get assetCategory(): AssetCategory {

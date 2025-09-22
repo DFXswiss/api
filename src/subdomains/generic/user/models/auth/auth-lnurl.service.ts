@@ -93,7 +93,11 @@ export class AuthLnUrlService {
     }
 
     try {
-      const verifyResult = secp256k1.verify(sig, k1, key);
+      const verifyResult = secp256k1.verify(
+        Util.stringToUint8(sig, 'hex'),
+        Util.stringToUint8(k1, 'hex'),
+        Util.stringToUint8(key, 'hex'),
+      );
       if (!verifyResult) return AuthLnurlSignInResponseDto.createError('invalid auth signature');
 
       authCacheEntry.accessToken = await this.signIn(signupDto, servicesIp, userIp);

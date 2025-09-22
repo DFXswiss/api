@@ -148,13 +148,12 @@ export class PaymentLinkPaymentService {
     return this.paymentLinkPaymentRepo
       .createQueryBuilder('plp')
       .innerJoin(
-        (qb) => {
-          return qb
+        (qb) =>
+          qb
             .select('plp2.linkId', 'linkId')
             .addSelect('MAX(plp2.id)', 'maxId')
             .from(PaymentLinkPayment, 'plp2')
-            .groupBy('plp2.linkId');
-        },
+            .groupBy('plp2.linkId'),
         'latest',
         'latest.linkId = plp.linkId AND latest.maxId = plp.id',
       )
@@ -297,9 +296,11 @@ export class PaymentLinkPaymentService {
     for (const quote of payment.quotes) {
       await this.paymentQuoteService.deleteQuote(quote);
     }
+
     for (const activation of payment.activations) {
       await this.paymentActivationService.deleteActivation(activation);
     }
+
     await this.paymentLinkPaymentRepo.delete(payment.id);
   }
 

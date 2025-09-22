@@ -33,6 +33,7 @@ export enum UserAddressType {
   LN_NID = 'LNNID',
   LND_HUB = 'LNDHUB',
   UMA = 'UMA',
+  SPARK = 'Spark',
   MONERO = 'Monero',
   LIQUID = 'Liquid',
   ARWEAVE = 'Arweave',
@@ -127,6 +128,9 @@ export class User extends IEntity {
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
+
+  @ManyToOne(() => User, { nullable: true })
+  primaryUser: User;
 
   // --- REF --- //
   @Column({ length: 256, nullable: true })

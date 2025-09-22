@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
-import { UpdateTransactionDto } from 'src/subdomains/core/history/dto/update-transaction.dto';
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
+import { UpdateTransactionDto } from '../dto/update-transaction.dto';
 import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 

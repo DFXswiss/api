@@ -65,6 +65,10 @@
         {
           "name": "PG_MAX_CLIENTS",
           "value": "10"
+        },
+        {
+          "name": "MAX_BLOCKS_PER_BATCH",
+          "value": "1000"
         }
       ]
     },

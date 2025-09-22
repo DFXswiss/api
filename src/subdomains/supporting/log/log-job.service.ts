@@ -231,7 +231,7 @@ export class LogJobService {
     );
 
     // payment deposit address balance (Monero/Lightning have no separated balance)
-    const paymentDepositBalances = await this.paymentBalanceService.getPaymentBalances(assets);
+    const paymentDepositBalances = await this.paymentBalanceService.getPaymentBalances(assets, true);
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');

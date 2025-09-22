@@ -132,7 +132,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     const liquidityRequest: ReserveLiquidityRequest = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
       correlationId: `${order.id}`,
-      referenceAmount: order.minAmount,
+      referenceAmount: minAmount,
       referenceAsset: asset,
       targetAsset: asset,
     };
