@@ -57,6 +57,12 @@ export class KycLogService {
     await this.kycLogRepo.save(entity);
   }
 
+  async createLogInternal(userData: UserData, type: KycLogType, result: string): Promise<void> {
+    const entity = this.kycLogRepo.create({ type, result, userData });
+
+    await this.kycLogRepo.save(entity);
+  }
+
   async updateLog(id: number, dto: UpdateKycLogDto): Promise<void> {
     const entity = await this.kycLogRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Log not found');
