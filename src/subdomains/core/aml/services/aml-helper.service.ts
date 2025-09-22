@@ -70,7 +70,9 @@ export class AmlHelperService {
     if (entity.userData.kycLevel < KycLevel.LEVEL_50 && last365dVolume > Config.tradingLimits.yearlyWithoutKyc)
       errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
     if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate)
-      errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED);
+      entity.userData.kycLevel >= KycLevel.LEVEL_50
+        ? errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED)
+        : errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
     if (last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc) {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
