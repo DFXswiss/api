@@ -89,7 +89,7 @@ export class PaymentBalanceService implements OnModuleInit {
           } catch (e) {
             if (!catchException) throw e;
 
-            this.logger.error(`Error getting payment balances for blockchain ${chain}`, e);
+            this.logger.error(`Error getting payment balances for blockchain ${chain}:`, e);
           }
         }
       }),
