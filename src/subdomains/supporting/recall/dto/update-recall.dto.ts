@@ -3,7 +3,7 @@ import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 export class UpdateRecallDto {
   @IsOptional()
   @IsInt()
-  sequence: number;
+  sequence?: number;
 
   @IsOptional()
   @IsInt()
@@ -11,9 +11,9 @@ export class UpdateRecallDto {
 
   @IsOptional()
   @IsString()
-  comment: string;
+  comment?: string;
 
   @IsOptional()
   @IsNumber()
-  fee: number;
+  fee?: number;
 }
