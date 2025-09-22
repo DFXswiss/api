@@ -57,6 +57,7 @@ export enum AmlError {
   MERGE_EXPIRED = 'MergeExpired',
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
   IP_PHONE_VERIFICATION_NEEDED = 'IpPhoneVerificationNeeded',
+  IP_BLACKLISTED_WITHOUT_KYC = 'IpBlacklistedWithoutKyc',
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
 }
 
@@ -269,5 +270,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.BANK_RELEASE_PENDING,
+  },
+  [AmlError.IP_BLACKLISTED_WITHOUT_KYC]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.HIGH_RISK_KYC_NEEDED,
   },
 };
