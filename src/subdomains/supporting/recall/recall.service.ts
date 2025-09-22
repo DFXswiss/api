@@ -47,6 +47,6 @@ export class RecallService {
       if (!entity.user) throw new NotFoundException('User not found');
     }
 
-    return this.repo.save({ ...dto, ...Util.removeNullFields(entity) });
+    return this.repo.save({ ...entity, ...Util.removeNullFields(dto) });
   }
 }
