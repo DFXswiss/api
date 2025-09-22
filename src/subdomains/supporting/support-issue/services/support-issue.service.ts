@@ -9,9 +9,11 @@ import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
+import { TransactionSourceType } from '../../payment/entities/transaction.entity';
 import { TransactionRequestService } from '../../payment/services/transaction-request.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
@@ -44,6 +46,7 @@ export class SupportIssueService {
     private readonly limitRequestService: LimitRequestService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly supportLogService: SupportLogService,
+    private readonly bankDataService: BankDataService,
   ) {}
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
@@ -122,6 +125,10 @@ export class SupportIssueService {
         }
 
         newIssue.additionalInformation = dto.transaction;
+
+        // Create user bankData
+        if (dto.transaction.senderIban && newIssue.transaction.sourceType === TransactionSourceType.BANK_TX)
+          await this.bankDataService.createIbanForUserInternal(userData, { iban: dto.transaction.senderIban }, false);
       }
 
       // create limit request

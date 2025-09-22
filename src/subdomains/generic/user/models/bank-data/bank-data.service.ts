@@ -345,13 +345,26 @@ export class BankDataService {
     sendMergeRequest = true,
     type?: BankDataType,
   ): Promise<BankData> {
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    if (!userData) throw new NotFoundException('UserData not found');
+    if (userData.status === UserDataStatus.KYC_ONLY)
+      throw new BadRequestException('You cannot add an IBAN to a KYC only account');
+
+    return this.createIbanForUserInternal(userData, dto, sendMergeRequest, type);
+  }
+
+  async createIbanForUserInternal(
+    userData: UserData,
+    dto: CreateBankAccountDto,
+    sendMergeRequest = true,
+    type?: BankDataType,
+  ): Promise<BankData> {
     const multiIbans = await this.specialAccountService.getMultiAccountIbans();
     if (multiIbans.includes(dto.iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
     if (!(await this.isValidIbanCountry(dto.iban)))
       throw new BadRequestException('IBAN country is currently not supported');
 
-    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
     if (userData.status === UserDataStatus.KYC_ONLY)
       throw new BadRequestException('You cannot add an IBAN to a KYC only account');
 
@@ -363,7 +376,7 @@ export class BankDataService {
         ],
         relations: { userData: true },
       })
-      .then((b) => b.find((b) => b.userData.id === userDataId) ?? b[0]);
+      .then((b) => b.find((b) => b.userData.id === userData.id) ?? b[0]);
 
     if (existing) {
       if (userData.id === existing.userData.id) {
@@ -383,7 +396,7 @@ export class BankDataService {
     await this.bankAccountService.getOrCreateIbanBankAccountInternal(dto.iban);
 
     const bankData = this.bankDataRepo.create({
-      userData: { id: userDataId },
+      userData: { id: userData.id },
       iban: dto.iban,
       approved: null,
       type: BankDataType.USER,
