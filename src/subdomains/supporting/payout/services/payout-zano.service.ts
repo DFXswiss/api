@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ZanoService } from 'src/integration/blockchain/zano/services/zano.service';
-import { PayoutOrderContext } from '../entities/payout-order.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 @Injectable()
@@ -13,18 +13,20 @@ export class PayoutZanoService extends PayoutBitcoinBasedService {
     return this.zanoService.isHealthy();
   }
 
-  async getUnlockedBalance(): Promise<number> {
-    return this.zanoService.getUnlockedBalance();
+  async getUnlockedCoinBalance(): Promise<number> {
+    return this.zanoService.getUnlockedCoinBalance();
   }
 
-  async sendToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    const transferResult = await this.zanoService.sendTransfers(payout);
+  async getUnlockedTokenBalance(token: Asset): Promise<number> {
+    return this.zanoService.getUnlockedTokenBalance(token);
+  }
 
-    if (!transferResult) {
-      throw new Error(`Error while sending payment by Zano ${payout.map((p) => p.addressTo)}`);
-    }
+  async sendCoins(payout: PayoutGroup): Promise<string> {
+    return this.zanoService.sendCoins(payout).then((r) => r.txId);
+  }
 
-    return transferResult.txId;
+  async sendTokens(payout: PayoutGroup, token: Asset): Promise<string> {
+    return this.zanoService.sendTokens(payout, token).then((r) => r.txId);
   }
 
   async getPayoutCompletionData(_context: any, payoutTxId: string): Promise<[boolean, number]> {

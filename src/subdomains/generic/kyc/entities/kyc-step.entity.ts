@@ -3,11 +3,11 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
-import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
+import { IdentDocumentType, IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { KycSessionInfoDto } from '../dto/output/kyc-info.dto';
-import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
+import { IdDocTypeMap, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepType, UrlType } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
@@ -357,11 +357,7 @@ export class KycStep extends IEntity {
           : undefined,
         nationality: identResultData.data.info?.idDocs?.[idDocIndex]?.country,
         documentNumber: identResultData.data.info?.idDocs?.[idDocIndex]?.number,
-        documentType: identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType
-          ? identResultData.data.info.idDocs[idDocIndex].idDocType === IdDocType.ID_CARD
-            ? 'IDCARD'
-            : 'PASSPORT'
-          : undefined,
+        documentType: IdDocTypeMap[identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType],
         kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
       };
@@ -390,7 +386,7 @@ export class KycStep extends IEntity {
         birthname: identResultData.userdata?.birthname?.value,
         birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
         nationality: identResultData.userdata?.nationality?.value,
-        documentType: identResultData.identificationdocument?.type?.value,
+        documentType: identResultData.identificationdocument?.type?.value as IdentDocumentType,
         documentNumber: identResultData.identificationdocument?.number?.value,
         kycType: identResultData.identificationprocess?.companyid,
         success: ['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(identResultData.identificationprocess?.result),

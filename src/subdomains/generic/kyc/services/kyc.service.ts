@@ -36,7 +36,7 @@ import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/u
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
+import { IdentDocumentType, IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import {
   IdNowReason,
   IdNowResult,
@@ -281,8 +281,7 @@ export class KycService {
         kycStep.name !== KycStepName.DFX_APPROVAL)
     ) {
       const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isOnHold);
-      if (approvalStep && kycStep.userData.kycLevel >= KycLevel.LEVEL_40)
-        await this.kycStepRepo.update(...approvalStep.manualReview());
+      if (approvalStep) await this.kycStepRepo.update(...approvalStep.manualReview());
     }
   }
 
@@ -1208,7 +1207,8 @@ export class KycService {
       if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
     }
 
-    if (!['IDCARD', 'PASSPORT'].includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
+    if (![IdentDocumentType.IDCARD, IdentDocumentType.PASSPORT].includes(data.documentType))
+      errors.push(KycError.INVALID_DOCUMENT_TYPE);
 
     if (!data.documentNumber) errors.push(KycError.IDENTIFICATION_NUMBER_MISSING);
 

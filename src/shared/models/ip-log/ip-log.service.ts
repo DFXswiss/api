@@ -3,6 +3,7 @@ import { Config, Environment } from 'src/config/config';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { CountryService } from '../country/country.service';
 import { IpLog } from './ip-log.entity';
@@ -29,6 +30,32 @@ export class IpLogService {
     });
 
     return this.ipLogRepo.save(ipLog);
+  }
+
+  async getUserDataIdsWith(ip: string): Promise<number[]> {
+    const addressLogUserDataIds = await this.ipLogRepo
+      .createQueryBuilder('ipLog')
+      .select('userData.id', 'id')
+      .distinct()
+      .innerJoin(User, 'user', 'ipLog.address=user.address')
+      .innerJoin('user.userData', 'userData')
+      .where('ipLog.ip = :ip', { ip })
+      .andWhere('(userData.hasIpRisk = 0 OR userData.hasIpRisk IS NULL)')
+      .getRawMany<{ id: number }>()
+      .then((u) => u.map((userData) => userData.id));
+
+    const mailLogUserDataIds = await this.ipLogRepo
+      .createQueryBuilder('ipLog')
+      .select('userData.id', 'id')
+      .distinct()
+      .innerJoin(UserData, 'userData', 'ipLog.address=userData.mail')
+      .where('ipLog.ip = :ip', { ip })
+      .andWhere(`ipLog.address LIKE '%@%'`)
+      .andWhere('(userData.hasIpRisk = 0 OR userData.hasIpRisk IS NULL)')
+      .getRawMany<{ id: number }>()
+      .then((u) => u.map((userData) => userData.id));
+
+    return [...addressLogUserDataIds, ...mailLogUserDataIds];
   }
 
   private async checkIpCountry(

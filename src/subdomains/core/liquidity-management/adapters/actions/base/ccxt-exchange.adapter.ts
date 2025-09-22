@@ -117,21 +117,21 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { tradeAsset, minTradeAmount, fullTrade } = this.parseBuyParams(order.action.paramMap);
+    const { asset, tradeAsset, minTradeAmount, fullTrade } = this.parseBuyParams(order.action.paramMap);
 
-    const asset = order.pipeline.rule.targetAsset.dexName;
+    const token = asset ?? order.pipeline.rule.targetAsset.dexName;
 
-    const balance = fullTrade ? 0 : await this.exchangeService.getAvailableBalance(asset);
+    const balance = fullTrade ? 0 : await this.exchangeService.getAvailableBalance(token);
     const minAmount = order.minAmount * 1.01 - balance; // small cap for price changes
     const maxAmount = order.maxAmount * 1.01 - balance;
     if (maxAmount <= 0) {
       // trade not necessary
       throw new OrderNotNecessaryException(
-        `${asset} balance higher than required amount (${balance} > ${order.maxAmount})`,
+        `${token} balance higher than required amount (${balance} > ${order.maxAmount})`,
       );
     }
 
-    const price = await this.exchangeService.getCurrentPrice(tradeAsset, asset);
+    const price = await this.exchangeService.getCurrentPrice(tradeAsset, token);
 
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
     const maxSellAmount = Util.floor(maxAmount * price, 6);
@@ -146,17 +146,17 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     order.inputAmount = amount;
     order.inputAsset = tradeAsset;
-    order.outputAsset = asset;
+    order.outputAsset = token;
 
     try {
-      return await this.exchangeService.sell(tradeAsset, asset, amount);
+      return await this.exchangeService.sell(tradeAsset, token, amount);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
 
       if (e.message?.includes('Illegal characters found')) {
-        throw new Error(`Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${asset}: ${e.message}`);
+        throw new Error(`Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${token}: ${e.message}`);
       }
 
       throw e;
@@ -259,13 +259,13 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async checkBuyCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const { tradeAsset } = this.parseBuyParams(order.action.paramMap);
+    const { asset, tradeAsset } = this.parseBuyParams(order.action.paramMap);
 
-    const asset = order.pipeline.rule.targetAsset.dexName;
+    const token = asset ?? order.pipeline.rule.targetAsset.dexName;
 
-    const isComplete = await this.checkTradeCompletion(order, tradeAsset, asset);
+    const isComplete = await this.checkTradeCompletion(order, tradeAsset, token);
     if (isComplete) {
-      const trade = await this.exchangeService.getTrade(order.correlationId, tradeAsset, asset);
+      const trade = await this.exchangeService.getTrade(order.correlationId, tradeAsset, token);
 
       order.inputAmount = trade.cost;
       order.outputAmount = trade.amount;
@@ -378,17 +378,19 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private parseBuyParams(params: Record<string, unknown>): {
+    asset?: string;
     tradeAsset: string;
     minTradeAmount: number;
     fullTrade: boolean;
   } {
+    const asset = params.asset as string | undefined;
     const tradeAsset = params.tradeAsset as string | undefined;
     const minTradeAmount = params.minTradeAmount as number | undefined;
     const fullTrade = Boolean(params.fullTrade); // use full trade for directly triggered actions
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.buy(...) command are invalid.`);
 
-    return { tradeAsset, minTradeAmount, fullTrade };
+    return { asset, tradeAsset, minTradeAmount, fullTrade };
   }
 
   private validateSellParams(params: Record<string, unknown>): boolean {
