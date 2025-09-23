@@ -263,18 +263,25 @@
             "message": "L'étape '{stepName}' n'a pas pu être achevée pour la raison suivante:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Votre compte est fusionné",
+                "user_data_merge_requested": "Confirmation par e-mail en attente",
+                "user_data_existing": "Erreur inconnue",
                 "user_data_blocked": "Erreur inconnue",
                 "first_name_not_matching": "Votre prénom ne correspond pas",
                 "last_name_not_matching": "Votre nom de famille ne correspond pas",
                 "nationality_not_matching": "Votre nationalité ne correspond pas",
                 "nationality_missing": "La nationalité n'est pas mentionnée",
+                "nationality_not_allowed": "Votre nationalité n'est pas autorisée",
                 "invalid_document_type": "Votre type de document n'est pas valide",
+                "document_type_not_allowed": "Votre pièce d'identité n'est pas autorisée dans votre pays",
                 "identification_number_missing": "Votre numéro d'identification est manquant",
                 "invalid_result": "Erreur inconnue",
                 "verified_name_missing": "Le nom du compte est manquant",
                 "first_name_not_matching_verified_name": "Votre prénom ne correspond pas au nom de votre compte",
                 "last_name_not_matching_verified_name": "Votre nom de famille ne correspond pas au nom de votre compte",
-                "organization_name_not_matching_verified_name": "Le nom de votre organisation ne correspond pas au nom de votre compte"
+                "organization_name_not_matching_verified_name": "Le nom de votre organisation ne correspond pas au nom de votre compte",
+                "country_not_allowed": "Votre pays n'est pas autorisé",
+                "blocked": "Erreur inconnue",
+                "personal_data_not_matching": "Vos données personnelles ne sont pas les données de votre compte"
             }
         },
         "reminder": {

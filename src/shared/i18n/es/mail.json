@@ -263,18 +263,25 @@
             "message": "El paso '{stepName}' no ha podido completarse por el siguiente motivo:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Su cuenta está fusionada",
+                "user_data_merge_requested": "Confirmación por correo electrónico pendiente",
+                "user_data_existing": "Error desconocido",
                 "user_data_blocked": "Error desconocido",
                 "first_name_not_matching": "Su nombre no coincide",
                 "last_name_not_matching": "Su apellido no coincide",
                 "nationality_not_matching": "Su nacionalidad no coincide",
                 "nationality_missing": "Falta la nacionalidad",
+                "nationality_not_allowed": "Tu nacionalidad no está permitida",
                 "invalid_document_type": "El tipo de documento no es válido",
+                "document_type_not_allowed": "Tu documento de identificación no es válido para tu país",
                 "identification_number_missing": "Falta su número de identificación",
                 "invalid_result": "Error desconocido",
                 "verified_name_missing": "Falta el nombre de la cuenta",
                 "first_name_not_matching_verified_name": "Su nombre no coincide con el nombre de su cuenta",
                 "last_name_not_matching_verified_name": "Su apellido no coincide con el nombre de su cuenta",
-                "organization_name_not_matching_verified_name": "El nombre de su organización no coincide con el nombre de su cuenta"
+                "organization_name_not_matching_verified_name": "El nombre de su organización no coincide con el nombre de su cuenta",
+                "country_not_allowed": "Tu país no está autorizado",
+                "blocked": "Error desconocido",
+                "personal_data_not_matching": "Tus datos personales no son los datos de tu cuenta"
             }
         },
         "reminder": {
