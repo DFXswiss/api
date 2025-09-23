@@ -176,7 +176,7 @@ export class CryptoInput extends IEntity {
 
     const maxApplicableFee = maxFee ? maxFee : feeCap;
 
-    if (estimatedFee > maxApplicableFee) {
+    if (estimatedFee > maxApplicableFee * 1.01) {
       throw new FeeLimitExceededException(
         `Forward fee is too high (estimated ${estimatedFee}, max. ${maxApplicableFee})`,
       );
