@@ -54,21 +54,16 @@ export class SparkClient extends BlockchainClient {
   // --- TRANSACTION METHODS --- //
 
   async sendTransaction(to: string, amount: number): Promise<{ txid: string; fee: number }> {
-    try {
-      const wallet = await this.wallet;
+    const wallet = await this.wallet;
 
-      const amountSats = Math.round(amount * 1e8);
+    const amountSats = Math.round(amount * 1e8);
 
-      const result = await wallet.transfer({
-        amountSats,
-        receiverSparkAddress: to,
-      });
+    const result = await wallet.transfer({
+      amountSats,
+      receiverSparkAddress: to,
+    });
 
-      return { txid: result.id, fee: 0 };
-    } catch (error) {
-      this.logger.error('Failed to send Spark transaction:', error);
-      throw error;
-    }
+    return { txid: result.id, fee: 0 };
   }
 
   async getTransaction(txId: string): Promise<SparkTransaction> {
