@@ -37,5 +37,5 @@ export class AsyncField<T> implements Promise<T> {
     return this.promise.finally(onfinally);
   }
 
-  [Symbol.toStringTag]: string;
+  [Symbol.toStringTag] = 'AsyncField';
 }
