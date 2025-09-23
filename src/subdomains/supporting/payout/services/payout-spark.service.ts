@@ -1,32 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { SparkService } from 'src/integration/blockchain/spark/spark.service';
-import { PayoutOrderContext } from '../entities/payout-order.entity';
-import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
-export class PayoutSparkService extends PayoutBitcoinBasedService {
-  constructor(private readonly sparkService: SparkService) {
-    super();
+export class PayoutSparkService {
+  constructor(private readonly sparkService: SparkService) {}
+
+  async sendTransaction(address: string, amount: number): Promise<string> {
+    return this.sparkService.sendTransaction(address, amount).then((r) => r.txid);
   }
 
   async isHealthy(): Promise<boolean> {
-    return this.sparkService.isHealthy().catch(() => false);
+    return this.sparkService.isHealthy();
   }
 
-  async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    return this.sparkService.getDefaultClient().sendMany(payout, 0);
+  async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
+    const isComplete = await this.sparkService.getDefaultClient().isTxComplete(payoutTxId);
+    const payoutFee = isComplete ? await this.sparkService.getTxActualFee(payoutTxId) : 0;
+
+    return [isComplete, payoutFee];
   }
 
-  async getPayoutCompletionData(_context: PayoutOrderContext, payoutTxId: string): Promise<[boolean, number]> {
-    const tx = await this.sparkService.getDefaultClient().getTransaction(payoutTxId);
-    return [!!(tx && tx.confirmations === 1), 0];
-  }
+  getCurrentFeeForTransaction(token: Asset): Promise<number> {
+    if (token.type !== AssetType.COIN) throw new Error('Method not implemented');
 
-  async getCurrentFeeRate(): Promise<number> {
-    return 0;
-  }
-
-  getBatchSize(): number {
-    return 100;
+    return this.sparkService.getNativeFee();
   }
 }

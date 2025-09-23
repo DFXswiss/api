@@ -818,10 +818,7 @@ export class Configuration {
       fee: 0.01,
     },
     spark: {
-      // SPARK configuration - SDK-based integration
-      // Wallet address is auto-generated from seed by SDK
-      // Explorer URL is managed centrally in blockchain.util.ts
-      network: process.env.SPARK_NETWORK ?? 'mainnet',
+      sparkWalletSeed: process.env.SPARK_WALLET_SEED,
     },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,

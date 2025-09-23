@@ -1,27 +1,26 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
+import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutGroup } from '../../../services/base/payout-bitcoin-based.service';
 import { PayoutSparkService } from '../../../services/payout-spark.service';
-import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
+import { PayoutStrategy } from './base/payout.strategy';
 
 @Injectable()
-export class SparkStrategy extends BitcoinBasedStrategy {
+export class SparkStrategy extends PayoutStrategy {
   protected readonly logger = new DfxLogger(SparkStrategy);
 
   constructor(
-    notificationService: NotificationService,
     protected readonly sparkService: PayoutSparkService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly assetService: AssetService,
   ) {
-    super(notificationService, payoutOrderRepo, sparkService);
+    super();
   }
 
   get blockchain(): Blockchain {
@@ -29,56 +28,66 @@ export class SparkStrategy extends BitcoinBasedStrategy {
   }
 
   get assetType(): AssetType {
-    return undefined; // Spark is a native coin, not a token
+    return AssetType.COIN;
   }
 
   async estimateFee(): Promise<FeeResult> {
-    // SPARK-to-SPARK transfers are fee-free on Layer 2
     return {
       asset: await this.feeAsset(),
-      amount: 0
+      amount: 0,
     };
   }
 
-  protected async doPayoutForContext(
-    context: PayoutOrderContext,
-    orders: PayoutOrder[]
-  ): Promise<void> {
-    // Create payout groups with max 100 outputs per transaction
-    const batchSize = this.sparkService.getBatchSize();
-    const payoutGroups = this.createPayoutGroups(orders, batchSize);
+  async estimateBlockchainFee(_a: Asset): Promise<FeeResult> {
+    return this.estimateFee();
+  }
 
-    for (const group of payoutGroups) {
+  async doPayout(orders: PayoutOrder[]): Promise<void> {
+    for (const order of orders) {
       try {
-        if (group.length === 0) {
-          continue;
-        }
+        const txId = await this.dispatchPayout(order);
+        order.pendingPayout(txId);
 
-        this.logger.verbose(
-          `Paying out ${group.length} SPARK order(s). Order ID(s): ${group.map((o) => o.id)}`
-        );
-
-        await this.sendSPARK(context, group);
+        await this.payoutOrderRepo.save(order);
       } catch (e) {
-        this.logger.error(
-          `Error in paying out a group of ${group.length} SPARK order(s). Order ID(s): ${group.map((o) => o.id)}`,
-          e,
-        );
-        // Continue with next group in case payout failed
-        continue;
+        this.logger.error(`Error while executing Spark payout order ${order.id}:`, e);
       }
     }
   }
 
-  protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    return this.sparkService.sendUtxoToMany(context, payout);
+  async checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void> {
+    for (const order of orders) {
+      try {
+        const [isComplete, payoutFee] = await this.getPayoutCompletionData(order.payoutTxId);
+
+        if (isComplete) {
+          order.complete();
+
+          const feeAsset = await this.feeAsset();
+          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
+          order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
+
+          await this.payoutOrderRepo.save(order);
+        }
+      } catch (e) {
+        this.logger.error(`Error in checking completion of Spark payout order ${order.id}:`, e);
+      }
+    }
+  }
+
+  async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
+    return this.sparkService.getPayoutCompletionData(payoutTxId);
+  }
+
+  protected getCurrentGasForTransaction(token: Asset): Promise<number> {
+    return this.sparkService.getCurrentFeeForTransaction(token);
+  }
+
+  protected dispatchPayout(order: PayoutOrder): Promise<string> {
+    return this.sparkService.sendTransaction(order.destinationAddress, order.amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {
     return this.assetService.getSparkCoin();
-  }
-
-  private async sendSPARK(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    await this.send(context, orders, 'BTC');
   }
 }
