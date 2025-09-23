@@ -285,8 +285,12 @@ export class PaymentLinkPaymentService {
   }
 
   async cancelByPayment(payment: PaymentLinkPayment): Promise<void> {
-    await this.doSave(payment.cancel(), true);
-    await this.cancelQuotesForPayment(payment);
+    const { cancellable } = payment.link.configObj;
+
+    if (cancellable) {
+      await this.doSave(payment.cancel(), true);
+      await this.cancelQuotesForPayment(payment);
+    }
   }
 
   async deletePayment(payment: PaymentLinkPayment): Promise<void> {

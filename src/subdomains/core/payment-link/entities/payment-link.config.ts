@@ -18,6 +18,7 @@ export interface PaymentLinkConfig {
   scanTimeout?: number;
   autoConfirmSecs?: number;
   payoutRouteId?: number;
+  cancellable: boolean;
   // user data only
   payoutFrequency?: PayoutFrequency;
   ep2ReportContainer?: string;
