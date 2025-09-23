@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ZanoTransferDto, ZanoTransferReceiveDto } from 'src/integration/blockchain/zano/dto/zano.dto';
 import { ZanoHelper } from 'src/integration/blockchain/zano/zano-helper';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -100,8 +100,6 @@ export class ZanoStrategy extends RegisterStrategy {
     const transferReceived = Util.groupBy<ZanoTransferReceiveDto, string>(transferResult.receive, 'assetId');
 
     for (const [assetId, transferReceivedByAssetId] of transferReceived) {
-      const isNativeTransaction = Util.equalsIgnoreCase(assetId, Config.blockchain.zano.coinId);
-
       payInEntries.push({
         senderAddresses: null,
         receiverAddress: depositAddress,
@@ -109,9 +107,7 @@ export class ZanoStrategy extends RegisterStrategy {
         txType: this.getTxType(depositAddress.address),
         blockHeight: transferResult.block,
         amount: Util.sum(transferReceivedByAssetId.map((r) => r.amount)),
-        asset: isNativeTransaction
-          ? this.getTransactionCoin(supportedAssets)
-          : this.getTransactionAsset(supportedAssets, assetId),
+        asset: supportedAssets.find((a) => Util.equalsIgnoreCase(a.chainId, assetId)),
       });
     }
 
@@ -130,15 +126,5 @@ export class ZanoStrategy extends RegisterStrategy {
 
   private getTxType(depositAddress: string): PayInType {
     return Util.equalsIgnoreCase(Config.payment.zanoAddress, depositAddress) ? PayInType.PAYMENT : PayInType.DEPOSIT;
-  }
-
-  private getTransactionCoin(supportedAssets: Asset[]): Asset | undefined {
-    return supportedAssets.find((a) => a.type === AssetType.COIN);
-  }
-
-  private getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
-    return chainId
-      ? supportedAssets.find((a) => Util.equalsIgnoreCase(a.chainId, chainId))
-      : this.getTransactionCoin(supportedAssets);
   }
 }
