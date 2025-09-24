@@ -278,7 +278,7 @@
                 "verified_name_missing": "Dein Accountname fehlt",
                 "first_name_not_matching_verified_name": "Umstimmigkeit zwischen deinem Vornamen und dem Accountnamen",
                 "last_name_not_matching_verified_name": "Umstimmigkeit zwischen deinem Nachnamen und dem Accountnamen",
-                "organization_name_not_matching_verified_name": "Umstimmigkeit zwischen dem Name deiner Organisation und dem Accountnamen",
+                "organization_name_not_matching_verified_name": "Umstimmigkeit zwischen dem Namen deiner Organisation und dem Accountnamen",
                 "country_not_allowed": "Dein Land ist nicht erlaubt",
                 "blocked": "Unbekannter Fehler",
                 "personal_data_not_matching": "Unstimmigkeit bei deinen persönlichen Daten"
