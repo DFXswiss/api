@@ -48,7 +48,7 @@ import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TxStatementType } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-statement-details.dto';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { Transaction, TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -383,13 +383,27 @@ export class TransactionController {
     const timeArray = [Date.now()];
 
     const transaction = await this.transactionService.getTransactionById(+id, {
-      bankTx: { transaction: { userData: true } },
       bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
-      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true, transaction: { userData: true } },
-      buyFiat: { cryptoInput: true, transaction: { userData: true } },
       refReward: true,
     });
+
+    if ([TransactionTypeInternal.BUY_CRYPTO, TransactionTypeInternal.CRYPTO_CRYPTO].includes(transaction.type))
+      transaction.buyCrypto = await this.buyCryptoService.getBuyCryptoByTransactionId(transaction.id, {
+        cryptoInput: true,
+        bankTx: true,
+        checkoutTx: true,
+        transaction: { userData: true },
+      });
+    if (transaction.type === TransactionTypeInternal.BUY_FIAT)
+      transaction.buyFiat = await this.buyFiatService.getBuyCryptoByTransactionId(transaction.id, {
+        cryptoInput: true,
+        transaction: { userData: true },
+      });
+    transaction.bankTx = await this.bankTxService.getBuyCryptoByTransactionId(transaction.id, {
+      transaction: { userData: true },
+    });
+
     timeArray.push(Date.now());
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
