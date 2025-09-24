@@ -281,7 +281,9 @@
                 "organization_name_not_matching_verified_name": "Der Name deiner Organisation stimmt nicht mit dem Accountnamen überein",
                 "country_not_allowed": "Dein Land ist nicht erlaubt",
                 "blocked": "Unbekannter Fehler",
-                "personal_data_not_matching": "Deine persönlichen Daten stimmen nicht mit deinen Accountdaten überein"
+                "personal_data_not_matching": "Deine persönlichen Daten stimmen nicht mit deinen Accountdaten überein",
+                "ident_ip_country_mismatch": "Auf Grund von aufsichtsrechtlichen Bestimmungen",
+                "ip_country_mismatch": "Auf Grund von aufsichtsrechtlichen Bestimmungen"
             }
         },
         "reminder": {

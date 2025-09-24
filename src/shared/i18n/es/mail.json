@@ -281,7 +281,9 @@
                 "organization_name_not_matching_verified_name": "El nombre de su organización no coincide con el nombre de su cuenta",
                 "country_not_allowed": "Tu país no está autorizado",
                 "blocked": "Error desconocido",
-                "personal_data_not_matching": "Tus datos personales no son los datos de tu cuenta"
+                "personal_data_not_matching": "Tus datos personales no son los datos de tu cuenta",
+                "ident_ip_country_mismatch": "Debido a requisitos normativos",
+                "ip_country_mismatch": "Debido a requisitos normativos"
             }
         },
         "reminder": {
