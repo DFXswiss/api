@@ -58,7 +58,7 @@ export class ZanoService extends BlockchainService implements OnModuleInit {
       const nodeBlockHeight = await this.client.getNodeBlockHeight();
       const walletBlockHeight = await this.client.getWalletBlockHeight();
 
-      return nodeBlockHeight === walletBlockHeight;
+      return walletBlockHeight > nodeBlockHeight - 5;
     } catch {
       return false;
     }
