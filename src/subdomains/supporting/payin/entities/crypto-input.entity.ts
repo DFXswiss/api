@@ -186,6 +186,8 @@ export class CryptoInput extends IEntity {
   //*** PUBLIC API ***//
 
   acknowledge(purpose: PayInPurpose, route: DepositRouteType, isForwardRequired: boolean): this {
+    if (!route) throw new Error('Missing route');
+
     this.purpose = purpose;
     this.route = route;
     this.status = this.isPayment || !isForwardRequired ? PayInStatus.COMPLETED : PayInStatus.ACKNOWLEDGED;
