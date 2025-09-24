@@ -280,11 +280,17 @@ export class ZanoClient extends BlockchainClient {
         `${Config.blockchain.zano.wallet.url}/json_rpc`,
         transferParams,
       )
-      .then((r) => ({
-        txId: r.result.tx_details.tx_hash,
-        amount: payoutAmount,
-        fee: Config.blockchain.zano.fee,
-      }));
+      .then((r) => this.createSendTransferResult(payoutAmount, r));
+  }
+
+  private createSendTransferResult(payoutAmount: number, response?: any): ZanoSendTransferResultDto {
+    if (!response.result?.tx_details) throw new Error(`Transfer not sent: response was ${JSON.stringify(response)}`);
+
+    return {
+      txId: response.result.tx_details.tx_hash,
+      amount: payoutAmount,
+      fee: Config.blockchain.zano.fee,
+    };
   }
 
   async getTransactionHistory(blockHeight: number): Promise<ZanoTransferDto[]> {

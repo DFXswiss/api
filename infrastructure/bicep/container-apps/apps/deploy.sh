@@ -15,9 +15,10 @@ environmentOptions=("loc" "dev" "prd")
 # "dem": dEuro Monitoring
 # "zanod": Zano Node
 # "zanolw": Zano Liquidity Wallet
+# "jsp": JuiceSwap Ponder
 # "jsw": JuiceSwap API
 # "n8n": N8N workflow automation
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsw" "n8n")
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsp" "jsw" "n8n")
 
 # --- FUNCTIONS --- #
 selectOption() {

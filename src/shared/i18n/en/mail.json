@@ -263,18 +263,25 @@
             "message": "The step '{stepName}' could not be completed for the following reason:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Your account is merged",
+                "user_data_merge_requested": "Email confirmation pending",
+                "user_data_existing": "Unknown error",
                 "user_data_blocked": "Unknown error",
-                "first_name_not_matching": "Your first name is not matching",
-                "last_name_not_matching": "Your last name is not matching",
+                "first_name_not_matching": "Inconsistency with your first name",
+                "last_name_not_matching": "Inconsistency with your last name",
                 "nationality_not_matching": "Your nationality is not matching",
                 "nationality_missing": "Nationality is missing",
-                "invalid_document_type": "Your document type is invalid",
+                "nationality_not_allowed": "Your nationality is not allowed",
+                "invalid_document_type": "The type of identification document is invalid",
+                "document_type_not_allowed": "The type of identification document is not allowed for your country",
                 "identification_number_missing": "Your identification number is missing",
                 "invalid_result": "Unknown error",
                 "verified_name_missing": "Account name is missing",
-                "first_name_not_matching_verified_name": "Your first name does not match your account name",
-                "last_name_not_matching_verified_name": "Your last name does not match your account name",
-                "organization_name_not_matching_verified_name": "Your organization name does not match your account name"
+                "first_name_not_matching_verified_name": "Inconsistency between your first name and the account name",
+                "last_name_not_matching_verified_name": "Inconsistency between your last name and the account name",
+                "organization_name_not_matching_verified_name": "Inconsistency between your organization name and the account name",
+                "country_not_allowed": "Your country is not allowed",
+                "blocked": "Unknown error",
+                "personal_data_not_matching": "Inconsistency in your personal data"
             }
         },
         "reminder": {
