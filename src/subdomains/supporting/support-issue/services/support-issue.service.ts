@@ -127,8 +127,13 @@ export class SupportIssueService {
         newIssue.additionalInformation = dto.transaction;
 
         // Create user bankData
-        if (dto.transaction.senderIban && newIssue.transaction.sourceType === TransactionSourceType.BANK_TX)
-          await this.bankDataService.createIbanForUserInternal(userData, { iban: dto.transaction.senderIban }, false);
+        if (dto.transaction.senderIban && newIssue.transaction.sourceType === TransactionSourceType.BANK_TX) {
+          try {
+            await this.bankDataService.createIbanForUserInternal(userData, { iban: dto.transaction.senderIban }, false);
+          } catch (_) {
+            // Skip errors from creating user bankData
+          }
+        }
       }
 
       // create limit request
