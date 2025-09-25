@@ -381,7 +381,11 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
     return { state: RefRewardStatusMapper[entity.status], reason: null };
   }
 
-  const reason = entity.amlReason ? TransactionReasonMapper[entity.amlReason] : null;
+  const reason = entity.amlReason
+    ? TransactionReasonMapper[entity.amlReason]
+    : entity.cryptoInput && !entity.cryptoInput.isConfirmed
+    ? TransactionReason.CRYPTO_INPUT_NOT_CONFIRMED
+    : null;
 
   if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {
