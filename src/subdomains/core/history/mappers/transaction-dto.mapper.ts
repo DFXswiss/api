@@ -4,6 +4,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -383,8 +384,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
 
   const reason = entity.amlReason
     ? TransactionReasonMapper[entity.amlReason]
-    : entity.cryptoInput && !entity.cryptoInput.isConfirmed
-    ? TransactionReason.CRYPTO_INPUT_NOT_CONFIRMED
+    : entity.cryptoInput && ![PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED].includes(entity.cryptoInput.status)
+    ? TransactionReason.INPUT_NOT_CONFIRMED
     : null;
 
   if (entity instanceof BuyCrypto) {
