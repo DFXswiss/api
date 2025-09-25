@@ -329,4 +329,10 @@ export class CryptoInput extends IEntity {
   get feeAmountChf(): number {
     return this.forwardFeeAmountChf;
   }
+
+  get isSettled(): boolean {
+    return CryptoInputSettledStatus.includes(this.status);
+  }
 }
+
+export const CryptoInputSettledStatus = [PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED];
