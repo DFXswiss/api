@@ -165,6 +165,9 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   olkypayAllowed?: boolean;
 
+  @Column({ nullable: true })
+  recallConfirmation?: boolean; // null = deactivated, false = step created, true = step completed by user
+
   // TODO remove
   @Column({ nullable: true })
   complexOrgStructure?: boolean;

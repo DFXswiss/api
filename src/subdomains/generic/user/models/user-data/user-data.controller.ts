@@ -52,8 +52,13 @@ export class UserDataController {
   ): Promise<UserData> {
     if (jwt.role === UserRole.SUPPORT)
       dto =
-        dto.kycStatus || dto.status || dto.riskStatus
-          ? { kycStatus: dto.kycStatus ? KycStatus.CHECK : undefined, status: dto.status, riskStatus: dto.riskStatus }
+        dto.kycStatus || dto.status || dto.riskStatus || dto.recallConfirmation
+          ? {
+              kycStatus: dto.kycStatus ? KycStatus.CHECK : undefined,
+              status: dto.status,
+              riskStatus: dto.riskStatus,
+              recallConfirmation: dto.recallConfirmation,
+            }
           : {};
 
     return this.userDataService.updateUserData(+id, dto);

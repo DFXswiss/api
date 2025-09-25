@@ -42,6 +42,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
     userData.legalEntity === LegalEntity.ASSOCIATION ? KycStepName.STATUTES : null,
+    userData.recallConfirmation === false ? KycStepName.RECALL_CONFIRMATION : null,
     KycStepName.DFX_APPROVAL,
   ]
     .flat()
