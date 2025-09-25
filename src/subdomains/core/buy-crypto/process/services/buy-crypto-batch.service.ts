@@ -87,15 +87,22 @@ export class BuyCryptoBatchService {
         )}`,
       );
 
+      const riskyTxs = txWithAssets.filter((t) => t.userData.isRisky);
+      for (const riskyTx of riskyTxs) {
+        await this.buyCryptoRepo.update(...riskyTx.resetAmlCheck());
+      }
+
       const filteredTx = txWithAssets.filter(
         (t) =>
-          (!t.liquidityPipeline &&
+          !t.userData.isSuspicious &&
+          !t.userData.isRisky &&
+          ((!t.liquidityPipeline &&
             !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
-          [
-            LiquidityManagementPipelineStatus.FAILED,
-            LiquidityManagementPipelineStatus.STOPPED,
-            LiquidityManagementPipelineStatus.COMPLETE,
-          ].includes(t.liquidityPipeline?.status),
+            [
+              LiquidityManagementPipelineStatus.FAILED,
+              LiquidityManagementPipelineStatus.STOPPED,
+              LiquidityManagementPipelineStatus.COMPLETE,
+            ].includes(t.liquidityPipeline?.status)),
       );
 
       const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);

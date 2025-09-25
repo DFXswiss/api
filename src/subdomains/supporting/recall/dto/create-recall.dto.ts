@@ -1,14 +1,14 @@
 import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
 
-export class RecallDto {
+export class CreateRecallDto {
   @IsNotEmpty()
   @IsInt()
-  @ValidateIf((r: RecallDto) => Boolean(r.bankTxId || !r.checkoutTxId))
+  @ValidateIf((r: CreateRecallDto) => Boolean(r.bankTxId || !r.checkoutTxId))
   bankTxId?: number;
 
   @IsNotEmpty()
   @IsInt()
-  @ValidateIf((r: RecallDto) => Boolean(r.checkoutTxId || !r.bankTxId))
+  @ValidateIf((r: CreateRecallDto) => Boolean(r.checkoutTxId || !r.bankTxId))
   checkoutTxId?: number;
 
   @IsNotEmpty()

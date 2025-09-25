@@ -88,6 +88,6 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   }
 
   private async sendXMR(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    await this.send(context, orders, 'XMR');
+    await this.send(context, orders);
   }
 }

@@ -92,6 +92,7 @@
                 "kyc_data_needed": "I dati KYC sono necessari per la transazione",
                 "bank_tx_needed": "Per effettuare questa transazione è necessaria una transazione bancaria",
                 "manual_check_phone": "Non siamo riusciti a contattarti al numero di telefono che ci hai fornito",
+                "manual_check_ip_phone": "Non siamo riusciti a contattarti al numero di telefono che ci hai fornito",
                 "merge_incomplete": "L'e-mail di conferma non è stata accettata"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
@@ -231,6 +232,15 @@
                 "line3": "",
                 "line4": "",
                 "line5": "Per visualizzare lo stato attuale della transazione:<br>[url:clicca qui]"
+            },
+            "manual_check_ip_phone": {
+                "title": "È necessaria una telefonata",
+                "salutation": "È richiesta una verifica manuale tramite telefono.",
+                "line1": "Abbiamo ricevuto il tuo deposito.",
+                "line2": "Ti contatteremo a breve al numero {phone}.",
+                "line3": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
+                "line4": "",
+                "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
             }
         },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]"
@@ -253,18 +263,25 @@
             "message": "Il passo '{stepName}' non ha potuto essere completato per il seguente motivo:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Il vostro account è stato unito",
+                "user_data_merge_requested": "Conferma e-mail in attesa",
+                "user_data_existing": "Errore sconosciuto",
                 "user_data_blocked": "Errore sconosciuto",
-                "first_name_not_matching": "Il vostro nome non corrisponde",
-                "last_name_not_matching": "Il vostro cognome non corrisponde",
+                "first_name_not_matching": "Incoerenza con il tuo nome",
+                "last_name_not_matching": "Incoerenza con il tuo cognome",
                 "nationality_not_matching": "La vostra nazionalità non corrisponde",
                 "nationality_missing": "Manca la nazionalità",
-                "invalid_document_type": "Il tipo di documento non è valido",
+                "nationality_not_allowed": "La tua nazionalità non è consentita",
+                "invalid_document_type": "Il tipo di documento di identità non è valido",
+                "document_type_not_allowed": "Il tipo di documento di identità non è consentito per il tuo Paese",
                 "identification_number_missing": "Manca il numero di identificazione",
                 "invalid_result": "Errore sconosciuto",
                 "verified_name_missing": "Manca il nome del conto",
-                "first_name_not_matching_verified_name": "Il nome non corrisponde al nome dell'account",
-                "last_name_not_matching_verified_name": "Il cognome non corrisponde al nome dell'account",
-                "organization_name_not_matching_verified_name": "Il nome dell'organizzazione non corrisponde al nome dell'account"
+                "first_name_not_matching_verified_name": "Incoerenza tra il tuo nome e il nome dell'account",
+                "last_name_not_matching_verified_name": "Incoerenza tra il tuo cognome e il nome dell'account",
+                "organization_name_not_matching_verified_name": "Incoerenza tra il nome della tua organizzazione e il nome dell'account",
+                "country_not_allowed": "Il tuo Paese non è autorizzato",
+                "blocked": "Errore sconosciuto",
+                "personal_data_not_matching": "Incoerenza nei tuoi dati personali"
             }
         },
         "reminder": {

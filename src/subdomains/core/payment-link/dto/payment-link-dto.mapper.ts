@@ -50,6 +50,7 @@ export class PaymentLinkDtoMapper {
       recipient: config.recipient,
       scanTimeout: config.scanTimeout,
       paymentTimeout: config.paymentTimeout,
+      cancellable: config.cancellable,
     };
   }
 

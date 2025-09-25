@@ -49,7 +49,7 @@ export class PaymentBalanceService implements OnModuleInit {
     this.zanoDepositAddress = Config.payment.zanoAddress;
   }
 
-  async getPaymentBalances(assets: Asset[]): Promise<Map<number, BlockchainTokenBalance>> {
+  async getPaymentBalances(assets: Asset[], catchException = false): Promise<Map<number, BlockchainTokenBalance>> {
     const paymentAssets = assets.filter(
       (a) => a.paymentEnabled && !this.chainsWithoutPaymentBalance.includes(a.blockchain),
     );
@@ -74,16 +74,22 @@ export class PaymentBalanceService implements OnModuleInit {
         });
 
         if (tokens.length) {
-          const tokenBalances = await client.getTokenBalances(tokens, targetAddress);
-          for (const token of tokens) {
-            const balance = tokenBalances.find((b) => b.contractAddress === token.chainId)?.balance;
+          try {
+            const tokenBalances = await client.getTokenBalances(tokens, targetAddress);
+            for (const token of tokens) {
+              const balance = tokenBalances.find((b) => b.contractAddress === token.chainId)?.balance;
 
-            balance &&
-              balanceMap.set(token.id, {
-                owner: targetAddress,
-                contractAddress: token.chainId,
-                balance,
-              });
+              balance &&
+                balanceMap.set(token.id, {
+                  owner: targetAddress,
+                  contractAddress: token.chainId,
+                  balance,
+                });
+            }
+          } catch (e) {
+            if (!catchException) throw e;
+
+            this.logger.error(`Error getting payment balances for blockchain ${chain}:`, e);
           }
         }
       }),

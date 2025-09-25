@@ -69,6 +69,10 @@ export class AmlHelperService {
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (entity.userData.kycLevel < KycLevel.LEVEL_50 && last365dVolume > Config.tradingLimits.yearlyWithoutKyc)
       errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
+    if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate)
+      entity.userData.kycLevel >= KycLevel.LEVEL_50
+        ? errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED)
+        : errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
     if (last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc) {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -524,8 +528,8 @@ export class AmlHelperService {
     if (crucialErrorResults.length) {
       const crucialErrorResult =
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ??
-        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.PENDING) ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.GSHEET) ??
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.PENDING) ??
         crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
         ? {
@@ -547,7 +551,8 @@ export class AmlHelperService {
     if (
       amlResults.every((r) => r.type === AmlErrorType.MULTI) &&
       (amlResults.every((r) => r.amlCheck === CheckStatus.PENDING) ||
-        amlResults.every((r) => r.amlCheck === CheckStatus.FAIL))
+        amlResults.every((r) => r.amlCheck === CheckStatus.FAIL) ||
+        amlResults.every((r) => r.amlCheck === CheckStatus.GSHEET))
     )
       return {
         bankData,

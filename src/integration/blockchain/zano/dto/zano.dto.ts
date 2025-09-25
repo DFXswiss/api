@@ -12,6 +12,13 @@ export interface ZanoDepositAddressDto {
 export interface ZanoGetBalanceResultDto {
   balance: number;
   unlocked_balance: number;
+  balances: ZanoBalancesDto[];
+}
+
+export interface ZanoBalancesDto {
+  asset_info: ZanoAssetInfoDto;
+  total: number;
+  unlocked: number;
 }
 
 export interface ZanoGetTransactionResultDto {
@@ -72,4 +79,17 @@ export interface ZanoSendTransferResultDto {
   txId: string;
   amount: number;
   fee: number;
+}
+
+export interface ZanoAssetInfoDto {
+  asset_id: string;
+  decimal_point: number;
+  full_name: string;
+  ticker: string;
+}
+
+export interface ZanoAssetWhitelistResultDto {
+  global_whitelist: ZanoAssetInfoDto[];
+  local_whitelist: ZanoAssetInfoDto[];
+  own_assets: ZanoAssetInfoDto[];
 }

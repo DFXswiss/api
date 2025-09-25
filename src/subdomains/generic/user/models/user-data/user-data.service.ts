@@ -16,6 +16,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
@@ -31,12 +32,13 @@ import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
-import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycLogType, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -101,6 +103,9 @@ export class UserDataService {
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
+    @Inject(forwardRef(() => KycService))
+    private readonly kycService: KycService,
+    private readonly ipLogService: IpLogService,
   ) {}
 
   // --- GETTERS --- //
@@ -485,6 +490,12 @@ export class UserDataService {
   async deactivateUserData(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.deactivateUserData());
     await this.kycAdminService.resetKyc(userData, KycError.USER_DATA_DEACTIVATED);
+    await this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.KYC,
+      `UserData deactivated on ${userData.deactivationDate.toISOString()}`,
+    );
+    await this.kycService.createKycLevelLog(userData, userData.kycLevel);
     await this.userDataNotificationService.deactivateAccountMail(userData);
   }
 
@@ -638,6 +649,11 @@ export class UserDataService {
 
   async triggerVideoIdent(userData: UserData): Promise<void> {
     await this.kycAdminService.triggerVideoIdentInternal(userData);
+  }
+
+  async setCheckIpRisk(ip: string): Promise<void> {
+    const userDataIdsWithIpRisk = await this.ipLogService.getUserDataIdsWith(ip);
+    if (userDataIdsWithIpRisk.length) await this.userDataRepo.update(userDataIdsWithIpRisk, { hasIpRisk: true });
   }
 
   // --- API KEY --- //
