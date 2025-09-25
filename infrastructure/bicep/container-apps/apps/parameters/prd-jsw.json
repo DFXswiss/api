@@ -35,8 +35,12 @@
     "containerEnv": {
       "value": [
         {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
           "name": "CORS_ORIGIN",
-          "value": "http://localhost:3001,https://dev.bapp.juiceswap.xyz,https://bapp.juiceswap.xyz"
+          "value": "http://localhost:3001,https://dev.bapp.juiceswap.xyz,https://bapp.juiceswap.xyz,https://dev.bapp.juiceswap.com,https://bapp.juiceswap.com"
         },
         {
           "name": "ALCHEMY_1",
@@ -48,6 +52,10 @@
         },
         {
           "name": "ALCHEMY_137",
+          "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "ALCHEMY_5115",
           "value": "[ALCHEMY-API-KEY]"
         },
         {
