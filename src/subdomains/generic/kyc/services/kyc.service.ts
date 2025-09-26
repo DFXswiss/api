@@ -1194,9 +1194,9 @@ export class KycService {
 
     // IP check
     if (data.ipCountry && identStep.userData.users?.some((u) => u.ipCountry !== data.ipCountry))
-      errors.push(KycError.IDENT_IP_COUNTRY_MISMATCH);
-    if (data.country && identStep.userData.users?.some((u) => u.ipCountry !== data.country))
       errors.push(KycError.IP_COUNTRY_MISMATCH);
+    if (data.country && identStep.userData.users?.some((u) => u.ipCountry !== data.country))
+      errors.push(KycError.COUNTRY_IP_COUNTRY_MISMATCH);
 
     // Name check
     if (!Util.isSameName(identStep.userData.firstname, data.firstname)) errors.push(KycError.FIRST_NAME_NOT_MATCHING);
