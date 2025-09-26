@@ -124,20 +124,22 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const { asset, tradeAsset, minTradeAmount, fullTrade } = this.parseBuyParams(order.action.paramMap);
 
-    const token = asset ?? order.pipeline.rule.targetAsset.dexName;
+    const targetAssetEntity = asset
+      ? await this.assetService.getAssetByUniqueName(asset)
+      : order.pipeline.rule.targetAsset;
+    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`${this.exchangeService.name}/${tradeAsset}`);
 
-    const balance = fullTrade ? 0 : await this.exchangeService.getAvailableBalance(token);
+    const balance = fullTrade ? 0 : await this.exchangeService.getAvailableBalance(targetAssetEntity.name);
     const minAmount = order.minAmount * 1.01 - balance; // small cap for price changes
     const maxAmount = order.maxAmount * 1.01 - balance;
     if (maxAmount <= 0) {
       // trade not necessary
       throw new OrderNotNecessaryException(
-        `${token} balance higher than required amount (${balance} > ${order.maxAmount})`,
+        `${targetAssetEntity.name} balance higher than required amount (${balance} > ${order.maxAmount})`,
       );
     }
 
-    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`${this.exchangeService.name}/${tradeAsset}`);
-    const price = await this.getAndCheckTradePrice(tradeAssetEntity, token);
+    const price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity);
 
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
     const maxSellAmount = Util.floor(maxAmount * price, 6);
@@ -152,17 +154,19 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     order.inputAmount = amount;
     order.inputAsset = tradeAsset;
-    order.outputAsset = token;
+    order.outputAsset = targetAssetEntity.name;
 
     try {
-      return await this.exchangeService.sell(tradeAsset, token, amount);
+      return await this.exchangeService.sell(tradeAsset, targetAssetEntity.name, amount);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
 
       if (e.message?.includes('Illegal characters found')) {
-        throw new Error(`Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${token}: ${e.message}`);
+        throw new Error(
+          `Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${targetAssetEntity.name}: ${e.message}`,
+        );
       }
 
       throw e;
