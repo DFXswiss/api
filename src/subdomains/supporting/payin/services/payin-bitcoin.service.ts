@@ -21,6 +21,10 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
     await this.client.checkSync();
   }
 
+  async getBlockHeight(): Promise<number> {
+    return this.client.getBlockCount();
+  }
+
   async getUtxo(): Promise<BitcoinUTXO[]> {
     const utxos = <BitcoinUTXO[]>await this.client.getUtxo();
 

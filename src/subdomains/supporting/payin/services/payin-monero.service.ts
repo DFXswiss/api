@@ -19,6 +19,10 @@ export class PayInMoneroService extends PayInBitcoinBasedService {
     if (!isHealthy) throw new Error('Monero node is unhealthy');
   }
 
+  async getBlockHeight(): Promise<number> {
+    return this.moneroService.getBlockHeight();
+  }
+
   async checkTransactionCompletion(txId: string, minConfirmations: number): Promise<boolean> {
     return this.client.isTxComplete(txId, minConfirmations);
   }

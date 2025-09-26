@@ -11,10 +11,10 @@ import { Util } from 'src/shared/utils/util';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
-import { RegisterStrategy } from './base/register.strategy';
+import { PollingStrategy } from './base/polling.strategy';
 
 @Injectable()
-export class MoneroStrategy extends RegisterStrategy {
+export class MoneroStrategy extends PollingStrategy {
   protected logger: DfxLogger = new DfxLogger(MoneroStrategy);
 
   constructor(private readonly payInMoneroService: PayInMoneroService) {
@@ -26,15 +26,17 @@ export class MoneroStrategy extends RegisterStrategy {
   }
 
   //*** JOBS ***//
-
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_SECOND, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
-    await this.processNewPayInEntries();
+    return super.checkPayInEntries();
   }
 
   //*** HELPER METHODS ***//
+  async getBlockHeight(): Promise<number> {
+    return this.payInMoneroService.getBlockHeight();
+  }
 
-  private async processNewPayInEntries(): Promise<void> {
+  async processNewPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
 
     const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
