@@ -1227,10 +1227,9 @@ export class KycService {
       if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
     }
 
+    // Ident doc check
     if (!ValidDocType.includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
-
     if (!data.documentNumber) errors.push(KycError.IDENTIFICATION_NUMBER_MISSING);
-
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
     // Country & verifiedName check
