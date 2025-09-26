@@ -101,7 +101,7 @@ export class LiquidityPipelineAdapter extends LiquidityActionAdapter {
         });
 
         throw new OrderNotProcessableException(
-          `Triggered pipeline ${pipeline.id} (rule ${pipeline.rule.id}) failed with error: ${failedOrder.errorMessage}`,
+          `Triggered pipeline ${pipeline.id} (rule ${pipeline.rule.id}) for ${pipeline.rule.targetAsset.uniqueName} failed with error: ${failedOrder.errorMessage}`,
         );
     }
   }

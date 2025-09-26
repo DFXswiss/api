@@ -60,6 +60,7 @@ export enum TransactionReason {
   MERGE_INCOMPLETE = 'MergeIncomplete',
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
   BANK_RELEASE_PENDING = 'BankReleasePending',
+  INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
 }
 
 export const KycRequiredReason = [
