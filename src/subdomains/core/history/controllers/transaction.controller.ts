@@ -396,11 +396,11 @@ export class TransactionController {
         transaction: { userData: true },
       });
     if (transaction.type === TransactionTypeInternal.BUY_FIAT)
-      transaction.buyFiat = await this.buyFiatService.getBuyCryptoByTransactionId(transaction.id, {
+      transaction.buyFiat = await this.buyFiatService.getBuyFiatByTransactionId(transaction.id, {
         cryptoInput: true,
         transaction: { userData: true },
       });
-    transaction.bankTx = await this.bankTxService.getBuyCryptoByTransactionId(transaction.id, {
+    transaction.bankTx = await this.bankTxService.getBankTxByTransactionId(transaction.id, {
       transaction: { userData: true },
     });
 

@@ -215,10 +215,7 @@ export class BuyFiatService {
       .getOne();
   }
 
-  async getBuyCryptoByTransactionId(
-    transactionId: number,
-    relations?: FindOptionsRelations<BuyFiat>,
-  ): Promise<BuyFiat> {
+  async getBuyFiatByTransactionId(transactionId: number, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat> {
     return this.buyFiatRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 

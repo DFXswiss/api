@@ -314,7 +314,7 @@ export class BankTxService {
       .getOne();
   }
 
-  async getBuyCryptoByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
+  async getBankTxByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
     return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
