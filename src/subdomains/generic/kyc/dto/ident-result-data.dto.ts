@@ -11,6 +11,9 @@ export enum IdentDocumentType {
   RESIDENCE_PERMIT = 'RESIDENCE_PERMIT',
 }
 
+export const ValidDocType = [IdentDocumentType.IDCARD, IdentDocumentType.PASSPORT];
+export const NationalityDocType = [IdentDocumentType.IDCARD, IdentDocumentType.PASSPORT];
+
 export interface IdentResultData {
   type: IdentType;
   firstname: string;

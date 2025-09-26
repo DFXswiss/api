@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
@@ -9,7 +9,7 @@ import {
   PaymentLinkHexResultDto,
   PaymentLinkPayRequestDto,
   PaymentLinkPaymentDto,
-  TransferInfo
+  TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPaymentMode, PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
@@ -121,6 +121,7 @@ export class LnUrlForwardService {
   async cancelPayment(id: string): Promise<PaymentLinkPaymentDto> {
     const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(id);
     if (!payment) throw new NotFoundException('No pending payment found');
+    if (!payment.link.configObj.cancellable) throw new BadRequestException('Payment is not cancellable');
 
     if (payment.mode !== PaymentLinkPaymentMode.MULTIPLE) await this.paymentLinkPaymentService.cancelByPayment(payment);
 
@@ -157,11 +158,9 @@ export class LnUrlForwardService {
   async activatePublicPayment(id: string, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayRequestDto> {
     const paymentLink = await this.paymentLinkService.getPublicPaymentLinkByUniqueId(id);
 
-    const { payments: [ pendingPayment ] } = await this.paymentLinkService.createPayment(
-      dto,
-      paymentLink.route.user.id,
-      paymentLink.id,
-    );
+    const {
+      payments: [pendingPayment],
+    } = await this.paymentLinkService.createPayment(dto, paymentLink.route.user.id, paymentLink.id);
 
     return this.paymentLinkService.createPayRequest(pendingPayment.uniqueId);
   }

@@ -12,7 +12,7 @@ import { LiquidityManagementService } from 'src/subdomains/core/liquidity-manage
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInputSettledStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -64,7 +64,7 @@ export class BuyCryptoBatchService {
         where: [
           {
             ...search,
-            cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+            cryptoInput: { status: In(CryptoInputSettledStatus) },
           },
           { ...search, cryptoInput: IsNull() },
         ],
