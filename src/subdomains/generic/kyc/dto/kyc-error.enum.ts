@@ -23,6 +23,8 @@ export enum KycError {
   LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
   ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
+  IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
+  COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
   BLOCKED = 'Blocked',
   RELEASED = 'Released',
 
@@ -61,6 +63,8 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.RELEASED]: undefined,
   [KycError.RESTARTED_STEP]: undefined,
   [KycError.USER_DATA_DEACTIVATED]: 'Account deactivated',
+  [KycError.IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
+  [KycError.COUNTRY_IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

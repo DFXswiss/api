@@ -205,7 +205,7 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: true },
+      relations: { userData: { users: true } },
     });
 
     for (const entity of entities) {
@@ -1192,6 +1192,13 @@ export class KycService {
     const errors = this.getStepDefaultErrors(identStep);
     const nationalityStepResult = nationalityStep.getResult<{ nationality: IEntity }>();
 
+    // IP check
+    if (data.ipCountry && identStep.userData.users?.some((u) => u.ipCountry !== data.ipCountry))
+      errors.push(KycError.IP_COUNTRY_MISMATCH);
+    if (data.country && identStep.userData.users?.some((u) => u.ipCountry !== data.country))
+      errors.push(KycError.COUNTRY_IP_COUNTRY_MISMATCH);
+
+    // Name check
     if (!Util.isSameName(identStep.userData.firstname, data.firstname)) errors.push(KycError.FIRST_NAME_NOT_MATCHING);
     if (
       !Util.isSameName(identStep.userData.surname, data.lastname) &&
@@ -1208,6 +1215,7 @@ export class KycService {
     )
       errors.push(KycError.REVERSED_NAMES);
 
+    // Nationality check
     if (!nationality) {
       errors.push(KycError.NATIONALITY_MISSING);
     } else {
@@ -1220,12 +1228,12 @@ export class KycService {
       if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
     }
 
+    // Ident doc check
     if (!ValidDocType.includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
-
     if (!data.documentNumber) errors.push(KycError.IDENTIFICATION_NUMBER_MISSING);
-
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
+    // Country & verifiedName check
     const userCountry =
       identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {
