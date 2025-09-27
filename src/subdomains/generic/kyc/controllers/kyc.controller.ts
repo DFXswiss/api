@@ -51,6 +51,7 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  KycRecallConfirmationData,
   KycSignatoryPowerData,
   PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
@@ -273,6 +274,22 @@ export class KycController {
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('additional-documents', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
+  }
+
+  @Put('data/recall/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateRecallConfirmation(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycRecallConfirmationData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateKycStep(
+      code,
+      +id,
+      data,
+      data.recallConfirmation ? ReviewStatus.COMPLETED : ReviewStatus.FAILED,
+    );
   }
 
   @Put('data/signatory/:id')
