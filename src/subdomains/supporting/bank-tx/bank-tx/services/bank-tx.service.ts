@@ -22,7 +22,7 @@ import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
+import { DeepPartial, FindOptionsRelations, In, IsNull, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -312,6 +312,10 @@ export class BankTxService {
       })
       .orderBy('bankTx.id', 'DESC')
       .getOne();
+  }
+
+  async getBankTxByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
+    return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
   async getBankTxById(id: number): Promise<BankTx> {

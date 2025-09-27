@@ -521,6 +521,13 @@ export class BuyCryptoService {
       .getOne();
   }
 
+  async getBuyCryptoByTransactionId(
+    transactionId: number,
+    relations?: FindOptionsRelations<BuyCrypto>,
+  ): Promise<BuyCrypto> {
+    return this.buyCryptoRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
+  }
+
   async getBuyCrypto(from: Date, relations?: FindOptionsRelations<BuyCrypto>): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
   }
