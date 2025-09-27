@@ -1217,6 +1217,7 @@ export class KycService {
       )
         errors.push(KycError.NATIONALITY_NOT_MATCHING);
       if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+      if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
     }
 
     if (!ValidDocType.includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
