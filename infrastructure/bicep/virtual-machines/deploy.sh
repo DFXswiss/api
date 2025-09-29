@@ -8,24 +8,6 @@ API_NAME="api"
 # --- OPTIONS --- #
 environmentOptions=("loc" "dev" "prd")
 
-# "fcp": Frankencoin Ponder
-# "dep": dEuro Ponder
-# "dea": dEuro API
-# "ded": dEuro dApp
-# "dem": dEuro Monitoring
-# "zanod": Zano Node
-# "zanolw": Zano Liquidity Wallet
-# "jsp": JuiceSwap Ponder
-# "jsw": JuiceSwap API
-# "n8n": N8N workflow automation
-# "bt4": Bitcoin Node (Testnet4)
-# "ctn": Citrea Node
-# "cdtp": Citrus Dollar Testnet Ponder
-# "cdta": Citrus Dollar Testnet API
-# "cdtd": Citrus Dollar Testnet dApp
-# "cdtm": Citrus Dollar Testnet Monitoring
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsp" "jsw" "n8n" "bt4" "ctn" "cdtp" "cdta" "cdtd" "cdtm")
-
 # --- FUNCTIONS --- #
 selectOption() {
   PS3="${1}: "
@@ -44,7 +26,6 @@ selectOption() {
 
 # --- MAIN --- #
 ENV=$(selectOption "Select Environment" "${environmentOptions[@]}")
-APP=$(selectOption "Select App Name" "${appNameOptions[@]}")
 
 ## Resource Group & Deployment
 RESOURCE_GROUP_NAME="rg-${COMP_NAME}-${API_NAME}-${ENV}"
@@ -52,7 +33,6 @@ DEPLOYMENT_NAME=${COMP_NAME}-${API_NAME}-${ENV}-deployment-$(date +%s)
 
 echo "Resource Group Name: $RESOURCE_GROUP_NAME"
 echo "Deployment Name:     $DEPLOYMENT_NAME"
-echo "APP Shortname:       $APP"
 
 ## Deploy Template
 RESULT=$(az deployment group create \
@@ -60,8 +40,7 @@ RESULT=$(az deployment group create \
     --name $DEPLOYMENT_NAME \
     --template-file main.bicep \
     --parameters env=$ENV \
-    --parameters app=$APP \
-    --parameters parameters/$ENV-$APP.json \
+    --parameters parameters/$ENV.json \
     --query properties.outputs.result)
 
 ## Output Result
