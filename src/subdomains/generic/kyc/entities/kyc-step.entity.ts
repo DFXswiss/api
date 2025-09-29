@@ -199,7 +199,7 @@ export class KycStep extends IEntity {
     const update: Partial<KycStep> = {
       status,
       result: this.setResult(result),
-      comment,
+      comment: comment ?? this.comment,
       sequenceNumber,
     };
 
