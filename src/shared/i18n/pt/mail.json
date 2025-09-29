@@ -281,7 +281,9 @@
                 "organization_name_not_matching_verified_name": "Inconsistency between your organization name and the account name",
                 "country_not_allowed": "Your country is not allowed",
                 "blocked": "Unknown error",
-                "personal_data_not_matching": "Inconsistency in your personal data"
+                "personal_data_not_matching": "Inconsistency in your personal data",
+                "ip_country_mismatch": "Regulatory requirements not met",
+                "country_ip_country_mismatch": "Regulatory requirements not met"
             }
         },
         "reminder": {

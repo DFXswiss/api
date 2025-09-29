@@ -18,7 +18,9 @@ environmentOptions=("loc" "dev" "prd")
 # "jsp": JuiceSwap Ponder
 # "jsw": JuiceSwap API
 # "n8n": N8N workflow automation
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsp" "jsw" "n8n")
+# "bt4": Bitcoin Node (Testnet4)
+# "ctn": Citrea Node
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsp" "jsw" "n8n" "bt4" "ctn")
 
 # --- FUNCTIONS --- #
 selectOption() {

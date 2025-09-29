@@ -8,6 +8,7 @@ export enum IdentDocumentType {
   IDCARD = 'IDCARD',
   PASSPORT = 'PASSPORT',
   DRIVERS_LICENSE = 'DRIVERS_LICENSE',
+  DRIVERS_TRANSLATION = 'DRIVERS_TRANSLATION',
   RESIDENCE_PERMIT = 'RESIDENCE_PERMIT',
 }
 
@@ -25,4 +26,6 @@ export interface IdentResultData {
   birthday: Date;
   nationality: string;
   success: boolean;
+  ipCountry: string;
+  country: string;
 }
