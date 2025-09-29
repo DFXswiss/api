@@ -419,7 +419,7 @@ export const IdDocTypeMap: { [t in IdDocType]: IdentDocumentType } = {
   [IdDocType.CONTRACT]: undefined,
   [IdDocType.COVID_VACCINATION_FORM]: undefined,
   [IdDocType.DRIVERS]: IdentDocumentType.DRIVERS_LICENSE,
-  [IdDocType.DRIVERS_TRANSLATION]: IdentDocumentType.DRIVERS_LICENSE,
+  [IdDocType.DRIVERS_TRANSLATION]: IdentDocumentType.DRIVERS_TRANSLATION,
   [IdDocType.FILE_ATTACHMENT]: undefined,
   [IdDocType.ID_CARD]: IdentDocumentType.IDCARD,
   [IdDocType.ID_DOC_PHOTO]: undefined,
