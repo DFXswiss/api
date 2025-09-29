@@ -291,4 +291,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsBoolean()
   hasIpRisk?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  recallConfirmation?: boolean;
 }
