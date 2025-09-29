@@ -26,4 +26,6 @@ export interface IdentResultData {
   birthday: Date;
   nationality: string;
   success: boolean;
+  ipCountry: string;
+  country: string;
 }

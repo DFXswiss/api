@@ -281,7 +281,9 @@
                 "organization_name_not_matching_verified_name": "Incohérence entre le nom de votre organisation et le nom du compte",
                 "country_not_allowed": "Votre pays n'est pas autorisé",
                 "blocked": "Erreur inconnue",
-                "personal_data_not_matching": "Incohérence dans vos données personnelles"
+                "personal_data_not_matching": "Incohérence dans vos données personnelles",
+                "ip_country_mismatch": "En raison des exigences réglementaires",
+                "country_ip_country_mismatch": "En raison des exigences réglementaires"
             }
         },
         "reminder": {
