@@ -282,8 +282,8 @@
                 "country_not_allowed": "Dein Land ist nicht erlaubt",
                 "blocked": "Unbekannter Fehler",
                 "personal_data_not_matching": "Unstimmigkeit bei deinen persönlichen Daten",
-                "ip_country_mismatch": "Auf Grund von aufsichtsrechtlichen Bestimmungen",
-                "country_ip_country_mismatch": "Auf Grund von aufsichtsrechtlichen Bestimmungen"
+                "ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+                "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt"
             }
         },
         "reminder": {
