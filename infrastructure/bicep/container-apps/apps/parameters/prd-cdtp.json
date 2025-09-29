@@ -6,13 +6,13 @@
       "value": 1
     },
     "containerImage": {
-      "value": "dfxswiss/deuro-api:beta"
+      "value": "dfxswiss/deuro-ponder:beta"
     },
     "containerVolumeMounts": {
       "value": [
         {
           "volumeName": "volume",
-          "mountPath": "/app/.api"
+          "mountPath": "/app/.ponder"
         }
       ]
     },
@@ -44,36 +44,12 @@
           "value": "3000"
         },
         {
-          "name": "CONFIG_CHAIN",
-          "value": "ethereum"
-        },
-        {
-          "name": "CONFIG_APP_URL",
-          "value": "https://dev.app.testnet.citrusdollar.com"
-        },
-        {
-          "name": "CONFIG_INDEXER_URL",
-          "value": "https://dev.ponder.testnet.citrusdollar.com"
-        },
-        {
-          "name": "COINGECKO_API_KEY",
-          "value": "[API-KEY]"
+          "name": "PONDER_PROFILE",
+          "value": "mainnet"
         },
         {
           "name": "RPC_URL_MAINNET",
           "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
-        },
-        {
-          "name": "RPC_URL_POLYGON",
-          "value": "https://polygon-mainnet.g.alchemy.com/v2/[API-KEY]"
-        },
-        {
-          "name": "TELEGRAM_BOT_TOKEN",
-          "value": "[API-KEY]"
-        },
-        {
-          "name": "TELEGRAM_GROUPS_JSON",
-          "value": "/app/.api/telegram.groups.json"
         }
       ]
     },
