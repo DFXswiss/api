@@ -216,9 +216,12 @@ export class KycService {
         const nationality = result.nationality
           ? await this.countryService.getCountryWithSymbol(result.nationality)
           : null;
+        const ipCountry = result.ipCountry ? await this.countryService.getCountryWithSymbol(result.ipCountry) : null;
+        const country = result.country ? await this.countryService.getCountryWithSymbol(result.country) : null;
+
         const nationalityStep = entity.userData.getStepsWith(KycStepName.NATIONALITY_DATA).find((s) => s.isCompleted);
 
-        const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality);
+        const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality, ipCountry, country);
         const comment = errors.join(';');
 
         if (errors.includes(KycError.REVERSED_NAMES)) {
@@ -1188,14 +1191,16 @@ export class KycService {
     nationalityStep: KycStep,
     data: IdentResultData,
     nationality?: Country,
+    ipCountry?: Country,
+    country?: Country,
   ): KycError[] {
     const errors = this.getStepDefaultErrors(identStep);
     const nationalityStepResult = nationalityStep.getResult<{ nationality: IEntity }>();
 
     // IP check
-    if (data.ipCountry && identStep.userData.users?.some((u) => u.ipCountry !== data.ipCountry))
+    if (ipCountry && identStep.userData.users?.some((u) => u.ipCountry !== ipCountry.symbol))
       errors.push(KycError.IP_COUNTRY_MISMATCH);
-    if (data.country && identStep.userData.users?.some((u) => u.ipCountry !== data.country))
+    if (country && identStep.userData.users?.some((u) => u.ipCountry !== country.symbol))
       errors.push(KycError.COUNTRY_IP_COUNTRY_MISMATCH);
 
     // Name check
