@@ -20,7 +20,11 @@ environmentOptions=("loc" "dev" "prd")
 # "n8n": N8N workflow automation
 # "bt4": Bitcoin Node (Testnet4)
 # "ctn": Citrea Node
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsp" "jsw" "n8n" "bt4" "ctn")
+# "cdtp": Citrus Dollar Testnet Ponder
+# "cdta": Citrus Dollar Testnet API
+# "cdtd": Citrus Dollar Testnet dApp
+# "cdtm": Citrus Dollar Testnet Monitoring
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsp" "jsw" "n8n" "bt4" "ctn" "cdtp" "cdta" "cdtd" "cdtm")
 
 # --- FUNCTIONS --- #
 selectOption() {
