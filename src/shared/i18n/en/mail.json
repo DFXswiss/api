@@ -282,8 +282,8 @@
                 "country_not_allowed": "Your country is not allowed",
                 "blocked": "Unknown error",
                 "personal_data_not_matching": "Inconsistency in your personal data",
-                "ident_ip_country_mismatch": "Due to regulatory requirements",
-                "ip_country_mismatch": "Due to regulatory requirements"
+                "ip_country_mismatch": "Due to regulatory requirements",
+                "country_ip_country_mismatch": "Due to regulatory requirements"
             }
         },
         "reminder": {

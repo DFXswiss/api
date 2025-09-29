@@ -282,8 +282,8 @@
                 "country_not_allowed": "Tu país no está autorizado",
                 "blocked": "Error desconocido",
                 "personal_data_not_matching": "Incoherencia en tus datos personales",
-                "ident_ip_country_mismatch": "Debido a requisitos normativos",
-                "ip_country_mismatch": "Debido a requisitos normativos"
+                "ip_country_mismatch": "Debido a requisitos normativos",
+                "country_ip_country_mismatch": "Debido a requisitos normativos"
             }
         },
         "reminder": {
