@@ -226,6 +226,13 @@ export class GsService {
         };
       }, {});
 
+      if (table === 'support_issue' && selects.some((s) => s.includes('messages[max].author')))
+        this.logger.info(
+          `GS array select log, entities: ${entities.map(
+            (e) => `${e['messages_id']}-${e['messages_author']}`,
+          )}, selectedData: ${selectedData['messages[max].author']}`,
+        );
+
       return selectedData;
     });
   }
