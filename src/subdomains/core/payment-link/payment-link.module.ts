@@ -9,6 +9,7 @@ import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { C2BPaymentLinkController } from './controllers/c2b-payment-link.controller';
 import { PaymentLinkController, PaymentLinkShortController } from './controllers/payment-link.controller';
 import { PaymentLinkGateway } from './controllers/payment-link.gateway';
+import { WalletAppController } from './controllers/wallet-app.controller';
 import { PaymentLink } from './entities/payment-link.entity';
 import { PaymentMerchant } from './entities/payment-merchant.entity';
 import { PaymentLinkPaymentModule } from './payment-link-payment.module';
@@ -18,6 +19,7 @@ import { OCPStickerService } from './services/ocp-sticker.service';
 import { PaymentCronService } from './services/payment-cron.service';
 import { PaymentLinkService } from './services/payment-link.service';
 import { PaymentMerchantService } from './services/payment-merchant.service';
+import { WalletAppService } from './services/wallet-app.service';
 
 @Module({
   imports: [
@@ -30,17 +32,18 @@ import { PaymentMerchantService } from './services/payment-merchant.service';
     BinancePayModule,
     KucoinPayModule,
   ],
-  controllers: [PaymentLinkController, PaymentLinkShortController, C2BPaymentLinkController],
+  controllers: [PaymentLinkController, PaymentLinkShortController, C2BPaymentLinkController, WalletAppController],
   providers: [
     PaymentLinkRepository,
     PaymentLinkService,
     PaymentMerchantRepository,
     PaymentMerchantService,
+    WalletAppService,
     OCPStickerService,
     PaymentCronService,
     PaymentLinkController,
     PaymentLinkGateway,
   ],
-  exports: [PaymentLinkService],
+  exports: [PaymentLinkService, WalletAppService],
 })
 export class PaymentLinkModule {}
