@@ -1,36 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-export enum WalletAppId {
-  DEUROWALLET = 'deurowallet',
-  CAKEWALLET = 'cakewallet',
-  FRANKENCOIN = 'frankencoin',
-  PHOENIX = 'phoenix',
-  WALLETOFSATOSHI = 'walletofsatoshi',
-  BTC_TARO = 'btctaro',
-  BITBANANA = 'bitbanana',
-  BITKIT = 'bitkit',
-  BLINK = 'blink',
-  BLITZWALLET = 'blitzwallet',
-  BLIXT = 'blixt',
-  BREEZ = 'breez',
-  COINCORNER = 'coincorner',
-  LIFPAY = 'lifpay',
-  LIPAWALLET = 'lipawallet',
-  LNBITS = 'lnbits',
-  AQUA = 'aqua',
-  ONEKEY = 'onekey',
-  POUCHPH = 'pouchph',
-  ZEBEDEE = 'zebedee',
-  ZEUS = 'zeus',
-  BINANCE = 'binance',
-  MUUN = 'muun',
-  KUCOINPAY = 'kucoinpay',
-  BRIDGEWALLET = 'bridgewallet',
-}
+import { IsOptional, IsString } from 'class-validator';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 
 export class WalletAppDto {
-  @ApiProperty({ enum: WalletAppId })
-  id: WalletAppId;
+  @ApiProperty()
+  id: number;
 
   @ApiProperty()
   name: string;
@@ -47,24 +22,36 @@ export class WalletAppDto {
   @ApiPropertyOptional()
   hasActionDeepLink?: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Apple AppStore URL' })
   appStoreUrl?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Google PlayStore URL' })
   playStoreUrl?: string;
 
   @ApiPropertyOptional()
   recommended?: boolean;
 
-  @ApiProperty({ type: [String] })
-  supportedMethods: string[];
+  @ApiProperty({ enum: Blockchain, isArray: true })
+  supportedBlockchains: Blockchain[];
 
-  @ApiPropertyOptional({ type: [String] })
-  supportedTokens?: string[];
+  @ApiPropertyOptional({ type: AssetDto, isArray: true })
+  supportedAssets?: AssetDto[];
 
   @ApiPropertyOptional()
   semiCompatible?: boolean;
 
   @ApiPropertyOptional()
-  disabled?: boolean;
+  active?: boolean;
+}
+
+export class WalletAppQueryDto {
+  @ApiPropertyOptional({ enum: Blockchain })
+  @IsOptional()
+  @IsString()
+  blockchain?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  active: string;
 }

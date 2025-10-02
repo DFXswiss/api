@@ -1,32 +1,65 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { WalletAppDto, WalletAppId } from '../dto/wallet-app.dto';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { WalletAppDto, WalletAppQueryDto } from '../dto/wallet-app.dto';
+import { WalletApp } from '../entities/wallet-app.entity';
 import { WalletAppService } from '../services/wallet-app.service';
 
-@ApiTags('Wallet Apps')
-@Controller('walletApps')
+@ApiTags('Wallet App')
+@Controller('walletApp')
 export class WalletAppController {
-  constructor(private readonly walletAppService: WalletAppService) {}
+  constructor(private readonly walletAppService: WalletAppService, private readonly assetService: AssetService) {}
 
   @Get()
   @ApiOkResponse({ type: WalletAppDto, isArray: true })
-  @ApiQuery({ name: 'method', description: 'Filter by supported method', required: false })
-  getAll(@Query('method') method?: string): WalletAppDto[] {
-    if (method) {
-      return this.walletAppService.getBySupportedMethod(method);
-    }
-    return this.walletAppService.getAll();
+  async getAll(@Query() { blockchain, active }: WalletAppQueryDto): Promise<WalletAppDto[]> {
+    return this.walletAppService
+      .getAllBlockchainWalletApps(blockchain as Blockchain, active !== 'false')
+      .then((l) => this.toDtoList(l));
   }
 
   @Get('recommended')
   @ApiOkResponse({ type: WalletAppDto, isArray: true })
-  getRecommended(): WalletAppDto[] {
-    return this.walletAppService.getRecommended();
+  async getRecommended(): Promise<WalletAppDto[]> {
+    return this.walletAppService.getRecommendedWalletApps().then((l) => this.toDtoList(l));
   }
 
   @Get(':id')
   @ApiOkResponse({ type: WalletAppDto })
-  getById(@Param('id') id: WalletAppId): WalletAppDto {
-    return this.walletAppService.getById(id);
+  async getById(@Param('id') id: string): Promise<WalletAppDto> {
+    return this.walletAppService.getWalletAppById(+id).then((l) => this.toDto(l));
+  }
+
+  // --- DTO --- //
+  private async toDtoList(walletApps: WalletApp[]): Promise<WalletAppDto[]> {
+    return Promise.all(walletApps.map((b) => this.toDto(b)));
+  }
+
+  private async toDto(walletApp: WalletApp): Promise<WalletAppDto> {
+    const supportAssets: Asset[] = [];
+
+    for (const assetId of walletApp.supportedAssetList) {
+      const asset = await this.assetService.getAssetById(assetId);
+      supportAssets.push(asset);
+    }
+
+    return {
+      id: walletApp.id,
+      name: walletApp.name,
+      websiteUrl: walletApp.websiteUrl,
+      iconUrl: walletApp.iconUrl,
+      deepLink: walletApp.deepLink,
+      hasActionDeepLink: walletApp.hasActionDeepLink,
+      appStoreUrl: walletApp.appStoreUrl,
+      playStoreUrl: walletApp.playStoreUrl,
+      recommended: walletApp.recommended,
+      supportedBlockchains: walletApp.supportedBlockchainList,
+      supportedAssets: supportAssets.map((a) => AssetDtoMapper.toDto(a)),
+      semiCompatible: walletApp.semiCompatible,
+      active: walletApp.active,
+    };
   }
 }

@@ -11,6 +11,7 @@ import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wall
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
+import { PaymentStandardType } from 'src/subdomains/core/payment-link/dto/payment-standard.dto';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
@@ -620,6 +621,27 @@ export class Configuration {
           return this.payment.defaultQuoteTimeout;
       }
     },
+
+    standards: [
+      {
+        id: PaymentStandardType.OPEN_CRYPTO_PAY,
+        label: 'OpenCryptoPay.io',
+        description: 'Pay with OpenCryptoPay, Bitcoin Lightning LNURL',
+        paymentIdentifierLabel: 'URL',
+      },
+      {
+        id: PaymentStandardType.LIGHTNING_BOLT11,
+        label: 'Bitcoin Lightning',
+        description: 'Pay with a Bolt 11 Invoice',
+        paymentIdentifierLabel: 'LNR',
+      },
+      {
+        id: PaymentStandardType.PAY_TO_ADDRESS,
+        label: '{{blockchain}} address',
+        description: 'Pay to a {{blockchain}} Blockchain address',
+        paymentIdentifierLabel: 'URI',
+      },
+    ],
   };
 
   blockchain = {

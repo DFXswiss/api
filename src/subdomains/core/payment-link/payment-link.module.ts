@@ -13,9 +13,11 @@ import { PaymentStandardController } from './controllers/payment-standard.contro
 import { WalletAppController } from './controllers/wallet-app.controller';
 import { PaymentLink } from './entities/payment-link.entity';
 import { PaymentMerchant } from './entities/payment-merchant.entity';
+import { WalletApp } from './entities/wallet-app.entity';
 import { PaymentLinkPaymentModule } from './payment-link-payment.module';
 import { PaymentLinkRepository } from './repositories/payment-link.repository';
 import { PaymentMerchantRepository } from './repositories/payment-merchant.repository';
+import { WalletAppRepository } from './repositories/wallet-app.repository';
 import { OCPStickerService } from './services/ocp-sticker.service';
 import { PaymentCronService } from './services/payment-cron.service';
 import { PaymentLinkService } from './services/payment-link.service';
@@ -25,7 +27,7 @@ import { WalletAppService } from './services/wallet-app.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PaymentLink, PaymentMerchant]),
+    TypeOrmModule.forFeature([PaymentLink, PaymentMerchant, WalletApp]),
     UserModule,
     SharedModule,
     PayInWebhookModule,
@@ -46,6 +48,7 @@ import { WalletAppService } from './services/wallet-app.service';
     PaymentLinkService,
     PaymentMerchantRepository,
     PaymentMerchantService,
+    WalletAppRepository,
     WalletAppService,
     PaymentStandardService,
     OCPStickerService,

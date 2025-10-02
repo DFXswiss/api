@@ -1,24 +1,28 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { WalletAppDto, WalletAppId } from '../dto/wallet-app.dto';
-import { WALLET_APPS } from '../config/wallet-apps.config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { FindOptionsWhere, Like } from 'typeorm';
+import { WalletApp } from '../entities/wallet-app.entity';
+import { WalletAppRepository } from '../repositories/wallet-app.repository';
 
 @Injectable()
 export class WalletAppService {
-  getAll(): WalletAppDto[] {
-    return WALLET_APPS.filter((w) => !w.disabled);
+  constructor(private readonly repo: WalletAppRepository) {}
+
+  async getAllBlockchainWalletApps(blockchain?: Blockchain, active?: boolean): Promise<WalletApp[]> {
+    const search: FindOptionsWhere<WalletApp> = {
+      blockchains: blockchain ? Like(`%${blockchain}%`) : undefined,
+      active,
+    };
+    return this.repo.findCachedBy(JSON.stringify(search), search);
   }
 
-  getRecommended(): WalletAppDto[] {
-    return WALLET_APPS.filter((w) => w.recommended && !w.disabled);
+  async getRecommendedWalletApps(): Promise<WalletApp[]> {
+    return this.repo.findCachedBy('recommended', { recommended: true, active: true });
   }
 
-  getById(walletId: WalletAppId): WalletAppDto {
-    const wallet = WALLET_APPS.find((w) => w.id === walletId);
+  async getWalletAppById(id: number): Promise<WalletApp> {
+    const wallet = await this.repo.findOneCachedBy(id, { id });
     if (!wallet) throw new NotFoundException('Wallet app not found');
     return wallet;
-  }
-
-  getBySupportedMethod(method: string): WalletAppDto[] {
-    return WALLET_APPS.filter((w) => !w.disabled && w.supportedMethods.includes(method));
   }
 }

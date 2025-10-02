@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export enum PaymentStandardType {
   OPEN_CRYPTO_PAY = 'OpenCryptoPay',
@@ -19,6 +20,6 @@ export class PaymentStandardDto {
   @ApiPropertyOptional()
   paymentIdentifierLabel?: string;
 
-  @ApiPropertyOptional()
-  blockchain?: string;
+  @ApiPropertyOptional({ enum: Blockchain })
+  blockchain?: Blockchain;
 }

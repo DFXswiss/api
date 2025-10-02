@@ -3,8 +3,8 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { PaymentStandardDto, PaymentStandardType } from '../dto/payment-standard.dto';
 import { PaymentStandardService } from '../services/payment-standard.service';
 
-@ApiTags('Payment Standards')
-@Controller('paymentStandards')
+@ApiTags('Payment Standard')
+@Controller('paymentStandard')
 export class PaymentStandardController {
   constructor(private readonly paymentStandardService: PaymentStandardService) {}
 
