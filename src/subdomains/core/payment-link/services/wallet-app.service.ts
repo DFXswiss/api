@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { FindOptionsWhere, Like } from 'typeorm';
 import { WalletApp } from '../entities/wallet-app.entity';
 import { WalletAppRepository } from '../repositories/wallet-app.repository';
@@ -13,7 +14,10 @@ export class WalletAppService {
       blockchains: blockchain ? Like(`%${blockchain}%`) : undefined,
       active,
     };
-    return this.repo.findCachedBy(JSON.stringify(search), search);
+    return this.repo.findCachedBy(JSON.stringify(search), [
+      search,
+      EvmBlockchains.includes(blockchain) ? { blockchains: Like('%EvmBlockchains%'), active } : undefined,
+    ]);
   }
 
   async getRecommendedWalletApps(): Promise<WalletApp[]> {
