@@ -232,14 +232,22 @@ export class KycService {
           continue;
         } else if (errors.includes(KycError.NATIONALITY_NOT_MATCHING)) {
           await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycError.NATIONALITY_NOT_MATCHING));
-          if (errors.length === 1) {
-            await this.kycNotificationService.kycStepFailed(
-              entity.userData,
-              this.getMailStepName(entity.name, entity.userData.language.symbol),
-              this.getMailFailedReason(comment, entity.userData.language.symbol),
-            );
+          await this.kycNotificationService.kycStepFailed(
+            entity.userData,
+            this.getMailStepName(KycStepName.NATIONALITY_DATA, entity.userData.language.symbol),
+            this.getMailFailedReason(KycError.NATIONALITY_NOT_MATCHING, entity.userData.language.symbol),
+          );
+
+          if (
+            errors.every((e) =>
+              [
+                KycError.NATIONALITY_NOT_MATCHING,
+                KycError.IP_COUNTRY_MISMATCH,
+                KycError.COUNTRY_IP_COUNTRY_MISMATCH,
+              ].includes(e),
+            )
+          )
             continue;
-          }
         }
 
         if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {

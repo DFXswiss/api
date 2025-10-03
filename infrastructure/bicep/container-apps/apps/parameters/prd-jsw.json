@@ -69,6 +69,10 @@
         {
           "name": "ALCHEMY_11155111",
           "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "CITREA_RPC_URL",
+          "value": "http://vm-dfx-node-prd.westeurope.cloudapp.azure.com:8085"
         }
       ]
     },

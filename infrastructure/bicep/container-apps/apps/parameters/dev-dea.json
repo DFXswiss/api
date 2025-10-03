@@ -74,6 +74,42 @@
         {
           "name": "TELEGRAM_GROUPS_JSON",
           "value": "/app/.api/telegram.groups.json"
+        },
+        {
+          "name": "TELEGRAM_IMAGES_DIR",
+          "value": "/app/.api/images/telegram"
+        },
+        {
+          "name": "DEPLOY_TIME_IN_SECONDS_SINCE_EPOCH",
+          "value": "1733306811"
+        },
+        {
+          "name": "TWITTER_CLIENT_ID",
+          "value": "[TWITTER_CLIENT_ID]"
+        },
+        {
+          "name": "TWITTER_CLIENT_SECRET",
+          "value": "[TWITTER_CLIENT_SECRET]"
+        },
+        {
+          "name": "TWITTER_CLIENT_APP_KEY",
+          "value": "[TWITTER_CLIENT_APP_KEY]"
+        },
+        {
+          "name": "TWITTER_CLIENT_APP_SECRET",
+          "value": "[TWITTER_CLIENT_APP_SECRET]"
+        },
+        {
+          "name": "TWITTER_TOKEN_JSON",
+          "value": "/app/.api/twitter.token.json"
+        },
+        {
+          "name": "TWITTER_IMAGES_DIR",
+          "value": "/app/.api/images/twitter"
+        },
+        {
+          "name": "CONFIG_INDEXER_FALLBACK_URL",
+          "value": "https://dev.ponder.deuro.com"
         }
       ]
     },
