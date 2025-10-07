@@ -500,6 +500,7 @@ export class FeeService {
             FeeType.CHARGEBACK_BANK,
             FeeType.BANK,
             FeeType.SPECIAL,
+            FeeType.PARTNER,
           ].includes(f.type) &&
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
