@@ -11,6 +11,7 @@ export interface TxSpec {
   fee: {
     min: number;
     fixed: number;
+    partnerFixed: number;
     bankFixed: number;
     network: number;
     networkStart: number;

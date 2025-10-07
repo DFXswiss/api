@@ -19,6 +19,9 @@ export class FeeDto extends BaseFeeDto {
   @ApiProperty({ description: 'DFX fee amount' })
   dfx: number;
 
+  @ApiProperty({ description: 'Partner fee amount' })
+  partner: number;
+
   @ApiProperty({ description: 'Bank fee amount' })
   bank: number; // final bank fee addition
 

@@ -223,15 +223,17 @@ export class TransactionHelper implements OnModuleInit {
         network: fee.network,
         networkStart: networkStartFee,
         bankFixed: fee.bankFixed,
+        partnerFixed: fee.partnerFixed,
       },
       volume: { min: minSpecs.minVolume, max: Number.MAX_VALUE },
     };
 
     const sourceSpecs = await this.getSourceSpecs(fromReference, specs, PriceValidity.VALID_ONLY);
 
-    const { dfx, bank, total } = this.calculateTotalFee(
+    const { dfx, partner, bank, total } = this.calculateTotalFee(
       inputReferenceAmount,
       fee.rate,
+      fee.partnerRate,
       fee.bankRate,
       sourceSpecs,
       from,
@@ -242,6 +244,7 @@ export class TransactionHelper implements OnModuleInit {
       ...sourceSpecs.fee,
       total,
       dfx,
+      partner,
       bank,
     };
   }
@@ -313,6 +316,7 @@ export class TransactionHelper implements OnModuleInit {
         min: specs.minFee,
         networkStart: networkStartFee,
         bankFixed: fee.bankFixed,
+        partnerFixed: fee.partnerFixed,
       },
       volume: {
         min: specs.minVolume,
@@ -327,6 +331,7 @@ export class TransactionHelper implements OnModuleInit {
       sourceAmount,
       targetAmount,
       fee.rate,
+      fee.partnerRate,
       fee.bankRate,
       sourceSpecs,
       targetSpecs,
@@ -640,6 +645,7 @@ export class TransactionHelper implements OnModuleInit {
     inputAmount: number | undefined,
     outputAmount: number | undefined,
     feeRate: number,
+    partnerRate: number,
     bankFeeRate: number,
     sourceSpecs: TxSpec,
     targetSpecs: TxSpec,
@@ -651,11 +657,12 @@ export class TransactionHelper implements OnModuleInit {
     const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
     const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, bankFeeRate, sourceSpecs);
-    const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, bankFeeRate, sourceSpecs, from);
+    const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, partnerRate, bankFeeRate, sourceSpecs, from);
 
     const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
     const targetFees = {
       dfx: this.convertFee(sourceFees.dfx, price, to),
+      partner: this.convertFee(sourceFees.partner, price, to),
       total: this.convertFee(sourceFees.total, price, to),
       bank: this.convertFee(sourceFees.bank, price, to),
     };
@@ -715,6 +722,7 @@ export class TransactionHelper implements OnModuleInit {
       fee: {
         min: this.convertFee(fee.min, price, from),
         fixed: this.convertFee(fee.fixed, price, from),
+        partnerFixed: this.convertFee(fee.partnerFixed, price, from),
         bankFixed: this.convertFee(fee.bankFixed, price, from),
         network: this.convertFee(fee.network, price, from),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, from) : undefined,
@@ -733,6 +741,7 @@ export class TransactionHelper implements OnModuleInit {
       fee: {
         min: this.convertFee(fee.min, price, to),
         fixed: this.convertFee(fee.fixed, price, to),
+        partnerFixed: this.convertFee(fee.partnerFixed, price, to),
         bankFixed: this.convertFee(fee.bankFixed, price, to),
         network: this.convertFee(fee.network, price, to),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, to) : undefined,
@@ -747,16 +756,19 @@ export class TransactionHelper implements OnModuleInit {
   private calculateTotalFee(
     amount: number,
     rate: number,
+    partnerRate: number,
     bankRate: number,
-    { fee: { fixed, min, network, networkStart, bankFixed } }: TxSpec,
+    { fee: { fixed, min, network, networkStart, bankFixed, partnerFixed } }: TxSpec,
     roundingActive: Active,
-  ): { dfx: number; bank: number; total: number } {
+  ): { dfx: number; partner: number; bank: number; total: number } {
     const bank = amount * bankRate + bankFixed;
     const dfx = Math.max(amount * rate + fixed, min);
-    const total = dfx + bank + network + (networkStart ?? 0);
+    const partner = amount * partnerRate + partnerFixed;
+    const total = dfx + partner + bank + network + (networkStart ?? 0);
 
     return {
       dfx: Util.roundReadable(dfx, feeAmountType(roundingActive)),
+      partner: Util.roundReadable(partner, feeAmountType(roundingActive)),
       bank: Util.roundReadable(bank, feeAmountType(roundingActive)),
       total: Util.roundReadable(total, feeAmountType(roundingActive)),
     };
