@@ -22,6 +22,7 @@ export enum AmlError {
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
   INVALID_USER_DATA_STATUS = 'InvalidUserDataStatus',
   INVALID_KYC_STATUS = 'InvalidKycStatus',
+  INVALID_KYC_STATUS_REF_USER = 'InvalidKycStatusRefUser',
   INVALID_KYC_TYPE = 'InvalidKycType',
   NO_VERIFIED_NAME = 'NoVerifiedName',
   NAME_MISSING = 'NameMissing',
@@ -52,6 +53,12 @@ export enum AmlError {
   VIDEO_IDENT_MISSING = 'VideoIdentMissing',
   LIQUIDITY_LIMIT_EXCEEDED = 'LiquidityLimitExceeded',
   IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
+  MERGE_PENDING = 'MergePending',
+  MERGE_EXPIRED = 'MergeExpired',
+  PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
+  IP_PHONE_VERIFICATION_NEEDED = 'IpPhoneVerificationNeeded',
+  IP_BLACKLISTED_WITHOUT_KYC = 'IpBlacklistedWithoutKyc',
+  BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
 }
 
 export const DelayResultError = [
@@ -60,6 +67,7 @@ export const DelayResultError = [
   AmlError.NO_LETTER,
   AmlError.BANK_DATA_MISSING,
   AmlError.INPUT_NOT_CONFIRMED,
+  AmlError.BANK_RELEASE_DATE_MISSING,
 ];
 
 export enum AmlErrorType {
@@ -131,6 +139,7 @@ export const AmlErrorResult: {
   [AmlError.USER_DATA_DEACTIVATED]: null,
   [AmlError.INVALID_USER_DATA_STATUS]: null,
   [AmlError.INVALID_KYC_STATUS]: null,
+  [AmlError.INVALID_KYC_STATUS_REF_USER]: null,
   [AmlError.INVALID_KYC_TYPE]: null,
   [AmlError.NO_VERIFIED_NAME]: null,
   [AmlError.NAME_MISSING]: {
@@ -236,5 +245,35 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
+  },
+  [AmlError.MERGE_PENDING]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MERGE_INCOMPLETE,
+  },
+  [AmlError.MERGE_EXPIRED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: AmlReason.MERGE_INCOMPLETE,
+  },
+  [AmlError.PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
+  },
+  [AmlError.IP_PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_IP_PHONE,
+  },
+  [AmlError.BANK_RELEASE_DATE_MISSING]: {
+    type: AmlErrorType.SINGLE,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.BANK_RELEASE_PENDING,
+  },
+  [AmlError.IP_BLACKLISTED_WITHOUT_KYC]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.HIGH_RISK_KYC_NEEDED,
   },
 };

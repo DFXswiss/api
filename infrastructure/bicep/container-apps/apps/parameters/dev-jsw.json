@@ -1,0 +1,86 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 100
+    },
+    "containerImage": {
+      "value": "dfxswiss/juiceswap-api:beta"
+    },
+    "containerVolumeMounts": {
+      "value": []
+    },
+    "containerCPU": {
+      "value": "0.25"
+    },
+    "containerMemory": {
+      "value": "0.5Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 3000
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "NODE_ENV",
+          "value": "development"
+        },
+        {
+          "name": "CORS_ORIGIN",
+          "value": "http://localhost:3001,https://dev.bapp.juiceswap.xyz,https://bapp.juiceswap.xyz,https://dev.bapp.juiceswap.com,https://bapp.juiceswap.com"
+        },
+        {
+          "name": "ALCHEMY_1",
+          "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "ALCHEMY_10",
+          "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "ALCHEMY_137",
+          "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "ALCHEMY_5115",
+          "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "ALCHEMY_8453",
+          "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "ALCHEMY_42161",
+          "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "ALCHEMY_11155111",
+          "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "CITREA_RPC_URL",
+          "value": "http://vm-dfx-node-dev.westeurope.cloudapp.azure.com:8085"
+        }
+      ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": []
+    }
+  }
+}

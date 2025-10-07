@@ -3,7 +3,11 @@ import { Config } from 'src/config/config';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SepaEntry } from '../dto/sepa-entry.dto';
 import { SepaFile } from '../dto/sepa-file.dto';
 import { ChargeRecord, SepaAddress, SepaCdi } from '../dto/sepa.dto';
@@ -119,14 +123,12 @@ export class SepaParser {
     chargeAmountChf: number;
     chargeCurrency: string;
     senderChargeAmount: number;
-    senderChargeAmountChf: number;
     senderChargeCurrency: string;
   }> {
     let chargeAmount = 0;
     let chargeAmountChf = 0;
 
     let senderChargeAmount = 0;
-    let senderChargeAmountChf = 0;
 
     if (!charges)
       return {
@@ -134,27 +136,36 @@ export class SepaParser {
         chargeAmountChf,
         chargeCurrency: Config.defaults.currency,
         senderChargeAmount,
-        senderChargeAmountChf,
         senderChargeCurrency: Config.defaults.currency,
       };
 
     charges = (Array.isArray(charges) ? charges : [charges]).filter((c) => +c.Amt['#text'] !== 0);
 
     const referenceCurrency = await this.fiatService.getFiatByName(currency);
+    const senderChargeCurrency = charges
+      ?.filter((c) => c['CdtDbtInd'] === SepaCdi.CREDIT)
+      ?.map((c) => c.Amt['@_Ccy'])
+      ?.join(',');
 
     for (const charge of charges) {
-      const currency = charge.Amt['@_Ccy'];
-      const chargeCurrency = await this.fiatService.getFiatByName(currency);
-      const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, PriceCurrency.CHF, true);
-      const chargeReferencePrice = await this.pricingService.getPrice(chargeCurrency, referenceCurrency, true);
       const amount = +charge.Amt['#text'];
 
       if (charge.CdtDbtInd === SepaCdi.DEBIT) {
+        const currency = charge.Amt['@_Ccy'];
+        const chargeCurrency = await this.fiatService.getFiatByName(currency);
+
+        const chargeChfPrice = await this.pricingService.getPrice(chargeCurrency, PriceCurrency.CHF, PriceValidity.ANY);
+        const chargeReferencePrice = await this.pricingService.getPrice(
+          chargeCurrency,
+          referenceCurrency,
+          PriceValidity.ANY,
+        );
+
         chargeAmount += chargeReferencePrice.convert(amount, Config.defaultVolumeDecimal);
         chargeAmountChf += chargeChfPrice.convert(amount, Config.defaultVolumeDecimal);
       } else {
-        senderChargeAmount += chargeReferencePrice.convert(amount, Config.defaultVolumeDecimal);
-        senderChargeAmountChf += chargeChfPrice.convert(amount, Config.defaultVolumeDecimal);
+        // solution to solve missing price problem
+        senderChargeAmount += Util.round(amount, Config.defaultVolumeDecimal);
       }
     }
 
@@ -163,8 +174,7 @@ export class SepaParser {
       chargeAmountChf: Util.round(chargeAmountChf, Config.defaultVolumeDecimal),
       chargeCurrency: currency,
       senderChargeAmount: Util.round(senderChargeAmount, Config.defaultVolumeDecimal),
-      senderChargeAmountChf: Util.round(senderChargeAmountChf, Config.defaultVolumeDecimal),
-      senderChargeCurrency: currency,
+      senderChargeCurrency,
     };
   }
 

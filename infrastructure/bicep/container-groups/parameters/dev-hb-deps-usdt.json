@@ -1,0 +1,42 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "fileShareQuota": {
+            "value": 100
+        },
+        "containerImage": {
+            "value": "dfxswiss/hummingbot:beta"
+        },
+        "containerVolumeMounts": {
+            "value": [
+                {
+                    "name": "volume",
+                    "mountPath": "/mnt/hummingbot",
+                    "readOnly": false
+                }
+            ]
+        },
+        "containerCPU": {
+            "value": 0.5
+        },
+        "containerMemory": {
+            "value": 1
+        },
+        "containerEnv": {
+            "value": [
+                {
+                    "name": "BOT_DIR",
+                    "value": "deps-usdt-dev"
+                },
+                {
+                    "name": "STRATEGY_FILE",
+                    "value": "deps-usdt-conf_pure_mm.yml"
+                }
+            ]
+        },
+        "containerCommand": {
+            "value": []
+        }
+    }
+}

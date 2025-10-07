@@ -32,6 +32,10 @@ export enum AmlReason {
   TEST_ONLY = 'TestOnly',
   KYC_DATA_NEEDED = 'KycDataNeeded',
   BANK_TX_NEEDED = 'BankTxNeeded',
+  MERGE_INCOMPLETE = 'MergeIncomplete',
+  MANUAL_CHECK_PHONE = 'ManualCheckPhone',
+  MANUAL_CHECK_IP_PHONE = 'ManualCheckIpPhone',
+  BANK_RELEASE_PENDING = 'BankReleasePending',
 }
 
 export const KycAmlReasons = [
@@ -45,10 +49,28 @@ export const KycAmlReasons = [
   AmlReason.KYC_DATA_NEEDED,
 ];
 
+export const RecheckAmlReasons = [
+  AmlReason.MANUAL_CHECK_PHONE,
+  AmlReason.MANUAL_CHECK_IP_PHONE,
+  AmlReason.MANUAL_CHECK_BANK_DATA,
+  AmlReason.VIDEO_IDENT_NEEDED,
+  AmlReason.MONTHLY_LIMIT,
+  AmlReason.OLKY_NO_KYC,
+  AmlReason.NAME_CHECK_WITHOUT_KYC,
+  AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
+  AmlReason.HIGH_RISK_KYC_NEEDED,
+  AmlReason.ASSET_KYC_NEEDED,
+  AmlReason.KYC_DATA_NEEDED,
+  AmlReason.BANK_RELEASE_PENDING,
+];
+
 export const AmlReasonWithoutReason = [
   AmlReason.NA,
   AmlReason.MANUAL_CHECK,
   AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.USER_BLOCKED,
   AmlReason.USER_DATA_BLOCKED,
+  AmlReason.BANK_RELEASE_PENDING,
 ];
+
+export const NotRefundableAmlReasons = [AmlReason.BANK_RELEASE_PENDING];

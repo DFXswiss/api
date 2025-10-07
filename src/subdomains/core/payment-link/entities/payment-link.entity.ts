@@ -1,24 +1,29 @@
 import { merge } from 'lodash';
 import { GetConfig } from 'src/config/config';
-import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/binance-pay/dto/binance.dto';
-import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Country } from 'src/shared/models/country/country.entity';
+import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
-import { PaymentLinkMode, PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
+import {
+  PaymentLinkMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentQuoteStatus,
+  PaymentStandard,
+} from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';
 
 export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
-  standards: Object.values(PaymentStandard),
-  blockchains: Object.values(PaymentLinkBlockchain),
+  standards: [PaymentStandard.OPEN_CRYPTO_PAY],
+  blockchains: PaymentLinkBlockchains,
   minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
   displayQr: false,
-  fee: 0.002,
+  fee: GetConfig().payment.fee,
   paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
+  cancellable: true,
 };
 
 @Entity()
@@ -41,6 +46,12 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256 })
   status: PaymentLinkStatus;
 
+  @Column({ length: 256, nullable: true })
+  publicStatus?: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  comment?: string;
+
   @Column({ length: 256, default: PaymentLinkMode.MULTIPLE })
   mode: PaymentLinkMode;
 
@@ -59,49 +70,6 @@ export class PaymentLink extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   config?: string; // PaymentLinkConfig
 
-  // recipient (TODO: move to config)
-  @Column({ length: 256, nullable: true })
-  name?: string;
-
-  @Column({ length: 256, nullable: true })
-  street?: string;
-
-  @Column({ length: 256, nullable: true })
-  houseNumber?: string;
-
-  @Column({ length: 256, nullable: true })
-  zip?: string;
-
-  @Column({ length: 256, nullable: true })
-  city?: string;
-
-  @ManyToOne(() => Country, { nullable: true, eager: true })
-  country?: Country;
-
-  @Column({ length: 256, nullable: true })
-  phone?: string;
-
-  @Column({ length: 256, nullable: true })
-  mail?: string;
-
-  @Column({ length: 256, nullable: true })
-  website?: string;
-
-  @Column({ nullable: true })
-  registrationNumber?: string; // Registration number/Company tax ID
-
-  @Column({ nullable: true })
-  storeType?: StoreType;
-
-  @Column({ nullable: true })
-  merchantMcc?: MerchantMCC;
-
-  @Column({ nullable: true })
-  goodsType?: GoodsType;
-
-  @Column({ nullable: true })
-  goodsCategory?: GoodsCategory;
-
   // --- ENTITY METHODS --- //
   get metaId(): string {
     return this.label ?? this.externalId ?? `${this.id}`;
@@ -112,29 +80,12 @@ export class PaymentLink extends IEntity {
       ? `Payment ${paymentMetaId} to ${this.metaId}`
       : `Payment link ${this.metaId}`;
 
-    return this.route.userData.paymentLinksName ?? this.route.userData.verifiedName ?? defaultDisplayName;
-  }
-
-  get recipient(): PaymentLinkRecipientDto {
-    const configRecipient = this.configObj.recipient;
-
-    const linkRecipient: PaymentLinkRecipientDto = Util.removeNullFields({
-      name: this.name,
-      address: this.city
-        ? {
-            street: this.street,
-            houseNumber: this.houseNumber,
-            zip: this.zip,
-            city: this.city,
-            country: this.country?.name,
-          }
-        : undefined,
-      phone: this.phone,
-      mail: this.mail,
-      website: this.website,
-    });
-
-    return Object.assign(configRecipient, linkRecipient);
+    return (
+      this.route.userData.paymentLinksName ??
+      this.route.userData.verifiedName ??
+      this.configObj.recipient?.name ??
+      defaultDisplayName
+    );
   }
 
   get configObj(): PaymentLinkConfig {
@@ -145,7 +96,7 @@ export class PaymentLink extends IEntity {
       address: userData.address.country
         ? {
             ...userData.address,
-            country: userData.address.country?.name,
+            country: userData.address.country?.symbol,
           }
         : undefined,
       phone: userData.phone,
@@ -165,6 +116,15 @@ export class PaymentLink extends IEntity {
 
   get defaultStandard(): PaymentStandard {
     return this.configObj.standards[0];
+  }
+
+  get totalCompletedAmount(): number {
+    return (
+      Util.sumObjValue(
+        this.payments?.filter((p) => p.status === PaymentLinkPaymentStatus.COMPLETED),
+        'amount',
+      ) ?? 0
+    );
   }
 
   getMatchingStandard(param?: PaymentStandard): PaymentStandard {

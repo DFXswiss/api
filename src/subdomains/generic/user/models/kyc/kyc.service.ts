@@ -10,19 +10,13 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/utils/util';
 import { FileType, KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
-import {
-  Blank,
-  BlankType,
-  KycLevel,
-  KycState,
-  UserData,
-} from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Blank, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { getKycWebhookStatus } from '../../services/webhook/mapper/webhook-data.mapper';
+import { BlankType, KycLevel, KycState } from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
@@ -85,25 +79,6 @@ export class KycService {
     if (dfxUser.userData.id == externalUser.userData.id) throw new ConflictException('User already merged');
 
     await this.userDataService.mergeUserData(dfxUser.userData.id, externalUser.userData.id);
-  }
-
-  async uploadDocument(
-    code: string,
-    document: Express.Multer.File,
-    kycDocument: FileType,
-    userDataId?: number,
-  ): Promise<boolean> {
-    const userData = await this.getUser(code, userDataId);
-
-    const { url } = await this.documentService.uploadUserFile(
-      userData,
-      kycDocument,
-      `${Util.isoDateTime(new Date())}_incorporation-certificate_${Util.randomId()}_${document.filename}`,
-      document.buffer,
-      document.mimetype as ContentType,
-      false,
-    );
-    return url != '';
   }
 
   // --- KYC PROCESS --- //

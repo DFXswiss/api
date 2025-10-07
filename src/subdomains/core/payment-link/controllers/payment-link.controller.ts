@@ -11,6 +11,7 @@ import {
   Query,
   Res,
   StreamableFile,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -29,16 +30,19 @@ import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
+import { CreatePaymentMerchantDto } from '../dto/create-payment-merchant.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
-import { PaymentLinkConfigDto, UpdatePaymentLinkConfigDto } from '../dto/payment-link-config.dto';
+import { UpdatePaymentLinkConfigDto, UserPaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
+import { PaymentLinkRecipientAddressDto } from '../dto/payment-link-recipient-address.dto';
 import {
   PaymentLinkDto,
   PaymentLinkHistoryDto,
@@ -51,22 +55,23 @@ import { UpdatePaymentLinkPaymentDto } from '../dto/update-payment-link-payment.
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
 import { PaymentLink } from '../entities/payment-link.entity';
-import { StickerType } from '../enums';
+import { StickerQrMode, StickerType } from '../enums';
 import { JwtOrPaymentLinkKeyGuard } from '../guards/jwt-or-payment-link-key.guard';
 import { OCPStickerService } from '../services/ocp-sticker.service';
 import { PaymentLinkPaymentService } from '../services/payment-link-payment.service';
 import { PaymentLinkService } from '../services/payment-link.service';
+import { PaymentMerchantService } from '../services/payment-merchant.service';
 
 @ApiTags('Payment Link')
 @Controller('paymentLink')
 export class PaymentLinkController {
-  private readonly logger = new DfxLogger(PaymentLinkController);
   constructor(
     private readonly userDataService: UserDataService,
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly sellService: SellService,
     private readonly paymentLinkStickerService: OCPStickerService,
+    private readonly paymentMerchantService: PaymentMerchantService,
   ) {}
 
   @Get()
@@ -92,7 +97,7 @@ export class PaymentLinkController {
 
   @Get('history')
   @ApiBearerAuth()
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(JwtOrPaymentLinkKeyGuard())
   @ApiOkResponse({ type: PaymentLinkHistoryDto, isArray: true })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
   @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
@@ -109,12 +114,17 @@ export class PaymentLinkController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(JwtOrPaymentLinkKeyGuard())
   @ApiCreatedResponse({ type: PaymentLinkDto })
-  async createPaymentLink(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentLinkDto): Promise<PaymentLinkDto> {
-    await this.checkPaymentLinksAllowed(jwt.account);
+  @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
+  async createPaymentLink(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: CreatePaymentLinkDto,
+    @Query('key') key: string,
+  ): Promise<PaymentLinkDto> {
+    const userId = await this.getAndCheckUserId(jwt, key);
 
-    return this.paymentLinkService.create(+jwt.user, dto).then(PaymentLinkDtoMapper.toLinkDto);
+    return this.paymentLinkService.create(userId, dto).then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   @Put()
@@ -154,13 +164,29 @@ export class PaymentLinkController {
       .then((url) => ({ url }));
   }
 
+  @Put('assign')
+  @ApiOkResponse({ type: PaymentLinkDto })
+  @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
+  @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
+  async assignPaymentLink(
+    @Query('linkId') linkId: string,
+    @Query('externalLinkId') externalLinkId: string,
+    @Body() dto: AssignPaymentLinkDto,
+  ): Promise<PaymentLinkDto> {
+    if (!linkId && !externalLinkId) throw new BadRequestException('id or externalId is required');
+
+    return this.paymentLinkService
+      .assignPaymentLink(linkId && +linkId, externalLinkId, dto)
+      .then(PaymentLinkDtoMapper.toLinkDto);
+  }
+
   // -- CONFIG --- //
 
   @Get('config')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  @ApiOkResponse({ type: PaymentLinkConfigDto })
-  async getUserPaymentLinksConfig(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkConfigDto> {
+  @ApiOkResponse({ type: UserPaymentLinkConfigDto })
+  async getUserPaymentLinksConfig(@GetJwt() jwt: JwtPayload): Promise<UserPaymentLinkConfigDto> {
     return this.paymentLinkService.getUserPaymentLinksConfig(jwt.account);
   }
 
@@ -226,24 +252,16 @@ export class PaymentLinkController {
     @Query('route') route: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    if (jwt) {
-      return this.paymentLinkService
-        .createPayment(+jwt.user, dto, +linkId, externalLinkId)
-        .then(PaymentLinkDtoMapper.toLinkDto);
-    }
+    const link = Boolean(key)
+      ? await this.paymentLinkService.createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
+      : await this.paymentLinkService.createPayment(dto, +jwt.user, +linkId, externalLinkId, route);
 
-    if (key) {
-      return this.paymentLinkService
-        .createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
-        .then(PaymentLinkDtoMapper.toLinkDto);
-    }
-
-    return this.paymentLinkService.createPublicPayment(dto, route, externalLinkId).then(PaymentLinkDtoMapper.toLinkDto);
+    return PaymentLinkDtoMapper.toLinkDto(link);
   }
 
   @Get('payment/wait')
   @ApiBearerAuth()
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(JwtOrPaymentLinkKeyGuard())
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -263,7 +281,7 @@ export class PaymentLinkController {
 
   @Put('payment/confirm')
   @ApiBearerAuth()
-  @UseGuards(JwtOrPaymentLinkKeyGuard)
+  @UseGuards(JwtOrPaymentLinkKeyGuard())
   @ApiOkResponse({ type: PaymentLinkDto })
   @ApiQuery({ name: 'linkId', description: 'Link ID', required: false })
   @ApiQuery({ name: 'externalLinkId', description: 'External link ID', required: false })
@@ -303,6 +321,24 @@ export class PaymentLinkController {
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
+  // --- MERCHANT --- //
+
+  @Get('locations')
+  @ApiOkResponse()
+  async getLocations(@Query('publicName') publicName: string): Promise<PaymentLinkRecipientAddressDto[]> {
+    return this.paymentLinkService.getLocations(publicName);
+  }
+
+  @Post('merchant')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiCreatedResponse()
+  async createMerchant(@GetJwt() jwt: JwtPayload, @Body() dto: CreatePaymentMerchantDto): Promise<void> {
+    await this.checkPaymentLinksAllowed(jwt.account);
+
+    await this.paymentMerchantService.create(+jwt.user, dto);
+  }
+
   // --- ADMIN --- //
 
   @Put('payment/:id')
@@ -332,27 +368,44 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createPosLinkAdmin(@Param('id') id: string, @Query('scoped') scoped: string): Promise<string> {
-    return this.paymentLinkService.createPosLinkAdmin(+id, scoped === 'true');
+    return this.paymentLinkService.createPosLinkAdmin(+id, scoped && scoped === 'true');
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async deletePaymentLink(@Param('id') id: string): Promise<void> {
+    return this.paymentLinkService.deletePaymentLink(+id);
   }
 
   @Get('stickers')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: StreamableFile })
   @ApiQuery({ name: 'route', description: 'Route ID or label', required: true })
   @ApiQuery({ name: 'externalIds', description: 'Comma-separated external IDs', required: false })
   @ApiQuery({ name: 'ids', description: 'Comma-separated payment link IDs', required: false })
-  @ApiQuery({ name: 'type', description: 'Sticker type', required: false })
+  @ApiQuery({ name: 'type', description: 'Sticker type', required: false, enum: StickerType })
   @ApiQuery({ name: 'lang', description: 'Language code', required: false })
+  @ApiQuery({ name: 'mode', description: 'QR code mode', required: false, enum: StickerQrMode })
   async generateOcpStickers(
+    @GetJwt() jwt: JwtPayload,
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
     @Query('ids') ids: string,
     @Query('type') type: StickerType,
     @Query('lang') lang: string,
+    @Query('mode') mode: StickerQrMode,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     if (!externalIds && !ids) {
       throw new BadRequestException('Either externalIds or ids parameter must be provided');
+    }
+
+    if (mode === StickerQrMode.POS && !jwt) {
+      throw new UnauthorizedException('Authentication required for POS mode');
     }
 
     const idArray = ids?.split(',').map((id) => +id);
@@ -363,11 +416,15 @@ export class PaymentLinkController {
       idArray,
       type,
       lang,
+      mode,
+      jwt?.user,
     );
 
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="DFX_OCP_stickers_${Util.filenameDate()}.pdf"`,
+      'Content-Disposition': `attachment; filename="DFX_OCP_${
+        mode === StickerQrMode.POS ? 'POS_' : ''
+      }stickers_${Util.filenameDate()}.pdf"`,
     });
 
     return new StreamableFile(pdfBuffer);
@@ -375,8 +432,26 @@ export class PaymentLinkController {
 
   // --- HELPER METHODS --- //
 
-  private async checkPaymentLinksAllowed(userDataId: number): Promise<void> {
-    const userData = await this.userDataService.getUserData(userDataId);
+  private async getAndCheckUserId(jwt?: JwtPayload, key?: string): Promise<number> {
+    if (key) {
+      const route = await this.sellService.getPaymentRouteForKey(key);
+      if (!route) throw new BadRequestException('Invalid access key');
+
+      await this.checkPaymentLinksAllowed(route.user.userData);
+
+      return route.user.id;
+    } else {
+      if (!jwt) throw new BadRequestException('Missing access key');
+
+      await this.checkPaymentLinksAllowed(jwt.account);
+
+      return jwt.user;
+    }
+  }
+
+  private async checkPaymentLinksAllowed(userDataOrId: number | UserData): Promise<void> {
+    const userData =
+      userDataOrId instanceof UserData ? userDataOrId : await this.userDataService.getUserData(userDataOrId);
     if (!userData.paymentLinksAllowed) throw new ForbiddenException('Permission denied');
   }
 }

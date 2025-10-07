@@ -6,7 +6,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In, Not } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -110,8 +114,8 @@ export class LiquidityManagementService {
         return;
       }
 
-      const numberOfPendingOrders = await this.balanceService.getNumberOfPendingOrders(rule);
-      if (numberOfPendingOrders > 0) {
+      const hasPendingOrders = await this.balanceService.hasPendingOrders(rule);
+      if (hasPendingOrders) {
         this.logger.info(`Could not verify rule ${rule.id}: pending orders found`);
         return;
       }
@@ -122,7 +126,7 @@ export class LiquidityManagementService {
         return;
       }
 
-      const eurPrice = await this.pricingService.getPrice(PriceCurrency.EUR, rule.targetAsset, true);
+      const eurPrice = await this.pricingService.getPrice(PriceCurrency.EUR, rule.targetAsset, PriceValidity.ANY);
       const transmissionMinimum = eurPrice.convert(Config.liquidityManagement.fiatOutput.batchAmountLimit * 0.95, 8);
 
       const result = rule.verify(balance, transmissionMinimum);
@@ -139,7 +143,7 @@ export class LiquidityManagementService {
         const delay = await this.settingService.get('lmActivationDelay', '30');
         const requiredActivationTime = Util.minutesBefore(+delay);
 
-        if (this.ruleActivations.get(rule.id) < requiredActivationTime) {
+        if (!rule.delayActivation || this.ruleActivations.get(rule.id) < requiredActivationTime) {
           this.ruleActivations.delete(rule.id);
 
           await this.executeRule(rule, result);

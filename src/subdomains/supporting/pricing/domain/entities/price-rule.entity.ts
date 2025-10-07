@@ -43,6 +43,12 @@ export class PriceRule extends IEntity {
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   reference?: Asset;
 
+  @Column({ nullable: true })
+  assetDisplayName: string;
+
+  @Column({ nullable: true })
+  referenceDisplayName: string;
+
   @Column()
   priceSource: string; // {src}:{param}:{name}
 
@@ -89,6 +95,14 @@ export class PriceRule extends IEntity {
   priceTimestamp?: Date;
 
   // getters
+  get from(): string {
+    return this.assetDisplayName ?? this.priceAsset;
+  }
+
+  get to(): string {
+    return this.referenceDisplayName ?? this.priceReference;
+  }
+
   get shouldUpdate(): boolean {
     return !this.isPriceValid || Util.secondsDiff(this.priceTimestamp) > this.priceValiditySeconds - 15;
   }
@@ -109,8 +123,8 @@ export class PriceRule extends IEntity {
     if (!this.currentPrice || !this.priceTimestamp) throw new Error(`No price available for rule ${this.id}`);
 
     return Price.create(
-      this.priceAsset,
-      this.priceReference,
+      this.from,
+      this.to,
       this.currentPrice,
       this.isPriceValid,
       this.priceTimestamp,

@@ -1,10 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsObject, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
-import { Country } from 'src/shared/models/country/country.entity';
+import { IsEnum, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
-import { PaymentLinkStatus } from '../enums';
+import { PaymentLinkMode, PaymentLinkStatus } from '../enums';
 import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
 
 export class UpdatePaymentLinkDto {
@@ -12,6 +10,11 @@ export class UpdatePaymentLinkDto {
   @IsOptional()
   @IsEnum(PaymentLinkStatus)
   status?: PaymentLinkStatus;
+
+  @ApiPropertyOptional({ enum: PaymentLinkMode })
+  @IsOptional()
+  @IsEnum(PaymentLinkMode)
+  mode?: PaymentLinkMode;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -33,42 +36,20 @@ export class UpdatePaymentLinkDto {
 
 export class UpdatePaymentLinkInternalDto {
   @IsOptional()
+  @IsEnum(PaymentLinkStatus)
+  status?: PaymentLinkStatus;
+
+  @IsOptional()
+  @IsEnum(PaymentLinkMode)
+  mode?: PaymentLinkMode;
+
+  @IsOptional()
   @IsString()
   externalId?: string;
 
   @IsOptional()
   @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  street?: string;
-
-  @IsOptional()
-  @IsString()
-  houseNumber?: string;
-
-  @IsOptional()
-  @IsString()
-  zip?: string;
-
-  @IsOptional()
-  @IsString()
-  city?: string;
-
-  @IsOptional()
-  @IsObject()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  country?: Country;
-
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
-  @IsOptional()
-  @IsString()
-  mail?: string;
+  label?: string;
 
   @IsOptional()
   @IsString()
@@ -84,13 +65,13 @@ export class UpdatePaymentLinkInternalDto {
 
   @IsOptional()
   @IsString()
-  website?: string;
-
-  @IsOptional()
-  @IsString()
   config?: string;
 
   @IsOptional()
   @IsString()
-  label?: string;
+  publicStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }

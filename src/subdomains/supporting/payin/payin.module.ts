@@ -12,6 +12,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { TransactionModule } from '../payment/transaction.module';
 import { PayoutModule } from '../payout/payout.module';
 import { PricingModule } from '../pricing/pricing.module';
+import { PayInController } from './controllers/payin.controller';
 import { CryptoInput } from './entities/crypto-input.entity';
 import { PayInWebhookModule } from './payin-webhook.module';
 import { PayInRepository } from './repositories/payin.repository';
@@ -19,6 +20,7 @@ import { PayInArbitrumService } from './services/payin-arbitrum.service';
 import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
+import { PayInCitreaTestnetService } from './services/payin-citrea-testnet.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
 import { PayInGnosisService } from './services/payin-gnosis.service';
 import { PayInLightningService } from './services/payin-lightning.service';
@@ -26,8 +28,10 @@ import { PayInMoneroService } from './services/payin-monero.service';
 import { PayInNotificationService } from './services/payin-notification.service';
 import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInPolygonService } from './services/payin-polygon.service';
+import { PayInSepoliaService } from './services/payin-sepolia.service';
 import { PayInSolanaService } from './services/payin-solana.service';
 import { PayInTronService } from './services/payin-tron.service';
+import { PayInZanoService } from './services/payin-zano.service';
 import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
@@ -35,6 +39,7 @@ import { RegisterStrategyRegistry } from './strategies/register/impl/base/regist
 import { BinancePayStrategy as BinancePayStrategyR } from './strategies/register/impl/binance-pay.strategy';
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
+import { CitreaTestnetStrategy as CitreaTestnetStrategyR } from './strategies/register/impl/citrea-testnet.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
 import { GnosisStrategy as GnosisStrategyR } from './strategies/register/impl/gnosis.strategy';
 import { KucoinPayStrategy as KucoinPayStrategyR } from './strategies/register/impl/kucoin-pay.strategy';
@@ -42,8 +47,10 @@ import { LightningStrategy as LightningStrategyR } from './strategies/register/i
 import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
 import { PolygonStrategy as PolygonStrategyR } from './strategies/register/impl/polygon.strategy';
+import { SepoliaStrategy as SepoliaStrategyR } from './strategies/register/impl/sepolia.strategy';
 import { SolanaStrategy as SolanaStrategyR } from './strategies/register/impl/solana.strategy';
 import { TronStrategy as TronStrategyR } from './strategies/register/impl/tron.strategy';
+import { ZanoStrategy as ZanoStrategyR } from './strategies/register/impl/zano.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
 import { BaseCoinStrategy as BaseCoinStrategyS } from './strategies/send/impl/base-coin.strategy';
@@ -53,6 +60,8 @@ import { BinancePayStrategy as BinancePayStrategyS } from './strategies/send/imp
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/send/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
+import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyS } from './strategies/send/impl/citrea-testnet-coin.strategy';
+import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyS } from './strategies/send/impl/citrea-testnet-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/send/impl/ethereum-token.strategy';
 import { GnosisCoinStrategy as GnosisCoinStrategyS } from './strategies/send/impl/gnosis-coin.strategy';
@@ -64,10 +73,14 @@ import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send
 import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/send/impl/optimism-token.strategy';
 import { PolygonCoinStrategy as PolygonCoinStrategyS } from './strategies/send/impl/polygon-coin.strategy';
 import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send/impl/polygon-token.strategy';
+import { SepoliaCoinStrategy as SepoliaCoinStrategyS } from './strategies/send/impl/sepolia-coin.strategy';
+import { SepoliaTokenStrategy as SepoliaTokenStrategyS } from './strategies/send/impl/sepolia-token.strategy';
 import { SolanaCoinStrategy as SolanaCoinStrategyS } from './strategies/send/impl/solana-coin.strategy';
 import { SolanaTokenStrategy as SolanaTokenStrategyS } from './strategies/send/impl/solana-token.strategy';
 import { TronCoinStrategy as TronCoinStrategyS } from './strategies/send/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/tron-token.strategy';
+import { ZanoCoinStrategy as ZanoCoinStrategyS } from './strategies/send/impl/zano-coin.strategy';
+import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/zano-token.strategy';
 
 @Module({
   imports: [
@@ -86,7 +99,7 @@ import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/
     TransactionModule,
     PaymentLinkPaymentModule,
   ],
-  controllers: [],
+  controllers: [PayInController],
   providers: [
     PayInRepository,
     PayInService,
@@ -94,7 +107,9 @@ import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/
     PayInBitcoinService,
     PayInLightningService,
     PayInMoneroService,
+    PayInZanoService,
     PayInEthereumService,
+    PayInSepoliaService,
     PayInBscService,
     PayInArbitrumService,
     PayInOptimismService,
@@ -103,6 +118,7 @@ import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/
     PayInSolanaService,
     PayInGnosisService,
     PayInTronService,
+    PayInCitreaTestnetService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
     BitcoinStrategyR,
@@ -111,9 +127,15 @@ import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/
     LightningStrategyS,
     MoneroStrategyR,
     MoneroStrategyS,
+    ZanoStrategyR,
+    ZanoCoinStrategyS,
+    ZanoTokenStrategyS,
     EthereumStrategyR,
     EthereumCoinStrategyS,
     EthereumTokenStrategyS,
+    SepoliaStrategyR,
+    SepoliaCoinStrategyS,
+    SepoliaTokenStrategyS,
     BscStrategyR,
     BscCoinStrategyS,
     BscTokenStrategyS,
@@ -138,6 +160,9 @@ import { TronTokenStrategy as TronTokenStrategyS } from './strategies/send/impl/
     TronStrategyR,
     TronCoinStrategyS,
     TronTokenStrategyS,
+    CitreaTestnetStrategyR,
+    CitreaTestnetCoinStrategyS,
+    CitreaTestnetTokenStrategyS,
     BinancePayStrategyR,
     BinancePayStrategyS,
     KucoinPayStrategyR,

@@ -5,6 +5,7 @@ import { BitcoinClient } from '../../bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
+import { SepoliaService } from '../../sepolia/sepolia.service';
 import { GnosisService } from '../../gnosis/gnosis.service';
 import { MoneroClient } from '../../monero/monero-client';
 import { MoneroService } from '../../monero/services/monero.service';
@@ -14,28 +15,34 @@ import { SolanaService } from '../../solana/services/solana.service';
 import { SolanaClient } from '../../solana/solana-client';
 import { TronService } from '../../tron/services/tron.service';
 import { TronClient } from '../../tron/tron-client';
+import { CitreaTestnetService } from '../../citrea-testnet/citrea-testnet.service';
+import { ZanoService } from '../../zano/services/zano.service';
+import { ZanoClient } from '../../zano/zano-client';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from '../evm/evm-client';
 import { EvmService } from '../evm/evm.service';
 import { L2BridgeEvmClient } from '../evm/interfaces';
 
-type BlockchainClientType = EvmClient | MoneroClient | BitcoinClient | SolanaClient | TronClient;
-type BlockchainServiceType = EvmService | MoneroService | BitcoinService | SolanaService | TronService;
+type BlockchainClientType = EvmClient | BitcoinClient | MoneroClient | ZanoClient | SolanaClient | TronClient;
+type BlockchainServiceType = EvmService | BitcoinService | MoneroService | ZanoService | SolanaService | TronService;
 
 @Injectable()
 export class BlockchainRegistryService {
   constructor(
     private readonly ethereumService: EthereumService,
+    private readonly sepoliaService: SepoliaService,
     private readonly bscService: BscService,
     private readonly arbitrumService: ArbitrumService,
     private readonly optimismService: OptimismService,
     private readonly polygonService: PolygonService,
     private readonly baseService: BaseService,
     private readonly gnosisService: GnosisService,
-    private readonly moneroService: MoneroService,
     private readonly bitcoinService: BitcoinService,
+    private readonly moneroService: MoneroService,
+    private readonly zanoService: ZanoService,
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
+    private readonly citreaTestnetService: CitreaTestnetService,
   ) {}
 
   getClient(blockchain: Blockchain): BlockchainClientType {
@@ -59,6 +66,8 @@ export class BlockchainRegistryService {
     switch (blockchain) {
       case Blockchain.ETHEREUM:
         return this.ethereumService;
+      case Blockchain.SEPOLIA:
+        return this.sepoliaService;
       case Blockchain.BINANCE_SMART_CHAIN:
         return this.bscService;
       case Blockchain.ARBITRUM:
@@ -71,14 +80,18 @@ export class BlockchainRegistryService {
         return this.baseService;
       case Blockchain.GNOSIS:
         return this.gnosisService;
-      case Blockchain.MONERO:
-        return this.moneroService;
       case Blockchain.BITCOIN:
         return this.bitcoinService;
+      case Blockchain.MONERO:
+        return this.moneroService;
+      case Blockchain.ZANO:
+        return this.zanoService;
       case Blockchain.SOLANA:
         return this.solanaService;
       case Blockchain.TRON:
         return this.tronService;
+      case Blockchain.CITREA_TESTNET:
+        return this.citreaTestnetService;
 
       default:
         throw new Error(`No service found for blockchain ${blockchain}`);

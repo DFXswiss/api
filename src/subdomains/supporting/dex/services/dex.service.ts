@@ -224,8 +224,8 @@ export class DexService {
     return pending.map((o) => o.correlationId);
   }
 
-  async getPendingOrdersCount(asset: Asset): Promise<number> {
-    return this.liquidityOrderRepo.countBy([
+  async hasPendingOrders(asset: Asset): Promise<boolean> {
+    return this.liquidityOrderRepo.existsBy([
       { targetAsset: { id: asset.id }, isComplete: false },
       { targetAsset: { id: asset.id }, isReady: false },
       { swapAsset: { id: asset.id }, isComplete: false },

@@ -130,6 +130,7 @@ describe('FiatOutputJobService', () => {
             }),
           ],
           amount: 15000,
+          currency: 'EUR',
           type: FiatOutputType.BUY_FIAT,
         }),
         createCustomFiatOutput({
@@ -143,6 +144,7 @@ describe('FiatOutputJobService', () => {
             }),
           ],
           amount: 5000,
+          currency: 'CHF',
           type: FiatOutputType.BUY_FIAT,
         }),
         createCustomFiatOutput({
@@ -156,6 +158,7 @@ describe('FiatOutputJobService', () => {
             }),
           ],
           amount: 100,
+          currency: 'EUR',
           type: FiatOutputType.BUY_FIAT,
         }),
         createCustomFiatOutput({
@@ -169,6 +172,7 @@ describe('FiatOutputJobService', () => {
             }),
           ],
           amount: 300,
+          currency: 'EUR',
           type: FiatOutputType.BUY_FIAT,
         }),
         createCustomFiatOutput({
@@ -176,6 +180,7 @@ describe('FiatOutputJobService', () => {
           accountIban: 'DE123456789',
           isReadyDate: null,
           amount: 9500,
+          currency: 'EUR',
           type: FiatOutputType.LIQ_MANAGEMENT,
         }),
         createCustomFiatOutput({
@@ -189,10 +194,43 @@ describe('FiatOutputJobService', () => {
             }),
           ],
           amount: 1200,
+          currency: 'EUR',
+          type: FiatOutputType.BUY_FIAT,
+        }),
+        createCustomFiatOutput({
+          id: 7,
+          accountIban: 'DE123456789',
+          iban: 'CH123456789',
+          isReadyDate: null,
+          buyFiats: [
+            createCustomBuyFiat({
+              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+              amountInChf: 4000,
+              amountInEur: 4500,
+            }),
+          ],
+          amount: 20000,
+          currency: 'AED',
+          type: FiatOutputType.BUY_FIAT,
+        }),
+        createCustomFiatOutput({
+          id: 8,
+          accountIban: 'DE123456789',
+          iban: 'CH123456789',
+          isReadyDate: null,
+          buyFiats: [
+            createCustomBuyFiat({
+              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+              amountInChf: 20000,
+              amountInEur: 22000,
+            }),
+          ],
+          amount: 400,
+          currency: 'XYZ',
           type: FiatOutputType.BUY_FIAT,
         }),
       ]);
-      jest.spyOn(assetService, 'getAllAssets').mockResolvedValue([
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
         createCustomAsset({
           id: 1,
           type: AssetType.CUSTODY,
@@ -214,7 +252,8 @@ describe('FiatOutputJobService', () => {
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
       expect(updateCalls[0][0]).toBe(3);
       expect(updateCalls[1][0]).toBe(4);
-      expect(updateCalls[2][0]).toBe(2);
+      expect(updateCalls[2][0]).toBe(7);
+      expect(updateCalls[3][0]).toBe(2);
     });
   });
 

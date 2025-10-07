@@ -74,7 +74,7 @@ export class BuyFiatService {
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
-      transaction: { id: cryptoInput.transaction.id },
+      transaction: cryptoInput.transaction,
       outputAsset: sell.fiat,
       outputReferenceAsset: sell.fiat,
     });
@@ -215,6 +215,10 @@ export class BuyFiatService {
       .getOne();
   }
 
+  async getBuyFiatByTransactionId(transactionId: number, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat> {
+    return this.buyFiatRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
+  }
+
   async getBuyFiat(from: Date, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
   }
@@ -226,7 +230,7 @@ export class BuyFiatService {
         sell: true,
         bankTx: true,
         cryptoInput: true,
-        transaction: { user: { wallet: true, userData: true } },
+        transaction: { user: { wallet: true }, userData: true },
       },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');

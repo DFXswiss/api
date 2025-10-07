@@ -4,7 +4,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { CryptoInput, PayInStatus } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInTronService } from '../../../services/payin-tron.service';
@@ -44,7 +44,7 @@ export class TronCoinStrategy extends TronStrategy {
     const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
     const feeAmountChf = feeAmount
       ? await this.pricingService
-          .getPrice(feeAsset, PriceCurrency.CHF, true)
+          .getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY)
           .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
       : null;
 

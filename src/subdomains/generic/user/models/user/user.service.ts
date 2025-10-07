@@ -28,13 +28,14 @@ import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycLevel, KycState, KycType, Moderator, UserData, UserDataStatus } from '../user-data/user-data.entity';
+import { UserData } from '../user-data/user-data.entity';
+import { KycLevel, KycState, KycType, Moderator, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
-import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
+import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
@@ -184,6 +185,7 @@ export class UserService {
     user.custodyAddressType = data.custodyAddressType;
     user.custodyAddressIndex = data.custodyAddressIndex;
     user.role = data.role;
+    user.primaryUser = data.primaryUser;
 
     const language = await this.languageService.getLanguageByCountry(user.ipCountry);
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
@@ -205,7 +207,7 @@ export class UserService {
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, data.userData?.kycLevel));
 
-    await this.siftService.createAccount(user);
+    this.siftService.createAccount(user);
 
     try {
       if (specialCode) await this.feeService.addSpecialCodeUser(user, specialCode);
@@ -287,7 +289,7 @@ export class UserService {
     return this.toDto(user, true);
   }
 
-  async updateUserInternal(id: number, update: UpdateUserAdminDto): Promise<User> {
+  async updateUserInternal(id: number, update: UpdateUserInternalDto): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id }, relations: { userData: true } });
     if (!user) throw new NotFoundException('User not found');
 
@@ -512,7 +514,7 @@ export class UserService {
       usedRef === user.ref ||
       (usedRef && !refUser) ||
       user?.userData?.id === refUser?.userData?.id
-      ? '000-000'
+      ? Config.defaultRef
       : usedRef;
   }
 

@@ -1,6 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -14,7 +29,8 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { UserData, UserDataStatus } from './user-data.entity';
+import { UserData, UserDataComplianceUpdateCols, UserDataSupportUpdateCols } from './user-data.entity';
+import { UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 import { UserDataService } from './user-data.service';
 
@@ -41,9 +57,22 @@ export class UserDataController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async updateUserData(@Param('id') id: string, @Body() userData: UpdateUserDataDto): Promise<UserData> {
-    return this.userDataService.updateUserData(+id, userData);
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async updateUserData(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDataDto,
+  ): Promise<UserData> {
+    if (jwt.role === UserRole.SUPPORT && Object.keys(dto).some((k) => !UserDataSupportUpdateCols.includes(k)))
+      throw new ForbiddenException('Support is not allowed to update this value');
+
+    if (
+      jwt.role === UserRole.COMPLIANCE &&
+      Object.keys(dto).some((k) => ![...UserDataSupportUpdateCols, ...UserDataComplianceUpdateCols].includes(k))
+    )
+      throw new ForbiddenException('Compliance is not allowed to update this value');
+
+    return this.userDataService.updateUserData(+id, dto);
   }
 
   @Get(':id')

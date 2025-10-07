@@ -4,7 +4,7 @@ import { MoneroTransactionDto } from './dto/monero.dto';
 export class MoneroHelper {
   // https://web.getmonero.org/resources/moneropedia/denominations.html
   // AU = Atomic Unit (piconero)
-  private static AU_XMR_FACTOR = 10 ** 12;
+  private static readonly AU_XMR_FACTOR = 10 ** 12;
 
   // --- CONVERT --- /
   static xmrToAu(xmrAmount?: number): number | undefined {

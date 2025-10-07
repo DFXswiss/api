@@ -8,7 +8,6 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
@@ -35,6 +34,7 @@ import {
   TransactionStatus,
   TransactionType,
 } from '../dto/sift.dto';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 
 @Injectable()
 export class SiftService {
@@ -46,7 +46,7 @@ export class SiftService {
   constructor(private readonly http: HttpService) {}
 
   // --- ACCOUNT --- //
-  async createAccount(user: User): Promise<SiftResponse> {
+  createAccount(user: User): void {
     const data: CreateAccount = {
       $user_id: user.id.toString(),
       $referrer_user_id: user.ref,
@@ -58,35 +58,35 @@ export class SiftService {
       kyc_level: KycLevel.LEVEL_0,
     };
 
-    return this.send(EventType.CREATE_ACCOUNT, data);
+    return this.sendSync(EventType.CREATE_ACCOUNT, data);
   }
 
-  async updateAccount(data: CreateAccount): Promise<SiftResponse> {
-    return this.send(EventType.UPDATE_ACCOUNT, data);
+  updateAccount(data: CreateAccount): void {
+    return this.sendSync(EventType.UPDATE_ACCOUNT, data);
   }
 
-  async createChargeback(data: Chargeback): Promise<SiftResponse> {
-    return this.send(EventType.CHARGEBACK, data);
+  createChargeback(data: Chargeback): void {
+    return this.sendSync(EventType.CHARGEBACK, data);
   }
 
-  async login(user: User, ip: string): Promise<SiftResponse> {
+  login(user: User, ip: string): void {
     const data: SiftBase = {
       $user_id: user.id.toString(),
       $ip: ip,
       $time: Date.now(),
     };
 
-    return this.send(EventType.LOGIN, data);
+    return this.sendSync(EventType.LOGIN, data);
   }
 
   // --- ORDER --- //
-  async createOrder(
+  createOrder(
     order: TransactionRequest,
     userId: number,
     sourceCurrency: string,
     targetCurrency: string,
     blockchain: Blockchain,
-  ): Promise<SiftResponse> {
+  ): void {
     const data: CreateOrder = {
       $order_id: order.id.toString(),
       $user_id: userId.toString(),
@@ -106,7 +106,7 @@ export class SiftService {
       blockchain,
     };
 
-    return this.send(EventType.CREATE_ORDER, data);
+    return this.sendSync(EventType.CREATE_ORDER, data);
   }
 
   // --- TRANSACTION --- //
@@ -210,6 +210,10 @@ export class SiftService {
     };
   }
 
+  private sendSync(type: EventType, data: SiftBase): void {
+    void this.send(type, data);
+  }
+
   private async send(type: EventType, data: SiftBase): Promise<SiftResponse> {
     if (!Config.sift.apiKey) return;
 
@@ -225,6 +229,7 @@ export class SiftService {
     }
   }
 
+  // --- DECISION --- //
   async sendUserBlocked(user: User, description?: string): Promise<SiftResponse> {
     if (!Config.sift.apiKey) return;
 

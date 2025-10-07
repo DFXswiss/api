@@ -21,10 +21,10 @@ import { MoreThan } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
-import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
 import { InternalChargebackFeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
-import { PaymentMethod } from '../dto/payment-method.enum';
+import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { BlockchainFeeRepository } from '../repositories/blockchain-fee.repository';
 import { FeeRepository } from '../repositories/fee.repository';
@@ -85,7 +85,7 @@ export class FeeService {
 
     for (const blockchainFee of blockchainFees) {
       try {
-        blockchainFee.amount = await this.calculateBlockchainFeeInChf(blockchainFee.asset, true);
+        blockchainFee.amount = await this.calculateBlockchainFeeInChf(blockchainFee.asset, PriceValidity.PREFER_VALID);
         blockchainFee.updated = new Date();
         await this.blockchainFeeRepo.save(blockchainFee);
       } catch (e) {
@@ -214,7 +214,12 @@ export class FeeService {
     const userFees = await this.getValidFees(request);
 
     try {
-      return await this.calculateChargebackFee(userFees, request.from, request.allowCachedBlockchainFee);
+      return await this.calculateChargebackFee(
+        userFees,
+        request.from,
+        request.allowCachedBlockchainFee,
+        request.paymentMethodIn,
+      );
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -230,6 +235,7 @@ export class FeeService {
         request.from,
         request.to,
         request.allowCachedBlockchainFee,
+        request.paymentMethodIn,
         request.user.userData?.id,
       );
     } catch (e) {
@@ -242,7 +248,13 @@ export class FeeService {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     try {
-      return await this.calculateFee(defaultFees, request.from, request.to, request.allowCachedBlockchainFee);
+      return await this.calculateFee(
+        defaultFees,
+        request.from,
+        request.to,
+        request.allowCachedBlockchainFee,
+        request.paymentMethodIn,
+      );
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -258,7 +270,7 @@ export class FeeService {
 
       const feeAmount = allowCached
         ? await this.blockchainFeeRepo.findOneCachedBy(`${active.id}`, where).then((fee) => fee?.amount)
-        : await this.calculateBlockchainFeeInChf(active, false);
+        : await this.calculateBlockchainFeeInChf(active, PriceValidity.VALID_ONLY);
       if (feeAmount == null && !allowCached) throw new Error(`No blockchain fee found for asset ${active.id}`);
 
       return feeAmount ?? this.getBlockchainMaxFee(active.blockchain);
@@ -268,7 +280,11 @@ export class FeeService {
   }
 
   async getBlockchainFee(active: Active, allowCached: boolean): Promise<number> {
-    const price = await this.pricingService.getPrice(active, PriceCurrency.CHF, allowCached);
+    const price = await this.pricingService.getPrice(
+      active,
+      PriceCurrency.CHF,
+      allowCached ? PriceValidity.ANY : PriceValidity.PREFER_VALID,
+    );
 
     const blockchainFeeChf = await this.getBlockchainFeeInChf(active, allowCached);
     return price.invert().convert(blockchainFeeChf, 8);
@@ -289,6 +305,7 @@ export class FeeService {
     from: Active,
     to: Active,
     allowCachedBlockchainFee: boolean,
+    paymentMethodIn: PaymentMethod,
     userDataId?: number,
   ): Promise<InternalFeeDto> {
     const blockchainFee =
@@ -357,7 +374,10 @@ export class FeeService {
     const additiveFees = fees.filter((fee) => fee.type === FeeType.ADDITION);
 
     // get bank fees
-    const bankFees = fees.filter((fee) => fee.type === FeeType.BANK);
+    const bankFees =
+      paymentMethodIn === FiatPaymentMethod.BANK || paymentMethodIn === FiatPaymentMethod.INSTANT
+        ? fees.filter((fee) => fee.type === FeeType.BANK)
+        : [];
     const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
     const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
 
@@ -409,6 +429,7 @@ export class FeeService {
     fees: Fee[],
     from: Active,
     allowCachedBlockchainFee: boolean,
+    paymentMethodIn: PaymentMethod,
   ): Promise<InternalChargebackFeeDto> {
     const blockchainFee = await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee);
 
@@ -417,7 +438,10 @@ export class FeeService {
     const chargebackMinFee = Util.minObj(chargebackFees, 'rate');
 
     // get bank fees
-    const bankFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK_BANK);
+    const bankFees =
+      paymentMethodIn === FiatPaymentMethod.BANK || paymentMethodIn === FiatPaymentMethod.INSTANT
+        ? fees.filter((fee) => fee.type === FeeType.CHARGEBACK_BANK)
+        : [];
     const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
     const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
 
@@ -437,9 +461,9 @@ export class FeeService {
     };
   }
 
-  private async calculateBlockchainFeeInChf(asset: Asset, allowExpiredPrice: boolean): Promise<number> {
+  private async calculateBlockchainFeeInChf(asset: Asset, priceValidity: PriceValidity): Promise<number> {
     const { asset: feeAsset, amount } = await this.payoutService.estimateBlockchainFee(asset);
-    const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, priceValidity);
 
     return price.convert(amount, 8);
   }

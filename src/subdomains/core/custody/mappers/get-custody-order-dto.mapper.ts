@@ -9,7 +9,7 @@ import { CustodyOrderResponseDto } from '../dto/output/custody-order-response.dt
 export class GetCustodyOrderDtoMapper {
   static getBuyPaymentInfo(paymentInfo: GetCustodyInfoDto, currency: Fiat, asset: Asset): GetBuyPaymentInfoDto {
     const dto: GetBuyPaymentInfoDto = {
-      iban: paymentInfo.iban,
+      iban: paymentInfo.targetIban,
       currency,
       asset,
       amount: paymentInfo.sourceAmount,
@@ -23,7 +23,7 @@ export class GetCustodyOrderDtoMapper {
 
   static getSellPaymentInfo(paymentInfo: GetCustodyInfoDto, asset: Asset, currency: Fiat): GetSellPaymentInfoDto {
     const dto: GetSellPaymentInfoDto = {
-      iban: paymentInfo.iban,
+      iban: paymentInfo.targetIban,
       asset,
       currency,
       amount: paymentInfo.sourceAmount,

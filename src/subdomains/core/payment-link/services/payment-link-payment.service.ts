@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -148,6 +142,27 @@ export class PaymentLinkPaymentService {
     });
   }
 
+  async getMostRecentPayments(linkIds: number[]): Promise<PaymentLinkPayment[]> {
+    if (!linkIds.length) return [];
+
+    return this.paymentLinkPaymentRepo
+      .createQueryBuilder('plp')
+      .innerJoin(
+        (qb) =>
+          qb
+            .select('plp2.linkId', 'linkId')
+            .addSelect('MAX(plp2.id)', 'maxId')
+            .from(PaymentLinkPayment, 'plp2')
+            .groupBy('plp2.linkId'),
+        'latest',
+        'latest.linkId = plp.linkId AND latest.maxId = plp.id',
+      )
+      .innerJoinAndSelect('plp.currency', 'currency')
+      .innerJoinAndSelect('plp.link', 'link')
+      .where('link.id IN (:...ids)', { ids: linkIds })
+      .getMany();
+  }
+
   // --- HANDLE WAITS --- //
   async waitForPayment(payment: PaymentLinkPayment): Promise<PaymentLinkPayment> {
     return this.paymentWaitMap.wait(payment.id, 0);
@@ -177,7 +192,7 @@ export class PaymentLinkPaymentService {
   }
 
   async createPayment(paymentLink: PaymentLink, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> {
-    if (paymentLink.status === PaymentLinkStatus.INACTIVE) throw new BadRequestException('Payment link is inactive');
+    if (paymentLink.status !== PaymentLinkStatus.ACTIVE) throw new BadRequestException('Payment link is not active');
 
     const pendingPayment = paymentLink.payments.some((p) => p.status === PaymentLinkPaymentStatus.PENDING);
     if (pendingPayment)
@@ -274,6 +289,21 @@ export class PaymentLinkPaymentService {
     await this.cancelQuotesForPayment(payment);
   }
 
+  async deletePayment(payment: PaymentLinkPayment): Promise<void> {
+    if (payment.status === PaymentLinkPaymentStatus.COMPLETED)
+      throw new BadRequestException('PaymentLinkPayment is already completed, cannot be deleted');
+
+    for (const quote of payment.quotes) {
+      await this.paymentQuoteService.deleteQuote(quote);
+    }
+
+    for (const activation of payment.activations) {
+      await this.paymentActivationService.deleteActivation(activation);
+    }
+
+    await this.paymentLinkPaymentRepo.delete(payment.id);
+  }
+
   private async cancelQuotesForPayment(payment: PaymentLinkPayment): Promise<void> {
     await this.paymentQuoteService.cancelAllForPayment(payment.id);
     await this.paymentActivationService.closeAllForPayment(payment.id);
@@ -298,7 +328,8 @@ export class PaymentLinkPaymentService {
     const quote = await this.paymentQuoteService.executeHexPayment(transferInfo);
     await this.handleQuoteChange(pendingPayment, quote);
 
-    if (quote.status === PaymentQuoteStatus.TX_FAILED) throw new ServiceUnavailableException(quote.errorMessage);
+    if (quote.status === PaymentQuoteStatus.TX_FAILED)
+      throw new BadRequestException(`Failed to handle hex payment ${uniqueId}: ${quote.errorMessage}`);
 
     return { txId: quote.txId };
   }

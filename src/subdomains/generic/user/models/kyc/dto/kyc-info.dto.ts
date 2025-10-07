@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycState, KycStatus } from '../../user-data/user-data.entity';
+import { KycState, KycStatus } from '../../user-data/user-data.enum';
 import { TradingLimit } from '../../user/dto/user.dto';
 
 export class KycInfo {

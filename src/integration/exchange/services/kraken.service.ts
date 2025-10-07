@@ -15,11 +15,13 @@ export class KrakenService extends ExchangeService {
     BinanceSmartChain: false,
     Bitcoin: false,
     Lightning: undefined,
+    Spark: undefined,
     Monero: false,
     Zano: undefined,
     Cardano: false,
     DeFiChain: false,
     Ethereum: false,
+    Sepolia: undefined,
     Optimism: false,
     Polygon: false,
     Base: undefined,
@@ -32,6 +34,7 @@ export class KrakenService extends ExchangeService {
     KucoinPay: undefined,
     Solana: false,
     Tron: undefined,
+    CitreaTestnet: undefined,
     Kraken: undefined,
     Binance: undefined,
     XT: undefined,
@@ -47,10 +50,10 @@ export class KrakenService extends ExchangeService {
     super(kraken, GetConfig().kraken);
   }
 
-  protected async updateOrderPrice(order: Order, price: number): Promise<string> {
+  protected async updateOrderPrice(order: Order, amount: number, price: number): Promise<string> {
     // order ID does not change for Kraken
-    return this.callApi((e) =>
-      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price),
-    ).then(() => order.id);
+    return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, amount, price)).then(
+      () => order.id,
+    );
   }
 }

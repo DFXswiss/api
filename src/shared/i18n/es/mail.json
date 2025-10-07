@@ -90,7 +90,10 @@
                 "missing_liquidity": "DFX no pudo negociar la cantidad requerida de tokens en el plazo especificado",
                 "test_only": "Prueba",
                 "kyc_data_needed": "Sus datos KYC son necesarios para la transacción",
-                "bank_tx_needed": "Para poder realizar esta operación es necesaria una transacción bancaria"
+                "bank_tx_needed": "Para poder realizar esta operación es necesaria una transacción bancaria",
+                "manual_check_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
+                "manual_check_ip_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
+                "merge_incomplete": "El correo electrónico de confirmación no fue aceptado"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
@@ -202,6 +205,42 @@
                 "line3": "Una vez recibida y pagada esta transacción, la transacción pendiente también se pagará automáticamente.",
                 "line4": "Esto significa que sólo se requiere una transacción de su cuenta bancaria.",
                 "line5": "Si no desea verificarse, también puede solicitar un reembolso:<br>[url:haga clic aquí]"
+            },
+            "manual_check_phone": {
+                "title": "Se requiere llamada telefónica",
+                "salutation": "Se requiere una verificación manual por teléfono",
+                "line1": "Hemos recibido su depósito.",
+                "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
+                "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
+                "line4": "",
+                "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
+            },
+            "merge_incomplete": {
+                "title": "Confirmación por correo electrónico pendiente",
+                "salutation": "Se le ha enviado un correo electrónico de confirmación. Debe hacer clic en el enlace que aparece en el correo electrónico",
+                "line1": "Lamentablemente, aún necesitamos su confirmación para completar la transacción.",
+                "line2": "Para ello, debe hacer clic en el enlace del correo electrónico anterior.",
+                "line3": "Una vez dada esta confirmación, la transacción pendiente también se pagará automáticamente.",
+                "line4": "",
+                "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
+            },
+            "bank_release_pending": {
+                "title": "Aprobación bancaria pendiente",
+                "salutation": "La aprobación bancaria de tu transacción aún está pendiente",
+                "line1": "Hemos recibido su transacción, pero aún no se ha liberado para su posterior procesamiento.",
+                "line2": "No es necesario que haga nada más, el banco aprobará automáticamente la transacción.",
+                "line3": "",
+                "line4": "",
+                "line5": "Para ver el estado actual de su transacción:<br>[url:haga clic aquí]"
+            },
+            "manual_check_ip_phone": {
+                "title": "Se requiere llamada telefónica",
+                "salutation": "Se requiere una verificación manual por teléfono",
+                "line1": "Hemos recibido su depósito.",
+                "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
+                "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
+                "line4": "",
+                "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
             }
         },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]"
@@ -224,18 +263,27 @@
             "message": "El paso '{stepName}' no ha podido completarse por el siguiente motivo:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Su cuenta está fusionada",
+                "user_data_merge_requested": "Confirmación por correo electrónico pendiente",
+                "user_data_existing": "Error desconocido",
                 "user_data_blocked": "Error desconocido",
-                "first_name_not_matching": "Su nombre no coincide",
-                "last_name_not_matching": "Su apellido no coincide",
+                "first_name_not_matching": "Incoherencia con tu nombre de pila",
+                "last_name_not_matching": "Incoherencia con tu apellido",
                 "nationality_not_matching": "Su nacionalidad no coincide",
                 "nationality_missing": "Falta la nacionalidad",
-                "invalid_document_type": "El tipo de documento no es válido",
+                "nationality_not_allowed": "Tu nacionalidad no está permitida",
+                "invalid_document_type": "El tipo de documento de identificación no es válido",
+                "document_type_not_allowed": "El tipo de documento de identificación no está permitido en su país",
                 "identification_number_missing": "Falta su número de identificación",
                 "invalid_result": "Error desconocido",
                 "verified_name_missing": "Falta el nombre de la cuenta",
-                "first_name_not_matching_verified_name": "Su nombre no coincide con el nombre de su cuenta",
-                "last_name_not_matching_verified_name": "Su apellido no coincide con el nombre de su cuenta",
-                "organization_name_not_matching_verified_name": "El nombre de su organización no coincide con el nombre de su cuenta"
+                "first_name_not_matching_verified_name": "Incoherencia entre tu nombre y el nombre de la cuenta",
+                "last_name_not_matching_verified_name": "Incoherencia entre su apellido y el nombre de la cuenta",
+                "organization_name_not_matching_verified_name": "Incoherencia entre el nombre de su organización y el nombre de la cuenta",
+                "country_not_allowed": "Tu país no está autorizado",
+                "blocked": "Error desconocido",
+                "personal_data_not_matching": "Incoherencia en tus datos personales",
+                "ip_country_mismatch": "No se cumplen los requisitos reglamentarios",
+                "country_ip_country_mismatch": "No se cumplen los requisitos reglamentarios"
             }
         },
         "reminder": {
@@ -288,6 +336,11 @@
     "limit_request": {
         "title": "Transaction volume approved",
         "message": "Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you."
+    },
+    "account_deactivation": {
+        "title": "Cuenta desactivada",
+        "salutation": "Cuenta desactivada correctamente",
+        "message": "Ahora ha desactivado correctamente su cuenta. Si desea reactivar su cuenta, debe iniciar sesión a través del correo electrónico."
     },
     "support_message": {
         "title": "Nuevo mensaje de apoyo",

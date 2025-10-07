@@ -1,5 +1,6 @@
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
-import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { IdentDocumentType } from 'src/subdomains/generic/kyc/dto/ident-result-data.dto';
+import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { Column, Entity } from 'typeorm';
 import { IEntity } from '../entity';
 
@@ -55,6 +56,17 @@ export class Country extends IEntity {
 
   @Column({ default: AmlRule.DEFAULT })
   amlRule: AmlRule;
+
+  @Column({ length: 'MAX', nullable: true })
+  enabledKycDocuments: string; // semicolon separated KycDocuments
+
+  get enabledKycDocumentList(): IdentDocumentType[] {
+    return (this.enabledKycDocuments?.split(';') ?? []) as IdentDocumentType[];
+  }
+
+  isKycDocEnabled(kycDoc: IdentDocumentType): boolean {
+    return this.enabledKycDocumentList.includes(kycDoc);
+  }
 
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {

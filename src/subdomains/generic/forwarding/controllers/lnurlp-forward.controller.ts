@@ -1,6 +1,7 @@
-import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { PaymentLinkPaymentDto } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
+import { CreatePaymentLinkPaymentDto } from 'src/subdomains/core/payment-link/dto/create-payment-link-payment.dto';
+import { PaymentLinkPayRequestDto, PaymentLinkPaymentDto } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentDto } from '../dto/payment.dto';
 import { LnUrlForwardService } from '../services/lnurl-forward.service';
 
@@ -12,6 +13,14 @@ export class LnUrlPForwardController {
   @Get(':id')
   async lnUrlPForward(@Param('id') id: string, @Query() params: any): Promise<any> {
     return this.forwardService.lnurlpForward(id, params);
+  }
+
+  @Post(':id')
+  async activatePublicPayment(
+    @Param('id') id: string,
+    @Body() dto: CreatePaymentLinkPaymentDto,
+  ): Promise<PaymentLinkPayRequestDto> {
+    return this.forwardService.activatePublicPayment(id, dto);
   }
 
   @Get('cb/:id')

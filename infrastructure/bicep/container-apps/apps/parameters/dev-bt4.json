@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 1000
+    },
+    "containerImage": {
+      "value": "lightninglabs/bitcoin-core"
+    },
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/home/bitcoin/.bitcoin"
+        }
+      ]
+    },
+    "containerCPU": {
+      "value": "2"
+    },
+    "containerMemory": {
+      "value": "4Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 18443
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
+    },
+    "containerEnv": {
+      "value": []
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": [
+        "-testnet4=1",
+        "-rest",
+        "-rpcbind=0.0.0.0",
+        "-rpcallowip=0.0.0.0/0",
+        "-rpcport=18443",
+        "-rpcuser=[RPC_USER]",
+        "-rpcpassword=[RPC_PASSWORD]",
+        "-server",
+        "-txindex=1"
+      ]
+    }
+  }
+}

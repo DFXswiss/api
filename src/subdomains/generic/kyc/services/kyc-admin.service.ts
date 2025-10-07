@@ -2,9 +2,11 @@ import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/commo
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
-import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { KycNationalityData } from '../dto/input/kyc-data.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycError } from '../dto/kyc-error.enum';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
@@ -42,7 +44,6 @@ export class KycAdminService {
 
     await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result, dto.comment));
 
-    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
     if (kycStep.isFailed && kycStep.comment)
       await this.kycNotificationService.kycStepFailed(
         kycStep.userData,
@@ -53,12 +54,28 @@ export class KycAdminService {
       );
 
     switch (kycStep.name) {
+      case KycStepName.AUTHORITY:
+        if (kycStep.isCompleted)
+          await this.kycService.completeReferencedSteps(kycStep.userData, KycStepName.SIGNATORY_POWER);
+        break;
+
+      case KycStepName.RESIDENCE_PERMIT:
+        if (kycStep.isCompleted)
+          await this.kycService.completeReferencedSteps(kycStep.userData, KycStepName.NATIONALITY_DATA);
+        break;
+
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.LEGAL_ENTITY:
-        if (kycStep.isCompleted) kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
+        if (kycStep.isCompleted) await this.kycService.completeCommercialRegister(kycStep.userData);
         break;
 
       case KycStepName.IDENT:
-        if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
+        if (kycStep.isCompleted) {
+          const nationalityData = kycStep.userData
+            .getCompletedStepWith(KycStepName.NATIONALITY_DATA)
+            ?.getResult<KycNationalityData>();
+          await this.kycService.completeIdent(kycStep, undefined, nationalityData);
+        }
         break;
 
       case KycStepName.DFX_APPROVAL:
@@ -67,8 +84,11 @@ export class KycAdminService {
             kycLevel: KycLevel.LEVEL_50,
             kycStatus: KycStatus.COMPLETED,
           });
+        await this.kycService.createKycLevelLog(kycStep.userData, KycLevel.LEVEL_50);
         break;
     }
+
+    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
   }
 
   async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {

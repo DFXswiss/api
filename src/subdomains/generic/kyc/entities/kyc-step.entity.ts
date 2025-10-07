@@ -1,12 +1,13 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
-import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
-import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
+import { IdentDocumentType, IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { KycSessionInfoDto } from '../dto/output/kyc-info.dto';
-import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
+import { IdDocTypeMap, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepType, UrlType } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
@@ -76,6 +77,9 @@ export class KycStep extends IEntity {
 
       case KycStepName.LEGAL_ENTITY:
         return { url: `${apiUrl}/data/legal/${this.id}`, type: UrlType.API };
+
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
+        return { url: `${apiUrl}/data/confirmation/${this.id}`, type: UrlType.API };
 
       case KycStepName.SIGNATORY_POWER:
         return { url: `${apiUrl}/data/signatory/${this.id}`, type: UrlType.API };
@@ -195,7 +199,7 @@ export class KycStep extends IEntity {
     const update: Partial<KycStep> = {
       status,
       result: this.setResult(result),
-      comment,
+      comment: comment ?? this.comment,
       sequenceNumber,
     };
 
@@ -345,21 +349,19 @@ export class KycStep extends IEntity {
 
       return {
         type: IdentType.SUM_SUB,
-        firstname: identResultData.data.info?.idDocs?.[idDocIndex]?.firstName,
-        lastname: identResultData.data.info?.idDocs?.[idDocIndex]?.lastName,
+        firstname: identResultData.data.info?.idDocs?.[idDocIndex]?.firstNameEn,
+        lastname: identResultData.data.info?.idDocs?.[idDocIndex]?.lastNameEn,
         birthname: null,
         birthday: identResultData.data.info?.idDocs?.[idDocIndex]?.dob
           ? new Date(identResultData.data.info.idDocs[idDocIndex].dob)
           : undefined,
         nationality: identResultData.data.info?.idDocs?.[idDocIndex]?.country,
         documentNumber: identResultData.data.info?.idDocs?.[idDocIndex]?.number,
-        documentType: identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType
-          ? identResultData.data.info.idDocs[idDocIndex].idDocType === IdDocType.ID_CARD
-            ? 'IDCARD'
-            : 'PASSPORT'
-          : undefined,
+        documentType: IdDocTypeMap[identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType],
         kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
+        ipCountry: identResultData.data.ipCountry,
+        country: identResultData.data.info.country,
       };
     } else if (this.isManual) {
       const identResultData = this.getResult<ManualIdentResult>();
@@ -375,6 +377,8 @@ export class KycStep extends IEntity {
         documentNumber: identResultData.documentNumber,
         kycType: IdentType.MANUAL,
         success: true,
+        ipCountry: null,
+        country: null,
       };
     } else {
       const identResultData = this.getResult<IdNowResult>();
@@ -386,10 +390,12 @@ export class KycStep extends IEntity {
         birthname: identResultData.userdata?.birthname?.value,
         birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
         nationality: identResultData.userdata?.nationality?.value,
-        documentType: identResultData.identificationdocument?.type?.value,
+        documentType: identResultData.identificationdocument?.type?.value as IdentDocumentType,
         documentNumber: identResultData.identificationdocument?.number?.value,
         kycType: identResultData.identificationprocess?.companyid,
         success: ['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(identResultData.identificationprocess?.result),
+        ipCountry: null,
+        country: null,
       };
     }
   }

@@ -26,86 +26,18 @@ import { TradingLimit } from '../user/dto/user.dto';
 import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
 import { KycIdentificationType } from './kyc-identification-type.enum';
-
-export enum KycStatus {
-  NA = 'NA',
-  CHATBOT = 'Chatbot',
-  ONLINE_ID = 'OnlineId',
-  VIDEO_ID = 'VideoId',
-  CHECK = 'Check',
-  COMPLETED = 'Completed',
-  REJECTED = 'Rejected',
-  TERMINATED = 'Terminated',
-}
-
-export enum KycLevel {
-  // automatic levels
-  LEVEL_0 = 0, // nothing
-  LEVEL_10 = 10, // contact data
-  LEVEL_20 = 20, // personal data
-
-  // verified levels
-  LEVEL_30 = 30, // auto ident
-  LEVEL_40 = 40, // financial data
-  LEVEL_50 = 50, // bank transaction or video ident
-
-  TERMINATED = -10,
-  REJECTED = -20,
-}
-
-export enum KycState {
-  NA = 'NA',
-  FAILED = 'Failed',
-  REMINDED = 'Reminded',
-  REVIEW = 'Review',
-}
-
-export enum KycType {
-  DFX = 'DFX',
-  LOCK = 'LOCK',
-}
-
-export enum LegalEntity {
-  AG = 'AG',
-  GMBH = 'GmbH',
-  UG = 'UG',
-  GBR = 'GbR',
-  ASSOCIATION = 'Association',
-  FOUNDATION = 'Foundation',
-  LIFE_INSURANCE = 'LifeInsurance',
-  TRUST = 'Trust',
-  OTHER = 'Other',
-}
-
-export enum SignatoryPower {
-  SINGLE = 'Single',
-  DOUBLE = 'Double',
-  NONE = 'None',
-}
-
-export enum BlankType {
-  PHONE,
-  MAIL,
-  WALLET_ADDRESS,
-}
-
-export enum LimitPeriod {
-  MONTH = 'Month',
-  YEAR = 'Year',
-}
-
-export enum UserDataStatus {
-  NA = 'NA',
-  ACTIVE = 'Active',
-  BLOCKED = 'Blocked',
-  MERGED = 'Merged',
-  KYC_ONLY = 'KycOnly',
-  DEACTIVATED = 'Deactivated',
-}
-
-export enum Moderator {
-  WENDEL = 'Wendel',
-}
+import {
+  BlankType,
+  KycLevel,
+  KycStatus,
+  KycType,
+  LegalEntity,
+  LimitPeriod,
+  Moderator,
+  RiskStatus,
+  SignatoryPower,
+  UserDataStatus,
+} from './user-data.enum';
 
 @Entity()
 @Index(
@@ -121,6 +53,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, default: UserDataStatus.NA })
   status: UserDataStatus;
+
+  @Column({ length: 256, default: RiskStatus.NA })
+  riskStatus: RiskStatus;
 
   @Column({ length: 256, nullable: true })
   moderator: Moderator;
@@ -284,6 +219,12 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   kycClients?: string; // semicolon separated wallet id's
 
+  @Column({ type: 'datetime2', nullable: true })
+  phoneCallCheckDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  phoneCallIpCheckDate?: Date;
+
   // AML
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate?: Date;
@@ -308,6 +249,12 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, nullable: true })
   postAmlCheck?: string;
+
+  @Column({ nullable: true })
+  hasBankTx?: boolean;
+
+  @Column({ nullable: true })
+  hasIpRisk?: boolean;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -592,6 +539,14 @@ export class UserData extends IEntity {
     return this.status === UserDataStatus.DEACTIVATED;
   }
 
+  get isRisky(): boolean {
+    return this.riskStatus === RiskStatus.BLOCKED;
+  }
+
+  get isSuspicious(): boolean {
+    return this.riskStatus === RiskStatus.SUSPICIOUS;
+  }
+
   get isBlockedOrDeactivated(): boolean {
     return this.isBlocked || this.isDeactivated;
   }
@@ -742,6 +697,9 @@ export class UserData extends IEntity {
 }
 
 export const KycCompletedStates = [KycStatus.COMPLETED];
+
+export const UserDataSupportUpdateCols = ['status', 'riskStatus'];
+export const UserDataComplianceUpdateCols = ['kycStatus', 'depositLimit'];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {
   return KycCompletedStates.includes(kycStatus);

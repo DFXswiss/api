@@ -39,6 +39,7 @@ import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapp
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { SignatoryPower } from '../../user/models/user-data/user-data.enum';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
@@ -226,6 +227,18 @@ export class KycController {
     return this.kycService.updateLegalData(code, +id, data, FileType.COMMERCIAL_REGISTER);
   }
 
+  @Put('data/confirmation/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateSoleProprietorshipConfirmationData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('sole-proprietorship-confirmation', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.SOLE_PROPRIETORSHIP_CONFIRMATION, true);
+  }
+
   @Put('data/residence/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -270,7 +283,12 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycSignatoryPowerData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, ReviewStatus.MANUAL_REVIEW);
+    return this.kycService.updateKycStep(
+      code,
+      +id,
+      data,
+      data.signatoryPower === SignatoryPower.SINGLE ? ReviewStatus.MANUAL_REVIEW : ReviewStatus.INTERNAL_REVIEW,
+    );
   }
 
   @Put('data/beneficial/:id')
@@ -355,9 +373,9 @@ export class KycController {
     const result = JSON.parse(data) as SumSubWebhookResult;
 
     try {
-      await this.kycService.updateSumsubIdent(result);
+      this.kycService.updateSumsubIdent(result);
     } catch (e) {
-      this.logger.error(`Failed to handle sumsub ident webhook call for applicant ${result.applicantId}:`, e);
+      this.logger.error(`Failed to handle sumsub webhook call for applicant ${result.applicantId}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }

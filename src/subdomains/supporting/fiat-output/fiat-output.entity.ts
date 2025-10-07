@@ -1,6 +1,8 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, JoinColumn, OneToMany, OneToOne } from 'typeorm';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
@@ -150,13 +152,32 @@ export class FiatOutput extends IEntity {
     )?.substring(0, 2);
   }
 
-  get outputCurrency(): string {
-    return ['LI', 'CH'].includes(this.ibanCountry)
-      ? 'CHF'
-      : this.buyCrypto?.bankTx?.currency ?? this.buyFiats?.[0]?.sell?.fiat?.name ?? this.bankTxReturn?.bankTx?.currency;
+  get bankAccountCurrency(): string {
+    const currency =
+      this.buyCrypto?.bankTx?.currency ??
+      this.buyFiats?.[0]?.sell?.fiat?.name ??
+      this.bankTxReturn?.bankTx?.currency ??
+      this.currency;
+    return ['LI', 'CH'].includes(this.ibanCountry) && currency === 'CHF' ? currency : 'EUR';
   }
 
-  get originEntity(): BuyCrypto | BuyFiat | BankTxReturn {
+  get bankAmount(): number {
+    return this.bankAccountCurrency === this.currency || !this.originEntity
+      ? this.amount
+      : this.bankAccountCurrency === 'CHF'
+      ? this.originEntity.amountInChf
+      : this.originEntity.amountInEur;
+  }
+
+  get originEntity(): BuyCrypto | BuyFiat | BankTxReturn | undefined {
     return this.buyCrypto ?? this.buyFiats[0] ?? this.bankTxReturn;
+  }
+
+  get user(): User | undefined {
+    return this.buyCrypto?.user ?? this.buyFiats[0]?.user;
+  }
+
+  get userData(): UserData | undefined {
+    return this.originEntity?.userData;
   }
 }

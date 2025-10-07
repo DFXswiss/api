@@ -20,6 +20,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { LessThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
@@ -30,11 +31,12 @@ import { UserDataRelationState } from '../../user/models/user-data-relation/dto/
 import { UserDataRelationService } from '../../user/models/user-data-relation/user-data-relation.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
-import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
+import { IdentResultData, IdentType, NationalityDocType, ValidDocType } from '../dto/ident-result-data.dto';
 import {
   IdNowReason,
   IdNowResult,
@@ -75,7 +77,7 @@ import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { KycLogType, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
@@ -171,6 +173,10 @@ export class KycService {
         entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
         const result = entity.getResult<KycNationalityData>();
         const nationality = await this.countryService.getCountry(result.nationality.id);
+
+        //Skip nationalities which needs a residencePermit first
+        if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) continue;
+
         const errors = this.getNationalityErrors(entity, nationality);
         const comment = errors.join(';');
 
@@ -199,7 +205,7 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: true },
+      relations: { userData: { users: true } },
     });
 
     for (const entity of entities) {
@@ -210,9 +216,12 @@ export class KycService {
         const nationality = result.nationality
           ? await this.countryService.getCountryWithSymbol(result.nationality)
           : null;
+        const ipCountry = result.ipCountry ? await this.countryService.getCountryWithSymbol(result.ipCountry) : null;
+        const country = result.country ? await this.countryService.getCountryWithSymbol(result.country) : null;
+
         const nationalityStep = entity.userData.getStepsWith(KycStepName.NATIONALITY_DATA).find((s) => s.isCompleted);
 
-        const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality);
+        const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality, ipCountry, country);
         const comment = errors.join(';');
 
         if (errors.includes(KycError.REVERSED_NAMES)) {
@@ -223,14 +232,22 @@ export class KycService {
           continue;
         } else if (errors.includes(KycError.NATIONALITY_NOT_MATCHING)) {
           await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycError.NATIONALITY_NOT_MATCHING));
-          if (errors.length === 1) {
-            await this.kycNotificationService.kycStepFailed(
-              entity.userData,
-              this.getMailStepName(entity.name, entity.userData.language.symbol),
-              this.getMailFailedReason(comment, entity.userData.language.symbol),
-            );
+          await this.kycNotificationService.kycStepFailed(
+            entity.userData,
+            this.getMailStepName(KycStepName.NATIONALITY_DATA, entity.userData.language.symbol),
+            this.getMailFailedReason(KycError.NATIONALITY_NOT_MATCHING, entity.userData.language.symbol),
+          );
+
+          if (
+            errors.every((e) =>
+              [
+                KycError.NATIONALITY_NOT_MATCHING,
+                KycError.IP_COUNTRY_MISMATCH,
+                KycError.COUNTRY_IP_COUNTRY_MISMATCH,
+              ].includes(e),
+            )
+          )
             continue;
-          }
         }
 
         if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
@@ -433,6 +450,8 @@ export class KycService {
     if (data.nationality) {
       const nationality = await this.countryService.getCountry(data.nationality.id);
       if (!nationality) throw new BadRequestException('Nationality not found');
+
+      Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
     } else {
       user = await this.userDataService.updateUserDataInternal(user, data);
     }
@@ -480,7 +499,13 @@ export class KycService {
     return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
-  async updateFileData(kycHash: string, stepId: number, data: KycFileData, fileType: FileType): Promise<KycStepBase> {
+  async updateFileData(
+    kycHash: string,
+    stepId: number,
+    data: KycFileData,
+    fileType: FileType,
+    urlAsJson = false,
+  ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -496,7 +521,7 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.manualReview(undefined, url));
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, urlAsJson ? { url } : url));
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -569,7 +594,26 @@ export class KycService {
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     if (data.contractAccepted) {
-      await this.userDataService.updateUserDataInternal(user, { paymentLinksAllowed: true });
+      const recipient: PaymentLinkRecipientDto = {
+        ...user.paymentLinksConfigObj.recipient,
+        name: data.name,
+        website: data.website,
+        registrationNumber: data.registrationNumber,
+        storeType: data.storeType,
+        merchantCategory: data.merchantCategory,
+        goodsType: data.goodsType,
+        goodsCategory: data.goodsCategory,
+      };
+
+      await this.userDataService.updatePaymentLinksConfig(user, {
+        recipient,
+        accessKeys: user.paymentLinksConfigObj.accessKeys ?? [Util.secureRandomString()],
+      });
+
+      await this.userDataService.updateUserDataInternal(user, {
+        paymentLinksAllowed: true,
+        paymentLinksName: data.name,
+      });
 
       await this.kycNotificationService.kycPaymentData(user, new Date());
     }
@@ -597,28 +641,32 @@ export class KycService {
     await this.updateIdent(IdentType.ID_NOW, transactionId, dto, result, [reason]);
   }
 
-  async updateSumsubIdent(dto: SumSubWebhookResult): Promise<void> {
+  updateSumsubIdent(dto: SumSubWebhookResult): void {
     const { externalUserId: transactionId } = dto;
 
     const result = getSumsubResult(dto);
     if (!result) {
-      this.logger.info(`Ignoring Sumsub webhook call for ${transactionId} due to unknown result: ${dto.type}`);
+      this.logger.info(`Ignoring sumsub webhook call for ${transactionId} due to unknown result: ${dto.type}`);
       return;
     }
 
-    this.logger.info(`Received sumsub ident webhook call for transaction ${transactionId}: ${result}`);
+    this.logger.info(`Received sumsub webhook call for transaction ${transactionId}: ${result}`);
 
-    const data = await this.sumsubService.getApplicantData(dto.applicantId);
-
-    return this.webhookQueue.handle(() =>
-      this.updateIdent(
-        IdentType.SUM_SUB,
-        transactionId,
-        { webhook: dto, data },
-        result,
-        dto.reviewResult?.rejectLabels,
-      ),
-    );
+    // non-blocking update
+    this.sumsubService
+      .getApplicantData(dto.applicantId)
+      .then((data) =>
+        this.webhookQueue.handle(() =>
+          this.updateIdent(
+            IdentType.SUM_SUB,
+            transactionId,
+            { webhook: dto, data },
+            result,
+            dto.reviewResult?.rejectLabels,
+          ),
+        ),
+      )
+      .catch((e) => this.logger.error(`Error during sumsub webhook update for applicant ${dto.applicantId}:`, e));
   }
 
   private async updateKycStepAndLog(
@@ -684,7 +732,7 @@ export class KycService {
     const kycStep = user.getStepOrThrow(transaction.stepId);
 
     if (result === IdentShortResult.MEDIA) {
-      await this.downloadMedia(user, kycStep);
+      await this.downloadMedia(user, kycStep, true);
       this.logger.info(`Media download finished for KYC step: ${kycStep.id}`);
       return;
     }
@@ -719,7 +767,7 @@ export class KycService {
 
       case IdentShortResult.SUCCESS:
         await this.kycStepRepo.update(...kycStep.internalReview(dto));
-        await this.downloadIdentDocuments(user, kycStep);
+        await this.downloadIdentDocuments(user, kycStep, true);
         break;
 
       case IdentShortResult.FAIL:
@@ -727,13 +775,14 @@ export class KycService {
         // retrigger personal data step, if data was wrong
         if (reason.includes(SumSubRejectionLabels.PROBLEMATIC_APPLICANT_DATA)) {
           const completedPersonalStep = user.getCompletedStepWith(KycStepName.PERSONAL_DATA);
-          if (completedPersonalStep) await this.restartStep(user, completedPersonalStep);
+          if (completedPersonalStep)
+            await this.restartStep(user, completedPersonalStep, KycError.PERSONAL_DATA_NOT_MATCHING);
         }
 
         await this.kycStepRepo.update(
           ...(result === IdentShortResult.FAIL ? kycStep.fail(dto) : kycStep.inProgress(dto)),
         );
-        await this.downloadIdentDocuments(user, kycStep, 'fail/');
+        await this.downloadIdentDocuments(user, kycStep, false);
         await this.kycNotificationService.kycStepFailed(
           user,
           this.getMailStepName(kycStep.name, kycStep.userData.language.symbol),
@@ -854,6 +903,7 @@ export class KycService {
       if (nextLevel && nextLevel > user.kycLevel) {
         await this.userDataService.updateUserDataInternal(user, { kycLevel: nextLevel });
         await this.kycNotificationService.kycChanged(user, nextLevel);
+        await this.createKycLevelLog(user, nextLevel);
       }
 
       if (nextStep && shouldContinue && (autoStep || depth === 0)) {
@@ -890,6 +940,7 @@ export class KycService {
 
       case KycStepName.CONTACT_DATA:
       case KycStepName.LEGAL_ENTITY:
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.SIGNATORY_POWER:
       case KycStepName.BENEFICIAL_OWNER:
       case KycStepName.OPERATIONAL_ACTIVITY:
@@ -1004,11 +1055,17 @@ export class KycService {
   }
 
   private async restartStep(userData: UserData, kycStep: KycStep, comment?: KycError): Promise<void> {
-    await this.kycStepRepo.update(...kycStep.fail(undefined, comment ?? KycError.RESTARTED_STEP));
+    await this.kycStepRepo.update(
+      ...kycStep.fail(undefined, comment ? `${comment};${KycError.RESTARTED_STEP}` : KycError.RESTARTED_STEP),
+    );
     await this.initiateStep(userData, kycStep.name, kycStep.type, true);
   }
 
   // --- HELPER METHODS --- //
+  async createKycLevelLog(userData: UserData, newKycLevel: KycLevel): Promise<void> {
+    await this.kycLogService.createLogInternal(userData, KycLogType.KYC, `KycLevel changed to ${newKycLevel}`);
+  }
+
   async trySetMail(user: UserData, step: KycStep, mail: string): Promise<UpdateResult<KycStep>> {
     try {
       user = await this.userDataService.trySetUserMail(user, mail);
@@ -1035,11 +1092,26 @@ export class KycService {
       });
   }
 
-  async completeIdent(kycStep: KycStep, nationality?: Country): Promise<void> {
+  async completeReferencedSteps(userData: UserData, referenceStepName: KycStepName): Promise<void> {
+    const referenceStep = userData.getStepsWith(referenceStepName).find((k) => k.isInReview);
+    if (!referenceStep) throw new BadRequestException(`${referenceStepName} step missing`);
+
+    await this.kycStepRepo.update(...referenceStep.complete());
+  }
+
+  async completeIdent(
+    kycStep: KycStep,
+    nationality?: Country,
+    nationalityStepData?: KycNationalityData,
+  ): Promise<void> {
     const data = kycStep.resultData;
     const userData = kycStep.userData;
     const identificationType = getIdentificationType(data.type, data.kycType);
-    nationality ??= data.nationality ? await this.countryService.getCountryWithSymbol(data.nationality) : null;
+    nationality ??= nationalityStepData?.nationality?.id
+      ? await this.countryService.getCountry(nationalityStepData.nationality.id)
+      : data.nationality
+      ? await this.countryService.getCountryWithSymbol(data.nationality)
+      : null;
 
     if (
       data.birthday &&
@@ -1079,12 +1151,15 @@ export class KycService {
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
           bankTransactionVerification:
-            identificationType === KycIdentificationType.VIDEO_ID ? CheckStatus.UNNECESSARY : undefined,
+            identificationType === KycIdentificationType.VIDEO_ID || kycStep.type === KycStepType.MANUAL
+              ? CheckStatus.UNNECESSARY
+              : undefined,
           identDocumentType: data.documentType,
           identDocumentId: kycStep.identDocumentId,
           olkypayAllowed: userData.olkypayAllowed ?? true,
           nationality,
         });
+        await this.createKycLevelLog(userData, KycLevel.LEVEL_30);
 
         if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createVerifyBankData(kycStep.userData, {
@@ -1094,6 +1169,10 @@ export class KycService {
           });
 
         return;
+      } else {
+        await this.kycStepRepo.update(
+          ...kycStep.fail(undefined, [kycStep.comment, KycError.NATIONALITY_MISSING].filter((c) => c).join(';')),
+        );
       }
     }
 
@@ -1120,10 +1199,19 @@ export class KycService {
     nationalityStep: KycStep,
     data: IdentResultData,
     nationality?: Country,
+    ipCountry?: Country,
+    country?: Country,
   ): KycError[] {
     const errors = this.getStepDefaultErrors(identStep);
     const nationalityStepResult = nationalityStep.getResult<{ nationality: IEntity }>();
 
+    // IP check
+    if (ipCountry && identStep.userData.users?.some((u) => u.ipCountry !== ipCountry.symbol))
+      errors.push(KycError.IP_COUNTRY_MISMATCH);
+    if (country && identStep.userData.users?.some((u) => u.ipCountry !== country.symbol))
+      errors.push(KycError.COUNTRY_IP_COUNTRY_MISMATCH);
+
+    // Name check
     if (!Util.isSameName(identStep.userData.firstname, data.firstname)) errors.push(KycError.FIRST_NAME_NOT_MATCHING);
     if (
       !Util.isSameName(identStep.userData.surname, data.lastname) &&
@@ -1140,21 +1228,29 @@ export class KycService {
     )
       errors.push(KycError.REVERSED_NAMES);
 
+    // Nationality check
     if (!nationality) {
       errors.push(KycError.NATIONALITY_MISSING);
-    } else if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id) {
-      errors.push(KycError.NATIONALITY_NOT_MATCHING);
+    } else {
+      if (
+        !nationalityStepResult ||
+        (NationalityDocType.includes(data.documentType) && nationalityStepResult.nationality.id !== nationality?.id)
+      )
+        errors.push(KycError.NATIONALITY_NOT_MATCHING);
+      if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+      if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
     }
 
-    if (!['IDCARD', 'PASSPORT'].includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
-
+    // Ident doc check
+    if (!ValidDocType.includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
     if (!data.documentNumber) errors.push(KycError.IDENTIFICATION_NUMBER_MISSING);
-
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
+    // Country & verifiedName check
     const userCountry =
       identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {
+      // Personal Account
       if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
 
       if (!identStep.userData.verifiedName && identStep.userData.status === UserDataStatus.ACTIVE) {
@@ -1166,6 +1262,7 @@ export class KycService {
           errors.push(KycError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
       }
     } else {
+      // Business Account
       if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
     }
 
@@ -1228,14 +1325,14 @@ export class KycService {
     await this.tfaService.checkVerification(user, ip, TfaLevel.STRICT);
   }
 
-  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix?: string) {
+  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, isValid: boolean) {
     const documents = await this.sumsubService.getDocuments(kycStep);
-    await this.storeDocuments(documents, user, kycStep, namePrefix);
+    await this.storeDocuments(documents, user, kycStep, isValid);
   }
 
-  private async downloadMedia(user: UserData, kycStep: KycStep, namePrefix?: string) {
+  private async downloadMedia(user: UserData, kycStep: KycStep, isValid: boolean) {
     const documents = await this.sumsubService.getMedia(kycStep);
-    await this.storeDocuments(documents, user, kycStep, namePrefix);
+    await this.storeDocuments(documents, user, kycStep, isValid);
   }
 
   async syncIdentFiles(stepId: number): Promise<void> {
@@ -1261,23 +1358,24 @@ export class KycService {
             f.contentType === d.contentType,
         ),
     );
-    await this.storeDocuments(missingDocuments, kycStep.userData, kycStep);
+    await this.storeDocuments(missingDocuments, kycStep.userData, kycStep, true);
   }
 
   private async storeDocuments(
     documents: IdentDocument[],
     user: UserData,
     kycStep: KycStep,
-    namePrefix = '',
+    isValid: boolean,
   ): Promise<void> {
     for (const { name, content, contentType, fileSubType } of documents) {
       await this.documentService.uploadFile(
         user,
         FileType.IDENTIFICATION,
-        `${namePrefix}${name}`,
+        `${isValid ? '' : 'fail/'}${name}`,
         content,
         contentType,
         true,
+        isValid,
         kycStep,
         fileSubType,
       );

@@ -1,3 +1,4 @@
+import { IdentDocumentType } from './ident-result-data.dto';
 import { IdentShortResult } from './ident-result.dto';
 
 export interface SumsubResult {
@@ -123,13 +124,28 @@ export enum DocumentSource {
 }
 
 export enum IdDocType {
-  ID_CARD = 'ID_CARD',
-  PASSPORT = 'PASSPORT',
+  AGREEMENT = 'AGREEMENT',
+  ARBITRARY_DOC = 'ARBITRARY_DOC',
+  BANK_CARD = 'BANK_CARD',
+  CONTRACT = 'CONTRACT',
+  COVID_VACCINATION_FORM = 'COVID_VACCINATION_FORM',
   DRIVERS = 'DRIVERS',
   DRIVERS_TRANSLATION = 'DRIVERS_TRANSLATION',
+  FILE_ATTACHMENT = 'FILE_ATTACHMENT',
+  ID_CARD = 'ID_CARD',
   ID_DOC_PHOTO = 'ID_DOC_PHOTO',
+  INCOME_SOURCE = 'INCOME_SOURCE',
+  INVESTOR_DOC = 'INVESTOR_DOC',
+  PASSPORT = 'PASSPORT',
+  PAYMENT_SOURCE = 'PAYMENT_SOURCE',
+  PROFILE_IMAGE = 'PROFILE_IMAGE',
+  RESIDENCE_PERMIT = 'RESIDENCE_PERMIT',
   SELFIE = 'SELFIE',
+  UTILITY_BILL = 'UTILITY_BILL',
+  UTILITY_BILL2 = 'UTILITY_BILL2',
+  VEHICLE_REGISTRATION_CERTIFICATE = 'VEHICLE_REGISTRATION_CERTIFICATE',
   VIDEO_SELFIE = 'VIDEO_SELFIE',
+  OTHER = 'OTHER',
 }
 
 export enum IdDocSubType {
@@ -348,38 +364,75 @@ const SumSubReasonMap: Record<SumSubRejectionLabels, string> = {
 };
 
 export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
-  switch (dto.type) {
-    case SumSubWebhookType.APPLICANT_PENDING:
-    case SumSubWebhookType.APPLICANT_REVIEWED:
-    case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED: {
-      switch (dto.reviewStatus) {
-        case SumSubReviewStatus.INIT:
-          return IdentShortResult.PENDING;
-
-        case SumSubReviewStatus.PENDING:
-          if (dto.levelName === SumSubLevelName.CH_STANDARD) return IdentShortResult.REVIEW;
-          break;
-
-        case SumSubReviewStatus.QUEUED:
+  switch (dto.levelName) {
+    // auto ident
+    case SumSubLevelName.CH_STANDARD: {
+      switch (dto.type) {
+        case SumSubWebhookType.APPLICANT_PENDING:
           return IdentShortResult.REVIEW;
 
-        case SumSubReviewStatus.COMPLETED:
+        case SumSubWebhookType.APPLICANT_REVIEWED:
           return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
             ? IdentShortResult.SUCCESS
-            : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY &&
-              dto.levelName === SumSubLevelName.CH_STANDARD_VIDEO
-            ? IdentShortResult.RETRY
             : IdentShortResult.FAIL;
       }
+
       break;
     }
 
-    case SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED:
-      if (dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN) return IdentShortResult.MEDIA;
+    // video ident
+    case SumSubLevelName.CH_STANDARD_VIDEO: {
+      switch (dto.type) {
+        case SumSubWebhookType.APPLICANT_PENDING:
+          return IdentShortResult.PENDING;
+
+        case SumSubWebhookType.APPLICANT_REVIEWED: {
+          return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
+            ? IdentShortResult.SUCCESS
+            : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY
+            ? IdentShortResult.RETRY
+            : IdentShortResult.FAIL;
+        }
+
+        case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED: {
+          if (dto.reviewStatus === SumSubReviewStatus.QUEUED) return IdentShortResult.REVIEW;
+          break;
+        }
+
+        case SumSubWebhookType.VIDEO_IDENT_COMPOSITION_COMPLETED:
+          if (dto.reviewResult?.reviewAnswer === ReviewAnswer.GREEN) return IdentShortResult.MEDIA;
+          break;
+      }
       break;
+    }
   }
 }
 
 export function getSumSubReason(reasons: SumSubRejectionLabels[]): string {
   return `<ul>${reasons.map((r) => `<li>${SumSubReasonMap[r] ?? r}</li>`).join('')}</ul>`;
 }
+
+export const IdDocTypeMap: { [t in IdDocType]: IdentDocumentType } = {
+  [IdDocType.AGREEMENT]: undefined,
+  [IdDocType.ARBITRARY_DOC]: undefined,
+  [IdDocType.BANK_CARD]: undefined,
+  [IdDocType.CONTRACT]: undefined,
+  [IdDocType.COVID_VACCINATION_FORM]: undefined,
+  [IdDocType.DRIVERS]: IdentDocumentType.DRIVERS_LICENSE,
+  [IdDocType.DRIVERS_TRANSLATION]: IdentDocumentType.DRIVERS_TRANSLATION,
+  [IdDocType.FILE_ATTACHMENT]: undefined,
+  [IdDocType.ID_CARD]: IdentDocumentType.IDCARD,
+  [IdDocType.ID_DOC_PHOTO]: undefined,
+  [IdDocType.INCOME_SOURCE]: undefined,
+  [IdDocType.INVESTOR_DOC]: undefined,
+  [IdDocType.PASSPORT]: IdentDocumentType.PASSPORT,
+  [IdDocType.PAYMENT_SOURCE]: undefined,
+  [IdDocType.PROFILE_IMAGE]: undefined,
+  [IdDocType.RESIDENCE_PERMIT]: IdentDocumentType.RESIDENCE_PERMIT,
+  [IdDocType.SELFIE]: undefined,
+  [IdDocType.UTILITY_BILL]: undefined,
+  [IdDocType.UTILITY_BILL2]: undefined,
+  [IdDocType.VEHICLE_REGISTRATION_CERTIFICATE]: undefined,
+  [IdDocType.VIDEO_SELFIE]: undefined,
+  [IdDocType.OTHER]: undefined,
+};

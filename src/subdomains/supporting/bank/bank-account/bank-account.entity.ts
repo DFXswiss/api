@@ -28,7 +28,7 @@ export interface BankAccountInfos {
 
 @Entity()
 export class BankAccount extends IEntity implements BankAccountInfos {
-  @Column({ length: 256, unique: true })
+  @Column({ length: 256, nullable: true })
   iban: string;
 
   @Column({ length: 256, nullable: true })

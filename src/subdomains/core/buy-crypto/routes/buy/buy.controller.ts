@@ -114,7 +114,7 @@ export class BuyController {
       asset,
       paymentMethod,
       CryptoPaymentMethod.CRYPTO,
-      true,
+      false,
       undefined,
       dto.wallet,
       specialCode ? [specialCode] : [],

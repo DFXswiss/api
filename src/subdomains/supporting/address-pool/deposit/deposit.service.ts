@@ -9,11 +9,10 @@ import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
-import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
-import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
+import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
+import { ZanoHelper } from 'src/integration/blockchain/zano/zano-helper';
 import { LnurlpLinkUpdateDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -31,7 +30,6 @@ export class DepositService {
   private readonly bitcoinClient: BitcoinClient;
   private readonly lightningClient: LightningClient;
   private readonly moneroClient: MoneroClient;
-  private readonly solanaClient: SolanaClient;
 
   constructor(
     private readonly depositRepo: DepositRepository,
@@ -40,12 +38,10 @@ export class DepositService {
     bitcoinService: BitcoinService,
     lightningService: LightningService,
     moneroService: MoneroService,
-    solanaService: SolanaService,
   ) {
     this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
     this.lightningClient = lightningService.getDefaultClient();
     this.moneroClient = moneroService.getDefaultClient();
-    this.solanaClient = solanaService.getDefaultClient();
   }
 
   async getDeposit(id: number): Promise<Deposit> {
@@ -64,6 +60,10 @@ export class DepositService {
     return this.depositRepo.findBy({ blockchains: Like(`%${blockchain}%`) });
   }
 
+  async getDepositByBlockchainAndIndex(blockchain: Blockchain, accountIndex: number): Promise<Deposit | undefined> {
+    return this.depositRepo.findOneBy({ blockchains: Like(`%${blockchain}%`), accountIndex });
+  }
+
   async getNextDeposit(blockchain: Blockchain): Promise<Deposit> {
     // does not work with find options
     const deposit = await this.depositRepo
@@ -79,12 +79,14 @@ export class DepositService {
   async createDeposits({ blockchain, count }: CreateDepositDto): Promise<void> {
     if ([Blockchain.BITCOIN].includes(blockchain)) {
       return this.createBitcoinDeposits(blockchain, count);
-    } else if (CryptoService.EthereumBasedChains.includes(blockchain)) {
+    } else if (EvmBlockchains.includes(blockchain)) {
       return this.createEvmDeposits(blockchain, count);
     } else if (blockchain === Blockchain.LIGHTNING) {
       return this.createLightningDeposits(blockchain, count);
     } else if (blockchain === Blockchain.MONERO) {
       return this.createMoneroDeposits(blockchain, count);
+    } else if (blockchain === Blockchain.ZANO) {
+      return this.createZanoDeposits(blockchain, count);
     } else if (blockchain === Blockchain.SOLANA) {
       return this.createSolanaDeposits(blockchain, count);
     } else if (blockchain === Blockchain.TRON) {
@@ -109,7 +111,7 @@ export class DepositService {
   private async createEvmDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const addresses: string[] = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
 
-    const nextDepositIndex = await this.getNextDepositIndex(CryptoService.EthereumBasedChains);
+    const nextDepositIndex = await this.getNextDepositIndex(EvmBlockchains);
 
     const applicableChains = AlchemyNetworkMapper.availableNetworks.includes(blockchain)
       ? AlchemyNetworkMapper.availableNetworks
@@ -125,15 +127,15 @@ export class DepositService {
       addresses.push(deposit.address);
     }
 
-    addresses.push(this.createPaymentAddress(0));
+    addresses.push(this.createPaymentAddress());
 
     for (const chain of applicableChains) {
       await this.alchemyWebhookService.createAddressWebhook({ blockchain: chain, addresses: addresses });
     }
   }
 
-  private createPaymentAddress(accountIndex: number): string {
-    return EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: accountIndex }).address;
+  private createPaymentAddress(): string {
+    return EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
   }
 
   private async createLightningDeposits(blockchain: Blockchain, count: number): Promise<void> {
@@ -195,6 +197,18 @@ export class DepositService {
       const moneroAddress = await this.moneroClient.createAddress();
 
       const deposit = Deposit.create(moneroAddress.address, [blockchain], moneroAddress.address_index);
+      await this.depositRepo.save(deposit);
+    }
+  }
+
+  private async createZanoDeposits(blockchain: Blockchain, count: number): Promise<void> {
+    const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
+
+    for (let i = 0; i < count; i++) {
+      const accountIndex = nextDepositIndex + i;
+      const zanoAddress = ZanoHelper.createDepositAddress(accountIndex);
+
+      const deposit = Deposit.create(zanoAddress, [blockchain], accountIndex);
       await this.depositRepo.save(deposit);
     }
   }

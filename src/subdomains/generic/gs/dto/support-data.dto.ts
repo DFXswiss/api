@@ -1,7 +1,10 @@
 import { IsEnum, IsNotEmpty } from 'class-validator';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -31,6 +34,9 @@ export class SupportReturnData {
   cryptoInput: CryptoInput[];
   bankTxRepeat: BankTxRepeat[];
   transaction: Transaction[];
+  buy: Buy[];
+  sell: Sell[];
+  swap: Swap[];
 }
 
 export class SupportDataQuery {

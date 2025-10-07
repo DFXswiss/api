@@ -12,14 +12,13 @@ import { LiquidityManagementService } from 'src/subdomains/core/liquidity-manage
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInputSettledStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
-import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
@@ -43,7 +42,6 @@ export class BuyCryptoBatchService {
     private readonly payoutService: PayoutService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly liquidityService: LiquidityManagementService,
-    private readonly feeService: FeeService,
   ) {}
 
   async batchAndOptimizeTransactions(): Promise<void> {
@@ -66,7 +64,7 @@ export class BuyCryptoBatchService {
         where: [
           {
             ...search,
-            cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+            cryptoInput: { status: In(CryptoInputSettledStatus) },
           },
           { ...search, cryptoInput: IsNull() },
         ],
@@ -89,15 +87,22 @@ export class BuyCryptoBatchService {
         )}`,
       );
 
+      const riskyTxs = txWithAssets.filter((t) => t.userData.isRisky);
+      for (const riskyTx of riskyTxs) {
+        await this.buyCryptoRepo.update(...riskyTx.resetAmlCheck());
+      }
+
       const filteredTx = txWithAssets.filter(
         (t) =>
-          (!t.liquidityPipeline &&
+          !t.userData.isSuspicious &&
+          !t.userData.isRisky &&
+          ((!t.liquidityPipeline &&
             !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
-          [
-            LiquidityManagementPipelineStatus.FAILED,
-            LiquidityManagementPipelineStatus.STOPPED,
-            LiquidityManagementPipelineStatus.COMPLETE,
-          ].includes(t.liquidityPipeline?.status),
+            [
+              LiquidityManagementPipelineStatus.FAILED,
+              LiquidityManagementPipelineStatus.STOPPED,
+              LiquidityManagementPipelineStatus.COMPLETE,
+            ].includes(t.liquidityPipeline?.status)),
       );
 
       const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);
@@ -131,13 +136,13 @@ export class BuyCryptoBatchService {
           const inputReferenceCurrency =
             tx.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(tx.inputReferenceAsset));
 
-          const price = await this.pricingService.getPrice(inputReferenceCurrency, tx.outputReferenceAsset, false);
+          const price = await this.pricingService.getPrice(
+            inputReferenceCurrency,
+            tx.outputReferenceAsset,
+            PriceValidity.VALID_ONLY,
+          );
 
           tx.calculateOutputReferenceAmount(price);
-        }
-
-        for (const feeId of tx.usedFees?.split(';')) {
-          await this.feeService.increaseTxUsages(tx.amountInChf, Number.parseInt(feeId), tx.userData);
         }
       } catch (e) {
         if (e instanceof PriceInvalidException) {

@@ -12,6 +12,10 @@ import { LightningAddressType, LightningHelper } from '../lightning-helper';
 export class LightningService {
   private static ALLOWED_LNDHUB_PATTERN = /^lndhub:\/\/invoice:(?<key>.+)@(?<url>https:\/\/.+)$/;
 
+  private readonly staticNodePublicKeys = {
+    'dev.lightning.space': '02155cce4b9b62fbc5778976f38908dc84159126c66cb819c91d99a602c6bbb520',
+  };
+
   private readonly client: LightningClient;
   private readonly addressPublicKeys = new AsyncCache<string>(CacheItemResetPeriod.EVERY_HOUR);
 
@@ -36,6 +40,10 @@ export class LightningService {
 
     switch (addressType) {
       case LightningAddressType.LN_URL: {
+        const url = new URL(LightningHelper.decodeLnurl(address));
+        const staticKey = this.staticNodePublicKeys[url.host];
+        if (staticKey) return staticKey;
+
         const invoice = await this.getInvoiceByLnurlp(address);
         return LightningHelper.getPublicKeyOfInvoice(invoice);
       }

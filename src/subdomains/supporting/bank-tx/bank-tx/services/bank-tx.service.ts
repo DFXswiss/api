@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Observable, Subject } from 'rxjs';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -15,11 +16,13 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { BankBalanceUpdate } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { DeepPartial, In, IsNull, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
+import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
+import { DeepPartial, FindOptionsRelations, In, IsNull, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -67,6 +70,7 @@ export const TransactionBankTxTypeMapper: {
 @Injectable()
 export class BankTxService {
   private readonly logger = new DfxLogger(BankTxService);
+  private readonly bankBalanceSubject: Subject<BankBalanceUpdate> = new Subject<BankBalanceUpdate>();
 
   constructor(
     private readonly bankTxRepo: BankTxRepository,
@@ -116,10 +120,10 @@ export class BankTxService {
     );
     const allTransactions = olkyTransactions.concat(revolutTransactions);
 
-    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
+    const multiAccounts = await this.specialAccountService.getMultiAccounts();
     for (const transaction of allTransactions) {
       try {
-        await this.create(transaction, multiAccountIbans);
+        await this.create(transaction, multiAccounts);
       } catch (e) {
         if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
       }
@@ -143,6 +147,8 @@ export class BankTxService {
         remittanceInfo &&
         tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
         buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
+
+      if (!buy && (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) }))) continue;
 
       const update = buy
         ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id }
@@ -206,12 +212,12 @@ export class BankTxService {
     }
   }
 
-  async create(bankTx: Partial<BankTx>, multiAccountIbans: string[]): Promise<Partial<BankTx>> {
+  async create(bankTx: Partial<BankTx>, multiAccounts: SpecialExternalAccount[]): Promise<Partial<BankTx>> {
     let entity = await this.bankTxRepo.findOneBy({ accountServiceRef: bankTx.accountServiceRef });
     if (entity)
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
-    entity = this.createTx(bankTx, multiAccountIbans);
+    entity = this.createTx(bankTx, multiAccounts);
 
     entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
@@ -308,6 +314,10 @@ export class BankTxService {
       .getOne();
   }
 
+  async getBankTxByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
+    return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
+  }
+
   async getBankTxById(id: number): Promise<BankTx> {
     return this.bankTxRepo.findOneBy({ id });
   }
@@ -350,13 +360,13 @@ export class BankTxService {
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
     const sepaFile = this.sepaParser.parseSepaFile(xmlFile);
 
-    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
+    const multiAccounts = await this.specialAccountService.getMultiAccounts();
 
     // parse the file
     let batch = this.bankTxBatchRepo.create(this.sepaParser.parseBatch(sepaFile));
     const txList = await this.sepaParser
       .parseEntries(sepaFile, batch.iban)
-      .then((l) => l.map((e) => this.createTx(e, multiAccountIbans)));
+      .then((l) => l.map((e) => this.createTx(e, multiAccounts)));
 
     // find duplicate entries
     const duplicates = await this.bankTxRepo
@@ -392,6 +402,10 @@ export class BankTxService {
       newTxs = await new BankTxRepository(manager).saveMany(newTxs, 1000, 20);
     });
 
+    // update bank liq balance
+    const bank = await this.bankService.getBankByIban(batch.iban);
+    this.bankBalanceSubject.next({ bank, balance: batch.bankBalanceAfter });
+
     // avoid infinite loop in JSON
     batch.transactions = newTxs.map((tx) => {
       tx.batch = null;
@@ -420,9 +434,9 @@ export class BankTxService {
     });
   }
 
-  private createTx(entity: DeepPartial<BankTx>, multiAccountIbans: string[]): BankTx {
+  private createTx(entity: DeepPartial<BankTx>, multiAccounts: SpecialExternalAccount[]): BankTx {
     const tx = this.bankTxRepo.create(entity);
-    tx.senderAccount = tx.getSenderAccount(multiAccountIbans);
+    tx.senderAccount = tx.getSenderAccount(multiAccounts);
     return tx;
   }
 
@@ -430,5 +444,9 @@ export class BankTxService {
 
   getBankTxRepo(): BankTxRepository {
     return this.bankTxRepo;
+  }
+
+  get bankBalanceObservable(): Observable<BankBalanceUpdate> {
+    return this.bankBalanceSubject.asObservable();
   }
 }

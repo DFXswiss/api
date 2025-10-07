@@ -3,6 +3,7 @@ import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
@@ -450,6 +451,7 @@ export class BuyCrypto extends IEntity {
       mailSendDate: null,
       blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
+      status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
     };
 
     Object.assign(this, update);
@@ -481,7 +483,7 @@ export class BuyCrypto extends IEntity {
             inputReferenceAmountMinusFee,
             usedRef,
             refProvision,
-            refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+            refFactor: !fee.payoutRefBonus || usedRef === Config.defaultRef ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             networkStartFeeAmount: fee.networkStart,
             status: this.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE ? BuyCryptoStatus.CREATED : undefined,
@@ -504,6 +506,7 @@ export class BuyCrypto extends IEntity {
     blacklist: SpecialExternalAccount[],
     banks: Bank[],
     ibanCountry: Country,
+    refUser?: User,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...AmlHelperService.getAmlResult(
@@ -517,11 +520,20 @@ export class BuyCrypto extends IEntity {
         bankData,
         blacklist,
         ibanCountry,
+        refUser,
         banks,
       ),
       amountInChf,
       amountInEur,
     };
+
+    if (
+      ((update.amlCheck && update.amlCheck !== this.amlCheck) ||
+        (update.amlReason && update.amlReason !== this.amlReason)) &&
+      [CheckStatus.FAIL, CheckStatus.PENDING].includes(update.amlCheck) &&
+      !DisabledProcess(Process.AML_RECHECK_MAIL_RESET)
+    )
+      update.mailSendDate = null;
 
     Object.assign(this, update);
 
@@ -561,6 +573,7 @@ export class BuyCrypto extends IEntity {
       chargebackAmount: null,
       chargebackAllowedBy: null,
       chargebackOutput: null,
+      priceDefinitionAllowedDate: null,
     };
 
     Object.assign(this, update);
@@ -727,6 +740,10 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.VIDEO_IDENT_NEEDED,
   AmlReason.KYC_DATA_NEEDED,
   AmlReason.BANK_TX_NEEDED,
+  AmlReason.MANUAL_CHECK_PHONE,
+  AmlReason.MERGE_INCOMPLETE,
+  AmlReason.BANK_RELEASE_PENDING,
+  AmlReason.MANUAL_CHECK_IP_PHONE,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

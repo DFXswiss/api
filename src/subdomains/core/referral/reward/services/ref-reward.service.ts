@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -9,7 +9,11 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, Not } from 'typeorm';
 import { RefRewardExtended } from '../../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
@@ -24,10 +28,12 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.ARBITRUM]: 10,
   [Blockchain.BITCOIN]: 100,
   [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.SPARK]: undefined,
   [Blockchain.MONERO]: 1,
   [Blockchain.ZANO]: undefined,
   [Blockchain.CARDANO]: undefined,
   [Blockchain.ETHEREUM]: 10,
+  [Blockchain.SEPOLIA]: undefined,
   [Blockchain.BINANCE_SMART_CHAIN]: undefined,
   [Blockchain.OPTIMISM]: undefined,
   [Blockchain.POLYGON]: undefined,
@@ -41,6 +47,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.KUCOIN_PAY]: undefined,
   [Blockchain.GNOSIS]: undefined,
   [Blockchain.TRON]: undefined,
+  [Blockchain.CITREA_TESTNET]: undefined,
   [Blockchain.KRAKEN]: undefined,
   [Blockchain.BINANCE]: undefined,
   [Blockchain.XT]: undefined,
@@ -69,7 +76,11 @@ export class RefRewardService {
     const asset = await this.assetService.getAssetById(dto.asset.id);
     if (!asset) throw new NotFoundException('Asset not found');
 
-    const eurChfPrice = await this.pricingService.getPrice(PriceCurrency.EUR, PriceCurrency.CHF, false);
+    const eurChfPrice = await this.pricingService.getPrice(
+      PriceCurrency.EUR,
+      PriceCurrency.CHF,
+      PriceValidity.VALID_ONLY,
+    );
 
     const entity = this.rewardRepo.create({
       user,
@@ -97,7 +108,11 @@ export class RefRewardService {
     const openCreditUser = await this.userService.getOpenRefCreditUser();
     if (openCreditUser.length == 0) return;
 
-    const eurChfPrice = await this.pricingService.getPrice(PriceCurrency.EUR, PriceCurrency.CHF, false);
+    const eurChfPrice = await this.pricingService.getPrice(
+      PriceCurrency.EUR,
+      PriceCurrency.CHF,
+      PriceValidity.VALID_ONLY,
+    );
 
     const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
       CryptoService.getDefaultBlockchainBasedOn(o.address),
@@ -152,6 +167,8 @@ export class RefRewardService {
   async updateRefReward(id: number, dto: UpdateRefRewardDto): Promise<RefReward> {
     const entity = await this.rewardRepo.findOneBy({ id });
     if (!entity) throw new Error('RefReward not found');
+    if ([RewardStatus.COMPLETE, RewardStatus.PAYING_OUT].includes(entity.status))
+      throw new BadRequestException('RefReward already complete');
 
     Object.assign(entity, dto);
 

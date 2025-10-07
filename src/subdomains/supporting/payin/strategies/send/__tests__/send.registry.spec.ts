@@ -15,6 +15,7 @@ import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { PayInPolygonService } from '../../../services/payin-polygon.service';
 import { PayInSolanaService } from '../../../services/payin-solana.service';
 import { PayInTronService } from '../../../services/payin-tron.service';
+import { PayInZanoService } from '../../../services/payin-zano.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -37,11 +38,15 @@ import { SolanaCoinStrategy } from '../impl/solana-coin.strategy';
 import { SolanaTokenStrategy } from '../impl/solana-token.strategy';
 import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
+import { ZanoCoinStrategy } from '../impl/zano-coin.strategy';
+import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
 
 describe('SendStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
   let lightning: LightningStrategy;
   let monero: MoneroStrategy;
+  let zanoCoin: ZanoCoinStrategy;
+  let zanoToken: ZanoTokenStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
   let bscCoin: BscCoinStrategy;
@@ -69,6 +74,9 @@ describe('SendStrategyRegistry', () => {
     lightning = new LightningStrategy(mock<PayInLightningService>(), mock<PayInRepository>());
 
     monero = new MoneroStrategy(mock<PayInMoneroService>(), mock<PayInRepository>());
+
+    zanoCoin = new ZanoCoinStrategy(mock<PayInZanoService>(), mock<PayInRepository>());
+    zanoToken = new ZanoTokenStrategy(mock<PayInZanoService>(), mock<PayInRepository>());
 
     ethereumCoin = new EthereumCoinStrategy(mock<PayInEthereumService>(), mock<PayInRepository>());
     ethereumToken = new EthereumTokenStrategy(mock<PayInEthereumService>(), mock<PayInRepository>());
@@ -101,6 +109,8 @@ describe('SendStrategyRegistry', () => {
       bitcoin,
       lightning,
       monero,
+      zanoCoin,
+      zanoToken,
       ethereumCoin,
       ethereumToken,
       bscCoin,
@@ -146,6 +156,22 @@ describe('SendStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(MoneroStrategy);
+      });
+
+      it('gets ZANO_COIN strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.ZANO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ZanoCoinStrategy);
+      });
+
+      it('gets ZANO_TOKEN strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.ZANO, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ZanoTokenStrategy);
       });
 
       it('gets ETHEREUM_COIN strategy', () => {
@@ -310,6 +336,8 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     bitcoin: BitcoinStrategy,
     lightning: LightningStrategy,
     monero: MoneroStrategy,
+    zanoCoin: ZanoCoinStrategy,
+    zanoToken: ZanoTokenStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
     bscCoin: BscCoinStrategy,
@@ -334,6 +362,8 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     this.add({ blockchain: Blockchain.BITCOIN }, bitcoin);
     this.add({ blockchain: Blockchain.LIGHTNING }, lightning);
     this.add({ blockchain: Blockchain.MONERO }, monero);
+    this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.COIN }, zanoCoin);
+    this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.TOKEN }, zanoToken);
 
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);

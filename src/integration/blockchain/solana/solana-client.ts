@@ -7,9 +7,8 @@ import { AsyncCache } from 'src/shared/utils/async-cache';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
-import { BlockchainClient } from '../shared/util/blockchain-client';
+import { BlockchainClient, BlockchainToken } from '../shared/util/blockchain-client';
 import {
-  SolanaToken as SolanaBlockchainToken,
   SolanaNativeInstructionsDto,
   SolanaTokenDto,
   SolanaTokenInstructionsDto,
@@ -34,7 +33,7 @@ export class SolanaClient extends BlockchainClient {
   private readonly wallet: SolanaWallet;
   private readonly connection: Solana.Connection;
 
-  private readonly tokens = new AsyncCache<SolanaBlockchainToken>();
+  private readonly tokens = new AsyncCache<BlockchainToken>();
 
   constructor(private readonly http: HttpService) {
     super();
@@ -46,7 +45,7 @@ export class SolanaClient extends BlockchainClient {
     this.wallet = SolanaWallet.create(solanaWalletSeed);
   }
 
-  getWalletAddress(): string {
+  get walletAddress(): string {
     return this.wallet.address;
   }
 
@@ -55,7 +54,7 @@ export class SolanaClient extends BlockchainClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    return this.getNativeCoinBalanceForAddress(this.getWalletAddress());
+    return this.getNativeCoinBalanceForAddress(this.walletAddress);
   }
 
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
@@ -72,7 +71,7 @@ export class SolanaClient extends BlockchainClient {
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
     const tokenBalances: BlockchainTokenBalance[] = [];
 
-    const owner = address ?? this.getWalletAddress();
+    const owner = address ?? this.walletAddress;
 
     for (const asset of assets) {
       const mint = new Solana.PublicKey(asset.chainId);
@@ -115,16 +114,16 @@ export class SolanaClient extends BlockchainClient {
     return false;
   }
 
-  async getToken(asset: Asset): Promise<SolanaBlockchainToken> {
+  async getToken(asset: Asset): Promise<BlockchainToken> {
     return this.getTokenByAddress(asset.chainId);
   }
 
-  private async getTokenByAddress(address: string): Promise<SolanaBlockchainToken> {
+  private async getTokenByAddress(address: string): Promise<BlockchainToken> {
     return this.tokens.get(address, async () => {
       const mintAccount = await SolanaToken.getMint(this.connection, new Solana.PublicKey(address));
       const mintAddress = mintAccount.address.toBase58();
       const decimals = mintAccount.decimals;
-      return new SolanaBlockchainToken(mintAddress, decimals);
+      return new BlockchainToken(mintAddress, decimals);
     });
   }
 

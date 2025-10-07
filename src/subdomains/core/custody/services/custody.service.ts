@@ -149,6 +149,7 @@ export class CustodyService {
     const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
     const custodyOrders = await this.custodyOrderRepo.find({
       where: { user: { id: In(custodyUserIds) }, status: CustodyOrderStatus.COMPLETED },
+      order: { id: 'ASC' },
     });
 
     if (!custodyOrders.length) return { totalValue: [] };

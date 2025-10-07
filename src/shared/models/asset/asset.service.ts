@@ -26,10 +26,6 @@ export class AssetService {
     return this.assetRepo.save(entity);
   }
 
-  async getAllAssets(relations?: FindOptionsRelations<Asset>) {
-    return this.assetRepo.findCached('all', { relations });
-  }
-
   async getAssetsWith(relations?: FindOptionsRelations<Asset>) {
     return this.assetRepo.find({ relations });
   }
@@ -81,6 +77,10 @@ export class AssetService {
     return this.assetRepo.findOneCachedBy(`native-${blockchain}`, { blockchain, type: AssetType.COIN });
   }
 
+  async getTokens(blockchain: Blockchain): Promise<Asset[]> {
+    return this.assetRepo.findCachedBy(`token-${blockchain}`, { blockchain, type: AssetType.TOKEN });
+  }
+
   async getSellableBlockchains(): Promise<Blockchain[]> {
     return this.assetRepo
       .findCachedBy('sellable', { sellable: true })
@@ -123,6 +123,14 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'ETH',
       blockchain: Blockchain.ETHEREUM,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getSepoliaCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ETH',
+      blockchain: Blockchain.SEPOLIA,
       type: AssetType.COIN,
     });
   }
@@ -195,6 +203,22 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'XMR',
       blockchain: Blockchain.MONERO,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getCitreaTestnetCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'cBTC',
+      blockchain: Blockchain.CITREA_TESTNET,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getZanoCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ZANO',
+      blockchain: Blockchain.ZANO,
       type: AssetType.COIN,
     });
   }

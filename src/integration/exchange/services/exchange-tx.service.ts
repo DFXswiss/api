@@ -7,7 +7,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
@@ -31,11 +35,15 @@ export class ExchangeTxService {
   //*** JOBS ***//
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.EXCHANGE_TX_SYNC, timeout: 1800 })
-  async syncExchanges() {
-    const since = Util.minutesBefore(Config.exchangeTxSyncLimit);
-    const transactions = await Promise.all(ExchangeSyncs.map((s) => this.getTransactionsFor(s, since))).then((tx) =>
-      tx.flat(),
-    );
+  async syncExchangeJob() {
+    await this.syncExchanges();
+  }
+
+  async syncExchanges(from?: Date, exchange?: ExchangeName) {
+    const syncs = ExchangeSyncs.filter((s) => !exchange || s.exchange === exchange);
+    const since = from ?? Util.minutesBefore(Config.exchangeTxSyncLimit);
+
+    const transactions = await Promise.all(syncs.map((s) => this.getTransactionsFor(s, since))).then((tx) => tx.flat());
 
     // sort by date
     transactions.sort((a, b) => a.externalCreated.getTime() - b.externalCreated.getTime());
@@ -59,7 +67,9 @@ export class ExchangeTxService {
               type: undefined,
               name: entity.feeCurrency,
             }));
-          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, true);
+          if (!feeAsset) throw new Error(`Unknown fee currency ${entity.feeCurrency}`);
+
+          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
 
           entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
         }
@@ -78,7 +88,9 @@ export class ExchangeTxService {
               type: undefined,
               name: currencyName,
             }));
-          const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, true);
+          if (!currency) throw new Error(`Unknown currency ${currencyName}`);
+
+          const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY);
 
           entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
         }

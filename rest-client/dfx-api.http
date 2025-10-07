@@ -124,6 +124,13 @@ Authorization: Bearer {{authToken}}
 GET {{url}}/v1/exchange/trade/xxx
 Authorization: Bearer {{authToken}}
 
+###
+
+PUT {{url}}/v1/exchange/kraken/sync?from=2025-08-26
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+
 
 ###
 
@@ -135,10 +142,24 @@ Authorization: Bearer {{authToken}}
 
 ###
 
+@authToken = {{login.response.body.accessToken}}
+
+DELETE {{url}}/v1/buyCrypto/xxx/amlCheck
+Authorization: Bearer {{authToken}}
+
+###
+
 // BUY FIAT
 @authToken = {{login.response.body.accessToken}}
 
 POST {{url}}/v1/buyFiat/xxx/webhook
+Authorization: Bearer {{authToken}}
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+DELETE {{url}}/v1/buyFiat/xxx/amlCheck
 Authorization: Bearer {{authToken}}
 
 ###
@@ -262,7 +283,31 @@ Authorization: Bearer {{authToken}}
 
 
 
-// ALCHEMY
+// Pay-In
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/payIn
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "senderAddresses": "xxx",
+  "receiverAddress": {
+    "address": "xxx",
+    "blockchain": "xxx"
+  },
+  "txId": "xxx",
+  "txType": "Deposit",
+  "txSequence": null,
+  "blockHeight": null,
+  "amount": 0,
+  "asset": {
+    "id": 1
+  }
+}
+
+###
 
 @authToken = {{login.response.body.accessToken}}
 
@@ -396,7 +441,7 @@ Authorization: Bearer {{authToken}}
 PUT {{url}}/v1/custody/admin/user/xxx/balance?assetId=337
 Authorization: Bearer {{authToken}}
 
-### 
+###
 
 // PAYMENT
 
@@ -405,10 +450,27 @@ Authorization: Bearer {{authToken}}
 POST {{url}}/v1/paymentLink/integration/binance/activate/xxx
 Authorization: Bearer {{authToken}}
 
-### 
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/paymentLink
+Authorization: Bearer {{authToken}}
+
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+PUT {{url}}/v1/paymentLink/xxx
+Authorization: Bearer {{authToken}}
+
+{}
+
+
+###
 
 @authToken = {{login.response.body.accessToken}}
 
 PUT {{url}}/v1/paymentLink/xxx/pos?scoped=false
 Authorization: Bearer {{authToken}}
-

@@ -1,4 +1,15 @@
-import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsDate,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateIf,
+} from 'class-validator';
 import { BankTxType } from '../entities/bank-tx.entity';
 
 export class UpdateBankTxDto {
@@ -78,4 +89,9 @@ export class UpdateBankTxDto {
   @IsOptional()
   @IsBoolean()
   highRisk?: boolean;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  bankReleaseDate?: Date;
 }

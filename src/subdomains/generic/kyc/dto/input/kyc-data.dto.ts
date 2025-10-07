@@ -17,10 +17,17 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
-import { GenderType, IdentDocumentType } from 'src/subdomains/generic/kyc/dto/manual-ident-result.dto';
-import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import {
+  GoodsCategory,
+  GoodsType,
+  MerchantCategory,
+  StoreType,
+} from 'src/subdomains/core/payment-link/enums/merchant.enum';
+import { GenderType } from 'src/subdomains/generic/kyc/dto/manual-ident-result.dto';
+import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
+import { IdentDocumentType } from '../ident-result-data.dto';
 
 export class KycContactData {
   @ApiProperty()
@@ -276,6 +283,43 @@ export class KycManualIdentData {
 }
 
 export class PaymentDataDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  name: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl({ require_protocol: true })
+  website: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  registrationNumber: string;
+
+  @ApiProperty({ enum: StoreType })
+  @IsNotEmpty()
+  @IsEnum(StoreType)
+  storeType: StoreType;
+
+  @ApiProperty({ enum: MerchantCategory })
+  @IsNotEmpty()
+  @IsEnum(MerchantCategory)
+  merchantCategory: MerchantCategory;
+
+  @ApiProperty({ enum: GoodsType })
+  @IsNotEmpty()
+  @IsEnum(GoodsType)
+  goodsType: GoodsType;
+
+  @ApiProperty({ enum: GoodsCategory })
+  @IsNotEmpty()
+  @IsEnum(GoodsCategory)
+  goodsCategory: GoodsCategory;
+
   @ApiProperty()
   @IsNotEmpty()
   @IsString()

@@ -6,14 +6,15 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { IsNull, Like, MoreThan, Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
-import { KycLevel, KycType, SignatoryPower, UserDataStatus } from './user-data.entity';
+import { KycLevel, KycType, SignatoryPower, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 @Injectable()
 export class UserDataJobService {
-  constructor(private readonly userDataRepo: UserDataRepository) {}
+  constructor(private readonly userDataRepo: UserDataRepository, private readonly kycService: KycService) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.USER_DATA, timeout: 1800 })
   async fillUserData() {
@@ -69,6 +70,7 @@ export class UserDataJobService {
 
     for (const entity of entities) {
       await this.userDataRepo.update(entity.id, { kycLevel: KycLevel.LEVEL_40 });
+      await this.kycService.createKycLevelLog(entity, KycLevel.LEVEL_40);
     }
   }
 }

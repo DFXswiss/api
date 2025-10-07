@@ -90,7 +90,10 @@
                 "missing_liquidity": "DFX konnte die benötigte Menge an Token nicht im vorgegebenen Zeitfenster handeln",
                 "test_only": "Test",
                 "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt",
-                "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich"
+                "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich",
+                "manual_check_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
+                "manual_check_ip_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
+                "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
@@ -202,6 +205,42 @@
                 "line3": "Nachdem diese Transaktion bei uns angekommen ist und ausgezahlt wurde, wird die ausstehende Transaktion ebenfalls automatisch ausgezahlt werden.",
                 "line4": "Es ist also nur eine Transaktion von deinem Bankkonto erforderlich.",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
+            },
+            "manual_check_phone": {
+                "title": "Telefongespräch benötigt",
+                "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
+                "line1": "Wir haben deine Einzahlung erhalten.",
+                "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
+                "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
+                "line4": "",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
+            },
+            "merge_incomplete": {
+                "title": "E-Mail Bestätigung ausstehend",
+                "salutation": "Es wurde dir eine Bestätigungs-Email geschickt, dort musst du auf den Link klicken",
+                "line1": "Leider brauchen wir um deine Transaktion ausführen zu können noch eine Bestätigung von dir.",
+                "line2": "Dazu musst du auf den Link in der vorangegangenen Email klicken.",
+                "line3": "Nachdem diese Bestätigung erteilt ist wird die ausstehende Transaktion ebenfalls automatisch ausgezahlt werden.",
+                "line4": "",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
+            },
+            "bank_release_pending": {
+                "title": "Bankfreigabe ausstehend",
+                "salutation": "Die Bankfreigabe für deine Transaktion steht noch aus",
+                "line1": "Deine Transaktion ist bei uns eingetroffen aber wurde noch nicht zur weiteren Verwendung freigegeben.",
+                "line2": "Du brauchst nichts weiter zu tun, die Bank gibt die Transaktion automatisch frei.",
+                "line3": "",
+                "line4": "",
+                "line5": "Um den aktuellen Stand deiner Transaktion einsehen zu können:<br>[url:Klick hier]"
+            },
+            "manual_check_ip_phone": {
+                "title": "Telefongespräch benötigt",
+                "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
+                "line1": "Wir haben deine Einzahlung erhalten.",
+                "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
+                "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
+                "line4": "",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]"
@@ -224,18 +263,27 @@
             "message": "Der Schritt '{stepName}' konnte aus folgendem Grund nicht abgeschlossen werden:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Dein Account wurde gemerged",
+                "user_data_merge_requested": "E-Mail Bestätigung ausstehend",
+                "user_data_existing": "Unbekannter Fehler",
                 "user_data_blocked": "Unbekannter Fehler",
-                "first_name_not_matching": "Dein Vorname stimmt nicht überein",
-                "last_name_not_matching": "Dein Nachname stimmt nicht überein",
+                "first_name_not_matching": "Umstimmigkeit bei deinem Vornamen",
+                "last_name_not_matching": "Umstimmigkeit bei deinem Nachnamen",
                 "nationality_not_matching": "Deine Nationalität stimmt nicht überein",
                 "nationality_missing": "Deine Nationalität fehlt",
-                "invalid_document_type": "Deine Dokumentenart ist nicht gültig",
+                "nationality_not_allowed": "Deine Nationaltität ist nicht erlaubt",
+                "invalid_document_type": "Die Art des Ausweisdokuments ist nicht gültig",
+                "document_type_not_allowed": "Die Art des Ausweisdokuments ist für dein Land nicht erlaubt",
                 "identification_number_missing": "Deine Ausweisnummer fehlt",
                 "invalid_result": "Unbekannter Fehler",
                 "verified_name_missing": "Dein Accountname fehlt",
-                "first_name_not_matching_verified_name": "Dein Vorname stimmt nicht mit dem Accountnamen überein",
-                "last_name_not_matching_verified_name": "Dein Nachname stimmt nicht mit dem Accountnamen überein",
-                "organization_name_not_matching_verified_name": "Der Name deiner Organisation stimmt nicht mit dem Accountnamen überein"
+                "first_name_not_matching_verified_name": "Umstimmigkeit zwischen deinem Vornamen und dem Accountnamen",
+                "last_name_not_matching_verified_name": "Umstimmigkeit zwischen deinem Nachnamen und dem Accountnamen",
+                "organization_name_not_matching_verified_name": "Umstimmigkeit zwischen dem Namen deiner Organisation und dem Accountnamen",
+                "country_not_allowed": "Dein Land ist nicht erlaubt",
+                "blocked": "Unbekannter Fehler",
+                "personal_data_not_matching": "Unstimmigkeit bei deinen persönlichen Daten",
+                "ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+                "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt"
             }
         },
         "reminder": {
@@ -288,6 +336,11 @@
     "limit_request": {
         "title": "Transaktionsvolumen genehmigt",
         "message": "Deine Anfrage von {limitAmount} EUR Transaktionsvolumen wurde genehmigt und steht dir nun frei zur Verfügung."
+    },
+    "account_deactivation": {
+        "title": "Account deaktiviert",
+        "salutation": "Account erfolgreich deaktiviert",
+        "message": "Du hast deinen Account nun erfolgreich deaktiviert. Wenn du deinen Account wieder aktivieren möchtest musst du einen Login per Mail durchführen."
     },
     "support_message": {
         "title": "Neue Support Nachricht",

@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { BinancePayWebhookGuard } from 'src/integration/binance-pay/guards/binance-pay-webhook.guard';
@@ -69,6 +69,7 @@ export class C2BPaymentLinkController {
   @Post('integrations/kucoin/webhook/success')
   @Post('integrations/kucoin/webhook/cancel')
   @ApiExcludeEndpoint()
+  @HttpCode(200)
   @UseGuards(KucoinPayWebhookGuard)
   async kucoinPayWebhook(@Body() dto: any): Promise<{ returnCode: string; returnMessage: string }> {
     try {

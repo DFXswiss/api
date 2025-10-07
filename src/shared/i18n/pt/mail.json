@@ -90,7 +90,10 @@
                 "missing_liquidity": "DFX was unable to trade the required amount of tokens within the specified time",
                 "test_only": "Test",
                 "kyc_data_needed": "Your KYC data is required for the transaction",
-                "bank_tx_needed": "A bank transaction is required before this transaction can be carried out"
+                "bank_tx_needed": "A bank transaction is required before this transaction can be carried out",
+                "manual_check_phone": "We were unable to reach you at the phone number you provided",
+                "manual_check_ip_phone": "We were unable to reach you at the phone number you provided",
+                "merge_incomplete": "The email confirmation was not accepted"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -202,6 +205,42 @@
                 "line3": "After this transaction has been received and paid out, the pending transaction will also be paid out automatically.",
                 "line4": "This means that only one transaction from your bank account is required.",
                 "line5": "If you do not want to verify yourself, you can also request a refund:<br>[url:click here]"
+            },
+            "manual_check_phone": {
+                "title": "Phone call required",
+                "salutation": "A manual verification by phone is required",
+                "line1": "We have received your deposit.",
+                "line2": "We will contact you shortly at {phone}.",
+                "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
+                "line4": "",
+                "line5": "If you would like to request a refund instead:<br>[url:click here]"
+            },
+            "merge_incomplete": {
+                "title": "Email confirmation pending",
+                "salutation": "A confirmation email has been sent to you. You must click on the link in the email",
+                "line1": "Unfortunately, we still need confirmation from you in order to complete your transaction.",
+                "line2": "To do this, you need to click on the link in the previous email.",
+                "line3": "Once this confirmation has been given, the outstanding transaction will also be paid out automatically.",
+                "line4": "",
+                "line5": "If you would like to request a refund instead:<br>[url:click here]"
+            },
+            "bank_release_pending": {
+                "title": "Bank approval pending",
+                "salutation": "The bank approval for your transaction is still pending",
+                "line1": "We have received your transaction but it has not yet been released for further processing.",
+                "line2": "You don't need to do anything else, the bank will automatically approve the transaction.",
+                "line3": "",
+                "line4": "",
+                "line5": "To view the current status of your transaction:<br>[url:click here]"
+            },
+            "manual_check_ip_phone": {
+                "title": "Phone call required",
+                "salutation": "A manual verification by phone is required",
+                "line1": "We have received your deposit.",
+                "line2": "We will contact you shortly at {phone}.",
+                "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
+                "line4": "",
+                "line5": "If you would like to request a refund instead:<br>[url:click here]"
             }
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]"
@@ -224,18 +263,27 @@
             "message": "The step '{stepName}' could not be completed for the following reason:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Your account is merged",
+                "user_data_merge_requested": "Email confirmation pending",
+                "user_data_existing": "Unknown error",
                 "user_data_blocked": "Unknown error",
-                "first_name_not_matching": "Your first name is not matching",
-                "last_name_not_matching": "Your last name is not matching",
+                "first_name_not_matching": "Inconsistency with your first name",
+                "last_name_not_matching": "Inconsistency with your last name",
                 "nationality_not_matching": "Your nationality is not matching",
                 "nationality_missing": "Nationality is missing",
-                "invalid_document_type": "Your document type is invalid",
+                "nationality_not_allowed": "Your nationality is not allowed",
+                "invalid_document_type": "The type of identification document is invalid",
+                "document_type_not_allowed": "The type of identification document is not allowed for your country",
                 "identification_number_missing": "Your identification number is missing",
                 "invalid_result": "Unknown error",
                 "verified_name_missing": "Account name is missing",
-                "first_name_not_matching_verified_name": "Your first name does not match your account name",
-                "last_name_not_matching_verified_name": "Your last name does not match your account name",
-                "organization_name_not_matching_verified_name": "Your organization name does not match your account name"
+                "first_name_not_matching_verified_name": "Inconsistency between your first name and the account name",
+                "last_name_not_matching_verified_name": "Inconsistency between your last name and the account name",
+                "organization_name_not_matching_verified_name": "Inconsistency between your organization name and the account name",
+                "country_not_allowed": "Your country is not allowed",
+                "blocked": "Unknown error",
+                "personal_data_not_matching": "Inconsistency in your personal data",
+                "ip_country_mismatch": "Regulatory requirements not met",
+                "country_ip_country_mismatch": "Regulatory requirements not met"
             }
         },
         "reminder": {
@@ -288,6 +336,11 @@
     "limit_request": {
         "title": "Transaction volume approved",
         "message": "Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you."
+    },
+    "account_deactivation": {
+        "title": "Account deactivated",
+        "salutation": "Account successfully deactivated",
+        "message": "You have now successfully deactivated your account. If you want to reactivate your Account you have to login via mail."
     },
     "support_message": {
         "title": "New support message",

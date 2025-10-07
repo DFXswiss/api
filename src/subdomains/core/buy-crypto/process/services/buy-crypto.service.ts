@@ -14,6 +14,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -49,6 +50,7 @@ import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -64,6 +66,8 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoService {
+  private readonly logger = new DfxLogger(BuyCryptoService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -119,6 +123,7 @@ export class BuyCryptoService {
           await this.bankDataService.createVerifyBankData(buy.userData, {
             name: bankDataName,
             iban: bankTx.senderAccount,
+            bic: bankTx.bic,
             type: BankDataType.BANK_IN,
           });
       }
@@ -317,10 +322,10 @@ export class BuyCryptoService {
           entity.userData.users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          PriceValidity.VALID_ONLY,
           undefined,
           undefined,
           inputReferenceCurrency,
-          false,
         );
 
         await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
@@ -445,6 +450,8 @@ export class BuyCryptoService {
   }
 
   async refundBankTx(buyCrypto: BuyCrypto, dto: BankTxRefund): Promise<void> {
+    const timeArray = [Date.now()];
+
     if (!dto.refundIban && !buyCrypto.chargebackIban)
       throw new BadRequestException('You have to define a chargebackIban');
 
@@ -464,6 +471,8 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
+    timeArray.push(Date.now());
+
     if (dto.chargebackAllowedDate && chargebackAmount)
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
@@ -482,6 +491,10 @@ export class BuyCryptoService {
         buyCrypto.chargebackBankRemittanceInfo,
       ),
     );
+
+    timeArray.push(Date.now());
+
+    this.logger.info(`Refund bankTx time log: ${Util.createTimeString(timeArray)}`);
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {
@@ -506,6 +519,13 @@ export class BuyCryptoService {
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getBuyCryptoByTransactionId(
+    transactionId: number,
+    relations?: FindOptionsRelations<BuyCrypto>,
+  ): Promise<BuyCrypto> {
+    return this.buyCryptoRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
   async getBuyCrypto(from: Date, relations?: FindOptionsRelations<BuyCrypto>): Promise<BuyCrypto[]> {
@@ -657,7 +677,7 @@ export class BuyCryptoService {
 
     entity = await this.buyCryptoRepo.save(entity);
 
-    if (dto.user.role === UserRole.CUSTODY) {
+    if (dto.user.role === UserRole.CUSTODY || request?.custodyOrder) {
       if (request?.custodyOrder) {
         await this.custodyOrderService.updateCustodyOrderInternal(request.custodyOrder, {
           transaction: entity.transaction,

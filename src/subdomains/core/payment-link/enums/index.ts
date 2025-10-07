@@ -3,6 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 export enum PaymentLinkStatus {
   ACTIVE = 'Active',
   INACTIVE = 'Inactive',
+  UNASSIGNED = 'Unassigned',
 }
 
 export enum PaymentLinkPaymentStatus {
@@ -81,4 +82,15 @@ export enum PaymentLinkMode {
   SINGLE = 'Single',
   MULTIPLE = 'Multiple',
   PUBLIC = 'Public',
+}
+
+export enum StickerQrMode {
+  CUSTOMER = 'Customer',
+  POS = 'Pos',
+}
+
+export enum PaymentMerchantStatus {
+  CREATED = 'Created',
+  PENDING = 'Pending',
+  PROCESSED = 'Processed',
 }

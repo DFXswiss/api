@@ -15,6 +15,7 @@ export enum KycError {
   NATIONALITY_MISSING = 'NationalityMissing',
   NATIONALITY_NOT_ALLOWED = 'NationalityNotAllowed',
   INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
+  DOCUMENT_TYPE_NOT_ALLOWED = 'DocumentTypeNotAllowed',
   IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
   INVALID_RESULT = 'InvalidResult',
   VERIFIED_NAME_MISSING = 'VerifiedNameMissing',
@@ -22,6 +23,8 @@ export enum KycError {
   LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
   ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
+  IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
+  COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
   BLOCKED = 'Blocked',
   RELEASED = 'Released',
 
@@ -47,6 +50,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.NATIONALITY_MISSING]: 'Nationality is missing',
   [KycError.NATIONALITY_NOT_ALLOWED]: 'Nationality is not allowed',
   [KycError.INVALID_DOCUMENT_TYPE]: 'Your document type is invalid',
+  [KycError.DOCUMENT_TYPE_NOT_ALLOWED]: 'Your document type is not allowed',
   [KycError.IDENTIFICATION_NUMBER_MISSING]: 'Your identification number is missing',
   [KycError.INVALID_RESULT]: 'Unknown error',
   [KycError.VERIFIED_NAME_MISSING]: 'Account name is missing',
@@ -59,6 +63,8 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.RELEASED]: undefined,
   [KycError.RESTARTED_STEP]: undefined,
   [KycError.USER_DATA_DEACTIVATED]: 'Account deactivated',
+  [KycError.IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
+  [KycError.COUNTRY_IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

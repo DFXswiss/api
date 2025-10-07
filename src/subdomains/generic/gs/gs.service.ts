@@ -11,6 +11,7 @@ import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-r
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -92,22 +93,35 @@ export class GsService {
       ),
     });
 
-    // Null all elements which are larger than 50k symbols
+    // null all elements which are larger than 50k symbols
     data.forEach((e) =>
       Object.entries(e).forEach(([key, value]) => {
         if (value?.toString().length >= 50000) delete e[key];
       }),
     );
 
-    const runTime = Date.now() - startTime;
+    const runTime = Util.round((Date.now() - startTime) / 1000, 1);
 
-    if (runTime > 1000 * 3) {
-      this.logger.info(`DB Runtime: ${runTime} with query ${JSON.stringify(query)}`);
-      this.logger.info(`DB Number of data: ${data.length}`);
+    if (runTime > 3) {
+      const message = `Long DB runtime for ${query.identifier}: ${runTime}s for ${
+        data.length
+      } entries with query: ${JSON.stringify(query)}`;
+
+      this.logger.info(message);
+
+      if (data.length > 100000) {
+        await this.notificationService.sendMail({
+          type: MailType.ERROR_MONITORING,
+          context: MailContext.MONITORING,
+          input: { subject: 'Excessive GS Request', errors: [message] },
+        });
+      }
     }
 
-    if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
+    if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents')))) {
+      this.logger.info(`GS userDataDoc use, with query: ${JSON.stringify(query)}`);
       await this.setUserDataDocs(data, query.select, query.sorting);
+    }
 
     if (query.select?.some((s) => !s.includes('documents') && s.includes('-'))) this.setJsonData(data, query.select);
 
@@ -165,6 +179,9 @@ export class GsService {
         request: true,
         custodyOrder: true,
       }),
+      buy: await this.buyService.getAllUserBuys(userIds),
+      sell: await this.sellService.getAllUserSells(userIds),
+      swap: await this.swapService.getAllUserSwaps(userIds),
     };
   }
 
@@ -177,7 +194,7 @@ export class GsService {
       const [field, jsonPath] = select.split('-');
 
       data.map((d) => {
-        const parsedJsonData = this.getParsedJsonData(d[field], jsonPath);
+        const parsedJsonData = this.getParsedJsonData(d[field.replace(/[.]/g, '_')], jsonPath);
 
         d[select] =
           typeof parsedJsonData === 'object' && parsedJsonData !== null
@@ -208,6 +225,13 @@ export class GsService {
           [`${curr}`]: entities[searchIndex]?.[`${field}_${prop}`],
         };
       }, {});
+
+      if (table === 'support_issue' && selects.some((s) => s.includes('messages[max].author')))
+        this.logger.info(
+          `GS array select log, entities: ${entities.map(
+            (e) => `${e['messages_id']}-${e['messages_author']}`,
+          )}, selectedData: ${selectedData['messages[max].author']}`,
+        );
 
       return selectedData;
     });
@@ -339,7 +363,7 @@ export class GsService {
           .getTransactionByKey(query.key, query.value)
           .then((transaction) => transaction?.userData);
       case SupportTable.BANK_DATA:
-        return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD.userData);
+        return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD?.userData);
     }
   }
 

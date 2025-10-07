@@ -4,7 +4,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
-import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutEvmService } from '../../../../services/payout-evm.service';
@@ -57,7 +57,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
           order.complete();
 
           const feeAsset = await this.feeAsset();
-          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, true);
+          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
           order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
 
           await this.payoutOrderRepo.save(order);

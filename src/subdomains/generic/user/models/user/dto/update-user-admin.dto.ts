@@ -1,51 +1,39 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDate, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsOptional, IsString } from 'class-validator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserAddressType, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 
-export class UpdateUserAdminDto {
+export class UpdateUserInternalDto {
   @IsOptional()
   @IsEnum(UserStatus)
-  status: UserStatus;
+  status?: UserStatus;
 
   @IsOptional()
   @IsString()
-  comment: string;
+  comment?: string;
 
   @IsOptional()
   @IsString()
-  usedRef: string;
+  usedRef?: string;
 
   @IsOptional()
   @IsBoolean()
-  setRef: boolean;
+  setRef?: boolean;
 
   @IsOptional()
   @IsEnum(UserRole)
-  role: UserRole;
-
-  @IsOptional()
-  @IsNumber()
-  buyFee: number;
-
-  @IsOptional()
-  @IsNumber()
-  sellFee: number;
-
-  @IsOptional()
-  @IsNumber()
-  cryptoFee: number;
+  role?: UserRole;
 
   @IsOptional()
   @IsBoolean()
-  approved: boolean;
+  approved?: boolean;
 
   @IsOptional()
   @IsEnum(UserAddressType)
-  addressType: UserAddressType;
+  addressType?: UserAddressType;
 
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  travelRulePdfDate: Date;
+  travelRulePdfDate?: Date;
 }

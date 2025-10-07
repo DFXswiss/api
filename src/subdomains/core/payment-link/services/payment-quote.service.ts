@@ -11,10 +11,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { PaymentLinkFeeService } from 'src/subdomains/core/payment-link/services/payment-link-fee.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Equal, In, LessThan } from 'typeorm';
 import { TransferAmount, TransferAmountAsset, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
+import { PaymentLink } from '../entities/payment-link.entity';
 import { PaymentQuote } from '../entities/payment-quote.entity';
 import {
   PaymentActivationStatus,
@@ -36,9 +37,12 @@ export class PaymentQuoteService {
     Blockchain.BASE,
     Blockchain.GNOSIS,
     Blockchain.ETHEREUM,
+    Blockchain.BINANCE_SMART_CHAIN,
     Blockchain.MONERO,
     Blockchain.BITCOIN,
+    Blockchain.ZANO,
     Blockchain.SOLANA,
+    Blockchain.TRON,
   ];
 
   private readonly transferAmountAssetOrder: string[] = ['dEURO', 'ZCHF', 'USDT', 'USDC', 'DAI'];
@@ -181,6 +185,10 @@ export class PaymentQuoteService {
     return this.paymentQuoteRepo.countBy({ payment: { id: payment.id }, status: In(allowedStates) });
   }
 
+  async deleteQuote(quote: PaymentQuote): Promise<void> {
+    await this.paymentQuoteRepo.delete(quote.id);
+  }
+
   // --- CREATE --- //
   async createQuote(standard: PaymentStandard, payment: PaymentLinkPayment): Promise<PaymentQuote> {
     const timeoutSeconds = Config.payment.quoteTimeout(standard);
@@ -190,7 +198,9 @@ export class PaymentQuoteService {
     const quote = this.paymentQuoteRepo.create({
       uniqueId: Util.createUniqueId(Config.prefixes.paymentQuoteUidPrefix, 16),
       status: PaymentQuoteStatus.ACTUAL,
-      transferAmounts: await this.createTransferAmounts(standard, payment).then(JSON.stringify),
+      transferAmounts: await this.createTransferAmounts(standard, payment.link, payment.amount, payment.currency).then(
+        JSON.stringify,
+      ),
       expiryDate,
       standard,
       payment,
@@ -199,16 +209,25 @@ export class PaymentQuoteService {
     return this.paymentQuoteRepo.save(quote);
   }
 
-  private async createTransferAmounts(
+  async createTransferAmounts(
     standard: PaymentStandard,
-    payment: PaymentLinkPayment,
+    paymentLink: PaymentLink,
+    amount?: number,
+    currency?: Fiat,
   ): Promise<TransferAmount[]> {
     const transferAmounts: TransferAmount[] = [];
 
-    const paymentAssetMap = await this.createOrderedPaymentAssetMap(payment.link.configObj.blockchains);
+    const paymentAssetMap = await this.createOrderedPaymentAssetMap(paymentLink.configObj.blockchains);
 
     for (const [blockchain, assets] of paymentAssetMap.entries()) {
-      const transferAmount = await this.createTransferAmount(standard, payment, blockchain, assets);
+      const transferAmount = await this.createTransferAmount(
+        standard,
+        blockchain,
+        assets,
+        paymentLink,
+        amount,
+        currency,
+      );
 
       if (transferAmount.assets.length) transferAmounts.push(transferAmount);
     }
@@ -227,9 +246,11 @@ export class PaymentQuoteService {
 
   private async createTransferAmount(
     standard: PaymentStandard,
-    payment: PaymentLinkPayment,
     blockchain: Blockchain,
     assets: Asset[],
+    paymentLink: PaymentLink,
+    amount?: number,
+    currency?: Fiat,
   ): Promise<TransferAmount> {
     const minFee = await this.feeService.getMinFee(blockchain);
 
@@ -241,19 +262,18 @@ export class PaymentQuoteService {
     };
 
     if (minFee != null) {
-      for (const asset of assets) {
-        const transferAmountAsset = await this.getTransferAmountAsset(
-          standard,
-          payment.currency,
-          asset,
-          payment.amount,
-        );
-        if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
+      if (currency && amount) {
+        for (const asset of assets) {
+          const transferAmountAsset = await this.getTransferAmountAsset(standard, currency, asset, amount);
+          if (transferAmountAsset) transferAmount.assets.push(transferAmountAsset);
+        }
+      } else {
+        transferAmount.assets = assets.map((asset) => ({ asset: asset.name }));
       }
     }
 
     if (C2BPaymentLinkService.isC2BProvider(blockchain)) {
-      if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(blockchain, payment.link)) {
+      if (!this.c2bPaymentLinkService.isPaymentLinkEnrolled(blockchain, paymentLink)) {
         transferAmount.available = false;
         transferAmount.assets = [];
       }
@@ -313,8 +333,8 @@ export class PaymentQuoteService {
     amount: number,
   ): Promise<number | undefined> {
     try {
-      const price = await this.pricingService.getPrice(asset, currency, true);
-      const fee = Config.payment.fee(standard, currency, asset);
+      const price = await this.pricingService.getPrice(asset, currency, PriceValidity.ANY);
+      const fee = Config.payment.forexFee(standard, currency, asset);
 
       return price.invert().convert(amount / (1 - fee), 8);
     } catch (e) {
@@ -353,6 +373,7 @@ export class PaymentQuoteService {
         case Blockchain.BASE:
         case Blockchain.GNOSIS:
         case Blockchain.POLYGON:
+        case Blockchain.BINANCE_SMART_CHAIN:
           await this.doEvmHexPayment(transferInfo.method, transferInfo, quote);
           break;
 
@@ -361,7 +382,9 @@ export class PaymentQuoteService {
           break;
 
         case Blockchain.MONERO:
+        case Blockchain.ZANO:
         case Blockchain.SOLANA:
+        case Blockchain.TRON:
           await this.doTxIdPayment(transferInfo, quote);
           break;
 

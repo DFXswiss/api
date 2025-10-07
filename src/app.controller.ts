@@ -27,7 +27,7 @@ enum Manufacturer {
 
 @Controller('')
 export class AppController {
-  private readonly homepageUrl = 'https://dfx.swiss';
+  private readonly homepageUrl = 'https://dfx.swiss/';
   private readonly appleStoreUrl = 'https://apps.apple.com/app';
   private readonly googleStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details';
 
@@ -40,11 +40,11 @@ export class AppController {
     [App.FRANKENCOIN]: {
       [Manufacturer.APPLE]: `${this.appleStoreUrl}/id6480348701`,
       [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=swiss.dfx.frankencoin_wallet`,
-      [Manufacturer.UNKNOWN]: 'https://frankencoin.app',
+      [Manufacturer.UNKNOWN]: 'https://frankencoin.app/',
     },
-    [App.EXCHANGE]: 'https://exchange.dfx.swiss',
-    [App.LIGHTNING]: 'https://lightning.dfx.swiss',
-    [App.SERVICES]: 'https://app.dfx.swiss',
+    [App.EXCHANGE]: 'https://exchange.dfx.swiss/',
+    [App.LIGHTNING]: 'https://lightning.dfx.swiss/',
+    [App.SERVICES]: 'https://app.dfx.swiss/',
   };
 
   constructor(private readonly refService: RefService, private readonly settingService: SettingService) {}
@@ -130,7 +130,7 @@ export class AppController {
       url = this.appUrls[app]?.[this.getDeviceManufacturer(req)];
     }
 
-    res.redirect(307, url ?? this.homepageUrl);
+    res.redirect(303, url ?? this.homepageUrl);
   }
 
   private async getRef(code: string): Promise<string | undefined> {

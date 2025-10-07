@@ -1,5 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SupportIssueReason, SupportIssueState, SupportIssueType } from '../enums/support-issue.enum';
+import {
+  SupportIssueInternalState,
+  SupportIssueReason,
+  SupportIssueState,
+  SupportIssueType,
+} from '../enums/support-issue.enum';
 
 export class SupportMessageDto {
   @ApiProperty()
@@ -62,3 +67,13 @@ export class SupportIssueDto {
   @ApiPropertyOptional({ type: SupportIssueLimitRequestDto })
   limitRequest?: SupportIssueLimitRequestDto;
 }
+
+export const SupportIssueStateMapper: {
+  [key in SupportIssueInternalState]: SupportIssueState;
+} = {
+  [SupportIssueInternalState.CREATED]: SupportIssueState.PENDING,
+  [SupportIssueInternalState.PENDING]: SupportIssueState.PENDING,
+  [SupportIssueInternalState.COMPLETED]: SupportIssueState.COMPLETED,
+  [SupportIssueInternalState.CANCELED]: SupportIssueState.CANCELED,
+  [SupportIssueInternalState.ON_HOLD]: SupportIssueState.PENDING,
+};

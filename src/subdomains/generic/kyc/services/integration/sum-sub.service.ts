@@ -122,21 +122,13 @@ export class SumsubService {
         'arraybuffer',
       ).then(Buffer.from);
 
-      const identDocTypes = [
-        IdDocType.ID_CARD,
-        IdDocType.PASSPORT,
-        IdDocType.DRIVERS,
-        IdDocType.DRIVERS_TRANSLATION,
-        IdDocType.ID_DOC_PHOTO,
-      ];
-
       identDocuments.push({
         name: this.fileName(`${transactionId}-${image.id}`, 'png'),
         content,
         contentType: ContentType.PNG,
-        fileSubType: identDocTypes.includes(image.idDocDef.idDocType)
-          ? FileSubType.IDENT_DOC
-          : FileSubType.IDENT_SELFIE,
+        fileSubType: [IdDocType.SELFIE, IdDocType.VIDEO_SELFIE].includes(image.idDocDef.idDocType)
+          ? FileSubType.IDENT_SELFIE
+          : FileSubType.IDENT_DOC,
       });
     }
 

@@ -8,16 +8,16 @@ import { Util } from 'src/shared/utils/util';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
-import { BlockchainClient } from '../shared/util/blockchain-client';
+import { BlockchainClient, BlockchainToken } from '../shared/util/blockchain-client';
 import { TronTransactionMapper } from './dto/tron-transaction.mapper';
-import { TronChainParameterDto, TronToken, TronTransactionDto, TronTransactionResponse } from './dto/tron.dto';
+import { TronChainParameterDto, TronTransactionDto, TronTransactionResponse } from './dto/tron.dto';
 import { TronWallet } from './tron-wallet';
 import { TronUtil } from './tron.util';
 
 export class TronClient extends BlockchainClient {
   private readonly wallet: TronWallet;
 
-  private readonly tokens = new AsyncCache<TronToken>();
+  private readonly tokens = new AsyncCache<BlockchainToken>();
 
   private tatumSdk: Tron;
 
@@ -27,7 +27,7 @@ export class TronClient extends BlockchainClient {
     this.wallet = TronWallet.createWithMnemonic(Config.blockchain.tron.tronWalletSeed);
   }
 
-  getWalletAddress(): string {
+  get walletAddress(): string {
     return this.wallet.address;
   }
 
@@ -37,13 +37,16 @@ export class TronClient extends BlockchainClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    return this.getNativeCoinBalanceForAddress(this.getWalletAddress());
+    return this.getNativeCoinBalanceForAddress(this.walletAddress);
   }
 
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
     const tatumSdk = await this.getTatumSdk();
     const addressBalanceResponse = await tatumSdk.address.getBalance({ address });
-    if (addressBalanceResponse.error) throw new Error(`Cannot detect native coin balance of address ${address}`);
+    if (addressBalanceResponse.error)
+      throw new Error(
+        `Cannot detect native coin balance of address ${address}: ${addressBalanceResponse.error.message.join('; ')}`,
+      );
 
     const allAddressBalanceCoinData = addressBalanceResponse.data.filter(
       (d) => d.asset === 'TRX' && Util.equalsIgnoreCase(d.type, 'native'),
@@ -59,7 +62,7 @@ export class TronClient extends BlockchainClient {
   }
 
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
-    const owner = address ?? this.getWalletAddress();
+    const owner = address ?? this.walletAddress;
 
     const tatumSdk = await this.getTatumSdk();
     const addressBalanceResponse = await tatumSdk.address.getBalance({ address: owner });
@@ -97,11 +100,11 @@ export class TronClient extends BlockchainClient {
     return false;
   }
 
-  async getToken(asset: Asset): Promise<TronToken> {
+  async getToken(asset: Asset): Promise<BlockchainToken> {
     return this.getTokenByAddress(asset.chainId);
   }
 
-  private async getTokenByAddress(address: string): Promise<TronToken> {
+  private async getTokenByAddress(address: string): Promise<BlockchainToken> {
     return this.tokens.get(address, async () => {
       const decimals = await this.http
         .post<any>(
@@ -122,7 +125,7 @@ export class TronClient extends BlockchainClient {
         )
         .then((r) => r.result);
 
-      return new TronToken(address, Number(decimals));
+      return new BlockchainToken(address, Number(decimals));
     });
   }
 
@@ -180,7 +183,7 @@ export class TronClient extends BlockchainClient {
     const triggersmartcontractResponse = await this.http.post<any>(
       `${url}/wallet/triggersmartcontract`,
       {
-        owner_address: this.getWalletAddress(),
+        owner_address: this.walletAddress,
         contract_address: token.chainId,
         function_selector: 'transfer(address,uint256)',
         parameter:

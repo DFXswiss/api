@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Process } from 'src/shared/services/process.service';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
@@ -24,8 +24,36 @@ export class SettingService {
     await this.settingRepo.save(entity);
   }
 
+  async getIpBlacklist(): Promise<string[]> {
+    return this.getObjCached<string[]>('ipBlacklist', []);
+  }
+
+  async addIpToBlacklist(ip: string): Promise<void> {
+    const ipBlacklist = await this.getIpBlacklist();
+
+    if (!ipBlacklist.includes(ip)) {
+      ipBlacklist.push(ip);
+
+      await this.setObj<string[]>('ipBlacklist', ipBlacklist);
+
+      this.settingRepo.invalidateCache();
+    }
+  }
+
+  async deleteIpFromBlacklist(ip: string): Promise<void> {
+    const ipBlacklist = await this.getIpBlacklist();
+    if (!ipBlacklist.includes(ip)) throw new BadRequestException('Blocked IP not found');
+
+    await this.setObj<string[]>(
+      'ipBlacklist',
+      ipBlacklist.filter((blockedIp) => blockedIp !== ip),
+    );
+
+    this.settingRepo.invalidateCache();
+  }
+
   async updateCustomSignUpFees(dto: CustomSignUpFeesDto): Promise<void> {
-    const customSignUpFeesArray = (await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees')) ?? [];
+    const customSignUpFeesArray = await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees', []);
 
     const customSignUpFee = customSignUpFeesArray.find((customSignUpFee) => customSignUpFee.label === dto.label);
     customSignUpFee ? Object.assign(customSignUpFee, dto) : customSignUpFeesArray.push(dto);
@@ -53,6 +81,10 @@ export class SettingService {
 
   async getObj<T>(key: string, defaultValue?: T): Promise<T | undefined> {
     return this.settingRepo.findOneBy({ key }).then((d) => (d?.value ? JSON.parse(d?.value) : defaultValue));
+  }
+
+  async getObjCached<T>(key: string, defaultValue?: T): Promise<T | undefined> {
+    return this.settingRepo.findOneCachedBy(key, { key }).then((d) => (d?.value ? JSON.parse(d?.value) : defaultValue));
   }
 
   async setObj<T>(key: string, value: T): Promise<void> {

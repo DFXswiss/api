@@ -32,6 +32,7 @@ export enum Process {
   REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
   AUTO_AML_CHECK = 'AutoAmlCheck',
+  BANK_RELEASE_CHECK = 'BankReleaseCheck',
   BUY_CRYPTO_REFRESH_FEE = 'BuyCryptoRefreshFee',
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
   LNURL_AUTH_CACHE = 'LnurlAuthCache',
@@ -54,7 +55,7 @@ export enum Process {
   SANCTION_SYNC = 'SanctionSync',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
-  PAYMENT_CONFIG_SYNC = 'PaymentConfigSync',
+  PAYMENT_FORWARDING = 'PaymentForwarding',
   FIAT_OUTPUT = 'FiatOutput',
   FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT = 'FiatOutputAssignBankAccount',
   FIAT_OUTPUT_READY_DATE = 'FiatOutputReadyDate',
@@ -67,6 +68,7 @@ export enum Process {
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
+  BANK_TX_RETURN_MAIL = 'BankTxReturnMail',
   CUSTODY = 'Custody',
   EXCHANGE_WITHDRAWAL = 'ExchangeWithdrawal',
   EXCHANGE_TRADE = 'ExchangeTrade',
@@ -74,9 +76,10 @@ export enum Process {
   USER_DATA = 'UserData',
   USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
-  SAFETY_MODULE = 'SafetyModule',
-  SYNC_FILE_SUB_TYPE = 'SyncFileSubType',
+  SAFETY_MODE = 'SafetyMode',
   BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
+  AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
+  ZANO_ASSET_WHITELIST = 'ZanoAssetWhitelist',
 }
 
 const safetyProcesses: Process[] = [
@@ -117,7 +120,7 @@ export class ProcessService implements OnModuleInit {
   }
 
   public async setSafetyModeActive(active: boolean): Promise<void> {
-    this.safetyModeInactive = !active;
+    this.safetyModeInactive = DisabledProcess(Process.SAFETY_MODE) ? true : !active;
     await this.resyncDisabledProcesses();
   }
 
