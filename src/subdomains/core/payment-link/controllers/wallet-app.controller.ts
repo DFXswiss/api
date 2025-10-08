@@ -52,7 +52,7 @@ export class WalletAppController {
       appStoreUrl: walletApp.appStoreUrl,
       playStoreUrl: walletApp.playStoreUrl,
       recommended: walletApp.recommended,
-      supportedBlockchains: walletApp.supportedBlockchainList,
+      supportedMethods: walletApp.supportedBlockchainList,
       supportedAssets: supportAssets?.map((a) => AssetDtoMapper.toDto(a)),
       semiCompatible: walletApp.semiCompatible,
       active: walletApp.active,
