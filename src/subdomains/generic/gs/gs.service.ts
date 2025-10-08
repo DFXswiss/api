@@ -448,13 +448,15 @@ export class GsService {
   }
 
   private transformResultArray(data: any[], table: string): DbReturnData {
+    if (data.length === 0) return undefined;
+    const keys = Object.keys(data[0]);
+    const uniqueData = Util.toUniqueList(data, keys[0]);
+
     // transform to array
-    return data.length > 0
-      ? {
-          keys: this.renameDbKeys(table, Object.keys(data[0])),
-          values: data.map((e) => Object.values(e)),
-        }
-      : undefined;
+    return {
+      keys: this.renameDbKeys(table, keys),
+      values: uniqueData.map((e) => Object.values(e)),
+    };
   }
 
   private renameDbKeys(table: string, keys: string[]): string[] {

@@ -116,6 +116,16 @@ export class Util {
   }
 
   // --- LISTS --- //
+
+  static toUniqueList<T>(list: T[], key: KeyType<T, number> | KeyType<T, Date>): T[] {
+    return list.reduce((acc, curr) => {
+      if (!acc.some((item) => item[key] === curr[key])) {
+        acc.push(curr);
+      }
+      return acc;
+    }, []);
+  }
+
   static sort<T>(list: T[], key: KeyType<T, number> | KeyType<T, Date>, sorting: 'ASC' | 'DESC' = 'ASC'): T[] {
     return list.sort((a, b) => (sorting === 'ASC' ? Number(a[key]) - Number(b[key]) : Number(b[key]) - Number(a[key])));
   }
