@@ -38,7 +38,9 @@ export class WalletAppController {
   }
 
   private async toDto(walletApp: WalletApp): Promise<WalletAppDto> {
-    const supportAssets = await this.assetService.getAssetsById(walletApp.supportedAssetList);
+    const supportAssets = walletApp.supportedAssetList.length
+      ? await this.assetService.getAssetsById(walletApp.supportedAssetList)
+      : undefined;
 
     return {
       id: walletApp.id,
