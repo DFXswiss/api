@@ -1,20 +1,24 @@
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { RegisterStrategy } from './register.strategy';
 
 export abstract class PollingStrategy extends RegisterStrategy {
+  protected readonly logger = new DfxLogger(PollingStrategy);
+
   private blockHeight = -1;
 
-  abstract getBlockHeight(): Promise<number>;
-  abstract processNewPayInEntries(): Promise<void>;
+  protected abstract getBlockHeight(): Promise<number>;
+  protected abstract processNewPayInEntries(): Promise<void>;
 
   async checkPayInEntries(): Promise<void> {
-    if (await this.hasNewBlock()) await this.processNewPayInEntries();
-  }
-
-  private async hasNewBlock(): Promise<boolean> {
     const currentBlockHeight = await this.getBlockHeight();
-    if (this.blockHeight === currentBlockHeight) return false;
 
-    this.blockHeight = currentBlockHeight;
-    return true;
+    if (this.blockHeight < currentBlockHeight) {
+      try {
+        await this.processNewPayInEntries();
+        this.blockHeight = currentBlockHeight;
+      } catch (e) {
+        this.logger.error('Processing new entries failed:', e);
+      }
+    }
   }
 }
