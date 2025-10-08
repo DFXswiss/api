@@ -10,14 +10,14 @@ export class WalletAppService {
   constructor(private readonly repo: WalletAppRepository) {}
 
   async getAllBlockchainWalletApps(blockchain?: Blockchain, active?: boolean): Promise<WalletApp[]> {
-    const search: FindOptionsWhere<WalletApp> = {
-      blockchains: blockchain ? Like(`%${blockchain}%`) : undefined,
-      active,
-    };
-    return this.repo.findCachedBy(JSON.stringify(search), [
-      search,
+    const search: FindOptionsWhere<WalletApp>[] = [
+      {
+        blockchains: blockchain ? Like(`%${blockchain}%`) : undefined,
+        active,
+      },
       EvmBlockchains.includes(blockchain) ? { blockchains: Like('%EvmBlockchains%'), active } : undefined,
-    ]);
+    ];
+    return this.repo.findCachedBy(JSON.stringify(search), search);
   }
 
   async getRecommendedWalletApps(): Promise<WalletApp[]> {

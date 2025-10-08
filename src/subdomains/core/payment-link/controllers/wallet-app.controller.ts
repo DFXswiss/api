@@ -1,15 +1,14 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { WalletAppDto, WalletAppQueryDto } from '../dto/wallet-app.dto';
 import { WalletApp } from '../entities/wallet-app.entity';
 import { WalletAppService } from '../services/wallet-app.service';
 
-@ApiTags('Wallet App')
-@Controller('walletApp')
+@ApiTags('Payment Link')
+@Controller('paymentLink/walletApp')
 export class WalletAppController {
   constructor(private readonly walletAppService: WalletAppService, private readonly assetService: AssetService) {}
 
@@ -39,12 +38,7 @@ export class WalletAppController {
   }
 
   private async toDto(walletApp: WalletApp): Promise<WalletAppDto> {
-    const supportAssets: Asset[] = [];
-
-    for (const assetId of walletApp.supportedAssetList) {
-      const asset = await this.assetService.getAssetById(assetId);
-      supportAssets.push(asset);
-    }
+    const supportAssets = await this.assetService.getAssetsById(walletApp.supportedAssetList);
 
     return {
       id: walletApp.id,

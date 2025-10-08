@@ -1,10 +1,11 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { PaymentStandardDto, PaymentStandardType } from '../dto/payment-standard.dto';
+import { PaymentStandardDto } from '../dto/payment-standard.dto';
+import { PaymentStandard } from '../enums';
 import { PaymentStandardService } from '../services/payment-standard.service';
 
-@ApiTags('Payment Standard')
-@Controller('paymentStandard')
+@ApiTags('Payment Link')
+@Controller('paymentLink/standard')
 export class PaymentStandardController {
   constructor(private readonly paymentStandardService: PaymentStandardService) {}
 
@@ -16,7 +17,7 @@ export class PaymentStandardController {
 
   @Get(':id')
   @ApiOkResponse({ type: PaymentStandardDto })
-  getById(@Param('id') id: PaymentStandardType): PaymentStandardDto {
+  getById(@Param('id') id: PaymentStandard): PaymentStandardDto {
     return this.paymentStandardService.getById(id);
   }
 }
