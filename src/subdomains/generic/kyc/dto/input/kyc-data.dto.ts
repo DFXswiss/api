@@ -195,7 +195,7 @@ export class RecallAgreementData {
   @ApiProperty({ description: 'Is the recall condition accepted?' })
   @IsNotEmpty()
   @IsBoolean()
-  recallConfirmation: boolean;
+  accepted: boolean;
 }
 
 export class KycFileData {

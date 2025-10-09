@@ -287,8 +287,8 @@ export class KycController {
     return this.kycService.updateKycStep(
       code,
       +id,
-      data,
-      data.recallConfirmation ? ReviewStatus.COMPLETED : ReviewStatus.FAILED,
+      { recallAgreementAccepted: data.accepted },
+      data.accepted ? ReviewStatus.COMPLETED : ReviewStatus.FAILED,
     );
   }
 
