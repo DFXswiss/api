@@ -32,23 +32,3 @@ export function IsOptionalButNotNull(validationOptions?: ValidationOptions) {
     });
   };
 }
-
-// function IsNotNull(validationOptions?: ValidationOptions) {
-//   return function (object: any, propertyName: string) {
-//     registerDecorator({
-//       name: 'IsNotNull',
-//       target: object.constructor,
-//       propertyName: propertyName,
-//       options: validationOptions,
-//       validator: IsNotNullValidator,
-//     });
-//   };
-// }
-
-// export function IsOptionalButNotNull(validationOptions?: any) {
-//   return function (target: any, propertyName: string) {
-//     ValidateIf((_obj, value) => value !== undefined)(target, propertyName);
-
-//     IsNotNull(validationOptions)(target, propertyName);
-//   };
-// }
