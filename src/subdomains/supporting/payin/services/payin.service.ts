@@ -320,7 +320,7 @@ export class PayInService {
       try {
         await strategy.doSend(payIns, SendType.RETURN);
       } catch (e) {
-        this.logger.error(`Failed to return ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`, e);
+        this.logger.info(`Failed to return ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`, e);
         continue;
       }
     }

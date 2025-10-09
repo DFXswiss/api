@@ -244,7 +244,13 @@ export class SupportIssueService {
       await this.supportIssueNotificationService.newSupportMessage(entity);
     }
 
-    if (issue.state === SupportIssueInternalState.COMPLETED)
+    if (
+      [
+        SupportIssueInternalState.COMPLETED,
+        SupportIssueInternalState.ON_HOLD,
+        SupportIssueInternalState.CANCELED,
+      ].includes(issue.state)
+    )
       await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.PENDING));
 
     return SupportIssueDtoMapper.mapSupportMessage(entity);

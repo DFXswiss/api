@@ -620,6 +620,27 @@ export class Configuration {
           return this.payment.defaultQuoteTimeout;
       }
     },
+
+    standards: [
+      {
+        id: PaymentStandard.OPEN_CRYPTO_PAY,
+        label: 'OpenCryptoPay.io',
+        description: 'Pay with OpenCryptoPay, Bitcoin Lightning LNURL',
+        paymentIdentifierLabel: 'URL',
+      },
+      {
+        id: PaymentStandard.LIGHTNING_BOLT11,
+        label: 'Bitcoin Lightning',
+        description: 'Pay with a Bolt 11 Invoice',
+        paymentIdentifierLabel: 'LNR',
+      },
+      {
+        id: PaymentStandard.PAY_TO_ADDRESS,
+        label: '{{blockchain}} address',
+        description: 'Pay to a {{blockchain}} Blockchain address',
+        paymentIdentifierLabel: 'URI',
+      },
+    ],
   };
 
   blockchain = {

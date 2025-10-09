@@ -36,7 +36,7 @@ import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/u
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { IdentDocumentType, IdentResultData, IdentType } from '../dto/ident-result-data.dto';
+import { IdentResultData, IdentType, NationalityDocType, ValidDocType } from '../dto/ident-result-data.dto';
 import {
   IdNowReason,
   IdNowResult,
@@ -205,7 +205,7 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: true },
+      relations: { userData: { users: true } },
     });
 
     for (const entity of entities) {
@@ -216,9 +216,12 @@ export class KycService {
         const nationality = result.nationality
           ? await this.countryService.getCountryWithSymbol(result.nationality)
           : null;
+        const ipCountry = result.ipCountry ? await this.countryService.getCountryWithSymbol(result.ipCountry) : null;
+        const country = result.country ? await this.countryService.getCountryWithSymbol(result.country) : null;
+
         const nationalityStep = entity.userData.getStepsWith(KycStepName.NATIONALITY_DATA).find((s) => s.isCompleted);
 
-        const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality);
+        const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality, ipCountry, country);
         const comment = errors.join(';');
 
         if (errors.includes(KycError.REVERSED_NAMES)) {
@@ -229,14 +232,22 @@ export class KycService {
           continue;
         } else if (errors.includes(KycError.NATIONALITY_NOT_MATCHING)) {
           await this.kycStepRepo.update(...nationalityStep.fail(undefined, KycError.NATIONALITY_NOT_MATCHING));
-          if (errors.length === 1) {
-            await this.kycNotificationService.kycStepFailed(
-              entity.userData,
-              this.getMailStepName(entity.name, entity.userData.language.symbol),
-              this.getMailFailedReason(comment, entity.userData.language.symbol),
-            );
+          await this.kycNotificationService.kycStepFailed(
+            entity.userData,
+            this.getMailStepName(KycStepName.NATIONALITY_DATA, entity.userData.language.symbol),
+            this.getMailFailedReason(KycError.NATIONALITY_NOT_MATCHING, entity.userData.language.symbol),
+          );
+
+          if (
+            errors.every((e) =>
+              [
+                KycError.NATIONALITY_NOT_MATCHING,
+                KycError.IP_COUNTRY_MISMATCH,
+                KycError.COUNTRY_IP_COUNTRY_MISMATCH,
+              ].includes(e),
+            )
+          )
             continue;
-          }
         }
 
         if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
@@ -1189,10 +1200,19 @@ export class KycService {
     nationalityStep: KycStep,
     data: IdentResultData,
     nationality?: Country,
+    ipCountry?: Country,
+    country?: Country,
   ): KycError[] {
     const errors = this.getStepDefaultErrors(identStep);
     const nationalityStepResult = nationalityStep.getResult<{ nationality: IEntity }>();
 
+    // IP check
+    if (ipCountry && identStep.userData.users?.some((u) => u.ipCountry !== ipCountry.symbol))
+      errors.push(KycError.IP_COUNTRY_MISMATCH);
+    if (country && identStep.userData.users?.some((u) => u.ipCountry !== country.symbol))
+      errors.push(KycError.COUNTRY_IP_COUNTRY_MISMATCH);
+
+    // Name check
     if (!Util.isSameName(identStep.userData.firstname, data.firstname)) errors.push(KycError.FIRST_NAME_NOT_MATCHING);
     if (
       !Util.isSameName(identStep.userData.surname, data.lastname) &&
@@ -1209,21 +1229,25 @@ export class KycService {
     )
       errors.push(KycError.REVERSED_NAMES);
 
+    // Nationality check
     if (!nationality) {
       errors.push(KycError.NATIONALITY_MISSING);
     } else {
-      if (!nationalityStepResult || nationalityStepResult.nationality.id !== nationality?.id)
+      if (
+        !nationalityStepResult ||
+        (NationalityDocType.includes(data.documentType) && nationalityStepResult.nationality.id !== nationality?.id)
+      )
         errors.push(KycError.NATIONALITY_NOT_MATCHING);
       if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+      if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
     }
 
-    if (![IdentDocumentType.IDCARD, IdentDocumentType.PASSPORT].includes(data.documentType))
-      errors.push(KycError.INVALID_DOCUMENT_TYPE);
-
+    // Ident doc check
+    if (!ValidDocType.includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
     if (!data.documentNumber) errors.push(KycError.IDENTIFICATION_NUMBER_MISSING);
-
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
+    // Country & verifiedName check
     const userCountry =
       identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
     if (identStep.userData.accountType === AccountType.PERSONAL) {

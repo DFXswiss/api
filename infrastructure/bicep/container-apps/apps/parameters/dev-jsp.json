@@ -45,6 +45,10 @@
         {
           "name": "DATABASE_SCHEMA",
           "value": "public"
+        },
+        {
+          "name": "CITREA_RPC_URL",
+          "value": "http://vm-dfx-node-dev.westeurope.cloudapp.azure.com:8085"
         }
       ]
     },

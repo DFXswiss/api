@@ -57,6 +57,10 @@ export class AssetService {
     return this.assetRepo.findOneCachedBy(`${id}`, { id });
   }
 
+  async getAssetsById(ids: number[]): Promise<Asset[]> {
+    return this.assetRepo.findCachedBy(`${ids}`, { id: In(ids) });
+  }
+
   async getAssetByChainId(blockchain: Blockchain, chainId: string): Promise<Asset> {
     return this.assetRepo.findOneCachedBy(`${blockchain}-${chainId}`, { blockchain, chainId });
   }
