@@ -116,6 +116,11 @@ export class Util {
   }
 
   // --- LISTS --- //
+
+  static toUniqueList<T>(list: T[], key: KeyType<T, number> | KeyType<T, Date>): T[] {
+    return Array.from(new Map(list.map((item) => [item[key], item])).values());
+  }
+
   static sort<T>(list: T[], key: KeyType<T, number> | KeyType<T, Date>, sorting: 'ASC' | 'DESC' = 'ASC'): T[] {
     return list.sort((a, b) => (sorting === 'ASC' ? Number(a[key]) - Number(b[key]) : Number(b[key]) - Number(a[key])));
   }
