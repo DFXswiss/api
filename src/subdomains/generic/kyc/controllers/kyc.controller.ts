@@ -51,9 +51,9 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
-  KycRecallConfirmationData,
   KycSignatoryPowerData,
   PaymentDataDto,
+  RecallAgreementData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { Start2faDto } from '../dto/input/start-2fa.dto';
@@ -282,7 +282,7 @@ export class KycController {
   async updateRecallConfirmation(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycRecallConfirmationData,
+    @Body() data: RecallAgreementData,
   ): Promise<KycStepBase> {
     return this.kycService.updateKycStep(
       code,

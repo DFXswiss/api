@@ -294,5 +294,5 @@ export class UpdateUserDataDto {
 
   @IsOptional()
   @IsBoolean()
-  recallConfirmation?: boolean;
+  recallAgreementAccepted?: boolean;
 }

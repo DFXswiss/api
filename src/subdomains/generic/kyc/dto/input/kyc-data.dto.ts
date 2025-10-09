@@ -191,7 +191,7 @@ export class KycNationalityData {
   nationality: Country;
 }
 
-export class KycRecallConfirmationData {
+export class RecallAgreementData {
   @ApiProperty({ description: 'Is the recall condition accepted?' })
   @IsNotEmpty()
   @IsBoolean()

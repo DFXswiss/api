@@ -116,7 +116,7 @@ export class KycStep extends IEntity {
       case KycStepName.ADDITIONAL_DOCUMENTS:
         return { url: `${apiUrl}/data/additional/${this.id}`, type: UrlType.API };
 
-      case KycStepName.RECALL_CONFIRMATION:
+      case KycStepName.RECALL_AGREEMENT:
         return { url: `${apiUrl}/data/recall/${this.id}`, type: UrlType.API };
 
       case KycStepName.RESIDENCE_PERMIT:
