@@ -23,6 +23,7 @@ export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
   displayQr: false,
   fee: GetConfig().payment.fee,
   paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
+  cancellable: true,
 };
 
 @Entity()

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBadRequestResponse,
@@ -34,7 +34,7 @@ import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
 import { VerifyMailDto } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { User } from './user.entity';
+import { User, UserSupportUpdateCols } from './user.entity';
 import { UserService } from './user.service';
 
 @ApiTags('User')
@@ -200,8 +200,11 @@ export class UserController {
     @Param('id') id: string,
     @Body() dto: UpdateUserInternalDto,
   ): Promise<User> {
-    if ([UserRole.SUPPORT, UserRole.COMPLIANCE].includes(jwt.role))
-      dto = dto.status || dto.setRef ? { status: dto.status, setRef: dto.setRef } : {};
+    if (
+      [UserRole.SUPPORT, UserRole.COMPLIANCE].includes(jwt.role) &&
+      Object.keys(dto).some((k) => !UserSupportUpdateCols.includes(k))
+    )
+      throw new ForbiddenException('Support/Compliance is not allowed to update this value');
 
     return this.userService.updateUserInternal(+id, dto);
   }

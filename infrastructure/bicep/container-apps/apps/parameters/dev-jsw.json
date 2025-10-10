@@ -35,8 +35,12 @@
     "containerEnv": {
       "value": [
         {
+          "name": "NODE_ENV",
+          "value": "development"
+        },
+        {
           "name": "CORS_ORIGIN",
-          "value": "http://localhost:3001,https://dev.bapp.juiceswap.xyz,https://bapp.juiceswap.xyz"
+          "value": "http://localhost:3001,https://dev.bapp.juiceswap.xyz,https://bapp.juiceswap.xyz,https://dev.bapp.juiceswap.com,https://bapp.juiceswap.com"
         },
         {
           "name": "ALCHEMY_1",
@@ -51,6 +55,10 @@
           "value": "[ALCHEMY-API-KEY]"
         },
         {
+          "name": "ALCHEMY_5115",
+          "value": "[ALCHEMY-API-KEY]"
+        },
+        {
           "name": "ALCHEMY_8453",
           "value": "[ALCHEMY-API-KEY]"
         },
@@ -61,6 +69,10 @@
         {
           "name": "ALCHEMY_11155111",
           "value": "[ALCHEMY-API-KEY]"
+        },
+        {
+          "name": "CITREA_RPC_URL",
+          "value": "http://vm-dfx-node-dev.westeurope.cloudapp.azure.com:8085"
         }
       ]
     },

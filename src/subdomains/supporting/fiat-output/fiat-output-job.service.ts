@@ -147,9 +147,8 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
-          if (entity.userData?.isSuspicious) continue;
           if (
-            (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked || entity.userData?.isRisky) &&
+            (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
             entity.type === FiatOutputType.BUY_FIAT
           )
             throw new Error('Payout stopped for blocked user');

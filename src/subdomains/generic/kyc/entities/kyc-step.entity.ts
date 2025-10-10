@@ -199,7 +199,7 @@ export class KycStep extends IEntity {
     const update: Partial<KycStep> = {
       status,
       result: this.setResult(result),
-      comment,
+      comment: comment ?? this.comment,
       sequenceNumber,
     };
 
@@ -349,8 +349,8 @@ export class KycStep extends IEntity {
 
       return {
         type: IdentType.SUM_SUB,
-        firstname: identResultData.data.info?.idDocs?.[idDocIndex]?.firstName,
-        lastname: identResultData.data.info?.idDocs?.[idDocIndex]?.lastName,
+        firstname: identResultData.data.info?.idDocs?.[idDocIndex]?.firstNameEn,
+        lastname: identResultData.data.info?.idDocs?.[idDocIndex]?.lastNameEn,
         birthname: null,
         birthday: identResultData.data.info?.idDocs?.[idDocIndex]?.dob
           ? new Date(identResultData.data.info.idDocs[idDocIndex].dob)
@@ -360,6 +360,8 @@ export class KycStep extends IEntity {
         documentType: IdDocTypeMap[identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType],
         kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
+        ipCountry: identResultData.data.ipCountry,
+        country: identResultData.data.info.country,
       };
     } else if (this.isManual) {
       const identResultData = this.getResult<ManualIdentResult>();
@@ -375,6 +377,8 @@ export class KycStep extends IEntity {
         documentNumber: identResultData.documentNumber,
         kycType: IdentType.MANUAL,
         success: true,
+        ipCountry: null,
+        country: null,
       };
     } else {
       const identResultData = this.getResult<IdNowResult>();
@@ -390,6 +394,8 @@ export class KycStep extends IEntity {
         documentNumber: identResultData.identificationdocument?.number?.value,
         kycType: identResultData.identificationprocess?.companyid,
         success: ['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(identResultData.identificationprocess?.result),
+        ipCountry: null,
+        country: null,
       };
     }
   }
