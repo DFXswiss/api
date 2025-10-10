@@ -13,12 +13,8 @@ export abstract class PollingStrategy extends RegisterStrategy {
     const currentBlockHeight = await this.getBlockHeight();
 
     if (this.blockHeight < currentBlockHeight) {
-      try {
-        await this.processNewPayInEntries();
-        this.blockHeight = currentBlockHeight;
-      } catch (e) {
-        this.logger.error('Processing new entries failed:', e);
-      }
+      await this.processNewPayInEntries();
+      this.blockHeight = currentBlockHeight;
     }
   }
 }

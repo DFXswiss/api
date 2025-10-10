@@ -34,11 +34,11 @@ export class ZanoStrategy extends PollingStrategy {
   }
 
   //*** HELPER METHODS ***//
-  async getBlockHeight(): Promise<number> {
+  protected async getBlockHeight(): Promise<number> {
     return this.payInZanoService.getBlockHeight();
   }
 
-  async processNewPayInEntries(): Promise<void> {
+  protected async processNewPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
 
     const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
