@@ -32,11 +32,11 @@ export class BitcoinStrategy extends PollingStrategy {
   }
 
   //*** HELPER METHODS ***//
-  async getBlockHeight(): Promise<number> {
+  protected async getBlockHeight(): Promise<number> {
     return this.payInBitcoinService.getBlockHeight();
   }
 
-  async processNewPayInEntries(): Promise<void> {
+  protected async processNewPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
     const newEntries = await this.getNewEntries();
 
