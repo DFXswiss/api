@@ -21,6 +21,10 @@ export class PayInZanoService extends PayInBitcoinBasedService {
     if (!isHealthy) throw new Error('Zano node is unhealthy');
   }
 
+  async getBlockHeight(): Promise<number> {
+    return this.zanoService.getBlockHeight();
+  }
+
   async checkTransactionCompletion(txId: string, minConfirmations: number): Promise<boolean> {
     return this.zanoService.isTxComplete(txId, minConfirmations);
   }
