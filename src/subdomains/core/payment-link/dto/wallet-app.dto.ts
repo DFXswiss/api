@@ -27,15 +27,14 @@ export class WalletAppDto {
 
   @ApiPropertyOptional({ description: 'Google PlayStore URL' })
   playStoreUrl?: string;
-
-  @ApiPropertyOptional()
-  recommended?: boolean;
-
   @ApiProperty({ enum: Blockchain, isArray: true })
-  supportedBlockchains: Blockchain[];
+  supportedMethods: Blockchain[];
 
   @ApiPropertyOptional({ type: AssetDto, isArray: true })
   supportedAssets?: AssetDto[];
+
+  @ApiPropertyOptional()
+  recommended?: boolean;
 
   @ApiPropertyOptional()
   semiCompatible?: boolean;

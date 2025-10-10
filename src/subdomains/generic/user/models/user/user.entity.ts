@@ -241,3 +241,5 @@ export class User extends IEntity {
     return this.status === UserStatus.DELETED;
   }
 }
+
+export const UserSupportUpdateCols = ['status', 'setRef'];
