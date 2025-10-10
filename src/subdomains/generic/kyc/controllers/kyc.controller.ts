@@ -279,7 +279,7 @@ export class KycController {
   @Put('data/recall/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
-  async updateRecallConfirmation(
+  async updateRecallAgreement(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: RecallAgreementData,

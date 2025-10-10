@@ -166,7 +166,7 @@ export class UserData extends IEntity {
   olkypayAllowed?: boolean;
 
   @Column({ nullable: true })
-  recallAgreementAccepted?: boolean; // null = deactivated, false = step created, true = step completed by user
+  recallAgreementAccepted?: boolean; // null = deactivated, false = step activated, true = step completed by user
 
   // TODO remove
   @Column({ nullable: true })
