@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { CheckoutTxService } from '../fiat-payin/services/checkout-tx.service';
@@ -47,6 +46,6 @@ export class RecallService {
       if (!entity.user) throw new NotFoundException('User not found');
     }
 
-    return this.repo.save({ ...entity, ...Util.removeNullFields(dto) });
+    return this.repo.save({ ...entity, ...dto });
   }
 }
