@@ -1,19 +1,20 @@
-import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsNumber, IsString } from 'class-validator';
+import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 
 export class UpdateRecallDto {
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsInt()
   sequence?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsInt()
   userId?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   comment?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsNumber()
   fee?: number;
 }

@@ -1,22 +1,23 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsInt, IsString } from 'class-validator';
+import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { LimitRequestDecision } from '../entities/limit-request.entity';
 
 export class UpdateLimitRequestDto {
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   clerk: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsDate()
   @Type(() => Date)
   edited: Date;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsEnum(LimitRequestDecision)
   decision: LimitRequestDecision;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsInt()
   acceptedLimit: number;
 }
