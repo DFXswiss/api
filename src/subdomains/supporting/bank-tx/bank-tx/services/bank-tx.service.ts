@@ -22,7 +22,7 @@ import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { DeepPartial, FindOptionsRelations, In, IsNull, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
+import { DeepPartial, FindOptionsRelations, In, IsNull, LessThan, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -134,29 +134,41 @@ export class BankTxService {
   }
 
   async assignTransactions(): Promise<void> {
-    const unassignedBankTx = await this.bankTxRepo.find({ where: { type: IsNull() } });
+    const unassignedBankTx = await this.bankTxRepo.find({
+      where: [
+        { type: IsNull(), creditDebitIndicator: BankTxIndicator.CREDIT },
+        { type: IsNull(), creditDebitIndicator: BankTxIndicator.DEBIT, created: LessThan(Util.minutesBefore(5)) },
+      ],
+    });
     if (!unassignedBankTx.length) return;
 
-    const buys = await this.buyService.getAllBankUsages();
+    const buys = unassignedBankTx.some((b) => b.creditDebitIndicator === BankTxIndicator.CREDIT)
+      ? await this.buyService.getAllBankUsages()
+      : [];
 
     for (const tx of unassignedBankTx) {
-      const remittanceInfo = (!tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo)
-        ?.replace(/[ -]/g, '')
-        .replace(/O/g, '0');
-      const buy =
-        remittanceInfo &&
-        tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
-        buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
+      if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
+        const remittanceInfo = (!tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo)
+          ?.replace(/[ -]/g, '')
+          .replace(/O/g, '0');
+        const buy =
+          remittanceInfo &&
+          tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
+          buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
-      if (!buy && (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) }))) continue;
+        if (buy) {
+          await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
 
-      const update = buy
-        ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id }
-        : tx.name === 'Payward Trading Ltd.'
-        ? { type: BankTxType.KRAKEN }
-        : { type: BankTxType.GSHEET };
+          continue;
+        }
+      }
 
-      await this.update(tx.id, update);
+      if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
+
+      await this.updateInternal(
+        tx,
+        tx.name === 'Payward Trading Ltd.' ? { type: BankTxType.KRAKEN } : { type: BankTxType.GSHEET },
+      );
     }
   }
 
