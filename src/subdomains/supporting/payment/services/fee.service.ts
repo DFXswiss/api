@@ -312,6 +312,12 @@ export class FeeService {
       (await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee)) +
       (await this.getBlockchainFeeInChf(to, allowCachedBlockchainFee));
 
+    // get partner fee
+    const partnerFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.PARTNER),
+      'rate',
+    );
+
     // get min special fee
     const specialFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.SPECIAL),
@@ -325,6 +331,8 @@ export class FeeService {
         fixed: specialFee.fixed ?? 0,
         bankRate: 0,
         bankFixed: 0,
+        partnerRate: partnerFee?.rate ?? 0,
+        partnerFixed: partnerFee?.fixed ?? 0,
         payoutRefBonus: specialFee.payoutRefBonus,
         network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
@@ -342,6 +350,8 @@ export class FeeService {
         fixed: customFee.fixed ?? 0,
         bankRate: 0,
         bankFixed: 0,
+        partnerRate: partnerFee?.rate ?? 0,
+        partnerFixed: partnerFee?.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
         network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
@@ -383,6 +393,8 @@ export class FeeService {
         fixed: baseFee.fixed,
         bankRate: combinedBankFeeRate,
         bankFixed: combinedBankFixedFee,
+        partnerRate: partnerFee?.rate ?? 0,
+        partnerFixed: partnerFee?.fixed ?? 0,
         payoutRefBonus: true,
         network: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
@@ -394,6 +406,8 @@ export class FeeService {
       fixed: Math.max(baseFee.fixed + combinedExtraFixedFee, 0),
       bankRate: combinedBankFeeRate,
       bankFixed: combinedBankFixedFee,
+      partnerRate: partnerFee?.rate ?? 0,
+      partnerFixed: partnerFee?.fixed ?? 0,
       payoutRefBonus:
         baseFee.payoutRefBonus &&
         (discountFee?.payoutRefBonus ?? true) &&
@@ -441,6 +455,8 @@ export class FeeService {
       fixed: combinedChargebackFixedFee ?? 0,
       bankRate: combinedBankFeeRate,
       bankFixed: combinedBankFixedFee ?? 0,
+      partnerRate: 0,
+      partnerFixed: 0,
       network: Math.min(chargebackMinFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
     };
   }
@@ -484,6 +500,7 @@ export class FeeService {
             FeeType.CHARGEBACK_BANK,
             FeeType.BANK,
             FeeType.SPECIAL,
+            FeeType.PARTNER,
           ].includes(f.type) &&
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||
