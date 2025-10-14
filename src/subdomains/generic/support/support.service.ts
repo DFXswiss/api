@@ -9,13 +9,8 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
-import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
-import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
@@ -31,11 +26,6 @@ export class SupportService {
     private readonly sellService: SellService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly bankTxService: BankTxService,
-    private readonly fiatOutputService: FiatOutputService,
-    private readonly kycDocumentService: KycDocumentService,
-    private readonly transactionService: TransactionService,
-    private readonly bankDataService: BankDataService,
     private readonly swapService: SwapService,
     private readonly payInService: PayInService,
   ) {}
