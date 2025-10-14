@@ -84,7 +84,7 @@ export class TransactionService {
 
   async getTransactionsForAccount(userDataId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
     return this.repo.find({
-      where: { user: { userData: { id: userDataId } }, type: Not(IsNull()), created: Between(from, to) },
+      where: { userData: { id: userDataId }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
         buyCrypto: {
           buy: true,
