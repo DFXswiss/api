@@ -123,7 +123,7 @@ export class AuthLnUrlService {
   }
 
   async signIn(signupDto: AuthLnurlSignupDto, servicesIp: string, userIp: string): Promise<string> {
-    const session = { address: signupDto.address, signature: signupDto.signature };
+    const session = { address: signupDto.address, signature: signupDto.signature, walletType: WalletType.DFX_TARO };
 
     const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
       if (e instanceof NotFoundException)

@@ -83,7 +83,11 @@ export class AuthAlbyService {
       });
 
       // construct session and create IP log
-      const session = { address: LightningHelper.addressToLnurlp(lightning_address), signature: identifier };
+      const session = {
+        address: LightningHelper.addressToLnurlp(lightning_address),
+        signature: identifier,
+        walletType: WalletType.ALBY,
+      };
 
       const ipLog = await this.ipLogService.create(userIp, requestUrl, session.address, WalletType.ALBY);
       if (!ipLog.result) throw new ForbiddenException('The country of IP address is not allowed');
