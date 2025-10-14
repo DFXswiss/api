@@ -91,6 +91,16 @@ export class PayInService {
     return payIns;
   }
 
+  async getCryptoInputByKey(key: string, value: any): Promise<CryptoInput> {
+    return this.payInRepository
+      .createQueryBuilder('cryptoInput')
+      .select('cryptoInput')
+      .leftJoinAndSelect('cryptoInput.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.userData', 'userData')
+      .where(`${key.includes('.') ? key : `cryptoInput.${key}`} = :param`, { param: value })
+      .getOne();
+  }
+
   private async fetchPayment(payIn: CryptoInput): Promise<void> {
     try {
       payIn.paymentQuote = await this.paymentLinkPaymentService.getPaymentQuoteByCryptoInput(payIn);

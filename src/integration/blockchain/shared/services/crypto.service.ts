@@ -149,6 +149,23 @@ export class CryptoService {
     return CryptoService.getAllBlockchainsBasedOn(address).filter((b) => !TestBlockchains.includes(b));
   }
 
+  public static isBlockchainAddress(address: string): boolean {
+    return (
+      isEthereumAddress(address) ||
+      CryptoService.isBitcoinAddress(address) ||
+      CryptoService.isLightningAddress(address) ||
+      CryptoService.isSparkAddress(address) ||
+      CryptoService.isMoneroAddress(address) ||
+      CryptoService.isZanoAddress(address) ||
+      CryptoService.isSolanaAddress(address) ||
+      CryptoService.isTronAddress(address) ||
+      CryptoService.isLiquidAddress(address) ||
+      CryptoService.isArweaveAddress(address) ||
+      CryptoService.isCardanoAddress(address) ||
+      CryptoService.isRailgunAddress(address)
+    );
+  }
+
   private static getAllBlockchainsBasedOn(address: string): Blockchain[] {
     if (isEthereumAddress(address)) return EvmBlockchains;
     if (CryptoService.isBitcoinAddress(address)) return [Blockchain.BITCOIN];

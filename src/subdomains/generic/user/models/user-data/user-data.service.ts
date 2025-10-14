@@ -156,7 +156,7 @@ export class UserDataService {
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
-  async getUsersByMail(mail: string): Promise<UserData[]> {
+  async getUsersByMail(mail: string, onlyValidUser = true): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
         mail,
