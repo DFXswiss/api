@@ -15,7 +15,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
-import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
+import { UserDataSupportInfo, UserDataSupportQuery } from './dto/user-data-support.dto';
 
 @Injectable()
 export class SupportService {
@@ -30,7 +30,7 @@ export class SupportService {
     private readonly payInService: PayInService,
   ) {}
 
-  async getSupportData(query: SupportDataQuery): Promise<SupportReturnData[]> {
+  async getSupportData(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
     const userData = await this.getUserData(query.key);
     if (!userData) throw new NotFoundException('User data not found');
 

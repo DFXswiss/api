@@ -1,10 +1,10 @@
 import { IsNotEmpty } from 'class-validator';
 
-export class SupportReturnData {
+export class UserDataSupportInfo {
   userDataId: number;
 }
 
-export class SupportDataQuery {
+export class UserDataSupportQuery {
   @IsNotEmpty()
   key: string;
 }
