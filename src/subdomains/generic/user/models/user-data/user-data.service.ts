@@ -160,7 +160,9 @@ export class UserDataService {
     return this.userDataRepo.find({
       where: {
         mail,
-        status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED]),
+        status: onlyValidUser
+          ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
+          : undefined,
       },
       relations: { users: true, wallet: true },
     });

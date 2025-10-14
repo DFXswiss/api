@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { Config } from 'src/config/config';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -40,12 +40,12 @@ export class SupportService {
   //*** HELPER METHODS ***//
 
   private async getUserData(key: string): Promise<UserData> {
-    if (key.length === 14 && key.substring(4, 5) === '-' && key.substring(9, 10) === '-')
+    if (Config.formats.bankUsage.test(key))
       return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
 
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false)?.[0];
 
-    if (CryptoService.isBlockchainAddress(key)) {
+    if (Config.formats.address.test(key)) {
       return (
         this.userService.getUserByKey('address', key, true) ??
         this.sellService.getSellByKey('deposit.address', key, true) ??
