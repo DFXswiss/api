@@ -1,8 +1,8 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsDate, IsEnum, IsOptional, IsString } from 'class-validator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserAddressType, UserStatus, WalletType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Moderator } from '../../user-data/user-data.enum';
+import { UserAddressType, UserStatus, WalletType } from '../user.enum';
 
 export class UpdateUserInternalDto {
   @IsOptional()

@@ -3,7 +3,7 @@ import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } 
 import { GetConfig } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { Moderator } from '../../user-data/user-data.enum';
-import { WalletType } from '../../user/user.entity';
+import { WalletType } from '../../user/user.enum';
 
 export class SignInDto {
   @ApiProperty()

@@ -42,7 +42,8 @@ import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { User, UserStatus } from './user.entity';
+import { User } from './user.entity';
+import { UserStatus } from './user.enum';
 import { UserRepository } from './user.repository';
 
 @Injectable()

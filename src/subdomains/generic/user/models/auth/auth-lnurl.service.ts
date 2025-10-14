@@ -16,7 +16,7 @@ import {
   AuthLnurlSignupDto,
   AuthLnurlStatusResponseDto,
 } from 'src/subdomains/generic/user/models/auth/dto/auth-lnurl.dto';
-import { WalletType } from '../user/user.entity';
+import { WalletType } from '../user/user.enum';
 
 export interface AuthCacheDto {
   servicesIp: string;
