@@ -204,7 +204,8 @@ export class AuthService {
       this.logger.warn(`Error while adding specialCode in user signIn ${user.id}:`, e);
     }
 
-    if (dto.moderator) await this.userService.setModerator(user, dto.moderator);
+    if (dto.moderator || dto.walletType)
+      await this.userService.updateUserInternal(user, { moderator: dto.moderator, walletType: dto.walletType });
 
     await this.checkIpBlacklistFor(user.userData, userIp);
 

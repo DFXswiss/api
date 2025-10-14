@@ -206,7 +206,7 @@ export class UserController {
     )
       throw new ForbiddenException('Support/Compliance is not allowed to update this value');
 
-    return this.userService.updateUserInternal(+id, dto);
+    return this.userService.updateUserAdmin(+id, dto);
   }
 }
 

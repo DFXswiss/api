@@ -1,7 +1,8 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsDate, IsEnum, IsOptional, IsString } from 'class-validator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserAddressType, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserAddressType, UserStatus, WalletType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Moderator } from '../../user-data/user-data.enum';
 
 export class UpdateUserInternalDto {
   @IsOptional()
@@ -36,4 +37,12 @@ export class UpdateUserInternalDto {
   @IsDate()
   @Type(() => Date)
   travelRulePdfDate?: Date;
+
+  @IsOptional()
+  @IsEnum(WalletType)
+  walletType?: WalletType;
+
+  @IsOptional()
+  @IsEnum(Moderator)
+  moderator?: Moderator;
 }

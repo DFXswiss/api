@@ -16,6 +16,7 @@ import {
   AuthLnurlSignupDto,
   AuthLnurlStatusResponseDto,
 } from 'src/subdomains/generic/user/models/auth/dto/auth-lnurl.dto';
+import { WalletType } from '../user/user.entity';
 
 export interface AuthCacheDto {
   servicesIp: string;
@@ -85,7 +86,7 @@ export class AuthLnUrlService {
     const authCacheEntry = this.authCache.get(k1);
     const { servicesIp, servicesUrl } = authCacheEntry;
 
-    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address);
+    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address, WalletType.DFX_TARO);
 
     if (!ipLog.result) {
       this.authCache.delete(k1);

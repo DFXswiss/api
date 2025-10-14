@@ -45,6 +45,21 @@ export enum UserAddressType {
   OTHER = 'Other',
 }
 
+export enum WalletType {
+  METAMASK = 'MetaMask',
+  RABBY = 'Rabby',
+  TRUST = 'Trust',
+  PHANTOM = 'Phantom',
+  TRON_LINK = 'TronLink',
+  CLI = 'CLI',
+  LEDGER = 'Ledger',
+  BIT_BOX = 'BitBox',
+  TREZOR = 'Trezor',
+  ALBY = 'Alby',
+  WALLET_CONNECT = 'WalletConnect',
+  DFX_TARO = 'DfxTaro',
+}
+
 @Entity()
 export class User extends IEntity {
   @Column({ length: 256, unique: true })
@@ -55,6 +70,9 @@ export class User extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   signature?: string;
+
+  @Column({ length: 256, nullable: true })
+  walletType?: WalletType;
 
   @Column({ length: 256, nullable: true })
   label?: string;
