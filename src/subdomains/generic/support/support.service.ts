@@ -51,22 +51,22 @@ export class SupportService {
 
   private async getUserData(key: string): Promise<UserData> {
     if (key.length === 14 && key.substring(4, 5) === '-' && key.substring(9, 10) === '-')
-      return this.buyService.getBuyByKey('bankUsage', key).then((b) => b?.userData);
+      return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
 
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false)?.[0];
 
     if (CryptoService.isBlockchainAddress(key)) {
       return (
-        this.userService.getUserByKey('address', key) ??
-        this.sellService.getSellByKey('deposit.address', key) ??
-        this.swapService.getSwapByKey('deposit.address', key)
-      ).then((s: User | Sell | Swap) => s.userData);
+        this.userService.getUserByKey('address', key, true) ??
+        this.sellService.getSellByKey('deposit.address', key, true) ??
+        this.swapService.getSwapByKey('deposit.address', key, true)
+      ).then((s: User | Sell | Swap) => s?.userData);
     }
 
     return (
-      this.buyCryptoService.getBuyCryptoByKey('txId', key) ??
-      this.buyCryptoService.getBuyCryptoByKey('chargebackCryptoTxId', key) ??
-      this.buyFiatService.getBuyFiatByKey('chargebackTxId', key) ??
+      this.buyCryptoService.getBuyCryptoByKey('txId', key, true) ??
+      this.buyCryptoService.getBuyCryptoByKey('chargebackCryptoTxId', key, true) ??
+      this.buyFiatService.getBuyFiatByKey('chargebackTxId', key, true) ??
       this.payInService.getCryptoInputByKey('inTxId', key) ??
       this.payInService.getCryptoInputByKey('outTxId', key) ??
       this.payInService.getCryptoInputByKey('returnTxId', key)

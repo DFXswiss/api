@@ -77,20 +77,24 @@ export class UserService {
     return this.userRepo.findOne({ where: { address }, relations });
   }
 
-  async getUserByKey(key: string, value: any): Promise<User> {
-    return this.userRepo
+  async getUserByKey(key: string, value: any, onlyDefaultRelation = false): Promise<User> {
+    const query = this.userRepo
       .createQueryBuilder('user')
       .select('user')
       .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `user.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `user.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
