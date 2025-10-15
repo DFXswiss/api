@@ -509,12 +509,8 @@ export class BuyCryptoService {
       .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
       .leftJoinAndSelect('transaction.userData', 'userData');
 
-    if (keys.length === 1) {
-      query.where(`${keys[0].includes('.') ? keys[0] : `buyCrypto.${keys[0]}`} = :param`, { param: value });
-    } else {
-      for (const key of keys) {
-        query.orWhere(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value });
-      }
+    for (const key of keys) {
+      query.orWhere(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value });
     }
 
     if (!onlyDefaultRelation) {

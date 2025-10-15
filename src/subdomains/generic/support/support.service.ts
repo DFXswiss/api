@@ -25,7 +25,7 @@ export class SupportService {
   ) {}
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
-    const userDatas = await this.getUserDataByKey(query.key);
+    const userDatas = await this.getUserDatasByKey(query.key);
     if (!userDatas.length) throw new NotFoundException('User data not found');
 
     return userDatas.map((u) => this.toDto(u));
@@ -33,7 +33,7 @@ export class SupportService {
 
   //*** HELPER METHODS ***//
 
-  private async getUserDataByKey(key: string): Promise<UserData[]> {
+  private async getUserDatasByKey(key: string): Promise<UserData[]> {
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false);
 
     const uniqueUserData = await this.getUniqueUserDataByKey(key);
@@ -53,12 +53,10 @@ export class SupportService {
     }
 
     return Promise.all([
-      this.buyCryptoService.getBuyCryptoByKeys(['txId', 'chargebackCryptoTxId'], key, true).then((bC) => bC?.userData),
-      this.buyFiatService.getBuyFiatByKey('chargebackTxId', key, true).then((bF) => bF?.userData),
-      this.payInService
-        .getCryptoInputByKeys(['inTxId', 'outTxId', 'returnTxId'], key)
-        .then((c) => c?.transaction?.userData),
-    ]).then((us) => us.find((u) => u));
+      this.buyCryptoService.getBuyCryptoByKeys(['txId', 'chargebackCryptoTxId'], key, true),
+      this.buyFiatService.getBuyFiatByKey('chargebackTxId', key, true),
+      this.payInService.getCryptoInputByKeys(['inTxId', 'outTxId', 'returnTxId'], key),
+    ]).then((us) => us.find((u) => u)?.userData);
   }
 
   private toDto(userData: UserData): UserDataSupportInfo {

@@ -98,12 +98,8 @@ export class PayInService {
       .leftJoinAndSelect('cryptoInput.transaction', 'transaction')
       .leftJoinAndSelect('transaction.userData', 'userData');
 
-    if (keys.length === 1) {
-      query.where(`${keys[0].includes('.') ? keys[0] : `cryptoInput.${keys[0]}`} = :param`, { param: value });
-    } else {
-      for (const key of keys) {
-        query.orWhere(`${key.includes('.') ? key : `cryptoInput.${key}`} = :param`, { param: value });
-      }
+    for (const key of keys) {
+      query.orWhere(`${key.includes('.') ? key : `cryptoInput.${key}`} = :param`, { param: value });
     }
 
     return query.getOne();
