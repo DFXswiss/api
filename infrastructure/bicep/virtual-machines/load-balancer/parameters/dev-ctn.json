@@ -1,0 +1,21 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "privateIPAddress": {
+            "value": "10.0.1.7"
+        },
+        "frontendPort": {
+            "value": 8085
+        },
+        "backendPort": {
+            "value": 8085
+        },
+        "probeName": {
+            "value": "check_8085"
+        },
+        "probePort": {
+            "value": 8085
+        }
+    }
+}
