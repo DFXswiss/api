@@ -42,7 +42,8 @@ import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { User, UserStatus } from './user.entity';
+import { User } from './user.entity';
+import { UserStatus } from './user.enum';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -206,7 +207,7 @@ export class UserService {
     if (user.userData.status === UserDataStatus.KYC_ONLY)
       await this.userDataService.updateUserDataInternal(user.userData, { status: UserDataStatus.NA });
 
-    if (moderator) await this.setModerator(user, moderator);
+    if (moderator) await this.updateUserInternal(user, { moderator });
 
     user = await this.userRepo.save(user);
     userIsActive && (await this.userRepo.setUserRef(user, data.userData?.kycLevel));
@@ -221,11 +222,6 @@ export class UserService {
     }
 
     return user;
-  }
-
-  async setModerator(user: User, moderator: Moderator): Promise<void> {
-    if (!user.usedRef) await this.userRepo.update(user.id, { usedRef: Config.moderators[moderator] });
-    await this.userDataService.updateUserDataInternal(user.userData, { moderator });
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
@@ -293,10 +289,14 @@ export class UserService {
     return this.toDto(user, true);
   }
 
-  async updateUserInternal(id: number, update: UpdateUserInternalDto): Promise<User> {
+  async updateUserAdmin(id: number, update: UpdateUserInternalDto): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id }, relations: { userData: true } });
     if (!user) throw new NotFoundException('User not found');
 
+    return this.updateUserInternal(user, update);
+  }
+
+  async updateUserInternal(user: User, update: UpdateUserInternalDto): Promise<User> {
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user, user.userData);
 
@@ -304,6 +304,11 @@ export class UserService {
       await this.siftService.sendUserBlocked(user, update.comment);
 
     if (update.setRef) await this.userRepo.setUserRef(user, KycLevel.LEVEL_50);
+
+    if (update.moderator) {
+      if (!user.usedRef) await this.userRepo.update(user.id, { usedRef: Config.moderators[update.moderator] });
+      await this.userDataService.updateUserDataInternal(user.userData, { moderator: update.moderator });
+    }
 
     return this.userRepo.save({ ...user, ...update });
   }
