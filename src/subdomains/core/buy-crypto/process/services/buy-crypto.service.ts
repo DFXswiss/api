@@ -502,23 +502,30 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.delete(buyCrypto.id);
   }
 
-  async getBuyCryptoByKey(key: string, value: any): Promise<BuyCrypto> {
-    return this.buyCryptoRepo
+  async getBuyCryptoByKeys(keys: string[], value: any, onlyDefaultRelation = false): Promise<BuyCrypto> {
+    const query = this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('buyCrypto')
-      .leftJoinAndSelect('buyCrypto.buy', 'buy')
-      .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
       .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value })
-      .getOne();
+      .leftJoinAndSelect('transaction.userData', 'userData');
+
+    for (const key of keys) {
+      query.orWhere(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value });
+    }
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('buyCrypto.buy', 'buy');
+      query.leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute');
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
   }
 
   async getBuyCryptoByTransactionId(

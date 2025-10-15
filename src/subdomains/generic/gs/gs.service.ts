@@ -345,7 +345,9 @@ export class GsService {
       case SupportTable.SWAP:
         return this.swapService.getSwapByKey(query.key, query.value).then((swap) => swap?.user.userData);
       case SupportTable.BUY_CRYPTO:
-        return this.buyCryptoService.getBuyCryptoByKey(query.key, query.value).then((buyCrypto) => buyCrypto?.userData);
+        return this.buyCryptoService
+          .getBuyCryptoByKeys([query.key], query.value)
+          .then((buyCrypto) => buyCrypto?.userData);
       case SupportTable.BUY_FIAT:
         return this.buyFiatService.getBuyFiatByKey(query.key, query.value).then((buyFiat) => buyFiat?.userData);
       case SupportTable.BANK_TX:

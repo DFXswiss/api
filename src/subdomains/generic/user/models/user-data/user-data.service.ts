@@ -156,11 +156,13 @@ export class UserDataService {
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
-  async getUsersByMail(mail: string): Promise<UserData[]> {
+  async getUsersByMail(mail: string, onlyValidUser = true): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
         mail,
-        status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED]),
+        status: onlyValidUser
+          ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
+          : undefined,
       },
       relations: { users: true, wallet: true },
     });
