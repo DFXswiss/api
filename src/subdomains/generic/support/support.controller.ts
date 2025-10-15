@@ -15,7 +15,7 @@ export class SupportController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getSupportData(@Query() query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
-    return this.supportService.getSupportData(query);
+  async searchUserByKey(@Query() query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
+    return this.supportService.searchUserDataByKey(query);
   }
 }

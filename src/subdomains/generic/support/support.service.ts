@@ -30,8 +30,8 @@ export class SupportService {
     private readonly payInService: PayInService,
   ) {}
 
-  async getSupportData(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
-    const userData = await this.getUserData(query.key);
+  async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
+    const userData = await this.getUserDataByKey(query.key);
     if (!userData) throw new NotFoundException('User data not found');
 
     return [{ userDataId: userData.id }];
@@ -39,7 +39,7 @@ export class SupportService {
 
   //*** HELPER METHODS ***//
 
-  private async getUserData(key: string): Promise<UserData> {
+  private async getUserDataByKey(key: string): Promise<UserData> {
     if (Config.formats.bankUsage.test(key))
       return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
 
