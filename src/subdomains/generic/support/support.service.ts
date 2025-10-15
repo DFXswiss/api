@@ -31,19 +31,24 @@ export class SupportService {
   ) {}
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
-    const userData = await this.getUserDataByKey(query.key);
-    if (!userData) throw new NotFoundException('User data not found');
+    const userDatas = await this.getUserDataByKey(query.key);
+    if (!userDatas.length) throw new NotFoundException('User data not found');
 
-    return [{ userDataId: userData.id }];
+    return userDatas.map((u) => this.toDto(u));
   }
 
   //*** HELPER METHODS ***//
 
-  private async getUserDataByKey(key: string): Promise<UserData> {
+  private async getUserDataByKey(key: string): Promise<UserData[]> {
+    if (key.includes('@')) return this.userDataService.getUsersByMail(key, false);
+
+    const uniqueUserData = await this.getUniqueUserDataByKey(key);
+    return uniqueUserData ? [uniqueUserData] : [];
+  }
+
+  private async getUniqueUserDataByKey(key: string): Promise<UserData> {
     if (Config.formats.bankUsage.test(key))
       return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
-
-    if (key.includes('@')) return this.userDataService.getUsersByMail(key, false)?.[0];
 
     if (Config.formats.address.test(key)) {
       return (
@@ -61,5 +66,9 @@ export class SupportService {
       this.payInService.getCryptoInputByKey('outTxId', key) ??
       this.payInService.getCryptoInputByKey('returnTxId', key)
     ).then((b: BuyCrypto | BuyFiat | CryptoInput) => b?.transaction?.userData);
+  }
+
+  private toDto(userData: UserData): UserDataSupportInfo {
+    return { userDataId: userData.id };
   }
 }
