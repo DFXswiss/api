@@ -91,14 +91,22 @@ export class PayInService {
     return payIns;
   }
 
-  async getCryptoInputByKey(key: string, value: any): Promise<CryptoInput> {
-    return this.payInRepository
+  async getCryptoInputByKeys(keys: string[], value: any): Promise<CryptoInput> {
+    const query = this.payInRepository
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
       .leftJoinAndSelect('cryptoInput.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.userData', 'userData')
-      .where(`${key.includes('.') ? key : `cryptoInput.${key}`} = :param`, { param: value })
-      .getOne();
+      .leftJoinAndSelect('transaction.userData', 'userData');
+
+    if (keys.length === 1) {
+      query.where(`${keys[0].includes('.') ? keys[0] : `cryptoInput.${keys[0]}`} = :param`, { param: value });
+    } else {
+      for (const key of keys) {
+        query.orWhere(`${key.includes('.') ? key : `cryptoInput.${key}`} = :param`, { param: value });
+      }
+    }
+
+    return query.getOne();
   }
 
   private async fetchPayment(payIn: CryptoInput): Promise<void> {

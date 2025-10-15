@@ -502,13 +502,20 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.delete(buyCrypto.id);
   }
 
-  async getBuyCryptoByKey(key: string, value: any, onlyDefaultRelation = false): Promise<BuyCrypto> {
+  async getBuyCryptoByKeys(keys: string[], value: any, onlyDefaultRelation = false): Promise<BuyCrypto> {
     const query = this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('buyCrypto')
       .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.userData', 'userData')
-      .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value });
+      .leftJoinAndSelect('transaction.userData', 'userData');
+
+    if (keys.length === 1) {
+      query.where(`${keys[0].includes('.') ? keys[0] : `buyCrypto.${keys[0]}`} = :param`, { param: value });
+    } else {
+      for (const key of keys) {
+        query.orWhere(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value });
+      }
+    }
 
     if (!onlyDefaultRelation) {
       query.leftJoinAndSelect('buyCrypto.buy', 'buy');
