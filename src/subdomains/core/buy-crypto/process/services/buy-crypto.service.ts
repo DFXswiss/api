@@ -59,7 +59,7 @@ import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
-import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoEditableAmlCheck, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
@@ -236,20 +236,6 @@ export class BuyCryptoService {
       if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
     }
 
-    // buy
-    if (dto.buyId) {
-      if (!entity.buy) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a buy route`);
-      update.buy = await this.getBuy(dto.buyId);
-      if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
-    }
-
-    // crypto route
-    if (dto.cryptoRouteId) {
-      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a crypto route`);
-      update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
-      if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
-    }
-
     if (dto.outputAssetId) {
       update.outputAsset = await this.assetService.getAssetById(dto.outputAssetId);
       if (!update.outputAsset) throw new BadRequestException('Asset not found');
@@ -334,6 +320,61 @@ export class BuyCryptoService {
       }
     }
 
+    // buy update
+    if (dto.buyId) {
+      if (
+        [
+          BuyCryptoStatus.BATCHED,
+          BuyCryptoStatus.READY_FOR_PAYOUT,
+          BuyCryptoStatus.PAYING_OUT,
+          BuyCryptoStatus.COMPLETE,
+        ].includes(entity.status)
+      )
+        throw new BadRequestException('Cannot update buy route: payout already in progress or completed');
+      if (!entity.buy) throw new BadRequestException(`Cannot update buy route: entity is not a buy`);
+
+      const update: Partial<BuyCrypto> = {};
+
+      update.buy = await this.getBuy(dto.buyId);
+      if (update.buy.userData.id !== entity.transaction.userData.id)
+        throw new BadRequestException('Cannot update buy route: UserData mismatch');
+
+      // update/reset fields
+      update.outputAsset = update.buy.asset;
+      update.outputReferenceAsset = update.buy.asset;
+
+      update.percentFee = null;
+      update.percentFeeAmount = null;
+      update.minFeeAmount = null;
+      update.minFeeAmountFiat = null;
+      update.totalFeeAmount = null;
+      update.totalFeeAmountChf = null;
+      update.blockchainFee = null;
+      update.bankFeeAmount = null;
+      update.inputReferenceAmountMinusFee = null;
+      update.usedRef = null;
+      update.refProvision = null;
+      update.refFactor = null;
+      update.usedFees = null;
+      update.networkStartFeeAmount = null;
+      update.status = null;
+
+      await this.buyCryptoRepo.save(Object.assign(entity, update));
+
+      await this.buyCryptoRepo.updateFee(entity.fee.id, { feeReferenceAsset: update.buy.asset });
+
+      entity.transaction = await this.transactionService.updateInternal(entity.transaction, { user: update.buy.user });
+
+      if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
+    }
+
+    // crypto route update
+    if (dto.cryptoRouteId) {
+      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot update crypto route: entity is not a crypto`);
+      update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
+      if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
+    }
+
     // create sift transaction
     if (forceUpdate.amlCheck === CheckStatus.FAIL)
       await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
@@ -347,8 +388,9 @@ export class BuyCryptoService {
     )
       await this.buyCryptoWebhookService.triggerWebhook(entity);
 
-    if (dto.amountInChf) await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    if (dto.amountInChf) await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
+    if (dto.amountInChf || dto.buyId) await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    if (dto.amountInChf || dto.cryptoRouteId)
+      await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
     if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
