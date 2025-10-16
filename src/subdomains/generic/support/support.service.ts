@@ -77,15 +77,16 @@ export class SupportService {
   }
 
   private toDto(userData: UserData): UserDataSupportInfo {
+    const name =
+      userData.verifiedName ??
+      ([userData.firstname, userData.surname, userData.organization?.name].filter(Boolean).join(' ') || undefined);
+
     return {
       userDataId: userData.id,
       kycStatus: userData.kycStatus,
       accountType: userData.accountType,
       mail: userData.mail,
-      verifiedName: userData.verifiedName,
-      firstname: userData.firstname,
-      surname: userData.surname,
-      organizationName: userData.organization?.name,
+      name,
     };
   }
 }
