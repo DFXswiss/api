@@ -37,7 +37,14 @@ export class SupportService {
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false);
 
     const uniqueUserData = await this.getUniqueUserDataByKey(key);
-    return uniqueUserData ? [uniqueUserData] : [];
+    if (uniqueUserData) return [uniqueUserData];
+
+    // Name search as fallback (minimum 2 characters to avoid too many false positives)
+    if (key.length >= 2) {
+      return this.userDataService.getUsersByName(key, false);
+    }
+
+    return [];
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserData> {
