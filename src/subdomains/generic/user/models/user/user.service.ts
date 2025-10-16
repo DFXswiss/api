@@ -98,6 +98,13 @@ export class UserService {
     return query.getOne();
   }
 
+  async getUsersByIp(ip: string): Promise<User[]> {
+    return this.userRepo.find({
+      where: { ip },
+      relations: { userData: true },
+    });
+  }
+
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
