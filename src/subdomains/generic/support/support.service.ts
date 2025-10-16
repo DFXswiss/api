@@ -44,6 +44,8 @@ export class SupportService {
     if (Config.formats.bankUsage.test(key))
       return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
 
+    if (Config.formats.ref.test(key)) return this.userService.getUserByKey('ref', key, true).then((u) => u?.userData);
+
     if (Config.formats.address.test(key)) {
       return Promise.all([
         this.userService.getUserByKey('address', key, true),
