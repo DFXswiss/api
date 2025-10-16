@@ -5,10 +5,7 @@ export class UserDataSupportInfo {
   kycStatus: string;
   accountType?: string;
   mail?: string;
-  verifiedName?: string;
-  firstname?: string;
-  surname?: string;
-  organizationName?: string;
+  name?: string;
 }
 
 export class UserDataSupportQuery {
