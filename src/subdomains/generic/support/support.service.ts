@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
@@ -18,9 +19,9 @@ export class SupportService {
     private readonly userService: UserService,
     private readonly buyService: BuyService,
     private readonly sellService: SellService,
+    private readonly swapService: SwapService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly swapService: SwapService,
     private readonly payInService: PayInService,
   ) {}
 
@@ -38,13 +39,22 @@ export class SupportService {
 
     if (Config.formats.phone.test(key)) return this.userDataService.getUsersByPhone(key, false);
 
+    if (Config.formats.ip.test(key)) {
+      const userDatas = await this.userService.getUsersByIp(key).then((u) => u.map((u) => u.userData));
+      return Util.toUniqueList(userDatas, 'id');
+    }
+
     const uniqueUserData = await this.getUniqueUserDataByKey(key);
     return uniqueUserData ? [uniqueUserData] : [];
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserData> {
+    if (Config.formats.kycHash.test(key)) return this.userDataService.getUserDataByKey('kycHash', key);
+
     if (Config.formats.bankUsage.test(key))
       return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
+
+    if (Config.formats.ref.test(key)) return this.userService.getUserByKey('ref', key, true).then((u) => u?.userData);
 
     if (Config.formats.address.test(key)) {
       return Promise.all([
@@ -62,6 +72,12 @@ export class SupportService {
   }
 
   private toDto(userData: UserData): UserDataSupportInfo {
-    return { userDataId: userData.id };
+    return {
+      userDataId: userData.id,
+      kycStatus: userData.kycStatus,
+      accountType: userData.accountType,
+      mail: userData.mail,
+      verifiedName: userData.verifiedName,
+    };
   }
 }
