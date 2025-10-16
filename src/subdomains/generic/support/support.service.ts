@@ -51,7 +51,6 @@ export class SupportService {
     if (Config.formats.address.test(key)) {
       return Promise.all([
         this.userService.getUserByKey('address', key, true),
-        this.buyService.getBuyByKey('deposit.address', key, true),
         this.sellService.getSellByKey('deposit.address', key, true),
         this.swapService.getSwapByKey('deposit.address', key, true),
       ]).then((s) => s.find((s) => s)?.userData);
