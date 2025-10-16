@@ -41,6 +41,8 @@ export class SupportService {
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserData> {
+    if (Config.formats.kycHash.test(key)) return this.userDataService.getUserDataByKey('kycHash', key);
+
     if (Config.formats.bankUsage.test(key))
       return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
 
