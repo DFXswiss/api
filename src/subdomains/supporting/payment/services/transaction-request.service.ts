@@ -206,7 +206,6 @@ export class TransactionRequestService {
         user: { userData: { id: userDataId } },
         created: Between(from, to),
       },
-      relations: { user: { userData: true } },
     });
   }
 
