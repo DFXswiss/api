@@ -199,11 +199,19 @@ export class BuyService {
       .createQueryBuilder('buy')
       .select('buy')
       .leftJoinAndSelect('buy.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
-      .where(`${key.includes('.') ? key : `buy.${key}`} = :param`, { param: value });
+      .leftJoinAndSelect('user.userData', 'userData');
+
+    // Join deposit before WHERE if key references it
+    if (key.startsWith('deposit.')) {
+      query.leftJoinAndSelect('buy.deposit', 'deposit');
+    }
+
+    query.where(`${key.includes('.') ? key : `buy.${key}`} = :param`, { param: value });
 
     if (!onlyDefaultRelation) {
-      query.leftJoinAndSelect('buy.deposit', 'deposit');
+      if (!key.startsWith('deposit.')) {
+        query.leftJoinAndSelect('buy.deposit', 'deposit');
+      }
       query.leftJoinAndSelect('userData.users', 'users');
       query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
       query.leftJoinAndSelect('userData.country', 'country');

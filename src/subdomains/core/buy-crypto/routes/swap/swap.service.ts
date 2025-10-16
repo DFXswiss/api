@@ -129,12 +129,20 @@ export class SwapService {
     const query = this.swapRepo
       .createQueryBuilder('swap')
       .select('swap')
-      .leftJoinAndSelect('swap.deposit', 'deposit')
       .leftJoinAndSelect('swap.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
-      .where(`${key.includes('.') ? key : `swap.${key}`} = :param`, { param: value });
+      .leftJoinAndSelect('user.userData', 'userData');
+
+    // Join deposit before WHERE if key references it
+    if (key.startsWith('deposit.')) {
+      query.leftJoinAndSelect('swap.deposit', 'deposit');
+    }
+
+    query.where(`${key.includes('.') ? key : `swap.${key}`} = :param`, { param: value });
 
     if (!onlyDefaultRelation) {
+      if (!key.startsWith('deposit.')) {
+        query.leftJoinAndSelect('swap.deposit', 'deposit');
+      }
       query.leftJoinAndSelect('userData.users', 'users');
       query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
       query.leftJoinAndSelect('userData.country', 'country');

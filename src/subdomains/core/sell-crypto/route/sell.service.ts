@@ -145,12 +145,20 @@ export class SellService {
     const query = this.sellRepo
       .createQueryBuilder('sell')
       .select('sell')
-      .leftJoinAndSelect('sell.deposit', 'deposit')
       .leftJoinAndSelect('sell.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
-      .where(`${key.includes('.') ? key : `sell.${key}`} = :param`, { param: value });
+      .leftJoinAndSelect('user.userData', 'userData');
+
+    // Join deposit before WHERE if key references it
+    if (key.startsWith('deposit.')) {
+      query.leftJoinAndSelect('sell.deposit', 'deposit');
+    }
+
+    query.where(`${key.includes('.') ? key : `sell.${key}`} = :param`, { param: value });
 
     if (!onlyDefaultRelation) {
+      if (!key.startsWith('deposit.')) {
+        query.leftJoinAndSelect('sell.deposit', 'deposit');
+      }
       query.leftJoinAndSelect('userData.users', 'users');
       query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
       query.leftJoinAndSelect('userData.country', 'country');
