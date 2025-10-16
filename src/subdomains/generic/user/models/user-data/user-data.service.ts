@@ -171,12 +171,13 @@ export class UserDataService {
   async getUsersByName(name: string): Promise<UserData[]> {
     return this.userDataRepo
       .createQueryBuilder('userData')
+      .leftJoinAndSelect('userData.organization', 'organization')
       .where(
         new Brackets((qb) => {
           qb.where('userData.firstname LIKE :name', { name: `%${name}%` })
             .orWhere('userData.surname LIKE :name', { name: `%${name}%` })
             .orWhere('userData.verifiedName LIKE :name', { name: `%${name}%` })
-            .orWhere('userData.organizationName LIKE :name', { name: `%${name}%` });
+            .orWhere('organization.name LIKE :name', { name: `%${name}%` });
         }),
       )
       .andWhere('userData.status != :merged', { merged: UserDataStatus.MERGED })

@@ -47,10 +47,8 @@ export class SupportService {
     const uniqueUserData = await this.getUniqueUserDataByKey(key);
     if (uniqueUserData) return [uniqueUserData];
 
-    // Name search as fallback (minimum 2 characters to avoid too many false positives)
-    if (key.length >= 2) {
-      return this.userDataService.getUsersByName(key);
-    }
+    // min requirement for a name
+    if (key.length >= 2) return this.userDataService.getUsersByName(key);
 
     return [];
   }
