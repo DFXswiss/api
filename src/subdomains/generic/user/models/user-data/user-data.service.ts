@@ -171,8 +171,6 @@ export class UserDataService {
   async getUsersByName(name: string): Promise<UserData[]> {
     return this.userDataRepo
       .createQueryBuilder('userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.wallet', 'wallet')
       .where(
         new Brackets((qb) => {
           qb.where('userData.firstname LIKE :name', { name: `%${name}%` })
