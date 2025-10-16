@@ -37,6 +37,8 @@ export class SupportService {
   private async getUserDatasByKey(key: string): Promise<UserData[]> {
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false);
 
+    if (Config.formats.phone.test(key)) return this.userDataService.getUsersByPhone(key);
+
     if (Config.formats.ip.test(key)) {
       const userDatas = await this.userService.getUsersByIp(key).then((u) => u.map((u) => u.userData));
       return Util.toUniqueList(userDatas, 'id');

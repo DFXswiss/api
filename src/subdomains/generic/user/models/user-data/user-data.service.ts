@@ -168,6 +168,10 @@ export class UserDataService {
     });
   }
 
+  async getUsersByPhone(phone: string): Promise<UserData[]> {
+    return this.userDataRepo.findBy({ phone });
+  }
+
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
