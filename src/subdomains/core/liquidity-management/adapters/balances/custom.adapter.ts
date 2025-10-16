@@ -40,7 +40,7 @@ export class CustomAdapter implements LiquidityBalanceIntegration {
             this.exchangeRegistry.get('Kraken').getAvailableBalance(asset.name),
             this.exchangeRegistry.get('Binance').getAvailableBalance(asset.name),
             this.orderRepo.sum('inputAmount', {
-              action: { system: LiquidityManagementSystem.KRAKEN },
+              action: { system: In([LiquidityManagementSystem.KRAKEN, LiquidityManagementSystem.BINANCE]) },
               status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
               inputAsset: asset.name,
             }),
