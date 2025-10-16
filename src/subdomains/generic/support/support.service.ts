@@ -45,7 +45,12 @@ export class SupportService {
     }
 
     const uniqueUserData = await this.getUniqueUserDataByKey(key);
-    return uniqueUserData ? [uniqueUserData] : [];
+    if (uniqueUserData) return [uniqueUserData];
+
+    // min requirement for a name
+    if (key.length >= 2) return this.userDataService.getUsersByName(key);
+
+    return [];
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserData> {
@@ -78,6 +83,9 @@ export class SupportService {
       accountType: userData.accountType,
       mail: userData.mail,
       verifiedName: userData.verifiedName,
+      firstname: userData.firstname,
+      surname: userData.surname,
+      organizationName: userData.organization?.name,
     };
   }
 }

@@ -44,7 +44,7 @@ import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Brackets, Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -166,6 +166,22 @@ export class UserDataService {
       },
       relations: { users: true, wallet: true },
     });
+  }
+
+  async getUsersByName(name: string): Promise<UserData[]> {
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .leftJoinAndSelect('userData.organization', 'organization')
+      .where(
+        new Brackets((qb) => {
+          qb.where('userData.firstname LIKE :name', { name: `%${name}%` })
+            .orWhere('userData.surname LIKE :name', { name: `%${name}%` })
+            .orWhere('userData.verifiedName LIKE :name', { name: `%${name}%` })
+            .orWhere('organization.name LIKE :name', { name: `%${name}%` });
+        }),
+      )
+      .andWhere('userData.status != :merged', { merged: UserDataStatus.MERGED })
+      .getMany();
   }
 
   async getUsersByPhone(phone: string): Promise<UserData[]> {
