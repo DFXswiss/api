@@ -18,9 +18,9 @@ export class SupportService {
     private readonly userService: UserService,
     private readonly buyService: BuyService,
     private readonly sellService: SellService,
+    private readonly swapService: SwapService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly swapService: SwapService,
     private readonly payInService: PayInService,
   ) {}
 
@@ -47,6 +47,7 @@ export class SupportService {
     if (Config.formats.address.test(key)) {
       return Promise.all([
         this.userService.getUserByKey('address', key, true),
+        this.buyService.getBuyByKey('deposit.address', key, true),
         this.sellService.getSellByKey('deposit.address', key, true),
         this.swapService.getSwapByKey('deposit.address', key, true),
       ]).then((s) => s.find((s) => s)?.userData);
