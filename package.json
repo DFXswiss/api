@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "prebuild": "rimraf dist",
-    "build": "nest build",
+    "build": "nest build && node scripts/generate-version.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "seed": "node migration/seed/seed.js",
     "start": "nest start --debug --watch",

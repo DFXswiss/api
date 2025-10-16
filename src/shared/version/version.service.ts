@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { VersionDto } from './version.dto';
@@ -10,48 +9,24 @@ export class VersionService {
 
   getVersion(): VersionDto {
     if (!this.cachedVersion) {
-      this.cachedVersion = this.buildVersionInfo();
+      this.cachedVersion = this.loadVersionInfo();
     }
     return this.cachedVersion;
   }
 
-  private buildVersionInfo(): VersionDto {
-    const commit = this.getGitCommit();
-    const branch = this.getGitBranch();
-    const version = this.getPackageVersion();
-    const buildTime = new Date().toISOString();
-
-    return {
-      commit,
-      branch,
-      version,
-      buildTime,
-    };
-  }
-
-  private getGitCommit(): string {
+  private loadVersionInfo(): VersionDto {
     try {
-      return execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+      const versionFilePath = join(process.cwd(), 'dist', 'version.json');
+      const versionData = JSON.parse(readFileSync(versionFilePath, 'utf-8'));
+      return versionData;
     } catch (error) {
-      return 'unknown';
-    }
-  }
-
-  private getGitBranch(): string {
-    try {
-      return execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
-    } catch (error) {
-      return 'unknown';
-    }
-  }
-
-  private getPackageVersion(): string {
-    try {
-      const packageJsonPath = join(process.cwd(), 'package.json');
-      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-      return packageJson.version || 'unknown';
-    } catch (error) {
-      return 'unknown';
+      // Fallback if version.json doesn't exist (e.g., in development)
+      return {
+        commit: 'unknown',
+        branch: 'unknown',
+        version: 'unknown',
+        buildTime: 'unknown',
+      };
     }
   }
 }
