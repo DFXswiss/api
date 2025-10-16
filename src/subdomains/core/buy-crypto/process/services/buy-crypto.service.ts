@@ -320,59 +320,18 @@ export class BuyCryptoService {
       }
     }
 
-    // buy update
+    // route change
     if (dto.buyId) {
-      if (
-        [
-          BuyCryptoStatus.BATCHED,
-          BuyCryptoStatus.READY_FOR_PAYOUT,
-          BuyCryptoStatus.PAYING_OUT,
-          BuyCryptoStatus.COMPLETE,
-        ].includes(entity.status)
-      )
-        throw new BadRequestException('Cannot update buy route: payout already in progress or completed');
       if (!entity.buy) throw new BadRequestException(`Cannot update buy route: entity is not a buy`);
 
-      const update: Partial<BuyCrypto> = {};
-
-      update.buy = await this.getBuy(dto.buyId);
-      if (update.buy.userData.id !== entity.transaction.userData.id)
-        throw new BadRequestException('Cannot update buy route: UserData mismatch');
-
-      // update/reset fields
-      update.outputAsset = update.buy.asset;
-      update.outputReferenceAsset = update.buy.asset;
-
-      update.percentFee = null;
-      update.percentFeeAmount = null;
-      update.minFeeAmount = null;
-      update.minFeeAmountFiat = null;
-      update.totalFeeAmount = null;
-      update.totalFeeAmountChf = null;
-      update.blockchainFee = null;
-      update.bankFeeAmount = null;
-      update.inputReferenceAmountMinusFee = null;
-      update.usedRef = null;
-      update.refProvision = null;
-      update.refFactor = null;
-      update.usedFees = null;
-      update.networkStartFeeAmount = null;
-      update.status = null;
-
-      await this.buyCryptoRepo.save(Object.assign(entity, update));
-
-      await this.buyCryptoRepo.updateFee(entity.fee.id, { feeReferenceAsset: update.buy.asset });
-
-      entity.transaction = await this.transactionService.updateInternal(entity.transaction, { user: update.buy.user });
-
-      if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
+      const buy = await this.getBuy(dto.buyId);
+      await this.changeRoute(entity, buy);
     }
-
-    // crypto route update
     if (dto.cryptoRouteId) {
       if (!entity.cryptoRoute) throw new BadRequestException(`Cannot update crypto route: entity is not a crypto`);
-      update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
-      if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
+
+      const swap = await this.getCryptoRoute(dto.cryptoRouteId);
+      await this.changeRoute(entity, swap);
     }
 
     // create sift transaction
@@ -394,6 +353,58 @@ export class BuyCryptoService {
     if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
+  }
+
+  private async changeRoute(entity: BuyCrypto, route: Buy | Swap) {
+    // check tx status
+    if (
+      [
+        BuyCryptoStatus.BATCHED,
+        BuyCryptoStatus.READY_FOR_PAYOUT,
+        BuyCryptoStatus.PAYING_OUT,
+        BuyCryptoStatus.COMPLETE,
+      ].includes(entity.status)
+    )
+      throw new BadRequestException('Cannot update route: payout already in progress or completed');
+
+    // check route user
+    if (route.userData.id !== entity.transaction.userData.id)
+      throw new BadRequestException('Cannot update route: UserData mismatch');
+
+    // update/reset fields
+    const update: Partial<BuyCrypto> = {};
+    route instanceof Buy ? (update.buy = route) : (update.cryptoRoute = route);
+
+    update.outputAsset = route.asset;
+    update.outputReferenceAsset = route.asset;
+
+    update.percentFee = null;
+    update.percentFeeAmount = null;
+    update.minFeeAmount = null;
+    update.minFeeAmountFiat = null;
+    update.totalFeeAmount = null;
+    update.totalFeeAmountChf = null;
+    update.blockchainFee = null;
+    update.bankFeeAmount = null;
+    update.inputReferenceAmountMinusFee = null;
+    update.usedRef = null;
+    update.refProvision = null;
+    update.refFactor = null;
+    update.usedFees = null;
+    update.networkStartFeeAmount = null;
+    update.status = null;
+
+    await this.buyCryptoRepo.save(Object.assign(entity, update));
+
+    // update depending entities
+    await this.buyCryptoRepo.updateFee(entity.fee.id, { feeReferenceAsset: route.asset });
+
+    if (entity.transaction.user.id !== route.user.id)
+      entity.transaction = await this.transactionService.updateInternal(entity.transaction, {
+        user: route.user,
+      });
+
+    if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
   }
 
   async refundBuyCrypto(buyCryptoId: number, dto: RefundInternalDto): Promise<void> {
