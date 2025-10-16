@@ -168,6 +168,18 @@ export class UserDataService {
     });
   }
 
+  async getUsersByPhone(phone: string, onlyValidUser = true): Promise<UserData[]> {
+    return this.userDataRepo.find({
+      where: {
+        phone,
+        status: onlyValidUser
+          ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
+          : undefined,
+      },
+      relations: { users: true, wallet: true },
+    });
+  }
+
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')

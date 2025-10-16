@@ -36,6 +36,8 @@ export class SupportService {
   private async getUserDatasByKey(key: string): Promise<UserData[]> {
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false);
 
+    if (Config.formats.phone.test(key)) return this.userDataService.getUsersByPhone(key, false);
+
     const uniqueUserData = await this.getUniqueUserDataByKey(key);
     return uniqueUserData ? [uniqueUserData] : [];
   }
