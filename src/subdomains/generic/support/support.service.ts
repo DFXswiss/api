@@ -60,6 +60,12 @@ export class SupportService {
   }
 
   private toDto(userData: UserData): UserDataSupportInfo {
-    return { userDataId: userData.id };
+    return {
+      userDataId: userData.id,
+      kycStatus: userData.kycStatus,
+      accountType: userData.accountType,
+      mail: userData.mail,
+      verifiedName: userData.verifiedName,
+    };
   }
 }
