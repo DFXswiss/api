@@ -19,9 +19,9 @@ export class SupportService {
     private readonly userService: UserService,
     private readonly buyService: BuyService,
     private readonly sellService: SellService,
+    private readonly swapService: SwapService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly swapService: SwapService,
     private readonly payInService: PayInService,
   ) {}
 
@@ -47,12 +47,17 @@ export class SupportService {
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserData> {
+    if (Config.formats.kycHash.test(key)) return this.userDataService.getUserDataByKey('kycHash', key);
+
     if (Config.formats.bankUsage.test(key))
       return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
+
+    if (Config.formats.ref.test(key)) return this.userService.getUserByKey('ref', key, true).then((u) => u?.userData);
 
     if (Config.formats.address.test(key)) {
       return Promise.all([
         this.userService.getUserByKey('address', key, true),
+        this.buyService.getBuyByKey('deposit.address', key, true),
         this.sellService.getSellByKey('deposit.address', key, true),
         this.swapService.getSwapByKey('deposit.address', key, true),
       ]).then((s) => s.find((s) => s)?.userData);

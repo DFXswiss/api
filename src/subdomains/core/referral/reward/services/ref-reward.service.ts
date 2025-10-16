@@ -27,7 +27,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.DEFICHAIN]: undefined,
   [Blockchain.ARBITRUM]: 10,
   [Blockchain.BITCOIN]: 100,
-  [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.LIGHTNING]: 1,
   [Blockchain.SPARK]: undefined,
   [Blockchain.MONERO]: 1,
   [Blockchain.ZANO]: undefined,
