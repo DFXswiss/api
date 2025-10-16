@@ -77,9 +77,9 @@ export class SupportService {
   }
 
   private toDto(userData: UserData): UserDataSupportInfo {
-    const name = userData.verifiedName
-      ? userData.verifiedName
-      : [userData.firstname, userData.surname, userData.organization?.name].filter(Boolean).join(' ');
+    const name =
+      userData.verifiedName ??
+      [userData.firstname, userData.surname, userData.organization?.name].filter(Boolean).join(' ');
 
     return {
       userDataId: userData.id,
