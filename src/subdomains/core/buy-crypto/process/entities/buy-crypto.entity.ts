@@ -581,6 +581,30 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  resetFees(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      percentFee: null,
+      percentFeeAmount: null,
+      minFeeAmount: null,
+      minFeeAmountFiat: null,
+      totalFeeAmount: null,
+      totalFeeAmountChf: null,
+      blockchainFee: null,
+      bankFeeAmount: null,
+      inputReferenceAmountMinusFee: null,
+      usedRef: null,
+      refProvision: null,
+      refFactor: null,
+      usedFees: null,
+      networkStartFeeAmount: null,
+      status: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   pendingInputAmount(asset: Asset): number {
     if (this.outputAmount) return 0;
     switch (asset.blockchain as string) {

@@ -378,21 +378,7 @@ export class BuyCryptoService {
     update.outputAsset = route.asset;
     update.outputReferenceAsset = route.asset;
 
-    update.percentFee = null;
-    update.percentFeeAmount = null;
-    update.minFeeAmount = null;
-    update.minFeeAmountFiat = null;
-    update.totalFeeAmount = null;
-    update.totalFeeAmountChf = null;
-    update.blockchainFee = null;
-    update.bankFeeAmount = null;
-    update.inputReferenceAmountMinusFee = null;
-    update.usedRef = null;
-    update.refProvision = null;
-    update.refFactor = null;
-    update.usedFees = null;
-    update.networkStartFeeAmount = null;
-    update.status = null;
+    entity.resetFees();
 
     await this.buyCryptoRepo.save(Object.assign(entity, update));
 
