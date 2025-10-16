@@ -6,6 +6,9 @@ export class UserDataSupportInfo {
   accountType?: string;
   mail?: string;
   verifiedName?: string;
+  firstname?: string;
+  surname?: string;
+  organizationName?: string;
 }
 
 export class UserDataSupportQuery {

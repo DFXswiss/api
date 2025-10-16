@@ -83,6 +83,9 @@ export class SupportService {
       accountType: userData.accountType,
       mail: userData.mail,
       verifiedName: userData.verifiedName,
+      firstname: userData.firstname,
+      surname: userData.surname,
+      organizationName: userData.organization?.name,
     };
   }
 }
