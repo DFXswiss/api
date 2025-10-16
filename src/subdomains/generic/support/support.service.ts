@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
@@ -37,14 +38,8 @@ export class SupportService {
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false);
 
     if (Config.formats.ip.test(key)) {
-      const users = await this.userService.getUsersByIp(key);
-      const userDataMap = new Map<number, UserData>();
-      users.forEach((u) => {
-        if (u.userData && !userDataMap.has(u.userData.id)) {
-          userDataMap.set(u.userData.id, u.userData);
-        }
-      });
-      return Array.from(userDataMap.values());
+      const userDatas = await this.userService.getUsersByIp(key).then((u) => u.map((u) => u.userData));
+      return Util.toUniqueList(userDatas, 'id');
     }
 
     const uniqueUserData = await this.getUniqueUserDataByKey(key);
