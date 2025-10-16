@@ -36,6 +36,16 @@ export class SupportService {
   private async getUserDatasByKey(key: string): Promise<UserData[]> {
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false);
 
+    // Check for kycHash (UUID format: 8-4-4-4-12)
+    if (/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(key)) {
+      try {
+        const userData = await this.userDataService.getByKycHashOrThrow(key);
+        return [userData];
+      } catch {
+        return [];
+      }
+    }
+
     const uniqueUserData = await this.getUniqueUserDataByKey(key);
     return uniqueUserData ? [uniqueUserData] : [];
   }
