@@ -168,8 +168,8 @@ export class UserDataService {
     });
   }
 
-  async getUsersByName(name: string, onlyValidUser = true): Promise<UserData[]> {
-    const query = this.userDataRepo
+  async getUsersByName(name: string): Promise<UserData[]> {
+    return this.userDataRepo
       .createQueryBuilder('userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.wallet', 'wallet')
@@ -181,15 +181,8 @@ export class UserDataService {
             .orWhere('userData.organizationName LIKE :name', { name: `%${name}%` });
         }),
       )
-      .andWhere('userData.firstname NOT LIKE :merged', { merged: 'Merged into %' });
-
-    if (onlyValidUser) {
-      query.andWhere('userData.status IN (:...statuses)', {
-        statuses: [UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED],
-      });
-    }
-
-    return query.getMany();
+      .andWhere('userData.status != :merged', { merged: UserDataStatus.MERGED })
+      .getMany();
   }
 
   async getUserDataByKey(key: string, value: any): Promise<UserData> {

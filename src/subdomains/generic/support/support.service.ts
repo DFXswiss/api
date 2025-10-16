@@ -41,7 +41,7 @@ export class SupportService {
 
     // Name search as fallback (minimum 2 characters to avoid too many false positives)
     if (key.length >= 2) {
-      return this.userDataService.getUsersByName(key, false);
+      return this.userDataService.getUsersByName(key);
     }
 
     return [];
