@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
@@ -36,6 +37,13 @@ export class SupportService {
   private async getUserDatasByKey(key: string): Promise<UserData[]> {
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false);
 
+    if (Config.formats.phone.test(key)) return this.userDataService.getUsersByPhone(key);
+
+    if (Config.formats.ip.test(key)) {
+      const userDatas = await this.userService.getUsersByIp(key).then((u) => u.map((u) => u.userData));
+      return Util.toUniqueList(userDatas, 'id');
+    }
+
     const uniqueUserData = await this.getUniqueUserDataByKey(key);
     if (uniqueUserData) return [uniqueUserData];
 
@@ -71,6 +79,12 @@ export class SupportService {
   }
 
   private toDto(userData: UserData): UserDataSupportInfo {
-    return { userDataId: userData.id };
+    return {
+      userDataId: userData.id,
+      kycStatus: userData.kycStatus,
+      accountType: userData.accountType,
+      mail: userData.mail,
+      verifiedName: userData.verifiedName,
+    };
   }
 }
