@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { isIP, isUUID } from 'class-validator';
+import { isIP } from 'class-validator';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -53,14 +53,13 @@ export class SupportService {
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserData> {
-    // Check for UserData ID (numeric)
-    const userDataId = parseInt(key, 10);
+    const userDataId = +key;
     if (!isNaN(userDataId)) {
       const userData = await this.userDataService.getUserData(userDataId);
       if (userData) return userData;
     }
 
-    if (isUUID(key)) return this.userDataService.getUserDataByKey('kycHash', key);
+    if (Config.formats.kycHash.test(key)) return this.userDataService.getUserDataByKey('kycHash', key);
 
     if (Config.formats.bankUsage.test(key))
       return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
