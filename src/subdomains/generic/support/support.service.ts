@@ -27,7 +27,7 @@ export class SupportService {
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
     const userDatas = await this.getUserDatasByKey(query.key);
-    if (!userDatas.length) throw new NotFoundException('User data not found');
+    if (!userDatas.length) throw new NotFoundException('No results found');
 
     return userDatas.map((u) => this.toDto(u));
   }
