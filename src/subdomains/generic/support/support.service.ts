@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -29,9 +29,6 @@ export class SupportService {
     const userDatas = await this.getUserDatasByKey(query.key);
     if (!userDatas.length) throw new NotFoundException('User data not found');
 
-    if (userDatas.length > 20)
-      throw new BadRequestException(`Too many results found (${userDatas.length}). Please refine your search.`);
-
     return userDatas.map((u) => this.toDto(u));
   }
 
@@ -42,7 +39,7 @@ export class SupportService {
 
     if (Config.formats.phone.test(key)) return this.userDataService.getUsersByPhone(key);
 
-    if (Config.formats.ip.test(key)) {
+    if (isIP(key)) {
       const userDatas = await this.userService.getUsersByIp(key).then((u) => u.map((u) => u.userData));
       return Util.toUniqueList(userDatas, 'id');
     }
@@ -57,6 +54,12 @@ export class SupportService {
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserData> {
+    const userDataId = +key;
+    if (!isNaN(userDataId)) {
+      const userData = await this.userDataService.getUserData(userDataId);
+      if (userData) return userData;
+    }
+
     if (Config.formats.kycHash.test(key)) return this.userDataService.getUserDataByKey('kycHash', key);
 
     if (Config.formats.bankUsage.test(key))
@@ -85,7 +88,7 @@ export class SupportService {
       ([userData.firstname, userData.surname, userData.organization?.name].filter(Boolean).join(' ') || undefined);
 
     return {
-      userDataId: userData.id,
+      id: userData.id,
       kycStatus: userData.kycStatus,
       accountType: userData.accountType,
       mail: userData.mail,
