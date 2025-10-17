@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { isIP } from 'class-validator';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
@@ -28,6 +28,8 @@ export class SupportService {
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
     const userDatas = await this.getUserDatasByKey(query.key);
+    if (!userDatas.length) throw new NotFoundException('User data not found');
+
     return userDatas.map((u) => this.toDto(u));
   }
 
