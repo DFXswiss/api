@@ -29,8 +29,7 @@ export class SupportService {
     const userDatas = await this.getUserDatasByKey(query.key);
     if (!userDatas.length) throw new NotFoundException('User data not found');
 
-    const MAX_RESULTS = 20;
-    if (userDatas.length > MAX_RESULTS)
+    if (userDatas.length > 20)
       throw new BadRequestException(`Too many results found (${userDatas.length}). Please refine your search.`);
 
     return userDatas.map((u) => this.toDto(u));
