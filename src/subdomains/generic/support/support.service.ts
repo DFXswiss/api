@@ -54,6 +54,13 @@ export class SupportService {
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserData> {
+    // Check for UserData ID (numeric)
+    const userDataId = parseInt(key, 10);
+    if (!isNaN(userDataId)) {
+      const userData = await this.userDataService.getUserData(userDataId);
+      if (userData) return userData;
+    }
+
     if (Config.formats.kycHash.test(key)) return this.userDataService.getUserDataByKey('kycHash', key);
 
     if (Config.formats.bankUsage.test(key))
