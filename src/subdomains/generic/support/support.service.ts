@@ -30,7 +30,7 @@ export class SupportService {
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
     const userDatas = await this.getUserDatasByKey(query.key);
-    return userDatas.map((u) => this.toDto(u));
+    return userDatas.sort((a, b) => a.id - b.id).map((u) => this.toDto(u));
   }
 
   //*** HELPER METHODS ***//
@@ -68,11 +68,10 @@ export class SupportService {
 
     if (Config.formats.ref.test(key)) return this.userService.getUserByKey('ref', key, true).then((u) => u?.userData);
 
-    // Check for BankTx accountServiceRef (format: ZV20250919/906160/1)
     const accountServiceRefPattern = /^[A-Z]{2}\d{8}\/\d+\/\d+$/;
     if (accountServiceRefPattern.test(key)) {
-      const bankTx = await this.bankTxService.getBankTxByKey('accountServiceRef', key);
-      if (bankTx?.user) return bankTx.user.userData;
+      const bankTx = await this.bankTxService.getBankTxByKey('accountServiceRef', key, true);
+      if (bankTx?.user?.userData) return bankTx.user.userData;
     }
 
     if (Config.formats.address.test(key)) {

@@ -289,29 +289,34 @@ export class BankTxService {
     await this.bankTxRepo.update(...bankTx.reset());
   }
 
-  async getBankTxByKey(key: string, value: any): Promise<BankTx> {
-    return this.bankTxRepo
+  async getBankTxByKey(key: string, value: any, onlyDefaultRelation = false): Promise<BankTx> {
+    const query = this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
       .leftJoinAndSelect('bankTx.buyCrypto', 'buyCrypto')
-      .leftJoinAndSelect('bankTx.buyFiats', 'buyFiats')
       .leftJoinAndSelect('buyCrypto.buy', 'buy')
-      .leftJoinAndSelect('buyFiats.sell', 'sell')
       .leftJoinAndSelect('buy.user', 'user')
-      .leftJoinAndSelect('sell.user', 'sellUser')
       .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('bankTx.buyFiats', 'buyFiats')
+      .leftJoinAndSelect('buyFiats.sell', 'sell')
+      .leftJoinAndSelect('sell.user', 'sellUser')
       .leftJoinAndSelect('sellUser.userData', 'sellUserData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('sellUserData.users', 'sellUsers')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')
-      .where(`${key.includes('.') ? key : `bankTx.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `bankTx.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query
+        .leftJoinAndSelect('userData.users', 'users')
+        .leftJoinAndSelect('users.wallet', 'wallet')
+        .leftJoinAndSelect('sellUserData.users', 'sellUsers')
+        .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')
+        .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+        .leftJoinAndSelect('userData.country', 'country')
+        .leftJoinAndSelect('userData.nationality', 'nationality')
+        .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+        .leftJoinAndSelect('userData.language', 'language');
+    }
+
+    return query.getOne();
   }
 
   async getBankTxByRemittanceInfo(remittanceInfo: string): Promise<BankTx> {
