@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -28,6 +28,10 @@ export class SupportService {
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
     const userDatas = await this.getUserDatasByKey(query.key);
     if (!userDatas.length) throw new NotFoundException('User data not found');
+
+    const MAX_RESULTS = 20;
+    if (userDatas.length > MAX_RESULTS)
+      throw new BadRequestException(`Too many results found (${userDatas.length}). Please refine your search.`);
 
     return userDatas.map((u) => this.toDto(u));
   }
