@@ -6,6 +6,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
@@ -22,6 +23,7 @@ export class SupportService {
     private readonly swapService: SwapService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
+    private readonly bankTxService: BankTxService,
     private readonly payInService: PayInService,
   ) {}
 
@@ -60,6 +62,13 @@ export class SupportService {
       return this.buyService.getBuyByKey('bankUsage', key, true).then((b) => b?.userData);
 
     if (Config.formats.ref.test(key)) return this.userService.getUserByKey('ref', key, true).then((u) => u?.userData);
+
+    // Check for BankTx accountServiceRef (format: ZV20250919/906160/1)
+    const accountServiceRefPattern = /^[A-Z]{2}\d{8}\/\d+\/\d+$/;
+    if (accountServiceRefPattern.test(key)) {
+      const bankTx = await this.bankTxService.getBankTxByKey('accountServiceRef', key);
+      if (bankTx?.user) return bankTx.user.userData;
+    }
 
     if (Config.formats.address.test(key)) {
       return Promise.all([
