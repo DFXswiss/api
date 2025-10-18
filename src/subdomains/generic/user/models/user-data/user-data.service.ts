@@ -394,6 +394,12 @@ export class UserDataService {
         signatoryPower: dto.signatoryPower,
       });
 
+    if (userData.users && (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50)) {
+      for (const user of userData.users) {
+        await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
+      }
+    }
+
     return userData;
   }
 
