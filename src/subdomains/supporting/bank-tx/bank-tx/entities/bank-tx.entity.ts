@@ -3,6 +3,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
@@ -237,6 +238,10 @@ export class BankTx extends IEntity {
 
   get user(): User {
     return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
+  }
+
+  get userData(): UserData {
+    return this.user?.userData;
   }
 
   get paymentMethodIn(): PaymentMethod {

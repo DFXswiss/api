@@ -68,11 +68,8 @@ export class SupportService {
 
     if (Config.formats.ref.test(key)) return this.userService.getUserByKey('ref', key, true).then((u) => u?.userData);
 
-    const accountServiceRefPattern = /^[A-Z]{2}\d{8}\/\d+\/\d+$/;
-    if (accountServiceRefPattern.test(key)) {
-      const bankTx = await this.bankTxService.getBankTxByKey('accountServiceRef', key, true);
-      if (bankTx?.user?.userData) return bankTx.user.userData;
-    }
+    if (Config.formats.accountServiceRef.test(key))
+      return this.bankTxService.getBankTxByKey('accountServiceRef', key, true).then((b) => b?.userData);
 
     if (Config.formats.address.test(key)) {
       return Promise.all([
