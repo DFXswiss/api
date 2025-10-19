@@ -39,6 +39,7 @@ import { DfxCronService } from './services/dfx-cron.service';
 import { HttpService } from './services/http.service';
 import { PaymentInfoService } from './services/payment-info.service';
 import { ProcessService } from './services/process.service';
+import { VersionModule } from './version/version.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ProcessService } from './services/process.service';
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot(),
+    VersionModule,
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
   providers: [
