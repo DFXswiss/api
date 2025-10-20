@@ -62,8 +62,6 @@ export class LimitRequestService {
     if (!entity) throw new NotFoundException('LimitRequest not found');
     if (LimitRequestFinal(entity.decision)) throw new BadRequestException('Limit request already final');
 
-    const update = this.limitRequestRepo.create(dto);
-
     if (dto.decision !== entity.decision && LimitRequestFinal(dto.decision)) {
       await this.supportIssueRepo.update(entity.supportIssue.id, {
         state: SupportIssueInternalState.COMPLETED,
@@ -74,10 +72,10 @@ export class LimitRequestService {
     await this.supportLogService.createSupportLog(entity.supportIssue.userData, {
       type: SupportLogType.LIMIT_REQUEST,
       limitRequest: entity,
-      ...update,
+      ...dto,
     });
 
-    return this.limitRequestRepo.save({ ...entity, ...update });
+    return this.limitRequestRepo.save({ ...entity, ...dto });
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {

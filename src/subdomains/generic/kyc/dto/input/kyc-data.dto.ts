@@ -191,6 +191,13 @@ export class KycNationalityData {
   nationality: Country;
 }
 
+export class RecallAgreementData {
+  @ApiProperty({ description: 'Is the recall condition accepted?' })
+  @IsNotEmpty()
+  @IsBoolean()
+  accepted: boolean;
+}
+
 export class KycFileData {
   @ApiProperty({ description: 'Base64 encoded file' })
   @IsNotEmpty()
