@@ -139,6 +139,7 @@ export class BankTxService {
         { type: IsNull(), creditDebitIndicator: BankTxIndicator.CREDIT },
         { type: IsNull(), creditDebitIndicator: BankTxIndicator.DEBIT, created: LessThan(Util.minutesBefore(5)) },
       ],
+      relations: { transaction: true },
     });
     if (!unassignedBankTx.length) return;
 
