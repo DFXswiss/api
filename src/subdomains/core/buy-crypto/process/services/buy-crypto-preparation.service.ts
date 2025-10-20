@@ -147,6 +147,10 @@ export class BuyCryptoPreparationService {
           referenceChfPrice,
         );
 
+        this.logger.verbose(
+          `User data ${entity.userData.id} volumes are: 7d checkout: ${last7dCheckoutVolume} CHF, 30d: ${last30dVolume} CHF, 365d: ${last365dVolume} CHF`,
+        );
+
         const ibanCountry =
           entity.bankTx?.iban || entity.checkoutTx?.cardIssuerCountry
             ? await this.countryService.getCountryWithSymbol(
