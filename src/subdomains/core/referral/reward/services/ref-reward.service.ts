@@ -27,7 +27,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.DEFICHAIN]: undefined,
   [Blockchain.ARBITRUM]: 10,
   [Blockchain.BITCOIN]: 100,
-  [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.LIGHTNING]: 1,
   [Blockchain.SPARK]: undefined,
   [Blockchain.MONERO]: 1,
   [Blockchain.ZANO]: undefined,
@@ -70,7 +70,7 @@ export class RefRewardService {
   ) {}
 
   async createManualRefReward(dto: CreateRefRewardDto) {
-    const user = await this.userService.getUser(dto.user.id);
+    const user = await this.userService.getUser(dto.user.id, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
     const asset = await this.assetService.getAssetById(dto.asset.id);
@@ -92,7 +92,11 @@ export class RefRewardService {
       amountInEur: dto.amountInEur,
     });
 
-    entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.MANUAL_REF, user });
+    entity.transaction = await this.transactionService.create({
+      sourceType: TransactionSourceType.MANUAL_REF,
+      user,
+      userData: user.userData,
+    });
 
     // update user ref balance
     await this.userService.updateRefVolume(
@@ -152,7 +156,11 @@ export class RefRewardService {
           amountInEur: refCreditEur,
         });
 
-        entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.REF, user });
+        entity.transaction = await this.transactionService.create({
+          sourceType: TransactionSourceType.REF,
+          user,
+          userData: user.userData,
+        });
 
         await this.rewardRepo.save(entity);
       }

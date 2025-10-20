@@ -8,7 +8,8 @@ import { BankData, BankDataVerificationError } from 'src/subdomains/generic/user
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';

@@ -39,8 +39,12 @@
           "value": "production"
         },
         {
+          "name": "DEPLOYMENT_PLATFORM",
+          "value": "AZURE"
+        },
+        {
           "name": "CORS_ORIGIN",
-          "value": "http://localhost:3001,https://dev.bapp.juiceswap.xyz,https://bapp.juiceswap.xyz,https://dev.bapp.juiceswap.com,https://bapp.juiceswap.com"
+          "value": "http://localhost:3001,https://bapp.juiceswap.xyz,https://bapp.juiceswap.com"
         },
         {
           "name": "ALCHEMY_1",
@@ -71,8 +75,48 @@
           "value": "[ALCHEMY-API-KEY]"
         },
         {
+          "name": "DATABASE_URL",
+          "value": "[DATABASE_URL]"
+        },
+        {
           "name": "CITREA_RPC_URL",
           "value": "http://vm-dfx-node-prd.westeurope.cloudapp.azure.com:8085"
+        },
+        {
+          "name": "FRONTEND_URL",
+          "value": "https://bapp.juiceswap.com"
+        },
+        {
+          "name": "TWITTER_CLIENT_ID",
+          "value": "[TWITTER_CLIENT_ID]"
+        },
+        {
+          "name": "TWITTER_CLIENT_SECRET",
+          "value": "[TWITTER_CLIENT_SECRET]"
+        },
+        {
+          "name": "TWITTER_CALLBACK_URL",
+          "value": "https://api.juiceswap.com/v1/campaigns/first-squeezer/twitter/callback"
+        },
+        {
+          "name": "DISCORD_CLIENT_ID",
+          "value": "[DISCORD_CLIENT_ID]"
+        },
+        {
+          "name": "DISCORD_CLIENT_SECRET",
+          "value": "[DISCORD_CLIENT_SECRET]"
+        },
+        {
+          "name": "DISCORD_BOT_TOKEN",
+          "value": "[DISCORD_BOT_TOKEN]"
+        },
+        {
+          "name": "DISCORD_GUILD_ID",
+          "value": "[DISCORD_GUILD_ID]"
+        },
+        {
+          "name": "DISCORD_CALLBACK_URL",
+          "value": "https://api.juiceswap.com/v1/campaigns/first-squeezer/discord/callback"
         }
       ]
     },

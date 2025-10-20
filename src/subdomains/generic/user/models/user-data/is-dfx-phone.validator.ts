@@ -7,12 +7,13 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import PhoneNumber from 'libphonenumber-js';
+import { Config } from 'src/config/config';
 
 @ValidatorConstraint({ name: 'IsDfxPhone' })
 export class IsDfxPhoneValidator implements ValidatorConstraintInterface {
   validate(phoneNumber: string) {
     try {
-      return phoneNumber && phoneNumber.match(/^\+/) && PhoneNumber(phoneNumber)?.isValid();
+      return phoneNumber && phoneNumber.match(Config.formats.phone) && PhoneNumber(phoneNumber)?.isValid();
     } catch (_) {
       return false;
     }

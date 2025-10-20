@@ -393,7 +393,7 @@ export class PaymentLinkService {
       mode,
       label,
       webhookUrl,
-      config: this.getMergedConfigString(paymentLink, config),
+      config: JSON.stringify(config),
     };
 
     await this.updatePaymentLinkInternal(paymentLink, updatePaymentLink);

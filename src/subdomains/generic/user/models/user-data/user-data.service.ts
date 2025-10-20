@@ -44,7 +44,7 @@ import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, ILike, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -156,14 +156,34 @@ export class UserDataService {
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
-  async getUsersByMail(mail: string): Promise<UserData[]> {
+  async getUsersByMail(mail: string, onlyValidUser = true): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
         mail,
-        status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED]),
+        status: onlyValidUser
+          ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
+          : undefined,
       },
       relations: { users: true, wallet: true },
     });
+  }
+
+  async getUsersByName(name: string): Promise<UserData[]> {
+    const where = { status: Not(UserDataStatus.MERGED) };
+    const search = `%${name}%`;
+
+    return this.userDataRepo.find({
+      where: [
+        { ...where, firstname: ILike(search) },
+        { ...where, surname: ILike(search) },
+        { ...where, verifiedName: ILike(search) },
+        { ...where, organization: { name: ILike(search) } },
+      ],
+    });
+  }
+
+  async getUsersByPhone(phone: string): Promise<UserData[]> {
+    return this.userDataRepo.findBy({ phone });
   }
 
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
@@ -373,6 +393,12 @@ export class UserDataService {
         legalEntity: dto.legalEntity,
         signatoryPower: dto.signatoryPower,
       });
+
+    if (userData.users && (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50)) {
+      for (const user of userData.users) {
+        await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
+      }
+    }
 
     return userData;
   }

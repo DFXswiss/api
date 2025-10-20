@@ -17,7 +17,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -194,22 +194,26 @@ export class BuyService {
     return this.buyRepo.findOne({ where: { bankUsage }, relations: { user: { userData: true, wallet: true } } });
   }
 
-  async getBuyByKey(key: string, value: any): Promise<Buy> {
-    return this.buyRepo
+  async getBuyByKey(key: string, value: any, onlyDefaultRelation = false): Promise<Buy> {
+    const query = this.buyRepo
       .createQueryBuilder('buy')
       .select('buy')
-      .leftJoinAndSelect('buy.deposit', 'deposit')
       .leftJoinAndSelect('buy.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `buy.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `buy.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('buy.deposit', 'deposit');
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
   }
 
   async getAllUserBuys(userIds: number[]): Promise<Buy[]> {

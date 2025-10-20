@@ -177,6 +177,9 @@ export class Configuration {
     key: new RegExp(`^(${this.allKeyFormat})$`),
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
+    kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+    phone: /^\+\d+$/,
+    accountServiceRef: /^[A-Z]{2}\d{8}\/\d+\/\d+$/,
   };
 
   database: TypeOrmModuleOptions = {

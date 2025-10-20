@@ -5,6 +5,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { WalletType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { CountryService } from '../country/country.service';
 import { IpLog } from './ip-log.entity';
 import { IpLogRepository } from './ip-log.repository';
@@ -18,7 +19,7 @@ export class IpLogService {
     private readonly repos: RepositoryFactory,
   ) {}
 
-  async create(ip: string, url: string, address: string): Promise<IpLog> {
+  async create(ip: string, url: string, address: string, walletType?: WalletType): Promise<IpLog> {
     const { country, result, user } = await this.checkIpCountry(ip, address);
     const ipLog = this.ipLogRepo.create({
       ip,
@@ -27,6 +28,7 @@ export class IpLogService {
       url,
       address,
       user,
+      walletType,
     });
 
     return this.ipLogRepo.save(ipLog);

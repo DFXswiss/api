@@ -8,6 +8,7 @@ import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/pa
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -332,6 +333,10 @@ export class CryptoInput extends IEntity {
 
   get isSettled(): boolean {
     return CryptoInputSettledStatus.includes(this.status);
+  }
+
+  get userData(): UserData {
+    return this.transaction.userData;
   }
 }
 

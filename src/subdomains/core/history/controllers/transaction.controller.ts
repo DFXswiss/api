@@ -34,7 +34,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import {
