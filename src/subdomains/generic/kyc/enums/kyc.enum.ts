@@ -39,6 +39,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     userData.accountType === AccountType.ORGANIZATION
       ? [KycStepName.OPERATIONAL_ACTIVITY, KycStepName.BENEFICIAL_OWNER]
       : null,
+    userData.recallAgreementAccepted === false ? KycStepName.RECALL_AGREEMENT : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
     userData.legalEntity === LegalEntity.ASSOCIATION ? KycStepName.STATUTES : null,

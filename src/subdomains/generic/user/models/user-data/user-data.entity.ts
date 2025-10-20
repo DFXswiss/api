@@ -166,6 +166,9 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   olkypayAllowed?: boolean;
 
+  @Column({ nullable: true })
+  recallAgreementAccepted?: boolean; // null = deactivated, false = step activated, true = step completed by user
+
   // TODO remove
   @Column({ nullable: true })
   complexOrgStructure?: boolean;
@@ -699,7 +702,7 @@ export class UserData extends IEntity {
 
 export const KycCompletedStates = [KycStatus.COMPLETED];
 
-export const UserDataSupportUpdateCols = ['status', 'riskStatus'];
+export const UserDataSupportUpdateCols = ['status', 'riskStatus', 'recallAgreementAccepted'];
 export const UserDataComplianceUpdateCols = ['kycStatus', 'depositLimit'];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {
