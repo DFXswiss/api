@@ -47,7 +47,9 @@ export class SupportService {
     const searchResult = await this.getUserDatasByKey(query.key);
     return {
       type: searchResult.type,
-      userDatas: searchResult.userDatas.sort((a, b) => a.id - b.id).map((u) => this.toDto(u)),
+      userDatas: Util.toUniqueList(searchResult.userDatas, 'id')
+        .sort((a, b) => a.id - b.id)
+        .map((u) => this.toDto(u)),
     };
   }
 
@@ -81,7 +83,7 @@ export class SupportService {
           .map((t) => t.userData),
       );
 
-      return { type: ComplianceSearchType.IBAN, userDatas: Util.toUniqueList(userDatas, 'id') };
+      return { type: ComplianceSearchType.IBAN, userDatas };
     }
 
     // min requirement for a name
