@@ -1,5 +1,5 @@
 import { IsNotEmpty } from 'class-validator';
-import { KycFileBlob } from '../../kyc/dto/kyc-file.dto';
+import { KycFile } from '../../kyc/entities/kyc-file.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStatus } from '../../user/models/user-data/user-data.enum';
@@ -19,7 +19,7 @@ export class UserDataSupportInfo {
 
 export class UserDataSupportInfoDetails {
   userData: UserData;
-  kycFiles: KycFileBlob[];
+  kycFiles: KycFile[];
 }
 
 export class UserDataSupportQuery {

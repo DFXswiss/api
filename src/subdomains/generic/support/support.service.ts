@@ -9,7 +9,7 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
+import { KycFileService } from '../kyc/services/kyc-file.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
@@ -38,12 +38,12 @@ export class SupportService {
     private readonly buyFiatService: BuyFiatService,
     private readonly bankTxService: BankTxService,
     private readonly payInService: PayInService,
-    private readonly kycDocumentService: KycDocumentService,
+    private readonly kycFileService: KycFileService,
   ) {}
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
     const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
-    const kycFiles = await this.kycDocumentService.getAllUserDocuments(id, userData.accountType);
+    const kycFiles = await this.kycFileService.getUserDataKycFiles(id);
 
     return { userData, kycFiles };
   }
