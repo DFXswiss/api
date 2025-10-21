@@ -51,6 +51,8 @@ resource sqlFirewallRules 'Microsoft.Sql/servers/firewallRules@2023-08-01' = if 
   }
 }
 
+/* Currently not needed for replication
+
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01' = {
   parent: sqlServer
   name: sqlDbName
@@ -81,3 +83,4 @@ resource sqlDbLtrPolicy 'Microsoft.Sql/servers/databases/backupLongTermRetention
     weekOfYear: 1
   }
 }
+*/

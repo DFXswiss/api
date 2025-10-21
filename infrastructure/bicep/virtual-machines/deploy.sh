@@ -12,8 +12,7 @@ environmentOptions=("loc" "dev" "prd")
 resourceGroupOptions=("api" "core")
 
 # "node": Node VM
-# "slnode": SwissLedger Node
-vmNameOptions=("node" "slnode")
+vmNameOptions=("node")
 
 # --- FUNCTIONS --- #
 selectOption() {
@@ -55,7 +54,7 @@ RESULT=$(az deployment group create \
     --parameters env=$ENV \
     --parameters rg=$RG \
     --parameters vm=$VM \
-    --parameters parameters/$ENV-$VM.json \
+    --parameters parameters/$ENV-$RG-$VM.json \
     --query properties.outputs.result)
 
 ## Output Result

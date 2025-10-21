@@ -21,14 +21,14 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-10-01' = {
   properties: {
     addressSpace: {
       addressPrefixes: [
-        '10.0.0.0/16'
+        '10.1.0.0/16'
       ]
     }
     subnets: [
       {
         name: sqlDBSubNetName
         properties: {
-          addressPrefix: '10.0.0.0/24'
+          addressPrefix: '10.1.0.0/24'
           serviceEndpoints: [
             {
               service: 'Microsoft.Web'
@@ -58,10 +58,12 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-10-01' = {
       {
         name: vmSubNetName
         properties: {
-          addressPrefix: '10.0.1.0/24'
+          addressPrefix: '10.1.1.0/24'
           networkSecurityGroup: {
             id: networkSecurityGroupId
           }
+          privateEndpointNetworkPolicies: 'Enabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
         }
       }
     ]
