@@ -84,18 +84,21 @@ export class SupportService {
 
     if (IbanTools.validateIBAN(key).valid) {
       const bankData = await this.bankDataService.getBankDataByKey('iban', key, true);
-      if (bankData) return bankData.userData;
+      if (bankData) return { type: ComplianceSearchType.IBAN, userData: bankData.userData };
 
       const bankTxReturn = await this.bankTxReturnService.getBankTxReturnByIban(key);
-      if (bankTxReturn) return bankTxReturn.userData;
+      if (bankTxReturn) return { type: ComplianceSearchType.IBAN, userData: bankTxReturn.userData };
 
       const chargebackBuyCrypto = await this.buyCryptoService.getBuyCryptoByKeys(['chargebackIban'], key, true);
-      if (chargebackBuyCrypto) return chargebackBuyCrypto.userData;
+      if (chargebackBuyCrypto) return { type: ComplianceSearchType.IBAN, userData: chargebackBuyCrypto.userData };
 
       const sell = await this.sellService.getSellByKey('iban', key, true);
-      if (sell) return sell.userData;
+      if (sell) return { type: ComplianceSearchType.IBAN, userData: sell.userData };
 
-      return this.bankTxService.getBankTxByKey('iban', key, true).then((b) => b?.userData);
+      return {
+        type: ComplianceSearchType.IBAN,
+        userData: await this.bankTxService.getBankTxByKey('iban', key, true).then((b) => b?.userData),
+      };
     }
 
     if (Config.formats.kycHash.test(key))
