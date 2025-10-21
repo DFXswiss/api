@@ -76,12 +76,7 @@ export class SupportService {
         this.bankTxReturnService.getBankTxReturnsByIban(key),
         this.buyCryptoService.getBuyCryptosByChargebackIban(key),
         this.sellService.getSellsByIban(key),
-      ]).then((t) =>
-        t
-          .flat()
-          .map((t) => t.userData)
-          .filter((u) => u),
-      );
+      ]).then((t) => t.flat().map((t) => t.userData));
 
       return { type: ComplianceSearchType.IBAN, userDatas };
     }
