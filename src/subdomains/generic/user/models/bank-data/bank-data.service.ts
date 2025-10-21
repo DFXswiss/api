@@ -250,19 +250,23 @@ export class BankDataService {
     return this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
   }
 
-  async getBankDataByKey(key: string, value: any): Promise<BankData> {
-    return this.bankDataRepo
+  async getBankDataByKey(key: string, value: any, onlyDefaultRelation = false): Promise<BankData> {
+    const query = this.bankDataRepo
       .createQueryBuilder('bankData')
       .select('bankData')
       .leftJoinAndSelect('bankData.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .where(`${key.includes('.') ? key : `bankData.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `bankData.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+    }
+
+    return query.getOne();
   }
 
   async getVerifiedBankDataWithIban(

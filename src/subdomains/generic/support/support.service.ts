@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { isIP } from 'class-validator';
+import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -7,8 +8,10 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
@@ -26,6 +29,8 @@ export class SupportService {
     private readonly buyFiatService: BuyFiatService,
     private readonly bankTxService: BankTxService,
     private readonly payInService: PayInService,
+    private readonly bankDataService: BankDataService,
+    private readonly bankTxReturnService: BankTxReturnService,
   ) {}
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfo[]> {
@@ -59,6 +64,22 @@ export class SupportService {
     if (!isNaN(userDataId)) {
       const userData = await this.userDataService.getUserData(userDataId);
       if (userData) return userData;
+    }
+
+    if (IbanTools.validateIBAN(key).valid) {
+      const bankData = await this.bankDataService.getBankDataByKey('iban', key, true);
+      if (bankData) return bankData.userData;
+
+      const bankTxReturn = await this.bankTxReturnService.getBankTxReturnByIban(key);
+      if (bankTxReturn) return bankTxReturn.userData;
+
+      const chargebackBuyCrypto = await this.buyCryptoService.getBuyCryptoByKeys(['chargebackIban'], key, true);
+      if (chargebackBuyCrypto) return chargebackBuyCrypto.userData;
+
+      const sell = await this.sellService.getSellByKey('iban', key, true);
+      if (sell) return sell.userData;
+
+      return this.bankTxService.getBankTxByKey('iban', key, true).then((b) => b?.userData);
     }
 
     if (Config.formats.kycHash.test(key)) return this.userDataService.getUserDataByKey('kycHash', key);
