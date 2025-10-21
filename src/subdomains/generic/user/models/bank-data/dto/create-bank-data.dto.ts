@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { BankDataType } from '../bank-data.entity';
 
 export class CreateBankDataDto {
@@ -25,4 +26,8 @@ export class CreateBankDataDto {
   @IsOptional()
   @IsEnum(BankDataType)
   type?: BankDataType;
+
+  @IsOptional()
+  @IsEnum(ReviewStatus)
+  status?: ReviewStatus;
 }
