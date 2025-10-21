@@ -2,6 +2,11 @@ import { IsNotEmpty } from 'class-validator';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycStatus } from '../../user/models/user-data/user-data.enum';
 
+export class UserDataSupportInfoResult {
+  type: ComplianceSearchType;
+  userDatas: UserDataSupportInfo[];
+}
+
 export class UserDataSupportInfo {
   id: number;
   kycStatus: KycStatus;
@@ -13,4 +18,19 @@ export class UserDataSupportInfo {
 export class UserDataSupportQuery {
   @IsNotEmpty()
   key: string;
+}
+
+export enum ComplianceSearchType {
+  REF = 'Ref',
+  KYC_HASH = 'KycHash',
+  BANK_USAGE = 'BankUsage',
+  MAIL = 'Mail',
+  USER_ADDRESS = 'UserAddress',
+  DEPOSIT_ADDRESS = 'DepositAddress',
+  TXID = 'TxId',
+  ACCOUNT_SERVICE_REF = 'AccountServiceRef',
+  USER_DATA_ID = 'UserDataId',
+  IP = 'IP',
+  PHONE = 'Phone',
+  NAME = 'Name',
 }

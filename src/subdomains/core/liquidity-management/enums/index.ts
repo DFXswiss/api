@@ -2,7 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 
-export type LiquidityManagementContext = Blockchain | ExchangeName | IbanBankName | CardBankName;
+export type LiquidityManagementContext = Blockchain | ExchangeName | IbanBankName | CardBankName | 'Custom';
 
 export enum LiquidityManagementSystem {
   CAKE = 'Cake',
