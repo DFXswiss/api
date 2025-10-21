@@ -28,6 +28,7 @@ export enum UserAddressType {
 export enum WalletType {
   METAMASK = 'MetaMask',
   RABBY = 'Rabby',
+  WALLET_BROWSER = 'WalletBrowser',
   TRUST = 'Trust',
   PHANTOM = 'Phantom',
   TRON_LINK = 'TronLink',
