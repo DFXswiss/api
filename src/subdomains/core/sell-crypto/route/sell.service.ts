@@ -164,7 +164,7 @@ export class SellService {
   }
 
   async getSellsByIban(iban: string): Promise<Sell[]> {
-    return this.sellRepo.find({ where: { iban }, relations: { userData: true } });
+    return this.sellRepo.find({ where: { iban }, relations: { user: { userData: true } } });
   }
 
   async getUserSells(userId: number): Promise<Sell[]> {

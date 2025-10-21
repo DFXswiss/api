@@ -64,7 +64,7 @@ export class SupportService {
 
     if (isIP(key)) {
       const userDatas = await this.userService.getUsersByIp(key).then((u) => u.map((u) => u.userData));
-      return { type: ComplianceSearchType.IP, userDatas: Util.toUniqueList(userDatas, 'id') };
+      return { type: ComplianceSearchType.IP, userDatas };
     }
 
     const uniqueSearchResult = await this.getUniqueUserDataByKey(key);
@@ -79,8 +79,8 @@ export class SupportService {
       ]).then((t) =>
         t
           .flat()
-          .filter((t) => t)
-          .map((t) => t.userData),
+          .map((t) => t.userData)
+          .filter((u) => u),
       );
 
       return { type: ComplianceSearchType.IBAN, userDatas };
