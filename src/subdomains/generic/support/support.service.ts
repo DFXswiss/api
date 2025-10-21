@@ -68,6 +68,22 @@ export class SupportService {
     const uniqueSearchResult = await this.getUniqueUserDataByKey(key);
     if (uniqueSearchResult.userData) return { type: uniqueSearchResult.type, userDatas: [uniqueSearchResult.userData] };
 
+    if (IbanTools.validateIBAN(key).valid) {
+      const userDatas = await Promise.all([
+        this.bankDataService.getBankDatasByIban(key),
+        this.bankTxReturnService.getBankTxReturnsByIban(key),
+        this.buyCryptoService.getBuyCryptosByChargebackIban(key),
+        this.sellService.getSellsByIban(key),
+      ]).then((t) =>
+        t
+          .flat()
+          .filter((t) => t)
+          .map((t) => t.userData),
+      );
+
+      return { type: ComplianceSearchType.IBAN, userDatas: Util.toUniqueList(userDatas, 'id') };
+    }
+
     // min requirement for a name
     if (key.length >= 2)
       return { type: ComplianceSearchType.NAME, userDatas: await this.userDataService.getUsersByName(key) };
@@ -80,25 +96,6 @@ export class SupportService {
     if (!isNaN(userDataId)) {
       const userData = await this.userDataService.getUserData(userDataId);
       if (userData) return { type: ComplianceSearchType.USER_DATA_ID, userData };
-    }
-
-    if (IbanTools.validateIBAN(key).valid) {
-      const bankData = await this.bankDataService.getBankDataByKey('iban', key, true);
-      if (bankData) return { type: ComplianceSearchType.IBAN, userData: bankData.userData };
-
-      const bankTxReturn = await this.bankTxReturnService.getBankTxReturnByIban(key);
-      if (bankTxReturn) return { type: ComplianceSearchType.IBAN, userData: bankTxReturn.userData };
-
-      const chargebackBuyCrypto = await this.buyCryptoService.getBuyCryptoByKeys(['chargebackIban'], key, true);
-      if (chargebackBuyCrypto) return { type: ComplianceSearchType.IBAN, userData: chargebackBuyCrypto.userData };
-
-      const sell = await this.sellService.getSellByKey('iban', key, true);
-      if (sell) return { type: ComplianceSearchType.IBAN, userData: sell.userData };
-
-      return {
-        type: ComplianceSearchType.IBAN,
-        userData: await this.bankTxService.getBankTxByKey('iban', key, true).then((b) => b?.userData),
-      };
     }
 
     if (Config.formats.kycHash.test(key))

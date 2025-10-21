@@ -163,6 +163,10 @@ export class SellService {
     return query.getOne();
   }
 
+  async getSellsByIban(iban: string): Promise<Sell[]> {
+    return this.sellRepo.find({ where: { iban }, relations: { userData: true } });
+  }
+
   async getUserSells(userId: number): Promise<Sell[]> {
     const sellableBlockchains = await this.assetService.getSellableBlockchains();
 

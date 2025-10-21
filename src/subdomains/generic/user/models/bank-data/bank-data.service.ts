@@ -19,7 +19,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsRelations, FindOptionsWhere, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, FindOptionsWhere, IsNull, Like, Not } from 'typeorm';
 import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
@@ -250,23 +250,28 @@ export class BankDataService {
     return this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
   }
 
-  async getBankDataByKey(key: string, value: any, onlyDefaultRelation = false): Promise<BankData> {
-    const query = this.bankDataRepo
+  async getBankDataByKey(key: string, value: any): Promise<BankData> {
+    return this.bankDataRepo
       .createQueryBuilder('bankData')
       .select('bankData')
       .leftJoinAndSelect('bankData.userData', 'userData')
-      .where(`${key.includes('.') ? key : `bankData.${key}`} = :param`, { param: value });
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
+      .where(`${key.includes('.') ? key : `bankData.${key}`} = :param`, { param: value })
+      .getOne();
+  }
 
-    if (!onlyDefaultRelation) {
-      query.leftJoinAndSelect('userData.users', 'users');
-      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
-      query.leftJoinAndSelect('userData.country', 'country');
-      query.leftJoinAndSelect('userData.nationality', 'nationality');
-      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
-      query.leftJoinAndSelect('userData.language', 'language');
-    }
-
-    return query.getOne();
+  async getBankDatasByIban(iban: string): Promise<BankData[]> {
+    return this.bankDataRepo.find({
+      where: { iban: Like(`%${iban}%`) },
+      relations: {
+        userData: true,
+      },
+    });
   }
 
   async getVerifiedBankDataWithIban(
