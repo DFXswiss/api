@@ -1,6 +1,8 @@
 import { IsNotEmpty } from 'class-validator';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { KycFile } from '../../kyc/entities/kyc-file.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStatus } from '../../user/models/user-data/user-data.enum';
 
 export class UserDataSupportInfoResult {
@@ -24,6 +26,11 @@ export class BankTxSupportInfo {
   currency: string;
   type: BankTxType;
   name?: string;
+}
+
+export class UserDataSupportInfoDetails {
+  userData: UserData;
+  kycFiles: KycFile[];
 }
 
 export class UserDataSupportQuery {

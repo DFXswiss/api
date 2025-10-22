@@ -12,6 +12,7 @@ import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-r
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { KycFileService } from '../kyc/services/kyc-file.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
@@ -20,6 +21,7 @@ import {
   BankTxSupportInfo,
   ComplianceSearchType,
   UserDataSupportInfo,
+  UserDataSupportInfoDetails,
   UserDataSupportInfoResult,
   UserDataSupportQuery,
 } from './dto/user-data-support.dto';
@@ -41,9 +43,17 @@ export class SupportService {
     private readonly buyFiatService: BuyFiatService,
     private readonly bankTxService: BankTxService,
     private readonly payInService: PayInService,
+    private readonly kycFileService: KycFileService,
     private readonly bankDataService: BankDataService,
     private readonly bankTxReturnService: BankTxReturnService,
   ) {}
+
+  async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
+    const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
+    const kycFiles = await this.kycFileService.getUserDataKycFiles(id);
+
+    return { userData, kycFiles };
+  }
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     const searchResult = await this.getUserDatasByKey(query.key);
