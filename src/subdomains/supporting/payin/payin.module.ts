@@ -7,6 +7,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { PaymentLinkPaymentModule } from 'src/subdomains/core/payment-link/payment-link-payment.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { AddressPoolModule } from '../address-pool/address-pool.module';
 import { DexModule } from '../dex/dex.module';
 import { NotificationModule } from '../notification/notification.module';
 import { TransactionModule } from '../payment/transaction.module';
@@ -98,6 +99,7 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     TatumModule,
     TransactionModule,
     PaymentLinkPaymentModule,
+    AddressPoolModule,
   ],
   controllers: [PayInController],
   providers: [
