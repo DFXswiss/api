@@ -90,6 +90,7 @@ import { TfaService } from './services/tfa.service';
     KycLogService,
     KycNotificationService,
     KycService,
+    KycFileService,
   ],
 })
 export class KycModule {}

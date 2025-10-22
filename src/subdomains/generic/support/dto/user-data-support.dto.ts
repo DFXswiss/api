@@ -1,5 +1,7 @@
 import { IsNotEmpty } from 'class-validator';
+import { KycFile } from '../../kyc/entities/kyc-file.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStatus } from '../../user/models/user-data/user-data.enum';
 
 export class UserDataSupportInfoResult {
@@ -13,6 +15,11 @@ export class UserDataSupportInfo {
   accountType?: AccountType;
   mail?: string;
   name?: string;
+}
+
+export class UserDataSupportInfoDetails {
+  userData: UserData;
+  kycFiles: KycFile[];
 }
 
 export class UserDataSupportQuery {
