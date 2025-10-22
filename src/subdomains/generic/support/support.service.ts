@@ -9,6 +9,7 @@ import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.ser
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
@@ -16,6 +17,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import {
+  BankTxSupportInfo,
   ComplianceSearchType,
   UserDataSupportInfo,
   UserDataSupportInfoResult,
@@ -45,15 +47,21 @@ export class SupportService {
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     const searchResult = await this.getUserDatasByKey(query.key);
+    const bankTx = await this.getBankTxByKey(query.key);
     return {
       type: searchResult.type,
       userDatas: Util.toUniqueList(searchResult.userDatas, 'id')
         .sort((a, b) => a.id - b.id)
-        .map((u) => this.toDto(u)),
+        .map((u) => this.toUserDataDto(u)),
+      bankTx: bankTx.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b)),
     };
   }
 
   //*** HELPER METHODS ***//
+
+  private async getBankTxByKey(key: string): Promise<BankTx[]> {
+    if (IbanTools.validateIBAN(key).valid) return this.bankTxService.getUnassignedBankTx([key]);
+  }
 
   private async getUserDatasByKey(key: string): Promise<{ type: ComplianceSearchType; userDatas: UserData[] }> {
     if (key.includes('@'))
@@ -140,7 +148,7 @@ export class SupportService {
     });
   }
 
-  private toDto(userData: UserData): UserDataSupportInfo {
+  private toUserDataDto(userData: UserData): UserDataSupportInfo {
     const name =
       userData.verifiedName ??
       ([userData.firstname, userData.surname, userData.organization?.name].filter(Boolean).join(' ') || undefined);
@@ -151,6 +159,17 @@ export class SupportService {
       accountType: userData.accountType,
       mail: userData.mail,
       name,
+    };
+  }
+
+  private toBankTxDto(bankTx: BankTx): BankTxSupportInfo {
+    return {
+      id: bankTx.id,
+      accountServiceRef: bankTx.accountServiceRef,
+      amount: bankTx.amount,
+      currency: bankTx.currency,
+      type: bankTx.type,
+      name: bankTx.completeName(),
     };
   }
 }
