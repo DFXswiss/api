@@ -567,6 +567,10 @@ export class BuyCryptoService {
     return query.getOne();
   }
 
+  async getBuyCryptosByChargebackIban(iban: string): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({ where: { chargebackIban: iban }, relations: { transaction: { userData: true } } });
+  }
+
   async getBuyCryptoByTransactionId(
     transactionId: number,
     relations?: FindOptionsRelations<BuyCrypto>,

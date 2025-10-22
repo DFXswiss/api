@@ -40,4 +40,5 @@ export enum ComplianceSearchType {
   IP = 'IP',
   PHONE = 'Phone',
   NAME = 'Name',
+  IBAN = 'Iban',
 }
