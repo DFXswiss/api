@@ -47,21 +47,19 @@ export class SupportService {
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     const searchResult = await this.getUserDatasByKey(query.key);
-    const bankTx = await this.getBankTxByKey(query.key);
+    const bankTx =
+      searchResult.type === ComplianceSearchType.IBAN ? await this.bankTxService.getUnassignedBankTx([query.key]) : [];
+
     return {
       type: searchResult.type,
       userDatas: Util.toUniqueList(searchResult.userDatas, 'id')
         .sort((a, b) => a.id - b.id)
         .map((u) => this.toUserDataDto(u)),
-      bankTx: bankTx.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b)),
+      bankTx: bankTx?.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b)),
     };
   }
 
   //*** HELPER METHODS ***//
-
-  private async getBankTxByKey(key: string): Promise<BankTx[]> {
-    if (IbanTools.validateIBAN(key).valid) return this.bankTxService.getUnassignedBankTx([key]);
-  }
 
   private async getUserDatasByKey(key: string): Promise<{ type: ComplianceSearchType; userDatas: UserData[] }> {
     if (key.includes('@'))
