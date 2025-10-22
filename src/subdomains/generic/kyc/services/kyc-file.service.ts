@@ -26,6 +26,6 @@ export class KycFileService {
   }
 
   async getUserDataKycFiles(userDataId: number): Promise<KycFile[]> {
-    return this.kycFileRepository.findBy({ userData: { id: userDataId } });
+    return this.kycFileRepository.find({ where: { userData: { id: userDataId } }, loadEagerRelations: false });
   }
 }
