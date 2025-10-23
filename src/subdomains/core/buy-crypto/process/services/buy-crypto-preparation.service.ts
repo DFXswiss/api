@@ -12,6 +12,7 @@ import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -317,6 +318,7 @@ export class BuyCryptoPreparationService {
           status: Not(UserDataStatus.BLOCKED),
           riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
         },
+        user: { status: In([UserStatus.NA, UserStatus.ACTIVE]) },
       },
     };
     const entities = await this.buyCryptoRepo.find({

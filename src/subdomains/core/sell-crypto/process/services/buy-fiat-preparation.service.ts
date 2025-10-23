@@ -10,6 +10,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
@@ -440,6 +441,7 @@ export class BuyFiatPreparationService {
             status: Not(UserDataStatus.BLOCKED),
             riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
           },
+          user: { status: In([UserStatus.NA, UserStatus.ACTIVE]) },
         },
         chargebackAddress: Not(IsNull()),
       },
