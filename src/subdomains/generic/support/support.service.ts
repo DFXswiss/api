@@ -9,6 +9,7 @@ import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.ser
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { KycFileService } from '../kyc/services/kyc-file.service';
@@ -17,6 +18,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import {
+  BankTxSupportInfo,
   ComplianceSearchType,
   UserDataSupportInfo,
   UserDataSupportInfoDetails,
@@ -55,11 +57,15 @@ export class SupportService {
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     const searchResult = await this.getUserDatasByKey(query.key);
+    const bankTx =
+      searchResult.type === ComplianceSearchType.IBAN ? await this.bankTxService.getUnassignedBankTx([query.key]) : [];
+
     return {
       type: searchResult.type,
       userDatas: Util.toUniqueList(searchResult.userDatas, 'id')
         .sort((a, b) => a.id - b.id)
-        .map((u) => this.toDto(u)),
+        .map((u) => this.toUserDataDto(u)),
+      bankTx: bankTx?.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b)),
     };
   }
 
@@ -150,7 +156,7 @@ export class SupportService {
     });
   }
 
-  private toDto(userData: UserData): UserDataSupportInfo {
+  private toUserDataDto(userData: UserData): UserDataSupportInfo {
     const name =
       userData.verifiedName ??
       ([userData.firstname, userData.surname, userData.organization?.name].filter(Boolean).join(' ') || undefined);
@@ -161,6 +167,17 @@ export class SupportService {
       accountType: userData.accountType,
       mail: userData.mail,
       name,
+    };
+  }
+
+  private toBankTxDto(bankTx: BankTx): BankTxSupportInfo {
+    return {
+      id: bankTx.id,
+      accountServiceRef: bankTx.accountServiceRef,
+      amount: bankTx.amount,
+      currency: bankTx.currency,
+      type: bankTx.type,
+      name: bankTx.completeName(),
     };
   }
 }
