@@ -217,7 +217,7 @@ export class UserService {
     if (moderator) await this.updateUserInternal(user, { moderator });
 
     user = await this.userRepo.save(user);
-    userIsActive && (await this.userRepo.setUserRef(user, data.userData?.kycLevel));
+    if (data.userData?.kycLevel >= KycLevel.LEVEL_50) await this.userRepo.setUserRef(user, data.userData.kycLevel);
 
     this.siftService.createAccount(user);
 
