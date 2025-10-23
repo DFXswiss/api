@@ -65,7 +65,7 @@ export class SupportService {
       userDatas: Util.toUniqueList(searchResult.userDatas, 'id')
         .sort((a, b) => a.id - b.id)
         .map((u) => this.toUserDataDto(u)),
-      bankTx: bankTx?.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b)),
+      bankTx: bankTx.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b)),
     };
   }
 
