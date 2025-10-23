@@ -3,7 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "hardwareProfile": {
-      "value": "Standard_L2as_v4"
+      "value": "Standard_D2als_v6"
     },
     "diskSizeGB": {
       "value": 1024

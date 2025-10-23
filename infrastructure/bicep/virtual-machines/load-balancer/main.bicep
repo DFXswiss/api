@@ -29,15 +29,13 @@ var virtualNetworkName = 'vnet-${compName}-${rg}-${env}'
 var subnetName = 'snet-${compName}-${rg}-${vm}-${env}'
 
 var loadBalancerName = 'lbi-${compName}-${rg}-${env}'
-var frontendIPConfigurationName = 'feic-${compName}-${vm}-${env}'
+var frontendIPConfigurationName = 'feic-${compName}-${rg}-${env}'
 var backendAddressPoolName = 'bep-${compName}-${vm}-${env}'
 var loadBalancingRuleName = 'lbr-${compName}-${vm}-${env}'
 
 var privateLinkServiceName = 'pls-${compName}-${rg}-${env}'
 var autoApprovalSubscriptions array = []
 var visibilitySubscriptions array = []
-
-var privateEndpointName = 'pep-${compName}-${rg}-${env}'
 
 var withPorts bool = frontendPort != -1 && backendPort != -1 && probeName != '' && probePort != -1
 
@@ -156,24 +154,5 @@ resource privateLinkService 'Microsoft.Network/privateLinkServices@2024-10-01' =
     visibility: {
       subscriptions: visibilitySubscriptions
     }
-  }
-}
-
-resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-10-01' = {
-  name: privateEndpointName
-  location: location
-  properties: {
-    subnet: {
-      id: subnet.id
-    }
-    privateLinkServiceConnections: [
-      {
-        name: '${privateEndpointName}-connection'
-        properties: {
-          privateLinkServiceId: privateLinkService.id
-          requestMessage: 'VM Private Link Request'
-        }
-      }
-    ]
   }
 }
