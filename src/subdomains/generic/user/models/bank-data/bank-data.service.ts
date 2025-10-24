@@ -19,7 +19,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsRelations, FindOptionsWhere, IsNull, Not } from 'typeorm';
+import { FindOptionsRelations, FindOptionsWhere, IsNull, Like, Not } from 'typeorm';
 import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
@@ -263,6 +263,15 @@ export class BankDataService {
       .leftJoinAndSelect('userData.language', 'language')
       .where(`${key.includes('.') ? key : `bankData.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getBankDatasByIban(iban: string): Promise<BankData[]> {
+    return this.bankDataRepo.find({
+      where: { iban: Like(`%${iban}%`) },
+      relations: {
+        userData: true,
+      },
+    });
   }
 
   async getVerifiedBankDataWithIban(

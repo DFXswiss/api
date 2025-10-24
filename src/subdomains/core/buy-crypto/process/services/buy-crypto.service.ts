@@ -51,7 +51,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -567,6 +567,10 @@ export class BuyCryptoService {
     return query.getOne();
   }
 
+  async getBuyCryptosByChargebackIban(iban: string): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({ where: { chargebackIban: iban }, relations: { transaction: { userData: true } } });
+  }
+
   async getBuyCryptoByTransactionId(
     transactionId: number,
     relations?: FindOptionsRelations<BuyCrypto>,
@@ -625,41 +629,54 @@ export class BuyCryptoService {
     excludedId?: number,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
-    const request = this.buyCryptoRepo
-      .createQueryBuilder('buyCrypto')
-      .select('SUM(amountInChf)', 'volume')
-      .leftJoin('buyCrypto.bankTx', 'bankTx')
-      .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
-      .leftJoin('buyCrypto.checkoutTx', 'checkoutTx')
-      .leftJoin('buyCrypto.buy', 'buy')
-      .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .where(
-        new Brackets((query) =>
-          query
-            .where('buy.userId IN (:...userIds)', { userIds })
-            .orWhere('cryptoRoute.userId IN (:...userIds)', { userIds }),
-        ),
-      )
-      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL });
+    if (type) return this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, type);
 
-    if (excludedId) {
-      request.andWhere('buyCrypto.id != :excludedId', { excludedId });
+    const volumes = await Promise.all([
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'cryptoInput'),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'checkoutTx'),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'bankTx'),
+    ]);
+
+    return Util.sum(volumes);
+  }
+
+  private async getUserVolumeForType(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+    excludedId: number | undefined,
+    type: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+  ): Promise<number> {
+    const request = this.buyCryptoRepo.createQueryBuilder('buyCrypto').select('SUM(amountInChf)', 'volume');
+
+    switch (type) {
+      case 'cryptoInput':
+        request
+          .innerJoin('buyCrypto.cryptoRoute', 'route')
+          .innerJoin('buyCrypto.cryptoInput', 'cryptoInput')
+          .where('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+        break;
+
+      case 'checkoutTx':
+        request
+          .innerJoin('buyCrypto.buy', 'route')
+          .innerJoin('buyCrypto.checkoutTx', 'checkoutTx')
+          .where('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+        break;
+
+      case 'bankTx':
+        request
+          .innerJoin('buyCrypto.buy', 'route')
+          .innerJoin('buyCrypto.bankTx', 'bankTx')
+          .where('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+        break;
     }
-    if (!type) {
-      request.andWhere(
-        new Brackets((query) =>
-          query
-            .where('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-            .orWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-            .orWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
-        ),
-      );
-    } else {
-      request.andWhere(`${type}.${type !== 'checkoutTx' ? 'created' : 'requestedOn'} BETWEEN :dateFrom AND :dateTo`, {
-        dateFrom,
-        dateTo,
-      });
-    }
+
+    request
+      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
+      .andWhere('route.userId IN (:...userIds)', { userIds });
+
+    if (excludedId) request.andWhere('buyCrypto.id != :excludedId', { excludedId });
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }

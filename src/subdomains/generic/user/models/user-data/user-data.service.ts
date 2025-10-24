@@ -121,8 +121,15 @@ export class UserDataService {
       .getOne();
   }
 
-  async getUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
-    return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
+  async getUserData(
+    userDataId: number,
+    relations?: FindOptionsRelations<UserData>,
+    useCachedValues = false,
+  ): Promise<UserData> {
+    const request = { where: { id: userDataId }, relations };
+    return useCachedValues
+      ? this.userDataRepo.findOneCached(JSON.stringify(request), request)
+      : this.userDataRepo.findOne(request);
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {

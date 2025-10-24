@@ -17,7 +17,7 @@ import {
 import { Between, In, Not } from 'typeorm';
 import { RefRewardExtended } from '../../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
-import { CreateRefRewardDto } from '../dto/create-ref-reward.dto';
+import { CreateManualRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
@@ -69,12 +69,17 @@ export class RefRewardService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  async createManualRefReward(dto: CreateRefRewardDto) {
+  async createManualRefReward(dto: CreateManualRefRewardDto) {
     const user = await this.userService.getUser(dto.user.id, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
     const asset = await this.assetService.getAssetById(dto.asset.id);
     if (!asset) throw new NotFoundException('Asset not found');
+
+    const sourceTransaction = await this.transactionService.getTransactionById(dto.sourceTransaction.id);
+    if (!sourceTransaction) throw new NotFoundException('Source Transaction not found');
+    if (await this.rewardRepo.existsBy({ sourceTransaction: { id: sourceTransaction.id } }))
+      throw new BadRequestException('Source transaction already used');
 
     const eurChfPrice = await this.pricingService.getPrice(
       PriceCurrency.EUR,

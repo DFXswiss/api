@@ -18,11 +18,9 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
-import { KycFileBlob } from '../kyc/dto/kyc-file.dto';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
-import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
@@ -160,7 +158,7 @@ export class GsService {
       kycSteps: await this.kycAdminService.getKycSteps(userData.id, { userData: true }),
       bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
-      documents: await this.getAllUserDocuments(userData.id, userData.accountType),
+      documents: await this.kycDocumentService.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
@@ -278,7 +276,7 @@ export class GsService {
       const docs = Util.sort(
         commonPathPrefix
           ? await this.kycDocumentService.listFilesByPrefix(commonPathPrefix)
-          : await this.getAllUserDocuments(userDataId, userData.accountType),
+          : await this.kycDocumentService.getAllUserDocuments(userDataId, userData.accountType),
         'created',
         sorting,
       );
@@ -288,14 +286,6 @@ export class GsService {
         userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.url.includes(docPath));
       }
     }
-  }
-
-  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFileBlob[]> {
-    return [
-      ...(await this.kycDocumentService.listUserFiles(userDataId)),
-      ...(await this.kycDocumentService.listSpiderFiles(userDataId, false)),
-      ...(accountType !== AccountType.PERSONAL ? await this.kycDocumentService.listSpiderFiles(userDataId, true) : []),
-    ];
   }
 
   private getBiggestCommonPrefix(selects: string[]): string | undefined {

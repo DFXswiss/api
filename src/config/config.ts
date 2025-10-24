@@ -180,6 +180,7 @@ export class Configuration {
     kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
     phone: /^\+\d+$/,
     accountServiceRef: /^[A-Z]{2}\d{8}\/\d+\/\d+$/,
+    number: /^\d+$/,
   };
 
   database: TypeOrmModuleOptions = {
