@@ -1,0 +1,41 @@
+# Citreascan Setup
+
+# VM
+
+1. Connect to VM: `ssh {user}@vm-{user}-{type}-{env}.westeurope.cloudapp.azure.com`
+
+# Initial Setup
+
+1. Copy shell script `scripts/setupEnv.sh` to `/home/{user}` and execute the script
+
+1. Copy bitcoind config `config/bitcoind/bitcoin-testnet4.conf` to `home/{user}/volumes/bitcoin`
+1. Copy nginx config `config/nginx/default.conf` to `home/{user}/volumes/nginx`
+
+1. Create docker network `docker network create citrea-testnet-network`
+
+1. Copy docker compose config `config/docker/docker-compose-citrea-testnet4.yml` to `/home/{user}`
+1. Copy docker compose config `config/docker/docker-compose-nginx.yml` to `/home/{user}`
+1. Copy shell script `scripts/update-blockscout.sh` to `/home/{user}`
+
+1. Copy docker compose template `config/docker/docker-compose-blockscout-citrea-testnet.yml.template` to `/home/{user}/update`
+1. Copy shell script `scripts/replace-docker-compose-blockscout.sh` to `/home/{user}/update`
+
+# Create Blockscout Explorer Compose
+
+1. Create the file `docker-compose-blockscout-citrea-testnet.backend.env` in `/home/{user}/update`
+1. Copy the content of the github repo file `https://github.com/CitreaScan/blockscout/blob/develop/.env.vm_citrea_testnet_dev` in `docker-compose-blockscout-citrea-testnet.backend.env`
+
+1. Create the file `docker-compose-blockscout-citrea-testnet.frontend.env` in `/home/{user}/update`
+1. Copy the content of the github repo file `https://github.com/CitreaScan/frontend/blob/develop/.env.vm_citrea_testnet_dev` in `docker-compose-blockscout-citrea-testnet.frontend.env`
+
+1. Run shell script `update-blockscout.sh` with the parameter `frontend` or `backend`
+
+The docker compose file `docker-compose-blockscout-citrea-testnet.yml` is created. This is normally done by the github backend or frontend workflow.
+
+# Start Docker Containers
+
+1. Bitcoin Node and Citrea Node: `docker compose -f docker-compose-citrea-testnet4.yml up -d`
+1. Citrea Explorer Backend and Frontend: `docker compose -f docker-compose-blockscout-citrea-testnet.yml up -d`
+1. Nginx: `docker compose -f docker-compose-nginx.yml up -d`
+
+All docker containers are in the same network `citrea-testnet-network`.
