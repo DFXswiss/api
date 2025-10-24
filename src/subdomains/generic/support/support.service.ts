@@ -105,9 +105,8 @@ export class SupportService {
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserDataComplianceSearchTypePair> {
-    const userDataId = +key;
-    if (!isNaN(userDataId) && Config.formats.number.test(key)) {
-      const userData = await this.userDataService.getUserData(userDataId);
+    if (Config.formats.number.test(key)) {
+      const userData = await this.userDataService.getUserData(+key);
       if (userData) return { type: ComplianceSearchType.USER_DATA_ID, userData };
     }
 
