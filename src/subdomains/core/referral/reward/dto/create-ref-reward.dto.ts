@@ -28,5 +28,5 @@ export class CreateManualRefRewardDto extends CreateRefRewardDto {
   @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  linkedSourceTransaction: Transaction;
+  sourceTransaction: Transaction;
 }

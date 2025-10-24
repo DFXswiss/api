@@ -76,10 +76,10 @@ export class RefRewardService {
     const asset = await this.assetService.getAssetById(dto.asset.id);
     if (!asset) throw new NotFoundException('Asset not found');
 
-    const linkedTransaction = await this.transactionService.getTransactionById(dto.linkedSourceTransaction.id);
-    if (!linkedTransaction) throw new NotFoundException('Linked Transaction not found');
-    if (await this.rewardRepo.existsBy({ linkedSourceTransaction: { id: linkedTransaction.id } }))
-      throw new BadRequestException('Linked source transaction already used');
+    const sourceTransaction = await this.transactionService.getTransactionById(dto.sourceTransaction.id);
+    if (!sourceTransaction) throw new NotFoundException('Source Transaction not found');
+    if (await this.rewardRepo.existsBy({ sourceTransaction: { id: sourceTransaction.id } }))
+      throw new BadRequestException('Source transaction already used');
 
     const eurChfPrice = await this.pricingService.getPrice(
       PriceCurrency.EUR,

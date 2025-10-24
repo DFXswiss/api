@@ -38,7 +38,7 @@ export class RefReward extends Reward {
 
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
-  linkedSourceTransaction?: Transaction;
+  sourceTransaction?: Transaction;
 
   //*** FACTORY METHODS ***//
 
