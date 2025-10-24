@@ -1,22 +1,36 @@
 // --- PARAMETERS --- //
-param location string
+@description('Azure Location/Region')
+param location string = resourceGroup().location
+
+@description('Name of the company')
+param compName string
+
+@description('Deployment environment')
 param env string
+
+@description('Name of the resource group')
+param rg string
+
+@description('Name of the VM')
+param vm string
+
+@description('Profile of the VM hardware')
+param hardwareProfile string
+
+@description('Disk size in GB')
+param diskSizeGB int
 
 param vmUser string
 @secure()
 param vmPassword string
 
 // --- VARIABLES --- //
-var compName = 'dfx'
-var apiName = 'api'
-var nodeName = 'node'
+var pipName = 'ip-${compName}-${vm}-${env}'
+var vmName = 'vm-${compName}-${vm}-${env}'
+var vmDiskName = 'osdisk-${compName}-${vm}-${env}'
+var nicName = 'nic-${compName}-${vm}-${env}'
 
-var pipName = 'ip-${compName}-${nodeName}-${env}'
-var vmName = 'vm-${compName}-${nodeName}-${env}'
-var vmDiskName = 'osdisk-${compName}-${nodeName}-${env}'
-var nicName = 'nic-${compName}-${nodeName}-${env}'
-
-var vnetName = 'vnet-${compName}-${apiName}-${env}'
+var vnetName = 'vnet-${compName}-${rg}-${env}'
 
 // --- EXISTING RESOURCES --- //
 resource virtualNetworks 'Microsoft.Network/virtualNetworks@2024-07-01' existing = {
@@ -64,7 +78,7 @@ resource virtualMachines 'Microsoft.Compute/virtualMachines@2024-11-01' = {
   location: location
   properties: {
     hardwareProfile: {
-      vmSize: 'Standard_B4ms'
+      vmSize: hardwareProfile
     }
     storageProfile: {
       imageReference: {
@@ -80,7 +94,7 @@ resource virtualMachines 'Microsoft.Compute/virtualMachines@2024-11-01' = {
         managedDisk: {
           storageAccountType: 'Premium_LRS'
         }
-        diskSizeGB: 2048
+        diskSizeGB: diskSizeGB
       }
     }
     osProfile: {

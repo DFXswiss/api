@@ -1,0 +1,68 @@
+name: blockscout-citrea-testnet
+
+services:
+  postgres:
+    image: postgres:17
+    cpus: 1.0
+    shm_size: '4gb'
+    restart: unless-stopped
+    networks:
+      - shared
+    environment:
+      POSTGRES_PASSWORD: [POSTGRES_PASSWORD]
+      POSTGRES_USER: [POSTGRES_USER]
+      POSTGRES_DB: [POSTGRES_DB]
+    volumes:
+      - ./volumes/blockscout/citrea/testnet/postgres-data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blockscout"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    command:
+      postgres -c max_connections=200
+
+  backend:
+    image: dfxswiss/citrea-backend:beta
+    cpus: 0.5
+    restart: unless-stopped
+    networks:
+      - shared
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=[DATABASE_URL]
+
+      - ETHEREUM_JSONRPC_VARIANT=geth
+      - ETHEREUM_JSONRPC_HTTP_URL=http://citread:8085/
+
+      - NETWORK=Citrea
+      - SUBNETWORK=Testnet
+      - CHAIN_ID=5115
+
+[docker-compose-blockscout-citrea-testnet.backend.env]
+
+    ports:
+      - '4000:4000'
+    command: sh -c "bin/blockscout eval \"Elixir.Explorer.ReleaseTasks.create_and_migrate()\" && bin/blockscout start"
+
+  frontend:
+    image: dfxswiss/citrea-frontend:beta
+    restart: unless-stopped
+    networks:
+      - shared
+    depends_on:
+      - backend
+    environment:
+[docker-compose-blockscout-citrea-testnet.frontend.env]
+
+    ports:
+      - '3000:3000'
+
+networks:
+  shared:
+    external: true
+    name: citrea-testnet-network

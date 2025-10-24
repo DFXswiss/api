@@ -8,11 +8,11 @@ COMP_NAME="dfx"
 environmentOptions=("loc" "dev" "prd")
 
 # "api": DFX API resource group
-# "core": DFX core resource group
 resourceGroupOptions=("api" "core")
 
-# "node": Node VM
-vmNameOptions=("node")
+# "ctn": Citrea Testnet Node
+# "sln": Swiss Ledger Node
+vmNodeOptions=("ctn" "sln")
 
 # --- FUNCTIONS --- #
 selectOption() {
@@ -33,7 +33,7 @@ selectOption() {
 # --- MAIN --- #
 ENV=$(selectOption "Select Environment" "${environmentOptions[@]}")
 RG=$(selectOption "Select Resource Group" "${resourceGroupOptions[@]}")
-VM=$(selectOption "Select VM Name" "${vmNameOptions[@]}")
+VM=$(selectOption "Select VM Name" "${vmNodeOptions[@]}")
 
 ## Resource Group & Deployment
 RESOURCE_GROUP_NAME="rg-${COMP_NAME}-${RG}-${ENV}"
@@ -53,9 +53,8 @@ RESULT=$(az deployment group create \
     --parameters compName=$COMP_NAME \
     --parameters env=$ENV \
     --parameters rg=$RG \
-    --parameters vm=$VM \
     --parameters parameters/$ENV-$RG-$VM.json \
-    --query properties.outputs.result)
+    --query properties.outputs)
 
 ## Output Result
 echo "Deployment Result:"

@@ -9,7 +9,9 @@ API_NAME="api"
 environmentOptions=("loc" "dev" "prd")
 
 # "ctn": Citrea Testnet Node
-nodeNameOptions=("ctn")
+# "cteb": Citrea Testnet Explorer Backend
+# "ctef": Citrea Testnet Explorer Frontend
+nodeNameOptions=("ctn" "cteb" "ctef")
 
 # --- FUNCTIONS --- #
 selectOption() {
@@ -47,10 +49,10 @@ RESULT=$(az deployment group create \
     --parameters env=$ENV \
     --parameters node=$NODE \
     --parameters parameters/$ENV-$NODE.json \
-    --query properties.outputs.result)
+    --query properties.outputs)
 
 ## Output Result
 echo "Deployment Result:"
-echo $RESULT
+echo $RESULT | jq
 
 echo "...Deployment FINISHED!"
