@@ -107,6 +107,9 @@ export class Transaction extends IEntity {
   @OneToOne(() => RefReward, (refReward) => refReward.transaction, { nullable: true })
   refReward?: RefReward;
 
+  @OneToOne(() => RefReward, (refReward) => refReward.sourceTransaction, { nullable: true })
+  targetRefReward?: RefReward;
+
   @OneToOne(() => BankTx, (bankTx) => bankTx.transaction, { nullable: true })
   bankTx?: BankTx;
 
