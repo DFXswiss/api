@@ -117,8 +117,9 @@ export class TransactionNotificationService {
         const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
           entity.bankTx.senderAccount,
           undefined,
+          undefined,
           { userData: { wallet: true } },
-          false,
+          true,
         );
         if (!bankData) continue;
 
