@@ -298,14 +298,12 @@ export class KycService {
         const comment = errors.join(';');
 
         if (errors.includes(KycError.MISSING_QUESTION)) {
-          await this.kycStepRepo.update(entity.id, { status: ReviewStatus.IN_PROGRESS });
+          entity.inProgress();
           await this.kycNotificationService.kycStepMissingData(
             entity.userData,
             this.getMailStepName(entity.name, entity.userData.language.symbol),
           );
-        }
-
-        if (errors.length === 0 && !entity.isManual) {
+        } else if (errors.length === 0 && !entity.isManual) {
           entity.complete();
         } else {
           entity.manualReview(comment);
