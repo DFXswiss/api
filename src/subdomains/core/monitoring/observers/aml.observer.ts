@@ -42,24 +42,24 @@ export class AmlObserver extends MetricObserver<AmlData> {
   private async getAmlData(): Promise<AmlData> {
     return {
       buyCrypto: {
-        pending: await this.repos.buyCrypto.countBy({
+        pending: await this.repos.buyCrypto.countSimpleBy({
           amlCheck: CheckStatus.PENDING,
         }),
-        gs: await this.repos.buyCrypto.countBy({
+        gs: await this.repos.buyCrypto.countSimpleBy({
           amlCheck: CheckStatus.GSHEET,
         }),
-        withoutCheck: await this.repos.buyCrypto.countBy({
+        withoutCheck: await this.repos.buyCrypto.countSimpleBy({
           amlCheck: IsNull(),
         }),
       },
       buyFiat: {
-        pending: await this.repos.buyFiat.countBy({
+        pending: await this.repos.buyFiat.countSimpleBy({
           amlCheck: CheckStatus.PENDING,
         }),
-        gs: await this.repos.buyFiat.countBy({
+        gs: await this.repos.buyFiat.countSimpleBy({
           amlCheck: CheckStatus.GSHEET,
         }),
-        withoutCheck: await this.repos.buyFiat.countBy({
+        withoutCheck: await this.repos.buyFiat.countSimpleBy({
           amlCheck: IsNull(),
         }),
       },

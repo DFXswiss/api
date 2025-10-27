@@ -68,23 +68,23 @@ export class LiquidityObserver extends MetricObserver<LiquidityData> {
     const lastKrakenTx = await this.exchangeTxService.getLastExchangeTx(ExchangeName.KRAKEN);
 
     return {
-      stuckLiquidityOrderCount: await this.repos.liquidityOrder.countBy({
+      stuckLiquidityOrderCount: await this.repos.liquidityOrder.countSimpleBy({
         isComplete: false,
         updated: LessThan(Util.minutesBefore(60)),
       }),
-      stuckTradingOrderCount: await this.repos.tradingOrder.countBy({
+      stuckTradingOrderCount: await this.repos.tradingOrder.countSimpleBy({
         status: In([TradingOrderStatus.CREATED, TradingOrderStatus.IN_PROGRESS]),
         created: LessThan(Util.minutesBefore(15)),
       }),
-      stuckTradingRuleCount: await this.repos.tradingRule.countBy({
+      stuckTradingRuleCount: await this.repos.tradingRule.countSimpleBy({
         status: In([TradingRuleStatus.PAUSED, TradingRuleStatus.PROCESSING]),
         updated: LessThan(Util.minutesBefore(60)),
       }),
-      stuckLmOrderCount: await this.repos.lmOrder.countBy({
+      stuckLmOrderCount: await this.repos.lmOrder.countSimpleBy({
         status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
         created: LessThan(Util.minutesBefore(30)),
       }),
-      stuckLmRuleCount: await this.repos.lmRule.countBy({
+      stuckLmRuleCount: await this.repos.lmRule.countSimpleBy({
         status: In([LiquidityManagementRuleStatus.PAUSED, LiquidityManagementRuleStatus.PROCESSING]),
         updated: LessThan(Util.minutesBefore(60)),
       }),
