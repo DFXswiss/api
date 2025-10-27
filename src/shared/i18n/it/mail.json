@@ -286,6 +286,11 @@
                 "country_ip_country_mismatch": "Requisiti normativi non soddisfatti"
             }
         },
+        "missing_data": {
+            "title": "Dati mancanti durante la verifica",
+            "salutation": "Mancano dei dati nella verifica",
+            "message": "Al passo '{stepName}' mancano ancora i dati da aggiungere per completare la verifica.."
+        },
         "reminder": {
             "title": "Completa la tua verifica",
             "salutation": "Completa la tua verifica",

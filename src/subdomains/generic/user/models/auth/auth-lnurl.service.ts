@@ -16,6 +16,7 @@ import {
   AuthLnurlSignupDto,
   AuthLnurlStatusResponseDto,
 } from 'src/subdomains/generic/user/models/auth/dto/auth-lnurl.dto';
+import { WalletType } from '../user/user.enum';
 
 export interface AuthCacheDto {
   servicesIp: string;
@@ -85,7 +86,7 @@ export class AuthLnUrlService {
     const authCacheEntry = this.authCache.get(k1);
     const { servicesIp, servicesUrl } = authCacheEntry;
 
-    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address);
+    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address, WalletType.DFX_TARO);
 
     if (!ipLog.result) {
       this.authCache.delete(k1);
@@ -122,7 +123,7 @@ export class AuthLnUrlService {
   }
 
   async signIn(signupDto: AuthLnurlSignupDto, servicesIp: string, userIp: string): Promise<string> {
-    const session = { address: signupDto.address, signature: signupDto.signature };
+    const session = { address: signupDto.address, signature: signupDto.signature, walletType: WalletType.DFX_TARO };
 
     const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
       if (e instanceof NotFoundException)

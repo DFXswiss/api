@@ -2,10 +2,13 @@ import { InsufficientFunds } from 'ccxt';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
-import { ExchangeService } from 'src/integration/exchange/services/exchange.service';
+import { ExchangeService, OrderSide } from 'src/integration/exchange/services/exchange.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
@@ -37,6 +40,8 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     private readonly exchangeRegistry: ExchangeRegistryService,
     private readonly dexService: DexService,
     private readonly orderRepo: LiquidityManagementOrderRepository,
+    private readonly pricingService: PricingService,
+    private readonly assetService: AssetService,
   ) {
     super(system);
 
@@ -119,24 +124,27 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const { asset, tradeAsset, minTradeAmount, fullTrade } = this.parseBuyParams(order.action.paramMap);
 
-    const token = asset ?? order.pipeline.rule.targetAsset.dexName;
+    const targetAssetEntity = asset
+      ? await this.assetService.getAssetByUniqueName(asset)
+      : order.pipeline.rule.targetAsset;
+    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`${this.exchangeService.name}/${tradeAsset}`);
 
-    const balance = fullTrade ? 0 : await this.exchangeService.getAvailableBalance(token);
+    const balance = fullTrade ? 0 : await this.exchangeService.getAvailableBalance(targetAssetEntity.name);
     const minAmount = order.minAmount * 1.01 - balance; // small cap for price changes
     const maxAmount = order.maxAmount * 1.01 - balance;
     if (maxAmount <= 0) {
       // trade not necessary
       throw new OrderNotNecessaryException(
-        `${token} balance higher than required amount (${balance} > ${order.maxAmount})`,
+        `${targetAssetEntity.name} balance higher than required amount (${balance} > ${order.maxAmount})`,
       );
     }
 
-    const price = await this.exchangeService.getCurrentPrice(tradeAsset, token);
+    const price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity);
 
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
     const maxSellAmount = Util.floor(maxAmount * price, 6);
 
-    const availableBalance = await this.exchangeService.getAvailableBalance(tradeAsset);
+    const availableBalance = await this.getAvailableTradeBalance(tradeAsset, targetAssetEntity.name);
     if (minSellAmount > availableBalance)
       throw new OrderNotProcessableException(
         `${this.exchangeService.name}: not enough balance for ${tradeAsset} (balance: ${availableBalance}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
@@ -146,17 +154,19 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     order.inputAmount = amount;
     order.inputAsset = tradeAsset;
-    order.outputAsset = token;
+    order.outputAsset = targetAssetEntity.name;
 
     try {
-      return await this.exchangeService.sell(tradeAsset, token, amount);
+      return await this.exchangeService.sell(tradeAsset, targetAssetEntity.name, amount);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
 
       if (e.message?.includes('Illegal characters found')) {
-        throw new Error(`Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${token}: ${e.message}`);
+        throw new Error(
+          `Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${targetAssetEntity.name}: ${e.message}`,
+        );
       }
 
       throw e;
@@ -168,7 +178,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    const availableBalance = await this.exchangeService.getAvailableBalance(asset);
+    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`${this.exchangeService.name}/${tradeAsset}`);
+    await this.getAndCheckTradePrice(order.pipeline.rule.targetAsset, tradeAssetEntity);
+
+    const availableBalance = await this.getAvailableTradeBalance(asset, tradeAsset);
     if (order.minAmount > availableBalance)
       throw new OrderNotProcessableException(
         `${this.exchangeService.name}: not enough balance for ${tradeAsset} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
@@ -193,6 +206,27 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
       throw e;
     }
+  }
+
+  private async getAndCheckTradePrice(from: Asset, to: Asset): Promise<number> {
+    const price = await this.exchangeService.getCurrentPrice(from.name, to.name);
+
+    // price fetch should already throw error if out of range
+    const checkPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
+
+    if (Math.abs((price - checkPrice.price) / checkPrice.price) > 0.05)
+      throw new OrderFailedException(
+        `Trade price out of range: exchange price ${price}, check price ${checkPrice.price}`,
+      );
+
+    return price;
+  }
+
+  private async getAvailableTradeBalance(from: string, to: string): Promise<number> {
+    const availableBalance = await this.exchangeService.getAvailableBalance(from);
+
+    const { direction } = await this.exchangeService.getTradePair(from, to);
+    return direction === OrderSide.BUY ? availableBalance * 0.99 : availableBalance;
   }
 
   private async transfer(order: LiquidityManagementOrder): Promise<CorrelationId> {

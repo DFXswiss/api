@@ -13,13 +13,45 @@ import { Config } from 'src/config/config';
 import { EvmClient } from '../shared/evm/evm-client';
 import { DEuroDepsGraphDto, DEuroPositionGraphDto, DEuroSavingsInfoDto } from './dto/deuro.dto';
 
+interface GraphQLPageInfo {
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  startCursor: string;
+  endCursor: string;
+}
+
 export class DEuroClient {
   constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV2s(): Promise<DEuroPositionGraphDto[]> {
-    const document = gql`
-      {
-        positionV2s {
+    let gqlResult = await request<{ positionV2s: { items: [DEuroPositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
+      Config.blockchain.deuro.graphUrl,
+      gql`
+        ${this.createGQLPositionV2s()}
+      `,
+    );
+
+    const positionV2s: DEuroPositionGraphDto[] = gqlResult.positionV2s.items;
+
+    while (gqlResult.positionV2s.pageInfo.hasNextPage) {
+      gqlResult = await request<{ positionV2s: { items: [DEuroPositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
+        Config.blockchain.deuro.graphUrl,
+        gql`
+          ${this.createGQLPositionV2s(gqlResult.positionV2s.pageInfo.endCursor)}
+        `,
+      );
+
+      positionV2s.push(...gqlResult.positionV2s.items);
+    }
+
+    return positionV2s;
+  }
+
+  private createGQLPositionV2s(after?: string): string {
+    const gqlParams = after ? `(after: "${after}")` : '';
+
+    return `{
+        positionV2s${gqlParams} {
           items {
             id
             position
@@ -38,14 +70,14 @@ export class DEuroClient {
             closed
             denied
           }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
         }
-      }
-    `;
-
-    return request<{ positionV2s: { items: [DEuroPositionGraphDto] } }>(
-      Config.blockchain.deuro.graphUrl,
-      document,
-    ).then((r) => r.positionV2s.items);
+      }`;
   }
 
   async getSavingsInfo(): Promise<DEuroSavingsInfoDto> {
@@ -105,6 +137,7 @@ export class DEuroClient {
       this.getBridgeEUROPContract(),
       this.getBridgeEURIContract(),
       this.getBridgeEUREContract(),
+      this.getBridgeEURAContract(),
     ];
   }
 
@@ -138,5 +171,9 @@ export class DEuroClient {
 
   getBridgeEUREContract(): Contract {
     return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURE, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  getBridgeEURAContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURA, StablecoinBridgeABI, this.evmClient.wallet);
   }
 }

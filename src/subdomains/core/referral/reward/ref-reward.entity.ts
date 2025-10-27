@@ -36,6 +36,10 @@ export class RefReward extends Reward {
   @JoinColumn()
   transaction?: Transaction;
 
+  @OneToOne(() => Transaction, { nullable: true })
+  @JoinColumn()
+  sourceTransaction?: Transaction;
+
   //*** FACTORY METHODS ***//
 
   readyToPayout(outputAmount: number): UpdateResult<RefReward> {

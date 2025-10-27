@@ -9,7 +9,8 @@ import { AccountMergeService } from 'src/subdomains/generic/user/models/account-
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';

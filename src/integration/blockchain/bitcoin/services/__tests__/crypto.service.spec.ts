@@ -11,7 +11,7 @@ import { ZanoService } from 'src/integration/blockchain/zano/services/zano.servi
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BitcoinService } from '../../node/bitcoin.service';
 
 describe('CryptoService', () => {

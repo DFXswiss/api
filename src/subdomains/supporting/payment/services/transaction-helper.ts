@@ -382,12 +382,15 @@ export class TransactionHelper implements OnModuleInit {
       excluded instanceof BuyCrypto ? excluded.id : undefined,
       type,
     );
-    const buyFiatVolume = await this.buyFiatService.getUserVolume(
-      users.map((u) => u.id),
-      dateFrom,
-      dateTo,
-      excluded instanceof BuyFiat ? excluded.id : undefined,
-    );
+    const buyFiatVolume =
+      !type || type === 'cryptoInput'
+        ? await this.buyFiatService.getUserVolume(
+            users.map((u) => u.id),
+            dateFrom,
+            dateTo,
+            excluded instanceof BuyFiat ? excluded.id : undefined,
+          )
+        : 0;
 
     return buyCryptoVolume + buyFiatVolume;
   }

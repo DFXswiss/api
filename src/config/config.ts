@@ -177,6 +177,10 @@ export class Configuration {
     key: new RegExp(`^(${this.allKeyFormat})$`),
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
+    kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+    phone: /^\+\d+$/,
+    accountServiceRef: /^[A-Z]{2}\d{8}\/\d+\/\d+$/,
+    number: /^\d+$/,
   };
 
   database: TypeOrmModuleOptions = {
@@ -620,6 +624,27 @@ export class Configuration {
           return this.payment.defaultQuoteTimeout;
       }
     },
+
+    standards: [
+      {
+        id: PaymentStandard.OPEN_CRYPTO_PAY,
+        label: 'OpenCryptoPay.io',
+        description: 'Pay with OpenCryptoPay, Bitcoin Lightning LNURL',
+        paymentIdentifierLabel: 'URL',
+      },
+      {
+        id: PaymentStandard.LIGHTNING_BOLT11,
+        label: 'Bitcoin Lightning',
+        description: 'Pay with a Bolt 11 Invoice',
+        paymentIdentifierLabel: 'LNR',
+      },
+      {
+        id: PaymentStandard.PAY_TO_ADDRESS,
+        label: '{{blockchain}} address',
+        description: 'Pay to a {{blockchain}} Blockchain address',
+        paymentIdentifierLabel: 'URI',
+      },
+    ],
   };
 
   blockchain = {

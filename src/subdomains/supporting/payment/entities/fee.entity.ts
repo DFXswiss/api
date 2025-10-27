@@ -17,7 +17,10 @@ export enum FeeType {
   RELATIVE_DISCOUNT = 'RelativeDiscount', // Single use only, relative discount
   PARTNER = 'Partner', // Single use only, additive partner fee
   ADDITION = 'Addition', // Multiple use possible, additive fee
-  CHARGEBACK = 'Chargeback', // Multiple use possible, additive fee
+  CHARGEBACK_BASE = 'ChargebackBase', // Single use only, absolute base fee
+  CHARGEBACK_SPECIAL = 'ChargebackSpecial', // Single use only, highest prio applies to all
+  CHARGEBACK_CUSTOM = 'ChargebackCustom', // Single use only, second highest prio
+  CHARGEBACK_ADDITION = 'ChargebackAddition', // Multiple use possible, additive fee
   CHARGEBACK_BANK = 'ChargebackBank', // Bank fee for chargebacks, multiple use possible, additive fee
   BANK = 'Bank', // Multiple use possible, additive fee
 }

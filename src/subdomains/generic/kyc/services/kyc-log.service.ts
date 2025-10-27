@@ -58,7 +58,7 @@ export class KycLogService {
   }
 
   async createLogInternal(userData: UserData, type: KycLogType, result: string): Promise<void> {
-    const entity = this.kycLogRepo.create({ type, result, userData });
+    const entity = this.kycLogRepo.create({ type, result, userData: { id: userData.id } });
 
     await this.kycLogRepo.save(entity);
   }

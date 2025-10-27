@@ -124,6 +124,20 @@ Authorization: Bearer {{authToken}}
 GET {{url}}/v1/exchange/trade/xxx
 Authorization: Bearer {{authToken}}
 
+
+###
+
+POST {{url}}/v1/exchange/binance/withdraw
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "address": "xxx",
+  "key": "xxx",
+  "network": "Ethereum",
+  "token": "ETH",
+  "amount": 0.1
+}
 ###
 
 PUT {{url}}/v1/exchange/kraken/sync?from=2025-08-26
@@ -278,6 +292,18 @@ Authorization: Bearer {{authToken}}
 
 POST {{url}}/v1/kyc/admin/ident/file/sync?step=xxx
 Authorization: Bearer {{authToken}}
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+PUT {{url}}/v1/kyc/admin/blacklist/ip
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "ip": "xxx"
+}
 
 ###
 

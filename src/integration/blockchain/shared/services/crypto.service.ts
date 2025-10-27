@@ -9,7 +9,7 @@ import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';

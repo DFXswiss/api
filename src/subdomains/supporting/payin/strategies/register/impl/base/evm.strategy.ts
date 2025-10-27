@@ -2,16 +2,15 @@ import { Inject, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { Util } from 'src/shared/utils/util';
+import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Like } from 'typeorm';
 import { RegisterStrategy } from './register.strategy';
 
 export abstract class EvmStrategy extends RegisterStrategy implements OnModuleInit {
   private evmPaymentDepositAddress: string;
 
-  @Inject() private readonly repos: RepositoryFactory;
+  @Inject() private readonly depositService: DepositService;
 
   onModuleInit() {
     super.onModuleInit();
@@ -21,12 +20,9 @@ export abstract class EvmStrategy extends RegisterStrategy implements OnModuleIn
 
   // --- HELPER METHODS --- //
   protected async getPayInAddresses(): Promise<string[]> {
-    const routes = await this.repos.depositRoute.find({
-      where: { deposit: { blockchains: Like(`%${this.blockchain}%`) } },
-      relations: { deposit: true },
-    });
+    const deposits = await this.depositService.getUsedDepositsByBlockchain(this.blockchain);
 
-    const addresses = routes.map((dr) => dr.deposit.address);
+    const addresses = deposits.map((dr) => dr.address);
     addresses.push(this.evmPaymentDepositAddress);
 
     return addresses;

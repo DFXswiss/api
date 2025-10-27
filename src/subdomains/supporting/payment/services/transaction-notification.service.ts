@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { In, IsNull } from 'typeorm';
+import { In, IsNull, MoreThan } from 'typeorm';
 import { BankTxIndicator, BankTxUnassignedTypes } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
@@ -106,6 +106,7 @@ export class TransactionNotificationService {
       where: {
         bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: BankTxIndicator.CREDIT },
         mailSendDate: IsNull(),
+        created: MoreThan(Util.daysBefore(7)),
       },
       relations: { bankTx: true },
     });

@@ -13,10 +13,10 @@ import { Util } from 'src/shared/utils/util';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInZanoService } from '../../../services/payin-zano.service';
-import { RegisterStrategy } from './base/register.strategy';
+import { PollingStrategy } from './base/polling.strategy';
 
 @Injectable()
-export class ZanoStrategy extends RegisterStrategy {
+export class ZanoStrategy extends PollingStrategy {
   protected logger: DfxLogger = new DfxLogger(ZanoStrategy);
 
   constructor(private readonly payInZanoService: PayInZanoService) {
@@ -28,15 +28,17 @@ export class ZanoStrategy extends RegisterStrategy {
   }
 
   //*** JOBS ***//
-
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_SECOND, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
-    await this.processNewPayInEntries();
+    return super.checkPayInEntries();
   }
 
   //*** HELPER METHODS ***//
+  protected async getBlockHeight(): Promise<number> {
+    return this.payInZanoService.getBlockHeight();
+  }
 
-  private async processNewPayInEntries(): Promise<void> {
+  protected async processNewPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
 
     const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();

@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext } from '@nestjs/common';
 import { RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 
 class UserActiveGuardClass implements CanActivate {
   constructor(

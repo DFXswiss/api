@@ -131,7 +131,7 @@ export class KycService {
         status: ReviewStatus.IN_PROGRESS,
         created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays - 1)),
       },
-      relations: { userData: true },
+      relations: { userData: { wallet: true } },
     });
 
     for (const identStep of expiredIdentSteps) {
@@ -155,6 +155,7 @@ export class KycService {
   async reviewKycSteps(): Promise<void> {
     await this.reviewNationalityStep();
     await this.reviewIdentSteps();
+    await this.reviewFinancialData();
   }
 
   async reviewNationalityStep(): Promise<void> {
@@ -205,7 +206,7 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: { users: true } },
+      relations: { userData: { users: true, wallet: true } },
     });
 
     for (const entity of entities) {
@@ -276,6 +277,44 @@ export class KycService {
         }
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
+      }
+    }
+  }
+
+  async reviewFinancialData(): Promise<void> {
+    if (DisabledProcess(Process.KYC_FINANCIAL_REVIEW)) return;
+
+    const entities = await this.kycStepRepo.find({
+      where: {
+        name: KycStepName.FINANCIAL_DATA,
+        status: ReviewStatus.INTERNAL_REVIEW,
+      },
+      relations: { userData: { wallet: true } },
+    });
+
+    for (const entity of entities) {
+      try {
+        const errors = this.getFinancialDataErrors(entity);
+        const comment = errors.join(';');
+
+        if (errors.includes(KycError.MISSING_RESPONSE)) {
+          entity.inProgress();
+          await this.kycNotificationService.kycStepMissingData(
+            entity.userData,
+            this.getMailStepName(entity.name, entity.userData.language.symbol),
+          );
+        } else if (errors.length === 0 && !entity.isManual) {
+          entity.complete();
+        } else {
+          entity.manualReview(comment);
+        }
+
+        await this.createStepLog(entity.userData, entity);
+        await this.kycStepRepo.save(entity);
+
+        if (entity.isCompleted) await this.checkDfxApproval(entity);
+      } catch (e) {
+        this.logger.error(`Failed to auto review financialData step ${entity.id}:`, e);
       }
     }
   }
@@ -578,7 +617,7 @@ export class KycService {
 
     await this.kycStepRepo.update(...kycStep.update(undefined, data.responses));
 
-    const complete = this.financialService.isComplete(data.responses, user.accountType);
+    const complete = FinancialService.isComplete(data.responses, user.accountType);
     if (complete) {
       await this.kycStepRepo.update(...kycStep.internalReview());
       await this.createStepLog(user, kycStep);
@@ -947,6 +986,7 @@ export class KycService {
       case KycStepName.AUTHORITY:
       case KycStepName.FINANCIAL_DATA:
       case KycStepName.ADDITIONAL_DOCUMENTS:
+      case KycStepName.RECALL_AGREEMENT:
       case KycStepName.RESIDENCE_PERMIT:
       case KycStepName.STATUTES:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
@@ -1190,6 +1230,18 @@ export class KycService {
   private getNationalityErrors(entity: KycStep, nationality: Country): KycError[] {
     const errors = this.getStepDefaultErrors(entity);
     if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
+
+    return errors;
+  }
+
+  private getFinancialDataErrors(entity: KycStep): KycError[] {
+    const errors = this.getStepDefaultErrors(entity);
+    const financialStepResult = entity.getResult<KycFinancialResponse[]>();
+
+    if (!FinancialService.isComplete(financialStepResult, entity.userData.accountType))
+      errors.push(KycError.MISSING_RESPONSE);
+    if (!financialStepResult.some((f) => f.key === 'risky_business' && f.value.includes('no')))
+      errors.push(KycError.RISKY_BUSINESS);
 
     return errors;
   }
