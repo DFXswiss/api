@@ -12,7 +12,7 @@ export abstract class BaseRepository<T> extends Repository<T> {
     });
   }
 
-  async countSimpleBy(where: FindOptionsWhere<T> | FindOptionsWhere<T>[]): Promise<number> {
+  async countBy(where: FindOptionsWhere<T> | FindOptionsWhere<T>[]): Promise<number> {
     return this.count({ where, loadEagerRelations: false });
   }
 }

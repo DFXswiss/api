@@ -59,8 +59,8 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     return {
       lastOutputDates: await this.getLastOutputDates(),
       incomplete: await this.getIncompleteTransactions(),
-      bankTxWithoutType: await this.repos.bankTx.countSimpleBy({ type: IsNull() }),
-      bankTxGsType: await this.repos.bankTx.countSimpleBy({ type: BankTxType.GSHEET }),
+      bankTxWithoutType: await this.repos.bankTx.countBy({ type: IsNull() }),
+      bankTxGsType: await this.repos.bankTx.countBy({ type: BankTxType.GSHEET }),
       freeDeposit: await this.repos.deposit
         .createQueryBuilder('deposit')
         .select('deposit.blockchains, COUNT(deposit.blockchains) as count')
@@ -77,7 +77,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         buyCrypto: { id: IsNull() },
         buyFiat: { id: IsNull() },
       }),
-      unconfirmedCryptoInputs: await this.repos.payIn.countSimpleBy({
+      unconfirmedCryptoInputs: await this.repos.payIn.countBy({
         status: Not(
           In([
             PayInStatus.RETURN_CONFIRMED,
@@ -90,8 +90,8 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         action: In([PayInAction.FORWARD, PayInAction.RETURN]),
         created: LessThan(Util.hoursBefore(1)),
       }),
-      refRewardManualCheck: await this.repos.refReward.countSimpleBy({ status: RewardStatus.MANUAL_CHECK }),
-      stuckPayments: await this.repos.paymentQuote.countSimpleBy({
+      refRewardManualCheck: await this.repos.refReward.countBy({ status: RewardStatus.MANUAL_CHECK }),
+      stuckPayments: await this.repos.paymentQuote.countBy({
         status: Not(
           In([
             PaymentQuoteStatus.CANCELLED,
@@ -107,11 +107,11 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
 
   private async getIncompleteTransactions(): Promise<IncompleteTransactions> {
     return {
-      buyCrypto: await this.repos.buyCrypto.countSimpleBy({
+      buyCrypto: await this.repos.buyCrypto.countBy({
         mailSendDate: IsNull(),
         amlCheck: Not(CheckStatus.FAIL),
       }),
-      buyFiat: await this.repos.buyFiat.countSimpleBy({
+      buyFiat: await this.repos.buyFiat.countBy({
         mail3SendDate: IsNull(),
         amlCheck: Not(CheckStatus.FAIL),
       }),

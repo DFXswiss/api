@@ -455,7 +455,7 @@ export class UserService {
     query: RefInfoQuery,
   ): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     // get ref users
-    const refUserCount = await this.userRepo.countSimpleBy({
+    const refUserCount = await this.userRepo.countBy({
       created: Between(query.from, query.to),
       status: UserStatus.ACTIVE,
       ...(query.refCode ? { usedRef: query.refCode } : {}),
@@ -463,7 +463,7 @@ export class UserService {
     });
 
     // get passive ref users
-    const passiveRefUserCount = await this.userRepo.countSimpleBy({
+    const passiveRefUserCount = await this.userRepo.countBy({
       created: Between(query.from, query.to),
       status: UserStatus.NA,
       ...(query.refCode ? { usedRef: query.refCode } : {}),
@@ -619,8 +619,8 @@ export class UserService {
   private async getRefUserCounts(user: User): Promise<{ refCount: number; refCountActive: number }> {
     return user.ref
       ? {
-          refCount: await this.userRepo.countSimpleBy({ usedRef: user.ref }),
-          refCountActive: await this.userRepo.countSimpleBy({ usedRef: user.ref, status: UserStatus.ACTIVE }),
+          refCount: await this.userRepo.countBy({ usedRef: user.ref }),
+          refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: UserStatus.ACTIVE }),
         }
       : { refCount: 0, refCountActive: 0 };
   }

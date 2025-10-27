@@ -42,6 +42,6 @@ export class UserObserver extends MetricObserver<UserData> {
   }
 
   private async getUserWithout(): Promise<UserWithout> {
-    return { ipCountry: await this.repos.user.countSimpleBy({ ipCountry: IsNull() }) };
+    return { ipCountry: await this.repos.user.countBy({ ipCountry: IsNull() }) };
   }
 }
