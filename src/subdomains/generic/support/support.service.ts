@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
@@ -50,6 +50,8 @@ export class SupportService {
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
     const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
+    if (!userData) throw new NotFoundException(`User not found`);
+
     const kycFiles = await this.kycFileService.getUserDataKycFiles(id);
 
     return { userData, kycFiles };

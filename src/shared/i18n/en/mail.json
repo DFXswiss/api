@@ -286,6 +286,11 @@
                 "country_ip_country_mismatch": "Regulatory requirements not met"
             }
         },
+        "missing_data": {
+            "title": "Missing data during verification",
+            "salutation": "There is missing data in your verification",
+            "message": "The step '{stepName}' is still missing data that you need to add to complete your verification."
+        },
         "reminder": {
             "title": "Complete verification",
             "salutation": "Complete your verification",

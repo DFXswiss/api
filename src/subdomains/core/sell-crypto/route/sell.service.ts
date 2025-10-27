@@ -257,10 +257,6 @@ export class SellService {
     return this.sellRepo.save({ ...sell, ...dto });
   }
 
-  async count(): Promise<number> {
-    return this.sellRepo.count();
-  }
-
   // --- VOLUMES --- //
   @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {

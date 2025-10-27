@@ -520,7 +520,7 @@ export class UserService {
   }
 
   async activateUser(user: User, userData: UserData): Promise<void> {
-    await this.userRepo.update(...user.activateUser());
+    if (!user.isBlockedOrDeleted) await this.userRepo.update(...user.activateUser());
     await this.userDataRepo.activateUserData(userData);
   }
 

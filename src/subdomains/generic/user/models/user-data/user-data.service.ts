@@ -1038,6 +1038,8 @@ export class UserDataService {
       await this.userDataRepo.activateUserData(master);
 
       for (const user of master.users) {
+        if (user.isBlockedOrDeleted) continue;
+
         await this.userRepo.update(...user.activateUser());
         await this.userRepo.setUserRef(user, master.kycLevel);
       }
