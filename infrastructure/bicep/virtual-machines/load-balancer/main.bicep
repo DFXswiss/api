@@ -11,6 +11,9 @@ param env string
 @description('Name of the resource group')
 param rg string
 
+@description('Name of the VM')
+param vm string
+
 @description('Private IP address of the subnet')
 param privateIPAddress string
 
@@ -23,17 +26,15 @@ param probeName string = ''
 param probePort int = -1
 
 // --- VARIABLES --- //
-var vm = 'vm'
-
 var virtualNetworkName = 'vnet-${compName}-${rg}-${env}'
-var subnetName = 'snet-${compName}-${rg}-${vm}-${env}'
+var subnetName = 'snet-${compName}-${rg}-vm-${env}'
 
-var loadBalancerName = 'lbi-${compName}-${rg}-${env}'
-var frontendIPConfigurationName = 'feic-${compName}-${rg}-${env}'
-var backendAddressPoolName = 'bep-${compName}-${vm}-${env}'
-var loadBalancingRuleName = 'lbr-${compName}-${vm}-${env}'
+var loadBalancerName = 'lbi-${compName}-${vm}-${env}'
+var frontendIPConfigurationName = 'feic-${compName}-${vm}-${env}'
+var backendAddressPoolName = 'bep-${compName}-vm-${env}'
+var loadBalancingRuleName = 'lbr-${compName}-vm-${env}'
 
-var privateLinkServiceName = 'pls-${compName}-${rg}-${env}'
+var privateLinkServiceName = 'pls-${compName}-${vm}-${env}'
 var autoApprovalSubscriptions array = []
 var visibilitySubscriptions array = []
 

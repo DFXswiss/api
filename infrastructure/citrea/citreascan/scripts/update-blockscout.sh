@@ -17,7 +17,4 @@ cd /home/dfx
 
 docker compose -f ${composefile} down ${service}
 docker compose -f ${composefile} pull ${service}
-
-./update/replace-docker-compose-blockscout.sh
-
 docker compose -f ${composefile} up -d ${service}

@@ -53,6 +53,7 @@ RESULT=$(az deployment group create \
     --parameters compName=$COMP_NAME \
     --parameters env=$ENV \
     --parameters rg=$RG \
+    --parameters vm=$VM \
     --parameters parameters/$ENV-$RG-$VM.json \
     --query properties.outputs)
 
