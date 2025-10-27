@@ -446,6 +446,8 @@ export class FeeService {
         fixed: specialFee.fixed ?? 0,
         bankRate: 0,
         bankFixed: 0,
+        partnerRate: 0,
+        partnerFixed: 0,
         network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
 
@@ -462,6 +464,8 @@ export class FeeService {
         fixed: customFee.fixed ?? 0,
         bankRate: 0,
         bankFixed: 0,
+        partnerRate: 0,
+        partnerFixed: 0,
         network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
 
