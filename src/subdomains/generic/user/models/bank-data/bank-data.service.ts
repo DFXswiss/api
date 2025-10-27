@@ -175,17 +175,17 @@ export class BankDataService {
   }
 
   async replaceBankDataWithNewType(oldBankData: BankData, newDto: CreateBankDataDto): Promise<BankData> {
-    const approvalStateBefore = newDto.type === BankDataType.BANK_IN ? oldBankData.approved : false;
-    const statusBefore = newDto.type === BankDataType.BANK_IN ? oldBankData.status : ReviewStatus.FAILED;
+    if (oldBankData.approved && newDto.type === BankDataType.BANK_IN) {
+      newDto.approved = oldBankData.approved;
+      newDto.status = oldBankData.status;
 
-    if (oldBankData.approved && newDto.type === BankDataType.BANK_IN)
       await this.bankDataRepo.update(oldBankData.id, { approved: false, status: ReviewStatus.FAILED });
+    } else {
+      newDto.approved = false;
+      newDto.status = ReviewStatus.FAILED;
+    }
 
-    return this.createBankDataInternal(oldBankData.userData, {
-      ...newDto,
-      approved: approvalStateBefore,
-      status: statusBefore,
-    });
+    return this.createBankDataInternal(oldBankData.userData, newDto);
   }
 
   async createVerifyBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
