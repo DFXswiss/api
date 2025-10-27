@@ -286,6 +286,11 @@
                 "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt"
             }
         },
+        "missing_data": {
+            "title": "Fehlende Daten bei Verifizierung",
+            "salutation": "Es fehlen noch Daten bei deiner Verifizierung",
+            "message": "Bei dem Schritt '{stepName}' fehlen noch Daten, die du noch ergänzen musst, um deine Verifizierung abzuschließen"
+        },
         "reminder": {
             "title": "Vervollständige Verifizierung",
             "salutation": "Vervollständige deine Verifizierung",

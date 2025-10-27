@@ -28,6 +28,10 @@ export enum KycError {
   BLOCKED = 'Blocked',
   RELEASED = 'Released',
 
+  // FinancialData errors
+  MISSING_RESPONSE = 'MissingResponse',
+  RISKY_BUSINESS = 'RiskyBusiness',
+
   // NationalityData errors
   NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
 
@@ -65,6 +69,8 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.USER_DATA_DEACTIVATED]: 'Account deactivated',
   [KycError.IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
   [KycError.COUNTRY_IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
+  [KycError.MISSING_RESPONSE]: 'Missing data',
+  [KycError.RISKY_BUSINESS]: 'Your business is involved in risky business',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

@@ -286,6 +286,11 @@
                 "country_ip_country_mismatch": "No se cumplen los requisitos reglamentarios"
             }
         },
+        "missing_data": {
+            "title": "Falta de datos durante la verificación",
+            "salutation": "Faltan datos en su verificación",
+            "message": "Al paso '{stepName}' aún le faltan datos que debe añadir para completar su verificación."
+        },
         "reminder": {
             "title": "Completa tu verificación",
             "salutation": "Completa tu verificación",
