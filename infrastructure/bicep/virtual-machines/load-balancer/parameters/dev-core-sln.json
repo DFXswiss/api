@@ -2,20 +2,23 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
+        "vmName": {
+            "value": "node"
+        },
         "privateIPAddress": {
             "value": "10.1.1.4"
         },
         "frontendPort": {
-            "value": 8545
+            "value": 80
         },
         "backendPort": {
-            "value": 8545
+            "value": 80
         },
         "probeName": {
-            "value": "check_8545"
+            "value": "check_80"
         },
         "probePort": {
-            "value": 8545
+            "value": 80
         }
     }
 }

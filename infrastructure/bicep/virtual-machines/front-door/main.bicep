@@ -2,11 +2,11 @@
 @description('Deployment environment')
 param env string
 
-@description('Short name of the VM')
-param vmName string
-
 @description('Short name of the Node')
 param node string
+
+@description('Short name of the VM')
+param vmName string
 
 @description('Port of the Node')
 param nodePort int
@@ -19,7 +19,7 @@ var frontDoorName = 'afd-${compName}-${apiName}-${env}'
 var publicIpName = 'ip-${compName}-${vmName}-${env}'
 
 var endpointName = 'fde-${compName}-${node}-${env}'
-var originGroupName = 'fdog-${compName}-${node}-${env}'
+var originGroupName = 'fdog-${compName}-${vmName}-${env}'
 var originName = 'fdon-${compName}-${node}-${env}'
 var routeName = 'fdor-${compName}-${node}-${env}'
 
