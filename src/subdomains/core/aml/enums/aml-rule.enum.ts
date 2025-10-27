@@ -1,4 +1,5 @@
 export enum AmlRule {
+  SKIP_AML_CHECK = -1, // skip amlCheck only possible in dev or loc env
   DEFAULT = 0, // default
   RULE_1 = 1, // IP Check
   RULE_2 = 2, // KycLevel 30
@@ -11,6 +12,9 @@ export enum AmlRule {
   RULE_9 = 9, // Checkout Active User & KycLevel 30
   RULE_10 = 10, // Checkout Active User & KycLevel 50
   RULE_11 = 11, // Special IP countries without Kyc
+  RULE_12 = 12, // Checkout BankTransactionVerificationDate & KycLevel 30
+  RULE_13 = 13, // Checkout BankTransactionVerificationDate & KycLevel 50
+  RULE_14 = 14, // No phoneCallCheck
 }
 
 export const SpecialIpCountries = ['CH'];

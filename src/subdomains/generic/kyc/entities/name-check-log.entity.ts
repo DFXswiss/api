@@ -2,7 +2,7 @@ import { ChildEntity, Column, ManyToOne } from 'typeorm';
 import { BankData } from '../../user/models/bank-data/bank-data.entity';
 import { KycLog } from './kyc-log.entity';
 
-export enum RiskStatus {
+export enum NameCheckRiskStatus {
   SANCTIONED = 'Sanctioned',
   MATCH_WITHOUT_BIRTHDAY = 'MatchWithoutBirthday',
   NOT_SANCTIONED = 'NotSanctioned',
@@ -18,7 +18,7 @@ export enum RiskEvaluation {
 @ChildEntity()
 export class NameCheckLog extends KycLog {
   @Column({ length: 256 })
-  riskStatus: RiskStatus;
+  riskStatus: NameCheckRiskStatus;
 
   @Column({ length: 256, nullable: true })
   riskEvaluation?: RiskEvaluation;

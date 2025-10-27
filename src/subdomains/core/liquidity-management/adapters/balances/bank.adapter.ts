@@ -40,8 +40,8 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     return balances.reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  async getNumberOfPendingOrders(_asset: Asset): Promise<number> {
-    return 0;
+  async hasPendingOrders(_asset: Asset): Promise<boolean> {
+    return false;
   }
 
   // --- HELPER METHODS --- //
@@ -78,10 +78,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
             const bankTxBatch = await this.bankTxBatchService.getBankTxBatchByIban(bank.iban);
             if (!bankTxBatch) break;
 
-            const balance =
-              bankTxBatch.balanceAfterCdi === 'CRDT' ? bankTxBatch.balanceAfterAmount : -bankTxBatch.balanceAfterAmount;
-
-            balances.push(LiquidityBalance.create(asset, balance));
+            balances.push(LiquidityBalance.create(asset, bankTxBatch.bankBalanceAfter));
           }
 
           break;

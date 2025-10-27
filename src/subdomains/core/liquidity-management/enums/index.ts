@@ -2,12 +2,13 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 
-export type LiquidityManagementContext = Blockchain | ExchangeName | IbanBankName | CardBankName;
+export type LiquidityManagementContext = Blockchain | ExchangeName | IbanBankName | CardBankName | 'Custom';
 
 export enum LiquidityManagementSystem {
   CAKE = 'Cake',
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
+  MEXC = 'MEXC',
   DFX_DEX = 'DfxDex',
   ARBITRUM_L2_BRIDGE = 'ArbitrumL2Bridge',
   OPTIMISM_L2_BRIDGE = 'OptimismL2Bridge',
@@ -16,6 +17,7 @@ export enum LiquidityManagementSystem {
   LIQUIDITY_PIPELINE = 'LiquidityPipeline',
   FRANKENCOIN = 'Frankencoin',
   DEURO = 'dEURO',
+  XT = 'XT',
 }
 
 export enum LiquidityManagementRuleStatus {

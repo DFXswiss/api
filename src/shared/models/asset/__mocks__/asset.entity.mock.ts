@@ -7,6 +7,7 @@ const defaultAsset: Partial<Asset> = {
   blockchain: Blockchain.ETHEREUM,
   category: AssetCategory.PUBLIC,
   type: AssetType.TOKEN,
+  refundEnabled: true,
 };
 
 export function createDefaultAsset(): Asset {

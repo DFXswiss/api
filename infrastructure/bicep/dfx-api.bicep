@@ -67,6 +67,8 @@ param paymentTimeoutDelay string
 param paymentEvmSeed string
 @secure()
 param paymentSolanaSeed string
+@secure()
+param paymentTronSeed string
 param paymentMoneroAddress string
 param paymentBitcoinAddress string
 param paymentCheckbotSignTx string
@@ -129,6 +131,16 @@ param bscGatewayUrl string
 param bscSwapContractAddress string
 param bscQuoteContractAddress string
 param bscChainId string
+param gasPrice string
+
+param citreaTestnetWalletAddress string
+@secure()
+param citreaTestnetWalletPrivateKey string
+param citreaTestnetGatewayUrl string
+@secure()
+param citreaTestnetApiKey string
+param citreaTestnetChainId string
+param goldskySubgraphUrl string
 
 @secure()
 param lightningApiCertificate string
@@ -145,10 +157,18 @@ param moneroWalletAddress string
 @secure()
 param moneroRpcCertificate string
 
+param zanoWalletAddress string
+
 @secure()
 param solanaWalletSeed string
 param solanaGatewayUrl string
 param solanaTransactionPriorityRate string
+
+@secure()
+param tronWalletSeed string
+param tronGatewayUrl string
+param tronApiUrl string
+param tronRpcUrl string
 
 param zchfGraphUrl string
 param zchfContractAddress string
@@ -195,6 +215,20 @@ param p2bKey string
 param p2bSecret string
 
 param p2bWithdrawKeys string
+
+@secure()
+param xtKey string
+@secure()
+param xtSecret string
+
+param xtWithdrawKeys string
+
+@secure()
+param mexcKey string
+@secure()
+param mexcSecret string
+
+param mexcWithdrawKeys string
 
 param olkyClient string
 @secure()
@@ -313,6 +347,8 @@ var btcNodePort = '8332'
 var lnBitsPort = '5000'
 var moneroNodePort = '18081'
 var moneroRpcPort = '18082'
+var zanoNodePort = '33122'
+var zanoWalletPort = '12233'
 
 var nodeProps = [
   {
@@ -717,6 +753,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: paymentSolanaSeed
         }
         {
+          name: 'PAYMENT_TRON_SEED'
+          value: paymentTronSeed
+        }
+        {
           name: 'PAYMENT_MONERO_ADDRESS'
           value: paymentMoneroAddress
         }
@@ -905,6 +945,34 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: bscChainId
         }
         {
+          name: 'BSC_GAS_PRICE'
+          value: gasPrice
+        }
+        {
+          name: 'CITREA_TESTNET_WALLET_ADDRESS'
+          value: citreaTestnetWalletAddress
+        }
+        {
+          name: 'CITREA_TESTNET_WALLET_PRIVATE_KEY'
+          value: citreaTestnetWalletPrivateKey
+        }
+        {
+          name: 'CITREA_TESTNET_GATEWAY_URL'
+          value: citreaTestnetGatewayUrl
+        }
+        {
+          name: 'CITREA_TESTNET_API_KEY'
+          value: citreaTestnetApiKey
+        }
+        {
+          name: 'CITREA_TESTNET_CHAIN_ID'
+          value: citreaTestnetChainId
+        }
+        {
+          name: 'CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL'
+          value: goldskySubgraphUrl
+        }
+        {
           name: 'LIGHTNING_API_CERTIFICATE'
           value: lightningApiCertificate
         }
@@ -957,6 +1025,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: moneroRpcCertificate
         }
         {
+          name: 'ZANO_WALLET_ADDRESS'
+          value: zanoWalletAddress
+        }
+        {
+          name: 'ZANO_NODE_URL'
+          value: 'http://${btcNodes[1].outputs.ip}:${zanoNodePort}'
+        }
+        {
+          name: 'ZANO_WALLET_URL'
+          value: 'http://${btcNodes[1].outputs.ip}:${zanoWalletPort}'
+        }
+        {
           name: 'SOLANA_WALLET_SEED'
           value: solanaWalletSeed
         }
@@ -967,6 +1047,22 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'SOLANA_TRANSACTION_PRIORITY_RATE'
           value: solanaTransactionPriorityRate
+        }
+        {
+          name: 'TRON_WALLET_SEED'
+          value: tronWalletSeed
+        }
+        {
+          name: 'TRON_GATEWAY_URL'
+          value: tronGatewayUrl
+        }
+        {
+          name: 'TRON_API_URL'
+          value: tronApiUrl
+        }
+        {
+          name: 'TRON_RPC_URL'
+          value: tronRpcUrl
         }
         {
           name: 'ZCHF_GRAPH_URL'
@@ -1071,6 +1167,30 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'P2B_WITHDRAW_KEYS'
           value: p2bWithdrawKeys
+        }
+        {
+          name: 'XT_KEY'
+          value: xtKey
+        }
+        {
+          name: 'XT_SECRET'
+          value: xtSecret
+        }
+        {
+          name: 'XT_WITHDRAW_KEYS'
+          value: xtWithdrawKeys
+        }
+        {
+          name: 'MEXC_KEY'
+          value: mexcKey
+        }
+        {
+          name: 'MEXC_SECRET'
+          value: mexcSecret
+        }
+        {
+          name: 'MEXC_WITHDRAW_KEYS'
+          value: mexcWithdrawKeys
         }
         {
           name: 'LETTER_URL'

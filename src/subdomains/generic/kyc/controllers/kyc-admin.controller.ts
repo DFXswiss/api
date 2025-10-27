@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -6,6 +6,9 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { IpBlacklistDto } from 'src/shared/models/setting/dto/ip-blacklist.dto';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
@@ -25,6 +28,8 @@ export class KycAdminController {
     private readonly kycAdminService: KycAdminService,
     private readonly kycService: KycService,
     private readonly kycLogService: KycLogService,
+    private readonly settingService: SettingService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   @Put('nameCheck/:id')
@@ -51,6 +56,25 @@ export class KycAdminController {
     await this.kycAdminService.syncIdentStep(+id);
   }
 
+  @Put('blacklist/ip')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async addIpToBlacklist(@Body() dto: IpBlacklistDto): Promise<void> {
+    await this.settingService.addIpToBlacklist(dto.ip);
+
+    // update userData
+    await this.userDataService.setCheckIpRisk(dto.ip);
+  }
+
+  @Delete('blacklist/ip')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async deleteIpToBlacklist(@Body() dto: IpBlacklistDto): Promise<void> {
+    return this.settingService.deleteIpFromBlacklist(dto.ip);
+  }
+
   @Post('webhook')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
@@ -61,7 +85,7 @@ export class KycAdminController {
 
   @Post('log')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   @ApiExcludeEndpoint()
   async createLog(@GetJwt() jwt: JwtPayload, @Body() dto: CreateKycLogDto): Promise<void> {
     await this.kycLogService.createLog(jwt.account, dto);

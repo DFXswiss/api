@@ -38,8 +38,6 @@ export abstract class EvmStrategy extends SendStrategy {
 
           if (isReady) {
             payInGroup.status = PayInStatus.PREPARED;
-          } else {
-            continue;
           }
         }
 
@@ -62,14 +60,10 @@ export abstract class EvmStrategy extends SendStrategy {
           const effectivePreparationFee = Math.max(feeNativeAsset, Config.blockchain.evm.minimalPreparationFee);
 
           await this.prepareSend(payInGroup, effectivePreparationFee);
-
-          continue;
         }
 
         if (payInGroup.status === PayInStatus.PREPARED) {
           await this.dispatch(payInGroup, type, this.getTotalSendFee(payInGroup));
-
-          continue;
         }
       } catch (e) {
         if (e.message.includes('No maximum fee provided')) continue;
@@ -81,8 +75,6 @@ export abstract class EvmStrategy extends SendStrategy {
           `Failed to send ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)} of type ${type}:`,
           e,
         );
-
-        continue;
       }
     }
   }
@@ -101,9 +93,15 @@ export abstract class EvmStrategy extends SendStrategy {
         if (isConfirmed) {
           payIn.confirm(direction, this.forwardRequired);
           await this.payInRepo.save(payIn);
+        } else if (direction === PayInConfirmationType.OUTPUT && Util.minutesDiff(payIn.updated) > 30) {
+          await this.resetForward(payIn, 'timed out');
         }
       } catch (e) {
-        this.logger.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
+        if (direction === PayInConfirmationType.OUTPUT && e.message.includes('has failed')) {
+          await this.resetForward(payIn, 'failed:', e);
+        } else {
+          this.logger.error(`Failed to check confirmations of ${this.blockchain} pay-in ${payIn.id}:`, e);
+        }
       }
     }
   }
@@ -198,5 +196,12 @@ export abstract class EvmStrategy extends SendStrategy {
 
   private getTotalGroupFeeAmount(payInGroup: SendGroup): number {
     return Util.sum(payInGroup.payIns.map((p) => p.maxForwardFee));
+  }
+
+  private async resetForward(payIn: CryptoInput, msg: string, error?: Error): Promise<void> {
+    this.logger.warn(`Out TX ${payIn.outTxId} of pay-in ${payIn.id} has ${msg}`, error);
+
+    payIn.resetForward();
+    await this.payInRepo.save(payIn);
   }
 }

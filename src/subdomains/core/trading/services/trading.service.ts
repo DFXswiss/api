@@ -6,14 +6,14 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { TradingInfo } from '../dto/trading.dto';
 import { PriceConfig, TradingRule } from '../entities/trading-rule.entity';
-import { PoolOutOfRangeException } from '../exceptions/pool-out-of-range.exception';
+import { TradeIgnoredException } from '../exceptions/trade-ignored.exception';
 
 @Injectable()
 export class TradingService {
@@ -103,90 +103,97 @@ export class TradingService {
     tradingRule: TradingRule,
     tradingInfo: TradingInfo,
   ): Promise<TradingInfo> {
-    const client = this.blockchainRegistryService.getEvmClient(tradingInfo.assetIn.blockchain);
+    try {
+      const client = this.blockchainRegistryService.getEvmClient(tradingInfo.assetIn.blockchain);
 
-    const tokenIn = await client.getToken(tradingInfo.assetIn);
-    const tokenOut = await client.getToken(tradingInfo.assetOut);
+      const tokenIn = await client.getToken(tradingInfo.assetIn);
+      const tokenOut = await client.getToken(tradingInfo.assetOut);
 
-    if (tokenIn instanceof NativeCurrency || tokenOut instanceof NativeCurrency)
-      throw new Error('Only tokens can be in a pool');
+      if (tokenIn instanceof NativeCurrency || tokenOut instanceof NativeCurrency)
+        throw new Error('Only tokens can be in a pool');
 
-    const poolContract = await this.getPoolContract(client, tradingInfo);
+      const poolContract = await this.getPoolContract(client, tradingInfo);
 
-    const usePriceImpact = Math.abs(tradingInfo.priceImpact) / 2;
-    const checkPriceImpact = usePriceImpact.toFixed(6);
-    const estimatedProfitPercent = usePriceImpact - EvmUtil.poolFeeFactor(tradingInfo.poolFee);
+      const usePriceImpact = Math.abs(tradingInfo.priceImpact) / 2;
+      const checkPriceImpact = usePriceImpact.toFixed(6);
+      const estimatedProfitPercent = usePriceImpact - EvmUtil.poolFeeFactor(tradingInfo.poolFee);
 
-    const coin = await this.assetService.getNativeAsset(tradingInfo.assetIn.blockchain);
+      const coin = await this.assetService.getNativeAsset(tradingInfo.assetIn.blockchain);
 
-    const [assetInBalance, assetOutBalance] = await client
-      .getTokenBalances([tradingInfo.assetIn, tradingInfo.assetOut], poolContract.address)
-      .then((r) => r.map((b) => b.balance ?? 0));
-    const poolBalanceLimit = 0.99; // cannot swap 100% of the pool balance, therefore reduce by 1%
-    const checkPoolBalance = assetOutBalance * poolBalanceLimit;
+      const [assetInBalance, assetOutBalance] = await client
+        .getTokenBalances([tradingInfo.assetIn, tradingInfo.assetOut], poolContract.address)
+        .then((r) => r.map((b) => b.balance ?? 0));
+      const poolBalanceLimit = 0.99; // cannot swap 100% of the pool balance, therefore reduce by 1%
+      const checkPoolBalance = assetOutBalance * poolBalanceLimit;
 
-    let amountIn = usePriceImpact * assetInBalance;
+      let amountIn = usePriceImpact * assetInBalance;
 
-    let { targetAmount, feeAmount, priceImpact } = await client.testSwapPool(
-      tradingInfo.assetIn,
-      amountIn,
-      tradingInfo.assetOut,
-      tradingInfo.poolFee,
-    );
-
-    if (checkPoolBalance <= targetAmount)
-      throw new PoolOutOfRangeException(
-        `Pool balance ${checkPoolBalance} is lower than required output amount ${targetAmount}`,
-      );
-
-    const maxAllowedLoopCounter = 100;
-    let currentLoopCounter = 0;
-
-    while (checkPriceImpact !== priceImpact.toFixed(6)) {
-      const ratio = usePriceImpact / priceImpact;
-      amountIn *= ratio;
-
-      ({ targetAmount, feeAmount, priceImpact } = await client.testSwapPool(
+      let { targetAmount, feeAmount, priceImpact } = await client.testSwapPool(
         tradingInfo.assetIn,
         amountIn,
         tradingInfo.assetOut,
         tradingInfo.poolFee,
-      ));
+      );
 
       if (checkPoolBalance <= targetAmount)
-        throw new PoolOutOfRangeException(
+        throw new TradeIgnoredException(
           `Pool balance ${checkPoolBalance} is lower than required output amount ${targetAmount}`,
         );
 
-      if (++currentLoopCounter > maxAllowedLoopCounter)
-        throw new Error(
-          `Max allowed loop counter exceeded: checkPriceImpact ${checkPriceImpact}, calcPriceImpact ${priceImpact.toFixed(
-            6,
-          )}`,
+      const maxAllowedLoopCounter = 100;
+      let currentLoopCounter = 0;
+
+      while (checkPriceImpact !== priceImpact.toFixed(6)) {
+        const ratio = usePriceImpact / priceImpact;
+        amountIn *= ratio;
+
+        ({ targetAmount, feeAmount, priceImpact } = await client.testSwapPool(
+          tradingInfo.assetIn,
+          amountIn,
+          tradingInfo.assetOut,
+          tradingInfo.poolFee,
+        ));
+
+        if (checkPoolBalance <= targetAmount)
+          throw new TradeIgnoredException(
+            `Pool balance ${checkPoolBalance} is lower than required output amount ${targetAmount}`,
+          );
+
+        if (++currentLoopCounter > maxAllowedLoopCounter)
+          throw new TradeIgnoredException(
+            `Max allowed loop counter exceeded: checkPriceImpact ${checkPriceImpact}, calcPriceImpact ${priceImpact.toFixed(
+              6,
+            )}`,
+          );
+      }
+
+      tradingInfo.amountIn = amountIn;
+      tradingInfo.amountExpected = targetAmount;
+
+      const estimatedProfitChf = Util.round(amountIn * tradingInfo.assetIn.approxPriceChf * estimatedProfitPercent, 2);
+      const swapFeeChf = Util.round(feeAmount * coin.approxPriceChf, 2);
+      if (swapFeeChf > estimatedProfitChf) {
+        throw new TradeIgnoredException(
+          `Swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`,
         );
-    }
+      }
 
-    tradingInfo.amountIn = amountIn;
-    tradingInfo.amountExpected = targetAmount;
-
-    const estimatedProfitChf = Util.round(amountIn * tradingInfo.assetIn.approxPriceChf * estimatedProfitPercent, 2);
-    const swapFeeChf = Util.round(feeAmount * coin.approxPriceChf, 2);
-    if (swapFeeChf > estimatedProfitChf) {
+      const approximateAmountOut =
+        tradingRule.leftAsset.id === tradingInfo.assetIn.id
+          ? amountIn / tradingInfo.price1
+          : amountIn * tradingInfo.price1;
+      if (Math.abs(targetAmount / approximateAmountOut - 1) > 0.1) {
+        throw new Error(
+          `Estimated output amount ${targetAmount} is out of range, approximate amount is ${approximateAmountOut}`,
+        );
+      }
+    } catch (e) {
       tradingInfo.tradeRequired = false;
-      tradingInfo.message = `Swap fee (${swapFeeChf} CHF) is larger than estimated profit (${estimatedProfitChf} CHF)`;
+      tradingInfo.message = e.message;
 
-      this.logger.info(`Trading rule ${tradingRule.id} ignored: ${tradingInfo.message}`);
-    }
+      const logLevel = e instanceof TradeIgnoredException ? LogLevel.INFO : LogLevel.ERROR;
 
-    const approximateAmountOut =
-      tradingRule.leftAsset.id === tradingInfo.assetIn.id
-        ? amountIn / tradingInfo.price1
-        : amountIn * tradingInfo.price1;
-    if (Math.abs(targetAmount / approximateAmountOut - 1) > 0.1) {
-      tradingInfo.tradeRequired = false;
-      tradingInfo.message = `Estimated output amount ${targetAmount} is out of range, approximate amount is ${approximateAmountOut}`;
-
-      this.logger.error(`Trading rule ${tradingRule.id} ignored: ${tradingInfo.message}`);
+      this.logger.log(logLevel, `Trading rule ${tradingRule.id} ignored: ${e.message}`);
     }
 
     return tradingInfo;

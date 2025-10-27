@@ -122,6 +122,9 @@
     "paymentSolanaSeed": {
       "value": "xxx"
     },
+    "paymentTronSeed": {
+      "value": "xxx"
+    },
     "paymentMoneroAddress": {
       "value": "xxx"
     },
@@ -263,6 +266,27 @@
     "bscChainId": {
       "value": "97"
     },
+    "gasPrice": {
+      "value": "100"
+    },
+    "citreaTestnetWalletAddress": {
+      "value": "xxx"
+    },
+    "citreaTestnetWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "citreaTestnetGatewayUrl": {
+      "value": "https://rpc.testnet.citrea.xyz"
+    },
+    "citreaTestnetApiKey": {
+      "value": "100"
+    },
+    "citreaTestnetChainId": {
+      "value": "5115"
+    },
+    "goldskySubgraphUrl": {
+      "value": "https://api.goldsky.com/api/public/project_xyz/subgraphs/citrea-transfers/1.0.0/gn"
+    },
     "lightningApiCertificate": {
       "value": "xxx"
     },
@@ -284,6 +308,9 @@
     "moneroRpcCertificate": {
       "value": "xxx"
     },
+    "zanoWalletAddress": {
+      "value": "xxx"
+    },
     "solanaWalletSeed": {
       "value": "xxx"
     },
@@ -292,6 +319,18 @@
     },
     "solanaTransactionPriorityRate": {
       "value": "100"
+    },
+    "tronWalletSeed": {
+      "value": "xxx"
+    },
+    "tronGatewayUrl": {
+      "value": "https://tron-mainnet.gateway.tatum.io"
+    },
+    "tronApiUrl": {
+      "value": "https://api.tatum.io/v3/tron"
+    },
+    "tronRpcUrl": {
+      "value": "https://api.tatum.io/v3/blockchain/node/tron-mainnet/jsonrpc"
     },
     "zchfGraphUrl": {
       "value": "https://maindevponder.frankencoin.com"
@@ -372,6 +411,24 @@
       "value": "xxx"
     },
     "p2bWithdrawKeys": {
+      "value": "xxx"
+    },
+    "xtWithdrawKeys": {
+      "value": "xxx"
+    },
+    "xtKey": {
+      "value": "xxx"
+    },
+    "xtSecret": {
+      "value": "xxx"
+    },
+    "mexcWithdrawKeys": {
+      "value": "xxx"
+    },
+    "mexcKey": {
+      "value": "xxx"
+    },
+    "mexcSecret": {
       "value": "xxx"
     },
     "olkyClient": {

@@ -12,8 +12,8 @@ export class PricingConstantService extends PricingProvider {
   getPriceStep(rule: PriceRule): PriceStep {
     return PriceStep.create(
       rule.rule.name ?? rule.rule.source,
-      rule.priceAsset,
-      rule.priceReference,
+      rule.from,
+      rule.to,
       rule.currentPrice,
       rule.priceTimestamp,
     );

@@ -1,23 +1,29 @@
+import { merge } from 'lodash';
 import { GetConfig } from 'src/config/config';
-
-import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { GoodsCategory, GoodsType, MerchantMCC, StoreType } from 'src/integration/c2b-payment-link/dto/binance.dto';
-import { Country } from 'src/shared/models/country/country.entity';
+import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
-import { PaymentLinkStatus, PaymentQuoteStatus, PaymentStandard } from '../enums';
+import {
+  PaymentLinkMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentQuoteStatus,
+  PaymentStandard,
+} from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { PaymentLinkConfig } from './payment-link.config';
 
 export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
-  standards: Object.values(PaymentStandard),
-  blockchains: Object.values(PaymentLinkBlockchain),
+  standards: [PaymentStandard.OPEN_CRYPTO_PAY],
+  blockchains: PaymentLinkBlockchains,
   minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
   displayQr: false,
-  fee: 0.002,
+  fee: GetConfig().payment.fee,
   paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
+  cancellable: true,
 };
 
 @Entity()
@@ -40,32 +46,17 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256 })
   status: PaymentLinkStatus;
 
+  @Column({ length: 256, nullable: true })
+  publicStatus?: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  comment?: string;
+
+  @Column({ length: 256, default: PaymentLinkMode.MULTIPLE })
+  mode: PaymentLinkMode;
+
   @Column({ length: 'MAX', nullable: true })
   webhookUrl?: string;
-
-  @Column({ length: 256, nullable: true })
-  name?: string;
-
-  @Column({ length: 256, nullable: true })
-  street?: string;
-
-  @Column({ length: 256, nullable: true })
-  houseNumber?: string;
-
-  @Column({ length: 256, nullable: true })
-  zip?: string;
-
-  @Column({ length: 256, nullable: true })
-  city?: string;
-
-  @ManyToOne(() => Country, { nullable: true, eager: true })
-  country?: Country;
-
-  @Column({ length: 256, nullable: true })
-  phone?: string;
-
-  @Column({ length: 256, nullable: true })
-  mail?: string;
 
   @Column({ length: 256, nullable: true })
   regionManager?: string;
@@ -76,30 +67,12 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256, nullable: true })
   storeOwner?: string;
 
-  @Column({ length: 256, nullable: true })
-  website?: string;
-
   @Column({ length: 'MAX', nullable: true })
   config?: string; // PaymentLinkConfig
 
-  @Column({ nullable: true })
-  registrationNumber?: string; // Registration number/Company tax ID
-
-  @Column({ nullable: true })
-  storeType?: StoreType;
-
-  @Column({ nullable: true })
-  merchantMcc?: MerchantMCC;
-
-  @Column({ nullable: true })
-  goodsType?: GoodsType;
-
-  @Column({ nullable: true })
-  goodsCategory?: GoodsCategory;
-
   // --- ENTITY METHODS --- //
   get metaId(): string {
-    return this.externalId ?? `${this.id}`;
+    return this.label ?? this.externalId ?? `${this.id}`;
   }
 
   displayName(paymentMetaId?: string): string {
@@ -107,65 +80,34 @@ export class PaymentLink extends IEntity {
       ? `Payment ${paymentMetaId} to ${this.metaId}`
       : `Payment link ${this.metaId}`;
 
-    return this.route.userData.paymentLinksName ?? this.route.userData.verifiedName ?? defaultDisplayName;
-  }
-
-  get recipient(): PaymentLinkRecipientDto | undefined {
-    if (this.hasRecipient) {
-      return {
-        name: this.name,
-        address: {
-          street: this.street,
-          houseNumber: this.houseNumber,
-          zip: this.zip,
-          city: this.city,
-          country: this.country?.name,
-        },
-        phone: this.phone,
-        mail: this.mail,
-        website: this.website,
-      };
-    }
-
-    // fallback to config
-    const { recipient } = this.configObj;
-    if (recipient) return recipient;
-
-    // fallback to user data
-    const userData = this.route.userData;
-    return {
-      name: userData.completeName,
-      address: {
-        ...userData.address,
-        country: userData.address.country?.name,
-      },
-      phone: userData.phone,
-      mail: userData.mail,
-      website: null,
-    };
-  }
-
-  get hasRecipient(): boolean {
-    return !!(
-      this.name ||
-      this.street ||
-      this.houseNumber ||
-      this.zip ||
-      this.city ||
-      this.country ||
-      this.phone ||
-      this.mail ||
-      this.website
+    return (
+      this.route.userData.paymentLinksName ??
+      this.route.userData.verifiedName ??
+      this.configObj.recipient?.name ??
+      defaultDisplayName
     );
   }
 
   get configObj(): PaymentLinkConfig {
-    return Object.assign(
-      {},
-      DefaultPaymentLinkConfig,
-      this.route.userData.paymentLinksConfigObj,
-      JSON.parse(this.config ?? '{}'),
-    );
+    const userData = this.route.userData;
+
+    const userDataRecipient: PaymentLinkRecipientDto = Util.removeNullFields({
+      name: userData.completeName,
+      address: userData.address.country
+        ? {
+            ...userData.address,
+            country: userData.address.country?.symbol,
+          }
+        : undefined,
+      phone: userData.phone,
+      mail: userData.mail,
+    });
+
+    const linkConfig: PaymentLinkConfig = JSON.parse(this.config ?? '{}');
+
+    const recipient = merge(userDataRecipient, userData.paymentLinksConfigObj.recipient, linkConfig.recipient);
+
+    return Object.assign({}, DefaultPaymentLinkConfig, userData.paymentLinksConfigObj, linkConfig, { recipient });
   }
 
   get linkConfigObj(): PaymentLinkConfig {
@@ -176,11 +118,16 @@ export class PaymentLink extends IEntity {
     return this.configObj.standards[0];
   }
 
-  getMatchingStandard(param?: PaymentStandard): PaymentStandard {
-    return this.configObj.standards.includes(param) ? param : this.defaultStandard;
+  get totalCompletedAmount(): number {
+    return (
+      Util.sumObjValue(
+        this.payments?.filter((p) => p.status === PaymentLinkPaymentStatus.COMPLETED),
+        'amount',
+      ) ?? 0
+    );
   }
 
-  get paymentTimeout(): number {
-    return this.configObj.paymentTimeout;
+  getMatchingStandard(param?: PaymentStandard): PaymentStandard {
+    return this.configObj.standards.includes(param) ? param : this.defaultStandard;
   }
 }

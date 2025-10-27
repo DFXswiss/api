@@ -3,8 +3,10 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
@@ -48,6 +50,9 @@ export enum BankTxIndicator {
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
   accountServiceRef: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  bankReleaseDate?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
   bookingDate?: Date;
@@ -115,9 +120,6 @@ export class BankTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   senderChargeCurrency?: string;
-
-  @Column({ type: 'float', nullable: true })
-  senderChargeAmountChf?: number;
 
   @Column({ type: 'float', nullable: true })
   accountingAmountBeforeFee?: number;
@@ -229,10 +231,17 @@ export class BankTx extends IEntity {
   @JoinColumn()
   transaction?: Transaction;
 
+  @OneToOne(() => FiatOutput, (fiatOutput) => fiatOutput.bankTx, { nullable: true })
+  fiatOutput?: FiatOutput;
+
   //*** GETTER METHODS ***//
 
   get user(): User {
     return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
+  }
+
+  get userData(): UserData {
+    return this.user?.userData;
   }
 
   get paymentMethodIn(): PaymentMethod {
@@ -240,7 +249,7 @@ export class BankTx extends IEntity {
   }
 
   get chargebackBankFee(): number {
-    return this.chargeAmount;
+    return this.chargeAmount ?? 0;
   }
 
   get refundAmount(): number {
@@ -253,8 +262,13 @@ export class BankTx extends IEntity {
 
   get txInfoName(): string {
     if (
+      !this.txInfo ||
       this.remittanceInfo === this.txInfo ||
       this.txInfo.includes(this.name) ||
+      this.txInfo.includes('Gutschrift SWIFT') ||
+      this.txInfo.includes('Vrt SEPA Recu') ||
+      this.txInfo.includes('Vrt INST Recu') ||
+      this.txInfo.split(' ')[0].length === 14 || // bankUsage
       this.ultimateName ||
       this.creditDebitIndicator === BankTxIndicator.DEBIT
     )
@@ -296,9 +310,16 @@ export class BankTx extends IEntity {
     return this.completeName(multiAccount?.name);
   }
 
-  getSenderAccount(multiAccountIbans: string[]): string | undefined {
+  getSenderAccount(multiAccounts: SpecialExternalAccount[]): string | undefined {
     if (this.iban) {
-      if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName().replace(/ /g, '')}`;
+      const multiAccount = multiAccounts.find(
+        (m) =>
+          (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_IBAN && m.value === this.iban) ||
+          (m.type === SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME &&
+            (this.name?.includes(m.value) || this.ultimateName?.includes(m.value))),
+      );
+
+      if (multiAccount) return `${this.iban};${this.completeName(multiAccount.name).replace(/ /g, '')}`;
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban};${this.completeName().replace(/ /g, '')}`;
       return this.iban;
     }
@@ -369,7 +390,12 @@ export class BankTx extends IEntity {
   }
 }
 
-export const BankTxCompletedTypes = [BankTxType.BUY_CRYPTO, BankTxType.BANK_TX_REPEAT, BankTxType.BANK_TX_RETURN];
+export const BankTxCompletedTypes = [
+  BankTxType.BUY_CRYPTO,
+  BankTxType.BUY_FIAT,
+  BankTxType.BANK_TX_REPEAT,
+  BankTxType.BANK_TX_RETURN,
+];
 
 export function BankTxTypeCompleted(bankTxType?: BankTxType): boolean {
   return BankTxCompletedTypes.includes(bankTxType);

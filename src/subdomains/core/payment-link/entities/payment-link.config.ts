@@ -1,4 +1,4 @@
-import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
 
@@ -9,22 +9,25 @@ export enum PayoutFrequency {
 
 export interface PaymentLinkConfig {
   standards: PaymentStandard[];
-  blockchains: PaymentLinkBlockchain[];
+  blockchains: Blockchain[];
   minCompletionStatus: PaymentQuoteStatus;
   displayQr: boolean;
   fee: number;
   recipient?: PaymentLinkRecipientDto;
   paymentTimeout: number;
+  scanTimeout?: number;
   autoConfirmSecs?: number;
   payoutRouteId?: number;
+  cancellable: boolean;
   // user data only
   payoutFrequency?: PayoutFrequency;
   ep2ReportContainer?: string;
   requiresExplicitPayoutRoute?: boolean;
   requiresConfirmation?: boolean;
-  // binance pay related
+  // c2b payment provider related
   binancePayMerchantId?: string;
   binancePaySubMerchantId?: string;
+  kucoinPaySubMerchantId?: string;
   // access key related
   accessKeys?: string[];
 }

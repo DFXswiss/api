@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
+import { MexcService } from 'src/integration/exchange/services/mexc.service';
+import { XtService } from 'src/integration/exchange/services/xt.service';
 import { Active, activesEqual, isFiat } from 'src/shared/models/active';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -22,10 +26,23 @@ import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 
+export enum PriceCurrency {
+  EUR = 'EUR',
+  CHF = 'CHF',
+  USD = 'USD',
+}
+
+export enum PriceValidity {
+  ANY = 'Any',
+  PREFER_VALID = 'PreferValid',
+  VALID_ONLY = 'ValidOnly',
+}
+
 @Injectable()
-export class PricingService {
+export class PricingService implements OnModuleInit {
   private readonly logger = new DfxLogger(PricingService);
 
+  private readonly fiatMap = new Map<PriceCurrency, Fiat>();
   private readonly providerMap: PricingProviderMap;
   private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
   private readonly providerPriceCache = new AsyncCache<Price>(CacheItemResetPeriod.EVERY_10_SECONDS);
@@ -34,9 +51,12 @@ export class PricingService {
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,
     private readonly notificationService: NotificationService,
+    private readonly fiatService: FiatService,
     readonly krakenService: KrakenService,
     readonly binanceService: BinanceService,
     readonly kucoinService: KucoinService,
+    readonly mexcService: MexcService,
+    readonly xtService: XtService,
     readonly coinGeckoService: CoinGeckoService,
     readonly dexService: PricingDexService,
     readonly fixerService: FixerService,
@@ -50,6 +70,8 @@ export class PricingService {
       [PriceSource.KRAKEN]: krakenService,
       [PriceSource.BINANCE]: binanceService,
       [PriceSource.KUCOIN]: kucoinService,
+      [PriceSource.MEXC]: mexcService,
+      [PriceSource.XT]: xtService,
       [PriceSource.COIN_GECKO]: coinGeckoService,
       [PriceSource.DEX]: dexService,
       [PriceSource.FIXER]: fixerService,
@@ -61,27 +83,47 @@ export class PricingService {
     };
   }
 
-  async getPrice(from: Active, to: Active, allowExpired: boolean, tryCount = 2): Promise<Price> {
+  onModuleInit() {
+    void this.fiatService.getFiatByName('CHF').then((f) => this.fiatMap.set(PriceCurrency.CHF, f));
+    void this.fiatService.getFiatByName('EUR').then((f) => this.fiatMap.set(PriceCurrency.EUR, f));
+    void this.fiatService.getFiatByName('USD').then((f) => this.fiatMap.set(PriceCurrency.USD, f));
+  }
+
+  async getPrice(
+    from: Active | PriceCurrency,
+    to: Active | PriceCurrency,
+    validity: PriceValidity,
+    tryCount = 2,
+  ): Promise<Price> {
+    const fromAsset = typeof from === 'object' ? from : this.fiatMap.get(from);
+    const toAsset = typeof to === 'object' ? to : this.fiatMap.get(to);
+
+    return this.getAssetPrice(fromAsset, toAsset, validity, tryCount);
+  }
+
+  private async getAssetPrice(from: Active, to: Active, validity: PriceValidity, tryCount: number): Promise<Price> {
     try {
       if (activesEqual(from, to)) return Price.create(from.name, to.name, 1);
+
+      const shouldUpdate = validity !== PriceValidity.ANY;
 
       const [fromRules, toRules] = await Promise.all([
         this.priceRuleCache.get(
           this.itemString(from),
-          () => this.getPriceRules(from, allowExpired),
-          (rules) => !allowExpired && !this.joinRules(rules).isValid,
+          () => this.getPriceRules(from, shouldUpdate),
+          (rules) => shouldUpdate && !this.joinRules(rules).isValid,
         ),
         this.priceRuleCache.get(
           this.itemString(to),
-          () => this.getPriceRules(to, allowExpired),
-          (rules) => !allowExpired && !this.joinRules(rules).isValid,
+          () => this.getPriceRules(to, shouldUpdate),
+          (rules) => shouldUpdate && !this.joinRules(rules).isValid,
         ),
       ]);
 
       const price = Price.join(this.joinRules(fromRules), this.joinRules(toRules).invert());
 
-      if (!price.isValid && !allowExpired) {
-        if (tryCount > 1) return await this.getPrice(from, to, allowExpired, tryCount - 1);
+      if (!price.isValid && validity === PriceValidity.VALID_ONLY) {
+        if (tryCount > 1) return await this.getPrice(from, to, validity, tryCount - 1);
         throw new Error(`Price invalid (fetched on ${price.timestamp})`);
       }
 
@@ -109,7 +151,7 @@ export class PricingService {
   }
 
   // --- PRIVATE METHODS --- //
-  private async getPriceRules(item: Active, allowExpired: boolean): Promise<PriceRule[]> {
+  private async getPriceRules(item: Active, waitForUpdate: boolean): Promise<PriceRule[]> {
     const rules: { active: Active; rule: PriceRule }[] = [];
 
     let rule: PriceRule;
@@ -121,7 +163,7 @@ export class PricingService {
       rules.push({ active, rule });
     } while (rule.reference);
 
-    return Promise.all(rules.map(({ active, rule }) => this.updatePriceForRule(rule, allowExpired, active)));
+    return Promise.all(rules.map(({ active, rule }) => this.updatePriceForRule(rule, waitForUpdate, active)));
   }
 
   private async getRuleFor(item: Active): Promise<PriceRule | undefined> {
@@ -131,11 +173,11 @@ export class PricingService {
     return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }
 
-  private async updatePriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<PriceRule> {
+  private async updatePriceForRule(rule: PriceRule, waitForUpdate: boolean, active?: Active): Promise<PriceRule> {
     if (rule.shouldUpdate) {
       const updateTask = this.updateCalls.get(`${rule.id}`, () => this.doUpdatePriceFor(rule, active));
 
-      if (!allowExpired || rule.currentPrice == null || rule.isPriceObsolete) {
+      if (waitForUpdate || rule.currentPrice == null || rule.isPriceObsolete) {
         rule = await updateTask;
       } else {
         updateTask.catch((e) => this.logger.error(`Failed to update price for rule ${rule.id} in background:`, e));

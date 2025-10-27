@@ -18,6 +18,7 @@ export enum Process {
   REF_REWARD_MAIL = 'RefRewardMail',
   EXCHANGE_TX_SYNC = 'ExchangeTxSync',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
+  LIQUIDITY_MANAGEMENT_CHECK_BALANCES = 'LiquidityManagementCheckBalances',
   MONITORING = 'Monitoring',
   MONITOR_CONNECTION_POOL = 'MonitorConnectionPool',
   UPDATE_STATISTIC = 'UpdateStatistic',
@@ -32,6 +33,7 @@ export enum Process {
   REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
   AUTO_AML_CHECK = 'AutoAmlCheck',
+  BANK_RELEASE_CHECK = 'BankReleaseCheck',
   BUY_CRYPTO_REFRESH_FEE = 'BuyCryptoRefreshFee',
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
   LNURL_AUTH_CACHE = 'LnurlAuthCache',
@@ -50,26 +52,35 @@ export enum Process {
   NETWORK_START_FEE = 'NetworkStartFee',
   TRADING_LOG = 'TradingLog',
   ASSET_DECIMALS = 'AssetDecimals',
-  UPDATE_GAS_PRICE = 'UpdateGasPrice',
+  UPDATE_BLOCKCHAIN_FEE = 'UpdateBlockchainFee',
   SANCTION_SYNC = 'SanctionSync',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
-  FIAT_OUTPUT_COMPLETE = 'FiatOutputComplete',
+  PAYMENT_FORWARDING = 'PaymentForwarding',
+  FIAT_OUTPUT = 'FiatOutput',
+  FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT = 'FiatOutputAssignBankAccount',
+  FIAT_OUTPUT_READY_DATE = 'FiatOutputReadyDate',
+  FIAT_OUTPUT_BATCH_ID_UPDATE = 'FiatOutputBatchIdUpdate',
+  FIAT_OUTPUT_BATCH_ID_UPDATE_JOB = 'FiatOutputBatchIdUpdateJob',
+  FIAT_OUTPUT_TRANSMISSION_CHECK = 'FiatOutputTransmissionCheck',
+  FIAT_OUTPUT_BANK_TX_SEARCH = 'FiatOutputBankTxSearch',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TX_REQUEST_STATUS_SYNC = 'TxRequestStatusSync',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
+  BANK_TX_RETURN_MAIL = 'BankTxReturnMail',
   CUSTODY = 'Custody',
   EXCHANGE_WITHDRAWAL = 'ExchangeWithdrawal',
   EXCHANGE_TRADE = 'ExchangeTrade',
-  FIAT_OUTPUT_BATCH_ID_UPDATE = 'FiatOutputBatchIdUpdate',
   CRYPTO_PAYOUT = 'CryptoPayout',
   USER_DATA = 'UserData',
   USER = 'User',
   LOG_CLEANUP = 'LogCleanup',
-  SAFETY_MODULE = 'SafetyModule',
-  SYNC_FILE_SUB_TYPE = 'SyncFileSubType',
+  SAFETY_MODE = 'SafetyMode',
+  BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
+  AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
+  ZANO_ASSET_WHITELIST = 'ZanoAssetWhitelist',
 }
 
 const safetyProcesses: Process[] = [
@@ -77,14 +88,16 @@ const safetyProcesses: Process[] = [
   Process.EXCHANGE_TRADE,
   Process.FIAT_OUTPUT_BATCH_ID_UPDATE,
   Process.CRYPTO_PAYOUT,
+  Process.LIQUIDITY_MANAGEMENT,
+  Process.TRADING,
 ];
 
 type ProcessMap = { [p in Process]?: boolean };
 
-let DisabledProcesses: ProcessMap = {};
+let DisabledProcesses: ProcessMap = undefined;
 
 export function DisabledProcess(process: Process): boolean {
-  return DisabledProcesses[process] === true;
+  return !DisabledProcesses || DisabledProcesses[process] === true;
 }
 
 @Injectable()
@@ -94,8 +107,6 @@ export class ProcessService implements OnModuleInit {
   constructor(private readonly settingService: SettingService) {}
 
   onModuleInit() {
-    DisabledProcesses = this.listToMap(Config.disabledProcesses());
-
     void this.resyncDisabledProcesses();
   }
 
@@ -110,7 +121,7 @@ export class ProcessService implements OnModuleInit {
   }
 
   public async setSafetyModeActive(active: boolean): Promise<void> {
-    this.safetyModeInactive = !active;
+    this.safetyModeInactive = DisabledProcess(Process.SAFETY_MODE) ? true : !active;
     await this.resyncDisabledProcesses();
   }
 

@@ -21,7 +21,7 @@ export class AlchemyWebhookService implements OnModuleInit {
   private readonly logger = new DfxLogger(AlchemyWebhookService);
 
   private readonly alchemy: Alchemy;
-  private readonly webhookCache: Map<string, string>;
+  private webhookCache: Map<string, string>;
 
   private readonly addressWebhookSubject: Subject<AlchemyWebhookDto>;
 
@@ -34,14 +34,12 @@ export class AlchemyWebhookService implements OnModuleInit {
     };
 
     this.alchemy = new Alchemy(settings);
-    this.webhookCache = new Map();
 
     this.addressWebhookSubject = new Subject<AlchemyWebhookDto>();
   }
 
-  async onModuleInit() {
-    const allWebhooks = await this.getAllWebhooks();
-    allWebhooks.forEach((w) => this.webhookCache.set(w.id, w.signingKey));
+  onModuleInit() {
+    void this.getAllWebhooks().then((l) => (this.webhookCache = new Map(l.map((w) => [w.id, w.signingKey]))));
   }
 
   async getAllWebhooks(): Promise<Webhook[]> {
@@ -84,13 +82,20 @@ export class AlchemyWebhookService implements OnModuleInit {
     return (
       await Util.doInBatches(
         allWebhookAddresses,
-        async (batch: string[]) => this.doCreateAddressWebhook(network, url, batch),
+        async (batch: string[]) =>
+          this.doCreateAddressWebhook(
+            `DFX ${Config.environment.toUpperCase()} (${dto.blockchain})`,
+            network,
+            url,
+            batch,
+          ),
         50000,
       )
     ).flat();
   }
 
   private async doCreateAddressWebhook(
+    name: string,
     network: Network,
     url: string,
     addresses: string[],
@@ -100,6 +105,7 @@ export class AlchemyWebhookService implements OnModuleInit {
     const addressActivityWebhook = await this.alchemy.notify.createWebhook(url, WebhookType.ADDRESS_ACTIVITY, {
       addresses: createWebhookAddresses,
       network: network,
+      name: name,
     });
 
     this.webhookCache.set(addressActivityWebhook.id, addressActivityWebhook.signingKey);

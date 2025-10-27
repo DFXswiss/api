@@ -1,7 +1,7 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne } from 'typeorm';
-import { CustodyOrderStepContext, CustodyOrderStepStatus } from '../enums/custody';
+import { CustodyOrderStepCommand, CustodyOrderStepContext, CustodyOrderStepStatus } from '../enums/custody';
 import { CustodyOrder } from './custody-order.entity';
 
 @Entity()
@@ -19,7 +19,7 @@ export class CustodyOrderStep extends IEntity {
   index: number;
 
   @Column({ nullable: false })
-  command: string;
+  command: CustodyOrderStepCommand;
 
   @Column({ nullable: false })
   context: CustodyOrderStepContext;

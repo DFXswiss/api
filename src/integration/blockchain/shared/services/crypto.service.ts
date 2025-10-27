@@ -1,45 +1,42 @@
 import verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
 import { MainNet } from '@defichain/jellyfish-network';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
+import { SparkService } from '../../spark/spark.service';
+import { TronService } from '../../tron/services/tron.service';
+import { ZanoService } from '../../zano/services/zano.service';
+import { Blockchain } from '../enums/blockchain.enum';
 import { EvmUtil } from '../evm/evm.util';
+import { SignatureException } from '../exceptions/signature.exception';
+import { EvmBlockchains, TestBlockchains } from '../util/blockchain.util';
 
 @Injectable()
 export class CryptoService {
   private static readonly defaultEthereumChain = Blockchain.ETHEREUM;
 
-  static readonly EthereumBasedChains = [
-    Blockchain.ETHEREUM,
-    Blockchain.BINANCE_SMART_CHAIN,
-    Blockchain.ARBITRUM,
-    Blockchain.OPTIMISM,
-    Blockchain.POLYGON,
-    Blockchain.BASE,
-    Blockchain.GNOSIS,
-    Blockchain.HAQQ,
-  ];
-
   constructor(
-    private readonly lightningService: LightningService,
-    private readonly moneroService: MoneroService,
-    private readonly arweaveService: ArweaveService,
     private readonly bitcoinService: BitcoinService,
-    private readonly railgunService: RailgunService,
+    private readonly lightningService: LightningService,
+    private readonly sparkService: SparkService,
+    private readonly moneroService: MoneroService,
+    private readonly zanoService: ZanoService,
     private readonly solanaService: SolanaService,
+    private readonly tronService: TronService,
+    private readonly arweaveService: ArweaveService,
+    private readonly railgunService: RailgunService,
   ) {}
 
   // --- PAYMENT REQUEST --- //
@@ -53,13 +50,23 @@ export class CryptoService {
     if (!isValid) return undefined;
 
     switch (asset.blockchain) {
-      case Blockchain.LIGHTNING:
-        return this.lightningService.getInvoiceByLnurlp(address, amount);
-
       case Blockchain.BITCOIN:
         return this.bitcoinService.getPaymentRequest(address, amount, label);
 
+      case Blockchain.LIGHTNING:
+        return this.lightningService.getInvoiceByLnurlp(address, amount);
+
+      case Blockchain.SPARK:
+        return this.sparkService.getPaymentRequest(address, amount);
+
+      case Blockchain.MONERO:
+        return this.moneroService.getPaymentRequest(address, amount);
+
+      case Blockchain.ZANO:
+        return this.zanoService.getPaymentRequest(address, amount);
+
       case Blockchain.ETHEREUM:
+      case Blockchain.SEPOLIA:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.POLYGON:
@@ -67,10 +74,14 @@ export class CryptoService {
       case Blockchain.GNOSIS:
       case Blockchain.HAQQ:
       case Blockchain.BINANCE_SMART_CHAIN:
+      case Blockchain.CITREA_TESTNET:
         return EvmUtil.getPaymentRequest(address, asset, amount);
 
-      case Blockchain.MONERO:
-        return this.moneroService.getPaymentRequest(address, amount);
+      case Blockchain.SOLANA:
+        return this.solanaService.getPaymentRequest(address, amount);
+
+      case Blockchain.TRON:
+        return this.tronService.getPaymentRequest(address, amount);
 
       default:
         return undefined;
@@ -90,7 +101,17 @@ export class CryptoService {
         if (address.startsWith('$')) return UserAddressType.UMA;
         return LightningHelper.getAddressType(address) as unknown as UserAddressType;
 
+      case Blockchain.SPARK:
+        return UserAddressType.SPARK;
+
+      case Blockchain.MONERO:
+        return UserAddressType.MONERO;
+
+      case Blockchain.ZANO:
+        return UserAddressType.ZANO;
+
       case Blockchain.ETHEREUM:
+      case Blockchain.SEPOLIA:
       case Blockchain.BINANCE_SMART_CHAIN:
       case Blockchain.POLYGON:
       case Blockchain.ARBITRUM:
@@ -98,13 +119,14 @@ export class CryptoService {
       case Blockchain.BASE:
       case Blockchain.GNOSIS:
       case Blockchain.HAQQ:
+      case Blockchain.CITREA_TESTNET:
         return UserAddressType.EVM;
-
-      case Blockchain.MONERO:
-        return UserAddressType.MONERO;
 
       case Blockchain.SOLANA:
         return UserAddressType.SOLANA;
+
+      case Blockchain.TRON:
+        return UserAddressType.TRON;
 
       case Blockchain.LIQUID:
         return UserAddressType.LIQUID;
@@ -115,17 +137,27 @@ export class CryptoService {
       case Blockchain.CARDANO:
         return UserAddressType.CARDANO;
 
+      case Blockchain.RAILGUN:
+        return UserAddressType.RAILGUN;
+
       default:
         return UserAddressType.OTHER;
     }
   }
 
   public static getBlockchainsBasedOn(address: string): Blockchain[] {
-    if (isEthereumAddress(address)) return this.EthereumBasedChains;
+    return CryptoService.getAllBlockchainsBasedOn(address).filter((b) => !TestBlockchains.includes(b));
+  }
+
+  private static getAllBlockchainsBasedOn(address: string): Blockchain[] {
+    if (isEthereumAddress(address)) return EvmBlockchains;
     if (CryptoService.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
     if (CryptoService.isLightningAddress(address)) return [Blockchain.LIGHTNING];
+    if (CryptoService.isSparkAddress(address)) return [Blockchain.SPARK];
     if (CryptoService.isMoneroAddress(address)) return [Blockchain.MONERO];
+    if (CryptoService.isZanoAddress(address)) return [Blockchain.ZANO];
     if (CryptoService.isSolanaAddress(address)) return [Blockchain.SOLANA];
+    if (CryptoService.isTronAddress(address)) return [Blockchain.TRON];
     if (CryptoService.isLiquidAddress(address)) return [Blockchain.LIQUID];
     if (CryptoService.isArweaveAddress(address)) return [Blockchain.ARWEAVE];
     if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
@@ -148,8 +180,16 @@ export class CryptoService {
     return RegExp(`^(${Config.lightningAddressFormat})$`).test(address);
   }
 
+  private static isSparkAddress(address: string): boolean {
+    return RegExp(`^(${Config.sparkAddressFormat})$`).test(address);
+  }
+
   private static isMoneroAddress(address: string): boolean {
     return RegExp(`^(${Config.moneroAddressFormat})$`).test(address);
+  }
+
+  public static isZanoAddress(address: string): boolean {
+    return new RegExp(`^(${Config.zanoAddressFormat})$`).test(address);
   }
 
   private static isLiquidAddress(address: string): boolean {
@@ -179,24 +219,32 @@ export class CryptoService {
     return new RegExp(`^(${Config.solanaAddressFormat})$`).test(address);
   }
 
+  public static isTronAddress(address: string): boolean {
+    return new RegExp(`^(${Config.tronAddressFormat})$`).test(address);
+  }
+
   // --- SIGNATURE VERIFICATION --- //
   public async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {
     const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
 
     try {
-      if (CryptoService.EthereumBasedChains.includes(blockchain))
-        return this.verifyEthereumBased(message, address, signature);
+      if (EvmBlockchains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (blockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
+      if (blockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
       if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
+      if (blockchain === Blockchain.ZANO) return await this.verifyZano(message, address, signature);
       if (blockchain === Blockchain.SOLANA) return await this.verifySolana(message, address, signature);
+      if (blockchain === Blockchain.TRON) return await this.verifyTron(message, address, signature);
       if (blockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
       if (blockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
-      if (blockchain === Blockchain.DEFICHAIN)
-        return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
       if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
       if (blockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
-    } catch {}
+      if (blockchain === Blockchain.DEFICHAIN)
+        return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
+    } catch (e) {
+      if (e instanceof SignatureException) throw new BadRequestException(e.message);
+    }
 
     return false;
   }
@@ -219,17 +267,31 @@ export class CryptoService {
   }
 
   private async verifyLightning(address: string, message: string, signature: string): Promise<boolean> {
-    const key = await this.lightningService.getPublicKeyOfAddress(address);
+    const key = await this.lightningService.getPublicKeyOfAddress(address).catch(() => {
+      throw new SignatureException('Failed to get node public key (by invoice)');
+    });
 
     return this.lightningService.verifySignature(message, signature, key);
+  }
+
+  private async verifySpark(message: string, address: string, signature: string): Promise<boolean> {
+    return this.sparkService.verifySignature(message, address, signature);
   }
 
   private async verifyMonero(message: string, address: string, signature: string): Promise<boolean> {
     return this.moneroService.verifySignature(message, address, signature);
   }
 
+  private async verifyZano(message: string, address: string, signature: string): Promise<boolean> {
+    return this.zanoService.verifySignature(message, address, signature);
+  }
+
   private async verifySolana(message: string, address: string, signature: string): Promise<boolean> {
     return this.solanaService.verifySignature(message, address, signature);
+  }
+
+  private async verifyTron(message: string, address: string, signature: string): Promise<boolean> {
+    return this.tronService.verifySignature(message, address, signature);
   }
 
   private verifyLiquid(message: string, address: string, signature: string): boolean {

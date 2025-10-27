@@ -19,6 +19,9 @@ export class KycFile extends IEntity {
   @Column()
   protected: boolean;
 
+  @Column({ default: true })
+  valid: boolean;
+
   @Column({ length: 256, unique: true })
   uid: string;
 

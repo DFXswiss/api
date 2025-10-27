@@ -69,6 +69,10 @@ export class Util {
     return new BigNumber(amount).precision(precision).toNumber();
   }
 
+  static floorByPrecision(amount: number, precision: number): number {
+    return new BigNumber(amount).precision(precision, BigNumber.ROUND_FLOOR).toNumber();
+  }
+
   static sum(list: number[]): number {
     return list.reduce((prev, curr) => prev + curr, 0);
   }
@@ -112,6 +116,11 @@ export class Util {
   }
 
   // --- LISTS --- //
+
+  static toUniqueList<T>(list: T[], key: KeyType<T, number> | KeyType<T, Date>): T[] {
+    return Array.from(new Map(list.map((item) => [item[key], item])).values());
+  }
+
   static sort<T>(list: T[], key: KeyType<T, number> | KeyType<T, Date>, sorting: 'ASC' | 'DESC' = 'ASC'): T[] {
     return list.sort((a, b) => (sorting === 'ASC' ? Number(a[key]) - Number(b[key]) : Number(b[key]) - Number(a[key])));
   }
@@ -193,8 +202,8 @@ export class Util {
       .replace(/[ßșšś]/g, 's')
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
-      .replace(/[\.,]/g, '')
-      .replace(/[-‘`´']/g, ' ');
+      .replace(/[\.,’]/g, '')
+      .replace(/[-‘`´'+&]/g, ' ');
   }
 
   static blankCenter(value: string, visibleLength = 4): string {
@@ -226,6 +235,22 @@ export class Util {
     return left?.map((s) => s?.toLowerCase()).includes(right?.toLowerCase());
   }
 
+  static toBase32(buffer: Buffer): string {
+    const BASE_32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford: no O/I/L/U
+
+    let num = BigInt('0x' + buffer.toString('hex'));
+    const base = BigInt(BASE_32.length);
+
+    let result = '';
+    while (num > 0n) {
+      const remainder = num % base;
+      result = BASE_32[Number(remainder)] + result;
+      num = num / base;
+    }
+
+    return result || '0';
+  }
+
   // --- ID GENERATION --- //
   static randomId(): number {
     return randomBytes(4).readUInt32BE();
@@ -235,6 +260,10 @@ export class Util {
     return randomBytes(length / 2)
       .toString('hex')
       .toUpperCase();
+  }
+
+  static secureRandomString(): string {
+    return Util.toBase32(randomBytes(32));
   }
 
   static createUniqueId(prefix: string, length = 6): string {
@@ -258,6 +287,10 @@ export class Util {
 
   static daysDiff(from?: Date, to?: Date): number {
     return this.secondsDiff(from, to) / (3600 * 24);
+  }
+
+  static yearsDiff(from?: Date, to?: Date): number {
+    return this.daysDiff(from, to) / 365;
   }
 
   static secondsAfter(seconds: number, from?: Date): Date {

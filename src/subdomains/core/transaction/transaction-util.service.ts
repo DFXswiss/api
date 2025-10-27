@@ -70,7 +70,7 @@ export class TransactionUtilService {
       entity.chargebackDate ||
       (entity instanceof BuyFiat && entity.chargebackTxId) ||
       (entity instanceof BuyCrypto && (entity.chargebackCryptoTxId || entity.chargebackBankTx)) ||
-      (entity instanceof BankTxReturn && (entity.chargebackRemittanceInfo || entity.chargebackBankTx))
+      (entity instanceof BankTxReturn && (entity.chargebackOutput || entity.chargebackBankTx))
     )
       throw new BadRequestException('Transaction is already returned');
 
@@ -90,7 +90,7 @@ export class TransactionUtilService {
   }
 
   async validateChargebackIban(iban: string, validateIbanCountry: boolean): Promise<boolean> {
-    const bankAccount = await this.bankAccountService.getOrCreateBankAccountInternal(iban, validateIbanCountry);
+    const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(iban, validateIbanCountry);
     const blockedAccounts = await this.specialExternalAccountService.getBlacklist();
     const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
 
@@ -111,10 +111,10 @@ export class TransactionUtilService {
       blockedAccounts.some(
         (b) =>
           [
-            SpecialExternalAccountType.BANNED_IBAN,
-            SpecialExternalAccountType.BANNED_IBAN_BUY,
-            SpecialExternalAccountType.BANNED_IBAN_SELL,
-            SpecialExternalAccountType.BANNED_IBAN_AML,
+            SpecialExternalAccountType.BANNED_BIC,
+            SpecialExternalAccountType.BANNED_BIC_BUY,
+            SpecialExternalAccountType.BANNED_BIC_SELL,
+            SpecialExternalAccountType.BANNED_BIC_AML,
           ].includes(b.type) && b.value === bankAccount?.bic,
       )
     )
@@ -132,7 +132,7 @@ export class TransactionUtilService {
 
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
 
-    if (dto.permit.executorAddress.toLowerCase() !== client.dfxAddress.toLowerCase())
+    if (dto.permit.executorAddress.toLowerCase() !== client.walletAddress.toLowerCase())
       throw new BadRequestException('Invalid executor address');
 
     const contractValid = await client.isPermitContract(dto.permit.signatureTransferContract);

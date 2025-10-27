@@ -1,19 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import { CreatePaymentLinkPaymentDto } from 'src/subdomains/core/payment-link/dto/create-payment-link-payment.dto';
 import { PaymentLinkDtoMapper } from 'src/subdomains/core/payment-link/dto/payment-link-dto.mapper';
 import {
   PaymentLinkEvmPaymentDto,
   PaymentLinkHexResultDto,
-  PaymentLinkPaymentDto,
   PaymentLinkPayRequestDto,
+  PaymentLinkPaymentDto,
   TransferInfo,
 } from 'src/subdomains/core/payment-link/dto/payment-link.dto';
 import { PaymentLinkPaymentMode, PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { PaymentLinkService } from 'src/subdomains/core/payment-link/services/payment-link.service';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../../../../integration/lightning/dto/lnurlp.dto';
-import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from '../../../../integration/lightning/dto/lnurlw.dto';
+import { LnurlWithdrawRequestDto, LnurlwInvoiceDto } from '../../../../integration/lightning/dto/lnurlw.dto';
 import { LightningClient } from '../../../../integration/lightning/lightning-client';
 import { LightningHelper } from '../../../../integration/lightning/lightning-helper';
 import { LightningService } from '../../../../integration/lightning/services/lightning.service';
@@ -21,8 +23,8 @@ import { PaymentDto } from '../dto/payment.dto';
 
 @Injectable()
 export class LnUrlForwardService {
-  private static readonly PAYMENT_LINK_PREFIX = `${PaymentLinkService.PREFIX_UNIQUE_ID}_`;
-  private static readonly PAYMENT_LINK_PAYMENT_PREFIX = `${PaymentLinkPaymentService.PREFIX_UNIQUE_ID}_`;
+  private readonly PAYMENT_LINK_PREFIX = `${Config.prefixes.paymentLinkUidPrefix}_`;
+  private readonly PAYMENT_LINK_PAYMENT_PREFIX = `${Config.prefixes.paymentLinkPaymentUidPrefix}_`;
 
   private readonly client: LightningClient;
 
@@ -40,10 +42,7 @@ export class LnUrlForwardService {
     id: string,
     params: any,
   ): Promise<LnurlPayRequestDto | PaymentLinkPayRequestDto | LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
-    if (
-      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
-      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
-    ) {
+    if (id.startsWith(this.PAYMENT_LINK_PREFIX) || id.startsWith(this.PAYMENT_LINK_PAYMENT_PREFIX)) {
       const payRequest = await this.paymentLinkService.createPayRequest(
         id,
         Util.toEnum(PaymentStandard, params.standard),
@@ -72,10 +71,7 @@ export class LnUrlForwardService {
 
   // callback
   async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
-    if (
-      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PREFIX) ||
-      id.startsWith(LnUrlForwardService.PAYMENT_LINK_PAYMENT_PREFIX)
-    ) {
+    if (id.startsWith(this.PAYMENT_LINK_PREFIX) || id.startsWith(this.PAYMENT_LINK_PAYMENT_PREFIX)) {
       const transferInfo = this.getPaymentTransferInfo(params);
       return this.paymentLinkPaymentService.createActivationRequest(id, transferInfo);
     }
@@ -125,6 +121,7 @@ export class LnUrlForwardService {
   async cancelPayment(id: string): Promise<PaymentLinkPaymentDto> {
     const payment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(id);
     if (!payment) throw new NotFoundException('No pending payment found');
+    if (!payment.link.configObj.cancellable) throw new BadRequestException('Payment is not cancellable');
 
     if (payment.mode !== PaymentLinkPaymentMode.MULTIPLE) await this.paymentLinkPaymentService.cancelByPayment(payment);
 
@@ -156,5 +153,15 @@ export class LnUrlForwardService {
 
   async lnurldCallbackForward(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
     return this.client.getLnurlDeviceCallback(id, variable, params);
+  }
+
+  async activatePublicPayment(id: string, dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayRequestDto> {
+    const paymentLink = await this.paymentLinkService.getPublicPaymentLinkByUniqueId(id);
+
+    const {
+      payments: [pendingPayment],
+    } = await this.paymentLinkService.createPayment(dto, paymentLink.route.user.id, paymentLink.id);
+
+    return this.paymentLinkService.createPayRequest(pendingPayment.uniqueId);
   }
 }

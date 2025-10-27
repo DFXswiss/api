@@ -9,7 +9,7 @@ import { DilisenseApiData } from '../dto/input/dilisense-data.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
 import { FileSubType, FileType } from '../dto/kyc-file.dto';
 import { KycFile } from '../entities/kyc-file.entity';
-import { NameCheckLog, RiskEvaluation, RiskStatus } from '../entities/name-check-log.entity';
+import { NameCheckLog, NameCheckRiskStatus, RiskEvaluation } from '../entities/name-check-log.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
 import { DilisenseService } from './integration/dilisense.service';
@@ -42,7 +42,7 @@ export class NameCheckService implements OnModuleInit {
     return updatedEntity;
   }
 
-  async refreshRiskStatus(bankData: BankData): Promise<RiskStatus> {
+  async refreshRiskStatus(bankData: BankData): Promise<NameCheckRiskStatus> {
     // const sanctionData = this.sanctionData.filter((data) =>
     //   this.isSanctionedData(data, userData.firstname.toLowerCase(), userData.surname.toLowerCase()),
     // );
@@ -80,10 +80,13 @@ export class NameCheckService implements OnModuleInit {
       await this.classifyRiskData(businessSanctionData, businessSanctionFile, bankData, 'Business'),
     ];
 
-    if (riskStatus.some((r) => r === RiskStatus.SANCTIONED) || riskStatus[1] === RiskStatus.MATCH_WITHOUT_BIRTHDAY)
-      return RiskStatus.SANCTIONED;
-    if (riskStatus[0] === RiskStatus.MATCH_WITHOUT_BIRTHDAY) return RiskStatus.MATCH_WITHOUT_BIRTHDAY;
-    return RiskStatus.NOT_SANCTIONED;
+    if (
+      riskStatus.some((r) => r === NameCheckRiskStatus.SANCTIONED) ||
+      riskStatus[1] === NameCheckRiskStatus.MATCH_WITHOUT_BIRTHDAY
+    )
+      return NameCheckRiskStatus.SANCTIONED;
+    if (riskStatus[0] === NameCheckRiskStatus.MATCH_WITHOUT_BIRTHDAY) return NameCheckRiskStatus.MATCH_WITHOUT_BIRTHDAY;
+    return NameCheckRiskStatus.NOT_SANCTIONED;
   }
 
   private async classifyRiskData(
@@ -91,34 +94,40 @@ export class NameCheckService implements OnModuleInit {
     file: KycFile,
     bankData: BankData,
     comment = '',
-  ): Promise<RiskStatus> {
+  ): Promise<NameCheckRiskStatus> {
     if (sanctionData.total_hits == 0) {
-      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.NOT_SANCTIONED, file, comment);
-      return RiskStatus.NOT_SANCTIONED;
+      await this.createNameCheckLog(
+        bankData,
+        JSON.stringify(sanctionData),
+        NameCheckRiskStatus.NOT_SANCTIONED,
+        file,
+        comment,
+      );
+      return NameCheckRiskStatus.NOT_SANCTIONED;
     }
 
     if (sanctionData.found_records.every((s) => !s.date_of_birth?.length)) {
       await this.createNameCheckLog(
         bankData,
         JSON.stringify(sanctionData),
-        RiskStatus.MATCH_WITHOUT_BIRTHDAY,
+        NameCheckRiskStatus.MATCH_WITHOUT_BIRTHDAY,
         file,
         comment,
       );
-      return RiskStatus.MATCH_WITHOUT_BIRTHDAY;
+      return NameCheckRiskStatus.MATCH_WITHOUT_BIRTHDAY;
     }
 
     for (const sanction of sanctionData.found_records) {
       await this.createNameCheckLog(
         bankData,
         JSON.stringify(sanction),
-        !sanction.date_of_birth?.length ? RiskStatus.MATCH_WITHOUT_BIRTHDAY : RiskStatus.SANCTIONED,
+        !sanction.date_of_birth?.length ? NameCheckRiskStatus.MATCH_WITHOUT_BIRTHDAY : NameCheckRiskStatus.SANCTIONED,
         file,
         comment,
       );
     }
 
-    return RiskStatus.SANCTIONED;
+    return NameCheckRiskStatus.SANCTIONED;
   }
 
   async getRiskDataAndUploadPdf(
@@ -142,6 +151,7 @@ export class NameCheckService implements OnModuleInit {
       buffer,
       contentType as ContentType,
       true,
+      true,
       undefined,
       isBusiness ? FileSubType.BUSINESS_NAME_CHECK : FileSubType.PERSONAL_NAME_CHECK,
     );
@@ -151,7 +161,11 @@ export class NameCheckService implements OnModuleInit {
 
   async closeAndRefreshRiskStatus(bankData: BankData): Promise<void> {
     const openNameChecks = await this.nameCheckLogRepo.find({
-      where: { userData: { id: bankData.userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
+      where: {
+        userData: { id: bankData.userData.id },
+        riskEvaluation: IsNull(),
+        riskStatus: NameCheckRiskStatus.SANCTIONED,
+      },
       relations: { userData: true },
     });
 
@@ -168,7 +182,7 @@ export class NameCheckService implements OnModuleInit {
 
   async hasOpenNameChecks(userData: UserData): Promise<boolean> {
     return this.nameCheckLogRepo.exists({
-      where: { userData: { id: userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
+      where: { userData: { id: userData.id }, riskEvaluation: IsNull(), riskStatus: NameCheckRiskStatus.SANCTIONED },
       relations: { userData: true },
     });
   }
@@ -178,7 +192,7 @@ export class NameCheckService implements OnModuleInit {
   private async createNameCheckLog(
     bankData: BankData,
     result: string,
-    riskRate: RiskStatus,
+    riskRate: NameCheckRiskStatus,
     file: KycFile,
     comment?: string,
   ): Promise<void> {

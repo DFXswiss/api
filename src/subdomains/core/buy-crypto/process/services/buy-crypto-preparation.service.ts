@@ -1,24 +1,29 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
@@ -29,10 +34,8 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
-export class BuyCryptoPreparationService implements OnModuleInit {
+export class BuyCryptoPreparationService {
   private readonly logger = new DfxLogger(BuyCryptoPreparationService);
-  private chf: Fiat;
-  private eur: Fiat;
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -49,17 +52,13 @@ export class BuyCryptoPreparationService implements OnModuleInit {
     private readonly bankTxService: BankTxService,
   ) {}
 
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
-  }
-
   async doAmlCheck(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
       inputAmount: Not(IsNull()),
       inputAsset: Not(IsNull()),
       chargebackAllowedDateUser: IsNull(),
       isComplete: false,
+      transaction: { userData: { riskStatus: Not(RiskStatus.SUSPICIOUS) } },
     };
     const entities = await this.buyCryptoRepo.find({
       where: [
@@ -101,21 +100,30 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           inputCurrency,
           entity.outputAsset,
           inputReferenceCurrency,
-          false,
+          PriceValidity.VALID_ONLY,
           isPayment,
         );
 
-        const { users, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
-        if (bankData && !bankData.comment) continue;
+        const { users, refUser, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
+        if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
 
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
+        const referenceChfPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.CHF,
+          PriceValidity.VALID_ONLY,
+        );
+        const referenceEurPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.EUR,
+          PriceValidity.VALID_ONLY,
+        );
 
         const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
           users,
           Util.daysBefore(7, entity.transaction.created),
           Util.daysAfter(7, entity.transaction.created),
+          PriceValidity.VALID_ONLY,
           'checkoutTx',
           referenceChfPrice,
         );
@@ -125,6 +133,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          PriceValidity.VALID_ONLY,
           undefined,
           referenceChfPrice,
         );
@@ -134,8 +143,13 @@ export class BuyCryptoPreparationService implements OnModuleInit {
           users,
           Util.daysBefore(365, entity.transaction.created),
           Util.daysAfter(365, entity.transaction.created),
+          PriceValidity.VALID_ONLY,
           undefined,
           referenceChfPrice,
+        );
+
+        this.logger.verbose(
+          `User data ${entity.userData.id} volumes are: 7d checkout: ${last7dCheckoutVolume} CHF, 30d: ${last30dVolume} CHF, 365d: ${last365dVolume} CHF`,
         );
 
         const ibanCountry =
@@ -165,6 +179,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
             blacklist,
             banks,
             ibanCountry,
+            refUser,
           ),
         );
 
@@ -225,8 +240,16 @@ export class BuyCryptoPreparationService implements OnModuleInit {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.eur, false);
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, this.chf, false);
+        const referenceEurPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.EUR,
+          PriceValidity.VALID_ONLY,
+        );
+        const referenceChfPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          PriceCurrency.CHF,
+          PriceValidity.VALID_ONLY,
+        );
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 
@@ -289,7 +312,14 @@ export class BuyCryptoPreparationService implements OnModuleInit {
       chargebackAllowedDateUser: Not(IsNull()),
       chargebackAmount: Not(IsNull()),
       isComplete: false,
-      transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
+      transaction: {
+        userData: {
+          kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
+          status: Not(UserDataStatus.BLOCKED),
+          riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
+        },
+        user: { status: In([UserStatus.NA, UserStatus.ACTIVE]) },
+      },
     };
     const entities = await this.buyCryptoRepo.find({
       where: [
@@ -327,7 +357,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         chargebackRemittanceInfo: Not(IsNull()),
         chargebackOutput: { id: Not(IsNull()) },
       },
-      relations: { transaction: { user: { userData: true } } },
+      relations: { transaction: { user: { wallet: true }, userData: true }, cryptoInput: true },
     });
 
     for (const entity of entities) {
@@ -335,8 +365,15 @@ export class BuyCryptoPreparationService implements OnModuleInit {
         const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.chargebackRemittanceInfo);
         if (!bankTx) continue;
 
-        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN }, entity.user);
-        await this.buyCryptoRepo.update(entity.id, { chargebackBankTx: bankTx, isComplete: true });
+        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
+        await this.buyCryptoRepo.update(entity.id, {
+          chargebackBankTx: bankTx,
+          isComplete: true,
+          status: BuyCryptoStatus.COMPLETE,
+        });
+
+        // send webhook
+        await this.buyCryptoWebhookService.triggerWebhook(entity);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} chargeback fillUp:`, e);
       }
@@ -346,7 +383,7 @@ export class BuyCryptoPreparationService implements OnModuleInit {
   private async convertNetworkFee(from: Active, to: Active, fee: number): Promise<number> {
     if (isAsset(to) && [AssetType.CUSTOM, AssetType.PRESALE].includes(to.type)) return 0;
 
-    const referenceOutputPrice = await this.pricingService.getPrice(from, to, false);
+    const referenceOutputPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
 
     return referenceOutputPrice.convert(fee);
   }

@@ -1,6 +1,10 @@
 import { KycStepReason } from './output/kyc-info.dto';
 
-export enum KycIdentError {
+export enum KycError {
+  // General errors
+  RESTARTED_STEP = 'RestartedStep',
+
+  // Ident errors
   USER_DATA_MERGED = 'UserDataMerged',
   USER_DATA_MERGE_REQUESTED = 'UserDataMergeRequested',
   USER_DATA_EXISTING = 'UserDataExisting',
@@ -8,10 +12,10 @@ export enum KycIdentError {
   FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
   LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
   REVERSED_NAMES = 'ReversedNames',
-  NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
   NATIONALITY_MISSING = 'NationalityMissing',
   NATIONALITY_NOT_ALLOWED = 'NationalityNotAllowed',
   INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
+  DOCUMENT_TYPE_NOT_ALLOWED = 'DocumentTypeNotAllowed',
   IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
   INVALID_RESULT = 'InvalidResult',
   VERIFIED_NAME_MISSING = 'VerifiedNameMissing',
@@ -19,40 +23,57 @@ export enum KycIdentError {
   LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
   ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
+  IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
+  COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
   BLOCKED = 'Blocked',
   RELEASED = 'Released',
-}
 
-export enum KycFinancialDataError {
+  // FinancialData errors
   MISSING_QUESTION = 'MissingQuestion',
   RISKY_BUSINESS = 'RiskyBusiness',
+
+  // NationalityData errors
+  NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
+
+  // PersonalData errors
+  PERSONAL_DATA_NOT_MATCHING = 'PersonalDataNotMatching',
+
+  // Deactivated userData errors
+  USER_DATA_DEACTIVATED = 'UserDataDeactivated',
 }
 
-export const KycIdentErrorMap: Record<KycIdentError, string> = {
-  [KycIdentError.USER_DATA_MERGED]: 'Your account is merged',
-  [KycIdentError.USER_DATA_MERGE_REQUESTED]: 'Merge request mail sent to your existing account',
-  [KycIdentError.USER_DATA_EXISTING]: 'You already completed KYC with another account',
-  [KycIdentError.USER_DATA_BLOCKED]: 'Unknown error',
-  [KycIdentError.FIRST_NAME_NOT_MATCHING]: 'Your first name is not matching',
-  [KycIdentError.LAST_NAME_NOT_MATCHING]: 'Your last name is not matching',
-  [KycIdentError.NATIONALITY_NOT_MATCHING]: 'Your nationality is not matching',
-  [KycIdentError.NATIONALITY_MISSING]: 'Nationality is missing',
-  [KycIdentError.NATIONALITY_NOT_ALLOWED]: 'Nationality is not allowed',
-  [KycIdentError.INVALID_DOCUMENT_TYPE]: 'Your document type is invalid',
-  [KycIdentError.IDENTIFICATION_NUMBER_MISSING]: 'Your identification number is missing',
-  [KycIdentError.INVALID_RESULT]: 'Unknown error',
-  [KycIdentError.VERIFIED_NAME_MISSING]: 'Account name is missing',
-  [KycIdentError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME]: 'Your first name does not match your account name',
-  [KycIdentError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME]: 'Your last name does not match your account name',
-  [KycIdentError.ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME]:
-    'Your organization name does not match your account name',
-  [KycIdentError.COUNTRY_NOT_ALLOWED]: 'Your country is not allowed for KYC',
-  [KycIdentError.REVERSED_NAMES]: 'The names in your account are reversed',
-  [KycIdentError.BLOCKED]: 'KYC is blocked',
-  [KycIdentError.RELEASED]: undefined,
+export const KycErrorMap: Record<KycError, string> = {
+  [KycError.USER_DATA_MERGED]: 'Your account is merged',
+  [KycError.USER_DATA_MERGE_REQUESTED]: 'Merge request mail sent to your existing account',
+  [KycError.USER_DATA_EXISTING]: 'You already completed KYC with another account',
+  [KycError.USER_DATA_BLOCKED]: 'Unknown error',
+  [KycError.FIRST_NAME_NOT_MATCHING]: 'Your first name is not matching',
+  [KycError.LAST_NAME_NOT_MATCHING]: 'Your last name is not matching',
+  [KycError.PERSONAL_DATA_NOT_MATCHING]: 'Your personal data is not matching',
+  [KycError.NATIONALITY_NOT_MATCHING]: 'Your nationality is not matching',
+  [KycError.NATIONALITY_MISSING]: 'Nationality is missing',
+  [KycError.NATIONALITY_NOT_ALLOWED]: 'Nationality is not allowed',
+  [KycError.INVALID_DOCUMENT_TYPE]: 'Your document type is invalid',
+  [KycError.DOCUMENT_TYPE_NOT_ALLOWED]: 'Your document type is not allowed',
+  [KycError.IDENTIFICATION_NUMBER_MISSING]: 'Your identification number is missing',
+  [KycError.INVALID_RESULT]: 'Unknown error',
+  [KycError.VERIFIED_NAME_MISSING]: 'Account name is missing',
+  [KycError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME]: 'Your first name does not match your account name',
+  [KycError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME]: 'Your last name does not match your account name',
+  [KycError.ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME]: 'Your organization name does not match your account name',
+  [KycError.COUNTRY_NOT_ALLOWED]: 'Your country is not allowed for KYC',
+  [KycError.REVERSED_NAMES]: 'The names in your account are reversed',
+  [KycError.BLOCKED]: 'KYC is blocked',
+  [KycError.RELEASED]: undefined,
+  [KycError.RESTARTED_STEP]: undefined,
+  [KycError.USER_DATA_DEACTIVATED]: 'Account deactivated',
+  [KycError.IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
+  [KycError.COUNTRY_IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
+  [KycError.MISSING_QUESTION]: 'Missing data',
+  [KycError.RISKY_BUSINESS]: 'Your business is involved in risky business',
 };
 
-export const KycReasonMap: { [e in KycIdentError]?: KycStepReason } = {
-  [KycIdentError.USER_DATA_EXISTING]: KycStepReason.ACCOUNT_EXISTS,
-  [KycIdentError.USER_DATA_MERGE_REQUESTED]: KycStepReason.ACCOUNT_MERGE_REQUESTED,
+export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
+  [KycError.USER_DATA_EXISTING]: KycStepReason.ACCOUNT_EXISTS,
+  [KycError.USER_DATA_MERGE_REQUESTED]: KycStepReason.ACCOUNT_MERGE_REQUESTED,
 };

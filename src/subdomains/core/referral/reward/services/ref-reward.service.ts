@@ -1,19 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, Not } from 'typeorm';
 import { RefRewardExtended } from '../../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
+import { CreateManualRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
@@ -23,10 +27,13 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.DEFICHAIN]: undefined,
   [Blockchain.ARBITRUM]: 10,
   [Blockchain.BITCOIN]: 100,
-  [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.LIGHTNING]: 1,
+  [Blockchain.SPARK]: undefined,
   [Blockchain.MONERO]: 1,
+  [Blockchain.ZANO]: undefined,
   [Blockchain.CARDANO]: undefined,
   [Blockchain.ETHEREUM]: 10,
+  [Blockchain.SEPOLIA]: undefined,
   [Blockchain.BINANCE_SMART_CHAIN]: undefined,
   [Blockchain.OPTIMISM]: undefined,
   [Blockchain.POLYGON]: undefined,
@@ -37,7 +44,19 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.ARWEAVE]: undefined,
   [Blockchain.RAILGUN]: undefined,
   [Blockchain.BINANCE_PAY]: undefined,
+  [Blockchain.KUCOIN_PAY]: undefined,
   [Blockchain.GNOSIS]: undefined,
+  [Blockchain.TRON]: undefined,
+  [Blockchain.CITREA_TESTNET]: undefined,
+  [Blockchain.KRAKEN]: undefined,
+  [Blockchain.BINANCE]: undefined,
+  [Blockchain.XT]: undefined,
+  [Blockchain.MEXC]: undefined,
+  [Blockchain.MAERKI_BAUMANN]: undefined,
+  [Blockchain.OLKYPAY]: undefined,
+  [Blockchain.CHECKOUT]: undefined,
+  [Blockchain.KALEIDO]: undefined,
+  [Blockchain.SUMIXX]: undefined,
 };
 
 @Injectable()
@@ -47,20 +66,62 @@ export class RefRewardService {
     private readonly userService: UserService,
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
-    private readonly fiatService: FiatService,
     private readonly transactionService: TransactionService,
   ) {}
 
-  //*** JOBS ***//
+  async createManualRefReward(dto: CreateManualRefRewardDto) {
+    const user = await this.userService.getUser(dto.user.id, { userData: true });
+    if (!user) throw new NotFoundException('User not found');
+
+    const asset = await this.assetService.getAssetById(dto.asset.id);
+    if (!asset) throw new NotFoundException('Asset not found');
+
+    const sourceTransaction = await this.transactionService.getTransactionById(dto.sourceTransaction.id);
+    if (!sourceTransaction) throw new NotFoundException('Source Transaction not found');
+    if (await this.rewardRepo.existsBy({ sourceTransaction: { id: sourceTransaction.id } }))
+      throw new BadRequestException('Source transaction already used');
+
+    const eurChfPrice = await this.pricingService.getPrice(
+      PriceCurrency.EUR,
+      PriceCurrency.CHF,
+      PriceValidity.VALID_ONLY,
+    );
+
+    const entity = this.rewardRepo.create({
+      user,
+      targetAddress: user.address,
+      outputAsset: asset.dexName,
+      status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
+      targetBlockchain: asset.blockchain,
+      amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
+      amountInEur: dto.amountInEur,
+    });
+
+    entity.transaction = await this.transactionService.create({
+      sourceType: TransactionSourceType.MANUAL_REF,
+      user,
+      userData: user.userData,
+    });
+
+    // update user ref balance
+    await this.userService.updateRefVolume(
+      user.ref,
+      user.refVolume + dto.amountInEur / user.refFeePercent,
+      user.refCredit + dto.amountInEur,
+    );
+
+    await this.rewardRepo.save(entity);
+  }
 
   async createPendingRefRewards() {
     const openCreditUser = await this.userService.getOpenRefCreditUser();
     if (openCreditUser.length == 0) return;
 
-    // CHF/EUR Price
-    const fiatEur = await this.fiatService.getFiatByName('EUR');
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-    const eurChfPrice = await this.pricingService.getPrice(fiatEur, fiatChf, false);
+    const eurChfPrice = await this.pricingService.getPrice(
+      PriceCurrency.EUR,
+      PriceCurrency.CHF,
+      PriceValidity.VALID_ONLY,
+    );
 
     const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
       CryptoService.getDefaultBlockchainBasedOn(o.address),
@@ -92,7 +153,7 @@ export class RefRewardService {
 
         const entity = this.rewardRepo.create({
           outputAsset: payoutAsset.dexName,
-          user: user,
+          user,
           status: refCreditEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
           targetAddress: user.address,
           targetBlockchain: blockchain,
@@ -100,7 +161,11 @@ export class RefRewardService {
           amountInEur: refCreditEur,
         });
 
-        entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.REF, user });
+        entity.transaction = await this.transactionService.create({
+          sourceType: TransactionSourceType.REF,
+          user,
+          userData: user.userData,
+        });
 
         await this.rewardRepo.save(entity);
       }
@@ -115,6 +180,8 @@ export class RefRewardService {
   async updateRefReward(id: number, dto: UpdateRefRewardDto): Promise<RefReward> {
     const entity = await this.rewardRepo.findOneBy({ id });
     if (!entity) throw new Error('RefReward not found');
+    if ([RewardStatus.COMPLETE, RewardStatus.PAYING_OUT].includes(entity.status))
+      throw new BadRequestException('RefReward already complete');
 
     Object.assign(entity, dto);
 

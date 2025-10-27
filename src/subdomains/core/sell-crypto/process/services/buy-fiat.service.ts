@@ -74,7 +74,7 @@ export class BuyFiatService {
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
-      transaction: { id: cryptoInput.transaction.id },
+      transaction: cryptoInput.transaction,
       outputAsset: sell.fiat,
       outputReferenceAsset: sell.fiat,
     });
@@ -197,22 +197,30 @@ export class BuyFiatService {
     return entity;
   }
 
-  async getBuyFiatByKey(key: string, value: any): Promise<BuyFiat> {
-    return this.buyFiatRepo
+  async getBuyFiatByKey(key: string, value: any, onlyDefaultRelation = false): Promise<BuyFiat> {
+    const query = this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('buyFiat')
-      .leftJoinAndSelect('buyFiat.sell', 'sell')
       .leftJoinAndSelect('buyFiat.transaction', 'transaction')
       .leftJoinAndSelect('transaction.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `buyFiat.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `buyFiat.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('buyFiat.sell', 'sell');
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
+  }
+
+  async getBuyFiatByTransactionId(transactionId: number, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat> {
+    return this.buyFiatRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
   async getBuyFiat(from: Date, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat[]> {
@@ -226,7 +234,7 @@ export class BuyFiatService {
         sell: true,
         bankTx: true,
         cryptoInput: true,
-        transaction: { user: { wallet: true, userData: true } },
+        transaction: { user: { wallet: true }, userData: true },
       },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');
@@ -463,8 +471,13 @@ export class BuyFiatService {
     for (const ref of refs) {
       const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.getRefVolume(ref);
       const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.buyCryptoService.getRefVolume(ref);
+      const { volume: manualVolume, credit: manualCredit } = await this.transactionService.getManualRefVolume(ref);
 
-      await this.userService.updateRefVolume(ref, buyFiatVolume + buyCryptoVolume, buyFiatCredit + buyCryptoCredit);
+      await this.userService.updateRefVolume(
+        ref,
+        buyFiatVolume + buyCryptoVolume + manualVolume,
+        buyFiatCredit + buyCryptoCredit + manualCredit,
+      );
     }
   }
 

@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
+import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
+import { OrderNotProcessableException } from '../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../interfaces';
 import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 
@@ -22,7 +25,11 @@ export enum DfxDexAdapterCommands {
 export class DfxDexAdapter extends LiquidityActionAdapter {
   protected commands = new Map<string, Command>();
 
-  constructor(private readonly dexService: DexService, private readonly exchangeRegistry: ExchangeRegistryService) {
+  constructor(
+    private readonly dexService: DexService,
+    private readonly exchangeRegistry: ExchangeRegistryService,
+    private readonly assetService: AssetService,
+  ) {
     super(LiquidityManagementSystem.DFX_DEX);
 
     this.commands.set(DfxDexAdapterCommands.PURCHASE, this.purchase.bind(this));
@@ -116,12 +123,35 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   }
 
   private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { address } = this.parseWithdrawParams(order.action.paramMap);
-    const { maxAmount: amount } = order;
+    const { address, assetId } = this.parseWithdrawParams(order.action.paramMap);
+    const { minAmount, maxAmount } = order;
+
+    const asset = assetId ? await this.assetService.getAssetById(assetId) : order.pipeline.rule.targetAsset;
+
+    // fetch available liquidity
+    const liquidityRequest: ReserveLiquidityRequest = {
+      context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+      correlationId: `${order.id}`,
+      referenceAmount: minAmount,
+      referenceAsset: asset,
+      targetAsset: asset,
+    };
+
+    const {
+      reference: { availableAmount },
+    } = await this.dexService.checkLiquidity(liquidityRequest);
+
+    if (availableAmount < minAmount) {
+      throw new OrderNotProcessableException(
+        `Not enough balance for ${asset.name} (balance: ${availableAmount}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
+      );
+    }
+
+    const amount = Math.min(maxAmount, availableAmount);
 
     const request = {
       destinationAddress: address,
-      asset: order.pipeline.rule.targetAsset,
+      asset,
       amount,
     };
 
@@ -151,12 +181,17 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   }
 
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const { system } = this.parseWithdrawParams(order.action.paramMap);
+    const { system, assetId } = this.parseWithdrawParams(order.action.paramMap);
 
     const exchange = this.exchangeRegistry.get(system);
 
-    const deposits = await exchange.getDeposits(order.pipeline.rule.targetAsset.dexName, order.created);
-    const deposit = deposits.find((d) => d.amount === order.maxAmount && d.timestamp > order.created.getTime());
+    const sourceAsset = assetId ? await this.assetService.getAssetById(assetId) : undefined;
+    const sourceChain = sourceAsset && exchange.mapNetwork(sourceAsset.blockchain);
+
+    const targetAsset = order.pipeline.rule.targetAsset;
+
+    const deposits = await exchange.getDeposits(targetAsset.dexName, order.created, sourceChain || undefined);
+    const deposit = deposits.find((d) => d.amount === order.inputAmount && d.timestamp > order.created.getTime());
 
     const isComplete = deposit && deposit.status === 'ok';
     if (isComplete) {
@@ -180,14 +215,16 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   private parseWithdrawParams(params: Record<string, unknown>): {
     address: string;
     system: LiquidityManagementSystem;
+    assetId?: number;
   } {
     const address = process.env[params.destinationAddress as string];
     const system = params.destinationSystem as LiquidityManagementSystem;
+    const assetId = params.assetId as number | undefined;
 
     const isValid = this.withdrawParamsValid(address, system);
     if (!isValid) throw new Error(`Params provided to DfxDexAdapter.withdraw(...) command are invalid.`);
 
-    return { address, system };
+    return { address, system, assetId };
   }
 
   private withdrawParamsValid(address: string, system: LiquidityManagementSystem): boolean {

@@ -5,7 +5,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MailContextType } from 'src/subdomains/supporting/notification/enums';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { WebhookType } from '../../services/webhook/dto/webhook.dto';
-import { KycType } from '../user-data/user-data.entity';
+import { KycType } from '../user-data/user-data.enum';
 
 export interface WebhookConfig {
   payment: WebhookConfigOption;
@@ -58,6 +58,9 @@ export class Wallet extends IEntity {
   @Column({ default: '0' })
   amlRules: string; // semicolon separated amlRule id's
 
+  @Column({ nullable: true })
+  exceptAmlRules: string; // semicolon separated amlRule id's
+
   @Column({ length: 'MAX', nullable: true })
   webhookConfig?: string; // JSON string
 
@@ -77,6 +80,15 @@ export class Wallet extends IEntity {
   get amlRuleList(): AmlRule[] {
     return (
       this.amlRules
+        ?.split(';')
+        .map((num) => Number(num))
+        .filter((num) => Object.values(AmlRule).includes(num)) ?? []
+    );
+  }
+
+  get exceptAmlRuleList(): AmlRule[] {
+    return (
+      this.exceptAmlRules
         ?.split(';')
         .map((num) => Number(num))
         .filter((num) => Object.values(AmlRule).includes(num)) ?? []

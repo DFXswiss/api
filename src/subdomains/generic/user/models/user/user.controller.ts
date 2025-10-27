@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBadRequestResponse,
@@ -22,19 +22,21 @@ import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
+import { UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
-import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
+import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
 import { VerifyMailDto } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { User } from './user.entity';
+import { User, UserSupportUpdateCols } from './user.entity';
+import { UserStatus } from './user.enum';
 import { UserService } from './user.service';
 
 @ApiTags('User')
@@ -194,9 +196,19 @@ export class UserController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async updateUserAdmin(@Param('id') id: string, @Body() dto: UpdateUserAdminDto): Promise<User> {
-    return this.userService.updateUserInternal(+id, dto);
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async updateUserAdmin(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserInternalDto,
+  ): Promise<User> {
+    if (
+      [UserRole.SUPPORT, UserRole.COMPLIANCE].includes(jwt.role) &&
+      Object.keys(dto).some((k) => !UserSupportUpdateCols.includes(k))
+    )
+      throw new ForbiddenException('Support/Compliance is not allowed to update this value');
+
+    return this.userService.updateUserAdmin(+id, dto);
   }
 }
 
@@ -207,7 +219,11 @@ export class UserV2Controller {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.ACCOUNT),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   @ApiOkResponse({ type: UserV2Dto })
   async getUser(@GetJwt() jwt: JwtPayload): Promise<UserV2Dto> {
     return this.userService.getUserDtoV2(jwt.account, jwt.user);

@@ -2,7 +2,7 @@ import { NetworkName } from '@defichain/jellyfish-network';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { Exchange } from 'ccxt';
+import { ConstructorArgs } from 'ccxt';
 import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
@@ -19,6 +19,7 @@ import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -26,8 +27,6 @@ export enum Environment {
   DEV = 'dev',
   PRD = 'prd',
 }
-
-export type ExchangeConfig = Partial<Exchange> & { withdrawKeys?: Map<string, string> };
 
 export type Version = '1' | '2';
 
@@ -43,11 +42,13 @@ export class Configuration {
   defaultVersion: Version = '1';
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
+  defaultRef = '000-000';
   transactionRefundExpirySeconds = 30;
   refRewardManualCheckLimit = 3000; // EUR
   manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
+  financeLogTotalBalanceChangeLimit = 5000;
 
   defaults = {
     currency: 'EUR',
@@ -71,12 +72,29 @@ export class Configuration {
     },
   };
 
+  prefixes = {
+    issueUidPrefix: 'I',
+    quoteUidPrefix: 'Q',
+    transactionUidPrefix: 'T',
+    kycFileUidPrefix: 'F',
+    paymentLinkUidPrefix: 'pl',
+    paymentLinkPaymentUidPrefix: 'plp',
+    paymentQuoteUidPrefix: 'plq',
+  };
+
   moderators = {
     Wendel: '019-957',
   };
 
   loginCountries = {
     '1': ['CH'],
+  };
+
+  liquidityManagement = {
+    bankMinBalance: 100,
+    fiatOutput: {
+      batchAmountLimit: 9500,
+    },
   };
 
   defaultVolumeDecimal = 2;
@@ -100,7 +118,7 @@ export class Configuration {
 
   tradingLimits = {
     monthlyDefaultWoKyc: 1000, // CHF
-    weeklyAmlRule: 5000, // CHF
+    weeklyAmlRule: 25000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
     yearlyWithoutKyc: 50000, // CHF
@@ -117,6 +135,7 @@ export class Configuration {
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
+  sparkAddressFormat = 'sp1[a-z0-9]{6,87}';
   moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
@@ -125,9 +144,11 @@ export class Configuration {
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
   railgunAddressFormat = '0zk[a-z0-9]{1,124}';
-  solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{32,44}';
+  solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{43,44}';
+  tronAddressFormat = 'T[1-9A-HJ-NP-Za-km-z]{32,34}';
+  zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -139,9 +160,11 @@ export class Configuration {
   arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
   railgunSignatureFormat = '[a-f0-9]{128}';
-  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{88}';
+  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
+  tronSignatureFormat = '(0x)?[a-f0-9]{130}';
+  zanoSignatureFormat = '[a-f0-9]{128}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '[a-f0-9]{84}';
@@ -154,6 +177,10 @@ export class Configuration {
     key: new RegExp(`^(${this.allKeyFormat})$`),
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
+    kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+    phone: /^\+\d+$/,
+    accountServiceRef: /^[A-Z]{2}\d{8}\/\d+\/\d+$/,
+    number: /^\d+$/,
   };
 
   database: TypeOrmModuleOptions = {
@@ -213,7 +240,7 @@ export class Configuration {
     auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
     video: { customer: process.env.KYC_CUSTOMER_VIDEO, apiKey: process.env.KYC_API_KEY_VIDEO },
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
-    identFailAfterDays: 90,
+    identFailAfterDays: 30,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
     reminderAfterDays: 2,
     appToken: process.env.KYC_APP_TOKEN,
@@ -394,7 +421,13 @@ export class Configuration {
           prefixes: (userData: UserData) => [`user/${userData.id}/CommercialRegister`],
           filter: (file: KycFileBlob, userData: UserData) =>
             userData.kycSteps.some(
-              (s) => s.name === KycStepName.COMMERCIAL_REGISTER && s.isCompleted && s.result === file.url,
+              (s) =>
+                s.isCompleted &&
+                ((s.name === KycStepName.COMMERCIAL_REGISTER && s.result === file.url) ||
+                  (s.name === KycStepName.LEGAL_ENTITY &&
+                    s.getResult<{ url: string; legalEntity: LegalEntity }>().url === file.url) ||
+                  (s.name === KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION &&
+                    s.getResult<{ url: string }>().url === file.url)),
             ),
         },
       ],
@@ -533,10 +566,14 @@ export class Configuration {
     timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
     evmSeed: process.env.PAYMENT_EVM_SEED,
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
-    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    tronSeed: process.env.PAYMENT_TRON_SEED,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
-    minConfirmations: (blockchain: Blockchain) => (blockchain === Blockchain.ETHEREUM ? 6 : 100),
+    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
+    minConfirmations: (blockchain: Blockchain) =>
+      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
+    maxDepositBalance: 10000, // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
@@ -546,18 +583,25 @@ export class Configuration {
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
-    manualMethods: ['KuCoinPay', 'BitcoinOnChainTaprootAsset'],
+    manualMethods: ['TaprootAsset', 'Spark'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
 
     binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
     binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
+    binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
+
+    kucoinPayMerchantId: process.env.KUCOIN_PAY_MERCHANT_ID,
+    kucoinPayBaseUrl: process.env.KUCOIN_PAY_BASE_URL,
+    kucoinPayApiKey: process.env.KUCOIN_API_KEY,
+    kucoinPaySigningKey: process.env.DFX_KUCOINPAY_PRIVATE_KEY?.split('<br>').join('\n'),
+    kucoinPayPublicKey: process.env.KUCOIN_PUBLIC_KEY?.split('<br>').join('\n'),
 
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
 
-    fee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
+    forexFee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
       if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
 
       switch (standard) {
@@ -569,6 +613,8 @@ export class Configuration {
       }
     },
 
+    fee: 0.002,
+
     quoteTimeout: (standard: PaymentStandard): number => {
       switch (standard) {
         case PaymentStandard.PAY_TO_ADDRESS:
@@ -578,6 +624,27 @@ export class Configuration {
           return this.payment.defaultQuoteTimeout;
       }
     },
+
+    standards: [
+      {
+        id: PaymentStandard.OPEN_CRYPTO_PAY,
+        label: 'OpenCryptoPay.io',
+        description: 'Pay with OpenCryptoPay, Bitcoin Lightning LNURL',
+        paymentIdentifierLabel: 'URL',
+      },
+      {
+        id: PaymentStandard.LIGHTNING_BOLT11,
+        label: 'Bitcoin Lightning',
+        description: 'Pay with a Bolt 11 Invoice',
+        paymentIdentifierLabel: 'LNR',
+      },
+      {
+        id: PaymentStandard.PAY_TO_ADDRESS,
+        label: '{{blockchain}} address',
+        description: 'Pay to a {{blockchain}} Blockchain address',
+        paymentIdentifierLabel: 'URI',
+      },
+    ],
   };
 
   blockchain = {
@@ -629,6 +696,15 @@ export class Configuration {
       ethChainId: +process.env.ETH_CHAIN_ID,
       swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.ETH_QUOTE_CONTRACT_ADDRESS,
+    },
+    sepolia: {
+      sepoliaWalletAddress: process.env.SEPOLIA_WALLET_ADDRESS,
+      sepoliaWalletPrivateKey: process.env.SEPOLIA_WALLET_PRIVATE_KEY,
+      sepoliaGatewayUrl: process.env.SEPOLIA_GATEWAY_URL,
+      sepoliaApiKey: process.env.ALCHEMY_API_KEY,
+      sepoliaChainId: +process.env.SEPOLIA_CHAIN_ID,
+      swapContractAddress: process.env.SEPOLIA_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.SEPOLIA_QUOTE_CONTRACT_ADDRESS,
     },
     optimism: {
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
@@ -686,6 +762,14 @@ export class Configuration {
       quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
       gasPrice: process.env.BSC_GAS_PRICE,
     },
+    citreaTestnet: {
+      citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
+      citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
+      citreaTestnetGatewayUrl: process.env.CITREA_TESTNET_GATEWAY_URL,
+      citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
+      citreaTestnetChainId: +process.env.CITREA_TESTNET_CHAIN_ID,
+      goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
+    },
     lightning: {
       lnbits: {
         apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
@@ -726,6 +810,38 @@ export class Configuration {
         index: accountIndex,
       }),
     },
+    tron: {
+      tronWalletSeed: process.env.TRON_WALLET_SEED,
+      tronGatewayUrl: process.env.TRON_GATEWAY_URL,
+      tronApiUrl: process.env.TRON_API_URL,
+      tronRpcUrl: process.env.TRON_RPC_URL,
+      tronApiKey: process.env.TATUM_API_KEY,
+      // Definition: USDT Contract: 64.285, all other contracts: 100.000
+      usdtTransferEnergy: 64285,
+      tokenTransferEnergy: 100000,
+      // Coin Bandwidth definition: Bandwidth cost: 268
+      coinTransferBandwidth: 268,
+      // Token Bandwidth definition: Bandwidth cost: 70, Signature cost: 65
+      tokenTransferBandwidth: 70 + 65,
+      // Max send token fee: 100 TRX
+      sendTokenFeeLimit: 100_000_000,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.tron.tronWalletSeed,
+        index: accountIndex,
+      }),
+    },
+    zano: {
+      node: {
+        url: process.env.ZANO_NODE_URL,
+      },
+      wallet: {
+        url: process.env.ZANO_WALLET_URL,
+        address: process.env.ZANO_WALLET_ADDRESS,
+      },
+      coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
+      fee: 0.01,
+    },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {
@@ -762,7 +878,7 @@ export class Configuration {
     },
   };
 
-  exchange: ExchangeConfig = {
+  exchange: ConstructorArgs = {
     enableRateLimit: true,
     rateLimit: 500,
     timeout: 30000,
@@ -885,7 +1001,7 @@ export class Configuration {
       : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
   }
 
-  get kraken(): ExchangeConfig {
+  get kraken(): ConstructorArgs {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
@@ -894,7 +1010,7 @@ export class Configuration {
     };
   }
 
-  get binance(): ExchangeConfig {
+  get binance(): ConstructorArgs {
     return {
       apiKey: process.env.BINANCE_KEY,
       secret: process.env.BINANCE_SECRET,
@@ -904,12 +1020,31 @@ export class Configuration {
     };
   }
 
-  get p2b(): ExchangeConfig {
+  get p2b(): ConstructorArgs {
     return {
       apiKey: process.env.P2B_KEY,
       secret: process.env.P2B_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
       ...this.exchange,
+    };
+  }
+
+  get xt(): ConstructorArgs {
+    return {
+      apiKey: process.env.XT_KEY,
+      secret: process.env.XT_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.XT_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
+  get mexc(): ConstructorArgs {
+    return {
+      apiKey: process.env.MEXC_KEY,
+      secret: process.env.MEXC_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
+      ...this.exchange,
+      timeout: 30_000,
     };
   }
 

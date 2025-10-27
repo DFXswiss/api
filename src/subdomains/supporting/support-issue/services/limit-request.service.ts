@@ -1,14 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { KycLevel, UserData } from '../../../generic/user/models/user-data/user-data.entity';
+import { UserData } from '../../../generic/user/models/user-data/user-data.entity';
 import { WebhookService } from '../../../generic/user/services/webhook/webhook.service';
 import { LimitRequestDto } from '../dto/limit-request.dto';
 import { UpdateLimitRequestDto } from '../dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted, LimitRequestFinal } from '../entities/limit-request.entity';
-import { SupportIssueState, SupportIssueType } from '../enums/support-issue.enum';
+import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { LimitRequestRepository } from '../repositories/limit-request.repository';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -62,11 +62,9 @@ export class LimitRequestService {
     if (!entity) throw new NotFoundException('LimitRequest not found');
     if (LimitRequestFinal(entity.decision)) throw new BadRequestException('Limit request already final');
 
-    const update = this.limitRequestRepo.create(dto);
-
     if (dto.decision !== entity.decision && LimitRequestFinal(dto.decision)) {
       await this.supportIssueRepo.update(entity.supportIssue.id, {
-        state: SupportIssueState.COMPLETED,
+        state: SupportIssueInternalState.COMPLETED,
       });
       if (LimitRequestAccepted(dto.decision)) await this.webhookService.kycChanged(entity.userData);
     }
@@ -74,10 +72,10 @@ export class LimitRequestService {
     await this.supportLogService.createSupportLog(entity.supportIssue.userData, {
       type: SupportLogType.LIMIT_REQUEST,
       limitRequest: entity,
-      ...update,
+      ...dto,
     });
 
-    return this.limitRequestRepo.save({ ...entity, ...Util.removeNullFields(update) });
+    return this.limitRequestRepo.save({ ...entity, ...dto });
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { plainToInstance, Transform, Type } from 'class-transformer';
+import { Transform, Type, plainToInstance } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -10,16 +10,24 @@ import {
   IsNotEmptyObject,
   IsOptional,
   IsString,
+  IsUrl,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
-import { GenderType, IdentDocumentType } from 'src/subdomains/generic/kyc/dto/manual-ident-result.dto';
-import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import {
+  GoodsCategory,
+  GoodsType,
+  MerchantCategory,
+  StoreType,
+} from 'src/subdomains/core/payment-link/enums/merchant.enum';
+import { GenderType } from 'src/subdomains/generic/kyc/dto/manual-ident-result.dto';
+import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
+import { IdentDocumentType } from '../ident-result-data.dto';
 
 export class KycContactData {
   @ApiProperty()
@@ -115,13 +123,6 @@ export class KycInputDataDto extends KycPersonalData {
   mail: string;
 }
 
-export class KycLegalEntityData {
-  @ApiProperty({ enum: LegalEntity })
-  @IsNotEmpty()
-  @IsEnum(LegalEntity)
-  legalEntity: LegalEntity;
-}
-
 export class KycSignatoryPowerData {
   @ApiProperty({ enum: SignatoryPower })
   @IsNotEmpty()
@@ -178,7 +179,7 @@ export class KycOperationalData {
 
   @ApiPropertyOptional({ description: 'Organization Website URL' })
   @IsOptional()
-  @IsString()
+  @IsUrl()
   websiteUrl: string;
 }
 
@@ -188,6 +189,13 @@ export class KycNationalityData {
   @ValidateNested()
   @Type(() => EntityDto)
   nationality: Country;
+}
+
+export class RecallAgreementData {
+  @ApiProperty({ description: 'Is the recall condition accepted?' })
+  @IsNotEmpty()
+  @IsBoolean()
+  accepted: boolean;
 }
 
 export class KycFileData {
@@ -201,6 +209,24 @@ export class KycFileData {
   @IsString()
   @Transform(Util.sanitize)
   fileName: string;
+}
+
+export class KycLegalEntityData {
+  @ApiProperty({ description: 'Base64 encoded commercial register file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+
+  @ApiProperty({ description: 'Name of the commercial register file' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  fileName: string;
+
+  @ApiProperty({ enum: LegalEntity })
+  @IsNotEmpty()
+  @IsEnum(LegalEntity)
+  legalEntity: LegalEntity;
 }
 
 export class KycManualIdentData {
@@ -264,6 +290,43 @@ export class KycManualIdentData {
 }
 
 export class PaymentDataDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  name: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl({ require_protocol: true })
+  website: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  registrationNumber: string;
+
+  @ApiProperty({ enum: StoreType })
+  @IsNotEmpty()
+  @IsEnum(StoreType)
+  storeType: StoreType;
+
+  @ApiProperty({ enum: MerchantCategory })
+  @IsNotEmpty()
+  @IsEnum(MerchantCategory)
+  merchantCategory: MerchantCategory;
+
+  @ApiProperty({ enum: GoodsType })
+  @IsNotEmpty()
+  @IsEnum(GoodsType)
+  goodsType: GoodsType;
+
+  @ApiProperty({ enum: GoodsCategory })
+  @IsNotEmpty()
+  @IsEnum(GoodsCategory)
+  goodsCategory: GoodsCategory;
+
   @ApiProperty()
   @IsNotEmpty()
   @IsString()

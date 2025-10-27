@@ -16,6 +16,7 @@ import { MailContext } from '../../notification/enums';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
 import { TransactionRequest } from './transaction-request.entity';
+import { TransactionRiskAssessment } from './transaction-risk-assessment.entity';
 
 export enum TransactionTypeInternal {
   BUY_CRYPTO = 'BuyCrypto',
@@ -44,6 +45,7 @@ export enum TransactionSourceType {
   CRYPTO_INPUT = 'CryptoInput',
   CHECKOUT_TX = 'CheckoutTx',
   REF = 'Ref',
+  MANUAL_REF = 'ManualRef',
 }
 
 @Entity()
@@ -79,6 +81,9 @@ export class Transaction extends IEntity {
   @Column({ nullable: true })
   highRisk: boolean;
 
+  @OneToMany(() => TransactionRiskAssessment, (t) => t.transaction)
+  riskAssessments: TransactionRiskAssessment[];
+
   // Mail
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
@@ -101,6 +106,9 @@ export class Transaction extends IEntity {
 
   @OneToOne(() => RefReward, (refReward) => refReward.transaction, { nullable: true })
   refReward?: RefReward;
+
+  @OneToOne(() => RefReward, (refReward) => refReward.sourceTransaction, { nullable: true })
+  targetRefReward?: RefReward;
 
   @OneToOne(() => BankTx, (bankTx) => bankTx.transaction, { nullable: true })
   bankTx?: BankTx;
@@ -160,6 +168,7 @@ export class Transaction extends IEntity {
       case TransactionSourceType.CRYPTO_INPUT:
         return this.cryptoInput;
 
+      case TransactionSourceType.MANUAL_REF:
       case TransactionSourceType.REF:
         return this.refReward;
     }

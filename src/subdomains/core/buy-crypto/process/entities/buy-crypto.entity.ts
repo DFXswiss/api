@@ -3,11 +3,11 @@ import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
-import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -451,6 +451,7 @@ export class BuyCrypto extends IEntity {
       mailSendDate: null,
       blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
+      status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
     };
 
     Object.assign(this, update);
@@ -482,7 +483,7 @@ export class BuyCrypto extends IEntity {
             inputReferenceAmountMinusFee,
             usedRef,
             refProvision,
-            refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+            refFactor: !fee.payoutRefBonus || usedRef === Config.defaultRef ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             networkStartFeeAmount: fee.networkStart,
             status: this.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE ? BuyCryptoStatus.CREATED : undefined,
@@ -505,6 +506,7 @@ export class BuyCrypto extends IEntity {
     blacklist: SpecialExternalAccount[],
     banks: Bank[],
     ibanCountry: Country,
+    refUser?: User,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...AmlHelperService.getAmlResult(
@@ -518,11 +520,20 @@ export class BuyCrypto extends IEntity {
         bankData,
         blacklist,
         ibanCountry,
+        refUser,
         banks,
       ),
       amountInChf,
       amountInEur,
     };
+
+    if (
+      ((update.amlCheck && update.amlCheck !== this.amlCheck) ||
+        (update.amlReason && update.amlReason !== this.amlReason)) &&
+      [CheckStatus.FAIL, CheckStatus.PENDING].includes(update.amlCheck) &&
+      !DisabledProcess(Process.AML_RECHECK_MAIL_RESET)
+    )
+      update.mailSendDate = null;
 
     Object.assign(this, update);
 
@@ -562,6 +573,31 @@ export class BuyCrypto extends IEntity {
       chargebackAmount: null,
       chargebackAllowedBy: null,
       chargebackOutput: null,
+      priceDefinitionAllowedDate: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  resetFees(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      percentFee: null,
+      percentFeeAmount: null,
+      minFeeAmount: null,
+      minFeeAmountFiat: null,
+      totalFeeAmount: null,
+      totalFeeAmountChf: null,
+      blockchainFee: null,
+      bankFeeAmount: null,
+      inputReferenceAmountMinusFee: null,
+      usedRef: null,
+      refProvision: null,
+      refFactor: null,
+      usedFees: null,
+      networkStartFeeAmount: null,
+      status: null,
     };
 
     Object.assign(this, update);
@@ -590,25 +626,6 @@ export class BuyCrypto extends IEntity {
 
   get custodyOrder(): CustodyOrder {
     return this.transaction.custodyOrder ?? this.transaction.request?.custodyOrder;
-  }
-
-  get custodyInput(): {
-    type: CustodyOrderType;
-    buy?: Buy;
-    swap?: Swap;
-    inputAsset?: Asset;
-    inputAmount?: number;
-    outputAsset?: Asset;
-    outputAmount?: number;
-  } {
-    return this.isCryptoCryptoTransaction
-      ? {
-          type: CustodyOrderType.RECEIVE,
-          swap: this.cryptoRoute,
-          outputAsset: this.cryptoInput.asset,
-          outputAmount: this.inputAmount,
-        }
-      : { type: CustodyOrderType.DEPOSIT, buy: this.buy, inputAsset: this.outputAsset, inputAmount: this.outputAmount };
   }
 
   get chargebackBankRemittanceInfo(): string {
@@ -742,10 +759,15 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
+  AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.VIDEO_IDENT_NEEDED,
   AmlReason.KYC_DATA_NEEDED,
   AmlReason.BANK_TX_NEEDED,
+  AmlReason.MANUAL_CHECK_PHONE,
+  AmlReason.MERGE_INCOMPLETE,
+  AmlReason.BANK_RELEASE_PENDING,
+  AmlReason.MANUAL_CHECK_IP_PHONE,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

@@ -1,14 +1,16 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
-import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
-import { IdentResultData, IdentType } from '../dto/ident-result-data.dto';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
+import { IdentDocumentType, IdentResultData, IdentType } from '../dto/ident-result-data.dto';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { KycSessionInfoDto } from '../dto/output/kyc-info.dto';
-import { IdDocType, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
+import { IdDocTypeMap, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
+import { KycStepType, UrlType } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycFile } from './kyc-file.entity';
@@ -29,7 +31,7 @@ export class KycStep extends IEntity {
   type?: KycStepType;
 
   @Column()
-  status: KycStepStatus;
+  status: ReviewStatus;
 
   @Column({ type: 'integer' })
   sequenceNumber: number;
@@ -70,14 +72,14 @@ export class KycStep extends IEntity {
       case KycStepName.NATIONALITY_DATA:
         return { url: `${apiUrl}/data/nationality/${this.id}`, type: UrlType.API };
 
-      case KycStepName.LEGAL_ENTITY:
-        return { url: `${apiUrl}/data/legal/${this.id}`, type: UrlType.API };
-
       case KycStepName.OWNER_DIRECTORY:
         return { url: `${apiUrl}/data/owner/${this.id}`, type: UrlType.API };
 
-      case KycStepName.COMMERCIAL_REGISTER:
-        return { url: `${apiUrl}/data/commercial/${this.id}`, type: UrlType.API };
+      case KycStepName.LEGAL_ENTITY:
+        return { url: `${apiUrl}/data/legal/${this.id}`, type: UrlType.API };
+
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
+        return { url: `${apiUrl}/data/confirmation/${this.id}`, type: UrlType.API };
 
       case KycStepName.SIGNATORY_POWER:
         return { url: `${apiUrl}/data/signatory/${this.id}`, type: UrlType.API };
@@ -114,8 +116,14 @@ export class KycStep extends IEntity {
       case KycStepName.ADDITIONAL_DOCUMENTS:
         return { url: `${apiUrl}/data/additional/${this.id}`, type: UrlType.API };
 
+      case KycStepName.RECALL_AGREEMENT:
+        return { url: `${apiUrl}/data/recall/${this.id}`, type: UrlType.API };
+
       case KycStepName.RESIDENCE_PERMIT:
         return { url: `${apiUrl}/data/residence/${this.id}`, type: UrlType.API };
+
+      case KycStepName.STATUTES:
+        return { url: `${apiUrl}/data/statutes/${this.id}`, type: UrlType.API };
 
       case KycStepName.PAYMENT_AGREEMENT:
         return { url: `${apiUrl}/data/payment/${this.id}`, type: UrlType.API };
@@ -130,7 +138,7 @@ export class KycStep extends IEntity {
       userData,
       name,
       type,
-      status: KycStepStatus.IN_PROGRESS,
+      status: ReviewStatus.IN_PROGRESS,
       sequenceNumber,
     });
   }
@@ -150,27 +158,35 @@ export class KycStep extends IEntity {
   // --- KYC PROCESS --- //
 
   get isInProgress(): boolean {
-    return this.status === KycStepStatus.IN_PROGRESS;
+    return this.status === ReviewStatus.IN_PROGRESS;
   }
 
   get isInReview(): boolean {
     return [
-      KycStepStatus.FINISHED,
-      KycStepStatus.EXTERNAL_REVIEW,
-      KycStepStatus.INTERNAL_REVIEW,
-      KycStepStatus.MANUAL_REVIEW,
-      KycStepStatus.PARTIALLY_APPROVED,
-      KycStepStatus.DATA_REQUESTED,
-      KycStepStatus.PAUSED,
+      ReviewStatus.FINISHED,
+      ReviewStatus.EXTERNAL_REVIEW,
+      ReviewStatus.INTERNAL_REVIEW,
+      ReviewStatus.MANUAL_REVIEW,
+      ReviewStatus.PARTIALLY_APPROVED,
+      ReviewStatus.DATA_REQUESTED,
+      ReviewStatus.PAUSED,
     ].includes(this.status);
   }
 
   get isCompleted(): boolean {
-    return this.status === KycStepStatus.COMPLETED;
+    return this.status === ReviewStatus.COMPLETED;
+  }
+
+  get isOnHold(): boolean {
+    return this.status === ReviewStatus.ON_HOLD;
   }
 
   get isFailed(): boolean {
-    return this.status === KycStepStatus.FAILED;
+    return this.status === ReviewStatus.FAILED;
+  }
+
+  get isCanceled(): boolean {
+    return this.status === ReviewStatus.CANCELED;
   }
 
   get isDone(): boolean {
@@ -178,7 +194,7 @@ export class KycStep extends IEntity {
   }
 
   update(
-    status: KycStepStatus,
+    status: ReviewStatus,
     result?: KycStepResult,
     comment?: string,
     sequenceNumber?: number,
@@ -186,7 +202,7 @@ export class KycStep extends IEntity {
     const update: Partial<KycStep> = {
       status,
       result: this.setResult(result),
-      comment,
+      comment: comment ?? this.comment,
       sequenceNumber,
     };
 
@@ -197,7 +213,7 @@ export class KycStep extends IEntity {
 
   complete(result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.COMPLETED,
+      status: ReviewStatus.COMPLETED,
       result: this.setResult(result),
     };
 
@@ -208,7 +224,7 @@ export class KycStep extends IEntity {
 
   fail(result?: KycStepResult, comment?: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.FAILED,
+      status: ReviewStatus.FAILED,
       result: this.setResult(result),
       comment,
     };
@@ -220,7 +236,7 @@ export class KycStep extends IEntity {
 
   pause(result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.IN_PROGRESS,
+      status: ReviewStatus.IN_PROGRESS,
       result: this.setResult(result),
       reminderSentDate: null,
     };
@@ -232,7 +248,7 @@ export class KycStep extends IEntity {
 
   cancel(): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.CANCELED,
+      status: ReviewStatus.CANCELED,
     };
 
     Object.assign(this, update);
@@ -242,7 +258,7 @@ export class KycStep extends IEntity {
 
   inProgress(result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.IN_PROGRESS,
+      status: ReviewStatus.IN_PROGRESS,
       result: this.setResult(result),
     };
 
@@ -253,7 +269,7 @@ export class KycStep extends IEntity {
 
   ignored(comment: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.IGNORED,
+      status: ReviewStatus.IGNORED,
       comment,
     };
 
@@ -264,7 +280,7 @@ export class KycStep extends IEntity {
 
   finish(): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.FINISHED,
+      status: ReviewStatus.FINISHED,
     };
 
     Object.assign(this, update);
@@ -273,7 +289,7 @@ export class KycStep extends IEntity {
   }
 
   externalReview(): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = { status: KycStepStatus.EXTERNAL_REVIEW };
+    const update: Partial<KycStep> = { status: ReviewStatus.EXTERNAL_REVIEW };
 
     Object.assign(this, update);
 
@@ -282,7 +298,7 @@ export class KycStep extends IEntity {
 
   internalReview(result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.INTERNAL_REVIEW,
+      status: ReviewStatus.INTERNAL_REVIEW,
       result: this.setResult(result),
     };
 
@@ -292,7 +308,7 @@ export class KycStep extends IEntity {
   }
 
   onHold(): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = { status: KycStepStatus.ON_HOLD };
+    const update: Partial<KycStep> = { status: ReviewStatus.ON_HOLD };
 
     Object.assign(this, update);
 
@@ -301,7 +317,7 @@ export class KycStep extends IEntity {
 
   manualReview(comment?: string, result?: KycStepResult): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
-      status: KycStepStatus.MANUAL_REVIEW,
+      status: ReviewStatus.MANUAL_REVIEW,
       comment,
       result: this.setResult(result),
     };
@@ -336,21 +352,19 @@ export class KycStep extends IEntity {
 
       return {
         type: IdentType.SUM_SUB,
-        firstname: identResultData.data.info?.idDocs?.[idDocIndex]?.firstName,
-        lastname: identResultData.data.info?.idDocs?.[idDocIndex]?.lastName,
+        firstname: identResultData.data.info?.idDocs?.[idDocIndex]?.firstNameEn,
+        lastname: identResultData.data.info?.idDocs?.[idDocIndex]?.lastNameEn,
         birthname: null,
         birthday: identResultData.data.info?.idDocs?.[idDocIndex]?.dob
           ? new Date(identResultData.data.info.idDocs[idDocIndex].dob)
           : undefined,
         nationality: identResultData.data.info?.idDocs?.[idDocIndex]?.country,
         documentNumber: identResultData.data.info?.idDocs?.[idDocIndex]?.number,
-        documentType: identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType
-          ? identResultData.data.info.idDocs[idDocIndex].idDocType === IdDocType.ID_CARD
-            ? 'IDCARD'
-            : 'PASSPORT'
-          : undefined,
+        documentType: IdDocTypeMap[identResultData.data.info?.idDocs?.[idDocIndex]?.idDocType],
         kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
+        ipCountry: identResultData.data.ipCountry,
+        country: identResultData.data.info.country,
       };
     } else if (this.isManual) {
       const identResultData = this.getResult<ManualIdentResult>();
@@ -366,6 +380,8 @@ export class KycStep extends IEntity {
         documentNumber: identResultData.documentNumber,
         kycType: IdentType.MANUAL,
         success: true,
+        ipCountry: null,
+        country: null,
       };
     } else {
       const identResultData = this.getResult<IdNowResult>();
@@ -377,10 +393,12 @@ export class KycStep extends IEntity {
         birthname: identResultData.userdata?.birthname?.value,
         birthday: identResultData.userdata?.birthday?.value ? new Date(identResultData.userdata.birthday.value) : null,
         nationality: identResultData.userdata?.nationality?.value,
-        documentType: identResultData.identificationdocument?.type?.value,
+        documentType: identResultData.identificationdocument?.type?.value as IdentDocumentType,
         documentNumber: identResultData.identificationdocument?.number?.value,
         kycType: identResultData.identificationprocess?.companyid,
         success: ['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(identResultData.identificationprocess?.result),
+        ipCountry: null,
+        country: null,
       };
     }
   }

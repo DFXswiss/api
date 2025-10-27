@@ -15,12 +15,14 @@ import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AccountOpenerAuthorization, Organization } from '../../organization/organization.entity';
 import { AccountType } from '../account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../is-dfx-phone.validator';
 import { KycIdentificationType } from '../kyc-identification-type.enum';
-import { KycLevel, KycStatus, LegalEntity, SignatoryPower, UserData, UserDataStatus } from '../user-data.entity';
+import { UserData } from '../user-data.entity';
+import { KycLevel, KycStatus, LegalEntity, RiskStatus, SignatoryPower, UserDataStatus } from '../user-data.enum';
 
 export class UpdateUserDataDto {
   @IsOptional()
@@ -272,4 +274,26 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   postAmlCheck?: string;
+
+  @IsOptional()
+  @IsEnum(RiskStatus)
+  riskStatus?: RiskStatus;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  phoneCallCheckDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  phoneCallIpCheckDate?: Date;
+
+  @IsOptionalButNotNull()
+  @IsBoolean()
+  hasIpRisk?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  recallAgreementAccepted?: boolean;
 }

@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BinancePayModule } from 'src/integration/binance-pay/binance-pay.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
-import { C2BPaymentLinkModule } from 'src/integration/c2b-payment-link/c2b-payment-link.module';
+import { KucoinPayModule } from 'src/integration/kucoin-pay/kucoin-pay.module';
 import { LightningModule } from 'src/integration/lightning/lightning.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
@@ -12,7 +13,10 @@ import { PaymentQuote } from './entities/payment-quote.entity';
 import { PaymentActivationRepository } from './repositories/payment-activation.repository';
 import { PaymentLinkPaymentRepository } from './repositories/payment-link-payment.repository';
 import { PaymentQuoteRepository } from './repositories/payment-quote.repository';
+import { C2BPaymentLinkService } from './services/c2b-payment-link.service';
 import { PaymentActivationService } from './services/payment-activation.service';
+import { PaymentBalanceService } from './services/payment-balance.service';
+import { PaymentLinkFeeService } from './services/payment-link-fee.service';
 import { PaymentLinkPaymentService } from './services/payment-link-payment.service';
 import { PaymentQuoteService } from './services/payment-quote.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
@@ -25,7 +29,8 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
     LightningModule,
     PricingModule,
     PayoutModule,
-    C2BPaymentLinkModule,
+    BinancePayModule,
+    KucoinPayModule,
   ],
   controllers: [],
   providers: [
@@ -35,8 +40,17 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
     PaymentLinkPaymentService,
     PaymentQuoteService,
     PaymentActivationService,
+    PaymentBalanceService,
     PaymentWebhookService,
+    C2BPaymentLinkService,
+    PaymentLinkFeeService,
   ],
-  exports: [PaymentLinkPaymentService, PaymentQuoteService, PaymentActivationService],
+  exports: [
+    PaymentLinkPaymentService,
+    PaymentQuoteService,
+    PaymentActivationService,
+    PaymentBalanceService,
+    C2BPaymentLinkService,
+  ],
 })
 export class PaymentLinkPaymentModule {}

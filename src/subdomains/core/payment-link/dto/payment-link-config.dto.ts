@@ -1,7 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsNumber, IsOptional, ValidateNested } from 'class-validator';
-import { PaymentLinkBlockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { IsBoolean, IsEnum, IsIn, IsNumber, IsOptional, ValidateNested } from 'class-validator';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
 import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
 
@@ -11,12 +12,12 @@ export class UpdatePaymentLinkConfigDto {
   @IsEnum(PaymentStandard, { each: true })
   standards?: PaymentStandard[];
 
-  @ApiPropertyOptional({ enum: PaymentLinkBlockchain, isArray: true })
+  @ApiPropertyOptional({ enum: PaymentLinkBlockchains, isArray: true })
   @IsOptional()
-  @IsEnum(PaymentLinkBlockchain, { each: true })
-  blockchains?: PaymentLinkBlockchain[];
+  @IsIn(PaymentLinkBlockchains, { each: true })
+  blockchains?: Blockchain[];
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: PaymentQuoteStatus })
   @IsOptional()
   @IsEnum(PaymentQuoteStatus)
   minCompletionStatus?: PaymentQuoteStatus;
@@ -35,12 +36,25 @@ export class UpdatePaymentLinkConfigDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
+  scanTimeout?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   paymentTimeout?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  cancellable?: boolean;
 }
 
 export class PaymentLinkConfigDto extends UpdatePaymentLinkConfigDto {
   @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
   fee?: number;
+}
+
+export class UserPaymentLinkConfigDto extends PaymentLinkConfigDto {
+  @ApiPropertyOptional()
+  accessKey: string;
 }

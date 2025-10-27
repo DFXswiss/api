@@ -1,8 +1,10 @@
 import { Config } from 'src/config/config';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
-import { LegalEntity, SignatoryPower, UserData } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, LegalEntity, SignatoryPower } from '../../user/models/user-data/user-data.enum';
 import { IdentType } from '../dto/ident-result-data.dto';
+import { KycNationalityData } from '../dto/input/kyc-data.dto';
 import { SumSubLevelName } from '../dto/sum-sub.dto';
 import { KycStepName } from './kyc-step-name.enum';
 
@@ -11,26 +13,36 @@ export function getKycStepIndex(stepName: KycStepName): number {
 }
 
 export function requiredKycSteps(userData: UserData): KycStepName[] {
+  const nationalityStep = userData
+    .getStepsWith(KycStepName.NATIONALITY_DATA)
+    .find((s) => s.isInReview || s.isCompleted)
+    ?.getResult<KycNationalityData>();
+
   return [
     KycStepName.CONTACT_DATA,
     KycStepName.PERSONAL_DATA,
     KycStepName.NATIONALITY_DATA,
+    nationalityStep?.nationality?.symbol &&
+    Config.kyc.residencePermitCountries.includes(nationalityStep.nationality.symbol)
+      ? KycStepName.RESIDENCE_PERMIT
+      : null,
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.LEGAL_ENTITY : null,
+    userData.accountType === AccountType.SOLE_PROPRIETORSHIP && userData.kycLevel < KycLevel.LEVEL_50
+      ? KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION
+      : null,
     userData.accountType === AccountType.ORGANIZATION &&
     !(userData.legalEntity === LegalEntity.GMBH && userData.organizationCountry?.symbol === 'CH')
       ? KycStepName.OWNER_DIRECTORY
       : null,
-    [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(userData.accountType)
-      ? KycStepName.COMMERCIAL_REGISTER
-      : null,
     userData.accountType === AccountType.ORGANIZATION ? KycStepName.SIGNATORY_POWER : null,
     [SignatoryPower.DOUBLE, SignatoryPower.NONE].includes(userData.signatoryPower) ? KycStepName.AUTHORITY : null,
     userData.accountType === AccountType.ORGANIZATION
-      ? [KycStepName.BENEFICIAL_OWNER, KycStepName.OPERATIONAL_ACTIVITY]
+      ? [KycStepName.OPERATIONAL_ACTIVITY, KycStepName.BENEFICIAL_OWNER]
       : null,
+    userData.recallAgreementAccepted === false ? KycStepName.RECALL_AGREEMENT : null,
     KycStepName.IDENT,
     KycStepName.FINANCIAL_DATA,
-    Config.kyc.residencePermitCountries.includes(userData.nationality?.symbol) ? KycStepName.RESIDENCE_PERMIT : null,
+    userData.legalEntity === LegalEntity.ASSOCIATION ? KycStepName.STATUTES : null,
     KycStepName.DFX_APPROVAL,
   ]
     .flat()
@@ -55,6 +67,7 @@ export enum KycLogType {
   TFA = 'TfaLog',
   FILE = 'KycFileLog',
   MANUAL = 'ManualLog',
+  RISK_STATUS = 'RiskStatusLog',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {
@@ -84,24 +97,6 @@ export function getIdentificationType(type: IdentType, companyId: string): KycId
     default:
       return undefined;
   }
-}
-
-export enum KycStepStatus {
-  NOT_STARTED = 'NotStarted',
-  IN_PROGRESS = 'InProgress',
-  FINISHED = 'Finished',
-  EXTERNAL_REVIEW = 'ExternalReview',
-  INTERNAL_REVIEW = 'InternalReview',
-  MANUAL_REVIEW = 'ManualReview',
-  FAILED = 'Failed',
-  COMPLETED = 'Completed',
-  PARTIALLY_APPROVED = 'PartiallyApproved',
-  CANCELED = 'Canceled',
-  IGNORED = 'Ignored',
-  OUTDATED = 'Outdated',
-  DATA_REQUESTED = 'DataRequested',
-  PAUSED = 'Paused',
-  ON_HOLD = 'OnHold',
 }
 
 export enum UrlType {

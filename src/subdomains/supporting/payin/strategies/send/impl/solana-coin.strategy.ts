@@ -4,6 +4,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInSolanaService } from '../../../services/payin-solana.service';
@@ -43,7 +44,7 @@ export class SolanaCoinStrategy extends SolanaStrategy {
     const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
     const feeAmountChf = feeAmount
       ? await this.pricingService
-          .getPrice(feeAsset, this.chf, true)
+          .getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY)
           .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
       : null;
 

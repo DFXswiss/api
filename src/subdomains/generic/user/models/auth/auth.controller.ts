@@ -9,6 +9,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { AccountMergeService } from '../account-merge/account-merge.service';
+import { UserData } from '../user-data/user-data.entity';
 import { AlbySignupDto } from '../user/dto/alby.dto';
 import { UserRepository } from '../user/user.repository';
 import { AuthAlbyService } from './auth-alby.service';
@@ -36,7 +37,7 @@ export class AuthController {
   @UseGuards(IpCountryGuard, OptionalJwtAuthGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
   authenticate(@GetJwt() jwt: JwtPayload, @Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
-    return this.authService.authenticate(dto, ip, jwt?.account);
+    return this.authService.authenticate(dto, ip, jwt?.account, jwt?.user);
   }
 
   @Post('signUp')
@@ -77,25 +78,31 @@ export class AuthController {
     @RealIP() ip: string,
   ): Promise<MergeResponseDto> {
     const { master } = await this.mergeService.executeMerge(code);
-    let accessToken: string;
 
-    if (jwt) {
-      if (jwt.user) {
-        const newUser = await this.userRepo.findOne({
-          where: { userData: { id: master.id }, address: jwt.address },
-          relations: { userData: true, wallet: true },
-        });
-
-        accessToken = this.authService.generateUserToken(newUser, ip);
-      } else {
-        accessToken = this.authService.generateAccountToken(master, ip);
-      }
-    }
+    const accessToken = jwt ? await this.createAccessTokenAfterMerge(master, jwt.address, ip) : undefined;
 
     return {
       kycHash: master.kycHash,
       accessToken,
     };
+  }
+
+  private async createAccessTokenAfterMerge(
+    userData: UserData,
+    address: string | undefined,
+    ip: string,
+  ): Promise<string | undefined> {
+    // create user token, if the user is known
+    if (address) {
+      const user = await this.userRepo.findOne({
+        where: { userData: { id: userData.id }, address },
+        relations: { userData: true, wallet: true },
+      });
+
+      if (user) return this.authService.generateUserToken(user, ip);
+    }
+
+    return this.authService.generateAccountToken(userData, ip);
   }
 
   @Get('signMessage')

@@ -1,10 +1,16 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In, Not } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -26,14 +32,17 @@ export class LiquidityManagementService {
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly balanceService: LiquidityManagementBalanceService,
     private readonly settingService: SettingService,
+    private readonly pricingService: PricingService,
   ) {}
 
   //*** JOBS ***//
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
-  async verifyRules() {
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT_CHECK_BALANCES, timeout: 1800 })
+  async checkLiquidityBalances() {
     const rules = await this.ruleRepo.findBy({ status: Not(LiquidityManagementRuleStatus.DISABLED) });
     const balances = await this.balanceService.refreshBalances(rules);
+
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
     for (const rule of rules) {
       await this.verifyRule(rule, balances);
@@ -105,8 +114,8 @@ export class LiquidityManagementService {
         return;
       }
 
-      const numberOfPendingOrders = await this.balanceService.getNumberOfPendingOrders(rule);
-      if (numberOfPendingOrders > 0) {
+      const hasPendingOrders = await this.balanceService.hasPendingOrders(rule);
+      if (hasPendingOrders) {
         this.logger.info(`Could not verify rule ${rule.id}: pending orders found`);
         return;
       }
@@ -117,7 +126,10 @@ export class LiquidityManagementService {
         return;
       }
 
-      const result = rule.verify(balance);
+      const eurPrice = await this.pricingService.getPrice(PriceCurrency.EUR, rule.targetAsset, PriceValidity.ANY);
+      const transmissionMinimum = eurPrice.convert(Config.liquidityManagement.fiatOutput.batchAmountLimit * 0.95, 8);
+
+      const result = rule.verify(balance, transmissionMinimum);
 
       if (result.action) {
         if (!this.ruleActivations.has(rule.id)) {
@@ -131,7 +143,7 @@ export class LiquidityManagementService {
         const delay = await this.settingService.get('lmActivationDelay', '30');
         const requiredActivationTime = Util.minutesBefore(+delay);
 
-        if (this.ruleActivations.get(rule.id) < requiredActivationTime) {
+        if (!rule.delayActivation || this.ruleActivations.get(rule.id) < requiredActivationTime) {
           this.ruleActivations.delete(rule.id);
 
           await this.executeRule(rule, result);

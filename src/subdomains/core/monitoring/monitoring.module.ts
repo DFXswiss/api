@@ -10,6 +10,7 @@ import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { FiatPayInModule } from 'src/subdomains/supporting/fiat-payin/fiat-payin.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { MonitorConnectionPoolService } from './monitor-connection-pool.service';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
@@ -40,6 +41,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     IntegrationModule,
     LightningModule,
     FiatPayInModule,
+    PricingModule,
   ],
   providers: [
     SystemStateSnapshotRepository,

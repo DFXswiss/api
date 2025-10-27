@@ -10,6 +10,7 @@ import {
   PayoutBitcoinBasedService,
   PayoutGroup,
 } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
+import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategy } from './payout.strategy';
@@ -94,7 +95,7 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
         order.complete();
 
         const feeAsset = await this.feeAsset();
-        const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
+        const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
         order.recordPayoutFee(feeAsset, orderPayoutFee, price.convert(orderPayoutFee, Config.defaultVolumeDecimal));
 
         await this.payoutOrderRepo.save(order);
@@ -124,13 +125,9 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     return [...result.values()];
   }
 
-  protected abstract dispatchPayout(
-    context: PayoutOrderContext,
-    payout: PayoutGroup,
-    outputAssetName: string,
-  ): Promise<string>;
+  protected abstract dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup, token?: Asset): Promise<string>;
 
-  protected async send(context: PayoutOrderContext, orders: PayoutOrder[], outputAssetName: string): Promise<void> {
+  protected async send(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     let payoutTxId: string;
 
     if (orders.some((o) => o.payoutTxId) && !DisabledProcess(Process.TX_SPEEDUP))
@@ -140,9 +137,12 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
       const payout = this.aggregatePayout(orders);
 
       await this.designatePayout(orders);
-      payoutTxId = await this.dispatchPayout(context, payout, outputAssetName);
+      payoutTxId = await this.dispatchPayout(context, payout, orders[0].asset);
     } catch (e) {
-      this.logger.error(`Error on sending ${outputAssetName} for payout. Order ID(s): ${orders.map((o) => o.id)}:`, e);
+      this.logger.error(
+        `Error on sending ${orders[0].asset.name} for payout. Order ID(s): ${orders.map((o) => o.id)}:`,
+        e,
+      );
 
       if (e.message.includes('timeout')) throw e;
 

@@ -2,11 +2,19 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
+    "fileShareQuota": {
+      "value": 1
+    },
     "containerImage": {
       "value": "dfxswiss/deuro-api:test"
     },
-    "containerMountPath": {
-      "value": "/app/.api"
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/app/.api"
+        }
+      ]
     },
     "containerCPU": {
       "value": "0.5"
@@ -19,6 +27,15 @@
     },
     "containerMaxReplicas": {
       "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 3000
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
     },
     "containerEnv": {
       "value": [
@@ -59,6 +76,12 @@
           "value": "/app/.api/telegram.groups.json"
         }
       ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": []
     }
   }
 }

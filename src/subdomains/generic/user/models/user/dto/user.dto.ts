@@ -3,8 +3,8 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycLevel, KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
-import { UserStatus } from '../user.entity';
+import { KycLevel, KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.enum';
+import { UserStatus } from '../user.enum';
 import { LinkedUserOutDto } from './linked-user.dto';
 
 export class VolumeInformation {

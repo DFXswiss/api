@@ -1,6 +1,7 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { FiatOutput } from '../../fiat-output/fiat-output.entity';
@@ -58,14 +59,30 @@ export class BankTxReturn extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban: string;
 
+  // Mail
+  @Column({ length: 256, nullable: true })
+  recipientMail?: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  mailSendDate?: Date;
+
   @ManyToOne(() => UserData, (userData) => userData.bankTxReturns, { nullable: true, eager: true })
   userData: UserData;
 
   //*** METHODS ***//
 
-  setRemittanceInfo(): UpdateResult<BankTxReturn> {
+  get wallet(): Wallet {
+    return this.userData.wallet;
+  }
+
+  get chargebackBankRemittanceInfo(): string {
+    return `Chargeback ${this.bankTx.id} Zahlung kann keinem Kundenauftrag zugeordnet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
+  confirmSentMail(): UpdateResult<BankTxReturn> {
     const update: Partial<BankTxReturn> = {
-      chargebackRemittanceInfo: `Chargeback ${this.bankTx?.id} Zahlung kann keinem Kundenauftrag zugeordnet werden. Weitere Infos unter dfx.swiss/help`,
+      recipientMail: this.userData.mail,
+      mailSendDate: new Date(),
     };
 
     Object.assign(this, update);
@@ -73,17 +90,11 @@ export class BankTxReturn extends IEntity {
     return [this.id, update];
   }
 
-  setFiatAmount(
-    amountInEur: number,
-    amountInChf: number,
-    amountInUsd: number,
-    chargebackBankTx: BankTx,
-  ): UpdateResult<BankTxReturn> {
+  setFiatAmount(amountInEur: number, amountInChf: number, amountInUsd: number): UpdateResult<BankTxReturn> {
     const update: Partial<BankTxReturn> = {
       amountInEur,
       amountInChf,
       amountInUsd,
-      chargebackBankTx,
       info: 'NA',
     };
 

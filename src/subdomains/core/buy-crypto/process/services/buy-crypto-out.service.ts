@@ -5,14 +5,15 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { CustodyOrderInputTypes, CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
+import { CustodyOrderStatus, CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
@@ -37,15 +38,13 @@ export class BuyCryptoOutService {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly custodyOrderService: CustodyOrderService,
+    private readonly feeService: FeeService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
     try {
       const batches = await this.fetchBatchesForPayout();
-
-      if (batches.length === 0) {
-        return;
-      }
+      if (batches.length === 0) return;
 
       for (const batch of batches) {
         if (batch.status === BuyCryptoBatchStatus.PAYING_OUT) {
@@ -61,6 +60,8 @@ export class BuyCryptoOutService {
         }
       }
 
+      if (DisabledProcess(Process.CRYPTO_PAYOUT)) return;
+
       // pay out buy crypto
       const payingOutBatches = batches.filter((b) => b.status === BuyCryptoBatchStatus.PAYING_OUT);
       const transactionsToPayout = payingOutBatches
@@ -72,8 +73,20 @@ export class BuyCryptoOutService {
 
       for (const transaction of transactionsToPayout) {
         try {
+          if (transaction.userData.isSuspicious) continue;
+          if (transaction.user.isBlockedOrDeleted || transaction.userData.isBlocked || transaction.userData.isRisky)
+            throw new Error('Payout stopped for blocked user');
+
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
+
+          for (const feeId of transaction.usedFees?.split(';')) {
+            await this.feeService.increaseTxUsages(
+              transaction.amountInChf,
+              Number.parseInt(feeId),
+              transaction.userData,
+            );
+          }
         } catch (e) {
           this.logger.error(`Failed to initiate buy-crypto payout for transaction ${transaction.id}:`, e);
           // continue with next transaction in case payout initiation failed
@@ -123,7 +136,11 @@ export class BuyCryptoOutService {
       const nativeAsset = await this.assetService.getNativeAsset(transaction.outputAsset.blockchain);
       const inputReferenceCurrency =
         transaction.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(transaction.inputReferenceAsset));
-      const networkStartFeePrice = await this.pricingService.getPrice(inputReferenceCurrency, nativeAsset, true);
+      const networkStartFeePrice = await this.pricingService.getPrice(
+        inputReferenceCurrency,
+        nativeAsset,
+        PriceValidity.ANY,
+      );
 
       const networkStartFeeRequest: PayoutRequest = {
         context: PayoutOrderContext.BUY_CRYPTO,
@@ -172,7 +189,10 @@ export class BuyCryptoOutService {
           if (custodyOrder) {
             await this.custodyOrderService.updateCustodyOrderInternal(custodyOrder, {
               status: CustodyOrderStatus.COMPLETED,
-              inputAmount: CustodyOrderInputTypes.includes(custodyOrder.type) ? tx.outputAmount : undefined,
+              ...(custodyOrder.type !== CustodyOrderType.SEND && {
+                inputAmount: tx.outputAmount,
+                inputAsset: tx.outputAsset,
+              }),
             });
           }
 

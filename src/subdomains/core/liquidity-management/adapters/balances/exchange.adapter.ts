@@ -33,7 +33,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
     return balances.reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  async getNumberOfPendingOrders(active: Active, context: LiquidityManagementContext): Promise<number> {
+  async hasPendingOrders(active: Active, context: LiquidityManagementContext): Promise<boolean> {
     const system = Object.values(LiquidityManagementSystem).find((s) => s.toString() === context.toString());
     const query = {
       action: { system },
@@ -41,7 +41,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
     };
 
     return system
-      ? this.orderRepo.countBy([
+      ? this.orderRepo.existsBy([
           {
             ...query,
             inputAsset: active.name,
@@ -51,7 +51,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
             outputAsset: active.name,
           },
         ])
-      : 0;
+      : false;
   }
 
   // --- HELPER METHODS --- //

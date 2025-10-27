@@ -1,6 +1,6 @@
 import { ChildEntity, Column, ManyToOne } from 'typeorm';
 import { Department } from '../enums/department.enum';
-import { SupportIssueState } from '../enums/support-issue.enum';
+import { SupportIssueInternalState } from '../enums/support-issue.enum';
 import { SupportIssue } from './support-issue.entity';
 import { SupportLog } from './support-log.entity';
 
@@ -10,7 +10,7 @@ export class SupportIssueLog extends SupportLog {
   supportIssue: SupportIssue;
 
   @Column({ length: 256, nullable: true })
-  state?: SupportIssueState;
+  state?: SupportIssueInternalState;
 
   @Column({ length: 256, nullable: true })
   department?: Department;

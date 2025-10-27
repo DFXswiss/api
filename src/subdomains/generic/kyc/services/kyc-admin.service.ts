@@ -2,14 +2,18 @@ import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/commo
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
-import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, KycStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { KycNationalityData } from '../dto/input/kyc-data.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
+import { KycError } from '../dto/kyc-error.enum';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType } from '../enums/kyc.enum';
+import { KycStepType } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { KycNotificationService } from './kyc-notification.service';
 import { KycService } from './kyc.service';
@@ -34,13 +38,12 @@ export class KycAdminService {
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({
       where: { id: stepId },
-      relations: { userData: { bankDatas: true, wallet: true, kycSteps: true } },
+      relations: { userData: { bankDatas: true, wallet: true, kycSteps: true, users: true } },
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
     await this.kycStepRepo.update(...kycStep.update(dto.status, dto.result, dto.comment));
 
-    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
     if (kycStep.isFailed && kycStep.comment)
       await this.kycNotificationService.kycStepFailed(
         kycStep.userData,
@@ -51,12 +54,28 @@ export class KycAdminService {
       );
 
     switch (kycStep.name) {
-      case KycStepName.COMMERCIAL_REGISTER:
-        if (kycStep.isCompleted) kycStep.userData = await this.kycService.completeCommercialRegister(kycStep.userData);
+      case KycStepName.AUTHORITY:
+        if (kycStep.isCompleted)
+          await this.kycService.completeReferencedSteps(kycStep.userData, KycStepName.SIGNATORY_POWER);
+        break;
+
+      case KycStepName.RESIDENCE_PERMIT:
+        if (kycStep.isCompleted)
+          await this.kycService.completeReferencedSteps(kycStep.userData, KycStepName.NATIONALITY_DATA);
+        break;
+
+      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
+      case KycStepName.LEGAL_ENTITY:
+        if (kycStep.isCompleted) await this.kycService.completeCommercialRegister(kycStep.userData);
         break;
 
       case KycStepName.IDENT:
-        if (kycStep.isCompleted) await this.kycService.completeIdent(kycStep);
+        if (kycStep.isCompleted) {
+          const nationalityData = kycStep.userData
+            .getCompletedStepWith(KycStepName.NATIONALITY_DATA)
+            ?.getResult<KycNationalityData>();
+          await this.kycService.completeIdent(kycStep, undefined, nationalityData);
+        }
         break;
 
       case KycStepName.DFX_APPROVAL:
@@ -65,8 +84,11 @@ export class KycAdminService {
             kycLevel: KycLevel.LEVEL_50,
             kycStatus: KycStatus.COMPLETED,
           });
+        await this.kycService.createKycLevelLog(kycStep.userData, KycLevel.LEVEL_50);
         break;
     }
+
+    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
   }
 
   async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {
@@ -80,10 +102,14 @@ export class KycAdminService {
     await this.kycService.syncIdentStep(kycStep);
   }
 
-  async resetKyc(userData: UserData): Promise<void> {
+  async resetKyc(userData: UserData, comment: KycError): Promise<void> {
     for (const kycStep of userData.kycSteps) {
-      if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && !kycStep.isFailed)
-        await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.CANCELED });
+      if (
+        [KycStepName.FINANCIAL_DATA, KycStepName.IDENT, KycStepName.DFX_APPROVAL].includes(kycStep.name) &&
+        !kycStep.isFailed &&
+        !kycStep.isCanceled
+      )
+        await this.kycStepRepo.update(kycStep.id, { status: ReviewStatus.CANCELED, comment });
     }
   }
 
@@ -103,7 +129,7 @@ export class KycAdminService {
     });
     if (!kycStep) throw new NotFoundException('No kycSteps found');
 
-    if (kycStep.status === KycStepStatus.FAILED) {
+    if (kycStep.status === ReviewStatus.FAILED) {
       await this.webhookService.kycFailed(kycStep.userData, dto.reason ?? 'KYC failed');
     } else {
       await this.webhookService.kycChanged(kycStep.userData);

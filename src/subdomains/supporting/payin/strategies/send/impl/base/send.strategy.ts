@@ -5,8 +5,6 @@ import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wall
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import {
@@ -16,7 +14,11 @@ import {
 } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SendStrategyRegistry } from './send.strategy-registry';
 
 export type SendGroupKey = string;
@@ -37,19 +39,16 @@ export enum SendType {
 
 export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
-  protected chf: Fiat;
 
   @Inject() private readonly priceProvider: PricingService;
   @Inject() private readonly payoutService: PayoutService;
   @Inject(forwardRef(() => TransactionHelper)) private readonly transactionHelper: TransactionHelper;
   @Inject() private readonly registry: SendStrategyRegistry;
-  @Inject() private readonly fiatService: FiatService;
   @Inject() protected readonly pricingService: PricingService;
   @Inject() protected readonly assetService: AssetService;
 
   onModuleInit() {
     this.registry.add({ blockchain: this.blockchain, assetType: this.assetType }, this);
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
   }
 
   onModuleDestroy() {
@@ -76,7 +75,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
         const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
         const feeAmountChf = feeAmount
           ? await this.pricingService
-              .getPrice(feeAsset, this.chf, true)
+              .getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY)
               .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
           : null;
 
@@ -106,9 +105,6 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   }
 
   // --- FEES --- //
-  protected async getMinInputFee(asset: Asset): Promise<number> {
-    return this.transactionHelper.getBlockchainFeeInChf(asset, true);
-  }
 
   protected async getMinConfirmations(payIn: CryptoInput, direction: PayInConfirmationType): Promise<number> {
     return this.transactionHelper.getMinConfirmations(payIn, direction);
@@ -122,8 +118,8 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     const nativeFee = await this.payoutService.estimateFee(asset, targetAddress, amount, asset);
     if (!nativeFee.amount) return { feeNativeAsset: 0, feeInputAsset: 0, maxFeeInputAsset: 0 };
 
-    const nativeAssetPrice = await this.priceProvider.getPrice(nativeFee.asset, asset, true);
-    const chfPrice = await this.priceProvider.getPrice(this.chf, asset, true);
+    const nativeAssetPrice = await this.priceProvider.getPrice(nativeFee.asset, asset, PriceValidity.ANY);
+    const chfPrice = await this.priceProvider.getPrice(PriceCurrency.CHF, asset, PriceValidity.ANY);
 
     return {
       feeNativeAsset: nativeFee.amount,

@@ -1,5 +1,5 @@
 import { KycStep } from '../../entities/kyc-step.entity';
-import { KycStepStatus as EntityStatus } from '../../enums/kyc.enum';
+import { ReviewStatus } from '../../enums/review-status.enum';
 import { KycReasonMap } from '../kyc-error.enum';
 import {
   KycStepStatus as DtoStatus,
@@ -38,7 +38,7 @@ export class KycStepMapper {
     };
   }
 
-  private static toStepStatus(entityStatus: EntityStatus): DtoStatus {
+  private static toStepStatus(entityStatus: ReviewStatus): DtoStatus {
     return KycStepMapper.StepMap[entityStatus];
   }
 
@@ -46,21 +46,21 @@ export class KycStepMapper {
     return KycReasonMap[kycStep.comment];
   }
 
-  private static StepMap: Record<EntityStatus, DtoStatus> = {
-    [EntityStatus.NOT_STARTED]: DtoStatus.NOT_STARTED,
-    [EntityStatus.IN_PROGRESS]: DtoStatus.IN_PROGRESS,
-    [EntityStatus.FINISHED]: DtoStatus.IN_REVIEW,
-    [EntityStatus.EXTERNAL_REVIEW]: DtoStatus.IN_REVIEW,
-    [EntityStatus.INTERNAL_REVIEW]: DtoStatus.IN_REVIEW,
-    [EntityStatus.MANUAL_REVIEW]: DtoStatus.IN_REVIEW,
-    [EntityStatus.PARTIALLY_APPROVED]: DtoStatus.IN_REVIEW,
-    [EntityStatus.PAUSED]: DtoStatus.IN_REVIEW,
-    [EntityStatus.FAILED]: DtoStatus.FAILED,
-    [EntityStatus.CANCELED]: DtoStatus.FAILED,
-    [EntityStatus.IGNORED]: DtoStatus.FAILED,
-    [EntityStatus.COMPLETED]: DtoStatus.COMPLETED,
-    [EntityStatus.OUTDATED]: DtoStatus.OUTDATED,
-    [EntityStatus.DATA_REQUESTED]: DtoStatus.DATA_REQUESTED,
-    [EntityStatus.ON_HOLD]: DtoStatus.ON_HOLD,
+  private static StepMap: Record<ReviewStatus, DtoStatus> = {
+    [ReviewStatus.NOT_STARTED]: DtoStatus.NOT_STARTED,
+    [ReviewStatus.IN_PROGRESS]: DtoStatus.IN_PROGRESS,
+    [ReviewStatus.FINISHED]: DtoStatus.IN_REVIEW,
+    [ReviewStatus.EXTERNAL_REVIEW]: DtoStatus.IN_REVIEW,
+    [ReviewStatus.INTERNAL_REVIEW]: DtoStatus.IN_REVIEW,
+    [ReviewStatus.MANUAL_REVIEW]: DtoStatus.IN_REVIEW,
+    [ReviewStatus.PARTIALLY_APPROVED]: DtoStatus.IN_REVIEW,
+    [ReviewStatus.PAUSED]: DtoStatus.IN_REVIEW,
+    [ReviewStatus.FAILED]: DtoStatus.FAILED,
+    [ReviewStatus.CANCELED]: DtoStatus.FAILED,
+    [ReviewStatus.IGNORED]: DtoStatus.FAILED,
+    [ReviewStatus.COMPLETED]: DtoStatus.COMPLETED,
+    [ReviewStatus.OUTDATED]: DtoStatus.OUTDATED,
+    [ReviewStatus.DATA_REQUESTED]: DtoStatus.DATA_REQUESTED,
+    [ReviewStatus.ON_HOLD]: DtoStatus.ON_HOLD,
   };
 }

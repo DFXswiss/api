@@ -26,8 +26,8 @@ export class PricingDexService extends PricingProvider {
 
     return PriceStep.create(
       `${chain} Uniswap v3${poolFee}`,
-      rule.priceAsset.replace(`${chain}/`, ''),
-      rule.priceReference.replace(`${chain}/`, ''),
+      rule.from,
+      rule.to,
       rule.currentPrice,
       rule.priceTimestamp,
     );

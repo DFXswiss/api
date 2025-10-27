@@ -29,7 +29,7 @@ export class KycLogService {
 
   async createLog(creatorUserDataId: number, dto: CreateKycLogDto): Promise<void> {
     const entity = this.kycLogRepo.create({
-      type: KycLogType.MANUAL,
+      type: dto.type ?? KycLogType.MANUAL,
       comment: dto.comment,
       eventDate: dto.eventDate,
       result: `Created by user data ${creatorUserDataId}`,
@@ -53,6 +53,12 @@ export class KycLogService {
       entity.pdfUrl = url;
       entity.file = file;
     }
+
+    await this.kycLogRepo.save(entity);
+  }
+
+  async createLogInternal(userData: UserData, type: KycLogType, result: string): Promise<void> {
+    const entity = this.kycLogRepo.create({ type, result, userData: { id: userData.id } });
 
     await this.kycLogRepo.save(entity);
   }

@@ -1,11 +1,22 @@
-import { CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
+import { CustodyOrderStepCommand, CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
 
-export const OrderConfig: { [t in CustodyOrderType]: { context: CustodyOrderStepContext; command: string }[] } = {
+export const OrderConfig: {
+  [t in CustodyOrderType]: { context: CustodyOrderStepContext; command: CustodyOrderStepCommand }[];
+} = {
   [CustodyOrderType.DEPOSIT]: [],
-  [CustodyOrderType.WITHDRAWAL]: [{ context: CustodyOrderStepContext.DFX, command: 'SendToRoute' }],
-  [CustodyOrderType.RECEIVE]: [], // TODO
-  [CustodyOrderType.SEND]: [], // TODO
-  [CustodyOrderType.SWAP]: [{ context: CustodyOrderStepContext.DFX, command: 'SendToRoute' }],
+  [CustodyOrderType.WITHDRAWAL]: [
+    { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.CHARGE_ROUTE },
+    { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.SEND_TO_ROUTE },
+  ],
+  [CustodyOrderType.RECEIVE]: [],
+  [CustodyOrderType.SEND]: [
+    { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.CHARGE_ROUTE },
+    { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.SEND_TO_ROUTE },
+  ],
+  [CustodyOrderType.SWAP]: [
+    { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.CHARGE_ROUTE },
+    { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.SEND_TO_ROUTE },
+  ],
   [CustodyOrderType.SAVING_DEPOSIT]: [],
   [CustodyOrderType.SAVING_WITHDRAWAL]: [],
 };

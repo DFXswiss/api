@@ -30,6 +30,6 @@ export class MoneroStrategy extends SellLiquidityStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getBtcCoin();
+    return this.assetService.getMoneroCoin();
   }
 }

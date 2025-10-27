@@ -39,6 +39,7 @@ import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapp
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { SignatoryPower } from '../../user/models/user-data/user-data.enum';
 import { IdNowResult } from '../dto/ident-result.dto';
 import { IdentStatus } from '../dto/ident.dto';
 import {
@@ -52,6 +53,7 @@ import {
   KycPersonalData,
   KycSignatoryPowerData,
   PaymentDataDto,
+  RecallAgreementData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { Start2faDto } from '../dto/input/start-2fa.dto';
@@ -62,7 +64,7 @@ import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
-import { KycStepStatus } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
 import { TfaService } from '../services/tfa.service';
@@ -191,17 +193,6 @@ export class KycController {
     return this.kycService.updatePersonalData(code, +id, data);
   }
 
-  @Put('data/legal/:id')
-  @ApiOkResponse({ type: KycStepBase })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async updateLegalEntityData(
-    @Headers(CodeHeaderName) code: string,
-    @Param('id') id: string,
-    @Body() data: KycLegalEntityData,
-  ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, KycStepStatus.COMPLETED);
-  }
-
   @Put('data/owner/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -222,19 +213,31 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycNationalityData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, KycStepStatus.INTERNAL_REVIEW);
+    return this.kycService.updateKycStep(code, +id, data, ReviewStatus.INTERNAL_REVIEW);
   }
 
-  @Put('data/commercial/:id')
+  @Put('data/legal/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async updateCommercialRegisterData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @Body() data: KycFileData,
+    @Body() data: KycLegalEntityData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('commercial-register', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.COMMERCIAL_REGISTER);
+    return this.kycService.updateLegalData(code, +id, data, FileType.COMMERCIAL_REGISTER);
+  }
+
+  @Put('data/confirmation/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateSoleProprietorshipConfirmationData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('sole-proprietorship-confirmation', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.SOLE_PROPRIETORSHIP_CONFIRMATION, true);
   }
 
   @Put('data/residence/:id')
@@ -249,6 +252,18 @@ export class KycController {
     return this.kycService.updateFileData(code, +id, data, FileType.RESIDENCE_PERMIT);
   }
 
+  @Put('data/statutes/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateStatutesData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFileData,
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('statutes', data.fileName);
+    return this.kycService.updateFileData(code, +id, data, FileType.STATUTES);
+  }
+
   @Put('data/additional/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -261,6 +276,22 @@ export class KycController {
     return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
   }
 
+  @Put('data/recall/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateRecallAgreement(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: RecallAgreementData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateKycStep(
+      code,
+      +id,
+      { recallAgreementAccepted: data.accepted },
+      data.accepted ? ReviewStatus.COMPLETED : ReviewStatus.FAILED,
+    );
+  }
+
   @Put('data/signatory/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -269,7 +300,12 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycSignatoryPowerData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, KycStepStatus.MANUAL_REVIEW);
+    return this.kycService.updateKycStep(
+      code,
+      +id,
+      data,
+      data.signatoryPower === SignatoryPower.SINGLE ? ReviewStatus.MANUAL_REVIEW : ReviewStatus.INTERNAL_REVIEW,
+    );
   }
 
   @Put('data/beneficial/:id')
@@ -354,9 +390,9 @@ export class KycController {
     const result = JSON.parse(data) as SumSubWebhookResult;
 
     try {
-      await this.kycService.updateSumsubIdent(result);
+      this.kycService.updateSumsubIdent(result);
     } catch (e) {
-      this.logger.error(`Failed to handle sumsub ident webhook call for applicant ${result.applicantId}:`, e);
+      this.logger.error(`Failed to handle sumsub webhook call for applicant ${result.applicantId}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }

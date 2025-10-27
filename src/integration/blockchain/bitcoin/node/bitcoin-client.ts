@@ -2,7 +2,7 @@ import { Currency } from '@uniswap/sdk-core';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
-import { BitcoinSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
+import { BlockchainSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
 import { NodeClient, NodeCommand } from './node-client';
 
 export interface TransactionHistory {
@@ -29,6 +29,10 @@ type AddressInfoInnerArray = AddressInfoArray[];
 type AddressInfoArray = [string, number, string];
 
 export class BitcoinClient extends NodeClient {
+  get walletAddress(): string {
+    return Config.blockchain.default.btcOutput.address;
+  }
+
   async send(
     addressTo: string,
     txId: string,
@@ -85,7 +89,7 @@ export class BitcoinClient extends NodeClient {
     );
   }
 
-  async sendSignedTransaction(hex: string): Promise<BitcoinSignedTransactionResponse> {
+  async sendSignedTransaction(hex: string): Promise<BlockchainSignedTransactionResponse> {
     return this.callNode<string>((c) => c.call(NodeCommand.SEND_RAW_TRANSACTION, [hex, null], 'number'), true)
       .then((r) => ({ hash: r }))
       .catch((e) => ({

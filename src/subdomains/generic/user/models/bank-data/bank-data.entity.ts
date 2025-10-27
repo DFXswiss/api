@@ -1,6 +1,7 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
@@ -21,12 +22,17 @@ export enum BankDataVerificationError {
   VERIFIED_NAME_NOT_MATCHING = 'VerifiedNameNotMatching',
   ALREADY_ACTIVE_EXISTS = 'AlreadyActiveExists',
   NEW_BANK_IN_ACTIVE = 'NewBankInActive',
+  MERGE_PENDING = 'MergePending',
+  MERGE_EXPIRED = 'MergeExpired',
 }
 
 @Entity()
 export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
   name?: string;
+
+  @Column({ nullable: true })
+  status?: ReviewStatus;
 
   @Column({ nullable: true })
   approved?: boolean;
@@ -79,8 +85,8 @@ export class BankData extends IEntity {
 
   allow(): UpdateResult<BankData> {
     const update: Partial<BankData> = {
+      status: ReviewStatus.COMPLETED,
       approved: true,
-      comment: 'Pass',
     };
 
     Object.assign(this, update);
@@ -90,6 +96,7 @@ export class BankData extends IEntity {
 
   forbid(comment?: string): UpdateResult<BankData> {
     const update: Partial<BankData> = {
+      status: ReviewStatus.FAILED,
       approved: false,
       comment,
     };
@@ -97,5 +104,53 @@ export class BankData extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  complete(): UpdateResult<BankData> {
+    const update: Partial<BankData> = { status: ReviewStatus.COMPLETED };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  manualReview(comment?: string): UpdateResult<BankData> {
+    const update: Partial<BankData> = {
+      status: ReviewStatus.MANUAL_REVIEW,
+      comment,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  internalReview(comment?: string): UpdateResult<BankData> {
+    const update: Partial<BankData> = {
+      status: ReviewStatus.INTERNAL_REVIEW,
+      comment,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  get isInReview(): boolean {
+    return [ReviewStatus.MANUAL_REVIEW, ReviewStatus.INTERNAL_REVIEW].includes(this.status);
+  }
+
+  get isReviewed(): boolean {
+    return this.status === ReviewStatus.COMPLETED;
+  }
+
+  get reviewErrors(): BankDataVerificationError[] {
+    return this.comment ? (this.comment?.split(';') as BankDataVerificationError[]) : [];
+  }
+
+  get mergeError(): BankDataVerificationError | undefined {
+    return this.reviewErrors.find((e) =>
+      [BankDataVerificationError.MERGE_EXPIRED, BankDataVerificationError.MERGE_PENDING].includes(e),
+    );
   }
 }

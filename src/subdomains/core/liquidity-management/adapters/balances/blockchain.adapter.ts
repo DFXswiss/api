@@ -6,6 +6,8 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
+import { TronClient } from 'src/integration/blockchain/tron/tron-client';
+import { ZanoClient } from 'src/integration/blockchain/zano/zano-client';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { isAsset } from 'src/shared/models/active';
@@ -17,7 +19,7 @@ import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityManagementContext } from '../../enums';
 import { LiquidityBalanceIntegration } from '../../interfaces';
 
-type TokenClient = EvmClient | SolanaClient;
+type TokenClient = EvmClient | SolanaClient | TronClient | ZanoClient;
 
 @Injectable()
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
@@ -56,8 +58,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     return balances.reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  async getNumberOfPendingOrders(asset: Asset): Promise<number> {
-    return this.dexService.getPendingOrdersCount(asset);
+  async hasPendingOrders(asset: Asset): Promise<boolean> {
+    return this.dexService.hasPendingOrders(asset);
   }
 
   private async getForBlockchain(blockchain: Blockchain, assets: Asset[]): Promise<LiquidityBalance[]> {
@@ -95,21 +97,31 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.MONERO:
-          await this.updateMoneroBalance(assets);
+          await this.updateCoinOnlyBalance(assets);
+          break;
+
+        case Blockchain.ZANO:
+          await this.updateZanoBalance(assets);
           break;
 
         case Blockchain.ETHEREUM:
+        case Blockchain.SEPOLIA:
         case Blockchain.OPTIMISM:
         case Blockchain.ARBITRUM:
         case Blockchain.POLYGON:
         case Blockchain.BASE:
         case Blockchain.GNOSIS:
         case Blockchain.BINANCE_SMART_CHAIN:
+        case Blockchain.CITREA_TESTNET:
           await this.updateEvmBalance(assets);
           break;
 
         case Blockchain.SOLANA:
           await this.updateSolanaBalance(assets);
+          break;
+
+        case Blockchain.TRON:
+          await this.updateTronBalance(assets);
           break;
 
         default:
@@ -142,7 +154,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
   }
 
-  private async updateMoneroBalance(assets: Asset[]): Promise<void> {
+  private async updateCoinOnlyBalance(assets: Asset[]): Promise<void> {
     for (const asset of assets) {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
@@ -155,6 +167,17 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         this.invalidateCacheFor([asset]);
       }
     }
+  }
+
+  private async updateZanoBalance(assets: Asset[]): Promise<void> {
+    if (assets.length === 0) return;
+
+    const blockchain = assets[0].blockchain;
+    const client = this.blockchainRegistryService.getClient(blockchain) as ZanoClient;
+    await this.updateCoinAndTokenBalance(
+      assets.filter((a) => a.type !== AssetType.POOL),
+      client,
+    );
   }
 
   private async updateEvmBalance(assets: Asset[]): Promise<void> {
@@ -191,13 +214,12 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     );
 
     for (const asset of assets) {
-      const balance =
-        asset.type === AssetType.COIN ? coinBalance : tokenToBalanceMap.get(asset.chainId?.toLowerCase()) ?? 0;
+      const balance = asset.type === AssetType.COIN ? coinBalance : tokenToBalanceMap.get(asset.chainId?.toLowerCase());
 
       const previousBalance = this.balanceCache.get(asset.id);
-      if (previousBalance && balance === 0) this.logger.error(`Balance for ${asset.uniqueName} went to 0`);
+      if (previousBalance && !balance) this.logger.error(`Balance for ${asset.uniqueName} went to ${null}`);
 
-      this.balanceCache.set(asset.id, balance);
+      balance != null && this.balanceCache.set(asset.id, balance);
     }
   }
 
@@ -226,6 +248,17 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const blockchain = assets[0].blockchain;
     const client = this.blockchainRegistryService.getClient(blockchain) as SolanaClient;
 
+    await this.updateCoinAndTokenBalance(
+      assets.filter((a) => a.type !== AssetType.POOL),
+      client,
+    );
+  }
+
+  private async updateTronBalance(assets: Asset[]): Promise<void> {
+    if (assets.length === 0) return;
+
+    const blockchain = assets[0].blockchain;
+    const client = this.blockchainRegistryService.getClient(blockchain) as TronClient;
     await this.updateCoinAndTokenBalance(
       assets.filter((a) => a.type !== AssetType.POOL),
       client,

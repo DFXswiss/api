@@ -1,8 +1,9 @@
-export enum SupportIssueState {
+export enum SupportIssueInternalState {
   CREATED = 'Created',
   PENDING = 'Pending',
   COMPLETED = 'Completed',
   CANCELED = 'Canceled',
+  ON_HOLD = 'OnHold',
 }
 
 export enum SupportIssueType {
@@ -22,4 +23,10 @@ export enum SupportIssueReason {
   // transaction
   FUNDS_NOT_RECEIVED = 'FundsNotReceived',
   TRANSACTION_MISSING = 'TransactionMissing',
+}
+
+export enum SupportIssueState {
+  PENDING = 'Pending',
+  COMPLETED = 'Completed',
+  CANCELED = 'Canceled',
 }

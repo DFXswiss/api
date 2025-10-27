@@ -9,10 +9,11 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
-import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycStepStatus } from '../enums/kyc.enum';
+import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
 @Injectable()
@@ -35,7 +36,7 @@ export class KycNotificationService {
       where: {
         reminderSentDate: IsNull(),
         name: Not(KycStepName.CONTACT_DATA),
-        status: KycStepStatus.IN_PROGRESS,
+        status: ReviewStatus.IN_PROGRESS,
         updated: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
         userData: {
           kycLevel: MoreThanOrEqual(0) && LessThan(50),
@@ -198,7 +199,7 @@ export class KycNotificationService {
 
   async kycPaymentData(userData: UserData, acceptedDate: Date): Promise<void> {
     try {
-      if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
+      if (userData.mail && !DisabledProcess(Process.KYC_MAIL)) {
         await this.notificationService.sendMail({
           type: MailType.USER_V2,
           context: MailContext.KYC_PAYMENT_DATA,

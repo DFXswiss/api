@@ -1010,6 +1010,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.IBAN_CHECK]: DeclineCategory.OTHER,
   [AmlReason.KYC_REJECTED]: DeclineCategory.OTHER,
   [AmlReason.MANUAL_CHECK]: DeclineCategory.OTHER,
+  [AmlReason.MANUAL_CHECK_BANK_DATA]: DeclineCategory.OTHER,
   [AmlReason.MIN_DEPOSIT_NOT_REACHED]: DeclineCategory.OTHER,
   [AmlReason.NA]: DeclineCategory.OTHER,
   [AmlReason.NAME_CHECK_WITHOUT_KYC]: DeclineCategory.OTHER,
@@ -1029,6 +1030,10 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.TEST_ONLY]: DeclineCategory.OTHER,
   [AmlReason.KYC_DATA_NEEDED]: DeclineCategory.OTHER,
   [AmlReason.BANK_TX_NEEDED]: DeclineCategory.OTHER,
+  [AmlReason.MERGE_INCOMPLETE]: DeclineCategory.OTHER,
+  [AmlReason.MANUAL_CHECK_PHONE]: DeclineCategory.RISKY,
+  [AmlReason.MANUAL_CHECK_IP_PHONE]: DeclineCategory.RISKY,
+  [AmlReason.BANK_RELEASE_PENDING]: DeclineCategory.OTHER,
 };
 
 export interface ScoreRsponse {

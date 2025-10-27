@@ -25,16 +25,20 @@ export class SolanaService extends BlockchainService {
   }
 
   getWalletAddress(): string {
-    return this.client.getWalletAddress();
+    return this.client.walletAddress;
   }
 
   async getAllTokenAddresses(): Promise<string[]> {
-    const walletAddress = this.client.getWalletAddress();
+    const walletAddress = this.client.walletAddress;
     return this.client.getAllTokens(walletAddress).then((t) => t.map((t) => t.address));
   }
 
   async verifySignature(message: string, address: string, signature: string): Promise<boolean> {
     return nacl.sign.detached.verify(Util.stringToUint8(message, 'utf8'), bs58.decode(signature), bs58.decode(address));
+  }
+
+  getPaymentRequest(address: string, amount: number): string {
+    return `solana:${address}?amount=${Util.numberToFixedString(amount)}`;
   }
 
   async getBlockHeight(): Promise<number> {
@@ -50,7 +54,7 @@ export class SolanaService extends BlockchainService {
   }
 
   async getTokenBalance(asset: Asset, address?: string): Promise<number> {
-    return this.client.getTokenBalance(asset, address ?? this.client.getWalletAddress());
+    return this.client.getTokenBalance(asset, address ?? this.client.walletAddress);
   }
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {

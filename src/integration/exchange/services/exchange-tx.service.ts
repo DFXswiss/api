@@ -1,14 +1,17 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
@@ -18,9 +21,8 @@ import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
 
 @Injectable()
-export class ExchangeTxService implements OnModuleInit {
+export class ExchangeTxService {
   private readonly logger = new DfxLogger(ExchangeTxService);
-  private chf: Fiat;
 
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
@@ -30,18 +32,18 @@ export class ExchangeTxService implements OnModuleInit {
     private readonly fiatService: FiatService,
   ) {}
 
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-  }
-
   //*** JOBS ***//
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.EXCHANGE_TX_SYNC, timeout: 1800 })
-  async syncExchanges() {
-    const since = Util.minutesBefore(Config.exchangeTxSyncLimit);
-    const transactions = await Promise.all(ExchangeSyncs.map((s) => this.getTransactionsFor(s, since))).then((tx) =>
-      tx.flat(),
-    );
+  async syncExchangeJob() {
+    await this.syncExchanges();
+  }
+
+  async syncExchanges(from?: Date, exchange?: ExchangeName) {
+    const syncs = ExchangeSyncs.filter((s) => !exchange || s.exchange === exchange);
+    const since = from ?? Util.minutesBefore(Config.exchangeTxSyncLimit);
+
+    const transactions = await Promise.all(syncs.map((s) => this.getTransactionsFor(s, since))).then((tx) => tx.flat());
 
     // sort by date
     transactions.sort((a, b) => a.externalCreated.getTime() - b.externalCreated.getTime());
@@ -65,7 +67,9 @@ export class ExchangeTxService implements OnModuleInit {
               type: undefined,
               name: entity.feeCurrency,
             }));
-          const price = await this.pricingService.getPrice(feeAsset, this.chf, true);
+          if (!feeAsset) throw new Error(`Unknown fee currency ${entity.feeCurrency}`);
+
+          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
 
           entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
         }
@@ -84,7 +88,9 @@ export class ExchangeTxService implements OnModuleInit {
               type: undefined,
               name: currencyName,
             }));
-          const priceChf = await this.pricingService.getPrice(currency, this.chf, true);
+          if (!currency) throw new Error(`Unknown currency ${currencyName}`);
+
+          const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY);
 
           entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
         }
@@ -96,6 +102,10 @@ export class ExchangeTxService implements OnModuleInit {
 
   async getExchangeTx(from: Date, relations?: FindOptionsRelations<ExchangeTx>): Promise<ExchangeTx[]> {
     return this.exchangeTxRepo.find({ where: { created: MoreThan(from) }, relations });
+  }
+
+  async getLastExchangeTx(exchange: ExchangeName, relations?: FindOptionsRelations<ExchangeTx>): Promise<ExchangeTx> {
+    return this.exchangeTxRepo.findOne({ where: { exchange, status: 'ok' }, order: { id: 'DESC' }, relations });
   }
 
   async getRecentExchangeTx(minId: number, exchange: ExchangeName, types: ExchangeTxType[]): Promise<ExchangeTx[]> {

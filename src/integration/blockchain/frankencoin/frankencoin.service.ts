@@ -3,29 +3,24 @@ import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
 import { Config } from 'src/config/config';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { CollateralWithTotalBalance } from '../shared/dto/frankencoin-based.dto';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { FrankencoinBasedService } from '../shared/frankencoin/frankencoin-based.service';
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
 import {
   FrankencoinChallengeGraphDto,
-  FrankencoinDelegationGraphDto,
   FrankencoinInfoDto,
   FrankencoinLogDto,
-  FrankencoinMinterGraphDto,
   FrankencoinPoolSharesDto,
   FrankencoinPositionDto,
   FrankencoinPositionGraphDto,
   FrankencoinSwapDto,
-  FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
 import { FrankencoinClient } from './frankencoin-client';
 
@@ -34,28 +29,17 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'FrankencoinSmartContract';
 
-  private usd: Fiat;
-  private chf: Fiat;
-
   private frankencoinClient: FrankencoinClient;
 
-  constructor(
-    private readonly moduleRef: ModuleRef,
-    private readonly logService: LogService,
-    private readonly fiatService: FiatService,
-  ) {
+  constructor(private readonly moduleRef: ModuleRef, private readonly logService: LogService) {
     super();
   }
 
-  async onModuleInit() {
+  onModuleInit() {
     this.setup(
       this.moduleRef.get(PricingService, { strict: false }),
       this.moduleRef.get(BlockchainRegistryService, { strict: false }),
     );
-
-    this.usd = await this.fiatService.getFiatByName('USD');
-    this.chf = await this.fiatService.getFiatByName('CHF');
-
     this.frankencoinClient = new FrankencoinClient(this.getEvmClient());
   }
 
@@ -164,7 +148,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
       Config.blockchain.frankencoin.contractAddress.zchf,
     );
 
-    const fps = await this.frankencoinClient.getFPS(Config.blockchain.frankencoin.contractAddress.zchf);
+    const fps = await this.frankencoinClient.getFPS();
 
     try {
       const totalSupply = await equityContract.totalSupply();
@@ -180,12 +164,12 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
         equityCapital: EvmUtil.fromWeiAmount(frankenEquity),
         minterReserve: EvmUtil.fromWeiAmount(frankenMinterReserve),
         totalIncome: EvmUtil.fromWeiAmount(fps.profits),
-        totalLosses: EvmUtil.fromWeiAmount(fps.loss),
+        totalLosses: EvmUtil.fromWeiAmount(fps.losses),
       };
 
       return fpsResult;
     } catch (e) {
-      this.logger.error(`Error while getting pool shares ${fps.id}`, e);
+      this.logger.error(`Error while getting pool shares`, e);
     }
   }
 
@@ -199,7 +183,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
   }
 
   getWalletAddress(): string {
-    return this.frankencoinClient.getWalletAddress();
+    return this.frankencoinClient.walletAddress;
   }
 
   getEquityContract(): Contract {
@@ -219,18 +203,6 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
     const price = await equityContract.price();
 
     return EvmUtil.fromWeiAmount(price);
-  }
-
-  async getMinters(): Promise<FrankencoinMinterGraphDto[]> {
-    return this.frankencoinClient.getMinters();
-  }
-
-  async getDelegation(owner: string): Promise<FrankencoinDelegationGraphDto> {
-    return this.frankencoinClient.getDelegation(owner);
-  }
-
-  async getTrades(): Promise<FrankencoinTradeGraphDto[]> {
-    return this.frankencoinClient.getTrades();
   }
 
   async getTvl(): Promise<number> {
@@ -270,7 +242,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
 
     const frankencoinLog = <FrankencoinLogDto>JSON.parse(maxFrankencoinLogEntity.message);
 
-    const priceUsdToChf = await this.getPrice(this.usd, this.chf);
+    const priceUsdToChf = await this.getPrice(PriceCurrency.USD, PriceCurrency.CHF);
 
     return {
       totalSupplyZchf: frankencoinLog.totalSupply,

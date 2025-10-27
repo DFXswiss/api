@@ -19,7 +19,7 @@ import { TransactionRequestExtended } from 'src/subdomains/core/history/mappers/
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
-import { Between, FindOptionsRelations, IsNull, LessThan, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, LessThan, MoreThan } from 'typeorm';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import {
   TransactionRequest,
@@ -27,8 +27,6 @@ import {
   TransactionRequestType,
 } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
-
-export const QUOTE_UID_PREFIX = 'Q';
 
 @Injectable()
 export class TransactionRequestService {
@@ -85,7 +83,7 @@ export class TransactionRequestService {
     userId: number,
   ): Promise<void> {
     try {
-      const uid = `${QUOTE_UID_PREFIX}${Util.randomString(16)}`;
+      const uid = `${Config.prefixes.quoteUidPrefix}${Util.randomString(16)}`;
 
       // create the entity
       const transactionRequest = this.transactionRequestRepo.create({
@@ -208,7 +206,6 @@ export class TransactionRequestService {
         user: { userData: { id: userDataId } },
         created: Between(from, to),
       },
-      relations: { user: { userData: true } },
     });
   }
 
@@ -225,29 +222,37 @@ export class TransactionRequestService {
     sourceId: number,
     targetId: number,
   ): Promise<TransactionRequest> {
-    const transactionRequests = await this.transactionRequestRepo.find({
+    const matchingRequests = await this.transactionRequestRepo.find({
       where: {
         routeId,
         sourceId,
         targetId,
         isComplete: false,
-        created: MoreThan(Util.daysBefore(2)),
+        created: MoreThan(Util.daysBefore(Config.txRequestWaitingExpiryDays)),
+        status: In([TransactionRequestStatus.CREATED, TransactionRequestStatus.WAITING_FOR_PAYMENT]),
+        amount: Between(amount * 0.99, amount * 1.01),
       },
       order: { created: 'DESC' },
+      relations: { user: true, custodyOrder: { user: true } },
     });
 
-    const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
+    const pendingRequests = matchingRequests.filter((t) => t.status === TransactionRequestStatus.WAITING_FOR_PAYMENT);
 
-    const pendingTransactionRequests = transactionRequests.filter(
-      (t) => t.status === TransactionRequestStatus.WAITING_FOR_PAYMENT,
-    );
-    if (pendingTransactionRequests) {
-      for (const pendingRequest of pendingTransactionRequests) {
-        await this.complete(pendingRequest.id);
+    const matchingRequest =
+      pendingRequests.find((t) => t.amount === amount) ??
+      pendingRequests.at(0) ??
+      matchingRequests.find((t) => t.amount === amount) ??
+      matchingRequests.at(0);
+
+    if (pendingRequests.length > 1) {
+      for (const pendingRequest of pendingRequests.filter((t) => t.id !== matchingRequest.id)) {
+        await this.transactionRequestRepo.update(...pendingRequest.resetStatus());
       }
     }
-    if (transactionRequest) await this.complete(transactionRequest.id);
-    return transactionRequest;
+
+    if (matchingRequest) await this.complete(matchingRequest.id);
+
+    return matchingRequest;
   }
 
   async complete(id: number): Promise<void> {

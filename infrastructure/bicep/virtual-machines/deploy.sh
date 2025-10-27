@@ -1,0 +1,50 @@
+#!/bin/sh
+set -e
+
+## Global variables
+COMP_NAME="dfx"
+API_NAME="api"
+
+# --- OPTIONS --- #
+environmentOptions=("loc" "dev" "prd")
+
+# --- FUNCTIONS --- #
+selectOption() {
+  PS3="${1}: "
+  shift
+  options=("$@")
+
+  select opt in "${options[@]}" "quit"; do 
+      case "$REPLY" in
+      *) selection="${opt}"; break ;;
+      esac
+  done
+
+  if [[ ! $selection || $selection == "quit" ]]; then exit -1; fi
+  echo "${selection}"
+}
+
+# --- MAIN --- #
+ENV=$(selectOption "Select Environment" "${environmentOptions[@]}")
+
+## Resource Group & Deployment
+RESOURCE_GROUP_NAME="rg-${COMP_NAME}-${API_NAME}-${ENV}"
+DEPLOYMENT_NAME=${COMP_NAME}-${API_NAME}-${ENV}-deployment-$(date +%s)
+
+echo "Resource Group Name: $RESOURCE_GROUP_NAME"
+echo "Deployment Name:     $DEPLOYMENT_NAME"
+
+## Deploy Template
+RESULT=$(az deployment group create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --name $DEPLOYMENT_NAME \
+    --template-file main.bicep \
+    --parameters env=$ENV \
+    --parameters parameters/$ENV.json \
+    --query properties.outputs.result)
+
+## Output Result
+echo "Deployment Result:"
+echo $RESULT | jq
+
+echo "...Deployment FINISHED!"

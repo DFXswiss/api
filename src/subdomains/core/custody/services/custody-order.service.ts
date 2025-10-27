@@ -1,5 +1,14 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -16,9 +25,10 @@ import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
 import { UpdateCustodyOrderInternalDto } from '../dto/input/update-custody-order.dto';
 import { CustodyOrderResponseDto } from '../dto/output/custody-order-response.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
+import { CustodyBalance } from '../entities/custody-balance.entity';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
-import { CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
+import { CustodyOrderStepCommand, CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
 import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response-dto.mapper';
 import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
@@ -27,6 +37,8 @@ import { CustodyService } from './custody.service';
 
 @Injectable()
 export class CustodyOrderService {
+  private readonly CustodyChains = [Blockchain.ETHEREUM];
+
   constructor(
     private readonly userService: UserService,
     private readonly custodyOrderRepo: CustodyOrderRepository,
@@ -41,11 +53,9 @@ export class CustodyOrderService {
     private readonly fiatService: FiatService,
   ) {}
 
-  //*** PUBLIC API ***//
-
   // --- ORDERS --- //
   async createOrder(jwt: JwtPayload, dto: GetCustodyInfoDto): Promise<CustodyOrderDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: true });
+    const user = await this.userService.getUser(jwt.user, { userData: true, custodyBalances: true });
     if (!user) throw new NotFoundException('User not found');
 
     const orderDto: CreateCustodyOrderInternalDto = { user, type: dto.type };
@@ -53,12 +63,12 @@ export class CustodyOrderService {
     let paymentInfo: CustodyOrderResponseDto = null;
 
     switch (dto.type) {
-      case CustodyOrderType.DEPOSIT:
+      case CustodyOrderType.DEPOSIT: {
         const sourceCurrency = await this.fiatService.getFiatByName(dto.sourceAsset);
-        if (!sourceCurrency) throw new NotFoundException('Currency not found');
+        if (!sourceCurrency) throw new NotFoundException('Source currency not found');
 
-        const targetAsset = await this.assetService.getCustodyAssetByName(dto.targetAsset);
-        if (!targetAsset) throw new NotFoundException('Asset not found');
+        const targetAsset = await this.getCustodyAsset(dto.targetAsset);
+        if (!targetAsset) throw new NotFoundException('Target asset not found');
 
         const buyPaymentInfo = await this.buyService.createBuyPaymentInfo(
           jwt,
@@ -66,16 +76,18 @@ export class CustodyOrderService {
         );
 
         orderDto.buy = await this.buyService.getById(buyPaymentInfo.routeId);
-        orderDto.inputAsset = await this.assetService.getAssetById(buyPaymentInfo.asset.id);
+        orderDto.inputAsset = targetAsset;
         paymentInfo = CustodyOrderResponseDtoMapper.mapBuyPaymentInfo(buyPaymentInfo);
         break;
-
-      case CustodyOrderType.WITHDRAWAL:
-        const sourceAsset = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
-        if (!sourceAsset) throw new NotFoundException('Asset not found');
+      }
+      case CustodyOrderType.WITHDRAWAL: {
+        const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
+        if (!sourceAsset) throw new NotFoundException('Source asset not found');
 
         const targetCurrency = await this.fiatService.getFiatByName(dto.targetAsset);
-        if (!targetCurrency) throw new NotFoundException('Currency not found');
+        if (!targetCurrency) throw new NotFoundException('Target currency not found');
+
+        this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
 
         const sellPaymentInfo = await this.sellService.createSellPaymentInfo(
           jwt.user,
@@ -83,28 +95,75 @@ export class CustodyOrderService {
         );
 
         orderDto.sell = await this.sellService.getById(sellPaymentInfo.routeId);
-        orderDto.outputAsset = await this.assetService.getAssetById(sellPaymentInfo.asset.id);
-        orderDto.outputAmount = paymentInfo.amount;
+        orderDto.outputAsset = sourceAsset;
+        orderDto.outputAmount = sellPaymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSellPaymentInfo(sellPaymentInfo);
         break;
+      }
+      case CustodyOrderType.SWAP: {
+        const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
+        if (!sourceAsset) throw new NotFoundException('Source asset not found');
 
-      case CustodyOrderType.SWAP:
-        const source = await this.assetService.getCustodyAssetByName(dto.sourceAsset);
+        const targetAsset = await this.getCustodyAsset(dto.targetAsset);
+        if (!targetAsset) throw new NotFoundException('Target asset not found');
+
+        this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
+
+        const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
+          jwt.user,
+          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+        );
+
+        orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
+        orderDto.outputAsset = targetAsset;
+        orderDto.outputAmount = swapPaymentInfo.amount;
+        paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
+        break;
+      }
+      case CustodyOrderType.SEND: {
+        const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
+        if (!sourceAsset) throw new NotFoundException('Source asset not found');
+
+        const targetAsset = await this.assetService.getAssetByQuery({
+          name: dto.targetAsset,
+          blockchain: dto.targetBlockchain,
+          type: undefined,
+        });
+        if (!targetAsset) throw new NotFoundException('Target asset not found');
+
+        this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
+
+        const targetUser = await this.userService.getUserByAddress(dto.targetAddress, { userData: true });
+        if (!targetUser || targetUser.userData.id !== user.userData.id)
+          throw new BadRequestException('Invalid target address');
+
+        const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
+          targetUser.id,
+          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+        );
+
+        orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
+        orderDto.outputAsset = targetAsset;
+        orderDto.outputAmount = swapPaymentInfo.amount;
+        paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
+        break;
+      }
+      case CustodyOrderType.RECEIVE: {
+        const sourceAsset = await this.getCustodyAsset(dto.sourceAsset);
         if (!sourceAsset) throw new NotFoundException('Asset not found');
 
-        const target = await this.assetService.getCustodyAssetByName(dto.targetAsset);
+        const targetAsset = await this.getCustodyAsset(dto.targetAsset);
         if (!targetAsset) throw new NotFoundException('Asset not found');
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
-          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, source, target),
+          GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
-        orderDto.outputAsset = await this.assetService.getAssetById(swapPaymentInfo.sourceAsset.id);
-        orderDto.outputAmount = paymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
+      }
     }
 
     const order = await this.createOrderInternal({ ...orderDto, transactionRequestId: paymentInfo.id });
@@ -136,10 +195,13 @@ export class CustodyOrderService {
   }
 
   async getCustodyOrderByTx(entity: BuyCrypto | BuyFiat): Promise<CustodyOrder> {
-    return this.custodyOrderRepo.findOneBy([
-      { transaction: { id: Equal(entity.transaction.id) } },
-      { transactionRequest: { id: Equal(entity.transaction.request?.id) } },
-    ]);
+    return this.custodyOrderRepo.findOne({
+      where: [
+        { transaction: { id: Equal(entity.transaction.id) } },
+        { transactionRequest: { id: Equal(entity.transaction.request?.id) } },
+      ],
+      relations: { user: true },
+    });
   }
 
   async confirmOrder(userId: number, orderId: number): Promise<void> {
@@ -168,7 +230,7 @@ export class CustodyOrderService {
   async createStep(
     order: CustodyOrder,
     index: number,
-    command: string,
+    command: CustodyOrderStepCommand,
     context: CustodyOrderStepContext,
   ): Promise<CustodyOrderStep> {
     const orderStep = this.custodyOrderStepRepo.create({
@@ -187,10 +249,19 @@ export class CustodyOrderService {
 
     if (nextStep) {
       await this.createStep(order, nextIndex, nextStep.command, nextStep.context);
-    } else {
-      await this.custodyOrderRepo.update(...order.complete());
-
-      await this.custodyService.updateCustodyBalanceForOrder(order);
     }
+  }
+
+  // --- HELPERS --- //
+  private async getCustodyAsset(name: string): Promise<Asset | undefined> {
+    const assets = await this.assetService.getAssetsByName(name);
+    return assets
+      .filter((a) => this.CustodyChains.includes(a.blockchain))
+      .sort((a, b) => this.CustodyChains.indexOf(a.blockchain) - this.CustodyChains.indexOf(b.blockchain))[0];
+  }
+
+  private checkBalance(asset: Asset, amount: number, custodyBalances: CustodyBalance[]): void {
+    const assetBalance = custodyBalances.find((a) => a.asset.id === asset.id);
+    if (!assetBalance || assetBalance.balance < amount) throw new BadRequestException('Not enough balance');
   }
 }

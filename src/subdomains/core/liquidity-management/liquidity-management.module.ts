@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
@@ -9,6 +9,7 @@ import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
 import { BaseL2BridgeAdapter } from './adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
@@ -17,10 +18,13 @@ import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { FrankencoinAdapter } from './adapters/actions/frankencoin.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
 import { LiquidityPipelineAdapter } from './adapters/actions/liquidity-pipeline.adapter';
+import { MexcAdapter } from './adapters/actions/mexc.adapter';
 import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.adapter';
 import { PolygonL2BridgeAdapter } from './adapters/actions/polygon-l2-bridge.adapter';
+import { XtAdapter } from './adapters/actions/xt.adapter';
 import { BankAdapter } from './adapters/balances/bank.adapter';
 import { BlockchainAdapter } from './adapters/balances/blockchain.adapter';
+import { CustomAdapter } from './adapters/balances/custom.adapter';
 import { ExchangeAdapter } from './adapters/balances/exchange.adapter';
 import { LiquidityBalanceController } from './controllers/balance.controller';
 import { LiquidityManagementOrderController } from './controllers/order.controller';
@@ -59,8 +63,9 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BankIntegrationModule,
     NotificationModule,
     BankModule,
-    BankTxModule,
+    forwardRef(() => BankTxModule),
     CheckoutModule,
+    PricingModule,
   ],
   controllers: [
     LiquidityManagementRuleController,
@@ -83,12 +88,15 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BlockchainAdapter,
     ExchangeAdapter,
     BankAdapter,
+    CustomAdapter,
     DfxDexAdapter,
     ArbitrumL2BridgeAdapter,
     OptimismL2BridgeAdapter,
     PolygonL2BridgeAdapter,
     BaseL2BridgeAdapter,
     BinanceAdapter,
+    MexcAdapter,
+    XtAdapter,
     KrakenAdapter,
     LiquidityPipelineAdapter,
     FrankencoinAdapter,

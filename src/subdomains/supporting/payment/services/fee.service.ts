@@ -1,17 +1,10 @@
-import {
-  BadRequestException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-  OnModuleInit,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active, isAsset } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -28,10 +21,10 @@ import { MoreThan } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { PayoutService } from '../../payout/services/payout.service';
-import { PricingService } from '../../pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
 import { InternalChargebackFeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
-import { PaymentMethod } from '../dto/payment-method.enum';
+import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { BlockchainFeeRepository } from '../repositories/blockchain-fee.repository';
 import { FeeRepository } from '../repositories/fee.repository';
@@ -69,10 +62,8 @@ export interface FeeRequestBase {
 const FeeValidityMinutes = 30;
 
 @Injectable()
-export class FeeService implements OnModuleInit {
+export class FeeService {
   private readonly logger = new DfxLogger(FeeService);
-
-  private chf: Fiat;
 
   constructor(
     private readonly feeRepo: FeeRepository,
@@ -87,10 +78,6 @@ export class FeeService implements OnModuleInit {
     private readonly bankService: BankService,
   ) {}
 
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-  }
-
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BLOCKCHAIN_FEE_UPDATE, timeout: 1800 })
   async updateBlockchainFees() {
@@ -98,7 +85,7 @@ export class FeeService implements OnModuleInit {
 
     for (const blockchainFee of blockchainFees) {
       try {
-        blockchainFee.amount = await this.calculateBlockchainFeeInChf(blockchainFee.asset, true);
+        blockchainFee.amount = await this.calculateBlockchainFeeInChf(blockchainFee.asset, PriceValidity.PREFER_VALID);
         blockchainFee.updated = new Date();
         await this.blockchainFeeRepo.save(blockchainFee);
       } catch (e) {
@@ -227,7 +214,12 @@ export class FeeService implements OnModuleInit {
     const userFees = await this.getValidFees(request);
 
     try {
-      return await this.calculateChargebackFee(userFees, request.from, request.allowCachedBlockchainFee);
+      return await this.calculateChargebackFee(
+        userFees,
+        request.from,
+        request.allowCachedBlockchainFee,
+        request.paymentMethodIn,
+      );
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -243,6 +235,7 @@ export class FeeService implements OnModuleInit {
         request.from,
         request.to,
         request.allowCachedBlockchainFee,
+        request.paymentMethodIn,
         request.user.userData?.id,
       );
     } catch (e) {
@@ -255,7 +248,13 @@ export class FeeService implements OnModuleInit {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     try {
-      return await this.calculateFee(defaultFees, request.from, request.to, request.allowCachedBlockchainFee);
+      return await this.calculateFee(
+        defaultFees,
+        request.from,
+        request.to,
+        request.allowCachedBlockchainFee,
+        request.paymentMethodIn,
+      );
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -271,7 +270,7 @@ export class FeeService implements OnModuleInit {
 
       const feeAmount = allowCached
         ? await this.blockchainFeeRepo.findOneCachedBy(`${active.id}`, where).then((fee) => fee?.amount)
-        : await this.calculateBlockchainFeeInChf(active, false);
+        : await this.calculateBlockchainFeeInChf(active, PriceValidity.VALID_ONLY);
       if (feeAmount == null && !allowCached) throw new Error(`No blockchain fee found for asset ${active.id}`);
 
       return feeAmount ?? this.getBlockchainMaxFee(active.blockchain);
@@ -281,7 +280,11 @@ export class FeeService implements OnModuleInit {
   }
 
   async getBlockchainFee(active: Active, allowCached: boolean): Promise<number> {
-    const price = await this.pricingService.getPrice(active, this.chf, allowCached);
+    const price = await this.pricingService.getPrice(
+      active,
+      PriceCurrency.CHF,
+      allowCached ? PriceValidity.ANY : PriceValidity.PREFER_VALID,
+    );
 
     const blockchainFeeChf = await this.getBlockchainFeeInChf(active, allowCached);
     return price.invert().convert(blockchainFeeChf, 8);
@@ -302,6 +305,7 @@ export class FeeService implements OnModuleInit {
     from: Active,
     to: Active,
     allowCachedBlockchainFee: boolean,
+    paymentMethodIn: PaymentMethod,
     userDataId?: number,
   ): Promise<InternalFeeDto> {
     const blockchainFee =
@@ -360,7 +364,10 @@ export class FeeService implements OnModuleInit {
     const additiveFees = fees.filter((fee) => fee.type === FeeType.ADDITION);
 
     // get bank fees
-    const bankFees = fees.filter((fee) => fee.type === FeeType.BANK);
+    const bankFees =
+      paymentMethodIn === FiatPaymentMethod.BANK || paymentMethodIn === FiatPaymentMethod.INSTANT
+        ? fees.filter((fee) => fee.type === FeeType.BANK)
+        : [];
     const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
     const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
 
@@ -408,28 +415,81 @@ export class FeeService implements OnModuleInit {
     fees: Fee[],
     from: Active,
     allowCachedBlockchainFee: boolean,
+    paymentMethodIn: PaymentMethod,
   ): Promise<InternalChargebackFeeDto> {
     const blockchainFee = await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee);
 
+    // get min special fee
+    const specialFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.CHARGEBACK_SPECIAL),
+      'rate',
+    );
+
+    if (specialFee)
+      return {
+        fees: [specialFee],
+        rate: specialFee.rate,
+        fixed: specialFee.fixed ?? 0,
+        bankRate: 0,
+        bankFixed: 0,
+        network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+      };
+
+    // get min custom fee
+    const customFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.CHARGEBACK_CUSTOM),
+      'rate',
+    );
+
+    if (customFee)
+      return {
+        fees: [customFee],
+        rate: customFee.rate,
+        fixed: customFee.fixed ?? 0,
+        bankRate: 0,
+        bankFixed: 0,
+        network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+      };
+
     // get chargeback fees
-    const chargebackFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK);
-    const chargebackMinFee = Util.minObj(chargebackFees, 'rate');
+    // get min chargeback base fee
+    const baseFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.CHARGEBACK_BASE),
+      'rate',
+    );
 
-    const combinedChargebackFeeRate = Util.sumObjValue(chargebackFees, 'rate');
-    const combinedChargebackFixedFee = Util.sumObjValue(chargebackFees, 'fixed');
+    // get addition fees
+    const additiveFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK_ADDITION);
 
-    if (!chargebackFees.length) throw new InternalServerErrorException('Chargeback fee is missing');
+    // get bank fees
+    const bankFees =
+      paymentMethodIn === FiatPaymentMethod.BANK || paymentMethodIn === FiatPaymentMethod.INSTANT
+        ? fees.filter((fee) => fee.type === FeeType.CHARGEBACK_BANK)
+        : [];
+    const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
+    const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
+
+    const combinedAdditiveChargebackFeeRate = Util.sumObjValue(additiveFees, 'rate');
+    const combinedAdditiveChargebackFixedFee = Util.sumObjValue(additiveFees, 'fixed');
+    const combinedAdditiveChargebackBlockchainFee = Util.sumObjValue(additiveFees, 'blockchainFactor');
+
+    if (!baseFee) throw new InternalServerErrorException('Chargeback base fee is missing');
     return {
-      fees: chargebackFees,
-      rate: combinedChargebackFeeRate,
-      fixed: combinedChargebackFixedFee ?? 0,
-      network: Math.min(chargebackMinFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+      fees: [baseFee, ...additiveFees],
+      rate: baseFee.rate + combinedAdditiveChargebackFeeRate,
+      fixed: (baseFee.fixed ?? 0) + (combinedAdditiveChargebackFixedFee ?? 0),
+      bankRate: combinedBankFeeRate,
+      bankFixed: combinedBankFixedFee ?? 0,
+      network: Math.min(
+        (baseFee.blockchainFactor + combinedAdditiveChargebackBlockchainFee) * blockchainFee,
+        Config.maxBlockchainFee,
+      ),
     };
   }
 
-  private async calculateBlockchainFeeInChf(asset: Asset, allowExpiredPrice: boolean): Promise<number> {
+  private async calculateBlockchainFeeInChf(asset: Asset, priceValidity: PriceValidity): Promise<number> {
     const { asset: feeAsset, amount } = await this.payoutService.estimateBlockchainFee(asset);
-    const price = await this.pricingService.getPrice(feeAsset, this.chf, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, priceValidity);
 
     return price.convert(amount, 8);
   }
@@ -457,14 +517,16 @@ export class FeeService implements OnModuleInit {
     const userFees = await this.getAllFees().then((fees) =>
       fees.filter(
         (f) =>
-          [FeeType.BASE].includes(f.type) ||
+          [FeeType.BASE, FeeType.CHARGEBACK_BASE].includes(f.type) ||
           ([
             FeeType.DISCOUNT,
             FeeType.ADDITION,
             FeeType.RELATIVE_DISCOUNT,
-            FeeType.CHARGEBACK,
+            FeeType.CHARGEBACK_ADDITION,
+            FeeType.CHARGEBACK_BANK,
             FeeType.BANK,
             FeeType.SPECIAL,
+            FeeType.CHARGEBACK_SPECIAL,
           ].includes(f.type) &&
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||

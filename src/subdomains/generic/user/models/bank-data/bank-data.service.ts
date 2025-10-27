@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -8,20 +8,22 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
-import { KycType, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsRelations, FindOptionsWhere, IsNull, Not } from 'typeorm';
-import { MergeReason } from '../account-merge/account-merge.entity';
+import { FindOptionsRelations, FindOptionsWhere, IsNull, Like, Not } from 'typeorm';
+import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AccountType } from '../user-data/account-type.enum';
+import { KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
@@ -49,7 +51,7 @@ export class BankDataService {
   async checkUnverifiedBankDatas(): Promise<void> {
     const search: FindOptionsWhere<BankData> = {
       type: Not(BankDataType.USER),
-      comment: IsNull(),
+      status: ReviewStatus.INTERNAL_REVIEW,
     };
     const entities = await this.bankDataRepo.find({
       where: [
@@ -77,10 +79,11 @@ export class BankDataService {
       if ([BankDataType.IDENT, BankDataType.NAME_CHECK].includes(entity.type)) {
         if (
           entity.userData.accountType === AccountType.PERSONAL ||
-          entity.userData.hasCompletedStep(KycStepName.COMMERCIAL_REGISTER)
+          entity.userData.hasCompletedStep(KycStepName.LEGAL_ENTITY) ||
+          entity.userData.hasCompletedStep(KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION)
         ) {
           await this.nameCheckService.closeAndRefreshRiskStatus(entity);
-          await this.bankDataRepo.update(entity.id, { comment: 'Pass' });
+          await this.bankDataRepo.update(...entity.complete());
         }
 
         return;
@@ -91,7 +94,11 @@ export class BankDataService {
         relations: { userData: true },
       });
 
-      const errors = this.getBankDataVerificationErrors(entity, existing);
+      const pendingMergeRequest = existing
+        ? await this.accountMergeService.pendingMergeRequest(entity.userData.id, existing.userData.id)
+        : undefined;
+
+      const errors = this.getBankDataVerificationErrors(entity, existing, pendingMergeRequest);
 
       if (
         errors.length === 0 ||
@@ -108,6 +115,23 @@ export class BankDataService {
         }
 
         await this.bankDataRepo.update(...entity.allow());
+      } else if (
+        errors.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) &&
+        !errors.includes(BankDataVerificationError.USER_DATA_NOT_MATCHING)
+      ) {
+        await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
+      } else if (errors.includes(BankDataVerificationError.MERGE_PENDING) || Util.minutesDiff(entity.created) < 5) {
+        await this.bankDataRepo.update(...entity.internalReview(errors.join(';')));
+      } else if (
+        !errors.includes(BankDataVerificationError.MERGE_EXPIRED) &&
+        errors.some((e) =>
+          [
+            BankDataVerificationError.ALREADY_ACTIVE_EXISTS,
+            BankDataVerificationError.VERIFIED_NAME_NOT_MATCHING,
+          ].includes(e),
+        )
+      ) {
+        await this.bankDataRepo.update(...entity.manualReview(errors.join(';')));
       } else {
         await this.bankDataRepo.update(...entity.forbid(errors.join(';')));
       }
@@ -116,7 +140,11 @@ export class BankDataService {
     }
   }
 
-  private getBankDataVerificationErrors(entity: BankData, existingActive?: BankData): BankDataVerificationError[] {
+  private getBankDataVerificationErrors(
+    entity: BankData,
+    existingActive?: BankData,
+    pendingMergeRequest?: AccountMerge,
+  ): BankDataVerificationError[] {
     const errors = [];
 
     if (!entity.userData.verifiedName) errors.push(BankDataVerificationError.VERIFIED_NAME_MISSING);
@@ -129,6 +157,10 @@ export class BankDataService {
         errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
       if (existingActive.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN)
         errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
+      if (pendingMergeRequest)
+        pendingMergeRequest.isExpired
+          ? errors.push(BankDataVerificationError.MERGE_EXPIRED)
+          : errors.push(BankDataVerificationError.MERGE_PENDING);
     }
 
     return errors;
@@ -145,7 +177,8 @@ export class BankDataService {
   async createVerifyBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
     const bankData = await this.createBankDataInternal(userData, dto);
 
-    if (!DisabledProcess(Process.BANK_DATA_VERIFICATION)) await this.verifyBankData(bankData);
+    if (!DisabledProcess(Process.BANK_DATA_VERIFICATION) && bankData.status === ReviewStatus.INTERNAL_REVIEW)
+      await this.verifyBankData(bankData);
 
     // update updated time in user data
     await this.userDataRepo.setNewUpdateTime(userData.id);
@@ -157,7 +190,22 @@ export class BankDataService {
   async createBankDataInternal(userData: UserData, dto: CreateBankDataDto): Promise<BankData> {
     if (!userData.kycSteps) userData.kycSteps = await this.kycAdminService.getKycSteps(userData.id);
 
-    const bankData = this.bankDataRepo.create({ ...dto, userData });
+    const existingUserBankData = await this.bankDataRepo.findOneBy({ type: BankDataType.USER, iban: dto.iban });
+
+    const bankData = this.bankDataRepo.create({
+      ...dto,
+      userData,
+      label: existingUserBankData?.label,
+      preferredCurrency: existingUserBankData?.preferredCurrency,
+    });
+
+    if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
+
+    if (![BankDataType.IDENT, BankDataType.NAME_CHECK, BankDataType.CARD_IN].includes(bankData.type)) {
+      const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(bankData.iban, false);
+      if (!bankAccount.bankName && dto.bic) await this.bankAccountService.getOrCreateBicBankAccountInternal(dto.bic);
+    }
+
     return this.bankDataRepo.save(bankData);
   }
 
@@ -189,6 +237,12 @@ export class BankDataService {
         { label: dto.label, preferredCurrency: dto.preferredCurrency },
       );
 
+    if (dto.status === ReviewStatus.COMPLETED) {
+      dto.approved = true;
+    } else if (dto.status === ReviewStatus.FAILED) {
+      dto.approved = false;
+    }
+
     return this.bankDataRepo.saveWithUniqueDefault({ ...bankData, ...dto });
   }
 
@@ -209,6 +263,15 @@ export class BankDataService {
       .leftJoinAndSelect('userData.language', 'language')
       .where(`${key.includes('.') ? key : `bankData.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getBankDatasByIban(iban: string): Promise<BankData[]> {
+    return this.bankDataRepo.find({
+      where: { iban: Like(`%${iban}%`) },
+      relations: {
+        userData: true,
+      },
+    });
   }
 
   async getVerifiedBankDataWithIban(
@@ -244,6 +307,13 @@ export class BankDataService {
 
   async getAllBankDatasForUser(userDataId: number): Promise<BankData[]> {
     return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
+  }
+
+  async getIdentBankDataForUser(userDataId: number): Promise<BankData> {
+    return this.bankDataRepo.findOne({
+      where: { userData: { id: userDataId }, type: BankDataType.IDENT },
+      relations: { userData: true },
+    });
   }
 
   async updateUserBankData(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankData> {
@@ -292,7 +362,7 @@ export class BankDataService {
 
     const userData = await this.userDataRepo.findOneBy({ id: userDataId });
     if (userData.status === UserDataStatus.KYC_ONLY)
-      throw new ForbiddenException('You cannot add an IBAN to a kycOnly account');
+      throw new BadRequestException('You cannot add an IBAN to a KYC only account');
 
     const existing = await this.bankDataRepo
       .find({
@@ -319,7 +389,7 @@ export class BankDataService {
       if (!dto.preferredCurrency) throw new NotFoundException('Preferred currency not found');
     }
 
-    await this.bankAccountService.getOrCreateBankAccountInternal(dto.iban);
+    await this.bankAccountService.getOrCreateIbanBankAccountInternal(dto.iban);
 
     const bankData = this.bankDataRepo.create({
       userData: { id: userDataId },

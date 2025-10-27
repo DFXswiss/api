@@ -1,9 +1,10 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
 import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -16,6 +17,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -25,7 +27,8 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
-import { KycLevel, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
@@ -36,7 +39,7 @@ import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity
 import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
-import { PricingService } from '../../pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto, InternalFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
@@ -51,9 +54,9 @@ import { TransactionService } from './transaction.service';
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
   private readonly logger = new DfxLogger(TransactionHelper);
-  private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
 
-  private chf: Fiat;
+  private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
+  private readonly user30dVolumeCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
 
   private transactionSpecifications: TransactionSpecification[];
 
@@ -74,7 +77,6 @@ export class TransactionHelper implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
     void this.updateCache();
   }
 
@@ -86,7 +88,7 @@ export class TransactionHelper implements OnModuleInit {
   // --- SPECIFICATIONS --- //
   async validateInput(payIn: CryptoInput): Promise<boolean> {
     // check min. volume
-    const minVolume = await this.getMinVolumeIn(payIn.asset, payIn.asset, true, payIn.isPayment);
+    const minVolume = await this.getMinVolumeIn(payIn.asset, payIn.asset, PriceValidity.ANY, payIn.isPayment);
     if (payIn.amount < minVolume * 0.5) return false;
 
     return true;
@@ -95,7 +97,7 @@ export class TransactionHelper implements OnModuleInit {
   async getMinVolumeIn(
     from: Active,
     fromReference: Active,
-    allowExpiredPrice: boolean,
+    priceValidity: PriceValidity,
     isPayment: boolean,
   ): Promise<number> {
     const minVolume = isPayment
@@ -103,7 +105,7 @@ export class TransactionHelper implements OnModuleInit {
       : this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN).minVolume;
 
     const price = await this.pricingService
-      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .getPrice(fromReference, PriceCurrency.CHF, priceValidity)
       .then((p) => p.invert());
     return this.convert(minVolume, price, from);
   }
@@ -111,14 +113,14 @@ export class TransactionHelper implements OnModuleInit {
   async getMinVolumeOut(
     to: Active,
     toReference: Active,
-    allowExpiredPrice: boolean,
+    priceValidity: PriceValidity,
     isPayment: boolean,
   ): Promise<number> {
     const minVolume = isPayment
       ? Config.payment.minVolume
       : this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT).minVolume;
 
-    const price = await this.pricingService.getPrice(this.chf, toReference, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(PriceCurrency.CHF, toReference, priceValidity);
     return this.convert(minVolume, price, to);
   }
 
@@ -126,23 +128,19 @@ export class TransactionHelper implements OnModuleInit {
     from: Active,
     to: Active,
     fromReference: Active,
-    allowExpiredPrice: boolean,
+    priceValidity: PriceValidity,
     isPayment: boolean,
   ): Promise<number> {
     const minVolume = isPayment ? Config.payment.minVolume : this.getMinSpecs(from, to).minVolume;
 
     const price = await this.pricingService
-      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .getPrice(fromReference, PriceCurrency.CHF, priceValidity)
       .then((p) => p.invert());
     return this.convert(minVolume, price, from);
   }
 
-  async getBlockchainFeeInChf(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
-    return this.feeService.getBlockchainFeeInChf(asset, allowCachedBlockchainFee);
-  }
-
-  async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
-    return this.feeService.getBlockchainFee(asset, allowCachedBlockchainFee);
+  async getBlockchainFee(asset: Active, allowCached: boolean): Promise<number> {
+    return this.feeService.getBlockchainFee(asset, allowCached);
   }
 
   getMinSpecs(from: Active, to: Active): TxMinSpec {
@@ -182,7 +180,7 @@ export class TransactionHelper implements OnModuleInit {
       this.transactionSpecifications,
       payIn.asset.blockchain,
       payIn.asset.name,
-      direction == 'Input' ? TransactionDirection.IN : TransactionDirection.OUT,
+      direction == PayInConfirmationType.INPUT ? TransactionDirection.IN : TransactionDirection.OUT,
     );
     return spec?.minConfirmations ?? 0;
   }
@@ -212,7 +210,7 @@ export class TransactionHelper implements OnModuleInit {
       to,
       inputAmountChf,
       [],
-      false,
+      true,
       false,
     );
 
@@ -229,7 +227,7 @@ export class TransactionHelper implements OnModuleInit {
       volume: { min: minSpecs.minVolume, max: Number.MAX_VALUE },
     };
 
-    const sourceSpecs = await this.getSourceSpecs(fromReference, specs, false);
+    const sourceSpecs = await this.getSourceSpecs(fromReference, specs, PriceValidity.VALID_ONLY);
 
     const { dfx, bank, total } = this.calculateTotalFee(
       inputReferenceAmount,
@@ -255,15 +253,18 @@ export class TransactionHelper implements OnModuleInit {
     to: Active,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    allowExpiredPrice: boolean,
+    exactPrice: boolean,
     user?: User,
     walletName?: string,
     specialCodes: string[] = [],
+    ibanCountry?: string,
   ): Promise<TransactionDetails> {
+    const priceValidity = exactPrice ? PriceValidity.PREFER_VALID : PriceValidity.ANY;
+
     const txAsset = targetAmount ? to : from;
     const txAmount = targetAmount ?? sourceAmount;
 
-    const chfPrice = await this.pricingService.getPrice(txAsset, this.chf, true);
+    const chfPrice = await this.pricingService.getPrice(txAsset, PriceCurrency.CHF, PriceValidity.ANY);
     const txAmountChf = chfPrice.convert(txAmount);
 
     const bankIn = this.getDefaultBankByPaymentMethod(paymentMethodIn);
@@ -283,7 +284,7 @@ export class TransactionHelper implements OnModuleInit {
       to,
       txAmountChf,
       specialCodes,
-      allowExpiredPrice,
+      exactPrice,
       true,
     );
 
@@ -301,6 +302,7 @@ export class TransactionHelper implements OnModuleInit {
       defaultLimit,
       kycLimit,
       user,
+      ibanCountry,
     );
 
     // target estimation
@@ -318,8 +320,8 @@ export class TransactionHelper implements OnModuleInit {
       },
     };
 
-    const sourceSpecs = await this.getSourceSpecs(from, extendedSpecs, allowExpiredPrice);
-    const targetSpecs = await this.getTargetSpecs(to, extendedSpecs, allowExpiredPrice);
+    const sourceSpecs = await this.getSourceSpecs(from, extendedSpecs, priceValidity);
+    const targetSpecs = await this.getTargetSpecs(to, extendedSpecs, priceValidity);
 
     const target = await this.getTargetEstimation(
       sourceAmount,
@@ -330,7 +332,7 @@ export class TransactionHelper implements OnModuleInit {
       targetSpecs,
       from,
       to,
-      allowExpiredPrice,
+      priceValidity,
     );
 
     return {
@@ -349,14 +351,14 @@ export class TransactionHelper implements OnModuleInit {
     users: User[],
     dateFrom: Date,
     dateTo: Date,
+    priceValidity: PriceValidity,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
     price?: Price,
     from?: Active,
-    allowExpiredPrice?: boolean,
   ): Promise<number> {
     const previousVolume = await this.getVolumeSince(dateFrom, dateTo, users, tx, type);
 
-    price ??= await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
+    price ??= await this.pricingService.getPrice(from, PriceCurrency.CHF, priceValidity);
 
     return price.convert(tx.inputReferenceAmount) + previousVolume;
   }
@@ -393,8 +395,9 @@ export class TransactionHelper implements OnModuleInit {
     isFiat: boolean,
   ): Promise<RefundDataDto> {
     const inputCurrency = await this.getRefundActive(refundEntity);
+    if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
-    const price = await this.pricingService.getPrice(this.chf, inputCurrency, false);
+    const price = await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.VALID_ONLY);
 
     const amountType = !isFiat ? AmountType.ASSET : AmountType.FIAT;
     const feeAmountType = !isFiat ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
@@ -413,7 +416,12 @@ export class TransactionHelper implements OnModuleInit {
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
     const networkFeeAmount = price.convert(chargebackFee.network);
-    const bankFeeAmount = price.convert(refundEntity.chargebackBankFee * 1.01); // Bank fee buffer
+    const bankFeeAmount =
+      refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
+        ? price.convert(
+            chargebackFee.bankRate * inputAmount + chargebackFee.bankFixed + refundEntity.chargebackBankFee * 1.01,
+          )
+        : 0; // Bank fee buffer 1%
 
     const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
     if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
@@ -502,7 +510,7 @@ export class TransactionHelper implements OnModuleInit {
     throw new BadRequestException('Transaction type not supported for invoice generation');
   }
 
-  private async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat): Promise<Active> {
+  async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat): Promise<Active> {
     if (refundEntity instanceof BankTx) return this.fiatService.getFiatByName(refundEntity.currency);
     if (refundEntity instanceof BuyCrypto && refundEntity.bankTx)
       return this.fiatService.getFiatByName(refundEntity.bankTx.currency);
@@ -521,7 +529,7 @@ export class TransactionHelper implements OnModuleInit {
     to: Active,
     txAmountChf: number,
     specialCodes: string[],
-    allowExpiredPrice: boolean,
+    exactPrice: boolean,
     allowCachedBlockchainFee: boolean,
   ): Promise<[InternalFeeDto, number]> {
     const [fee, networkStartFee] = await Promise.all([
@@ -538,18 +546,21 @@ export class TransactionHelper implements OnModuleInit {
         specialCodes,
         allowCachedBlockchainFee,
       ),
-      this.getNetworkStartFee(to, allowExpiredPrice, user),
+      this.getNetworkStartFee(to, exactPrice, user),
     ]);
 
-    if (!allowExpiredPrice && user && isAsset(to) && to.blockchain === Blockchain.SOLANA && to.type === AssetType.TOKEN)
+    if (exactPrice && user && isAsset(to) && to.blockchain === Blockchain.SOLANA && to.type === AssetType.TOKEN)
       fee.network += await this.getSolanaCreateTokenAccountFee(user, to);
+
+    if (exactPrice && user && isAsset(to) && to.blockchain === Blockchain.TRON)
+      fee.network += await this.getTronCreateAccountFee(user, to);
 
     return [fee, networkStartFee];
   }
 
-  private async getNetworkStartFee(to: Active, allowExpiredPrice: boolean, user?: User): Promise<number> {
+  private async getNetworkStartFee(to: Active, exactPrice: boolean, user?: User): Promise<number> {
     if (
-      allowExpiredPrice ||
+      !exactPrice ||
       DisabledProcess(Process.NETWORK_START_FEE) ||
       !isAsset(to) ||
       to.type === AssetType.COIN ||
@@ -579,7 +590,19 @@ export class TransactionHelper implements OnModuleInit {
 
     const solanaCoin = await this.assetService.getSolanaCoin();
 
-    const price = await this.pricingService.getPrice(solanaCoin, this.chf, true);
+    const price = await this.pricingService.getPrice(solanaCoin, PriceCurrency.CHF, PriceValidity.ANY);
+    return price.convert(fee);
+  }
+
+  private async getTronCreateAccountFee(user: User, asset: Asset): Promise<number> {
+    const tronService = this.blockchainRegistryService.getService(asset.blockchain) as TronService;
+
+    const fee = await tronService.getCreateAccountFee(user.address);
+    if (!fee) return 0;
+
+    const tronCoin = await this.assetService.getTronCoin();
+
+    const price = await this.pricingService.getPrice(tronCoin, PriceCurrency.CHF, PriceValidity.ANY);
     return price.convert(fee);
   }
 
@@ -622,9 +645,9 @@ export class TransactionHelper implements OnModuleInit {
     targetSpecs: TxSpec,
     from: Active,
     to: Active,
-    allowExpiredPrice: boolean,
+    priceValidity: PriceValidity,
   ): Promise<TargetEstimation> {
-    const price = await this.pricingService.getPrice(from, to, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(from, to, priceValidity);
     const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
     const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, bankFeeRate, sourceSpecs);
@@ -685,8 +708,8 @@ export class TransactionHelper implements OnModuleInit {
     }
   }
 
-  private async getSourceSpecs(from: Active, { fee, volume }: TxSpec, allowExpiredPrice: boolean): Promise<TxSpec> {
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert());
+  private async getSourceSpecs(from: Active, { fee, volume }: TxSpec, priceValidity: PriceValidity): Promise<TxSpec> {
+    const price = await this.pricingService.getPrice(from, PriceCurrency.CHF, priceValidity).then((p) => p.invert());
 
     return {
       fee: {
@@ -703,8 +726,8 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  private async getTargetSpecs(to: Active, { fee, volume }: TxSpec, allowExpiredPrice: boolean): Promise<TxSpec> {
-    const price = await this.pricingService.getPrice(this.chf, to, allowExpiredPrice);
+  private async getTargetSpecs(to: Active, { fee, volume }: TxSpec, priceValidity: PriceValidity): Promise<TxSpec> {
+    const price = await this.pricingService.getPrice(PriceCurrency.CHF, to, priceValidity);
 
     return {
       fee: {
@@ -760,7 +783,9 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
     const volume30d =
       user?.userData.kycLevel < KycLevel.LEVEL_50
-        ? await this.getVolumeSince(Util.daysBefore(30), Util.daysAfter(30), [user])
+        ? await this.user30dVolumeCache.get(user.id.toString(), () =>
+            this.getVolumeSince(Util.daysBefore(30), Util.daysAfter(30), [user]),
+          )
         : 0;
 
     const kycLimit = (user?.userData.availableTradingLimit ?? Number.MAX_VALUE) - volume30d;
@@ -781,11 +806,20 @@ export class TransactionHelper implements OnModuleInit {
     maxAmountChf: number,
     kycLimitChf: number,
     user?: User,
+    ibanCountry?: string,
   ): QuoteError | undefined {
     const nationality = user?.userData.nationality;
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
+
+    if (
+      user?.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) &&
+      [Environment.LOC, Environment.DEV].includes(Config.environment)
+    )
+      return;
+
+    if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
     if (
       nationality &&
@@ -797,14 +831,21 @@ export class TransactionHelper implements OnModuleInit {
 
     // KYC checks
     const amlRuleError = AmlHelperService.amlRuleQuoteCheck(
-      [from.amlRuleFrom, to.amlRuleTo, user?.userData.nationality?.amlRule],
+      [from.amlRuleFrom, to.amlRuleTo, nationality?.amlRule],
+      user?.wallet.exceptAmlRuleList,
       user,
       paymentMethodIn,
     );
     if (amlRuleError) return amlRuleError;
 
     const walletAmlRuleError =
-      isBuy && AmlHelperService.amlRuleQuoteCheck(user?.wallet.amlRuleList, user, paymentMethodIn);
+      isBuy &&
+      AmlHelperService.amlRuleQuoteCheck(
+        user?.wallet.amlRuleList,
+        user?.wallet.exceptAmlRuleList,
+        user,
+        paymentMethodIn,
+      );
     if (walletAmlRuleError) return walletAmlRuleError;
 
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
@@ -843,7 +884,7 @@ export class TransactionHelper implements OnModuleInit {
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
-      return QuoteError.BANK_TRANSACTION_MISSING;
+      return QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING;
 
     // amount checks
     if (txAmountChf < minAmountChf) return QuoteError.AMOUNT_TOO_LOW;

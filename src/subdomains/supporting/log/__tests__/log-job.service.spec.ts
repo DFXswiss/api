@@ -12,6 +12,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
+import { PaymentBalanceService } from 'src/subdomains/core/payment-link/services/payment-balance.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TradingOrderService } from 'src/subdomains/core/trading/services/trading-order.service';
@@ -48,6 +49,7 @@ describe('LogJobService', () => {
   let tradingOrderService: TradingOrderService;
   let payoutService: PayoutService;
   let processService: ProcessService;
+  let paymentBalanceService: PaymentBalanceService;
 
   beforeEach(async () => {
     tradingRuleService = createMock<TradingRuleService>();
@@ -69,6 +71,7 @@ describe('LogJobService', () => {
     tradingOrderService = createMock<TradingOrderService>();
     payoutService = createMock<PayoutService>();
     processService = createMock<ProcessService>();
+    paymentBalanceService = createMock<PaymentBalanceService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -93,6 +96,7 @@ describe('LogJobService', () => {
         { provide: TradingOrderService, useValue: tradingOrderService },
         { provide: PayoutService, useValue: payoutService },
         { provide: ProcessService, useValue: processService },
+        { provide: PaymentBalanceService, useValue: paymentBalanceService },
         TestUtil.provideConfig(),
       ],
     }).compile();

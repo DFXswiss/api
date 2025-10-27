@@ -8,6 +8,7 @@ import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/pa
 import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-quote.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -25,7 +26,11 @@ export enum PayInAction {
   RETURN = 'Return',
 }
 
-export type PayInConfirmationType = 'Input' | 'Output' | 'Return';
+export enum PayInConfirmationType {
+  INPUT = 'Input',
+  OUTPUT = 'Output',
+  RETURN = 'Return',
+}
 
 export enum PayInStatus {
   CREATED = 'Created',
@@ -172,7 +177,7 @@ export class CryptoInput extends IEntity {
 
     const maxApplicableFee = maxFee ? maxFee : feeCap;
 
-    if (estimatedFee > maxApplicableFee) {
+    if (estimatedFee > maxApplicableFee * 1.01) {
       throw new FeeLimitExceededException(
         `Forward fee is too high (estimated ${estimatedFee}, max. ${maxApplicableFee})`,
       );
@@ -182,6 +187,8 @@ export class CryptoInput extends IEntity {
   //*** PUBLIC API ***//
 
   acknowledge(purpose: PayInPurpose, route: DepositRouteType, isForwardRequired: boolean): this {
+    if (!route) throw new Error('Missing route');
+
     this.purpose = purpose;
     this.route = route;
     this.status = this.isPayment || !isForwardRequired ? PayInStatus.COMPLETED : PayInStatus.ACKNOWLEDGED;
@@ -234,19 +241,29 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
+  resetForward(): this {
+    this.status = PayInStatus.ACKNOWLEDGED;
+    this.outTxId = null;
+    this.prepareTxId = null;
+    this.forwardFeeAmount = null;
+    this.forwardFeeAmountChf = null;
+
+    return this;
+  }
+
   confirm(direction: PayInConfirmationType, forwardRequired: boolean): this {
     switch (direction) {
-      case 'Input':
+      case PayInConfirmationType.INPUT:
         if (!this.purpose) break;
         this.isConfirmed = true;
         this.status = !forwardRequired ? PayInStatus.COMPLETED : undefined;
         break;
 
-      case 'Output':
+      case PayInConfirmationType.OUTPUT:
         this.status = PayInStatus.FORWARD_CONFIRMED;
         break;
 
-      case 'Return':
+      case PayInConfirmationType.RETURN:
         this.status = PayInStatus.RETURN_CONFIRMED;
         break;
     }
@@ -255,7 +272,11 @@ export class CryptoInput extends IEntity {
   }
 
   confirmationTxId(direction: PayInConfirmationType): string {
-    return direction === 'Input' ? this.inTxId : direction === 'Output' ? this.outTxId : this.returnTxId;
+    return direction === PayInConfirmationType.INPUT
+      ? this.inTxId
+      : direction === PayInConfirmationType.OUTPUT
+      ? this.outTxId
+      : this.returnTxId;
   }
 
   designateReturn(): this {
@@ -309,4 +330,14 @@ export class CryptoInput extends IEntity {
   get feeAmountChf(): number {
     return this.forwardFeeAmountChf;
   }
+
+  get isSettled(): boolean {
+    return CryptoInputSettledStatus.includes(this.status);
+  }
+
+  get userData(): UserData {
+    return this.transaction.userData;
+  }
 }
+
+export const CryptoInputSettledStatus = [PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED];

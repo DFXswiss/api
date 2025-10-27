@@ -1,10 +1,13 @@
 import { Contract } from 'ethers';
 import { groupBy, sumBy } from 'lodash';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { CollateralWithTotalBalance } from '../dto/frankencoin-based.dto';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from '../evm/evm-client';
@@ -32,8 +35,8 @@ export abstract class FrankencoinBasedService {
   abstract getEquityPrice(): Promise<number>;
   abstract getWalletAddress(): string;
 
-  async getPrice(from: Fiat, to: Fiat): Promise<Price> {
-    return this.pricingService.getPrice(from, to, true);
+  async getPrice(from: PriceCurrency, to: PriceCurrency): Promise<Price> {
+    return this.pricingService.getPrice(from, to, PriceValidity.ANY);
   }
 
   async getTvlByCollaterals(collaterals: FrankencoinBasedCollateralDto[]): Promise<number> {

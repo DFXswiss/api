@@ -9,7 +9,8 @@ import { AccountMergeService } from 'src/subdomains/generic/user/models/account-
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -52,6 +53,16 @@ export class AmlService {
 
     if (entity.amlCheck === CheckStatus.PASS) {
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);
+      if (entity.bankTx && entity instanceof BuyCrypto && !entity.userData.hasBankTx)
+        await this.userDataService.updateUserDataInternal(entity.userData, { hasBankTx: true });
+      if (
+        !entity.userData.bankTransactionVerification &&
+        entity instanceof BuyFiat &&
+        (entity.sell.iban.startsWith('LI') || entity.sell.iban.startsWith('CH'))
+      )
+        entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
+          bankTransactionVerification: CheckStatus.GSHEET,
+        });
 
       await this.transactionService.updateInternal(entity.transaction, {
         amlCheck: entity.amlCheck,
@@ -74,12 +85,18 @@ export class AmlService {
     }
   }
 
-  async getAmlCheckInput(
-    entity: BuyFiat | BuyCrypto,
-  ): Promise<{ users: User[]; bankData: BankData; blacklist: SpecialExternalAccount[]; banks?: Bank[] }> {
+  async getAmlCheckInput(entity: BuyFiat | BuyCrypto): Promise<{
+    users: User[];
+    refUser: User;
+    bankData: BankData;
+    blacklist: SpecialExternalAccount[];
+    banks?: Bank[];
+  }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);
     let bankData = await this.getBankData(entity);
+    const refUser =
+      entity.user.usedRef !== Config.defaultRef ? await this.userService.getRefUser(entity.user.usedRef) : undefined;
 
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) {
@@ -118,6 +135,13 @@ export class AmlService {
         } else if (bankData.userData.id === entity.userData.id && !entity.userData.bankTransactionVerification)
           await this.checkBankTransactionVerification(entity);
       }
+    } else if (!entity.userData.hasValidNameCheckDate && entity instanceof BuyCrypto && entity.cryptoRoute) {
+      try {
+        const identBankData = await this.bankDataService.getIdentBankDataForUser(entity.userData.id);
+        if (identBankData) await this.checkNameCheck(entity, identBankData);
+      } catch (e) {
+        this.logger.error(`Error during aml ident nameCheck for ${entity.id}`, e);
+      }
     }
 
     if (entity.userData.isDeactivated)
@@ -132,26 +156,34 @@ export class AmlService {
       verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
     }
 
-    if (entity instanceof BuyFiat) return { users: entity.userData.users, bankData, blacklist };
-    if (entity.cryptoInput) return { users: entity.userData.users, bankData: undefined, blacklist, banks: undefined };
+    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist };
+    if (entity.cryptoInput)
+      return { users: entity.userData.users, refUser, bankData: undefined, blacklist, banks: undefined };
 
     const banks = await this.bankService.getAllBanks();
-    return { users: entity.userData.users, bankData, blacklist, banks };
+    return { users: entity.userData.users, refUser, bankData, blacklist, banks };
   }
 
   //*** HELPER METHODS ***//
 
   private async checkBankTransactionVerification(entity: BuyFiat | BuyCrypto): Promise<void> {
-    if (entity instanceof BuyCrypto && !entity.bankTx?.iban) return;
+    if ((entity instanceof BuyCrypto && !entity.bankTx?.iban && !entity.bankTx?.bic) || entity instanceof BuyFiat)
+      return;
 
     const ibanCountryCheck =
-      entity instanceof BuyFiat
-        ? entity.sell.iban.startsWith('LI') || entity.sell.iban.startsWith('CH')
-        : await this.countryService
-            .getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
-            .then((c) => c?.bankTransactionVerificationEnable);
+      entity.bankTx?.iban &&
+      (await this.countryService
+        .getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
+        .then((c) => c?.bankTransactionVerificationEnable));
 
-    if (ibanCountryCheck)
+    const bicCountryCheck =
+      !ibanCountryCheck &&
+      entity.bankTx?.bic &&
+      (await this.countryService
+        .getCountryWithSymbol(entity.bankTx.bic.substring(4, 6))
+        .then((c) => c?.bankTransactionVerificationEnable));
+
+    if (ibanCountryCheck || bicCountryCheck)
       entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
         bankTransactionVerification: CheckStatus.GSHEET,
       });

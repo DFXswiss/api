@@ -14,11 +14,13 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
+import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import {
@@ -35,6 +37,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
@@ -47,7 +50,8 @@ import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Between, Brackets, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -55,13 +59,15 @@ import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
-import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoEditableAmlCheck, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoService {
+  private readonly logger = new DfxLogger(BuyCryptoService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -117,6 +123,7 @@ export class BuyCryptoService {
           await this.bankDataService.createVerifyBankData(buy.userData, {
             name: bankDataName,
             iban: bankTx.senderAccount,
+            bic: bankTx.bic,
             type: BankDataType.BANK_IN,
           });
       }
@@ -229,20 +236,6 @@ export class BuyCryptoService {
       if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
     }
 
-    // buy
-    if (dto.buyId) {
-      if (!entity.buy) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a buy route`);
-      update.buy = await this.getBuy(dto.buyId);
-      if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
-    }
-
-    // crypto route
-    if (dto.cryptoRouteId) {
-      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a crypto route`);
-      update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
-      if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
-    }
-
     if (dto.outputAssetId) {
       update.outputAsset = await this.assetService.getAssetById(dto.outputAssetId);
       if (!update.outputAsset) throw new BadRequestException('Asset not found');
@@ -266,7 +259,11 @@ export class BuyCryptoService {
 
     if (dto.chargebackAllowedDate) {
       if (entity.bankTx && !entity.chargebackOutput)
-        update.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto: entity });
+        update.chargebackOutput = await this.fiatOutputService.createInternal(
+          FiatOutputType.BUY_CRYPTO_FAIL,
+          { buyCrypto: entity },
+          entity.id,
+        );
 
       if (entity.checkoutTx) {
         await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
@@ -311,16 +308,30 @@ export class BuyCryptoService {
           entity.userData.users,
           Util.daysBefore(30, entity.transaction.created),
           Util.daysAfter(30, entity.transaction.created),
+          PriceValidity.VALID_ONLY,
           undefined,
           undefined,
           inputReferenceCurrency,
-          false,
         );
 
         await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
       } else {
         await this.amlService.postProcessing(entity, amlCheckBefore, undefined);
       }
+    }
+
+    // route change
+    if (dto.buyId) {
+      if (!entity.buy) throw new BadRequestException(`Cannot update buy route: entity is not a buy`);
+
+      const buy = await this.getBuy(dto.buyId);
+      await this.changeRoute(entity, buy);
+    }
+    if (dto.cryptoRouteId) {
+      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot update crypto route: entity is not a crypto`);
+
+      const swap = await this.getCryptoRoute(dto.cryptoRouteId);
+      await this.changeRoute(entity, swap);
     }
 
     // create sift transaction
@@ -336,11 +347,50 @@ export class BuyCryptoService {
     )
       await this.buyCryptoWebhookService.triggerWebhook(entity);
 
-    if (dto.amountInChf) await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    if (dto.amountInChf) await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
+    if (dto.amountInChf || dto.buyId) await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    if (dto.amountInChf || dto.cryptoRouteId)
+      await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
     if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
+  }
+
+  private async changeRoute(entity: BuyCrypto, route: Buy | Swap) {
+    // check tx status
+    if (
+      [
+        BuyCryptoStatus.BATCHED,
+        BuyCryptoStatus.READY_FOR_PAYOUT,
+        BuyCryptoStatus.PAYING_OUT,
+        BuyCryptoStatus.COMPLETE,
+      ].includes(entity.status)
+    )
+      throw new BadRequestException('Cannot update route: payout already in progress or completed');
+
+    // check route user
+    if (route.userData.id !== entity.transaction.userData.id)
+      throw new BadRequestException('Cannot update route: UserData mismatch');
+
+    // update/reset fields
+    const update: Partial<BuyCrypto> = {};
+    route instanceof Buy ? (update.buy = route) : (update.cryptoRoute = route);
+
+    update.outputAsset = route.asset;
+    update.outputReferenceAsset = route.asset;
+
+    entity.resetFees();
+
+    await this.buyCryptoRepo.save(Object.assign(entity, update));
+
+    // update depending entities
+    await this.buyCryptoRepo.updateFee(entity.fee.id, { feeReferenceAsset: route.asset });
+
+    if (entity.transaction.user.id !== route.user.id)
+      entity.transaction = await this.transactionService.updateInternal(entity.transaction, {
+        user: route.user,
+      });
+
+    if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
   }
 
   async refundBuyCrypto(buyCryptoId: number, dto: RefundInternalDto): Promise<void> {
@@ -439,6 +489,8 @@ export class BuyCryptoService {
   }
 
   async refundBankTx(buyCrypto: BuyCrypto, dto: BankTxRefund): Promise<void> {
+    const timeArray = [Date.now()];
+
     if (!dto.refundIban && !buyCrypto.chargebackIban)
       throw new BadRequestException('You have to define a chargebackIban');
 
@@ -458,8 +510,14 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
+    timeArray.push(Date.now());
+
     if (dto.chargebackAllowedDate && chargebackAmount)
-      dto.chargebackOutput = await this.fiatOutputService.createInternal('BuyCryptoFail', { buyCrypto });
+      dto.chargebackOutput = await this.fiatOutputService.createInternal(
+        FiatOutputType.BUY_CRYPTO_FAIL,
+        { buyCrypto },
+        buyCrypto.id,
+      );
 
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
@@ -472,6 +530,10 @@ export class BuyCryptoService {
         buyCrypto.chargebackBankRemittanceInfo,
       ),
     );
+
+    timeArray.push(Date.now());
+
+    this.logger.info(`Refund bankTx time log: ${Util.createTimeString(timeArray)}`);
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {
@@ -479,23 +541,41 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.delete(buyCrypto.id);
   }
 
-  async getBuyCryptoByKey(key: string, value: any): Promise<BuyCrypto> {
-    return this.buyCryptoRepo
+  async getBuyCryptoByKeys(keys: string[], value: any, onlyDefaultRelation = false): Promise<BuyCrypto> {
+    const query = this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('buyCrypto')
-      .leftJoinAndSelect('buyCrypto.buy', 'buy')
-      .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
       .leftJoinAndSelect('buyCrypto.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value })
-      .getOne();
+      .leftJoinAndSelect('transaction.userData', 'userData');
+
+    for (const key of keys) {
+      query.orWhere(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value });
+    }
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('buyCrypto.buy', 'buy');
+      query.leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute');
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
+  }
+
+  async getBuyCryptosByChargebackIban(iban: string): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({ where: { chargebackIban: iban }, relations: { transaction: { userData: true } } });
+  }
+
+  async getBuyCryptoByTransactionId(
+    transactionId: number,
+    relations?: FindOptionsRelations<BuyCrypto>,
+  ): Promise<BuyCrypto> {
+    return this.buyCryptoRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
   async getBuyCrypto(from: Date, relations?: FindOptionsRelations<BuyCrypto>): Promise<BuyCrypto[]> {
@@ -549,41 +629,54 @@ export class BuyCryptoService {
     excludedId?: number,
     type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
-    const request = this.buyCryptoRepo
-      .createQueryBuilder('buyCrypto')
-      .select('SUM(amountInChf)', 'volume')
-      .leftJoin('buyCrypto.bankTx', 'bankTx')
-      .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
-      .leftJoin('buyCrypto.checkoutTx', 'checkoutTx')
-      .leftJoin('buyCrypto.buy', 'buy')
-      .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .where(
-        new Brackets((query) =>
-          query
-            .where('buy.userId IN (:...userIds)', { userIds })
-            .orWhere('cryptoRoute.userId IN (:...userIds)', { userIds }),
-        ),
-      )
-      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL });
+    if (type) return this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, type);
 
-    if (excludedId) {
-      request.andWhere('buyCrypto.id != :excludedId', { excludedId });
+    const volumes = await Promise.all([
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'cryptoInput'),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'checkoutTx'),
+      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'bankTx'),
+    ]);
+
+    return Util.sum(volumes);
+  }
+
+  private async getUserVolumeForType(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+    excludedId: number | undefined,
+    type: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+  ): Promise<number> {
+    const request = this.buyCryptoRepo.createQueryBuilder('buyCrypto').select('SUM(amountInChf)', 'volume');
+
+    switch (type) {
+      case 'cryptoInput':
+        request
+          .innerJoin('buyCrypto.cryptoRoute', 'route')
+          .innerJoin('buyCrypto.cryptoInput', 'cryptoInput')
+          .where('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+        break;
+
+      case 'checkoutTx':
+        request
+          .innerJoin('buyCrypto.buy', 'route')
+          .innerJoin('buyCrypto.checkoutTx', 'checkoutTx')
+          .where('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+        break;
+
+      case 'bankTx':
+        request
+          .innerJoin('buyCrypto.buy', 'route')
+          .innerJoin('buyCrypto.bankTx', 'bankTx')
+          .where('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+        break;
     }
-    if (!type) {
-      request.andWhere(
-        new Brackets((query) =>
-          query
-            .where('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-            .orWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-            .orWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
-        ),
-      );
-    } else {
-      request.andWhere(`${type}.${type !== 'checkoutTx' ? 'created' : 'requestedOn'} BETWEEN :dateFrom AND :dateTo`, {
-        dateFrom,
-        dateTo,
-      });
-    }
+
+    request
+      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
+      .andWhere('route.userId IN (:...userIds)', { userIds });
+
+    if (excludedId) request.andWhere('buyCrypto.id != :excludedId', { excludedId });
 
     return request.getRawOne<{ volume: number }>().then((result) => result.volume ?? 0);
   }
@@ -647,17 +740,19 @@ export class BuyCryptoService {
 
     entity = await this.buyCryptoRepo.save(entity);
 
-    if (dto.user.role === UserRole.CUSTODY) {
+    if (dto.user.role === UserRole.CUSTODY || request?.custodyOrder) {
       if (request?.custodyOrder) {
         await this.custodyOrderService.updateCustodyOrderInternal(request.custodyOrder, {
           transaction: entity.transaction,
         });
       } else {
         await this.custodyOrderService.createOrderInternal({
+          type: entity.isCryptoCryptoTransaction ? CustodyOrderType.RECEIVE : CustodyOrderType.DEPOSIT,
           user: dto.user,
-          ...entity.custodyInput,
           transaction: entity.transaction,
           transactionRequest: request,
+          buy: entity.buy,
+          swap: entity.cryptoRoute,
         });
       }
     }
@@ -779,8 +874,13 @@ export class BuyCryptoService {
     for (const ref of refs) {
       const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.getRefVolume(ref);
       const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.buyFiatService.getRefVolume(ref);
+      const { volume: manualVolume, credit: manualCredit } = await this.transactionService.getManualRefVolume(ref);
 
-      await this.userService.updateRefVolume(ref, buyCryptoVolume + buyFiatVolume, buyCryptoCredit + buyFiatCredit);
+      await this.userService.updateRefVolume(
+        ref,
+        buyCryptoVolume + buyFiatVolume + manualVolume,
+        buyCryptoCredit + buyFiatCredit + manualCredit,
+      );
     }
   }
 

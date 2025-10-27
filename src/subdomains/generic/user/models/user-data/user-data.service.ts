@@ -16,6 +16,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
@@ -25,25 +26,29 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { UpdatePaymentLinkConfigDto } from 'src/subdomains/core/payment-link/dto/payment-link-config.dto';
+import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
-import { KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycLogType, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, ILike, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
+import { BankDataVerificationError } from '../bank-data/bank-data.entity';
 import { BankDataService } from '../bank-data/bank-data.service';
 import { OrganizationDto } from '../organization/dto/organization.dto';
 import { OrganizationService } from '../organization/organization.service';
@@ -56,7 +61,8 @@ import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
-import { KycLevel, UserData, UserDataStatus } from './user-data.entity';
+import { UserData } from './user-data.entity';
+import { KycLevel, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -97,6 +103,9 @@ export class UserDataService {
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
+    @Inject(forwardRef(() => KycService))
+    private readonly kycService: KycService,
+    private readonly ipLogService: IpLogService,
   ) {}
 
   // --- GETTERS --- //
@@ -112,8 +121,15 @@ export class UserDataService {
       .getOne();
   }
 
-  async getUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
-    return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
+  async getUserData(
+    userDataId: number,
+    relations?: FindOptionsRelations<UserData>,
+    useCachedValues = false,
+  ): Promise<UserData> {
+    const request = { where: { id: userDataId }, relations };
+    return useCachedValues
+      ? this.userDataRepo.findOneCached(JSON.stringify(request), request)
+      : this.userDataRepo.findOne(request);
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
@@ -147,14 +163,34 @@ export class UserDataService {
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
-  async getUsersByMail(mail: string): Promise<UserData[]> {
+  async getUsersByMail(mail: string, onlyValidUser = true): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
         mail,
-        status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED]),
+        status: onlyValidUser
+          ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
+          : undefined,
       },
       relations: { users: true, wallet: true },
     });
+  }
+
+  async getUsersByName(name: string): Promise<UserData[]> {
+    const where = { status: Not(UserDataStatus.MERGED) };
+    const search = `%${name}%`;
+
+    return this.userDataRepo.find({
+      where: [
+        { ...where, firstname: ILike(search) },
+        { ...where, surname: ILike(search) },
+        { ...where, verifiedName: ILike(search) },
+        { ...where, organization: { name: ILike(search) } },
+      ],
+    });
+  }
+
+  async getUsersByPhone(phone: string): Promise<UserData[]> {
+    return this.userDataRepo.findBy({ phone });
   }
 
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
@@ -210,7 +246,6 @@ export class UserDataService {
       }
     }
 
-    // If KYC level >= 50 and DFX-approval not complete, complete it.
     if (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50) {
       for (const user of userData.users) {
         await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
@@ -366,6 +401,12 @@ export class UserDataService {
         signatoryPower: dto.signatoryPower,
       });
 
+    if (userData.users && (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50)) {
+      for (const user of userData.users) {
+        await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
+      }
+    }
+
     return userData;
   }
 
@@ -430,7 +471,7 @@ export class UserDataService {
     }
 
     for (const user of userData.users) {
-      await this.siftService.updateAccount({
+      this.siftService.updateAccount({
         $user_id: user.id.toString(),
         $time: Date.now(),
         $user_email: update.mail,
@@ -458,7 +499,7 @@ export class UserDataService {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
   }
 
-  async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinkConfigDto): Promise<void> {
+  async updatePaymentLinksConfig(user: UserData, dto: Partial<PaymentLinkConfig>): Promise<void> {
     const mergedConfig = { ...JSON.parse(user.paymentLinksConfig || '{}'), ...dto };
     const customConfig = Util.removeDefaultFields(mergedConfig, DefaultPaymentLinkConfig);
     const paymentLinksConfig = Object.keys(customConfig).length === 0 ? null : JSON.stringify(customConfig);
@@ -469,7 +510,7 @@ export class UserDataService {
 
   async updateUserName(userData: UserData, dto: UserNameDto) {
     for (const user of userData.users) {
-      await this.siftService.updateAccount({
+      this.siftService.updateAccount({
         $user_id: user.id.toString(),
         $time: Date.now(),
         $name: `${dto.firstName} ${dto.lastName}`,
@@ -481,7 +522,14 @@ export class UserDataService {
 
   async deactivateUserData(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.deactivateUserData());
-    await this.kycAdminService.resetKyc(userData);
+    await this.kycAdminService.resetKyc(userData, KycError.USER_DATA_DEACTIVATED);
+    await this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.KYC,
+      `UserData deactivated on ${userData.deactivationDate.toISOString()}`,
+    );
+    await this.kycService.createKycLevelLog(userData, userData.kycLevel);
+    await this.userDataNotificationService.deactivateAccountMail(userData);
   }
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
@@ -564,7 +612,7 @@ export class UserDataService {
 
     for (const user of userData.users) {
       updateSiftAccount.$user_id = user.id.toString();
-      await this.siftService.updateAccount(updateSiftAccount);
+      this.siftService.updateAccount(updateSiftAccount);
     }
 
     await this.kycLogService.createMailChangeLog(userData, userData.mail, mail);
@@ -599,7 +647,7 @@ export class UserDataService {
     if (phoneChanged) {
       for (const user of userData.users) {
         updateSiftAccount.$user_id = user.id.toString();
-        await this.siftService.updateAccount(updateSiftAccount);
+        this.siftService.updateAccount(updateSiftAccount);
       }
     }
 
@@ -634,6 +682,11 @@ export class UserDataService {
 
   async triggerVideoIdent(userData: UserData): Promise<void> {
     await this.kycAdminService.triggerVideoIdentInternal(userData);
+  }
+
+  async setCheckIpRisk(ip: string): Promise<void> {
+    const userDataIdsWithIpRisk = await this.ipLogService.getUserDataIdsWith(ip);
+    if (userDataIdsWithIpRisk.length) await this.userDataRepo.update(userDataIdsWithIpRisk, { hasIpRisk: true });
   }
 
   // --- API KEY --- //
@@ -888,23 +941,41 @@ export class UserDataService {
       await this.kycAdminService.updateKycStepInternal(
         kycStep.update(
           [
-            KycStepStatus.IN_PROGRESS,
-            KycStepStatus.MANUAL_REVIEW,
-            KycStepStatus.INTERNAL_REVIEW,
-            KycStepStatus.EXTERNAL_REVIEW,
-            KycStepStatus.FINISHED,
-            KycStepStatus.PARTIALLY_APPROVED,
-            KycStepStatus.DATA_REQUESTED,
-            KycStepStatus.PAUSED,
-            KycStepStatus.ON_HOLD,
+            ReviewStatus.IN_PROGRESS,
+            ReviewStatus.MANUAL_REVIEW,
+            ReviewStatus.INTERNAL_REVIEW,
+            ReviewStatus.EXTERNAL_REVIEW,
+            ReviewStatus.FINISHED,
+            ReviewStatus.PARTIALLY_APPROVED,
+            ReviewStatus.DATA_REQUESTED,
+            ReviewStatus.PAUSED,
+            ReviewStatus.ON_HOLD,
           ].includes(kycStep.status)
-            ? KycStepStatus.CANCELED
+            ? ReviewStatus.CANCELED
             : undefined,
           undefined,
           undefined,
           kycStep.sequenceNumber + sequenceNumberOffset,
         ),
       );
+    }
+
+    // Adapt slave bankData in review
+    for (const bankData of slave.bankDatas.filter((b) => b.isInReview)) {
+      if (
+        bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) &&
+        master.bankDatas.some((b) => b.iban === bankData.iban && b.approved)
+      )
+        await this.bankDataService.updateBankDataInternal(bankData, { status: ReviewStatus.FAILED, approved: false });
+    }
+
+    // Adapt master bankData in review
+    for (const bankData of master.bankDatas.filter((b) => b.isInReview)) {
+      if (
+        bankData.comment.includes(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) &&
+        slave.bankDatas.some((b) => b.iban === bankData.iban && b.approved)
+      )
+        await this.bankDataService.updateBankDataInternal(bankData, { status: ReviewStatus.FAILED, approved: false });
     }
 
     // reassign bank datas, users and userDataRelations
@@ -967,6 +1038,8 @@ export class UserDataService {
       await this.userDataRepo.activateUserData(master);
 
       for (const user of master.users) {
+        if (user.isBlockedOrDeleted) continue;
+
         await this.userRepo.update(...user.activateUser());
         await this.userRepo.setUserRef(user, master.kycLevel);
       }

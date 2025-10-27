@@ -22,6 +22,7 @@ export enum AmlError {
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
   INVALID_USER_DATA_STATUS = 'InvalidUserDataStatus',
   INVALID_KYC_STATUS = 'InvalidKycStatus',
+  INVALID_KYC_STATUS_REF_USER = 'InvalidKycStatusRefUser',
   INVALID_KYC_TYPE = 'InvalidKycType',
   NO_VERIFIED_NAME = 'NoVerifiedName',
   NAME_MISSING = 'NameMissing',
@@ -39,6 +40,7 @@ export enum AmlError {
   BANK_DATA_MISSING = 'BankDataMissing',
   BANK_DATA_NOT_ACTIVE = 'BankDataNotActive',
   BANK_DATA_USER_MISMATCH = 'BankDataUserMismatch',
+  BANK_DATA_MANUAL_REVIEW = 'BankDataManualReview',
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
   BANK_DEACTIVATED = 'BankDeactivated',
@@ -50,7 +52,23 @@ export enum AmlError {
   CARD_NAME_MISMATCH = 'CardNameMismatch',
   VIDEO_IDENT_MISSING = 'VideoIdentMissing',
   LIQUIDITY_LIMIT_EXCEEDED = 'LiquidityLimitExceeded',
+  IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
+  MERGE_PENDING = 'MergePending',
+  MERGE_EXPIRED = 'MergeExpired',
+  PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
+  IP_PHONE_VERIFICATION_NEEDED = 'IpPhoneVerificationNeeded',
+  IP_BLACKLISTED_WITHOUT_KYC = 'IpBlacklistedWithoutKyc',
+  BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
 }
+
+export const DelayResultError = [
+  AmlError.NAME_CHECK_WITHOUT_KYC,
+  AmlError.NO_VERIFIED_NAME,
+  AmlError.NO_LETTER,
+  AmlError.BANK_DATA_MISSING,
+  AmlError.INPUT_NOT_CONFIRMED,
+  AmlError.BANK_RELEASE_DATE_MISSING,
+];
 
 export enum AmlErrorType {
   SINGLE = 'Single', // Only one error may occur
@@ -73,12 +91,12 @@ export const AmlErrorResult: {
   [AmlError.ASSET_NOT_SELLABLE]: null,
   [AmlError.ASSET_NOT_BUYABLE]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE,
   },
   [AmlError.ASSET_NOT_INSTANT_BUYABLE]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK,
   },
   [AmlError.ASSET_NOT_CARD_BUYABLE]: null,
@@ -95,7 +113,7 @@ export const AmlErrorResult: {
   [AmlError.CRYPTO_CRYPTO_NOT_ALLOWED]: null,
   [AmlError.ABROAD_CHF_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.CHF_ABROAD_TX,
   },
   [AmlError.USER_NOT_ACTIVE]: {
@@ -105,22 +123,23 @@ export const AmlErrorResult: {
   },
   [AmlError.USER_BLOCKED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.USER_BLOCKED,
   },
   [AmlError.USER_DELETED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.USER_DELETED,
   },
   [AmlError.USER_DATA_BLOCKED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.USER_DATA_BLOCKED,
   },
   [AmlError.USER_DATA_DEACTIVATED]: null,
   [AmlError.INVALID_USER_DATA_STATUS]: null,
   [AmlError.INVALID_KYC_STATUS]: null,
+  [AmlError.INVALID_KYC_STATUS_REF_USER]: null,
   [AmlError.INVALID_KYC_TYPE]: null,
   [AmlError.NO_VERIFIED_NAME]: null,
   [AmlError.NAME_MISSING]: {
@@ -130,17 +149,17 @@ export const AmlErrorResult: {
   },
   [AmlError.VERIFIED_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
   },
   [AmlError.IBAN_COUNTRY_FATF_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
   },
   [AmlError.TX_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.COUNTRY_NOT_ALLOWED,
   },
   [AmlError.NO_BANK_TX_VERIFICATION]: null,
@@ -178,6 +197,11 @@ export const AmlErrorResult: {
     amlReason: null,
   },
   [AmlError.BANK_DATA_USER_MISMATCH]: null,
+  [AmlError.BANK_DATA_MANUAL_REVIEW]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_BANK_DATA,
+  },
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
   [AmlError.ACCOUNT_IBAN_BLACKLISTED]: {
@@ -193,7 +217,7 @@ export const AmlErrorResult: {
   [AmlError.CARD_BLACKLISTED]: null,
   [AmlError.CARD_NAME_MISMATCH]: {
     type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
+    amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.CARD_NAME_MISMATCH,
   },
   [AmlError.INPUT_NOT_CONFIRMED]: null,
@@ -216,5 +240,40 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
+  },
+  [AmlError.IBAN_CURRENCY_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: null,
+  },
+  [AmlError.MERGE_PENDING]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MERGE_INCOMPLETE,
+  },
+  [AmlError.MERGE_EXPIRED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: AmlReason.MERGE_INCOMPLETE,
+  },
+  [AmlError.PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
+  },
+  [AmlError.IP_PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_IP_PHONE,
+  },
+  [AmlError.BANK_RELEASE_DATE_MISSING]: {
+    type: AmlErrorType.SINGLE,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.BANK_RELEASE_PENDING,
+  },
+  [AmlError.IP_BLACKLISTED_WITHOUT_KYC]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.HIGH_RISK_KYC_NEEDED,
   },
 };

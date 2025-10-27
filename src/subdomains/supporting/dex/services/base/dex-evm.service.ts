@@ -54,7 +54,7 @@ export abstract class DexEvmService implements PurchaseDexService {
   }
 
   async getDexHistory(): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {
-    const address = this.#client.dfxAddress;
+    const address = this.#client.walletAddress;
     const currentBlock = await this.#client.getCurrentBlock();
     const startBlock = Util.round(currentBlock - 100, 0);
     const allCoinTransactions = await this.#client.getNativeCoinTransactions(address, startBlock);

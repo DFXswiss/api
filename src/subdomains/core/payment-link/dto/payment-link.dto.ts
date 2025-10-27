@@ -1,7 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ErrorDto } from 'src/shared/dto/error.dto';
-import { PaymentLinkPaymentMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
+import {
+  PaymentLinkMode,
+  PaymentLinkPaymentMode,
+  PaymentLinkPaymentStatus,
+  PaymentLinkStatus,
+  PaymentStandard,
+} from '../enums';
 import { PaymentLinkConfigDto } from './payment-link-config.dto';
 import { PaymentLinkRecipientDto } from './payment-link-recipient.dto';
 
@@ -12,8 +18,9 @@ export interface TransferInfo {
   amount: number;
   method: TransferMethod;
   quoteUniqueId: string;
-  tx: string;
-  hex: string;
+  tx?: string;
+  hex?: string;
+  referId?: string;
 }
 
 export interface TransferAmount {
@@ -25,7 +32,7 @@ export interface TransferAmount {
 
 export interface TransferAmountAsset {
   asset: string;
-  amount: number;
+  amount?: number;
 }
 
 export type RequestedAmountAsset = TransferAmountAsset;
@@ -38,6 +45,10 @@ export interface PaymentLinkRequestDto {
   possibleStandards: PaymentStandard[];
   displayQr: boolean;
   recipient: PaymentLinkRecipientDto;
+  mode: PaymentLinkMode;
+  route?: string;
+  currency?: string;
+  transferAmounts: TransferAmount[];
 }
 
 export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
@@ -52,7 +63,6 @@ export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
     payment: string;
   };
   requestedAmount: RequestedAmountAsset;
-  transferAmounts: TransferAmount[];
 }
 
 export interface PaymentLinkPaymentErrorResponseDto extends PaymentLinkRequestDto, ErrorDto {}
@@ -107,6 +117,9 @@ export class PaymentLinkPaymentDto {
 
   @ApiProperty()
   lnurl: string;
+
+  @ApiProperty()
+  frontendUrl: string;
 }
 
 export class PaymentLinkBaseDto {
@@ -134,11 +147,17 @@ export class PaymentLinkBaseDto {
   @ApiProperty()
   lnurl: string;
 
+  @ApiProperty()
+  frontendUrl: string;
+
   @ApiPropertyOptional({ type: PaymentLinkRecipientDto })
   recipient?: PaymentLinkRecipientDto;
 
   @ApiPropertyOptional({ type: PaymentLinkConfigDto })
   config?: PaymentLinkConfigDto;
+
+  @ApiProperty({ enum: PaymentLinkMode })
+  mode?: PaymentLinkMode;
 }
 
 export class PaymentLinkDto extends PaymentLinkBaseDto {
@@ -147,6 +166,14 @@ export class PaymentLinkDto extends PaymentLinkBaseDto {
 }
 
 export class PaymentLinkHistoryDto extends PaymentLinkBaseDto {
-  @ApiPropertyOptional({ type: PaymentLinkPaymentDto, isArray: true })
-  payments?: PaymentLinkPaymentDto[];
+  @ApiProperty({ type: PaymentLinkPaymentDto, isArray: true })
+  payments: PaymentLinkPaymentDto[];
+
+  @ApiProperty()
+  totalCompletedAmount: number;
+}
+
+export class PaymentLinkPosDto {
+  @ApiProperty({ description: 'POS URL' })
+  url: string;
 }

@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
-import { UpdateTransactionDto } from 'src/subdomains/core/history/dto/update-transaction.dto';
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
-import { Transaction } from '../entities/transaction.entity';
+import { UpdateTransactionDto } from '../dto/update-transaction.dto';
+import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 
 @Injectable()
@@ -14,7 +15,7 @@ export class TransactionService {
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
 
-    entity.uid = `T${Util.randomString(16)}`;
+    entity.uid = `${Config.prefixes.transactionUidPrefix}${Util.randomString(16)}`;
 
     return this.repo.save(entity);
   }
@@ -83,7 +84,7 @@ export class TransactionService {
 
   async getTransactionsForAccount(userDataId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
     return this.repo.find({
-      where: { user: { userData: { id: userDataId } }, type: Not(IsNull()), created: Between(from, to) },
+      where: { userData: { id: userDataId }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
         buyCrypto: {
           buy: true,
@@ -95,6 +96,8 @@ export class TransactionService {
         },
         buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
         refReward: true,
+        bankTx: { transaction: true },
+        bankTxReturn: true,
       },
     });
   }
@@ -115,6 +118,20 @@ export class TransactionService {
         refReward: true,
       },
     });
+  }
+
+  async getManualRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
+    const { volume, credit } = await this.repo
+      .createQueryBuilder('transaction')
+      .select('SUM(refReward.amountInEur / user.refFeePercent)', 'volume')
+      .addSelect('SUM(refReward.amountInEur)', 'credit')
+      .leftJoin('transaction.user', 'user')
+      .leftJoin('transaction.refReward', 'refReward')
+      .where('sourceType = :sourceType', { sourceType: TransactionSourceType.MANUAL_REF })
+      .andWhere('user.ref = :ref', { ref })
+      .getRawOne<{ volume: number; credit: number }>();
+
+    return { volume: volume ?? 0, credit: credit ?? 0 };
   }
 
   async getAllTransactionsForUserData(

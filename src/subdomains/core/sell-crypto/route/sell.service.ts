@@ -141,22 +141,30 @@ export class SellService {
     return Array.from(new Map((route.paymentLinks || []).map((l) => [l.id, l])).values());
   }
 
-  async getSellByKey(key: string, value: any): Promise<Sell> {
-    return this.sellRepo
+  async getSellByKey(key: string, value: any, onlyDefaultRelation = false): Promise<Sell> {
+    const query = this.sellRepo
       .createQueryBuilder('sell')
       .select('sell')
       .leftJoinAndSelect('sell.deposit', 'deposit')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `sell.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `sell.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
+  }
+
+  async getSellsByIban(iban: string): Promise<Sell[]> {
+    return this.sellRepo.find({ where: { iban }, relations: { user: { userData: true } } });
   }
 
   async getUserSells(userId: number): Promise<Sell[]> {
@@ -292,6 +300,14 @@ export class SellService {
       .then((r) => r.volume);
   }
 
+  async getAllUserSells(userIds: number[]): Promise<Sell[]> {
+    return this.sellRepo.find({
+      where: { user: { id: In(userIds) } },
+      relations: { user: true },
+      order: { id: 'DESC' },
+    });
+  }
+
   // --- CONFIRMATION --- //
   async confirmSell(request: TransactionRequest, dto: ConfirmDto): Promise<BuyFiatExtended> {
     try {
@@ -338,8 +354,11 @@ export class SellService {
       dto.currency,
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
-      !dto.exactPrice,
+      dto.exactPrice,
       user,
+      undefined,
+      undefined,
+      sell.iban.substring(0, 2),
     );
 
     const sellDto: SellPaymentInfoDto = {
@@ -377,5 +396,31 @@ export class SellService {
     await this.transactionRequestService.create(TransactionRequestType.SELL, dto, sellDto, user.id);
 
     return sellDto;
+  }
+
+  async getPaymentRoutesForPublicName(publicName: string): Promise<Sell[]> {
+    return this.sellRepo.find({
+      where: {
+        active: true,
+        deposit: { blockchains: Blockchain.LIGHTNING },
+        user: { userData: { paymentLinksName: publicName } },
+      },
+      relations: { user: { userData: true } },
+    });
+  }
+
+  async getPaymentRouteForKey(key: string): Promise<Sell | undefined> {
+    return this.sellRepo
+      .createQueryBuilder('sell')
+      .innerJoin('sell.deposit', 'deposit')
+      .innerJoinAndSelect('sell.user', 'user')
+      .innerJoinAndSelect('user.userData', 'userData')
+      .where(
+        `EXISTS (SELECT 1 FROM OPENJSON(userdata.paymentLinksConfig, '$.accessKeys') AS k WHERE k.value = :key )`,
+        { key },
+      )
+      .andWhere('sell.active = 1')
+      .andWhere('deposit.blockchains = :chain', { chain: Blockchain.LIGHTNING })
+      .getOne();
   }
 }

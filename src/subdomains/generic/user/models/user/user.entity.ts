@@ -1,9 +1,11 @@
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { CustodyBalance } from 'src/subdomains/core/custody/entities/custody-balance.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { CustodyAddressType } from 'src/subdomains/core/custody/enums/custody';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
@@ -15,30 +17,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { CustodyProvider } from '../custody-provider/custody-provider.entity';
-import { CustodyBalance } from 'src/subdomains/core/custody/entities/custody-balance.entity';
-
-export enum UserStatus {
-  NA = 'NA',
-  ACTIVE = 'Active',
-  BLOCKED = 'Blocked',
-  DELETED = 'Deleted',
-}
-
-export enum UserAddressType {
-  BITCOIN_LEGACY = 'BitcoinLegacy',
-  BITCOIN_BECH32 = 'BitcoinBech32',
-  EVM = 'EVM',
-  LN_URL = 'LNURL',
-  LN_NID = 'LNNID',
-  LND_HUB = 'LNDHUB',
-  UMA = 'UMA',
-  MONERO = 'Monero',
-  LIQUID = 'Liquid',
-  ARWEAVE = 'Arweave',
-  CARDANO = 'Cardano',
-  SOLANA = 'Solana',
-  OTHER = 'Other',
-}
+import { UserAddressType, UserStatus, WalletType } from './user.enum';
 
 @Entity()
 export class User extends IEntity {
@@ -50,6 +29,9 @@ export class User extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   signature?: string;
+
+  @Column({ length: 256, nullable: true })
+  walletType?: WalletType;
 
   @Column({ length: 256, nullable: true })
   label?: string;
@@ -123,6 +105,9 @@ export class User extends IEntity {
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
+
+  @ManyToOne(() => User, { nullable: true })
+  primaryUser: User;
 
   // --- REF --- //
   @Column({ length: 256, nullable: true })
@@ -209,7 +194,7 @@ export class User extends IEntity {
   get specifiedRef(): { usedRef: string; refProvision: number } {
     return this.wallet?.name === 'CakeWallet'
       ? { usedRef: '160-195', refProvision: 2 }
-      : { usedRef: this.usedRef, refProvision: this.usedRef === '000-000' ? 0 : this.refFeePercent };
+      : { usedRef: this.usedRef, refProvision: this.usedRef === Config.defaultRef ? 0 : this.refFeePercent };
   }
 
   get blockchains(): Blockchain[] {
@@ -233,3 +218,5 @@ export class User extends IEntity {
     return this.status === UserStatus.DELETED;
   }
 }
+
+export const UserSupportUpdateCols = ['status', 'setRef'];

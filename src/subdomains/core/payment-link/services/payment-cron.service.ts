@@ -3,6 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { PaymentActivationService } from './payment-activation.service';
+import { PaymentBalanceService } from './payment-balance.service';
 import { PaymentLinkPaymentService } from './payment-link-payment.service';
 import { PaymentQuoteService } from './payment-quote.service';
 
@@ -12,10 +13,11 @@ export class PaymentCronService {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentActivationService: PaymentActivationService,
     private readonly paymentQuoteService: PaymentQuoteService,
+    private readonly paymentBalanceService: PaymentBalanceService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.PAYMENT_EXPIRATION })
-  async processPendingPayments(): Promise<void> {
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT_EXPIRATION })
+  async processExpiredPayments(): Promise<void> {
     await this.paymentLinkPaymentService.processExpiredPayments();
     await this.paymentActivationService.processExpiredActivations();
     await this.paymentQuoteService.processExpiredQuotes();
@@ -24,5 +26,10 @@ export class PaymentCronService {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT_CONFIRMATIONS })
   async checkTxConfirmations(): Promise<void> {
     await this.paymentLinkPaymentService.checkTxConfirmations();
+  }
+
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.PAYMENT_FORWARDING })
+  async forwardDeposits(): Promise<void> {
+    await this.paymentBalanceService.forwardDeposits();
   }
 }

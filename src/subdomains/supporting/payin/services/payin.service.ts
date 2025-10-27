@@ -15,7 +15,14 @@ import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/d
 import { In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CryptoInput, PayInAction, PayInPurpose, PayInStatus, PayInType } from '../entities/crypto-input.entity';
+import {
+  CryptoInput,
+  PayInAction,
+  PayInConfirmationType,
+  PayInPurpose,
+  PayInStatus,
+  PayInType,
+} from '../entities/crypto-input.entity';
 import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
@@ -32,7 +39,7 @@ export class PayInService {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
   ) {}
 
-  //*** PUBLIC API ***//
+  // --- PUBLIC API --- //
 
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
     const payIns: CryptoInput[] = [];
@@ -82,6 +89,20 @@ export class PayInService {
     }
 
     return payIns;
+  }
+
+  async getCryptoInputByKeys(keys: string[], value: any): Promise<CryptoInput> {
+    const query = this.payInRepository
+      .createQueryBuilder('cryptoInput')
+      .select('cryptoInput')
+      .leftJoinAndSelect('cryptoInput.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.userData', 'userData');
+
+    for (const key of keys) {
+      query.orWhere(`${key.includes('.') ? key : `cryptoInput.${key}`} = :param`, { param: value });
+    }
+
+    return query.getOne();
   }
 
   private async fetchPayment(payIn: CryptoInput): Promise<void> {
@@ -171,7 +192,7 @@ export class PayInService {
     await this.payInRepository.save(_payIn);
   }
 
-  //*** JOBS ***//
+  // --- JOBS --- //
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async forwardPayInEntries(): Promise<void> {
@@ -218,7 +239,7 @@ export class PayInService {
     }
   }
 
-  //*** HELPER METHODS ***//
+  // --- HELPER METHODS --- //
 
   private async forwardPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({
@@ -236,11 +257,11 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.doSend(group[1], SendType.FORWARD);
-      } catch {
+        await strategy.doSend(payIns, SendType.FORWARD);
+      } catch (e) {
+        this.logger.info(`Failed to forward ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`, e);
         continue;
       }
     }
@@ -256,11 +277,14 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.checkConfirmations(group[1], 'Output');
-      } catch {
+        await strategy.checkConfirmations(payIns, PayInConfirmationType.OUTPUT);
+      } catch (e) {
+        this.logger.info(
+          `Failed to check forward confirmations for ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`,
+          e,
+        );
         continue;
       }
     }
@@ -276,11 +300,14 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.checkConfirmations(group[1], 'Return');
-      } catch {
+        await strategy.checkConfirmations(payIns, PayInConfirmationType.RETURN);
+      } catch (e) {
+        this.logger.info(
+          `Failed to check return confirmations for ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`,
+          e,
+        );
         continue;
       }
     }
@@ -303,11 +330,11 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.doSend(group[1], SendType.RETURN);
-      } catch {
+        await strategy.doSend(payIns, SendType.RETURN);
+      } catch (e) {
+        this.logger.info(`Failed to return ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`, e);
         continue;
       }
     }
@@ -323,11 +350,14 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.checkConfirmations(group[1], 'Input');
-      } catch {
+        await strategy.checkConfirmations(payIns, PayInConfirmationType.INPUT);
+      } catch (e) {
+        this.logger.info(
+          `Failed to check input confirmations for ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`,
+          e,
+        );
         continue;
       }
     }

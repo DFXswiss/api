@@ -19,7 +19,7 @@ import { BuyCryptoExtended } from 'src/subdomains/core/history/mappers/transacti
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { ConfirmDto } from 'src/subdomains/core/sell-crypto/route/dto/confirm.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
-import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -31,7 +31,7 @@ import {
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { IsNull, Like, Not } from 'typeorm';
+import { In, IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { BuyCryptoWebhookService } from '../../process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
@@ -125,22 +125,34 @@ export class SwapService {
     return swap;
   }
 
-  async getSwapByKey(key: string, value: any): Promise<Swap> {
-    return this.swapRepo
+  async getSwapByKey(key: string, value: any, onlyDefaultRelation = false): Promise<Swap> {
+    const query = this.swapRepo
       .createQueryBuilder('swap')
       .select('swap')
       .leftJoinAndSelect('swap.deposit', 'deposit')
       .leftJoinAndSelect('swap.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `swap.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `swap.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
+  }
+
+  async getAllUserSwaps(userIds: number[]): Promise<Swap[]> {
+    return this.swapRepo.find({
+      where: { user: { id: In(userIds) } },
+      relations: { user: true },
+      order: { id: 'DESC' },
+    });
   }
 
   async createSwapPaymentInfo(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
@@ -266,7 +278,7 @@ export class SwapService {
       dto.targetAsset,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
-      !dto.exactPrice,
+      dto.exactPrice,
       user,
     );
 
