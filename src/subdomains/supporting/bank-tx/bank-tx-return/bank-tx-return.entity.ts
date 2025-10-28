@@ -5,6 +5,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { FiatOutput } from '../../fiat-output/fiat-output.entity';
+import { PaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 
@@ -77,6 +78,18 @@ export class BankTxReturn extends IEntity {
 
   get chargebackBankRemittanceInfo(): string {
     return `Chargeback ${this.bankTx.id} Zahlung kann keinem Kundenauftrag zugeordnet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
+  get paymentMethodIn(): PaymentMethod {
+    return this.bankTx.paymentMethodIn;
+  }
+
+  get chargebackBankFee(): number {
+    return this.bankTx.chargebackBankFee;
+  }
+
+  get refundAmount(): number {
+    return this.bankTx.refundAmount;
   }
 
   confirmSentMail(): UpdateResult<BankTxReturn> {

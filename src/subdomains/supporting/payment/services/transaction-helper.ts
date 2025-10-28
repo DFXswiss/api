@@ -391,7 +391,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getRefundData(
-    refundEntity: BankTx | BuyCrypto | BuyFiat,
+    refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn,
     userData: UserData,
     bankIn: CardBankName | IbanBankName,
     refundTarget: string,

@@ -358,7 +358,7 @@ export class TransactionController {
     const refundTarget = await this.getRefundTarget(transaction);
 
     const refundData = await this.transactionHelper.getRefundData(
-      transaction.refundTargetEntity instanceof BankTxReturn ? transaction.bankTx : transaction.refundTargetEntity,
+      transaction.refundTargetEntity,
       userData,
       bankIn,
       refundTarget,
