@@ -35,15 +35,20 @@ import {
   TransactionType,
 } from '../dto/sift.dto';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { SiftErrorLogRepository } from '../repositories/sift-error-log.repository';
 
 @Injectable()
 export class SiftService {
   private readonly url = 'https://api.sift.com/v205/events';
   private readonly decisionUrl = 'https://api.sift.com/v3/accounts/';
+  private readonly timeout = 5000; // 5 seconds timeout for all Sift API calls
 
   private readonly logger = new DfxLogger(SiftService);
 
-  constructor(private readonly http: HttpService) {}
+  constructor(
+    private readonly http: HttpService,
+    private readonly siftErrorLogRepo: SiftErrorLogRepository,
+  ) {}
 
   // --- ACCOUNT --- //
   createAccount(user: User): void {
@@ -110,7 +115,7 @@ export class SiftService {
   }
 
   // --- TRANSACTION --- //
-  async buyCryptoTransaction(buyCrypto: BuyCrypto, status: TransactionStatus): Promise<SiftResponse> {
+  buyCryptoTransaction(buyCrypto: BuyCrypto, status: TransactionStatus): void {
     const data = this.getTxData(
       buyCrypto.user,
       buyCrypto,
@@ -119,10 +124,10 @@ export class SiftService {
       SiftAmlDeclineMap[buyCrypto.amlReason],
     );
 
-    return this.send(EventType.TRANSACTION, data);
+    void this.send(EventType.TRANSACTION, data);
   }
 
-  async checkoutTransaction(checkoutTx: CheckoutTx, status: TransactionStatus, buy: Buy): Promise<SiftResponse> {
+  checkoutTransaction(checkoutTx: CheckoutTx, status: TransactionStatus, buy: Buy): void {
     const data = this.getTxData(
       buy.user,
       checkoutTx,
@@ -131,7 +136,7 @@ export class SiftService {
       SiftCheckoutDeclineMap[checkoutTx.authStatusReason],
     );
 
-    return this.send(EventType.TRANSACTION, data);
+    void this.send(EventType.TRANSACTION, data);
   }
 
   // --- HELPER METHODS --- //
@@ -215,23 +220,78 @@ export class SiftService {
   }
 
   private async send(type: EventType, data: SiftBase): Promise<SiftResponse> {
-    if (!Config.sift.apiKey) return;
+    if (!Config.sift.apiKey) {
+      this.logger.warn(`Sift API key not configured - skipping event ${type}`);
+      return;
+    }
 
     data.$type = type;
     data.$api_key = Config.sift.apiKey;
 
     const scoreUrl = '?return_score=true';
+    const startTime = Date.now();
 
     try {
-      return await this.http.post(`${this.url}${type == EventType.TRANSACTION ? scoreUrl : ''}`, data);
+      const response = await this.http.post<SiftResponse>(
+        `${this.url}${type == EventType.TRANSACTION ? scoreUrl : ''}`,
+        data,
+        { timeout: this.timeout },
+      );
+
+      const duration = Date.now() - startTime;
+      this.logger.verbose(`Sift event ${type} sent successfully for user ${data.$user_id} (${duration}ms)`);
+
+      return response;
     } catch (error) {
-      this.logger.error(`Error sending Sift event ${type} for user ${data.$user_id}:`, error);
+      const duration = Date.now() - startTime;
+      const httpError = error as any;
+      const isTimeout = duration >= this.timeout;
+
+      this.logger.error(
+        `Sift API call failed: ${type} for user ${data.$user_id} - ${httpError?.message || String(error)} (${duration}ms, status: ${httpError?.response?.status}, timeout: ${isTimeout})`,
+        httpError,
+      );
+
+      // Store error in database for monitoring and debugging
+      void this.logError(type, data.$user_id, duration, httpError, isTimeout);
+
+      // Error is intentionally swallowed - Sift failures should never break DFX operations
+      return undefined;
+    }
+  }
+
+  private async logError(
+    eventType: EventType,
+    userId: string | undefined,
+    duration: number,
+    error: any,
+    isTimeout: boolean,
+  ): Promise<void> {
+    try {
+      await this.siftErrorLogRepo.save({
+        eventType,
+        userId: userId ? parseInt(userId) : undefined,
+        httpStatusCode: error?.response?.status,
+        errorMessage: error?.message || String(error),
+        duration,
+        isTimeout,
+      });
+    } catch (e) {
+      // If we can't log the error to DB, at least log it
+      this.logger.error(`Failed to store Sift error log in database:`, e);
     }
   }
 
   // --- DECISION --- //
-  async sendUserBlocked(user: User, description?: string): Promise<SiftResponse> {
-    if (!Config.sift.apiKey) return;
+  sendUserBlocked(user: User, description?: string): void {
+    void this.sendDecision(user, description);
+  }
+
+  private async sendDecision(user: User, description?: string): Promise<void> {
+    if (!Config.sift.apiKey) {
+      this.logger.warn(`Sift API key not configured - skipping user blocked decision for user ${user.id}`);
+      return;
+    }
 
     const data = {
       decision_id: 'looks_suspicious_payment_abuse',
@@ -241,13 +301,28 @@ export class SiftService {
     };
 
     const scoreUrl = `${Config.sift.accountId}/users/${user.id}/decisions`;
+    const startTime = Date.now();
 
     try {
-      return await this.http.post(`${this.decisionUrl}${scoreUrl}`, data, {
+      await this.http.post<SiftResponse>(`${this.decisionUrl}${scoreUrl}`, data, {
         headers: { Authorization: Config.sift.apiKey },
+        timeout: this.timeout,
       });
+
+      const duration = Date.now() - startTime;
+      this.logger.verbose(`Sift user blocked decision sent successfully for user ${user.id} (${duration}ms)`);
     } catch (error) {
-      this.logger.error(`Error sending Sift decision for user ${user.id}:`, error);
+      const duration = Date.now() - startTime;
+      const httpError = error as any;
+      const isTimeout = duration >= this.timeout;
+
+      this.logger.error(
+        `Sift decision API call failed for user ${user.id} - ${httpError?.message || String(error)} (${duration}ms, status: ${httpError?.response?.status}, timeout: ${isTimeout})`,
+        httpError,
+      );
+
+      // Store error in database for monitoring and debugging
+      void this.logError('$user_blocked_decision' as EventType, user.id.toString(), duration, httpError, isTimeout);
     }
   }
 }
