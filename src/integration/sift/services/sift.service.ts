@@ -267,14 +267,14 @@ export class SiftService {
     try {
       await this.siftErrorLogRepo.save({
         eventType,
-        userId: userId ? parseInt(userId) : undefined,
+        user: userId ? { id: parseInt(userId) } : undefined,
         httpStatusCode: error?.response?.status,
         errorMessage: error?.message || String(error),
         duration,
         isTimeout,
       });
     } catch (e) {
-      this.logger.error(`Failed to store Sift error log in database:`, e);
+      this.logger.error(`Failed to store Sift error log in DB:`, e);
     }
   }
 

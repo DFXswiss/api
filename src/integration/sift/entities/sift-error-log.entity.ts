@@ -8,7 +8,7 @@ export class SiftErrorLog extends IEntity {
   eventType: string;
 
   @ManyToOne(() => User, { nullable: true })
-  user: User;
+  user?: User;
 
   @Column({ type: 'int', nullable: true })
   httpStatusCode?: number;
