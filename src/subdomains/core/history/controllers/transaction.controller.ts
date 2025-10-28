@@ -307,7 +307,7 @@ export class TransactionController {
       bankTx: { bankTxReturn: true },
       cryptoInput: true,
       checkoutTx: true,
-      bankTxReturn: true,
+      bankTxReturn: { bankTx: true },
       userData: true,
       buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
       buyFiat: { cryptoInput: true },
@@ -318,8 +318,8 @@ export class TransactionController {
 
     let userData: UserData;
 
-    // Unassigned transaction
     if (transaction.refundTargetEntity instanceof BankTx) {
+      // Unassigned transaction
       if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new NotFoundException('Transaction not found');
       const bankData = await this.bankDataService
         .getValidBankDatasForUser(jwt.account)
@@ -334,14 +334,17 @@ export class TransactionController {
       // Assigned transaction
       if (jwt.account !== transaction.userData.id)
         throw new ForbiddenException('You can only refund your own transaction');
-      if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.refundTargetEntity.amlCheck))
-        throw new BadRequestException('You can only refund failed or pending transactions');
       if (transaction.refundTargetEntity.chargebackAmount)
         throw new BadRequestException('You can only refund a transaction once');
-      if (transaction.refundTargetEntity.cryptoInput?.txType === PayInType.PAYMENT)
-        throw new BadRequestException('You cannot refund payment transactions');
-      if (NotRefundableAmlReasons.includes(transaction.refundTargetEntity.amlReason))
-        throw new BadRequestException('You cannot refund with this reason');
+
+      if (!(transaction.refundTargetEntity instanceof BankTxReturn)) {
+        if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.refundTargetEntity.amlCheck))
+          throw new BadRequestException('You can only refund failed or pending transactions');
+        if (transaction.refundTargetEntity.cryptoInput?.txType === PayInType.PAYMENT)
+          throw new BadRequestException('You cannot refund payment transactions');
+        if (NotRefundableAmlReasons.includes(transaction.refundTargetEntity.amlReason))
+          throw new BadRequestException('You cannot refund with this reason');
+      }
 
       userData = transaction.userData;
     }
@@ -355,7 +358,7 @@ export class TransactionController {
     const refundTarget = await this.getRefundTarget(transaction);
 
     const refundData = await this.transactionHelper.getRefundData(
-      transaction.refundTargetEntity,
+      transaction.refundTargetEntity instanceof BankTxReturn ? transaction.bankTx : transaction.refundTargetEntity,
       userData,
       bankIn,
       refundTarget,
