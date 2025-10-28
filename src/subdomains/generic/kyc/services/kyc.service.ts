@@ -295,6 +295,8 @@ export class KycService {
 
     for (const entity of entities) {
       try {
+        entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
+
         const errors = this.getFinancialDataErrors(entity);
         const comment = errors.join(';');
 
