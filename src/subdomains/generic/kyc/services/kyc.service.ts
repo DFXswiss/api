@@ -22,7 +22,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { LessThan } from 'typeorm';
+import { LessThan, MoreThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -288,12 +288,15 @@ export class KycService {
       where: {
         name: KycStepName.FINANCIAL_DATA,
         status: ReviewStatus.INTERNAL_REVIEW,
+        userData: { kycLevel: MoreThan(KycLevel.LEVEL_20) },
       },
       relations: { userData: { wallet: true } },
     });
 
     for (const entity of entities) {
       try {
+        entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
+
         const errors = this.getFinancialDataErrors(entity);
         const comment = errors.join(';');
 
