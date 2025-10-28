@@ -383,8 +383,6 @@ export class TransactionController {
     @Param('id') id: string,
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
-    const timeArray = [Date.now()];
-
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
@@ -407,8 +405,6 @@ export class TransactionController {
       transaction: { userData: true },
     });
 
-    timeArray.push(Date.now());
-
     if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
     if (transaction.targetEntity && jwt.account !== transaction.userData.id)
@@ -426,8 +422,6 @@ export class TransactionController {
 
     const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
-
-    timeArray.push(Date.now());
 
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
@@ -462,14 +456,10 @@ export class TransactionController {
     if (transaction.targetEntity.checkoutTx)
       return this.buyCryptoService.refundCheckoutTx(transaction.targetEntity, { ...refundDto });
 
-    await this.buyCryptoService.refundBankTx(transaction.targetEntity, {
+    return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
       ...refundDto,
     });
-
-    timeArray.push(Date.now());
-
-    this.logger.info(`Refund transaction time log: ${Util.createTimeString(timeArray)}`);
   }
 
   @Put(':id/invoice')

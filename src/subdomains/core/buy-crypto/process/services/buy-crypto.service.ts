@@ -489,8 +489,6 @@ export class BuyCryptoService {
   }
 
   async refundBankTx(buyCrypto: BuyCrypto, dto: BankTxRefund): Promise<void> {
-    const timeArray = [Date.now()];
-
     if (!dto.refundIban && !buyCrypto.chargebackIban)
       throw new BadRequestException('You have to define a chargebackIban');
 
@@ -510,8 +508,6 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
-    timeArray.push(Date.now());
-
     if (dto.chargebackAllowedDate && chargebackAmount)
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
@@ -530,10 +526,6 @@ export class BuyCryptoService {
         buyCrypto.chargebackBankRemittanceInfo,
       ),
     );
-
-    timeArray.push(Date.now());
-
-    this.logger.info(`Refund bankTx time log: ${Util.createTimeString(timeArray)}`);
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {
