@@ -20,6 +20,9 @@ param originName string
 @description('Name of the route')
 param routeName string
 
+@description('Path of the origin')
+param originPath string
+
 // --- EXISTING RESOURCES --- //
 resource frontDoorProfile 'Microsoft.Cdn/profiles@2025-06-01' existing = {
   name: frontDoorName
@@ -74,15 +77,16 @@ resource route 'Microsoft.Cdn/profiles/afdEndpoints/routes@2025-06-01' = {
   parent: endpoint
   name: routeName
   properties: {
+    patternsToMatch: [
+      '/*'
+    ]
     originGroup: {
       id: originGroup.id
     }
+    originPath: originPath
     supportedProtocols: [
       'Http'
       'Https'
-    ]
-    patternsToMatch: [
-      '/*'
     ]
     forwardingProtocol: 'HttpOnly'
     linkToDefaultDomain: 'Enabled'

@@ -4,6 +4,9 @@
   "parameters": {
     "vmName": {
       "value": "node"
+    },
+    "originPath": {
+      "value": "/cteb"
     }
   }
 }

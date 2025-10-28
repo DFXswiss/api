@@ -8,6 +8,9 @@ param node string
 @description('Short name of the VM')
 param vmName string
 
+@description('Path of the origin')
+param originPath string
+
 // --- VARIABLES --- //
 var compName = 'dfx'
 var apiName = 'api'
@@ -29,6 +32,7 @@ module frontDoor './modules/frontDoor.bicep' = {
     originGroupName: originGroupName
     originName: originName
     routeName: routeName
+    originPath: originPath
   }
 }
 
