@@ -225,7 +225,7 @@ export class PricingService implements OnModuleInit {
         rule.source
       } (limit is ${Util.toPercent(rule.limit)})`;
 
-      this.logger.warn(message);
+      this.logger.verbose(message);
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
         context: MailContext.PRICING,
