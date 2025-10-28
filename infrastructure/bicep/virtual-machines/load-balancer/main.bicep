@@ -26,7 +26,7 @@ param probePort int = -1
 var vm = 'vm'
 
 var virtualNetworkName = 'vnet-${compName}-${rg}-${env}'
-var subnetName = 'snet-${compName}-${rg}-${vm}-${env}'
+var subnetName = 'snet-${compName}-${vm}-${env}'
 
 var loadBalancerName = 'lbi-${compName}-${vmName}-${env}'
 var frontendIPConfigurationName = 'feic-${compName}-${vmName}-${env}'
