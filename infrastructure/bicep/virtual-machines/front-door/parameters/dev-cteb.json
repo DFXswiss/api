@@ -4,9 +4,6 @@
   "parameters": {
     "vmName": {
       "value": "node"
-    },
-    "nodePort": {
-      "value": 4000
     }
   }
 }
