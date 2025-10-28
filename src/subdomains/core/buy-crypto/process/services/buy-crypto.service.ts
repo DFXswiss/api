@@ -334,9 +334,9 @@ export class BuyCryptoService {
       await this.changeRoute(entity, swap);
     }
 
-    // create sift transaction (non-blocking, fire-and-forget)
+    // create sift transaction (non-blocking)
     if (forceUpdate.amlCheck === CheckStatus.FAIL)
-      this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
+      void this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
 
     // payment webhook
     if (

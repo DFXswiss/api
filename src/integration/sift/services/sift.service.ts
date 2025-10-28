@@ -8,6 +8,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
@@ -34,21 +35,17 @@ import {
   TransactionStatus,
   TransactionType,
 } from '../dto/sift.dto';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { SiftErrorLogRepository } from '../repositories/sift-error-log.repository';
 
 @Injectable()
 export class SiftService {
   private readonly url = 'https://api.sift.com/v205/events';
   private readonly decisionUrl = 'https://api.sift.com/v3/accounts/';
-  private readonly timeout = 5000; // 5 seconds timeout for all Sift API calls
+  private readonly timeout = 5000; // 5 seconds Sift API timeout
 
   private readonly logger = new DfxLogger(SiftService);
 
-  constructor(
-    private readonly http: HttpService,
-    private readonly siftErrorLogRepo: SiftErrorLogRepository,
-  ) {}
+  constructor(private readonly http: HttpService, private readonly siftErrorLogRepo: SiftErrorLogRepository) {}
 
   // --- ACCOUNT --- //
   createAccount(user: User): void {
@@ -221,7 +218,7 @@ export class SiftService {
 
   private async send(type: EventType, data: SiftBase): Promise<SiftResponse> {
     if (!Config.sift.apiKey) {
-      this.logger.warn(`Sift API key not configured - skipping event ${type}`);
+      this.logger.verbose(`Sift API key not configured - skipping event ${type} for user ${data.$user_id}`);
       return;
     }
 
@@ -248,19 +245,19 @@ export class SiftService {
       const isTimeout = duration >= this.timeout;
 
       this.logger.error(
-        `Sift API call failed: ${type} for user ${data.$user_id} - ${httpError?.message || String(error)} (${duration}ms, status: ${httpError?.response?.status}, timeout: ${isTimeout})`,
+        `Sift API call failed: ${type} for user ${data.$user_id} - ${
+          httpError?.message || String(error)
+        } (${duration}ms, status: ${httpError?.response?.status}, timeout: ${isTimeout}):`,
         httpError,
       );
 
-      // Store error in database for monitoring and debugging
-      void this.logError(type, data.$user_id, duration, httpError, isTimeout);
+      void this.storeErrorLog(type, data.$user_id, duration, httpError, isTimeout);
 
-      // Error is intentionally swallowed - Sift failures should never break DFX operations
       return undefined;
     }
   }
 
-  private async logError(
+  private async storeErrorLog(
     eventType: EventType,
     userId: string | undefined,
     duration: number,
@@ -277,7 +274,6 @@ export class SiftService {
         isTimeout,
       });
     } catch (e) {
-      // If we can't log the error to DB, at least log it
       this.logger.error(`Failed to store Sift error log in database:`, e);
     }
   }
@@ -289,7 +285,7 @@ export class SiftService {
 
   private async sendDecision(user: User, description?: string): Promise<void> {
     if (!Config.sift.apiKey) {
-      this.logger.warn(`Sift API key not configured - skipping user blocked decision for user ${user.id}`);
+      this.logger.verbose(`Sift API key not configured - skipping user blocked decision for user ${user.id}`);
       return;
     }
 
@@ -317,12 +313,19 @@ export class SiftService {
       const isTimeout = duration >= this.timeout;
 
       this.logger.error(
-        `Sift decision API call failed for user ${user.id} - ${httpError?.message || String(error)} (${duration}ms, status: ${httpError?.response?.status}, timeout: ${isTimeout})`,
+        `Sift decision API call failed for user ${user.id} - ${
+          httpError?.message || String(error)
+        } (${duration}ms, status: ${httpError?.response?.status}, timeout: ${isTimeout}):`,
         httpError,
       );
 
-      // Store error in database for monitoring and debugging
-      void this.logError('$user_blocked_decision' as EventType, user.id.toString(), duration, httpError, isTimeout);
+      void this.storeErrorLog(
+        '$user_blocked_decision' as EventType,
+        user.id.toString(),
+        duration,
+        httpError,
+        isTimeout,
+      );
     }
   }
 }

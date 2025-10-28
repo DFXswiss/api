@@ -196,9 +196,9 @@ export class BuyCryptoOutService {
             });
           }
 
-          // create sift transaction (non-blocking, fire-and-forget)
+          // create sift transaction (non-blocking)
           if (!tx.isCryptoCryptoTransaction) {
-            this.siftService.buyCryptoTransaction(tx, TransactionStatus.SUCCESS);
+            void this.siftService.buyCryptoTransaction(tx, TransactionStatus.SUCCESS);
           }
 
           // payment webhook
