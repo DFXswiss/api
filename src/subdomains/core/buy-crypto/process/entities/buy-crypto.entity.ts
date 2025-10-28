@@ -245,6 +245,9 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   transaction: Transaction;
 
+  // NOTE: This field is deprecated and no longer actively used.
+  // Sift calls are now fire-and-forget to prevent blocking operations.
+  // Consider removing in future migration or repurposing for error tracking.
   @Column({ length: 'MAX', nullable: true })
   siftResponse?: string;
 
