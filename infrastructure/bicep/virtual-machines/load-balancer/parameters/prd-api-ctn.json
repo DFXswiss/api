@@ -5,9 +5,6 @@
         "vmName": {
             "value": "node"
         },
-        "privateIPAddress": {
-            "value": "10.0.1.7"
-        },
         "frontendPort": {
             "value": 80
         },

@@ -14,9 +14,6 @@ param rg string
 @description('Name of the VM Node')
 param vmName string
 
-@description('Private IP address of the subnet')
-param privateIPAddress string
-
 //@description('Frontend- and Backend port')
 param frontendPort int = -1
 param backendPort int = -1
@@ -65,7 +62,6 @@ resource loadBalancer 'Microsoft.Network/loadBalancers@2024-10-01' = {
       {
         name: frontendIPConfigurationName
         properties: {
-          privateIPAddress: privateIPAddress
           privateIPAllocationMethod: 'Dynamic'
           subnet: {
             id: subnet.id
