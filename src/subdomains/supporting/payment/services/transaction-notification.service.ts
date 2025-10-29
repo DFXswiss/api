@@ -54,7 +54,8 @@ export class TransactionNotificationService {
       try {
         if (
           !entity.targetEntity ||
-          (!(entity.targetEntity instanceof BuyCrypto) && !(entity.targetEntity instanceof BuyFiat))
+          (!(entity.targetEntity instanceof BuyCrypto) && !(entity.targetEntity instanceof BuyFiat)) ||
+          (!entity.targetEntity.comment && !entity.targetEntity.amlCheck)
         )
           continue;
 
