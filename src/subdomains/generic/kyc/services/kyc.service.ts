@@ -1231,7 +1231,7 @@ export class KycService {
       const message = `KycStep FinancialData for userData ${kycStep.userData.id} cannot be completed with kycLevel ${kycStep.userData.kycLevel}`;
 
       this.logger.error(message);
-      throw new InternalServerErrorException(message);
+      throw new Error(message);
     }
 
     await this.userDataService.updateUserDataInternal(kycStep.userData, { kycLevel: KycLevel.LEVEL_40 });
