@@ -244,7 +244,7 @@ export class TransactionHelper implements OnModuleInit {
       ...sourceSpecs.fee,
       total,
       dfx,
-      partner,
+      platform: partner,
       bank,
     };
   }

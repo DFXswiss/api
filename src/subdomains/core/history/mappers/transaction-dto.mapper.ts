@@ -345,7 +345,7 @@ export class TransactionDtoMapper {
               feeAmountType(entity.inputAssetEntity),
             )
           : null,
-      partner:
+      platform:
         entity.partnerFeeAmount != null
           ? Util.roundReadable(entity.partnerFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,

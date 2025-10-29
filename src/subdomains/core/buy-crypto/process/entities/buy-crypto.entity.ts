@@ -483,7 +483,7 @@ export class BuyCrypto extends IEntity {
             totalFeeAmountChf,
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
-            partnerFeeAmount: fee.partner,
+            partnerFeeAmount: fee.platform,
             inputReferenceAmountMinusFee,
             usedRef,
             refProvision,
