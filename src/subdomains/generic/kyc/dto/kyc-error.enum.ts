@@ -42,6 +42,8 @@ export enum KycError {
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
 }
 
+export const KycStepIgnoringErrors = [KycError.USER_DATA_MERGED, KycError.USER_DATA_BLOCKED];
+
 export const KycErrorMap: Record<KycError, string> = {
   [KycError.USER_DATA_MERGED]: 'Your account is merged',
   [KycError.USER_DATA_MERGE_REQUESTED]: 'Merge request mail sent to your existing account',

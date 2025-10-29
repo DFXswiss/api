@@ -58,7 +58,7 @@ import {
   PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
-import { KycError } from '../dto/kyc-error.enum';
+import { KycError, KycStepIgnoringErrors } from '../dto/kyc-error.enum';
 import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
@@ -181,7 +181,7 @@ export class KycService {
         const errors = this.getNationalityErrors(entity, nationality);
         const comment = errors.join(';');
 
-        if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
+        if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
           await this.kycStepRepo.update(...entity.ignored(comment));
         } else if (errors.length > 0) {
           await this.kycStepRepo.update(...entity.manualReview(comment));
@@ -251,7 +251,7 @@ export class KycService {
             continue;
         }
 
-        if (errors.includes(KycError.USER_DATA_BLOCKED) || errors.includes(KycError.USER_DATA_MERGED)) {
+        if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
           entity.ignored(comment);
         } else if (
           errors.includes(KycError.VERIFIED_NAME_MISSING) &&
@@ -300,22 +300,26 @@ export class KycService {
         const errors = this.getFinancialDataErrors(entity);
         const comment = errors.join(';');
 
-        if (errors.includes(KycError.MISSING_RESPONSE)) {
-          entity.inProgress();
+        if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
+          await this.kycStepRepo.update(...entity.ignored(comment));
+        } else if (errors.includes(KycError.MISSING_RESPONSE)) {
+          await this.kycStepRepo.update(...entity.inProgress());
           await this.kycNotificationService.kycStepMissingData(
             entity.userData,
             this.getMailStepName(entity.name, entity.userData.language.symbol),
           );
         } else if (errors.length === 0 && !entity.isManual) {
-          entity.complete();
+          await this.kycStepRepo.update(...entity.complete());
         } else {
-          entity.manualReview(comment);
+          await this.kycStepRepo.update(...entity.manualReview(comment));
         }
 
         await this.createStepLog(entity.userData, entity);
-        await this.kycStepRepo.save(entity);
 
-        if (entity.isCompleted) await this.checkDfxApproval(entity);
+        if (entity.isCompleted) {
+          await this.completeFinancialData(entity);
+          await this.checkDfxApproval(entity);
+        }
       } catch (e) {
         this.logger.error(`Failed to auto review financialData step ${entity.id}:`, e);
       }
@@ -1220,6 +1224,18 @@ export class KycService {
     }
 
     this.logger.error(`Missing ident data for userData ${userData.id}`);
+  }
+
+  async completeFinancialData(kycStep: KycStep): Promise<void> {
+    if (![KycLevel.LEVEL_30, KycLevel.LEVEL_40].includes(kycStep.userData.kycLevel)) {
+      const message = `KycStep FinancialData for userData ${kycStep.userData.id} cannot be completed with kycLevel ${kycStep.userData.kycLevel}`;
+
+      this.logger.error(message);
+      throw new InternalServerErrorException(message);
+    }
+
+    await this.userDataService.updateUserDataInternal(kycStep.userData, { kycLevel: KycLevel.LEVEL_40 });
+    await this.createKycLevelLog(kycStep.userData, KycLevel.LEVEL_40);
   }
 
   private getStepDefaultErrors(entity: KycStep): KycError[] {

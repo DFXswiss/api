@@ -78,6 +78,10 @@ export class KycAdminService {
         }
         break;
 
+      case KycStepName.FINANCIAL_DATA:
+        if (kycStep.isCompleted) await this.kycService.completeFinancialData(kycStep);
+        break;
+
       case KycStepName.DFX_APPROVAL:
         if (kycStep.isCompleted && kycStep.userData.kycLevel < KycLevel.LEVEL_50)
           await this.userDataService.updateUserDataInternal(kycStep.userData, {
