@@ -1,16 +1,25 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
 import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
+import { SpecialExternalAccountService } from './special-external-account.service';
 
 @Injectable()
 export class TransactionService {
-  constructor(private readonly repo: TransactionRepository) {}
+  constructor(
+    private readonly repo: TransactionRepository,
+    private readonly userDataService: UserDataService,
+    private readonly bankDataService: BankDataService,
+    private readonly specialExternalAccountService: SpecialExternalAccountService,
+  ) {}
 
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
@@ -20,9 +29,37 @@ export class TransactionService {
     return this.repo.save(entity);
   }
 
-  async update(id: number, dto: UpdateTransactionInternalDto | UpdateTransactionDto): Promise<Transaction> {
-    const entity = await this.getTransactionById(id, { request: { supportIssues: true }, supportIssues: true });
+  async update(id: number, dto: UpdateTransactionDto): Promise<Transaction> {
+    const entity = await this.getTransactionById(id, {
+      request: { supportIssues: true },
+      supportIssues: true,
+      bankTx: true,
+    });
     if (!entity) throw new Error('Transaction not found');
+
+    if (dto.userData) {
+      dto.userData = await this.userDataService.getUserData(dto.userData.id);
+      if (!dto.userData) throw new NotFoundException('UserData not found');
+
+      if (entity.bankTx?.senderAccount) {
+        const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+          entity.bankTx.senderAccount,
+          dto.userData.id,
+        );
+
+        if (!bankData) {
+          const multiAccounts = await this.specialExternalAccountService.getMultiAccounts();
+          const bankDataName = entity.bankTx.bankDataName(multiAccounts);
+          if (bankDataName)
+            await this.bankDataService.createVerifyBankData(dto.userData, {
+              name: bankDataName,
+              iban: entity.bankTx.senderAccount,
+              bic: entity.bankTx.bic,
+              type: BankDataType.BANK_IN,
+            });
+        }
+      }
+    }
 
     return this.updateInternal(entity, dto);
   }
