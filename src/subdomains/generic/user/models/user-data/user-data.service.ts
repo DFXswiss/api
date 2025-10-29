@@ -100,6 +100,7 @@ export class UserDataService {
     private readonly kycAdminService: KycAdminService,
     private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,
+    @Inject(forwardRef(() => TransactionService))
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
