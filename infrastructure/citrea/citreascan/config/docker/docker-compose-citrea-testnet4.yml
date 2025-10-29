@@ -17,6 +17,11 @@ services:
       interval: 30s
       timeout: 60s
       retries: 10
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '100m'
+        max-file: '3'
     command: >
       bitcoind -conf=/home/bitcoin/.bitcoin/bitcoin.conf
 
@@ -27,10 +32,15 @@ services:
     restart: unless-stopped
     networks:
       - shared
-    ports:
-      - '8085:8085'
     volumes:
       - ./volumes/citrea/testnet4:/mnt/task/citrea-db
+    ports:
+      - '8085:8085'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '100m'
+        max-file: '3'
     environment:
       - SEQUENCER_PUBLIC_KEY=0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364
       - SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b
