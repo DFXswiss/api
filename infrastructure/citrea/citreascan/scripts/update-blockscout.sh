@@ -15,8 +15,6 @@ service=$1
 
 cd /home/dfx
 
-docker compose -f ${composefile} down ${service}
-docker compose -f ${composefile} pull ${service}
-docker compose -f ${composefile} up -d ${service}
+docker compose -f ${composefile} up -d --no-deps --pull always --force-recreate ${service}
 
 docker image prune -f
