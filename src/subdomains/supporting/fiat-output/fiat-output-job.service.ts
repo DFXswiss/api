@@ -304,7 +304,7 @@ export class FiatOutputJobService {
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_FIAT });
 
       case FiatOutputType.BANK_TX_REPEAT:
-        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_REPEAT });
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_REPEAT_CHARGEBACK });
 
       case FiatOutputType.BANK_TX_RETURN:
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
