@@ -230,7 +230,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const sourceSpecs = await this.getSourceSpecs(fromReference, specs, PriceValidity.VALID_ONLY);
 
-    const { dfx, partner, bank, total } = this.calculateTotalFee(
+    const { dfx, platform, bank, total } = this.calculateTotalFee(
       inputReferenceAmount,
       fee.rate,
       fee.partnerRate,
@@ -244,7 +244,7 @@ export class TransactionHelper implements OnModuleInit {
       ...sourceSpecs.fee,
       total,
       dfx,
-      platform: partner,
+      platform,
       bank,
     };
   }
@@ -665,7 +665,7 @@ export class TransactionHelper implements OnModuleInit {
     const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
     const targetFees = {
       dfx: this.convertFee(sourceFees.dfx, price, to),
-      partner: this.convertFee(sourceFees.partner, price, to),
+      platform: this.convertFee(sourceFees.platform, price, to),
       total: this.convertFee(sourceFees.total, price, to),
       bank: this.convertFee(sourceFees.bank, price, to),
     };
@@ -763,7 +763,7 @@ export class TransactionHelper implements OnModuleInit {
     bankRate: number,
     { fee: { fixed, min, network, networkStart, bankFixed, partnerFixed } }: TxSpec,
     roundingActive: Active,
-  ): { dfx: number; partner: number; bank: number; total: number } {
+  ): { dfx: number; platform: number; bank: number; total: number } {
     const bank = amount * bankRate + bankFixed;
     const dfx = Math.max(amount * rate + fixed, min);
     const partner = amount * partnerRate + partnerFixed;
@@ -771,7 +771,7 @@ export class TransactionHelper implements OnModuleInit {
 
     return {
       dfx: Util.roundReadable(dfx, feeAmountType(roundingActive)),
-      partner: Util.roundReadable(partner, feeAmountType(roundingActive)),
+      platform: Util.roundReadable(partner, feeAmountType(roundingActive)),
       bank: Util.roundReadable(bank, feeAmountType(roundingActive)),
       total: Util.roundReadable(total, feeAmountType(roundingActive)),
     };
