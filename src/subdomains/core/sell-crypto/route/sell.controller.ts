@@ -217,7 +217,7 @@ export class SellController {
       fiat: FiatDtoMapper.toDto(sell.fiat),
       currency: FiatDtoMapper.toDto(sell.fiat),
       deposit: sell.active ? DepositDtoMapper.entityToDto(sell.deposit) : undefined,
-      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.dfx.rate * 100, Config.defaultPercentageDecimal),
       blockchain: sell.deposit.blockchainList[0],
       minFee: { amount: fee.network, asset: 'CHF' },
       minDeposits: [minDeposit],

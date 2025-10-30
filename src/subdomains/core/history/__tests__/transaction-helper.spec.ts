@@ -16,9 +16,9 @@ import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/
 import { createDefaultCheckoutTx } from 'src/subdomains/supporting/fiat-payin/__mocks__/checkout-tx.entity.mock';
 import { createDefaultCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import {
-  createCustomInternalChargebackFeeDto,
-  createInternalChargebackFeeDto,
-} from 'src/subdomains/supporting/payment/__mocks__/internal-fee.dto.mock';
+  createChargebackFeeInfo,
+  createCustomChargebackFeeInfo,
+} from 'src/subdomains/supporting/payment/__mocks__/fee.dto.mock';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -96,7 +96,7 @@ describe('TransactionHelper', () => {
     });
 
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
-    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createChargebackFeeInfo());
     jest
       .spyOn(pricingService, 'getPrice')
       .mockResolvedValue(createCustomPrice({ source: 'CHF', target: 'CHF', price: 1 }));
@@ -126,7 +126,7 @@ describe('TransactionHelper', () => {
 
     jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createDefaultFiat());
-    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createChargebackFeeInfo());
     jest.spyOn(pricingService, 'getPrice').mockResolvedValue(createCustomPrice({ price: 1 }));
 
     await expect(
@@ -154,9 +154,7 @@ describe('TransactionHelper', () => {
 
     jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createDefaultFiat());
-    jest
-      .spyOn(feeService, 'getChargebackFee')
-      .mockResolvedValue(createCustomInternalChargebackFeeDto({ network: 0.01 }));
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createCustomChargebackFeeInfo({ network: 0.01 }));
     jest.spyOn(pricingService, 'getPrice').mockResolvedValue(createCustomPrice({ price: 1 }));
 
     await expect(
@@ -184,9 +182,7 @@ describe('TransactionHelper', () => {
 
     jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createDefaultFiat());
-    jest
-      .spyOn(feeService, 'getChargebackFee')
-      .mockResolvedValue(createCustomInternalChargebackFeeDto({ network: 0.01 }));
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createCustomChargebackFeeInfo({ network: 0.01 }));
     jest.spyOn(pricingService, 'getPrice').mockResolvedValue(createCustomPrice({ price: 1 }));
 
     await expect(

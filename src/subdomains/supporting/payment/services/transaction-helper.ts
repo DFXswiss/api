@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, forwardRef, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -40,7 +40,7 @@ import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
 import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
-import { FeeDto, InternalFeeDto } from '../dto/fee.dto';
+import { FeeAmountsDto, FeeInfo, FeeSpec, InternalFeeDto, toFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-helper/transaction-details.dto';
@@ -197,7 +197,7 @@ export class TransactionHelper implements OnModuleInit {
     bankIn: CardBankName | IbanBankName | undefined,
     bankOut: CardBankName | IbanBankName | undefined,
     user: User,
-  ): Promise<InternalFeeDto & FeeDto> {
+  ): Promise<InternalFeeDto> {
     // get fee
     const [fee, networkStartFee] = await this.getAllFees(
       user,
@@ -219,33 +219,26 @@ export class TransactionHelper implements OnModuleInit {
     const specs: TxSpec = {
       fee: {
         min: minSpecs.minFee,
-        fixed: fee.fixed,
         network: fee.network,
         networkStart: networkStartFee,
-        bankFixed: fee.bankFixed,
-        partnerFixed: fee.partnerFixed,
+        dfx: fee.dfx,
+        bank: fee.bank,
+        partner: fee.partner,
       },
       volume: { min: minSpecs.minVolume, max: Number.MAX_VALUE },
     };
 
     const sourceSpecs = await this.getSourceSpecs(fromReference, specs, PriceValidity.VALID_ONLY);
 
-    const { dfx, platform, bank, total } = this.calculateTotalFee(
-      inputReferenceAmount,
-      fee.rate,
-      fee.partnerRate,
-      fee.bankRate,
-      sourceSpecs,
-      from,
-    );
+    const amounts = this.calculateTotalFee(inputReferenceAmount, sourceSpecs, from);
+
+    const feeDto = toFeeDto(amounts, sourceSpecs);
 
     return {
-      ...fee,
-      ...sourceSpecs.fee,
-      total,
-      dfx,
-      platform,
-      bank,
+      ...feeDto,
+      fees: fee.fees,
+      partner: amounts.partner,
+      payoutRefBonus: fee.payoutRefBonus,
     };
   }
 
@@ -311,12 +304,12 @@ export class TransactionHelper implements OnModuleInit {
     // target estimation
     const extendedSpecs: TxSpec = {
       fee: {
-        network: fee.network,
-        fixed: fee.fixed,
         min: specs.minFee,
+        network: fee.network,
         networkStart: networkStartFee,
-        bankFixed: fee.bankFixed,
-        partnerFixed: fee.partnerFixed,
+        dfx: fee.dfx,
+        bank: fee.bank,
+        partner: fee.partner,
       },
       volume: {
         min: specs.minVolume,
@@ -330,9 +323,6 @@ export class TransactionHelper implements OnModuleInit {
     const target = await this.getTargetEstimation(
       sourceAmount,
       targetAmount,
-      fee.rate,
-      fee.partnerRate,
-      fee.bankRate,
       sourceSpecs,
       targetSpecs,
       from,
@@ -422,12 +412,12 @@ export class TransactionHelper implements OnModuleInit {
       userData,
     });
 
-    const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
+    const dfxFeeAmount = inputAmount * chargebackFee.dfx.rate + price.convert(chargebackFee.dfx.fixed);
     const networkFeeAmount = price.convert(chargebackFee.network);
     const bankFeeAmount =
       refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
         ? price.convert(
-            chargebackFee.bankRate * inputAmount + chargebackFee.bankFixed + refundEntity.chargebackBankFee * 1.01,
+            chargebackFee.bank.rate * inputAmount + chargebackFee.bank.fixed + refundEntity.chargebackBankFee * 1.01,
           )
         : 0; // Bank fee buffer 1%
 
@@ -539,7 +529,7 @@ export class TransactionHelper implements OnModuleInit {
     specialCodes: string[],
     exactPrice: boolean,
     allowCachedBlockchainFee: boolean,
-  ): Promise<[InternalFeeDto, number]> {
+  ): Promise<[FeeInfo, number]> {
     const [fee, networkStartFee] = await Promise.all([
       this.getTxFee(
         user,
@@ -626,7 +616,7 @@ export class TransactionHelper implements OnModuleInit {
     txVolumeChf: number,
     specialCodes: string[],
     allowCachedBlockchainFee: boolean,
-  ): Promise<InternalFeeDto> {
+  ): Promise<FeeInfo> {
     const feeRequest: UserFeeRequest = {
       user,
       wallet,
@@ -647,9 +637,6 @@ export class TransactionHelper implements OnModuleInit {
   private async getTargetEstimation(
     inputAmount: number | undefined,
     outputAmount: number | undefined,
-    feeRate: number,
-    partnerRate: number,
-    bankFeeRate: number,
     sourceSpecs: TxSpec,
     targetSpecs: TxSpec,
     from: Active,
@@ -659,15 +646,15 @@ export class TransactionHelper implements OnModuleInit {
     const price = await this.pricingService.getPrice(from, to, priceValidity);
     const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
-    const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, bankFeeRate, sourceSpecs);
-    const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, partnerRate, bankFeeRate, sourceSpecs, from);
+    const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, sourceSpecs);
+    const sourceFees = this.calculateTotalFee(sourceAmount, sourceSpecs, from);
 
     const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
-    const targetFees = {
+    const targetFees: FeeAmountsDto = {
       dfx: this.convertFee(sourceFees.dfx, price, to),
-      platform: this.convertFee(sourceFees.platform, price, to),
-      total: this.convertFee(sourceFees.total, price, to),
       bank: this.convertFee(sourceFees.bank, price, to),
+      partner: this.convertFee(sourceFees.partner, price, to),
+      total: this.convertFee(sourceFees.total, price, to),
     };
 
     return {
@@ -678,27 +665,19 @@ export class TransactionHelper implements OnModuleInit {
       estimatedAmount: Util.roundReadable(targetAmount, amountType(to)),
       exactPrice: price.isValid,
       priceSteps: price.steps,
-      feeSource: {
-        rate: feeRate,
-        ...sourceSpecs.fee,
-        ...sourceFees,
-      },
-      feeTarget: {
-        rate: feeRate,
-        ...targetSpecs.fee,
-        ...targetFees,
-      },
+      feeSource: toFeeDto(sourceFees, sourceSpecs),
+      feeTarget: toFeeDto(targetFees, targetSpecs),
     };
   }
 
   private getInputAmount(
     outputAmount: number,
-    rate: number,
-    bankRate: number,
-    { fee: { min, fixed, network, bankFixed, networkStart } }: TxSpec,
+    { fee: { min, network, dfx, bank, partner, networkStart } }: TxSpec,
   ): number {
-    const inputAmountNormal = (outputAmount + fixed + network + bankFixed + networkStart) / (1 - (rate + bankRate));
-    const inputAmountWithMinFee = outputAmount + network + bankFixed + networkStart + min;
+    const inputAmountNormal =
+      (outputAmount + dfx.fixed + bank.fixed + partner.fixed + network + networkStart) /
+      (1 - (dfx.rate + bank.rate + partner.rate));
+    const inputAmountWithMinFee = outputAmount + network + bank.fixed + partner.fixed + networkStart + min;
 
     return Math.max(inputAmountNormal, inputAmountWithMinFee);
   }
@@ -724,9 +703,9 @@ export class TransactionHelper implements OnModuleInit {
     return {
       fee: {
         min: this.convertFee(fee.min, price, from),
-        fixed: this.convertFee(fee.fixed, price, from),
-        partnerFixed: this.convertFee(fee.partnerFixed, price, from),
-        bankFixed: this.convertFee(fee.bankFixed, price, from),
+        dfx: this.convertFeeSpec(fee.dfx, price, from),
+        bank: this.convertFeeSpec(fee.bank, price, from),
+        partner: this.convertFeeSpec(fee.partner, price, from),
         network: this.convertFee(fee.network, price, from),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, from) : undefined,
       },
@@ -743,9 +722,9 @@ export class TransactionHelper implements OnModuleInit {
     return {
       fee: {
         min: this.convertFee(fee.min, price, to),
-        fixed: this.convertFee(fee.fixed, price, to),
-        partnerFixed: this.convertFee(fee.partnerFixed, price, to),
-        bankFixed: this.convertFee(fee.bankFixed, price, to),
+        dfx: this.convertFeeSpec(fee.dfx, price, to),
+        bank: this.convertFeeSpec(fee.bank, price, to),
+        partner: this.convertFeeSpec(fee.partner, price, to),
         network: this.convertFee(fee.network, price, to),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, to) : undefined,
       },
@@ -758,28 +737,33 @@ export class TransactionHelper implements OnModuleInit {
 
   private calculateTotalFee(
     amount: number,
-    rate: number,
-    partnerRate: number,
-    bankRate: number,
-    { fee: { fixed, min, network, networkStart, bankFixed, partnerFixed } }: TxSpec,
+    { fee: { min, network, networkStart, dfx, bank, partner } }: TxSpec,
     roundingActive: Active,
-  ): { dfx: number; platform: number; bank: number; total: number } {
-    const bank = amount * bankRate + bankFixed;
-    const dfx = Math.max(amount * rate + fixed, min);
-    const partner = amount * partnerRate + partnerFixed;
-    const total = dfx + partner + bank + network + (networkStart ?? 0);
+  ): FeeAmountsDto {
+    const dfxAmount = Math.max(this.calculateFee(amount, dfx), min);
+    const bankAmount = this.calculateFee(amount, bank);
+    const partnerAmount = this.calculateFee(amount, partner);
+    const totalAmount = dfxAmount + partnerAmount + bankAmount + network + (networkStart ?? 0);
 
     return {
-      dfx: Util.roundReadable(dfx, feeAmountType(roundingActive)),
-      platform: Util.roundReadable(partner, feeAmountType(roundingActive)),
-      bank: Util.roundReadable(bank, feeAmountType(roundingActive)),
-      total: Util.roundReadable(total, feeAmountType(roundingActive)),
+      dfx: Util.roundReadable(dfxAmount, feeAmountType(roundingActive)),
+      bank: Util.roundReadable(bankAmount, feeAmountType(roundingActive)),
+      partner: Util.roundReadable(partnerAmount, feeAmountType(roundingActive)),
+      total: Util.roundReadable(totalAmount, feeAmountType(roundingActive)),
     };
+  }
+
+  private calculateFee(amount: number, spec: FeeSpec): number {
+    return amount * spec.rate + spec.fixed;
   }
 
   private convert(amount: number, price: Price, roundingActive: Active): number {
     const targetAmount = price.convert(amount);
     return Util.roundReadable(targetAmount, amountType(roundingActive));
+  }
+
+  private convertFeeSpec(spec: FeeSpec, price: Price, roundingActive: Active): FeeSpec {
+    return { rate: spec.rate, fixed: this.convertFee(spec.fixed, price, roundingActive) };
   }
 
   private convertFee(amount: number, price: Price, roundingActive: Active): number {
