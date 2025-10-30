@@ -148,6 +148,8 @@ export class TransactionNotificationService {
           });
 
           await this.repo.update(...entity.mailSent(bankData.userData));
+        } else {
+          await this.repo.update(entity.id, { userData: bankData.userData });
         }
       } catch (e) {
         this.logger.error(`Failed to send tx unassigned mail for ${entity.id}:`, e);
