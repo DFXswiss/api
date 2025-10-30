@@ -185,7 +185,13 @@ export class UserDataService {
       nameSplit.length >= 2
         ? [
             { ...where, firstname: ILike(`%${nameSplit[0]}%`), surname: ILike(`%${nameSplit.slice(1).join(' ')}%`) },
-            { ...where, surname: ILike(`%${nameSplit[0]}%`), firstname: ILike(`%${nameSplit.slice(1).join(' ')}%`) },
+            nameSplit.length > 2
+              ? {
+                  ...where,
+                  firstname: ILike(`%${nameSplit[0]} ${nameSplit[1]}%`),
+                  surname: ILike(`%${nameSplit.slice(2).join(' ')}%`),
+                }
+              : undefined,
           ]
         : [];
 
