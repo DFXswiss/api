@@ -44,7 +44,7 @@ import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { Equal, FindOptionsRelations, ILike, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, FindOptionsWhere, ILike, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -180,12 +180,22 @@ export class UserDataService {
     const where = { status: Not(UserDataStatus.MERGED) };
     const search = `%${name}%`;
 
+    const nameSplit = name.split(' ');
+    const nameSplitRequest: FindOptionsWhere<UserData>[] =
+      nameSplit.length >= 2
+        ? [
+            { ...where, firstname: ILike(`%${nameSplit[0]}%`), surname: ILike(`%${nameSplit.slice(1).join(' ')}%`) },
+            { ...where, surname: ILike(`%${nameSplit[0]}%`), firstname: ILike(`%${nameSplit.slice(1).join(' ')}%`) },
+          ]
+        : [];
+
     return this.userDataRepo.find({
       where: [
         { ...where, firstname: ILike(search) },
         { ...where, surname: ILike(search) },
         { ...where, verifiedName: ILike(search) },
         { ...where, organization: { name: ILike(search) } },
+        ...nameSplitRequest,
       ],
     });
   }
