@@ -2,14 +2,14 @@
 @description('Deployment environment')
 param env string
 
-@description('Short name of the VM')
-param vmName string
-
 @description('Short name of the Node')
 param node string
 
-@description('Port of the Node')
-param nodePort int
+@description('Short name of the VM')
+param vmName string
+
+@description('Path of the origin')
+param originPath string
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -19,7 +19,7 @@ var frontDoorName = 'afd-${compName}-${apiName}-${env}'
 var publicIpName = 'ip-${compName}-${vmName}-${env}'
 
 var endpointName = 'fde-${compName}-${node}-${env}'
-var originGroupName = 'fdog-${compName}-${node}-${env}'
+var originGroupName = 'fdog-${compName}-${vmName}-${env}'
 var originName = 'fdon-${compName}-${node}-${env}'
 var routeName = 'fdor-${compName}-${node}-${env}'
 
@@ -32,7 +32,7 @@ module frontDoor './modules/frontDoor.bicep' = {
     originGroupName: originGroupName
     originName: originName
     routeName: routeName
-    nodePort: nodePort
+    originPath: originPath
   }
 }
 

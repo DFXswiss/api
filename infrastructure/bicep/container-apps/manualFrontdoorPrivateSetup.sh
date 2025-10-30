@@ -9,7 +9,7 @@ environmentOptions=("loc" "dev" "prd")
 
 # "zanod": Zano Node
 # "zanolw" Zano Liquidity Wallet
-appNameOptions=("zanod" "zanolw")
+appNameOptions=()
 
 # --- FUNCTIONS --- #
 selectOption() {

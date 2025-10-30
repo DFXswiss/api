@@ -20,8 +20,8 @@ param originName string
 @description('Name of the route')
 param routeName string
 
-@description('Exposed VM Container Port')
-param nodePort int
+@description('Path of the origin')
+param originPath string
 
 // --- EXISTING RESOURCES --- //
 resource frontDoorProfile 'Microsoft.Cdn/profiles@2025-06-01' existing = {
@@ -64,7 +64,7 @@ resource origin 'Microsoft.Cdn/profiles/originGroups/origins@2025-06-01' = {
   name: originName
   properties: {
     hostName: publicIp.properties.dnsSettings.fqdn
-    httpPort: nodePort
+    httpPort: 80
     httpsPort: 443
     originHostHeader: publicIp.properties.dnsSettings.fqdn
     priority: 1
@@ -77,15 +77,16 @@ resource route 'Microsoft.Cdn/profiles/afdEndpoints/routes@2025-06-01' = {
   parent: endpoint
   name: routeName
   properties: {
+    patternsToMatch: [
+      '/*'
+    ]
     originGroup: {
       id: originGroup.id
     }
+    originPath: originPath
     supportedProtocols: [
       'Http'
       'Https'
-    ]
-    patternsToMatch: [
-      '/*'
     ]
     forwardingProtocol: 'HttpOnly'
     linkToDefaultDomain: 'Enabled'

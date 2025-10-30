@@ -866,7 +866,6 @@ export class UserDataService {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
     this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
-    this.logger.info(`Merge Memory before userData load: ${Util.createMemoryLogString()}`);
 
     const master = await this.userDataRepo.findOne({
       where: { id: masterId },
@@ -905,8 +904,6 @@ export class UserDataService {
     });
     slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
     slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId);
-
-    this.logger.info(`Merge Memory after userData load: ${Util.createMemoryLogString()}`);
 
     master.checkIfMergePossibleWith(slave);
 
