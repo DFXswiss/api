@@ -5,8 +5,8 @@
     "vmName": {
       "value": "node"
     },
-    "nodePort": {
-      "value": 8085
+    "originPath": {
+      "value": "/ctn"
     }
   }
 }
