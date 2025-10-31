@@ -44,7 +44,7 @@ import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { Equal, FindOptionsRelations, ILike, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -178,16 +178,31 @@ export class UserDataService {
 
   async getUsersByName(name: string): Promise<UserData[]> {
     const where = { status: Not(UserDataStatus.MERGED) };
-    const search = `%${name}%`;
+    const wheres = [
+      { ...where, firstname: Util.contains(name) },
+      { ...where, surname: Util.contains(name) },
+      { ...where, verifiedName: Util.contains(name) },
+      { ...where, organization: { name: Util.contains(name) } },
+    ];
 
-    return this.userDataRepo.find({
-      where: [
-        { ...where, firstname: ILike(search) },
-        { ...where, surname: ILike(search) },
-        { ...where, verifiedName: ILike(search) },
-        { ...where, organization: { name: ILike(search) } },
-      ],
-    });
+    const nameParts = name.split(' ');
+    const first = nameParts.shift();
+    const last = nameParts.pop();
+
+    if (last)
+      wheres.push({
+        ...where,
+        firstname: Util.contains(first),
+        surname: Util.contains([...nameParts, last].join(' ')),
+      });
+    if (nameParts.length)
+      wheres.push({
+        ...where,
+        firstname: Util.contains([first, ...nameParts].join(' ')),
+        surname: Util.contains(last),
+      });
+
+    return this.userDataRepo.find({ where: wheres });
   }
 
   async getUsersByPhone(phone: string): Promise<UserData[]> {

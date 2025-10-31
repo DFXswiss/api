@@ -6,6 +6,7 @@ import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 import { isEqual } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
+import { FindOperator, Like } from 'typeorm';
 import { IEntity, UpdateResult } from '../models/entity';
 
 export type KeyType<T, U> = {
@@ -455,6 +456,12 @@ export class Util {
   static fromBase64(file: string): { contentType: string; buffer: Buffer } {
     const [contentType, content] = file.split(';base64,');
     return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
+  }
+
+  // --- DB --- //
+
+  static contains(search: string): FindOperator<string> {
+    return Like(`%${search}%`);
   }
 
   // --- MISC --- //

@@ -324,12 +324,13 @@ export class TransactionController {
       const bankData = await this.bankDataService
         .getValidBankDatasForUser(jwt.account)
         .then((b) => b.find((b) => b.iban === transaction.bankTx.senderAccount));
-      if (!bankData) throw new ForbiddenException('You can only refund your own transaction');
+      if (jwt.account !== transaction.userData?.id && !bankData)
+        throw new ForbiddenException('You can only refund your own transaction');
       if (transaction.refundTargetEntity.bankTxReturn)
         throw new BadRequestException('You can only refund a transaction once');
 
       userData = await this.userDataService.getUserData(jwt.account);
-      await this.transactionService.updateInternal(transaction, { userData });
+      if (!transaction.userData) await this.transactionService.updateInternal(transaction, { userData });
     } else {
       // Assigned transaction
       if (jwt.account !== transaction.userData.id)
@@ -407,9 +408,9 @@ export class TransactionController {
 
     if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
-    if (transaction.targetEntity && jwt.account !== transaction.userData.id)
+    if (transaction.userData && jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
-    if (!transaction.targetEntity) {
+    if (!transaction.targetEntity && !transaction.userData) {
       const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
       if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
         throw new ForbiddenException('You can only refund your own transaction');
