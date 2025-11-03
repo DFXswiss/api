@@ -90,7 +90,7 @@ export class RefRewardService {
     const entity = this.rewardRepo.create({
       user,
       targetAddress: user.address,
-      outputAsset: asset.dexName,
+      outputAssetString: asset.dexName,
       status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
       targetBlockchain: asset.blockchain,
       amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
@@ -152,7 +152,7 @@ export class RefRewardService {
         if (!(refCreditEur >= minCredit)) continue;
 
         const entity = this.rewardRepo.create({
-          outputAsset: payoutAsset.dexName,
+          outputAssetString: payoutAsset.dexName,
           user,
           status: refCreditEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
           targetAddress: user.address,
@@ -242,7 +242,7 @@ export class RefRewardService {
       fiatCurrency: 'EUR',
       date: v.outputDate,
       cryptoAmount: v.outputAmount,
-      cryptoCurrency: v.outputAsset,
+      cryptoCurrency: v.outputAssetString,
     }));
   }
 }
