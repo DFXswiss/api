@@ -8,10 +8,12 @@ import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
 import { StakingRefReward } from '../../staking/entities/staking-ref-reward.entity';
 import { PayoutType, StakingReward } from '../../staking/entities/staking-reward.entity';
 import {
+  ChainReportApiHistoryDto,
   ChainReportCsvHistoryDto,
   ChainReportTarget,
   ChainReportTransactionType,
 } from '../dto/output/chain-report-history.dto';
+import { CoinTrackingTransactionType } from '../dto/output/coin-tracking-history.dto';
 
 export class ChainReportHistoryDtoMapper {
   static mapBuyCryptoCryptoTransactions(buyCryptos: BuyCrypto[]): ChainReportCsvHistoryDto[] {
@@ -85,6 +87,101 @@ export class ChainReportHistoryDtoMapper {
       .filter((e) => e != null);
   }
 
+  static mapBuyCryptoCryptoTransactionsForApi(buyCryptos: BuyCrypto[]): ChainReportApiHistoryDto[] {
+    return buyCryptos
+      .filter(
+        (buyCrypto) =>
+          buyCrypto.amlCheck === CheckStatus.PASS &&
+          buyCrypto.inputAmount &&
+          buyCrypto.outputAmount &&
+          buyCrypto.inputAsset &&
+          buyCrypto.outputDate &&
+          buyCrypto.txId &&
+          buyCrypto.cryptoInput &&
+          buyCrypto.cryptoRoute,
+      )
+      .map((buyCrypto) => [
+        {
+          type: CoinTrackingTransactionType.DEPOSIT,
+          buyAmount: buyCrypto.inputAmount,
+          buyAsset: buyCrypto.inputAsset,
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Purchase',
+          date: buyCrypto.cryptoInput.created.getTime() / 1000,
+          txid: buyCrypto.cryptoInput.inTxId,
+          buyValueInEur: buyCrypto.amountInEur,
+          sellValueInEur: null,
+          inputBlockchain: buyCrypto.cryptoInput.asset.blockchain,
+          outputBlockchain: buyCrypto.outputAsset.blockchain,
+          inputChainId: buyCrypto.cryptoInput.asset.chainId,
+          outputChainId: buyCrypto.outputAsset.chainId,
+        },
+        buyCrypto.inputAsset == buyCrypto.outputAsset?.dexName
+          ? buyCrypto.percentFee && buyCrypto.inputAmount && buyCrypto.inputAsset
+            ? {
+                type: CoinTrackingTransactionType.OTHER_FEE,
+                buyAmount: null,
+                buyAsset: null,
+                sellAmount: buyCrypto.percentFee * buyCrypto.inputAmount,
+                sellAsset: this.getAssetSymbol(
+                  buyCrypto.cryptoInput.asset.dexName,
+                  buyCrypto.cryptoInput.asset.blockchain,
+                ),
+                fee: null,
+                feeAsset: null,
+                exchange: 'DFX',
+                tradeGroup: null,
+                comment: 'DFX Purchase Fee',
+                date: buyCrypto.outputDate.getTime() / 1000,
+                txid: buyCrypto.txId,
+                buyValueInEur: null,
+                sellValueInEur: buyCrypto.amountInEur,
+                inputBlockchain: buyCrypto.cryptoInput.asset.blockchain,
+                outputBlockchain: buyCrypto.outputAsset.blockchain,
+                inputChainId: buyCrypto.cryptoInput.asset.chainId,
+                outputChainId: buyCrypto.outputAsset.chainId,
+              }
+            : null
+          : {
+              type: CoinTrackingTransactionType.TRADE,
+              buyAmount: buyCrypto.outputAmount,
+              buyAsset: this.getAssetSymbol(
+                buyCrypto.cryptoRoute?.asset?.dexName,
+                buyCrypto.cryptoRoute?.asset?.blockchain,
+              ),
+              sellAmount: buyCrypto.inputAmount,
+              sellAsset: this.getAssetSymbol(
+                buyCrypto.cryptoInput.asset.dexName,
+                buyCrypto.cryptoInput.asset.blockchain,
+              ),
+              fee: buyCrypto.totalFeeAmount
+                ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+                : null,
+              feeAsset: buyCrypto.totalFeeAmount
+                ? this.getAssetSymbol(buyCrypto.cryptoInput.asset.dexName, buyCrypto.cryptoInput.asset.blockchain)
+                : null,
+              exchange: 'DFX',
+              tradeGroup: null,
+              comment: 'DFX Purchase',
+              date: buyCrypto.outputDate?.getTime() / 1000,
+              txid: buyCrypto.txId,
+              buyValueInEur: buyCrypto.amountInEur,
+              sellValueInEur: buyCrypto.amountInEur,
+              inputBlockchain: buyCrypto.cryptoInput.asset.blockchain,
+              outputBlockchain: buyCrypto.outputAsset.blockchain,
+              inputChainId: buyCrypto.cryptoInput.asset.chainId,
+              outputChainId: buyCrypto.outputAsset.chainId,
+            },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .filter((e) => e != null);
+  }
+
   static mapBuyCryptoFiatTransactions(buyCryptos: BuyCrypto[]): ChainReportCsvHistoryDto[] {
     return buyCryptos
       .filter(
@@ -133,6 +230,70 @@ export class ChainReportHistoryDtoMapper {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
+  static mapBuyCryptoFiatTransactionsForApi(buyCryptos: BuyCrypto[]): ChainReportApiHistoryDto[] {
+    return buyCryptos
+      .filter(
+        (buyCrypto) =>
+          buyCrypto.amlCheck === CheckStatus.PASS &&
+          buyCrypto.inputAmount &&
+          buyCrypto.outputAmount &&
+          buyCrypto.inputAsset &&
+          (buyCrypto.bankTx || buyCrypto.checkoutTx) &&
+          buyCrypto.outputDate &&
+          buyCrypto.txId &&
+          buyCrypto.buy,
+      )
+      .map((buyCrypto) => [
+        {
+          type: CoinTrackingTransactionType.DEPOSIT,
+          buyAmount: buyCrypto.inputAmount,
+          buyAsset: buyCrypto.inputAsset,
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Purchase',
+          date: buyCrypto.outputDate
+            ? this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount).getTime() / 1000
+            : null,
+          txid:
+            buyCrypto.bankTx?.id.toString() ??
+            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx?.id.toString()}` : undefined),
+          buyValueInEur: buyCrypto.amountInEur,
+          sellValueInEur: null,
+          inputBlockchain: null,
+          outputBlockchain: buyCrypto.outputAsset.blockchain,
+          inputChainId: null,
+          outputChainId: buyCrypto.outputAsset.chainId,
+        },
+        {
+          type: CoinTrackingTransactionType.TRADE,
+          buyAmount: buyCrypto.outputAmount,
+          buyAsset: this.getAssetSymbol(buyCrypto.buy.asset.dexName, buyCrypto.buy.asset.blockchain),
+          sellAmount: buyCrypto.inputAmount,
+          sellAsset: buyCrypto.inputAsset,
+          fee: buyCrypto.totalFeeAmount
+            ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+            : null,
+          feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Purchase',
+          date: buyCrypto.outputDate?.getTime() / 1000,
+          txid: buyCrypto.txId,
+          buyValueInEur: buyCrypto.amountInEur,
+          sellValueInEur: buyCrypto.amountInEur,
+          inputBlockchain: null,
+          outputBlockchain: buyCrypto.outputAsset.blockchain,
+          inputChainId: null,
+          outputChainId: buyCrypto.outputAsset.chainId,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
   static mapBuyFiatTransactions(buyFiats: BuyFiat[]): ChainReportCsvHistoryDto[] {
     return buyFiats
       .filter(
@@ -173,6 +334,67 @@ export class ChainReportHistoryDtoMapper {
           feeAsset: null,
           txid: buyFiat.fiatOutput.remittanceInfo,
           description: 'DFX Sale',
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  static mapBuyFiatTransactionsForApi(buyFiats: BuyFiat[]): ChainReportApiHistoryDto[] {
+    return buyFiats
+      .filter(
+        (buyFiat) =>
+          buyFiat.amlCheck === CheckStatus.PASS &&
+          buyFiat.cryptoInput &&
+          buyFiat.outputAmount &&
+          buyFiat.outputAsset &&
+          buyFiat.inputAmount &&
+          buyFiat.fiatOutput?.remittanceInfo &&
+          buyFiat.fiatOutput?.outputDate,
+      )
+      .map((buyFiat) => [
+        {
+          type: CoinTrackingTransactionType.TRADE,
+          buyAmount: buyFiat.outputAmount,
+          buyAsset: buyFiat.outputAsset.name,
+          sellAmount: buyFiat.inputAmount,
+          sellAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain),
+          fee: buyFiat.totalFeeAmount
+            ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
+            : null,
+          feeAsset: buyFiat.totalFeeAmount
+            ? this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain)
+            : null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Sale',
+          date: buyFiat.cryptoInput.created.getTime() / 1000,
+          txid: buyFiat.cryptoInput.inTxId,
+          buyValueInEur: buyFiat.amountInEur,
+          sellValueInEur: buyFiat.amountInEur,
+          inputBlockchain: buyFiat.cryptoInput.asset.blockchain,
+          outputBlockchain: null,
+          inputChainId: buyFiat.cryptoInput.asset.chainId,
+          outputChainId: null,
+        },
+        {
+          type: CoinTrackingTransactionType.WITHDRAWAL,
+          buyAmount: null,
+          buyAsset: null,
+          sellAmount: buyFiat.outputAmount,
+          sellAsset: buyFiat.outputAsset.name,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Sale',
+          date: buyFiat.fiatOutput.outputDate.getTime() / 1000,
+          txid: buyFiat.fiatOutput.remittanceInfo,
+          buyValueInEur: null,
+          sellValueInEur: buyFiat.amountInEur,
+          inputBlockchain: buyFiat.cryptoInput.asset.blockchain,
+          outputBlockchain: null,
+          inputChainId: buyFiat.cryptoInput.asset.chainId,
+          outputChainId: null,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
@@ -299,6 +521,33 @@ export class ChainReportHistoryDtoMapper {
           feeAsset: null,
           txid: refReward.txId,
           description: 'DFX Referral Reward',
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  static mapRefRewardsForApi(refRewards: RefReward[]): ChainReportApiHistoryDto[] {
+    return refRewards
+      .map((refReward) => [
+        {
+          type: CoinTrackingTransactionType.REWARD_BONUS,
+          buyAmount: refReward.outputAmount,
+          buyAsset: refReward.outputAsset,
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Referral Reward',
+          date: refReward.outputDate?.getTime() / 1000,
+          txid: refReward.txId,
+          buyValueInEur: refReward.amountInEur,
+          sellValueInEur: null,
+          inputBlockchain: null,
+          outputBlockchain: null, // TODO: refReward.outputAsset.blockchain,
+          inputChainId: null,
+          outputChainId: null, // TODO: refReward.outputAsset.chainId,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);

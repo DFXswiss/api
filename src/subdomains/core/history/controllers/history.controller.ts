@@ -31,6 +31,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto';
 import { ExportFormat, HistoryQuery, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
 import { TypedHistoryDto } from '../dto/history.dto';
+import { ChainReportApiHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingApiHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { ExportType, HistoryService } from '../services/history.service';
 import { TransactionController } from './transaction.controller';
@@ -77,14 +78,29 @@ export class HistoryController {
       : await this.userDataService.checkApiKey(key, sign, timestamp);
     query = Object.assign(query, ApiKeyService.getFilter(user.apiFilterCT));
 
-    return this.historyService
-      .getJsonHistory(user, { format: ExportFormat.JSON, ...query }, ExportType.COIN_TRACKING)
-      .then((h) =>
-        h.map((tx) => ({
-          ...tx,
-          date: tx.date?.getTime() / 1000,
-        })),
-      );
+    return this.historyService.getApiHistory(user, { format: ExportFormat.JSON, ...query }, ExportType.COIN_TRACKING);
+  }
+
+  @Get('CR')
+  @ApiOkResponse({ type: ChainReportApiHistoryDto, isArray: true })
+  @ApiExcludeEndpoint()
+  @ParallelQueue(5)
+  async getChainReportApiHistory(
+    @Query() query: HistoryQuery,
+    @Headers('DFX-ACCESS-KEY') key: string,
+    @Headers('DFX-ACCESS-SIGN') sign: string,
+    @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
+  ): Promise<ChainReportApiHistoryDto[]> {
+    const user = key.endsWith('0')
+      ? await this.userService.checkApiKey(key, sign, timestamp)
+      : await this.userDataService.checkApiKey(key, sign, timestamp);
+    query = Object.assign(query, ApiKeyService.getFilter(user.apiFilterCT));
+
+    return (await this.historyService.getApiHistory(
+      user,
+      { format: ExportFormat.JSON, ...query },
+      ExportType.CHAIN_REPORT,
+    )) as ChainReportApiHistoryDto[];
   }
 
   @Post('csv')

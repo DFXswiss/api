@@ -1,4 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CoinTrackingApiHistoryDto } from './coin-tracking-history.dto';
 
 export enum ChainReportTransactionType {
   TRADE = 'Trade',
@@ -53,4 +55,18 @@ export class ChainReportCsvHistoryDto {
 
   @ApiPropertyOptional({ enum: ChainReportTarget })
   target?: ChainReportTarget;
+}
+
+export class ChainReportApiHistoryDto extends CoinTrackingApiHistoryDto {
+  @ApiProperty({ enum: Blockchain })
+  inputBlockchain: Blockchain;
+
+  @ApiProperty({ enum: Blockchain })
+  outputBlockchain: Blockchain;
+
+  @ApiProperty()
+  inputChainId: string;
+
+  @ApiProperty()
+  outputChainId: string;
 }

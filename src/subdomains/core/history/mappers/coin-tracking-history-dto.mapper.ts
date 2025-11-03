@@ -7,7 +7,11 @@ import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
 import { StakingRefReward, StakingRefType } from '../../staking/entities/staking-ref-reward.entity';
 import { PayoutType, StakingReward } from '../../staking/entities/staking-reward.entity';
-import { CoinTrackingCsvHistoryDto, CoinTrackingTransactionType } from '../dto/output/coin-tracking-history.dto';
+import {
+  CoinTrackingApiHistoryDto,
+  CoinTrackingCsvHistoryDto,
+  CoinTrackingTransactionType,
+} from '../dto/output/coin-tracking-history.dto';
 
 export class CoinTrackingHistoryDtoMapper {
   static mapBuyCryptoCryptoTransactions(buyCryptos: BuyCrypto[]): CoinTrackingCsvHistoryDto[] {
@@ -93,6 +97,12 @@ export class CoinTrackingHistoryDtoMapper {
       .filter((e) => e != null);
   }
 
+  static mapBuyCryptoCryptoTransactionsForApi(buyCryptos: BuyCrypto[]): CoinTrackingApiHistoryDto[] {
+    return this.mapBuyCryptoCryptoTransactions(buyCryptos).map((t) => {
+      return { ...t, date: t.date?.getTime() / 1000 };
+    });
+  }
+
   static mapBuyCryptoFiatTransactions(buyCryptos: BuyCrypto[]): CoinTrackingCsvHistoryDto[] {
     return buyCryptos
       .filter(
@@ -147,6 +157,12 @@ export class CoinTrackingHistoryDtoMapper {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
+  static mapBuyCryptoFiatTransactionsForApi(buyCryptos: BuyCrypto[]): CoinTrackingApiHistoryDto[] {
+    return this.mapBuyCryptoFiatTransactions(buyCryptos).map((t) => {
+      return { ...t, date: t.date?.getTime() / 1000 };
+    });
+  }
+
   static mapBuyFiatTransactions(buyFiats: BuyFiat[]): CoinTrackingCsvHistoryDto[] {
     return buyFiats
       .filter(
@@ -198,6 +214,12 @@ export class CoinTrackingHistoryDtoMapper {
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  static mapBuyFiatTransactionsForApi(buyFiats: BuyFiat[]): CoinTrackingApiHistoryDto[] {
+    return this.mapBuyFiatTransactions(buyFiats).map((t) => {
+      return { ...t, date: t.date?.getTime() / 1000 };
+    });
   }
 
   static mapStakingRewards(stakingRewards: StakingReward[]): CoinTrackingCsvHistoryDto[] {
@@ -349,6 +371,12 @@ export class CoinTrackingHistoryDtoMapper {
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  static mapRefRewardsForApi(refRewards: RefReward[]): CoinTrackingApiHistoryDto[] {
+    return this.mapRefRewards(refRewards).map((t) => {
+      return { ...t, date: t.date?.getTime() / 1000 };
+    });
   }
 
   static mapStakingRefRewards(stakingRefRewards: StakingRefReward[]): CoinTrackingCsvHistoryDto[] {
