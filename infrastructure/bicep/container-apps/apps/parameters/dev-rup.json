@@ -1,0 +1,67 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 1
+    },
+    "containerImage": {
+      "value": "dfxswiss/realunitshares-ponder:beta"
+    },
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/app/.ponder"
+        }
+      ]
+    },
+    "containerCPU": {
+      "value": "0.5"
+    },
+    "containerMemory": {
+      "value": "1Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 3000
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "PONDER_PROFILE",
+          "value": "mainnet"
+        },
+        {
+          "name": "RPC_URL_MAINNET",
+          "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "[DATABASE_URL]"
+        }
+      ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": []
+    }
+  }
+}

@@ -27,6 +27,7 @@ Container Apps are:
 - dep: dEuro Ponder
 - dea: dEuro API
 - ded: dEuro dApp
+- rup: RealUnitShares Ponder
 
 ## Front Door Setup
 
