@@ -14,7 +14,7 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, In, Not } from 'typeorm';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
 import { CreateManualRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
@@ -68,7 +68,21 @@ export class RefRewardService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  async createManualRefReward(dto: CreateManualRefRewardDto) {
+  async syncOutputEntity(): Promise<void> {
+    const entities = await this.rewardRepo.findBy({ outputAssetEntity: { id: IsNull() } });
+
+    for (const entity of entities) {
+      const asset = await this.assetService.getAssetByQuery({
+        blockchain: entity.targetBlockchain,
+        name: entity.outputAssetString,
+        type: entity.outputAssetString === 'dEURO' ? AssetType.TOKEN : AssetType.COIN,
+      });
+
+      await this.rewardRepo.update(entity.id, { outputAssetEntity: asset });
+    }
+  }
+
+  async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
     const user = await this.userService.getUser(dto.user.id, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
@@ -112,7 +126,7 @@ export class RefRewardService {
     await this.rewardRepo.save(entity);
   }
 
-  async createPendingRefRewards() {
+  async createPendingRefRewards(): Promise<void> {
     const openCreditUser = await this.userService.getOpenRefCreditUser();
     if (openCreditUser.length == 0) return;
 
