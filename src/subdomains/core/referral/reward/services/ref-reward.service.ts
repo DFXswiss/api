@@ -15,7 +15,6 @@ import {
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, Not } from 'typeorm';
-import { RefRewardExtended } from '../../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
 import { CreateManualRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
@@ -194,12 +193,6 @@ export class RefRewardService {
       relations: { user: true },
       order: { id: 'DESC' },
     });
-  }
-
-  async extendReward(reward: RefReward): Promise<RefRewardExtended> {
-    const outputAssetEntity = await this.assetService.getNativeAsset(reward.targetBlockchain);
-
-    return Object.assign(reward, { outputAssetEntity });
   }
 
   async getRefRewardVolume(from: Date): Promise<number> {

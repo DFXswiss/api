@@ -173,8 +173,7 @@ export class HistoryService {
         ) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        const extended = await Util.asyncMap(refRewards, (r) => this.refRewardService.extendReward(r));
-        return Util.sort(TransactionDtoMapper.mapReferralRewards(extended), 'date', 'DESC') as HistoryDto<T>[];
+        return Util.sort(TransactionDtoMapper.mapReferralRewards(refRewards), 'date', 'DESC') as HistoryDto<T>[];
     }
   }
 
