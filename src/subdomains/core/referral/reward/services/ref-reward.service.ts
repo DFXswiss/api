@@ -14,7 +14,7 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, In, IsNull, Not } from 'typeorm';
+import { Between, In, Not } from 'typeorm';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
 import { CreateManualRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
@@ -68,20 +68,6 @@ export class RefRewardService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  async syncOutputEntity(): Promise<void> {
-    const entities = await this.rewardRepo.find({ where: { outputAsset: { id: IsNull() } }, take: 5000 });
-
-    for (const entity of entities) {
-      const asset = await this.assetService.getAssetByQuery({
-        blockchain: entity.targetBlockchain,
-        name: entity.outputAssetString,
-        type: entity.outputAssetString === 'dEURO' ? AssetType.TOKEN : AssetType.COIN,
-      });
-
-      await this.rewardRepo.update(entity.id, { outputAsset: asset });
-    }
-  }
-
   async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
     const user = await this.userService.getUser(dto.user.id, { userData: true });
     if (!user) throw new NotFoundException('User not found');
@@ -103,7 +89,6 @@ export class RefRewardService {
     const entity = this.rewardRepo.create({
       user,
       targetAddress: user.address,
-      outputAssetString: asset.dexName,
       outputAsset: asset,
       status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
       targetBlockchain: asset.blockchain,
@@ -166,7 +151,6 @@ export class RefRewardService {
         if (!(refCreditEur >= minCredit)) continue;
 
         const entity = this.rewardRepo.create({
-          outputAssetString: payoutAsset.dexName,
           outputAsset: payoutAsset,
           user,
           status: refCreditEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
@@ -251,7 +235,7 @@ export class RefRewardService {
       fiatCurrency: 'EUR',
       date: v.outputDate,
       cryptoAmount: v.outputAmount,
-      cryptoCurrency: v.outputAssetString,
+      cryptoCurrency: v.outputAsset.dexName,
     }));
   }
 }
