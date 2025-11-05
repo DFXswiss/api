@@ -663,10 +663,9 @@ export class TransactionController {
           : TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
 
       case RefReward:
-        const refRewardExtended = await this.refRewardService.extendReward(transaction.refReward);
         return detailed
-          ? TransactionDtoMapper.mapReferralRewardDetail(refRewardExtended)
-          : TransactionDtoMapper.mapReferralReward(refRewardExtended);
+          ? TransactionDtoMapper.mapReferralRewardDetail(transaction.refReward)
+          : TransactionDtoMapper.mapReferralReward(transaction.refReward);
 
       case BankTxReturn:
         const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);

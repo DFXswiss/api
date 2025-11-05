@@ -181,13 +181,11 @@ export class HistoryService {
           ? await Util.asyncMap(buyFiats, (b) => this.buyFiatService.extendBuyFiat(b))
           : [];
 
-        const extendedRefRewards = await Util.asyncMap(refRewards, (r) => this.refRewardService.extendReward(r));
-
         return Util.sort(
           [
             ...TransactionDtoMapper.mapBuyCryptoTransactions(extendedBuyCryptos),
             ...TransactionDtoMapper.mapBuyFiatTransactions(extendedBuyFiats),
-            ...TransactionDtoMapper.mapReferralRewards(extendedRefRewards),
+            ...TransactionDtoMapper.mapReferralRewards(refRewards),
           ],
           'date',
           'DESC',

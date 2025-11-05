@@ -404,7 +404,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: stakingReward.outputDate,
           transactionType: ChainReportTransactionType.STAKING,
           inputAmount: stakingReward.outputAmount,
-          inputAsset: this.getAssetSymbol(stakingReward.outputAsset, Blockchain.DEFICHAIN),
+          inputAsset: this.getAssetSymbol(stakingReward.outputAssetString, Blockchain.DEFICHAIN),
           outputAmount: null,
           outputAsset: null,
           feeAmount:
@@ -413,7 +413,7 @@ export class ChainReportHistoryDtoMapper {
               : null,
           feeAsset:
             stakingReward.fee && stakingReward.fee != 0
-              ? this.getAssetSymbol(stakingReward.outputAsset, Blockchain.DEFICHAIN)
+              ? this.getAssetSymbol(stakingReward.outputAssetString, Blockchain.DEFICHAIN)
               : null,
           txid: stakingReward.txId,
           description: 'DFX Staking Reward',
@@ -511,7 +511,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: refReward.outputDate,
           transactionType: ChainReportTransactionType.REFERRAL_REWARD,
           inputAmount: refReward.outputAmount,
-          inputAsset: refReward.outputAsset,
+          inputAsset: refReward.outputAssetString,
           outputAmount: null,
           outputAsset: null,
           feeAmount: null,
@@ -557,7 +557,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: stakingRefReward.outputDate,
           transactionType: ChainReportTransactionType.REFERRAL_REWARD,
           inputAmount: stakingRefReward.outputAmount,
-          inputAsset: stakingRefReward.outputAsset,
+          inputAsset: stakingRefReward.outputAssetString,
           outputAmount: null,
           outputAsset: null,
           feeAmount: null,
