@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { CryptoStaking } from '../entities/crypto-staking.entity';
 import { StakingRefReward } from '../entities/staking-ref-reward.entity';
@@ -13,7 +17,22 @@ export class StakingService {
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly cryptoStakingRepo: CryptoStakingRepository,
+    private readonly assetService: AssetService,
   ) {}
+
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.STAKING_REWARD_OUTPUT_ENTITY_SYNC, timeout: 1800 })
+  async syncOutputEntity(): Promise<void> {
+    const entities = await this.stakingRewardRepo.find({
+      where: { outputAssetEntity: { id: IsNull() } },
+      relations: { staking: true },
+      take: 5000,
+    });
+
+    for (const entity of entities) {
+      if (entity.staking.rewardAsset.dexName === entity.outputAssetString)
+        await this.stakingRewardRepo.update(entity.id, { outputAssetEntity: entity.staking.rewardAsset });
+    }
+  }
 
   // --- HISTORY METHODS --- //
 
