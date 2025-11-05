@@ -81,8 +81,6 @@ export enum Process {
   BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
   AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
   ZANO_ASSET_WHITELIST = 'ZanoAssetWhitelist',
-  REF_REWARD_OUTPUT_ENTITY_SYNC = 'RefRewardOutputEntitySync',
-  STAKING_REWARD_OUTPUT_ENTITY_SYNC = 'StakingRewardOutputEntitySync',
 }
 
 const safetyProcesses: Process[] = [
