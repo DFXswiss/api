@@ -511,7 +511,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: refReward.outputDate,
           transactionType: ChainReportTransactionType.REFERRAL_REWARD,
           inputAmount: refReward.outputAmount,
-          inputAsset: refReward.outputAssetString,
+          inputAsset: refReward.outputAssetEntity.dexName,
           outputAmount: null,
           outputAsset: null,
           feeAmount: null,
@@ -529,7 +529,7 @@ export class ChainReportHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.REWARD_BONUS,
           buyAmount: refReward.outputAmount,
-          buyAsset: refReward.outputAsset,
+          buyAsset: refReward.outputAssetEntity.dexName,
           sellAmount: null,
           sellAsset: null,
           fee: null,
