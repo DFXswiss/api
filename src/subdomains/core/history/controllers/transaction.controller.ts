@@ -27,7 +27,6 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -87,7 +86,6 @@ import { ExportType, HistoryService } from '../services/history.service';
 export class TransactionController {
   private files: { [key: string]: StreamableFile } = {};
   private readonly refundList = new Map<number, RefundDataDto>();
-  private readonly logger = new DfxLogger(TransactionController);
 
   constructor(
     private readonly historyService: HistoryService,
@@ -665,10 +663,9 @@ export class TransactionController {
           : TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
 
       case RefReward:
-        const refRewardExtended = await this.refRewardService.extendReward(transaction.refReward);
         return detailed
-          ? TransactionDtoMapper.mapReferralRewardDetail(refRewardExtended)
-          : TransactionDtoMapper.mapReferralReward(refRewardExtended);
+          ? TransactionDtoMapper.mapReferralRewardDetail(transaction.refReward)
+          : TransactionDtoMapper.mapReferralReward(transaction.refReward);
 
       case BankTxReturn:
         const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);

@@ -1,11 +1,8 @@
 import { FeeAmount } from '@uniswap/v3-sdk';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 
 export class GnosisClient extends EvmClient {
-  private readonly logger = new DfxLogger(GnosisClient);
-
   constructor(params: EvmClientParams) {
     super(params);
   }

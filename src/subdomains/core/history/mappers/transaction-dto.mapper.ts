@@ -36,10 +36,6 @@ export class BuyFiatExtended extends BuyFiat {
   inputReferenceAssetEntity: Active;
 }
 
-export class RefRewardExtended extends RefReward {
-  outputAssetEntity: Active;
-}
-
 export class TransactionRequestExtended extends TransactionRequest {
   route: Buy | Sell | Swap;
   sourceAssetEntity: Active;
@@ -228,7 +224,7 @@ export class TransactionDtoMapper {
   }
 
   // RefReward
-  static mapReferralReward(refReward: RefRewardExtended): TransactionDto {
+  static mapReferralReward(refReward: RefReward): TransactionDto {
     const dto: TransactionDto = {
       id: refReward.transaction.id,
       uid: refReward.transaction.uid,
@@ -272,7 +268,7 @@ export class TransactionDtoMapper {
     return Object.assign(new TransactionDto(), dto);
   }
 
-  static mapReferralRewardDetail(refReward: RefRewardExtended): TransactionDetailDto {
+  static mapReferralRewardDetail(refReward: RefReward): TransactionDetailDto {
     return {
       ...this.mapReferralReward(refReward),
       sourceAccount: null,
@@ -280,7 +276,7 @@ export class TransactionDtoMapper {
     };
   }
 
-  static mapReferralRewards(refRewards: RefRewardExtended[]): TransactionDto[] {
+  static mapReferralRewards(refRewards: RefReward[]): TransactionDto[] {
     return refRewards.map(TransactionDtoMapper.mapReferralReward);
   }
 

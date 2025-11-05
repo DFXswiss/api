@@ -16,6 +16,11 @@ export class RefRewardJobService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.REF_REWARD_OUTPUT_ENTITY_SYNC, timeout: 1800 })
+  async syncEntities() {
+    await this.refRewardService.syncOutputEntity();
+  }
+
   @DfxCron(CronExpression.EVERY_DAY_AT_6AM, { process: Process.REF_PAYOUT, timeout: 1800 })
   async createPendingRefRewards() {
     await this.refRewardService.createPendingRefRewards();

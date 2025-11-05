@@ -20,7 +20,8 @@ environmentOptions=("loc" "dev" "prd")
 # "cdta": Citrus Dollar Testnet API
 # "cdtd": Citrus Dollar Testnet dApp
 # "cdtm": Citrus Dollar Testnet Monitoring
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "cdtp" "cdta" "cdtd" "cdtm")
+# "rup": realUnit Ponder
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "cdtp" "cdta" "cdtd" "cdtm" "rup")
 
 # --- FUNCTIONS --- #
 selectOption() {
