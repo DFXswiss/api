@@ -542,9 +542,9 @@ export class ChainReportHistoryDtoMapper {
           buyValueInEur: refReward.amountInEur,
           sellValueInEur: null,
           inputBlockchain: null,
-          outputBlockchain: null, // TODO: refReward.outputAsset.blockchain,
+          outputBlockchain: refReward.outputAssetEntity.blockchain,
           inputChainId: null,
-          outputChainId: null, // TODO: refReward.outputAsset.chainId,
+          outputChainId: refReward.outputAssetEntity.chainId,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
