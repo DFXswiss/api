@@ -58,15 +58,9 @@ export class ChainReportCsvHistoryDto {
 }
 
 export class ChainReportApiHistoryDto extends CoinTrackingApiHistoryDto {
-  @ApiProperty({ enum: Blockchain })
-  inputBlockchain: Blockchain;
+  @ApiPropertyOptional({ enum: Blockchain })
+  inputBlockchain?: Blockchain;
 
-  @ApiProperty({ enum: Blockchain })
-  outputBlockchain: Blockchain;
-
-  @ApiProperty()
-  inputChainId: string;
-
-  @ApiProperty()
-  outputChainId: string;
+  @ApiPropertyOptional({ enum: Blockchain })
+  outputBlockchain?: Blockchain;
 }

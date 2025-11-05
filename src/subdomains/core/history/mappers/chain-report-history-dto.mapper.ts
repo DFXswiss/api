@@ -118,8 +118,6 @@ export class ChainReportHistoryDtoMapper {
           sellValueInEur: null,
           inputBlockchain: buyCrypto.cryptoInput.asset.blockchain,
           outputBlockchain: buyCrypto.outputAsset.blockchain,
-          inputChainId: buyCrypto.cryptoInput.asset.chainId,
-          outputChainId: buyCrypto.outputAsset.chainId,
         },
         buyCrypto.inputAsset == buyCrypto.outputAsset?.dexName
           ? buyCrypto.percentFee && buyCrypto.inputAmount && buyCrypto.inputAsset
@@ -143,8 +141,6 @@ export class ChainReportHistoryDtoMapper {
                 sellValueInEur: (buyCrypto.amountInEur / buyCrypto.amountInChf) * buyCrypto.totalFeeAmountChf,
                 inputBlockchain: buyCrypto.cryptoInput.asset.blockchain,
                 outputBlockchain: buyCrypto.outputAsset.blockchain,
-                inputChainId: buyCrypto.cryptoInput.asset.chainId,
-                outputChainId: buyCrypto.outputAsset.chainId,
               }
             : null
           : {
@@ -171,8 +167,6 @@ export class ChainReportHistoryDtoMapper {
               sellValueInEur: buyCrypto.amountInEur,
               inputBlockchain: buyCrypto.cryptoInput.asset.blockchain,
               outputBlockchain: buyCrypto.outputAsset.blockchain,
-              inputChainId: buyCrypto.cryptoInput.asset.chainId,
-              outputChainId: buyCrypto.outputAsset.chainId,
             },
       ])
       .reduce((prev, curr) => prev.concat(curr), [])
@@ -262,8 +256,6 @@ export class ChainReportHistoryDtoMapper {
           sellValueInEur: null,
           inputBlockchain: null,
           outputBlockchain: buyCrypto.outputAsset.blockchain,
-          inputChainId: null,
-          outputChainId: buyCrypto.outputAsset.chainId,
         },
         {
           type: CoinTrackingTransactionType.TRADE,
@@ -284,8 +276,6 @@ export class ChainReportHistoryDtoMapper {
           sellValueInEur: buyCrypto.amountInEur,
           inputBlockchain: null,
           outputBlockchain: buyCrypto.outputAsset.blockchain,
-          inputChainId: null,
-          outputChainId: buyCrypto.outputAsset.chainId,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
@@ -370,8 +360,6 @@ export class ChainReportHistoryDtoMapper {
           sellValueInEur: buyFiat.amountInEur,
           inputBlockchain: buyFiat.cryptoInput.asset.blockchain,
           outputBlockchain: null,
-          inputChainId: buyFiat.cryptoInput.asset.chainId,
-          outputChainId: null,
         },
         {
           type: CoinTrackingTransactionType.WITHDRAWAL,
@@ -390,8 +378,6 @@ export class ChainReportHistoryDtoMapper {
           sellValueInEur: buyFiat.amountInEur,
           inputBlockchain: buyFiat.cryptoInput.asset.blockchain,
           outputBlockchain: null,
-          inputChainId: buyFiat.cryptoInput.asset.chainId,
-          outputChainId: null,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
@@ -543,8 +529,6 @@ export class ChainReportHistoryDtoMapper {
           sellValueInEur: null,
           inputBlockchain: null,
           outputBlockchain: refReward.outputAssetEntity.blockchain,
-          inputChainId: null,
-          outputChainId: refReward.outputAssetEntity.chainId,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
