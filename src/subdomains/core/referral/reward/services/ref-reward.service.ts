@@ -69,7 +69,7 @@ export class RefRewardService {
   ) {}
 
   async syncOutputEntity(): Promise<void> {
-    const entities = await this.rewardRepo.find({ where: { outputAssetEntity: { id: IsNull() } }, take: 5000 });
+    const entities = await this.rewardRepo.find({ where: { outputAsset: { id: IsNull() } }, take: 5000 });
 
     for (const entity of entities) {
       const asset = await this.assetService.getAssetByQuery({
@@ -78,7 +78,7 @@ export class RefRewardService {
         type: entity.outputAssetString === 'dEURO' ? AssetType.TOKEN : AssetType.COIN,
       });
 
-      await this.rewardRepo.update(entity.id, { outputAssetEntity: asset });
+      await this.rewardRepo.update(entity.id, { outputAsset: asset });
     }
   }
 
@@ -104,7 +104,7 @@ export class RefRewardService {
       user,
       targetAddress: user.address,
       outputAssetString: asset.dexName,
-      outputAssetEntity: asset,
+      outputAsset: asset,
       status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
       targetBlockchain: asset.blockchain,
       amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
@@ -167,7 +167,7 @@ export class RefRewardService {
 
         const entity = this.rewardRepo.create({
           outputAssetString: payoutAsset.dexName,
-          outputAssetEntity: payoutAsset,
+          outputAsset: payoutAsset,
           user,
           status: refCreditEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
           targetAddress: user.address,
