@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Headers,
   NotFoundException,
+  Param,
   Post,
   Query,
   Res,
@@ -63,44 +65,41 @@ export class HistoryController {
     return this.transactionController.getHistoryData(query, ExportType.COMPACT, res);
   }
 
-  @Get('CT')
+  @Get(':exportType')
   @ApiOkResponse({ type: CoinTrackingApiHistoryDto, isArray: true })
-  @ApiExcludeEndpoint()
-  @ParallelQueue(5)
-  async getCoinTrackingApiHistory(
-    @Query() query: HistoryQuery,
-    @Headers('DFX-ACCESS-KEY') key: string,
-    @Headers('DFX-ACCESS-SIGN') sign: string,
-    @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
-  ): Promise<CoinTrackingApiHistoryDto[]> {
-    const user = key.endsWith('0')
-      ? await this.userService.checkApiKey(key, sign, timestamp)
-      : await this.userDataService.checkApiKey(key, sign, timestamp);
-    query = Object.assign(query, ApiKeyService.getFilter(user.apiFilterCT));
-
-    return this.historyService.getApiHistory(user, { format: ExportFormat.JSON, ...query }, ExportType.COIN_TRACKING);
-  }
-
-  @Get('CR')
   @ApiOkResponse({ type: ChainReportApiHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
   @ParallelQueue(5)
-  async getChainReportApiHistory(
+  async getApiHistory(
     @Query() query: HistoryQuery,
     @Headers('DFX-ACCESS-KEY') key: string,
     @Headers('DFX-ACCESS-SIGN') sign: string,
     @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
-  ): Promise<ChainReportApiHistoryDto[]> {
+    @Param('exportType') exportType: string,
+  ): Promise<CoinTrackingApiHistoryDto[] | ChainReportApiHistoryDto[]> {
     const user = key.endsWith('0')
       ? await this.userService.checkApiKey(key, sign, timestamp)
       : await this.userDataService.checkApiKey(key, sign, timestamp);
     query = Object.assign(query, ApiKeyService.getFilter(user.apiFilterCT));
 
-    return (await this.historyService.getApiHistory(
-      user,
-      { format: ExportFormat.JSON, ...query },
-      ExportType.CHAIN_REPORT,
-    )) as ChainReportApiHistoryDto[];
+    switch (exportType) {
+      case 'CT':
+        return this.historyService.getApiHistory(
+          user,
+          { format: ExportFormat.JSON, ...query },
+          ExportType.COIN_TRACKING,
+        );
+
+      case 'CR':
+        return (await this.historyService.getApiHistory(
+          user,
+          { format: ExportFormat.JSON, ...query },
+          ExportType.CHAIN_REPORT,
+        )) as ChainReportApiHistoryDto[];
+
+      default:
+        throw new BadRequestException('ExportType not supported');
+    }
   }
 
   @Post('csv')
