@@ -1,5 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column } from 'typeorm';
+import { Column, ManyToOne } from 'typeorm';
+import { Asset } from './asset/asset.entity';
 
 export class Reward extends IEntity {
   @Column({ type: 'float', nullable: true })
@@ -24,7 +25,10 @@ export class Reward extends IEntity {
   outputAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  outputAsset?: string;
+  outputAssetString?: string;
+
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  outputAssetEntity?: Asset;
 
   @Column({ length: 256, nullable: true })
   txId?: string;
