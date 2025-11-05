@@ -245,7 +245,7 @@ export class BuyController {
       annualVolume: buy.annualVolume,
       bankUsage: buy.active ? buy.bankUsage : undefined,
       asset: AssetDtoMapper.toDto(buy.asset),
-      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.dfx.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee: { amount: fee.network, asset: 'CHF' },
     };

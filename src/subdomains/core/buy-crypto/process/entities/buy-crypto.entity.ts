@@ -21,7 +21,7 @@ import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.en
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
@@ -463,7 +463,7 @@ export class BuyCrypto extends IEntity {
   }
 
   setFeeAndFiatReference(
-    fee: InternalFeeDto & FeeDto,
+    fee: InternalFeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
@@ -483,7 +483,7 @@ export class BuyCrypto extends IEntity {
             totalFeeAmountChf,
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
-            partnerFeeAmount: fee.platform,
+            partnerFeeAmount: fee.partner,
             inputReferenceAmountMinusFee,
             usedRef,
             refProvision,
