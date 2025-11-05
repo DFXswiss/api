@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -9,7 +10,6 @@ import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto'
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
-import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
@@ -42,7 +42,6 @@ export class HistoryService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
     private readonly stakingService: StakingService,
-    private readonly refRewardService: RefRewardService,
     private readonly transactionService: TransactionService,
   ) {}
 
@@ -129,9 +128,24 @@ export class HistoryService {
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
-    const buyCryptos = all || query.buy ? transactions.filter((t) => t.buyCrypto).map((t) => t.buyCrypto) : [];
+    const blockchainFilter = query.blockchains
+      ?.split(';')
+      .map((b) => Object.values(Blockchain).find((blockchain) => blockchain === b))
+      .filter((b) => b);
+
+    const buyCryptos =
+      all || query.buy
+        ? transactions
+            .filter((t) => t.buyCrypto && blockchainFilter.includes(t.buyCrypto.outputAsset.blockchain))
+            .map((t) => t.buyCrypto)
+        : [];
     const buyFiats = all || query.sell ? transactions.filter((t) => t.buyFiat).map((t) => t.buyFiat) : [];
-    const refRewards = all || query.ref ? transactions.filter((t) => t.refReward).map((t) => t.refReward) : [];
+    const refRewards =
+      all || query.ref
+        ? transactions
+            .filter((t) => t.refReward && blockchainFilter.includes(t.refReward.outputAssetEntity.blockchain))
+            .map((t) => t.refReward)
+        : [];
 
     return { buyCryptos, buyFiats, refRewards };
   }
