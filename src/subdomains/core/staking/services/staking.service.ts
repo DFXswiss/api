@@ -14,7 +14,6 @@ export class StakingService {
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly cryptoStakingRepo: CryptoStakingRepository,
-    private readonly assetService: AssetService,
   ) {}
 
   // --- HISTORY METHODS --- //
