@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Between, In, IsNull, Not } from 'typeorm';
@@ -17,7 +16,6 @@ export class StakingService {
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly cryptoStakingRepo: CryptoStakingRepository,
-    private readonly assetService: AssetService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.STAKING_REWARD_OUTPUT_ENTITY_SYNC, timeout: 1800 })
