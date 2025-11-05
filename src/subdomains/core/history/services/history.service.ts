@@ -87,7 +87,7 @@ export class HistoryService {
     query: HistoryQuery,
     exportType: T,
   ): Promise<HistoryDto<T>[]> {
-    return (await this.getHistoryInternal(user, query, exportType)) as HistoryDto<T>[];
+    return (await this.getCompleteHistoryDto(user, query, exportType)) as HistoryDto<T>[];
   }
 
   async getCsvHistory<T extends ExportType>(query: HistoryQueryUser, exportFormat: T): Promise<StreamableFile> {
@@ -101,10 +101,10 @@ export class HistoryService {
     const user = await this.userService.getUserByAddress(query.userAddress);
     if (!user) throw new NotFoundException('User not found');
 
-    return this.getHistoryInternal(user, query, exportType);
+    return this.getCompleteHistoryDto(user, query, exportType);
   }
 
-  async getHistoryInternal<T extends ExportType>(
+  private async getCompleteHistoryDto<T extends ExportType>(
     user: User | UserData,
     query: HistoryQuery,
     exportType: T,
@@ -117,7 +117,7 @@ export class HistoryService {
     return query.format === ExportFormat.CSV ? this.getCsv(txArray, exportType) : txArray;
   }
 
-  async getHistoryTransactions(
+  private async getHistoryTransactions(
     user: User | UserData,
     query: HistoryQuery,
   ): Promise<{ buyCryptos: BuyCrypto[]; buyFiats: BuyFiat[]; refRewards: RefReward[] }> {

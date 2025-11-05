@@ -50,7 +50,7 @@ export class CoinTrackingHistoryDtoMapper {
                 type: CoinTrackingTransactionType.OTHER_FEE,
                 buyAmount: null,
                 buyAsset: null,
-                sellAmount: buyCrypto.percentFee * buyCrypto.inputAmount,
+                sellAmount: buyCrypto.totalFeeAmount,
                 sellAsset: this.getAssetSymbol(
                   buyCrypto.cryptoInput.asset.dexName,
                   buyCrypto.cryptoInput.asset.blockchain,
@@ -63,7 +63,7 @@ export class CoinTrackingHistoryDtoMapper {
                 date: buyCrypto.outputDate,
                 txid: buyCrypto.txId,
                 buyValueInEur: null,
-                sellValueInEur: buyCrypto.amountInEur,
+                sellValueInEur: (buyCrypto.amountInEur / buyCrypto.amountInChf) * buyCrypto.totalFeeAmountChf,
               }
             : null
           : {
