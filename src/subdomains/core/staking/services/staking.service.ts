@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { CryptoStaking } from '../entities/crypto-staking.entity';
 import { StakingRefReward } from '../entities/staking-ref-reward.entity';
