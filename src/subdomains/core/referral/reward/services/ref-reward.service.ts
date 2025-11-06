@@ -90,6 +90,7 @@ export class RefRewardService {
       user,
       targetAddress: user.address,
       outputAsset: asset,
+      sourceTransaction,
       status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
       targetBlockchain: asset.blockchain,
       amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
