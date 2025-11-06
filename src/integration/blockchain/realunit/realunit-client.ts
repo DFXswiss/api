@@ -11,16 +11,16 @@ export class RealunitClient {
 
   async getAccountSummary(address: string): Promise<AccountSummaryClientResponse> {
     const accountSummaryQuery = getAccountSummaryQuery(address);
-    return await request<AccountSummaryClientResponse>(this.ponderUrl, accountSummaryQuery);
+    return request<AccountSummaryClientResponse>(this.ponderUrl, accountSummaryQuery);
   }
 
   async getHolders(first?: number, after?: string): Promise<HoldersClientResponse> {
     const holdersQuery = getHoldersQuery(first, after);
-    return await request<HoldersClientResponse>(this.ponderUrl, holdersQuery);
+    return request<HoldersClientResponse>(this.ponderUrl, holdersQuery);
   }
 
   async getAccountHistory(address: string, first?: number, after?: string): Promise<AccountHistoryClientResponse> {
     const accountHistoryQuery = getAccountHistoryQuery(address, first, after);
-    return await request<AccountHistoryClientResponse>(this.ponderUrl, accountHistoryQuery);
+    return request<AccountHistoryClientResponse>(this.ponderUrl, accountHistoryQuery);
   }
 }
