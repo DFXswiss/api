@@ -1,13 +1,13 @@
 import {
   ChangeTotalShares,
   HistoricalBalance,
-  HolderClientResponse,
   HistoryEvent,
+  HolderClientResponse,
   PageInfo,
   TotalSupply,
 } from './client.dto';
 
-export class AccountSummaryDto {
+export class AccountSummaryResponse {
   address: string;
   addressType: string;
   balance: string;
@@ -21,7 +21,7 @@ export class HolderDto implements HolderClientResponse {
   percentage: number;
 }
 
-export class HoldersDto {
+export class HoldersResponse {
   totalShares: ChangeTotalShares | null;
   totalSupply: TotalSupply | null;
   holders: HolderDto[];
@@ -29,7 +29,7 @@ export class HoldersDto {
   totalCount: number;
 }
 
-export class AccountHistoryDto {
+export class AccountHistoryResponse {
   address: string;
   addressType: string;
   history: HistoryEvent[];

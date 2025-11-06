@@ -1,11 +1,12 @@
+import { Util } from 'src/shared/utils/util';
 import { AccountHistoryClientResponse, AccountSummaryClientResponse, HoldersClientResponse } from './client.dto';
-import { AccountHistoryDto, AccountSummaryDto, HoldersDto } from './realunit.dto';
+import { AccountHistoryResponse, AccountSummaryResponse, HoldersResponse } from './realunit.dto';
 
-export class RealunitDtoMapper {
-  static toAccountSummaryDto(clientResponse: AccountSummaryClientResponse): AccountSummaryDto {
+export class RealUnitDtoMapper {
+  static toAccountSummaryDto(clientResponse: AccountSummaryClientResponse): AccountSummaryResponse {
     const account = clientResponse.account;
 
-    const dto = new AccountSummaryDto();
+    const dto = new AccountSummaryResponse();
     dto.address = account.address;
     dto.addressType = account.addressType;
     dto.balance = account.balance;
@@ -15,8 +16,8 @@ export class RealunitDtoMapper {
     return dto;
   }
 
-  static toHoldersDto(clientResponse: HoldersClientResponse): HoldersDto {
-    const dto = new HoldersDto();
+  static toHoldersDto(clientResponse: HoldersClientResponse): HoldersResponse {
+    const dto = new HoldersResponse();
 
     dto.totalShares = clientResponse.changeTotalShares.items[0];
     dto.totalSupply = clientResponse.totalSupplys.items[0];
@@ -24,7 +25,7 @@ export class RealunitDtoMapper {
     dto.holders = clientResponse.accounts.items.map((holder) => ({
       address: holder.address,
       balance: holder.balance,
-      percentage: (100 * Number(holder.balance)) / Number(dto.totalSupply.value),
+      percentage: Util.round((100 * Number(holder.balance)) / Number(dto.totalSupply.value), 3),
     }));
 
     dto.pageInfo = clientResponse.accounts.pageInfo;
@@ -33,11 +34,11 @@ export class RealunitDtoMapper {
     return dto;
   }
 
-  static toAccountHistoryDto(clientResponse: AccountHistoryClientResponse): AccountHistoryDto {
+  static toAccountHistoryDto(clientResponse: AccountHistoryClientResponse): AccountHistoryResponse {
     const account = clientResponse.account;
     const history = account.history;
 
-    const dto = new AccountHistoryDto();
+    const dto = new AccountHistoryResponse();
     dto.address = account.address;
     dto.addressType = account.addressType;
     dto.history = history.items.map((event) => ({

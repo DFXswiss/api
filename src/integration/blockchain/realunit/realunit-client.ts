@@ -3,7 +3,7 @@ import { GetConfig } from 'src/config/config';
 import { AccountHistoryClientResponse, AccountSummaryClientResponse, HoldersClientResponse } from './dto/client.dto';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery } from './utils/queries';
 
-export class RealunitClient {
+export class RealUnitClient {
   ponderUrl: string;
   constructor() {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;

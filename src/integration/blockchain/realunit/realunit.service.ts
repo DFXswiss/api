@@ -1,24 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { RealunitDtoMapper } from './dto/realunit-dto.mapper';
-import { AccountHistoryDto, AccountSummaryDto, HoldersDto } from './dto/realunit.dto';
-import { RealunitClient } from './realunit-client';
+import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
+import { AccountHistoryResponse, AccountSummaryResponse, HoldersResponse } from './dto/realunit.dto';
+import { RealUnitClient } from './realunit-client';
 
 @Injectable()
-export class RealunitService {
-  constructor(private readonly realunitClient: RealunitClient) {}
+export class RealUnitService {
+  constructor(private readonly realunitClient: RealUnitClient) {}
 
-  async getAccount(address: string): Promise<AccountSummaryDto> {
+  async getAccount(address: string): Promise<AccountSummaryResponse> {
     const clientResponse = await this.realunitClient.getAccountSummary(address);
-    return RealunitDtoMapper.toAccountSummaryDto(clientResponse);
+    return RealUnitDtoMapper.toAccountSummaryDto(clientResponse);
   }
 
-  async getHolders(first?: number, after?: string): Promise<HoldersDto> {
+  async getHolders(first?: number, after?: string): Promise<HoldersResponse> {
     const clientResponse = await this.realunitClient.getHolders(first, after);
-    return RealunitDtoMapper.toHoldersDto(clientResponse);
+    return RealUnitDtoMapper.toHoldersDto(clientResponse);
   }
 
-  async getAccountHistory(address: string, first?: number, after?: string): Promise<AccountHistoryDto> {
+  async getAccountHistory(address: string, first?: number, after?: string): Promise<AccountHistoryResponse> {
     const clientResponse = await this.realunitClient.getAccountHistory(address, first, after);
-    return RealunitDtoMapper.toAccountHistoryDto(clientResponse);
+    return RealUnitDtoMapper.toAccountHistoryDto(clientResponse);
   }
 }

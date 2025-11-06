@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { SharedModule } from 'src/shared/shared.module';
-import { RealunitController } from './controllers/realunit.controller';
-import { RealunitClient } from './realunit-client';
-import { RealunitService } from './realunit.service';
+import { RealUnitController } from './controllers/realunit.controller';
+import { RealUnitClient } from './realunit-client';
+import { RealUnitService } from './realunit.service';
 
 @Module({
   imports: [SharedModule],
-  controllers: [RealunitController],
-  providers: [RealunitService, RealunitClient],
-  exports: [RealunitService],
+  controllers: [RealUnitController],
+  providers: [RealUnitService, RealUnitClient],
+  exports: [RealUnitService],
 })
 export class RealunitModule {}
