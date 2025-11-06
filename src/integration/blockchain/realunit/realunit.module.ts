@@ -10,4 +10,4 @@ import { RealUnitService } from './realunit.service';
   providers: [RealUnitService, RealUnitClient],
   exports: [RealUnitService],
 })
-export class RealunitModule {}
+export class RealUnitModule {}
