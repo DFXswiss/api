@@ -6,7 +6,7 @@ import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
-import { SellService } from '../../sell-crypto/route/sell.service';
+import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { StickerQrMode, StickerType } from '../enums';
 import { PaymentLinkService } from './payment-link.service';
@@ -14,7 +14,7 @@ import { PaymentLinkService } from './payment-link.service';
 @Injectable()
 export class OCPStickerService {
   constructor(
-    private readonly sellService: SellService,
+    private readonly depositRouteService: DepositRouteService,
     private readonly i18n: I18nService,
     private readonly paymentLinkService: PaymentLinkService,
   ) {}
@@ -350,7 +350,7 @@ export class OCPStickerService {
     externalIds?: string[],
     ids?: number[],
   ): Promise<PaymentLink[]> {
-    const linksFromDb = await this.sellService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
+    const linksFromDb = await this.depositRouteService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
     const linkMapByExternalId = new Map(linksFromDb.map((link) => [link.externalId, link]));
     const linkMapById = new Map(linksFromDb.map((link) => [link.id, link]));
     const linksByExternalId = externalIds?.map((extId) => linkMapByExternalId.get(extId)).filter(Boolean) || [];

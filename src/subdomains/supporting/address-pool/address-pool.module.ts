@@ -12,6 +12,7 @@ import { DepositRepository } from './deposit/deposit.repository';
 import { DepositService } from './deposit/deposit.service';
 import { DepositRoute } from './route/deposit-route.entity';
 import { DepositRouteRepository } from './route/deposit-route.repository';
+import { DepositRouteService } from './route/deposit-route.service';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { DepositRouteRepository } from './route/deposit-route.repository';
     TatumModule,
   ],
   controllers: [DepositController],
-  providers: [DepositRepository, DepositRouteRepository, DepositService],
-  exports: [DepositService],
+  providers: [DepositRepository, DepositRouteRepository, DepositRouteService, DepositService],
+  exports: [DepositService, DepositRouteService],
 })
 export class AddressPoolModule {}

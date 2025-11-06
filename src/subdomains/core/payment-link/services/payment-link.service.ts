@@ -15,9 +15,10 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
 import { In, Not } from 'typeorm';
-import { Sell } from '../../sell-crypto/route/sell.entity';
-import { SellService } from '../../sell-crypto/route/sell.service';
+import { isSellRoute } from '../../sell-crypto/route/sell.entity';
 import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
@@ -51,7 +52,7 @@ export class PaymentLinkService {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly userDataService: UserDataService,
-    private readonly sellService: SellService,
+    private readonly depositRouteService: DepositRouteService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
@@ -133,12 +134,12 @@ export class PaymentLinkService {
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const route = dto.route
-      ? await this.sellService.getByLabel(userId, dto.route)
+      ? await this.depositRouteService.getByLabel(userId, dto.route)
       : dto.routeId
-      ? await this.sellService.get(userId, dto.routeId)
-      : await this.sellService.getLatest(userId);
+      ? await this.depositRouteService.get(userId, dto.routeId)
+      : await this.depositRouteService.getLatest(userId);
 
-    this.sellService.validateLightningRoute(route);
+    this.depositRouteService.validateLightningRoute(route);
 
     if (dto.externalId) {
       const exists = await this.paymentLinkRepo.existsBy({
@@ -154,10 +155,10 @@ export class PaymentLinkService {
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
     const route = dto.route
-      ? await this.sellService.getByLabel(undefined, dto.route)
-      : await this.sellService.getById(+dto.routeId);
+      ? await this.depositRouteService.getByLabel(undefined, dto.route)
+      : await this.depositRouteService.getById(+dto.routeId);
 
-    this.sellService.validateLightningRoute(route);
+    this.depositRouteService.validateLightningRoute(route);
 
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
@@ -209,7 +210,7 @@ export class PaymentLinkService {
     }
   }
 
-  private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
+  private async createForRoute(route: DepositRoute, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const paymentLink = this.paymentLinkRepo.create({
       route,
       externalId: dto.externalId,
@@ -342,7 +343,7 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       route: paymentLink.route.route.label,
-      currency: paymentLink.route.fiat?.name,
+      currency: isSellRoute(paymentLink.route) ? paymentLink.route.fiat?.name : undefined,
       displayQr,
       recipient: paymentLink.configObj.recipient,
       mode: paymentLink.mode,
@@ -477,7 +478,7 @@ export class PaymentLinkService {
     });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
-    const route = await this.sellService.getPaymentRoutesForPublicName(dto.publicName).then((l) => l.at(0));
+    const route = await this.depositRouteService.getPaymentRoutesForPublicName(dto.publicName).then((l) => l.at(0));
     if (!route) throw new NotFoundException('No matching payment route found');
 
     await this.updatePaymentLinkInternal(paymentLink, { status: PaymentLinkStatus.ACTIVE, route });
@@ -486,7 +487,7 @@ export class PaymentLinkService {
   }
 
   async getLocations(publicName: string): Promise<PaymentLinkRecipientAddressDto[]> {
-    const routes = await this.sellService.getPaymentRoutesForPublicName(publicName);
+    const routes = await this.depositRouteService.getPaymentRoutesForPublicName(publicName);
     const paymentLinks = await this.paymentLinkRepo.find({
       where: { route: { id: In(routes.map((r) => r.id)) } },
       relations: { route: { user: { userData: true } } },
@@ -522,7 +523,7 @@ export class PaymentLinkService {
     const existingPaymentLink = await this.getPaymentLinkByAccessKey(key, externalLinkId).catch(() => null);
     if (!existingPaymentLink && !routeLabel) throw new BadRequestException('Route label is required');
 
-    const route = existingPaymentLink?.route ?? (await this.sellService.getByLabel(undefined, routeLabel));
+    const route = existingPaymentLink?.route ?? (await this.depositRouteService.getByLabel(undefined, routeLabel));
     if (!route) throw new NotFoundException('Route not found');
 
     const plAccessKeys = existingPaymentLink?.linkConfigObj?.accessKeys ?? [];
@@ -544,7 +545,7 @@ export class PaymentLinkService {
   }
 
   async getPublicPaymentLink(routeLabel: string, externalLinkId: string): Promise<PaymentLink> {
-    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    const route = await this.depositRouteService.getByLabel(undefined, routeLabel);
     if (!route) throw new NotFoundException('Route not found');
 
     const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
