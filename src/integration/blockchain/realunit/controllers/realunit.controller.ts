@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { AccountHistoryResponse, AccountSummaryResponse, HoldersResponse } from '../dto/realunit.dto';
+import { AccountHistoryDto, AccountSummaryDto, HoldersDto } from '../dto/realunit.dto';
 import { RealUnitService } from '../realunit.service';
 
 @ApiTags('Realunit')
@@ -13,9 +13,9 @@ export class RealUnitController {
     summary: 'Get account information',
     description: 'Retrieves account information for a specific address on the Realunit protocol',
   })
-  @ApiOkResponse({ type: AccountSummaryResponse })
+  @ApiOkResponse({ type: AccountSummaryDto })
   @ApiParam({ name: 'address', type: String })
-  async getAccountSummary(@Param('address') address: string): Promise<AccountSummaryResponse> {
+  async getAccountSummary(@Param('address') address: string): Promise<AccountSummaryDto> {
     return this.realunitService.getAccount(address);
   }
 
@@ -24,7 +24,7 @@ export class RealUnitController {
     summary: 'Get account history',
     description: 'Retrieves a paginated transaction history for a specific address on the Realunit protocol',
   })
-  @ApiOkResponse({ type: AccountHistoryResponse })
+  @ApiOkResponse({ type: AccountHistoryDto })
   @ApiParam({
     name: 'address',
     description: 'The wallet address to query',
@@ -45,7 +45,7 @@ export class RealUnitController {
     @Param('address') address: string,
     @Query('first') first?: number,
     @Query('after') after?: string,
-  ): Promise<AccountHistoryResponse> {
+  ): Promise<AccountHistoryDto> {
     return this.realunitService.getAccountHistory(address, first, after);
   }
 
@@ -67,8 +67,8 @@ export class RealUnitController {
     description:
       'Cursor for pagination - return holders after this cursor, cursor is the endCursor of the previous page',
   })
-  @ApiOkResponse({ type: HoldersResponse })
-  async getHolders(@Query('first') first?: number, @Query('after') after?: string): Promise<HoldersResponse> {
+  @ApiOkResponse({ type: HoldersDto })
+  async getHolders(@Query('first') first?: number, @Query('after') after?: string): Promise<HoldersDto> {
     return this.realunitService.getHolders(first, after);
   }
 }

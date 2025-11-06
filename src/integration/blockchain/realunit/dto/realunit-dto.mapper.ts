@@ -1,12 +1,12 @@
 import { Util } from 'src/shared/utils/util';
 import { AccountHistoryClientResponse, AccountSummaryClientResponse, HoldersClientResponse } from './client.dto';
-import { AccountHistoryResponse, AccountSummaryResponse, HoldersResponse } from './realunit.dto';
+import { AccountHistoryDto, AccountSummaryDto, HoldersDto } from './realunit.dto';
 
 export class RealUnitDtoMapper {
-  static toAccountSummaryDto(clientResponse: AccountSummaryClientResponse): AccountSummaryResponse {
+  static toAccountSummaryDto(clientResponse: AccountSummaryClientResponse): AccountSummaryDto {
     const account = clientResponse.account;
 
-    const dto = new AccountSummaryResponse();
+    const dto = new AccountSummaryDto();
     dto.address = account.address;
     dto.addressType = account.addressType;
     dto.balance = account.balance;
@@ -16,8 +16,8 @@ export class RealUnitDtoMapper {
     return dto;
   }
 
-  static toHoldersDto(clientResponse: HoldersClientResponse): HoldersResponse {
-    const dto = new HoldersResponse();
+  static toHoldersDto(clientResponse: HoldersClientResponse): HoldersDto {
+    const dto = new HoldersDto();
 
     dto.totalShares = clientResponse.changeTotalShares.items[0];
     dto.totalSupply = clientResponse.totalSupplys.items[0];
@@ -34,11 +34,11 @@ export class RealUnitDtoMapper {
     return dto;
   }
 
-  static toAccountHistoryDto(clientResponse: AccountHistoryClientResponse): AccountHistoryResponse {
+  static toAccountHistoryDto(clientResponse: AccountHistoryClientResponse): AccountHistoryDto {
     const account = clientResponse.account;
     const history = account.history;
 
-    const dto = new AccountHistoryResponse();
+    const dto = new AccountHistoryDto();
     dto.address = account.address;
     dto.addressType = account.addressType;
     dto.history = history.items.map((event) => ({
