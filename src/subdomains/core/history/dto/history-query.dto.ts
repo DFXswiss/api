@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExportType } from '../services/history.service';
 import { HistoryFilter } from './history-filter.dto';
 
@@ -13,7 +14,7 @@ export class HistoryQuery extends HistoryFilter {
   @ApiPropertyOptional({ enum: ExportFormat })
   @IsOptional()
   @IsEnum(ExportFormat)
-  format: ExportFormat;
+  format?: ExportFormat;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -26,6 +27,11 @@ export class HistoryQuery extends HistoryFilter {
   @IsDate()
   @Type(() => Date)
   to?: Date;
+
+  @ApiPropertyOptional({ enum: Blockchain, description: 'Semicolon separated string of Blockchains' })
+  @IsOptional()
+  @IsString()
+  blockchains?: string;
 }
 
 export class HistoryQueryUser extends HistoryQuery {
