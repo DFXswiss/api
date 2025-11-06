@@ -206,7 +206,7 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.STAKING,
           buyAmount: stakingReward.outputAmount,
-          buyAsset: this.getAssetSymbol(stakingReward.outputAssetString, Blockchain.DEFICHAIN),
+          buyAsset: this.getAssetSymbol(stakingReward.outputAsset.dexName, Blockchain.DEFICHAIN),
           sellAmount: null,
           sellAsset: null,
           fee:
@@ -215,7 +215,7 @@ export class CoinTrackingHistoryDtoMapper {
               : null,
           feeAsset:
             stakingReward.fee && stakingReward.fee != 0
-              ? this.getAssetSymbol(stakingReward.outputAssetString, Blockchain.DEFICHAIN)
+              ? this.getAssetSymbol(stakingReward.outputAsset.dexName, Blockchain.DEFICHAIN)
               : null,
           exchange: stakingReward.payoutType === PayoutType.REINVEST ? 'DFX Staking' : 'DFX',
           tradeGroup: stakingReward.payoutType === PayoutType.REINVEST ? 'Staking' : null,
@@ -334,7 +334,7 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.REWARD_BONUS,
           buyAmount: refReward.outputAmount,
-          buyAsset: refReward.outputAssetString,
+          buyAsset: refReward.outputAsset.dexName,
           sellAmount: null,
           sellAsset: null,
           fee: null,
@@ -357,7 +357,7 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.REWARD_BONUS,
           buyAmount: stakingRefReward.outputAmount,
-          buyAsset: stakingRefReward.outputAssetString,
+          buyAsset: stakingRefReward.outputAsset.dexName,
           sellAmount: null,
           sellAsset: null,
           fee: null,

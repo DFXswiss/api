@@ -240,10 +240,10 @@ export class TransactionDtoMapper {
       rate: null,
       outputAmount:
         refReward.outputAmount != null
-          ? Util.roundReadable(refReward.outputAmount, amountType(refReward.outputAssetEntity))
+          ? Util.roundReadable(refReward.outputAmount, amountType(refReward.outputAsset))
           : null,
-      outputAsset: refReward.outputAssetEntity.name,
-      outputAssetId: refReward.outputAssetEntity?.id,
+      outputAsset: refReward.outputAsset.name,
+      outputAssetId: refReward.outputAsset?.id,
       outputBlockchain: refReward.targetBlockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       outputDate: refReward.outputDate,
