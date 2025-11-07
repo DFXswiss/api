@@ -4,7 +4,8 @@ import { KrakenService } from 'src/integration/exchange/services/kraken.service'
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { MexcService } from 'src/integration/exchange/services/mexc.service';
 import { XtService } from 'src/integration/exchange/services/xt.service';
-import { Active, activesEqual, isFiat } from 'src/shared/models/active';
+import { Active, activesEqual, isAsset, isFiat } from 'src/shared/models/active';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -17,6 +18,7 @@ import { PriceRule, PriceSource, Rule } from '../domain/entities/price-rule.enti
 import { PriceInvalidException } from '../domain/exceptions/price-invalid.exception';
 import { PricingProviderMap } from '../domain/interfaces';
 import { PriceRuleRepository } from '../repositories/price-rule.repository';
+import { AssetPricesService } from './asset-prices.service';
 import { CoinGeckoService } from './integration/coin-gecko.service';
 import { CurrencyService } from './integration/currency.service';
 import { FixerService } from './integration/fixer.service';
@@ -52,6 +54,7 @@ export class PricingService implements OnModuleInit {
     private readonly priceRuleRepo: PriceRuleRepository,
     private readonly notificationService: NotificationService,
     private readonly fiatService: FiatService,
+    private readonly assetPriceService: AssetPricesService,
     readonly krakenService: KrakenService,
     readonly binanceService: BinanceService,
     readonly kucoinService: KucoinService,
@@ -95,10 +98,74 @@ export class PricingService implements OnModuleInit {
     validity: PriceValidity,
     tryCount = 2,
   ): Promise<Price> {
-    const fromAsset = typeof from === 'object' ? from : this.fiatMap.get(from);
-    const toAsset = typeof to === 'object' ? to : this.fiatMap.get(to);
+    const fromActive = this.getEntity(from);
+    const toActive = this.getEntity(to);
 
-    return this.getAssetPrice(fromAsset, toAsset, validity, tryCount);
+    return this.getAssetPrice(fromActive, toActive, validity, tryCount);
+  }
+
+  async getPriceAt(from: Active | PriceCurrency, to: Active | PriceCurrency, date: Date): Promise<Price> {
+    const fromActive = this.getEntity(from);
+    const toActive = this.getEntity(to);
+
+    if (isAsset(fromActive)) {
+      if (isAsset(toActive)) {
+        // asset -> asset
+        const [fromPrice, toPrice] = await Promise.all([
+          this.getHistoricalAssetPrice(this.fiatMap.get(PriceCurrency.CHF), fromActive, date),
+          this.getHistoricalAssetPrice(this.fiatMap.get(PriceCurrency.CHF), toActive, date),
+        ]);
+        return Price.join(fromPrice.invert(), toPrice);
+      } else {
+        // asset -> fiat
+        return this.getHistoricalAssetPrice(toActive, fromActive, date).then((p) => p.invert());
+      }
+    } else if (isAsset(toActive)) {
+      // fiat -> asset
+      return this.getHistoricalAssetPrice(fromActive, toActive, date);
+    }
+
+    throw new Error(`No historical price available for ${this.itemString(fromActive)} -> ${this.itemString(toActive)}`);
+  }
+
+  async getPriceFrom(source: PriceSource, from: string, to: string, param?: string): Promise<Price> {
+    return this.providerMap[source].getPrice(from, to, param);
+  }
+
+  async updatePrices(): Promise<void> {
+    const rules = await this.priceRuleRepo.find();
+    for (const rule of rules) {
+      await this.doUpdatePriceFor(rule);
+    }
+  }
+
+  // --- PRIVATE METHODS --- //
+  private getEntity(asset: Active | PriceCurrency): Active {
+    return typeof asset === 'object' ? asset : this.fiatMap.get(asset);
+  }
+
+  private async getHistoricalAssetPrice(fiat: Fiat, asset: Asset, date: Date): Promise<Price> {
+    const price = await this.assetPriceService.getAssetPriceAt(asset, date);
+
+    let priceValue: number;
+
+    const currency = Util.toEnum(PriceCurrency, fiat.name);
+    switch (currency) {
+      case PriceCurrency.USD:
+        priceValue = price?.priceUsd;
+        break;
+      case PriceCurrency.CHF:
+        priceValue = price?.priceChf;
+        break;
+      case PriceCurrency.EUR:
+        priceValue = price?.priceEur;
+        break;
+    }
+
+    if (!priceValue)
+      throw new Error(`No price found for ${this.itemString(fiat)} -> ${this.itemString(asset)} on ${date}`);
+
+    return Price.create(currency, asset.name, priceValue, false, date);
   }
 
   private async getAssetPrice(from: Active, to: Active, validity: PriceValidity, tryCount: number): Promise<Price> {
@@ -139,18 +206,6 @@ export class PricingService implements OnModuleInit {
     }
   }
 
-  async updatePrices(): Promise<void> {
-    const rules = await this.priceRuleRepo.find();
-    for (const rule of rules) {
-      await this.doUpdatePriceFor(rule);
-    }
-  }
-
-  async getPriceFrom(source: PriceSource, from: string, to: string, param?: string): Promise<Price> {
-    return this.providerMap[source].getPrice(from, to, param);
-  }
-
-  // --- PRIVATE METHODS --- //
   private async getPriceRules(item: Active, waitForUpdate: boolean): Promise<PriceRule[]> {
     const rules: { active: Active; rule: PriceRule }[] = [];
 

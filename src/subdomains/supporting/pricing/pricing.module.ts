@@ -10,6 +10,7 @@ import { PriceRule } from './domain/entities/price-rule.entity';
 import { PricingController } from './pricing.controller';
 import { AssetPriceRepository } from './repositories/asset-price.repository';
 import { PriceRuleRepository } from './repositories/price-rule.repository';
+import { AssetPricesJobService } from './services/asset-prices-job.service';
 import { AssetPricesService } from './services/asset-prices.service';
 import { FiatPricesService } from './services/fiat-prices.service';
 import { CoinGeckoService } from './services/integration/coin-gecko.service';
@@ -36,6 +37,7 @@ import { PricingService } from './services/pricing.service';
     PriceRuleRepository,
     AssetPriceRepository,
     AssetPricesService,
+    AssetPricesJobService,
     FiatPricesService,
     CoinGeckoService,
     FixerService,

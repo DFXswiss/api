@@ -25,7 +25,10 @@ export class BuyCryptoJobService {
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
     await this.buyCryptoRegistrationService.syncReturnTxId();
     if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
-    if (!DisabledProcess(Process.BUY_CRYPTO_REFRESH_FEE)) await this.buyCryptoPreparationService.refreshFee();
+    if (!DisabledProcess(Process.BUY_CRYPTO_REFRESH_FEE)) {
+      await this.buyCryptoPreparationService.refreshFee();
+      await this.buyCryptoPreparationService.fillPaymentLinkPayments();
+    }
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();

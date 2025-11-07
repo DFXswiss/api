@@ -7,7 +7,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
@@ -17,8 +17,10 @@ import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/b
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import {
   PriceCurrency,
   PriceValidity,
@@ -208,6 +210,7 @@ export class BuyCryptoPreparationService {
       ),
       isComplete: false,
       inputReferenceAmount: Not(IsNull()),
+      cryptoInput: { paymentLinkPayment: { id: IsNull() } },
     };
     const entities = await this.buyCryptoRepo.find({
       where: [
@@ -298,6 +301,100 @@ export class BuyCryptoPreparationService {
         }
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
+      }
+    }
+  }
+
+  async fillPaymentLinkPayments(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: {
+        percentFee: IsNull(),
+        amlCheck: CheckStatus.PASS,
+        status: Not(
+          In([
+            BuyCryptoStatus.READY_FOR_PAYOUT,
+            BuyCryptoStatus.PAYING_OUT,
+            BuyCryptoStatus.COMPLETE,
+            BuyCryptoStatus.STOPPED,
+          ]),
+        ),
+        isComplete: false,
+        inputReferenceAmount: Not(IsNull()),
+        cryptoInput: { paymentLinkPayment: { id: Not(IsNull()) }, status: PayInStatus.COMPLETED },
+      },
+
+      relations: {
+        bankTx: true,
+        checkoutTx: true,
+        cryptoInput: true,
+        buy: true,
+        cryptoRoute: true,
+        transaction: { user: { wallet: true, userData: true }, userData: true },
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        const invoiceCurrency = entity.paymentLinkPayment.currency;
+        const inputCurrency = entity.cryptoInput.asset;
+        const outputCurrency = entity.outputAsset;
+
+        const outputPrice = await this.pricingService.getPriceAt(
+          invoiceCurrency,
+          outputCurrency,
+          entity.cryptoInput.created,
+        );
+        const outputReferenceAmount = Util.roundReadable(
+          outputPrice.convert(entity.cryptoInput.paymentLinkPayment.amount),
+          AmountType.ASSET,
+        );
+
+        // fees
+        const feeRate = Config.payment.forexFee(
+          entity.cryptoInput.paymentQuote.standard,
+          invoiceCurrency,
+          inputCurrency,
+        );
+        const totalFee = entity.inputReferenceAmount * feeRate;
+        const inputReferenceAmountMinusFee = entity.inputReferenceAmount - totalFee;
+
+        const { fee: paymentLinkFee } = entity.paymentLinkPayment.link.configObj;
+
+        // prices
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, PriceValidity.VALID_ONLY);
+
+        const conversionPrice = Price.create(
+          inputCurrency.name,
+          outputCurrency.name,
+          inputReferenceAmountMinusFee / outputReferenceAmount,
+        );
+        const priceStep = PriceStep.create(
+          'Payment',
+          conversionPrice.source,
+          conversionPrice.target,
+          conversionPrice.price,
+        );
+
+        await this.buyCryptoRepo.update(
+          ...entity.setPaymentLinkPayment(
+            eurPrice.convert(entity.inputAmount, 2),
+            chfPrice.convert(entity.inputAmount, 2),
+            feeRate,
+            totalFee,
+            chfPrice.convert(totalFee, 5),
+            inputReferenceAmountMinusFee,
+            outputReferenceAmount,
+            paymentLinkFee,
+            [priceStep],
+          ),
+        );
+
+        if (entity.amlCheck === CheckStatus.FAIL) return;
+
+        await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);
+      } catch (e) {
+        this.logger.error(`Error during buy-crypto ${entity.id} fill paymentLinkPayments:`, e);
       }
     }
   }
