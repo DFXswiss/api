@@ -134,6 +134,8 @@ export class UserDataService {
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
+    if (!Config.formats.kycHash.test(kycHash)) throw new UnauthorizedException('Invalid KYC hash');
+
     let user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
