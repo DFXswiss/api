@@ -36,7 +36,7 @@ export class BankTxRepeat extends IEntity {
   @Column({ type: 'float', nullable: true })
   amountInUsd?: number;
 
-  @ManyToOne(() => User, { nullable: true, eager: true })
+  @ManyToOne(() => User, { nullable: true })
   user: User;
 
   //*** METHODS ***//
