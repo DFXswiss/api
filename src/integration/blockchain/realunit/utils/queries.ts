@@ -2,7 +2,7 @@ import { gql } from 'graphql-request';
 
 export const getAccountSummaryQuery = (address: string) => gql`
 query AccountSummary {
-  account(id: "${address}") {
+  account(id: "${address.toLowerCase()}") {
     address
     addressType
     balance
@@ -23,7 +23,7 @@ export const getAccountHistoryQuery = (address: string, first?: number, after?: 
 
   return gql`
     query AccountHistory {
-      account(id: "${address}") {
+      account(id: "${address.toLowerCase()}") {
         address
         addressType
         history(orderBy: "timestamp", orderDirection: "desc", limit: ${limit}${afterClause}) {
