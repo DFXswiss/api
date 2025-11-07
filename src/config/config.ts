@@ -45,10 +45,12 @@ export class Configuration {
   defaultRef = '000-000';
   transactionRefundExpirySeconds = 30;
   refRewardManualCheckLimit = 3000; // EUR
-  manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
   financeLogTotalBalanceChangeLimit = 5000;
+
+  priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
+  priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
 
   defaults = {
     currency: 'EUR',

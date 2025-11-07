@@ -370,7 +370,7 @@ export class BuyCryptoPreparationService {
           inputReferenceAmountMinusFee / outputReferenceAmount,
         );
         const priceStep = PriceStep.create(
-          'Payment',
+          Config.priceSourcePayment,
           conversionPrice.source,
           conversionPrice.target,
           conversionPrice.price,

@@ -46,6 +46,7 @@ export enum BuyCryptoStatus {
   BATCHED = 'Batched',
   PRICE_SLIPPAGE = 'PriceSlippage',
   PENDING_LIQUIDITY = 'PendingLiquidity',
+  PENDING_AGGREGATION = 'PendingAggregation',
   READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
@@ -400,6 +401,7 @@ export class BuyCrypto extends IEntity {
             outputAmount: Util.roundReadable(outputReferenceAmount - paymentLinkFeeAmount, AmountType.ASSET),
             outputReferenceAmount,
             priceSteps: this.priceSteps,
+            status: BuyCryptoStatus.PENDING_AGGREGATION,
           };
 
     Object.assign(this, update);
@@ -788,13 +790,14 @@ export class BuyCrypto extends IEntity {
   // --- HELPER METHODS --- //
 
   private resetTransaction(): Partial<BuyCrypto> {
+    const isManualPrice = this.priceStepsObject.some((p) => p.source === Config.priceSourceManual);
+    const isPayment = this.priceStepsObject.some((p) => p.source === Config.priceSourcePayment);
+
     const update: Partial<BuyCrypto> = {
-      outputReferenceAmount: this.priceStepsObject.some((p) => p.source === Config.manualPriceStepSourceName)
-        ? undefined
-        : null, // ignore reset when manual payout
+      outputReferenceAmount: isManualPrice || isPayment ? undefined : null, // ignore reset when manual payout or payment
       batch: null,
       isComplete: false,
-      outputAmount: null,
+      outputAmount: isPayment ? undefined : null, // ignore reset when payment
       outputDate: null,
     };
 
