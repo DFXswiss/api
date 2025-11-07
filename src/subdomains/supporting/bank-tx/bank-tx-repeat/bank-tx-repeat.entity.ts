@@ -1,6 +1,7 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { BankTx } from '../bank-tx/entities/bank-tx.entity';
@@ -23,9 +24,6 @@ export class BankTxRepeat extends IEntity {
   @JoinColumn()
   transaction?: Transaction;
 
-  @Column({ type: 'integer', nullable: true })
-  userId?: number;
-
   @Column({ length: 256, nullable: true })
   info?: string;
 
@@ -37,6 +35,9 @@ export class BankTxRepeat extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   amountInUsd?: number;
+
+  @ManyToOne(() => User, { nullable: true })
+  user: User;
 
   //*** METHODS ***//
 
