@@ -81,7 +81,7 @@ export class BankTxRepeatService {
 
   async getAllUserRepeats(userIds: number[]): Promise<BankTxRepeat[]> {
     return this.bankTxRepeatRepo.find({
-      where: { userId: In(userIds) },
+      where: { user: { id: In(userIds) } },
       relations: { bankTx: true, sourceBankTx: true, chargebackBankTx: true },
       order: { id: 'DESC' },
     });
