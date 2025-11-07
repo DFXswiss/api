@@ -10,8 +10,11 @@ export class RealUnitDtoMapper {
     dto.address = account.address;
     dto.addressType = account.addressType;
     dto.balance = account.balance;
-    dto.lastUpdated = account.lastUpdated;
-    dto.historicalBalances = account.historicalBalances.items;
+    dto.lastUpdated = new Date(Number(account.lastUpdated) * 1000);
+    dto.historicalBalances = account.historicalBalances.items.map((hb) => ({
+      balance: hb.balance,
+      timestamp: new Date(Number(hb.timestamp) * 1000),
+    }));
 
     return dto;
   }
@@ -19,13 +22,28 @@ export class RealUnitDtoMapper {
   static toHoldersDto(clientResponse: HoldersClientResponse): HoldersDto {
     const dto = new HoldersDto();
 
-    dto.totalShares = clientResponse.changeTotalShares.items[0];
-    dto.totalSupply = clientResponse.totalSupplys.items[0];
+    const totalShares = clientResponse.changeTotalShares.items[0];
+    const totalSupply = clientResponse.totalSupplys.items[0];
+
+    dto.totalShares = totalShares
+      ? {
+          total: totalShares.total,
+          timestamp: new Date(Number(totalShares.timestamp) * 1000),
+          txHash: totalShares.txHash,
+        }
+      : null;
+
+    dto.totalSupply = totalSupply
+      ? {
+          value: totalSupply.value,
+          timestamp: new Date(Number(totalSupply.timestamp) * 1000),
+        }
+      : null;
 
     dto.holders = clientResponse.accounts.items.map((holder) => ({
       address: holder.address,
       balance: holder.balance,
-      percentage: Util.round((100 * Number(holder.balance)) / Number(dto.totalSupply.value), 3),
+      percentage: Util.round((100 * Number(holder.balance)) / Number(totalSupply?.value ?? 1), 3),
     }));
 
     dto.pageInfo = clientResponse.accounts.pageInfo;
@@ -42,7 +60,7 @@ export class RealUnitDtoMapper {
     dto.address = account.address;
     dto.addressType = account.addressType;
     dto.history = history.items.map((event) => ({
-      timestamp: event.timestamp,
+      timestamp: new Date(Number(event.timestamp) * 1000),
       eventType: event.eventType,
       txHash: event.txHash,
       ...(event.addressTypeUpdate && { addressTypeUpdate: event.addressTypeUpdate }),

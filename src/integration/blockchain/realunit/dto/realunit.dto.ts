@@ -1,20 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  ChangeTotalShares,
-  HistoricalBalance,
-  HistoryEvent,
-  HistoryEventType,
-  HolderClientResponse,
-  PageInfo,
-  TotalSupply,
-} from './client.dto';
+import { HistoryEventType, HolderClientResponse, PageInfo } from './client.dto';
 
-export class HistoricalBalanceDto implements HistoricalBalance {
+export class HistoricalBalanceDto {
   @ApiProperty({ description: 'Token balance at this point in time' })
   balance: string;
 
   @ApiProperty({ description: 'Timestamp when this balance was recorded' })
-  timestamp: string;
+  timestamp: Date;
 }
 
 export class PageInfoDto implements PageInfo {
@@ -31,23 +23,23 @@ export class PageInfoDto implements PageInfo {
   startCursor: string;
 }
 
-export class ChangeTotalSharesDto implements ChangeTotalShares {
+export class ChangeTotalSharesDto {
   @ApiProperty({ description: 'Total shares amount' })
   total: string;
 
   @ApiProperty({ description: 'Timestamp of the change' })
-  timestamp: string;
+  timestamp: Date;
 
   @ApiProperty({ description: 'Transaction hash of the change' })
   txHash: string;
 }
 
-export class TotalSupplyDto implements TotalSupply {
+export class TotalSupplyDto {
   @ApiProperty({ description: 'Total supply value' })
   value: string;
 
   @ApiProperty({ description: 'Timestamp when this supply was recorded' })
-  timestamp: string;
+  timestamp: Date;
 }
 
 export class TransferDto {
@@ -82,9 +74,9 @@ export class AddressTypeUpdateDto {
   addressType: string;
 }
 
-export class HistoryEventDto implements HistoryEvent {
+export class HistoryEventDto {
   @ApiProperty({ description: 'Timestamp of the event' })
-  timestamp: string;
+  timestamp: Date;
 
   @ApiProperty({ enum: HistoryEventType, description: 'Type of event' })
   eventType: HistoryEventType;
@@ -116,7 +108,7 @@ export class AccountSummaryDto {
   balance: string;
 
   @ApiProperty({ description: 'Timestamp of last balance update' })
-  lastUpdated: string;
+  lastUpdated: Date;
 
   @ApiProperty({ type: [HistoricalBalanceDto], description: 'Historical balance data over time' })
   historicalBalances: HistoricalBalanceDto[];

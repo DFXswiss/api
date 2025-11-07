@@ -1,13 +1,13 @@
 export interface HistoricalBalance {
   balance: string;
-  timestamp: string;
+  timestamp: number;
 }
 
 export interface Account {
   address: string;
   addressType: string;
   balance: string;
-  lastUpdated: string;
+  lastUpdated: number;
   historicalBalances: {
     items: HistoricalBalance[];
   };
@@ -31,13 +31,13 @@ export interface HolderClientResponse {
 
 export interface ChangeTotalShares {
   total: string;
-  timestamp: string;
+  timestamp: number;
   txHash: string;
 }
 
 export interface TotalSupply {
   value: string;
-  timestamp: string;
+  timestamp: number;
 }
 
 export interface HoldersClientResponse {
@@ -82,7 +82,7 @@ export interface Transfer {
 }
 
 export interface HistoryEvent {
-  timestamp: string;
+  timestamp: number;
   eventType: HistoryEventType;
   txHash: string;
   addressTypeUpdate?: AddressTypeUpdate;

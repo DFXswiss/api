@@ -16,7 +16,7 @@ import { GnosisModule } from './gnosis/gnosis.module';
 import { MoneroModule } from './monero/monero.module';
 import { OptimismModule } from './optimism/optimism.module';
 import { PolygonModule } from './polygon/polygon.module';
-import { RealunitModule } from './realunit/realunit.module';
+import { RealUnitModule } from './realunit/realunit.module';
 import { SepoliaModule } from './sepolia/sepolia.module';
 import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
@@ -51,7 +51,7 @@ import { ZanoModule } from './zano/zano.module';
     SolanaModule,
     TronModule,
     CitreaTestnetModule,
-    RealunitModule,
+    RealUnitModule,
   ],
   exports: [
     BitcoinModule,
@@ -76,7 +76,7 @@ import { ZanoModule } from './zano/zano.module';
     CitreaTestnetModule,
     CryptoService,
     BlockchainRegistryService,
-    RealunitModule,
+    RealUnitModule,
   ],
 })
 export class BlockchainModule {}
