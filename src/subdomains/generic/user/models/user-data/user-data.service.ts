@@ -1058,6 +1058,10 @@ export class UserDataService {
         await this.userRepo.update(...user.activateUser());
         await this.userRepo.setUserRef(user, master.kycLevel);
       }
+    } else if (master.users?.some((u) => u.ref)) {
+      for (const user of master.users) {
+        await this.userRepo.setUserRef(user, master.kycLevel);
+      }
     }
 
     await this.kycLogService.createMergeLog(master, log);
