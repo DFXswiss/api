@@ -71,4 +71,14 @@ export class RealUnitController {
   async getHolders(@Query('first') first?: number, @Query('after') after?: string): Promise<HoldersDto> {
     return this.realunitService.getHolders(first, after);
   }
+
+  @Get('price')
+  @ApiOperation({
+    summary: 'Get RealUnit price',
+    description: 'Retrieves the current price of RealUnit on the Realunit protocol',
+  })
+  @ApiOkResponse({ type: Number })
+  async getRealUnitPrice(): Promise<number> {
+    return this.realunitService.getRealUnitPrice();
+  }
 }
