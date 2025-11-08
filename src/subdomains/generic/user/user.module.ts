@@ -31,6 +31,8 @@ import { CustodyProviderController } from './models/custody-provider/custody-pro
 import { CustodyProvider } from './models/custody-provider/custody-provider.entity';
 import { CustodyProviderRepository } from './models/custody-provider/custody-provider.repository';
 import { CustodyProviderService } from './models/custody-provider/custody-provider.service';
+import { Invitation } from './models/invitation/invitation.entity';
+import { InvitationRepository } from './models/invitation/invitation.repository';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
 import { Organization } from './models/organization/organization.entity';
@@ -56,7 +58,17 @@ import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook, CustodyProvider, Organization]),
+    TypeOrmModule.forFeature([
+      User,
+      UserData,
+      Wallet,
+      BankData,
+      AccountMerge,
+      Webhook,
+      CustodyProvider,
+      Organization,
+      Invitation,
+    ]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -108,6 +120,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     OrganizationRepository,
     UserDataJobService,
     UserJobService,
+    InvitationRepository,
   ],
   exports: [
     UserService,
