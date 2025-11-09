@@ -15,10 +15,10 @@ export class Invitation extends IEntity {
   @ManyToOne(() => UserData, { nullable: false })
   recruit: UserData;
 
-  @Column({ length: 256, unique: true, nullable: false })
+  @Column({ length: 256, unique: true })
   code: string;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   label: string;
 
   @Column({ default: false })
@@ -27,10 +27,14 @@ export class Invitation extends IEntity {
   @Column({ type: 'datetime2' })
   expiration: Date;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   creator?: InvitationCreator;
 
   get isUsed(): boolean {
     return !!this.recruit;
+  }
+
+  get isExpired(): boolean {
+    return this.expiration < new Date();
   }
 }
