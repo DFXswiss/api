@@ -36,19 +36,19 @@
       "value": [
         {
           "name": "NEXT_PUBLIC_LANDINGPAGE_URL",
-          "value": "https://citrusdollar.com"
+          "value": "https://juicedollar.com"
         },
         {
           "name": "NEXT_PUBLIC_APP_URL",
-          "value": "https://dev.app.testnet.citrusdollar.com"
+          "value": "https://app.testnet.juicedollar.com"
         },
         {
           "name": "NEXT_PUBLIC_API_URL",
-          "value": "https://dev.api.testnet.citrusdollar.com"
+          "value": "https://api.testnet.juicedollar.com"
         },
         {
           "name": "NEXT_PUBLIC_PONDER_URL",
-          "value": "https://dev.ponder.testnet.citrusdollar.com"
+          "value": "https://ponder.testnet.juicedollar.com"
         },
         {
           "name": "NEXT_PUBLIC_WAGMI_ID",
