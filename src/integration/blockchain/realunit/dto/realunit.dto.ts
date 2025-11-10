@@ -158,3 +158,8 @@ export class AccountHistoryDto {
   @ApiProperty({ type: PageInfoDto, description: 'Pagination information for navigating through results' })
   pageInfo: PageInfoDto;
 }
+
+export class RealUnitPriceDto {
+  @ApiProperty({ description: 'Current price of RealUnit in CHF' })
+  chf: number;
+}

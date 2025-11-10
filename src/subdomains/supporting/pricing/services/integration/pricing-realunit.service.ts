@@ -28,7 +28,7 @@ export class PricingRealUnitService extends PricingProvider implements OnModuleI
 
     const realunitPrice = await this.realunitService.getRealUnitPrice();
 
-    const assetPrice = from === PricingRealUnitService.REALU ? realunitPrice : 1 / realunitPrice;
+    const assetPrice = from === PricingRealUnitService.REALU ? 1 / realunitPrice : realunitPrice;
 
     return Price.create(from, to, Util.round(assetPrice, 8));
   }
