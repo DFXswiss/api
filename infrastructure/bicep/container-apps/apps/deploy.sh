@@ -16,12 +16,12 @@ environmentOptions=("loc" "dev" "prd")
 # "jsp": JuiceSwap Ponder
 # "jsw": JuiceSwap API
 # "n8n": N8N workflow automation
-# "cdtp": Citrus Dollar Testnet Ponder
-# "cdta": Citrus Dollar Testnet API
-# "cdtd": Citrus Dollar Testnet dApp
-# "cdtm": Citrus Dollar Testnet Monitoring
+# "jdtp": JuiceDollar Testnet Ponder
+# "jdta": JuiceDollar Testnet API
+# "jdtd": JuiceDollar Testnet dApp
+# "jdtm": JuiceDollar Testnet Monitoring
 # "rup": realUnit Ponder
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "cdtp" "cdta" "cdtd" "cdtm" "rup")
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "jdtp" "jdta" "jdtd" "jdtm" "rup")
 
 # --- FUNCTIONS --- #
 selectOption() {

@@ -856,6 +856,9 @@ export class Configuration {
       graphUrl: process.env.DEURO_GRAPH_URL,
       apiUrl: process.env.DEURO_API_URL,
     },
+    realunit: {
+      graphUrl: process.env.REALUNIT_GRAPH_URL,
+    },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
     },
