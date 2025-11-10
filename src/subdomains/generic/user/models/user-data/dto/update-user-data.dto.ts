@@ -296,4 +296,9 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsBoolean()
   recallAgreementAccepted?: boolean;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  tradeApprovalDate?: Date;
 }
