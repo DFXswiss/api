@@ -10,7 +10,7 @@ import {
   UpdateRecommendationDto,
   UpdateRecommendationInternalDto,
 } from './dto/recommendation.dto';
-import { Recommendation, RecommendationCreator } from './recommendation.entity';
+import { Recommendation, RecommendationCreator, RecommendationType } from './recommendation.entity';
 import { RecommendationRepository } from './recommendation.repository';
 
 @Injectable()
@@ -23,16 +23,18 @@ export class RecommendationService {
   ) {}
 
   async createRecommendationByAdvertiser(
+    type: RecommendationType,
     label: string,
     creator: UserData,
     dto: CreateRecommendationInternalDto,
   ): Promise<Recommendation> {
     const recruit = dto.mail ? await this.userDataService.getUsersByMail(dto.mail)?.[0] : undefined;
 
-    return this.createRecommendationInternal(RecommendationCreator.RECOMMENDER, label, creator, recruit);
+    return this.createRecommendationInternal(RecommendationCreator.RECOMMENDER, type, label, creator, recruit);
   }
 
   async createRecommendationByRecruit(
+    type: RecommendationType,
     label: string,
     creator: UserData,
     dto: CreateRecommendationInternalDto,
@@ -43,20 +45,22 @@ export class RecommendationService {
       ? await this.userDataService.getUsersByMail(dto.mail)?.[0]
       : undefined;
 
-    return this.createRecommendationInternal(RecommendationCreator.RECOMMENDED, label, advertiser, creator);
+    return this.createRecommendationInternal(RecommendationCreator.RECOMMENDED, type, label, advertiser, creator);
   }
 
   async createRecommendationInternal(
-    creatorType: RecommendationCreator,
+    creator: RecommendationCreator,
+    type: RecommendationType,
     label: string,
-    advertiser: UserData,
-    recruit?: UserData,
+    recommender: UserData,
+    recommended?: UserData,
   ): Promise<Recommendation> {
     const entity = this.recommendationRepo.create({
-      creator: creatorType,
+      creator,
+      type,
       label,
-      recommender: advertiser,
-      recommended: recruit,
+      recommender,
+      recommended,
       expiration: Util.daysAfter(7),
       code: randomUUID(),
     });
