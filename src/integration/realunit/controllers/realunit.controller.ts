@@ -73,17 +73,7 @@ export class RealUnitController {
     return this.realunitService.getHolders(first, after);
   }
 
-  @Get('price')
-  @ApiOperation({
-    summary: 'Get RealUnit price',
-    description: 'Retrieves the current price of RealUnit on the Realunit protocol',
-  })
-  @ApiOkResponse({ type: Price })
-  async getRealUnitPrice(): Promise<Price> {
-    return this.realunitService.getRealUnitPrice();
-  }
-
-  @Get('historicalPrice')
+  @Get('price/history')
   @ApiOperation({
     summary: 'Get historical prices',
     description: 'Retrieves the historical prices of RealUnit token in multiple currencies (CHF, EUR, USD)',
@@ -97,5 +87,15 @@ export class RealUnitController {
   @ApiOkResponse({ type: [HistoricalPriceDto] })
   async getHistoricalPrice(@Query('timeFrame') timeFrame: TimeFrame = TimeFrame.WEEK): Promise<HistoricalPriceDto[]> {
     return this.realunitService.getHistoricalPrice(timeFrame);
+  }
+
+  @Get('price')
+  @ApiOperation({
+    summary: 'Get RealUnit price',
+    description: 'Retrieves the current price of RealUnit on the Realunit protocol',
+  })
+  @ApiOkResponse({ type: Price })
+  async getRealUnitPrice(): Promise<Price> {
+    return this.realunitService.getRealUnitPrice();
   }
 }
