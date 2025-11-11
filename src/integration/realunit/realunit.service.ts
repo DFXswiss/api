@@ -16,9 +16,9 @@ import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery } from 
 
 @Injectable()
 export class RealUnitService {
-  ponderUrl: string;
-  tokenName: string = 'REALU';
-  genesisDate: Date = new Date('2022-04-12 07:46:41.000');
+  private readonly ponderUrl: string;
+  private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
+  private readonly tokenName = 'REALU';
   private readonly historicalPriceCache = new AsyncCache<HistoricalPriceDto[]>(CacheItemResetPeriod.EVERY_6_HOURS);
 
   constructor(
@@ -55,7 +55,7 @@ export class RealUnitService {
 
   private async getRealuAsset(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
-      name: 'REALU',
+      name: this.tokenName,
       blockchain: Blockchain.ETHEREUM,
       type: AssetType.TOKEN,
     });
