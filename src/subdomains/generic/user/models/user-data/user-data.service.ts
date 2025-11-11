@@ -233,7 +233,7 @@ export class UserDataService {
       ...dto,
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
-      kycHash: randomUUID(),
+      kycHash: randomUUID().toUpperCase(),
     });
 
     await this.loadRelationsAndVerify(userData, dto);
