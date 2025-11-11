@@ -31,13 +31,14 @@ import { CustodyProviderController } from './models/custody-provider/custody-pro
 import { CustodyProvider } from './models/custody-provider/custody-provider.entity';
 import { CustodyProviderRepository } from './models/custody-provider/custody-provider.repository';
 import { CustodyProviderService } from './models/custody-provider/custody-provider.service';
-import { Invitation } from './models/invitation/invitation.entity';
-import { InvitationRepository } from './models/invitation/invitation.repository';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
 import { Organization } from './models/organization/organization.entity';
 import { OrganizationRepository } from './models/organization/organization.repository';
 import { OrganizationService } from './models/organization/organization.service';
+import { Recommendation } from './models/recommendation/recommendation.entity';
+import { RecommendationRepository } from './models/recommendation/recommendation.repository';
+import { RecommendationService } from './models/recommendation/recommendation.service';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
@@ -67,7 +68,7 @@ import { WebhookService } from './services/webhook/webhook.service';
       Webhook,
       CustodyProvider,
       Organization,
-      Invitation,
+      Recommendation,
     ]),
     SharedModule,
     NotificationModule,
@@ -120,7 +121,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     OrganizationRepository,
     UserDataJobService,
     UserJobService,
-    InvitationRepository,
+    RecommendationRepository,
+    RecommendationService,
   ],
   exports: [
     UserService,
