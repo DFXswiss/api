@@ -6,7 +6,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
 import { AccountHistoryClientResponse, AccountSummaryClientResponse, HoldersClientResponse } from './dto/client.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
@@ -19,6 +19,7 @@ export class RealUnitService {
   private readonly ponderUrl: string;
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
+  private static readonly ZCHF = 'ZCHF';
   private readonly historicalPriceCache = new AsyncCache<HistoricalPriceDto[]>(CacheItemResetPeriod.EVERY_6_HOURS);
 
   constructor(
@@ -62,7 +63,7 @@ export class RealUnitService {
   }
 
   async getRealUnitPrice(): Promise<Price> {
-    return this.pricingService.realunitService.getPrice(PriceCurrency.CHF, this.tokenName);
+    return this.pricingService.realunitService.getPrice(RealUnitService.ZCHF, this.tokenName);
   }
 
   private async getHistoricalPriceStartDate(timeFrame: TimeFrame): Promise<Date> {

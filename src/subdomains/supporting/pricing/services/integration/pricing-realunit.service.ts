@@ -8,9 +8,9 @@ import { PricingProvider } from './pricing-provider';
 @Injectable()
 export class PricingRealUnitService extends PricingProvider implements OnModuleInit {
   private static readonly REALU = 'REALU';
-  private static readonly CHF = 'CHF';
+  private static readonly ZCHF = 'ZCHF';
 
-  private static readonly ALLOWED_ASSETS = [PricingRealUnitService.REALU, PricingRealUnitService.CHF];
+  private static readonly ALLOWED_ASSETS = [PricingRealUnitService.REALU, PricingRealUnitService.ZCHF];
 
   private realunitService: RealUnitBlockchainService;
 
