@@ -4,6 +4,7 @@ import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { Util } from 'src/shared/utils/util';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
@@ -63,16 +64,15 @@ export class RealUnitService {
   }
 
   private async getHistoricalPriceStartDate(timeFrame: TimeFrame): Promise<Date> {
-    const now = new Date();
     switch (timeFrame) {
       case TimeFrame.MONTH:
-        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        return Util.daysBefore(30);
       case TimeFrame.YEAR:
-        return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        return Util.daysBefore(365);
       case TimeFrame.ALL:
         return this.genesisDate;
       default: // WEEK
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return Util.daysBefore(7);
     }
   }
 
