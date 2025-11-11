@@ -32,11 +32,7 @@ export class RealUnitService {
   async getAccount(address: string): Promise<AccountSummaryDto> {
     const accountSummaryQuery = getAccountSummaryQuery(address);
     const clientResponse = await request<AccountSummaryClientResponse>(this.ponderUrl, accountSummaryQuery);
-
-    const historicalPrices = await this.assetPricesService.getAssetPrices(
-      [await this.getRealuAsset()],
-      this.genesisDate,
-    );
+    const historicalPrices = await this.getHistoricalPrice(TimeFrame.ALL);
 
     return RealUnitDtoMapper.toAccountSummaryDto(clientResponse, historicalPrices);
   }
