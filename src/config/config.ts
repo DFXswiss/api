@@ -28,7 +28,7 @@ export enum Environment {
   PRD = 'prd',
 }
 
-export type Version = '1' | '2';
+type Version = '1' | '2';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -576,6 +576,7 @@ export class Configuration {
       [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
+    cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
@@ -860,23 +861,6 @@ export class Configuration {
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
-    },
-  };
-
-  payIn = {
-    minDeposit: {
-      Bitcoin: {
-        BTC: 0.000001,
-      },
-      Monero: {
-        XMR: 0.000001,
-      },
-    },
-  };
-
-  buy = {
-    fee: {
-      limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.001),
     },
   };
 

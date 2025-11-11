@@ -399,6 +399,25 @@ export class BuyCryptoPreparationService {
     }
   }
 
+  async checkAggregatingTransactions(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: { status: BuyCryptoStatus.PENDING_AGGREGATION },
+      relations: { transaction: { user: true } },
+    });
+
+    const groups = Util.groupByAccessor(entities, (e) => `${e.targetAddress}-${e.outputAsset.id}`);
+
+    for (const transactions of groups.values()) {
+      const totalAmount = Util.sumObjValue(transactions, 'amountInChf');
+      if (totalAmount >= Config.payment.cryptoPayoutMinAmount) {
+        await this.buyCryptoRepo.update(
+          transactions.map((t) => t.id),
+          { status: BuyCryptoStatus.CREATED },
+        );
+      }
+    }
+  }
+
   async chargebackTx(): Promise<void> {
     const baseRequest: FindOptionsWhere<BuyCrypto> = {
       chargebackAllowedDate: IsNull(),

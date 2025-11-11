@@ -36,4 +36,9 @@ export class BuyCryptoJobService {
     await this.buyCryptoPreparationService.chargebackFillUp();
     await this.buyCryptoNotificationService.sendNotificationMails();
   }
+
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BUY_CRYPTO_AGGREGATION, timeout: 7200 })
+  async checkAggregatingTransactions() {
+    await this.buyCryptoPreparationService.checkAggregatingTransactions();
+  }
 }
