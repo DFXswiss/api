@@ -1,6 +1,7 @@
 import { Config, Environment } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
+import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
@@ -38,6 +39,7 @@ export class AmlHelperService {
     banks?: Bank[],
     ibanCountry?: Country,
     refUser?: User,
+    ipLogs?: IpLog[],
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -169,6 +171,13 @@ export class AmlHelperService {
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
+      if (
+        entity.userData.country &&
+        !entity.userData.phoneCallIpCountryCheckDate &&
+        ipLogs.some((l) => l.country && l.country !== entity.userData.country.symbol)
+      )
+        errors.push(AmlError.IP_COUNTRY_MISMATCH);
+
       if (
         entity.userData.hasSuspiciousMail &&
         !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_5) &&
@@ -473,6 +482,7 @@ export class AmlHelperService {
     ibanCountry?: Country,
     refUser?: User,
     banks?: Bank[],
+    ipLogs?: IpLog[],
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -494,6 +504,7 @@ export class AmlHelperService {
       banks,
       ibanCountry,
       refUser,
+      ipLogs,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');

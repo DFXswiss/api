@@ -93,6 +93,7 @@
                 "bank_tx_needed": "Para poder realizar esta operación es necesaria una transacción bancaria",
                 "manual_check_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
                 "manual_check_ip_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
+                "manual_check_ip_country_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
                 "merge_incomplete": "El correo electrónico de confirmación no fue aceptado"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
@@ -234,6 +235,15 @@
                 "line5": "Para ver el estado actual de su transacción:<br>[url:haga clic aquí]"
             },
             "manual_check_ip_phone": {
+                "title": "Se requiere llamada telefónica",
+                "salutation": "Se requiere una verificación manual por teléfono",
+                "line1": "Hemos recibido su depósito.",
+                "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
+                "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
+                "line4": "",
+                "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
+            },
+            "manual_check_ip_country_phone": {
                 "title": "Se requiere llamada telefónica",
                 "salutation": "Se requiere una verificación manual por teléfono",
                 "line1": "Hemos recibido su depósito.",

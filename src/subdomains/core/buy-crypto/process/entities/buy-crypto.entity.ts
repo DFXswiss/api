@@ -3,6 +3,7 @@ import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
@@ -510,6 +511,7 @@ export class BuyCrypto extends IEntity {
     banks: Bank[],
     ibanCountry: Country,
     refUser?: User,
+    ipLogs?: IpLog[],
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...AmlHelperService.getAmlResult(
@@ -525,6 +527,7 @@ export class BuyCrypto extends IEntity {
         ibanCountry,
         refUser,
         banks,
+        ipLogs,
       ),
       amountInChf,
       amountInEur,
@@ -771,6 +774,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.MERGE_INCOMPLETE,
   AmlReason.BANK_RELEASE_PENDING,
   AmlReason.MANUAL_CHECK_IP_PHONE,
+  AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

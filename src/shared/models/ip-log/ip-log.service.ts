@@ -6,6 +6,7 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { WalletType } from 'src/subdomains/generic/user/models/user/user.enum';
+import { Between } from 'typeorm';
 import { CountryService } from '../country/country.service';
 import { IpLog } from './ip-log.entity';
 import { IpLogRepository } from './ip-log.repository';
@@ -32,6 +33,13 @@ export class IpLogService {
     });
 
     return this.ipLogRepo.save(ipLog);
+  }
+
+  async getLogsByUserData(userDataId: number, dateFrom: Date, dateTo = new Date()): Promise<IpLog[]> {
+    return this.ipLogRepo.findBy({
+      created: Between(dateFrom, dateTo),
+      user: { userData: { id: userDataId } },
+    });
   }
 
   async getUserDataIdsWith(ip: string): Promise<number[]> {
