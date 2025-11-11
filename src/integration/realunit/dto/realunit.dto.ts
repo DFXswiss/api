@@ -9,7 +9,7 @@ export class HistoricalBalanceDto {
   timestamp: Date;
 
   @ApiPropertyOptional({ description: 'Valuation in CHF at this point in time' })
-  valuationChf?: number;
+  valueChf?: number;
 }
 
 export class PageInfoDto implements PageInfo {

@@ -29,7 +29,7 @@ export class RealUnitDtoMapper {
     dto.historicalBalances = historicalBalancesFilled.map((hb) => ({
       balance: hb.balance,
       timestamp: hb.created,
-      valuationChf: Util.round(historicalPricesMap.get(hb.created.getTime())?.priceChf * Number(hb.balance), 4),
+      valueChf: Util.round(historicalPricesMap.get(hb.created.getTime())?.priceChf * Number(hb.balance), 4),
     }));
 
     return dto;
