@@ -5,12 +5,9 @@ import { Blockchain } from '../shared/enums/blockchain.enum';
 import { EvmClient } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
-import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
-import { AccountHistoryDto, AccountSummaryDto, HoldersDto } from './dto/realunit.dto';
-import { RealUnitClient } from './realunit-client';
 
 @Injectable()
-export class RealUnitService implements OnModuleInit {
+export class RealUnitBlockchainService implements OnModuleInit {
   private registryService: BlockchainRegistryService;
   private BROKER_BOT_ADDRESS = '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d';
   private BROKER_BOT_ABI = [
@@ -23,7 +20,7 @@ export class RealUnitService implements OnModuleInit {
     },
   ];
 
-  constructor(private readonly moduleRef: ModuleRef, private readonly realunitClient: RealUnitClient) {}
+  constructor(private readonly moduleRef: ModuleRef) {}
 
   getEvmClient(): EvmClient {
     return this.registryService.getClient(Blockchain.ETHEREUM) as EvmClient;
@@ -31,21 +28,6 @@ export class RealUnitService implements OnModuleInit {
 
   onModuleInit() {
     this.registryService = this.moduleRef.get(BlockchainRegistryService, { strict: false });
-  }
-
-  async getAccount(address: string): Promise<AccountSummaryDto> {
-    const clientResponse = await this.realunitClient.getAccountSummary(address);
-    return RealUnitDtoMapper.toAccountSummaryDto(clientResponse);
-  }
-
-  async getHolders(first?: number, after?: string): Promise<HoldersDto> {
-    const clientResponse = await this.realunitClient.getHolders(first, after);
-    return RealUnitDtoMapper.toHoldersDto(clientResponse);
-  }
-
-  async getAccountHistory(address: string, first?: number, after?: string): Promise<AccountHistoryDto> {
-    const clientResponse = await this.realunitClient.getAccountHistory(address, first, after);
-    return RealUnitDtoMapper.toAccountHistoryDto(clientResponse);
   }
 
   async getRealUnitPrice(): Promise<number> {

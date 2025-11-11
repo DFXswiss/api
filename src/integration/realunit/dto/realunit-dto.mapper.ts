@@ -1,9 +1,14 @@
 import { Util } from 'src/shared/utils/util';
+import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
+import { PriceUtils } from '../utils/price-utils';
 import { AccountHistoryClientResponse, AccountSummaryClientResponse, HoldersClientResponse } from './client.dto';
-import { AccountHistoryDto, AccountSummaryDto, HoldersDto } from './realunit.dto';
+import { AccountHistoryDto, AccountSummaryDto, HistoricalPriceDto, HoldersDto } from './realunit.dto';
 
 export class RealUnitDtoMapper {
-  static toAccountSummaryDto(clientResponse: AccountSummaryClientResponse): AccountSummaryDto {
+  static toAccountSummaryDto(
+    clientResponse: AccountSummaryClientResponse,
+    historicalPrices?: AssetPrice[],
+  ): AccountSummaryDto {
     const account = clientResponse.account;
 
     const dto = new AccountSummaryDto();
@@ -11,9 +16,20 @@ export class RealUnitDtoMapper {
     dto.addressType = account.addressType;
     dto.balance = account.balance;
     dto.lastUpdated = new Date(Number(account.lastUpdated) * 1000);
-    dto.historicalBalances = account.historicalBalances.items.map((hb) => ({
+
+    const historicalPricesMap = PriceUtils.toTimestampMap(historicalPrices);
+
+    const historicalBalances = account.historicalBalances.items.map((hb) => ({
       balance: hb.balance,
-      timestamp: new Date(Number(hb.timestamp) * 1000),
+      created: PriceUtils.stripTime(new Date(Number(hb.timestamp) * 1000)),
+    }));
+
+    const historicalBalancesFilled = PriceUtils.fillMissingDates(historicalBalances);
+
+    dto.historicalBalances = historicalBalancesFilled.map((hb) => ({
+      balance: hb.balance,
+      timestamp: hb.created,
+      valuationChf: Util.round(historicalPricesMap.get(hb.created.getTime())?.priceChf * Number(hb.balance), 4),
     }));
 
     return dto;
@@ -72,5 +88,14 @@ export class RealUnitDtoMapper {
     dto.pageInfo = history.pageInfo;
 
     return dto;
+  }
+
+  static toHistoricalPrices(prices: AssetPrice[]): HistoricalPriceDto[] {
+    return prices.map((price) => ({
+      timestamp: price.created,
+      chf: price.priceChf,
+      eur: price.priceEur,
+      usd: price.priceUsd,
+    }));
   }
 }
