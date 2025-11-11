@@ -4,7 +4,6 @@ import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
@@ -62,8 +61,9 @@ export class RealUnitService {
     });
   }
 
-  async getRealUnitPrice(): Promise<Price> {
-    return this.pricingService.realunitService.getPrice(RealUnitService.ZCHF, this.tokenName);
+  async getRealUnitPrice(): Promise<HistoricalPriceDto> {
+    const price = await this.pricingService.realunitService.getPrice(RealUnitService.ZCHF, this.tokenName);
+    return RealUnitDtoMapper.priceToHistoricalPriceDto(price);
   }
 
   private async getHistoricalPriceStartDate(timeFrame: TimeFrame): Promise<Date> {
@@ -85,7 +85,7 @@ export class RealUnitService {
       const startDate = await this.getHistoricalPriceStartDate(timeFrame);
       const prices = await this.assetPricesService.getAssetPrices([await this.getRealuAsset()], startDate);
       const filledPrices = PriceUtils.fillMissingDates(prices);
-      return RealUnitDtoMapper.toHistoricalPrices(filledPrices);
+      return RealUnitDtoMapper.assetPricesToHistoricalPricesDto(filledPrices);
     });
   }
 }

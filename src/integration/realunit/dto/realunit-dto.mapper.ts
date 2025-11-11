@@ -1,5 +1,6 @@
 import { Util } from 'src/shared/utils/util';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceUtils } from '../utils/price-utils';
 import { AccountHistoryClientResponse, AccountSummaryClientResponse, HoldersClientResponse } from './client.dto';
 import { AccountHistoryDto, AccountSummaryDto, HistoricalPriceDto, HoldersDto } from './realunit.dto';
@@ -90,7 +91,14 @@ export class RealUnitDtoMapper {
     return dto;
   }
 
-  static toHistoricalPrices(prices: AssetPrice[]): HistoricalPriceDto[] {
+  static priceToHistoricalPriceDto(price: Price): HistoricalPriceDto {
+    return {
+      timestamp: price.timestamp,
+      chf: price.price,
+    };
+  }
+
+  static assetPricesToHistoricalPricesDto(prices: AssetPrice[]): HistoricalPriceDto[] {
     return prices.map((price) => ({
       timestamp: price.created,
       chf: price.priceChf,

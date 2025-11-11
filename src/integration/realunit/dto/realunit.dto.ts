@@ -181,8 +181,8 @@ export class HistoricalPriceDto {
   chf: number;
 
   @ApiProperty({ description: 'Price in EUR' })
-  eur: number;
+  eur?: number;
 
   @ApiProperty({ description: 'Price in USD' })
-  usd: number;
+  usd?: number;
 }

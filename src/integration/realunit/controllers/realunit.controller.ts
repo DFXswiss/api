@@ -1,6 +1,5 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { AccountHistoryDto, AccountSummaryDto, HistoricalPriceDto, HoldersDto, TimeFrame } from '../dto/realunit.dto';
 import { RealUnitService } from '../realunit.service';
 
@@ -94,8 +93,8 @@ export class RealUnitController {
     summary: 'Get RealUnit price',
     description: 'Retrieves the current price of RealUnit on the Realunit protocol',
   })
-  @ApiOkResponse({ type: Price })
-  async getRealUnitPrice(): Promise<Price> {
+  @ApiOkResponse({ type: HistoricalPriceDto })
+  async getRealUnitPrice(): Promise<HistoricalPriceDto> {
     return this.realunitService.getRealUnitPrice();
   }
 }
