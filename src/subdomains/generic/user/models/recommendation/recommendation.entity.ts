@@ -46,4 +46,8 @@ export class Recommendation extends IEntity {
   get isExpired(): boolean {
     return this.expiration < new Date();
   }
+
+  get isValid(): boolean {
+    return this.isExpired && !this.isUsed;
+  }
 }

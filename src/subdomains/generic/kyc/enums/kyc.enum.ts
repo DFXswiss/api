@@ -18,10 +18,17 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     .find((s) => s.isInReview || s.isCompleted)
     ?.getResult<KycNationalityData>();
 
+  // TODO: userData/users wallet relation
+
   return [
     KycStepName.CONTACT_DATA,
     KycStepName.PERSONAL_DATA,
     KycStepName.NATIONALITY_DATA,
+    !Config.kyc.allowedTradeApprovalWalletIds.includes(userData.wallet.id) &&
+    userData.users.some((u) => !Config.kyc.allowedTradeApprovalWalletIds.includes(u.wallet.id)) &&
+    userData.accountType !== AccountType.ORGANIZATION
+      ? KycStepName.RECOMMENDATION
+      : null,
     nationalityStep?.nationality?.symbol &&
     Config.kyc.residencePermitCountries.includes(nationalityStep.nationality.symbol)
       ? KycStepName.RESIDENCE_PERMIT

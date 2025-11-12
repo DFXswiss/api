@@ -11,9 +11,11 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { GetConfig } from 'src/config/config';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
@@ -181,6 +183,33 @@ export class KycOperationalData {
   @IsOptional()
   @IsUrl()
   websiteUrl: string;
+}
+
+export class KycRecommendationData {
+  // Do we need that or do we use userData name?
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  label: string;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: KycRecommendationData) => Boolean(a.ref || !(a.mail && a.recommendationCode)))
+  @IsString()
+  @Matches(GetConfig().formats.ref)
+  ref?: string;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: KycRecommendationData) => Boolean(a.mail || !(a.ref && a.recommendationCode)))
+  @IsEmail()
+  mail?: string;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: KycRecommendationData) => Boolean(a.recommendationCode || !(a.ref && a.mail)))
+  @IsString()
+  recommendationCode?: string;
 }
 
 export class KycNationalityData {

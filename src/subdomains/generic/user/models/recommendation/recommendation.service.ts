@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -18,6 +18,7 @@ export class RecommendationService {
   constructor(
     private readonly recommendationRepo: RecommendationRepository,
     private readonly notificationService: NotificationService,
+    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
   ) {}
@@ -82,5 +83,17 @@ export class RecommendationService {
     Object.assign(entity, dto);
 
     return this.recommendationRepo.save(entity);
+  }
+
+  async getAndCheckRecommendationByCode(code: string): Promise<Recommendation> {
+    const entity = await this.recommendationRepo.findOne({
+      where: { code },
+      relations: { recommended: true, recommender: true },
+    });
+    if (!entity) throw new NotFoundException('Recommendation code not found');
+    if (entity.isExpired) throw new BadRequestException('Recommendation code is expired');
+    if (entity.isUsed) throw new BadRequestException('Recommendation code is already used');
+
+    return entity;
   }
 }

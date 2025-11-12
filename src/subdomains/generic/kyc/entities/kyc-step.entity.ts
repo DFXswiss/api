@@ -72,6 +72,9 @@ export class KycStep extends IEntity {
       case KycStepName.NATIONALITY_DATA:
         return { url: `${apiUrl}/data/nationality/${this.id}`, type: UrlType.API };
 
+      case KycStepName.RECOMMENDATION:
+        return { url: `${apiUrl}/data/recommendation/${this.id}`, type: UrlType.API };
+
       case KycStepName.OWNER_DIRECTORY:
         return { url: `${apiUrl}/data/owner/${this.id}`, type: UrlType.API };
 

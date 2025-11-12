@@ -22,11 +22,13 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { LessThan, MoreThan } from 'typeorm';
+import { FindOptionsRelations, LessThan, MoreThan } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
+import { RecommendationType } from '../../user/models/recommendation/recommendation.entity';
+import { RecommendationService } from '../../user/models/recommendation/recommendation.service';
 import { UserDataRelationState } from '../../user/models/user-data-relation/dto/user-data-relation.enum';
 import { UserDataRelationService } from '../../user/models/user-data-relation/user-data-relation.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
@@ -55,6 +57,7 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  KycRecommendationData,
   PaymentDataDto,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -119,6 +122,7 @@ export class KycService {
     private readonly mailFactory: MailFactory,
     @Inject(forwardRef(() => UserDataRelationService))
     private readonly userDataRelationService: UserDataRelationService,
+    private readonly recommendationService: RecommendationService,
   ) {
     this.webhookQueue = new QueueHandler();
   }
@@ -543,6 +547,36 @@ export class KycService {
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
+  }
+
+  async updateRecommendationData(kycHash: string, stepId: number, data: KycRecommendationData) {
+    const user = await this.getUser(kycHash, { wallet: true, users: true, kycSteps: { userData: true } });
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    if (data.recommendationCode) {
+      const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(data.recommendationCode);
+
+      await this.recommendationService.updateRecommendationInternal(recommendation, {
+        isConfirmed: true,
+        recommended: user,
+        type: RecommendationType.RECOMMENDATION_CODE,
+      });
+    } else {
+      // create new recommendation
+      await this.recommendationService.createRecommendationByRecruit(
+        data.ref ? RecommendationType.REF_CODE : RecommendationType.MAIL,
+        data.label,
+        user,
+        { mail: data.mail, refCode: data.ref },
+      );
+    }
+
+    await this.kycStepRepo.update(...kycStep.internalReview(data));
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
   }
 
   async updateFileData(
@@ -985,6 +1019,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.CONTACT_DATA:
+      case KycStepName.RECOMMENDATION:
       case KycStepName.LEGAL_ENTITY:
       case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.SIGNATORY_POWER:
@@ -1361,8 +1396,11 @@ export class KycService {
     return KycInfoMapper.toDto(user, withSession, kycClients, currentStep);
   }
 
-  private async getUser(kycHash: string): Promise<UserData> {
-    return this.userDataService.getByKycHashOrThrow(kycHash, { users: true, kycSteps: { userData: true } });
+  private async getUser(
+    kycHash: string,
+    relations: FindOptionsRelations<UserData> = { users: true, kycSteps: { userData: true } },
+  ): Promise<UserData> {
+    return this.userDataService.getByKycHashOrThrow(kycHash, relations);
   }
 
   private async getUserByTransactionOrThrow(
