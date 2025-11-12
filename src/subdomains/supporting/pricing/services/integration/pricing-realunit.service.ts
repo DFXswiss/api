@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { RealUnitService } from 'src/integration/blockchain/realunit/realunit.service';
+import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
 import { Util } from 'src/shared/utils/util';
 import { Price } from '../../domain/entities/price';
 import { PricingProvider } from './pricing-provider';
@@ -12,14 +12,14 @@ export class PricingRealUnitService extends PricingProvider implements OnModuleI
 
   private static readonly ALLOWED_ASSETS = [PricingRealUnitService.REALU, PricingRealUnitService.ZCHF];
 
-  private realunitService: RealUnitService;
+  private realunitService: RealUnitBlockchainService;
 
   constructor(private readonly moduleRef: ModuleRef) {
     super();
   }
 
   onModuleInit() {
-    this.realunitService = this.moduleRef.get(RealUnitService, { strict: false });
+    this.realunitService = this.moduleRef.get(RealUnitBlockchainService, { strict: false });
   }
 
   async getPrice(from: string, to: string): Promise<Price> {
