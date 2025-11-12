@@ -49,11 +49,11 @@
         },
         {
           "name": "CONFIG_APP_URL",
-          "value": "https://dev.app.testnet.citrusdollar.com"
+          "value": "https://dev.app.testnet.juicedollar.com"
         },
         {
           "name": "CONFIG_INDEXER_URL",
-          "value": "https://dev.ponder.testnet.citrusdollar.com"
+          "value": "https://dev.ponder.testnet.juicedollar.com"
         },
         {
           "name": "COINGECKO_API_KEY",

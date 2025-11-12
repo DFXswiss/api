@@ -7,6 +7,9 @@ export class HistoricalBalanceDto {
 
   @ApiProperty({ description: 'Timestamp when this balance was recorded' })
   timestamp: Date;
+
+  @ApiPropertyOptional({ description: 'Valuation in CHF at this point in time' })
+  valueChf?: number;
 }
 
 export class PageInfoDto implements PageInfo {
@@ -157,4 +160,29 @@ export class AccountHistoryDto {
 
   @ApiProperty({ type: PageInfoDto, description: 'Pagination information for navigating through results' })
   pageInfo: PageInfoDto;
+}
+
+export class RealUnitPriceDto {
+  @ApiProperty({ description: 'Current price of RealUnit in CHF' })
+  chf: number;
+}
+
+export enum TimeFrame {
+  WEEK = 'WEEK',
+  MONTH = 'MONTH',
+  YEAR = 'YEAR',
+  ALL = 'ALL',
+}
+export class HistoricalPriceDto {
+  @ApiProperty({ description: 'Timestamp when the price was recorded' })
+  timestamp: Date;
+
+  @ApiProperty({ description: 'Price in CHF' })
+  chf: number;
+
+  @ApiProperty({ description: 'Price in EUR' })
+  eur?: number;
+
+  @ApiProperty({ description: 'Price in USD' })
+  usd?: number;
 }

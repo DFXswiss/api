@@ -7,6 +7,7 @@ import { ExchangeModule } from './exchange/exchange.module';
 import { IknaModule } from './ikna/ikna.module';
 import { AzureService } from './infrastructure/azure-service';
 import { LetterModule } from './letter/letter.module';
+import { RealUnitModule } from './realunit/realunit.module';
 import { SiftModule } from './sift/sift.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { SiftModule } from './sift/sift.module';
     IknaModule,
     CheckoutModule,
     SiftModule,
+    RealUnitModule,
   ],
   controllers: [],
   providers: [AzureService],
@@ -31,6 +33,7 @@ import { SiftModule } from './sift/sift.module';
     CheckoutModule,
     AzureService,
     SiftModule,
+    RealUnitModule,
   ],
 })
 export class IntegrationModule {}
