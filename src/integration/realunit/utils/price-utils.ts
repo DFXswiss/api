@@ -14,7 +14,7 @@ export class PriceUtils {
       const daysBetween = Util.daysDiff(previousPrice.created, currentPrice.created);
 
       for (let dayOffset = 1; dayOffset < daysBetween; dayOffset++) {
-        const filledDate = this.addDays(previousPrice.created, dayOffset);
+        const filledDate = Util.daysAfter(dayOffset, previousPrice.created);
         filledPrices.push({
           ...previousPrice,
           created: filledDate,
@@ -29,11 +29,5 @@ export class PriceUtils {
 
   static stripTime(date: Date): Date {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  }
-
-  private static addDays(date: Date, days: number): Date {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
   }
 }

@@ -8,7 +8,7 @@ import { AccountHistoryDto, AccountSummaryDto, HistoricalPriceDto, HoldersDto } 
 export class RealUnitDtoMapper {
   static toAccountSummaryDto(
     clientResponse: AccountSummaryClientResponse,
-    historicalPrices?: HistoricalPriceDto[],
+    historicalPrices: HistoricalPriceDto[],
   ): AccountSummaryDto {
     const account = clientResponse.account;
 
@@ -18,7 +18,7 @@ export class RealUnitDtoMapper {
     dto.balance = account.balance;
     dto.lastUpdated = new Date(Number(account.lastUpdated) * 1000);
 
-    const historicalPricesMap = new Map(historicalPrices.map((price) => [price.timestamp.getTime(), price]));
+    const historicalPricesMap = new Map(historicalPrices.map((price) => [Util.isoDate(price.timestamp), price]));
 
     const historicalBalances = account.historicalBalances.items.map((hb) => ({
       balance: hb.balance,
@@ -30,7 +30,7 @@ export class RealUnitDtoMapper {
     dto.historicalBalances = historicalBalancesFilled.map((hb) => ({
       balance: hb.balance,
       timestamp: hb.created,
-      valueChf: Util.round(historicalPricesMap.get(hb.created.getTime())?.chf * Number(hb.balance), 4),
+      valueChf: Util.round(historicalPricesMap.get(Util.isoDate(hb.created))?.chf * Number(hb.balance), 4),
     }));
 
     return dto;
