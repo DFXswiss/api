@@ -160,6 +160,7 @@ export class KycService {
     await this.reviewNationalityStep();
     await this.reviewIdentSteps();
     await this.reviewFinancialData();
+    await this.reviewRecommendationStep();
   }
 
   async reviewNationalityStep(): Promise<void> {
@@ -326,6 +327,47 @@ export class KycService {
         }
       } catch (e) {
         this.logger.error(`Failed to auto review financialData step ${entity.id}:`, e);
+      }
+    }
+  }
+
+  async reviewRecommendationStep(): Promise<void> {
+    if (DisabledProcess(Process.KYC_RECOMMENDATION_REVIEW)) return;
+
+    const entities = await this.kycStepRepo.find({
+      where: {
+        name: KycStepName.RECOMMENDATION,
+        status: ReviewStatus.INTERNAL_REVIEW,
+      },
+      relations: { userData: { wallet: true }, recommendations: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
+
+        if (entity.recommendations.every((r) => !r.isConfirmed)) continue;
+
+        const errors = this.getRecommendationsErrors(entity);
+        const comment = errors.join(';');
+
+        if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
+          await this.kycStepRepo.update(...entity.ignored(comment));
+        } else if (errors.length > 0) {
+          await this.kycStepRepo.update(...entity.manualReview(comment));
+        } else {
+          // TODO: more logic? Which errors etc? When completed?
+          await this.kycStepRepo.update(...entity.manualReview());
+        }
+
+        await this.createStepLog(entity.userData, entity);
+
+        if (entity.isCompleted) {
+          await this.completeRecommendation(entity.userData);
+          await this.checkDfxApproval(entity);
+        }
+      } catch (e) {
+        this.logger.error(`Failed to auto review recommendation step ${entity.id}:`, e);
       }
     }
   }
@@ -560,6 +602,7 @@ export class KycService {
         isConfirmed: true,
         recommended: user,
         type: RecommendationType.RECOMMENDATION_CODE,
+        kycStep,
       });
     } else {
       // create new recommendation
@@ -567,6 +610,7 @@ export class KycService {
         data.ref ? RecommendationType.REF_CODE : RecommendationType.MAIL,
         data.label,
         user,
+        kycStep,
         { mail: data.mail, refCode: data.ref },
       );
     }
@@ -1273,6 +1317,10 @@ export class KycService {
     await this.createKycLevelLog(kycStep.userData, KycLevel.LEVEL_40);
   }
 
+  async completeRecommendation(userData: UserData): Promise<void> {
+    await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
+  }
+
   private getStepDefaultErrors(entity: KycStep): KycError[] {
     const errors = [];
     if (entity.userData.status === UserDataStatus.MERGED) errors.push(KycError.USER_DATA_MERGED);
@@ -1296,6 +1344,12 @@ export class KycService {
       errors.push(KycError.MISSING_RESPONSE);
     if (!financialStepResult.some((f) => f.key === 'risky_business' && f.value.includes('no')))
       errors.push(KycError.RISKY_BUSINESS);
+
+    return errors;
+  }
+
+  private getRecommendationsErrors(entity: KycStep): KycError[] {
+    const errors = this.getStepDefaultErrors(entity);
 
     return errors;
   }

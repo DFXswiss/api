@@ -1,6 +1,7 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Util } from 'src/shared/utils/util';
+import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { UserData } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
@@ -38,6 +39,7 @@ export class RecommendationService {
     type: RecommendationType,
     label: string,
     creator: UserData,
+    kycStep: KycStep,
     dto: CreateRecommendationInternalDto,
   ): Promise<Recommendation> {
     const advertiser = dto.refCode
@@ -46,7 +48,14 @@ export class RecommendationService {
       ? await this.userDataService.getUsersByMail(dto.mail)?.[0]
       : undefined;
 
-    return this.createRecommendationInternal(RecommendationCreator.RECOMMENDED, type, label, advertiser, creator);
+    return this.createRecommendationInternal(
+      RecommendationCreator.RECOMMENDED,
+      type,
+      label,
+      advertiser,
+      creator,
+      kycStep,
+    );
   }
 
   async createRecommendationInternal(
@@ -55,8 +64,10 @@ export class RecommendationService {
     label: string,
     recommender: UserData,
     recommended?: UserData,
+    kycStep?: KycStep,
   ): Promise<Recommendation> {
     const entity = this.recommendationRepo.create({
+      kycStep,
       creator,
       type,
       label,

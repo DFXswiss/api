@@ -248,7 +248,6 @@ export class Configuration {
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
     maxIdentTries: 7,
-    allowedTradeApprovalWalletIds: process.env.TRADE_APPROVAL_WALLET_IDS?.split(',')?.map(Number) ?? [],
   };
 
   fileDownloadConfig: {

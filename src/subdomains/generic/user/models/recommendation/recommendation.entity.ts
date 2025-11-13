@@ -1,4 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
+import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 
@@ -21,12 +22,6 @@ export class Recommendation extends IEntity {
   @Column({ length: 256 })
   creator: RecommendationCreator;
 
-  @ManyToOne(() => UserData, { nullable: false })
-  recommender: UserData;
-
-  @ManyToOne(() => UserData, { nullable: true })
-  recommended: UserData;
-
   @Column({ length: 256, unique: true })
   code: string;
 
@@ -38,6 +33,15 @@ export class Recommendation extends IEntity {
 
   @Column({ type: 'datetime2' })
   expiration: Date;
+
+  @ManyToOne(() => UserData, { nullable: false })
+  recommender: UserData;
+
+  @ManyToOne(() => UserData, { nullable: true })
+  recommended?: UserData;
+
+  @ManyToOne(() => KycStep, { nullable: true })
+  kycStep?: KycStep;
 
   get isUsed(): boolean {
     return !!this.recommended;
