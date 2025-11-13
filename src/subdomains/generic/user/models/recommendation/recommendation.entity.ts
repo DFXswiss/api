@@ -26,7 +26,7 @@ export class Recommendation extends IEntity {
   code: string;
 
   @Column({ length: 256 })
-  label: string;
+  recommendedAlias: string;
 
   @Column({ default: false })
   isConfirmed: boolean;

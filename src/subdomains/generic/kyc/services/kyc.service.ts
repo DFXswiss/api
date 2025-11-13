@@ -608,7 +608,7 @@ export class KycService {
       // create new recommendation
       await this.recommendationService.createRecommendationByRecruit(
         data.ref ? RecommendationType.REF_CODE : RecommendationType.MAIL,
-        data.label,
+        data.recommendedAlias,
         user,
         kycStep,
         { mail: data.mail, refCode: data.ref },

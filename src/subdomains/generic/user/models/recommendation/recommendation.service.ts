@@ -37,7 +37,7 @@ export class RecommendationService {
 
   async createRecommendationByRecruit(
     type: RecommendationType,
-    label: string,
+    recommendedAlias: string,
     creator: UserData,
     kycStep: KycStep,
     dto: CreateRecommendationInternalDto,
@@ -51,7 +51,7 @@ export class RecommendationService {
     return this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDED,
       type,
-      label,
+      recommendedAlias,
       advertiser,
       creator,
       kycStep,
@@ -61,7 +61,7 @@ export class RecommendationService {
   async createRecommendationInternal(
     creator: RecommendationCreator,
     type: RecommendationType,
-    label: string,
+    recommendedAlias: string,
     recommender: UserData,
     recommended?: UserData,
     kycStep?: KycStep,
@@ -70,7 +70,7 @@ export class RecommendationService {
       kycStep,
       creator,
       type,
-      label,
+      recommendedAlias,
       recommender,
       recommended,
       expiration: Util.daysAfter(7),

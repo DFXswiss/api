@@ -190,7 +190,7 @@ export class KycRecommendationData {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  label: string;
+  recommendedAlias: string;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
