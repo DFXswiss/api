@@ -1,5 +1,4 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { Util } from 'src/shared/utils/util';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -66,6 +65,8 @@ export class RecommendationService {
     recommended?: UserData,
     kycStep?: KycStep,
   ): Promise<Recommendation> {
+    const hash = Util.createHash(new Date().toISOString() + recommender.id).toUpperCase();
+
     const entity = this.recommendationRepo.create({
       kycStep,
       creator,
@@ -74,7 +75,7 @@ export class RecommendationService {
       recommender,
       recommended,
       expiration: Util.daysAfter(7),
-      code: randomUUID(),
+      code: `${hash.slice(0, 2)}-${hash.slice(2, 6)}-${hash.slice(6, 10)}-${hash.slice(10, 12)}`,
     });
 
     return this.recommendationRepo.save(entity);

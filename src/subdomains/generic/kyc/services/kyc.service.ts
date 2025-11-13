@@ -595,8 +595,8 @@ export class KycService {
     const user = await this.getUser(kycHash, { wallet: true, users: true, kycSteps: { userData: true } });
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    if (data.recommendationCode) {
-      const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(data.recommendationCode);
+    if (Config.formats.recommendationCode.test(data.key)) {
+      const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(data.key);
 
       await this.recommendationService.updateRecommendationInternal(recommendation, {
         isConfirmed: true,
@@ -607,11 +607,11 @@ export class KycService {
     } else {
       // create new recommendation
       await this.recommendationService.createRecommendationByRecruit(
-        data.ref ? RecommendationType.REF_CODE : RecommendationType.MAIL,
+        Config.formats.ref.test(data.key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
         data.recommendedAlias,
         user,
         kycStep,
-        { mail: data.mail, refCode: data.ref },
+        Config.formats.ref.test(data.key) ? { refCode: data.key } : { mail: data.key },
       );
     }
 

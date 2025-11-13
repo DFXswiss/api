@@ -11,11 +11,9 @@ import {
   IsOptional,
   IsString,
   IsUrl,
-  Matches,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { GetConfig } from 'src/config/config';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
@@ -192,24 +190,10 @@ export class KycRecommendationData {
   @IsString()
   recommendedAlias: string;
 
-  @ApiPropertyOptional()
+  @ApiProperty({ description: 'Recommendation data: ref-code or recommendation-code or mail of existing user' })
   @IsNotEmpty()
-  @ValidateIf((a: KycRecommendationData) => Boolean(a.ref || !(a.mail && a.recommendationCode)))
   @IsString()
-  @Matches(GetConfig().formats.ref)
-  ref?: string;
-
-  @ApiPropertyOptional()
-  @IsNotEmpty()
-  @ValidateIf((a: KycRecommendationData) => Boolean(a.mail || !(a.ref && a.recommendationCode)))
-  @IsEmail()
-  mail?: string;
-
-  @ApiPropertyOptional()
-  @IsNotEmpty()
-  @ValidateIf((a: KycRecommendationData) => Boolean(a.recommendationCode || !(a.ref && a.mail)))
-  @IsString()
-  recommendationCode?: string;
+  key: string;
 }
 
 export class KycNationalityData {
