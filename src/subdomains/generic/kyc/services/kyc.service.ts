@@ -339,14 +339,14 @@ export class KycService {
         name: KycStepName.RECOMMENDATION,
         status: ReviewStatus.INTERNAL_REVIEW,
       },
-      relations: { userData: { wallet: true }, recommendations: true },
+      relations: { userData: { wallet: true }, recommendation: true },
     });
 
     for (const entity of entities) {
       try {
         entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
 
-        if (entity.recommendations.every((r) => !r.isConfirmed)) continue;
+        if (!entity.recommendation || entity.recommendation.isConfirmed) continue;
 
         const errors = this.getRecommendationsErrors(entity);
         const comment = errors.join(';');
@@ -355,9 +355,11 @@ export class KycService {
           await this.kycStepRepo.update(...entity.ignored(comment));
         } else if (errors.length > 0) {
           await this.kycStepRepo.update(...entity.manualReview(comment));
+        } else if (errors.includes(KycError.EXPIRED_RECOMMENDATION)) {
+          await this.kycStepRepo.update(...entity.fail(undefined, comment));
         } else {
           // TODO: more logic? Which errors etc? When completed?
-          await this.kycStepRepo.update(...entity.manualReview());
+          await this.kycStepRepo.update(...entity.manualReview(comment));
         }
 
         await this.createStepLog(entity.userData, entity);
@@ -1063,7 +1065,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.CONTACT_DATA:
-      case KycStepName.RECOMMENDATION:
+
       case KycStepName.LEGAL_ENTITY:
       case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.SIGNATORY_POWER:
@@ -1075,6 +1077,17 @@ export class KycService {
       case KycStepName.RECALL_AGREEMENT:
       case KycStepName.RESIDENCE_PERMIT:
       case KycStepName.STATUTES:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
+
+      case KycStepName.RECOMMENDATION:
+        const recommendationSteps = user.getStepsWith(KycStepName.RECOMMENDATION);
+        if (
+          (recommendationSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) ||
+            recommendationSteps.length > Config.kyc.maxRecommendationTries) &&
+          !recommendationSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED))
+        )
+          return { nextStep: undefined };
+
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       case KycStepName.IDENT:
@@ -1350,6 +1363,10 @@ export class KycService {
 
   private getRecommendationsErrors(entity: KycStep): KycError[] {
     const errors = this.getStepDefaultErrors(entity);
+
+    if (entity.recommendation.isConfirmed === null && entity.recommendation.isExpired)
+      errors.push(KycError.EXPIRED_RECOMMENDATION);
+    if (entity.recommendation.isConfirmed === false) errors.push(KycError.DENIED_RECOMMENDATION);
 
     return errors;
   }

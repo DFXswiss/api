@@ -84,7 +84,7 @@ export class RecommendationService {
       recommendedMail,
       recommender,
       recommended,
-      expiration: Util.daysAfter(7),
+      expiration: creator === RecommendationCreator.RECOMMENDER ? Util.daysAfter(7) : Util.daysAfter(30),
       code: `${hash.slice(0, 2)}-${hash.slice(2, 6)}-${hash.slice(6, 10)}-${hash.slice(10, 12)}`,
     });
 
@@ -104,6 +104,15 @@ export class RecommendationService {
     entity: Recommendation,
     dto: UpdateRecommendationInternalDto,
   ): Promise<Recommendation> {
+    if (dto.recommended) {
+      if (entity.recommender.id === dto.recommended.id)
+        throw new Error('Recommender and recommended can not be the same account');
+
+      if (entity.recommended.id) throw new Error('Recommended already set');
+
+      entity.expiration = Util.daysAfter(30);
+    }
+
     Object.assign(entity, dto);
 
     return this.recommendationRepo.save(entity);

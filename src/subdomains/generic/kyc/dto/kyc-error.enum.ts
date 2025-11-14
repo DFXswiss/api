@@ -3,6 +3,8 @@ import { KycStepReason } from './output/kyc-info.dto';
 export enum KycError {
   // General errors
   RESTARTED_STEP = 'RestartedStep',
+  BLOCKED = 'Blocked',
+  RELEASED = 'Released',
 
   // Ident errors
   USER_DATA_MERGED = 'UserDataMerged',
@@ -25,8 +27,10 @@ export enum KycError {
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
   COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
-  BLOCKED = 'Blocked',
-  RELEASED = 'Released',
+
+  // Recommendation errors
+  EXPIRED_RECOMMENDATION = 'ExpiredRecommendation',
+  DENIED_RECOMMENDATION = 'DeniedRecommendation',
 
   // FinancialData errors
   MISSING_RESPONSE = 'MissingResponse',
@@ -73,6 +77,8 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.COUNTRY_IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
   [KycError.MISSING_RESPONSE]: 'Missing data',
   [KycError.RISKY_BUSINESS]: 'Your business is involved in risky business',
+  [KycError.DENIED_RECOMMENDATION]: 'Your recommendation request was denied',
+  [KycError.EXPIRED_RECOMMENDATION]: 'Your recommendation request is expired',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

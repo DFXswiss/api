@@ -1,6 +1,6 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { Recommendation } from '../../user/models/recommendation/recommendation.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
@@ -55,8 +55,8 @@ export class KycStep extends IEntity {
   @OneToMany(() => KycFile, (f) => f.kycStep)
   files: KycFile[];
 
-  @OneToMany(() => Recommendation, (recommendation) => recommendation.kycStep)
-  recommendations: Recommendation[];
+  @OneToOne(() => Recommendation, (recommendation) => recommendation.kycStep)
+  recommendation?: Recommendation;
 
   // Mail
   @Column({ type: 'datetime2', nullable: true })

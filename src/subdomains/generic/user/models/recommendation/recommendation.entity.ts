@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 
 export enum RecommendationCreator {
@@ -43,7 +43,8 @@ export class Recommendation extends IEntity {
   @ManyToOne(() => UserData, { nullable: true })
   recommended?: UserData;
 
-  @ManyToOne(() => KycStep, { nullable: true })
+  @OneToOne(() => KycStep, { nullable: true })
+  @JoinColumn()
   kycStep?: KycStep;
 
   get isUsed(): boolean {
