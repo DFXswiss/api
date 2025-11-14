@@ -28,8 +28,11 @@ export class Recommendation extends IEntity {
   @Column({ length: 256 })
   recommendedAlias: string;
 
-  @Column({ default: false })
-  isConfirmed: boolean;
+  @Column({ length: 256, nullable: true })
+  recommendedMail?: string;
+
+  @Column({ nullable: true })
+  isConfirmed: boolean; // true = confirmed, false = denied
 
   @Column({ type: 'datetime2' })
   expiration: Date;

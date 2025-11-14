@@ -184,7 +184,6 @@ export class KycOperationalData {
 }
 
 export class KycRecommendationData {
-  // Do we need that or do we use userData name?
   @ApiProperty()
   @IsNotEmpty()
   @IsString()

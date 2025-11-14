@@ -606,7 +606,7 @@ export class KycService {
       });
     } else {
       // create new recommendation
-      await this.recommendationService.createRecommendationByRecruit(
+      await this.recommendationService.createRecommendationByRecommended(
         Config.formats.ref.test(data.key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
         data.recommendedAlias,
         user,

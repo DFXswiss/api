@@ -2,10 +2,12 @@ import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException 
 import { Util } from 'src/shared/utils/util';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { IsNull } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
 import {
+  CreateRecommendationDto,
   CreateRecommendationInternalDto,
   UpdateRecommendationDto,
   UpdateRecommendationInternalDto,
@@ -23,18 +25,24 @@ export class RecommendationService {
     private readonly userService: UserService,
   ) {}
 
-  async createRecommendationByAdvertiser(
-    type: RecommendationType,
-    label: string,
-    creator: UserData,
-    dto: CreateRecommendationInternalDto,
-  ): Promise<Recommendation> {
+  async createRecommendationByRecommender(userDataId: number, dto: CreateRecommendationDto): Promise<Recommendation> {
+    const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData) throw new NotFoundException('Account not found');
+
     const recruit = dto.mail ? await this.userDataService.getUsersByMail(dto.mail)?.[0] : undefined;
 
-    return this.createRecommendationInternal(RecommendationCreator.RECOMMENDER, type, label, creator, recruit);
+    return this.createRecommendationInternal(
+      RecommendationCreator.RECOMMENDER,
+      RecommendationType.MAIL,
+      dto.recommendedAlias,
+      userData,
+      recruit,
+      undefined,
+      dto.mail,
+    );
   }
 
-  async createRecommendationByRecruit(
+  async createRecommendationByRecommended(
     type: RecommendationType,
     recommendedAlias: string,
     creator: UserData,
@@ -64,6 +72,7 @@ export class RecommendationService {
     recommender: UserData,
     recommended?: UserData,
     kycStep?: KycStep,
+    recommendedMail?: string,
   ): Promise<Recommendation> {
     const hash = Util.createHash(new Date().toISOString() + recommender.id).toUpperCase();
 
@@ -72,6 +81,7 @@ export class RecommendationService {
       creator,
       type,
       recommendedAlias,
+      recommendedMail,
       recommender,
       recommended,
       expiration: Util.daysAfter(7),
@@ -81,9 +91,11 @@ export class RecommendationService {
     return this.recommendationRepo.save(entity);
   }
 
-  async updateRecommendation(id: number, dto: UpdateRecommendationDto): Promise<Recommendation> {
+  async updateRecommendation(userDataId: number, id: number, dto: UpdateRecommendationDto): Promise<Recommendation> {
     const entity = await this.recommendationRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Recommendation not found');
+    if (entity.recommender.id !== userDataId)
+      throw new BadRequestException('You can not confirm a recommendation from another account');
 
     return this.updateRecommendationInternal(entity, dto);
   }
@@ -107,5 +119,12 @@ export class RecommendationService {
     if (entity.isUsed) throw new BadRequestException('Recommendation code is already used');
 
     return entity;
+  }
+
+  async getAllRecommendationForUserData(userDataId: number, onlyUnconfirmed = false): Promise<Recommendation[]> {
+    return this.recommendationRepo.find({
+      where: { recommender: { id: userDataId }, isConfirmed: onlyUnconfirmed ? IsNull() : undefined },
+      relations: { recommended: true, recommender: true },
+    });
   }
 }
