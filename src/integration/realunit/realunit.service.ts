@@ -38,8 +38,8 @@ export class RealUnitService {
     return RealUnitDtoMapper.toAccountSummaryDto(clientResponse, historicalPrices);
   }
 
-  async getHolders(first?: number, after?: string): Promise<HoldersDto> {
-    const holdersQuery = getHoldersQuery(first, after);
+  async getHolders(first?: number, before?: string, after?: string): Promise<HoldersDto> {
+    const holdersQuery = getHoldersQuery(first, before, after);
     const clientResponse = await request<HoldersClientResponse>(this.ponderUrl, holdersQuery);
     return RealUnitDtoMapper.toHoldersDto(clientResponse);
   }
@@ -69,6 +69,8 @@ export class RealUnitService {
         return Util.daysBefore(30);
       case TimeFrame.YEAR:
         return Util.daysBefore(365);
+      case TimeFrame.QUARTER:
+        return Util.daysBefore(90);
       case TimeFrame.ALL:
         return this.genesisDate;
       default: // WEEK
