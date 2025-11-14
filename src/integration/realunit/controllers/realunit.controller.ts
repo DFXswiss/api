@@ -61,6 +61,13 @@ export class RealUnitController {
     description: 'Number of holders to return (default: 50)',
   })
   @ApiQuery({
+    name: 'before',
+    required: false,
+    type: String,
+    description:
+      'Cursor for pagination - return holders before this cursor, cursor is the startCursor of the previous page',
+  })
+  @ApiQuery({
     name: 'after',
     required: false,
     type: String,
@@ -68,8 +75,12 @@ export class RealUnitController {
       'Cursor for pagination - return holders after this cursor, cursor is the endCursor of the previous page',
   })
   @ApiOkResponse({ type: HoldersDto })
-  async getHolders(@Query('first') first?: number, @Query('after') after?: string): Promise<HoldersDto> {
-    return this.realunitService.getHolders(first, after);
+  async getHolders(
+    @Query('first') first?: number,
+    @Query('before') before?: string,
+    @Query('after') after?: string,
+  ): Promise<HoldersDto> {
+    return this.realunitService.getHolders(first, before, after);
   }
 
   @Get('price/history')

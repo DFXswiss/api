@@ -168,9 +168,10 @@ export class RealUnitPriceDto {
 }
 
 export enum TimeFrame {
-  WEEK = 'WEEK',
-  MONTH = 'MONTH',
-  YEAR = 'YEAR',
+  WEEK = '1W',
+  MONTH = '1M',
+  QUARTER = '1Q',
+  YEAR = '1Y',
   ALL = 'ALL',
 }
 export class HistoricalPriceDto {
