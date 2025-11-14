@@ -1,4 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { HistoryEventType, HolderClientResponse, PageInfo } from './client.dto';
 
 export class HistoricalBalanceDto {
@@ -174,6 +176,53 @@ export enum TimeFrame {
   YEAR = '1Y',
   ALL = 'ALL',
 }
+
+export class AccountHistoryQueryDto {
+  @ApiPropertyOptional({ type: Number, description: 'Number of history events to return (default: 50)' })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  first?: number;
+
+  @ApiPropertyOptional({ type: String, description: 'Cursor for pagination - return events after this cursor' })
+  @IsOptional()
+  @IsString()
+  after?: string;
+}
+
+export class HoldersQueryDto {
+  @ApiPropertyOptional({ type: Number, description: 'Number of holders to return (default: 50)' })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  first?: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Cursor for pagination - return holders before this cursor, cursor is the startCursor of the previous page',
+  })
+  @IsOptional()
+  @IsString()
+  before?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Cursor for pagination - return holders after this cursor, cursor is the endCursor of the previous page',
+  })
+  @IsOptional()
+  @IsString()
+  after?: string;
+}
+
+export class HistoricalPriceQueryDto {
+  @ApiPropertyOptional({ enum: TimeFrame, description: 'Time frame for historical prices (default: WEEK)' })
+  @IsOptional()
+  @IsEnum(TimeFrame)
+  timeFrame?: TimeFrame;
+}
+
 export class HistoricalPriceDto {
   @ApiProperty({ description: 'Timestamp when the price was recorded' })
   timestamp: Date;
