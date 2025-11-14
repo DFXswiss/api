@@ -265,7 +265,7 @@ export class BuyFiatPreparationService {
           inputReferenceAmountMinusFee / outputReferenceAmount,
         );
         const priceStep = PriceStep.create(
-          'Payment',
+          Config.priceSourcePayment,
           conversionPrice.source,
           conversionPrice.target,
           conversionPrice.price,
