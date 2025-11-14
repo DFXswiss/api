@@ -8,11 +8,23 @@ import { Util } from 'src/shared/utils/util';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
-import { AccountHistoryClientResponse, AccountSummaryClientResponse, HoldersClientResponse } from './dto/client.dto';
+import {
+  AccountHistoryClientResponse,
+  AccountSummaryClientResponse,
+  HoldersClientResponse,
+  TokenInfoClientResponse,
+} from './dto/client.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
-import { AccountHistoryDto, AccountSummaryDto, HistoricalPriceDto, HoldersDto, TimeFrame } from './dto/realunit.dto';
+import {
+  AccountHistoryDto,
+  AccountSummaryDto,
+  HistoricalPriceDto,
+  HoldersDto,
+  TimeFrame,
+  TokenInfoDto,
+} from './dto/realunit.dto';
 import { PriceUtils } from './utils/price-utils';
-import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery } from './utils/queries';
+import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 
 @Injectable()
 export class RealUnitService {
@@ -85,5 +97,11 @@ export class RealUnitService {
       const filledPrices = PriceUtils.fillMissingDates(prices);
       return RealUnitDtoMapper.assetPricesToHistoricalPricesDto(filledPrices);
     });
+  }
+
+  async getRealUnitInfo(): Promise<TokenInfoDto> {
+    const tokenInfoQuery = getTokenInfoQuery();
+    const clientResponse = await request<TokenInfoClientResponse>(this.ponderUrl, tokenInfoQuery);
+    return RealUnitDtoMapper.toTokenInfoDto(clientResponse);
   }
 }
