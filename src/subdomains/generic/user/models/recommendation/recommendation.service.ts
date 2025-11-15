@@ -84,7 +84,7 @@ export class RecommendationService {
       recommendedMail,
       recommender,
       recommended,
-      expiration: creator === RecommendationCreator.RECOMMENDER ? Util.daysAfter(7) : Util.daysAfter(30),
+      expirationDate: creator === RecommendationCreator.RECOMMENDER ? Util.daysAfter(7) : Util.daysAfter(30),
       code: `${hash.slice(0, 2)}-${hash.slice(2, 6)}-${hash.slice(6, 10)}-${hash.slice(10, 12)}`,
     });
 
@@ -97,7 +97,7 @@ export class RecommendationService {
     if (entity.recommender.id !== userDataId)
       throw new BadRequestException('You can not confirm a recommendation from another account');
 
-    return this.updateRecommendationInternal(entity, dto);
+    return this.updateRecommendationInternal(entity, { ...dto, confirmationDate: new Date() });
   }
 
   async updateRecommendationInternal(
@@ -110,7 +110,7 @@ export class RecommendationService {
 
       if (entity.recommended.id) throw new Error('Recommended already set');
 
-      entity.expiration = Util.daysAfter(30);
+      entity.expirationDate = Util.daysAfter(30);
     }
 
     Object.assign(entity, dto);
@@ -133,6 +133,13 @@ export class RecommendationService {
   async getAllRecommendationForUserData(userDataId: number, onlyUnconfirmed = false): Promise<Recommendation[]> {
     return this.recommendationRepo.find({
       where: { recommender: { id: userDataId }, isConfirmed: onlyUnconfirmed ? IsNull() : undefined },
+      relations: { recommended: true, recommender: true },
+    });
+  }
+
+  async getOwnRecommendationForUserData(userDataId: number): Promise<Recommendation[]> {
+    return this.recommendationRepo.find({
+      where: { recommended: { id: userDataId } },
       relations: { recommended: true, recommender: true },
     });
   }

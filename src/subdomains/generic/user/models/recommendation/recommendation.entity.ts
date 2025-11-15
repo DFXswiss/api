@@ -26,16 +26,19 @@ export class Recommendation extends IEntity {
   code: string;
 
   @Column({ length: 256 })
-  recommendedAlias: string;
+  recommendedAlias: string; // only set for recommendations created by Recommender
 
   @Column({ length: 256, nullable: true })
-  recommendedMail?: string;
+  recommendedMail?: string; // only set for recommendations created by Recommender
 
   @Column({ nullable: true })
   isConfirmed: boolean; // true = confirmed, false = denied
 
   @Column({ type: 'datetime2' })
-  expiration: Date;
+  expirationDate: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  confirmationDate: Date; // only set for recommendations created by Recommender
 
   @ManyToOne(() => UserData, { nullable: false })
   recommender: UserData;
@@ -52,7 +55,7 @@ export class Recommendation extends IEntity {
   }
 
   get isExpired(): boolean {
-    return this.expiration < new Date();
+    return this.expirationDate < new Date();
   }
 
   get isValid(): boolean {

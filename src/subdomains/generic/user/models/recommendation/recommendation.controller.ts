@@ -15,6 +15,16 @@ import { RecommendationService } from './recommendation.service';
 export class RecommendationController {
   constructor(private readonly recommendationService: RecommendationService) {}
 
+  @Get()
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  async getOwnRecommendation(@GetJwt() jwt: JwtPayload): Promise<RecommendationDto[]> {
+    return this.recommendationService
+      .getOwnRecommendationForUserData(jwt.account)
+      .then((r) => RecommendationDtoMapper.entitiesToDto(r, false));
+  }
+
   @Get('all')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

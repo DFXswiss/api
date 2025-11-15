@@ -608,6 +608,7 @@ export class KycService {
         recommended: user,
         type: RecommendationType.RECOMMENDATION_CODE,
         kycStep,
+        confirmationDate: new Date(),
       });
     } else {
       // create new recommendation
