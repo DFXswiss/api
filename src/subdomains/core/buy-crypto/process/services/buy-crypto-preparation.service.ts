@@ -104,7 +104,9 @@ export class BuyCryptoPreparationService {
           isPayment,
         );
 
-        const { users, refUser, bankData, blacklist, banks, ipLogs } = await this.amlService.getAmlCheckInput(entity);
+        const { users, refUser, bankData, blacklist, banks, ipLogCountries } = await this.amlService.getAmlCheckInput(
+          entity,
+        );
         if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(
@@ -176,7 +178,7 @@ export class BuyCryptoPreparationService {
             banks,
             ibanCountry,
             refUser,
-            ipLogs,
+            ipLogCountries,
           ),
         );
 

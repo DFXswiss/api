@@ -3,7 +3,6 @@ import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
@@ -511,7 +510,7 @@ export class BuyCrypto extends IEntity {
     banks: Bank[],
     ibanCountry: Country,
     refUser?: User,
-    ipLogs?: IpLog[],
+    ipLogCountries?: string[],
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...AmlHelperService.getAmlResult(
@@ -527,7 +526,7 @@ export class BuyCrypto extends IEntity {
         ibanCountry,
         refUser,
         banks,
-        ipLogs,
+        ipLogCountries,
       ),
       amountInChf,
       amountInEur,
