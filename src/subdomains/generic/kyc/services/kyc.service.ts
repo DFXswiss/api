@@ -353,14 +353,15 @@ export class KycService {
         const errors = this.getRecommendationsErrors(entity);
         const comment = errors.join(';');
 
-        if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
+        if (!errors.length) {
+          await this.kycStepRepo.update(...entity.complete());
+        } else if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
           await this.kycStepRepo.update(...entity.ignored(comment));
         } else if (errors.length > 0) {
           await this.kycStepRepo.update(...entity.manualReview(comment));
-        } else if (errors.includes(KycError.EXPIRED_RECOMMENDATION)) {
+        } else if (errors.every((e) => [KycError.EXPIRED_RECOMMENDATION, KycError.DENIED_RECOMMENDATION].includes(e))) {
           await this.kycStepRepo.update(...entity.fail(undefined, comment));
         } else {
-          // TODO: more logic? Which errors etc? When completed?
           await this.kycStepRepo.update(...entity.manualReview(comment));
         }
 
@@ -1369,6 +1370,7 @@ export class KycService {
     if (entity.recommendation.isConfirmed === null && entity.recommendation.isExpired)
       errors.push(KycError.EXPIRED_RECOMMENDATION);
     if (entity.recommendation.isConfirmed === false) errors.push(KycError.DENIED_RECOMMENDATION);
+    if (entity.recommendation.recommender.isBlocked) errors.push(KycError.RECOMMENDER_BLOCKED);
 
     return errors;
   }

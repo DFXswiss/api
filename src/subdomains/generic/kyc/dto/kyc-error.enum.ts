@@ -31,6 +31,7 @@ export enum KycError {
   // Recommendation errors
   EXPIRED_RECOMMENDATION = 'ExpiredRecommendation',
   DENIED_RECOMMENDATION = 'DeniedRecommendation',
+  RECOMMENDER_BLOCKED = 'RecommenderBlocked',
 
   // FinancialData errors
   MISSING_RESPONSE = 'MissingResponse',
@@ -79,6 +80,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.RISKY_BUSINESS]: 'Your business is involved in risky business',
   [KycError.DENIED_RECOMMENDATION]: 'Your recommendation request was denied',
   [KycError.EXPIRED_RECOMMENDATION]: 'Your recommendation request is expired',
+  [KycError.RECOMMENDER_BLOCKED]: 'Unknown error',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
