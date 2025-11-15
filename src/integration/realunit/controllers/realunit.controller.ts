@@ -9,6 +9,7 @@ import {
   HoldersDto,
   HoldersQueryDto,
   TimeFrame,
+  TokenInfoDto,
 } from '../dto/realunit.dto';
 import { RealUnitService } from '../realunit.service';
 
@@ -73,5 +74,14 @@ export class RealUnitController {
   @ApiOkResponse({ type: HistoricalPriceDto })
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
     return this.realunitService.getRealUnitPrice();
+  }
+  @Get('tokenInfo')
+  @ApiOperation({
+    summary: 'Get token info',
+    description: 'Retrieves the information of the RealUnit token',
+  })
+  @ApiOkResponse({ type: TokenInfoDto })
+  async getTokenInfo(): Promise<TokenInfoDto> {
+    return this.realunitService.getRealUnitInfo();
   }
 }

@@ -130,13 +130,15 @@ export class HolderDto implements HolderClientResponse {
   percentage: number;
 }
 
+export class TokenInfoDto {
+  @ApiProperty({ type: ChangeTotalSharesDto, description: 'Latest change in total shares information' })
+  totalShares: ChangeTotalSharesDto;
+
+  @ApiProperty({ type: TotalSupplyDto, description: 'Current total supply information' })
+  totalSupply: TotalSupplyDto;
+}
+
 export class HoldersDto {
-  @ApiPropertyOptional({ type: ChangeTotalSharesDto, description: 'Latest change in total shares information' })
-  totalShares: ChangeTotalSharesDto | null;
-
-  @ApiPropertyOptional({ type: TotalSupplyDto, description: 'Current total supply information' })
-  totalSupply: TotalSupplyDto | null;
-
   @ApiProperty({ type: [HolderDto], description: 'List of token holders' })
   holders: HolderDto[];
 
