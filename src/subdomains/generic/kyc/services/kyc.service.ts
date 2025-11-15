@@ -22,7 +22,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { FindOptionsRelations, LessThan, MoreThan } from 'typeorm';
+import { FindOptionsRelations, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -209,7 +209,10 @@ export class KycService {
       where: {
         name: KycStepName.IDENT,
         status: ReviewStatus.INTERNAL_REVIEW,
-        userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
+        userData: {
+          kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED },
+          tradeApprovalDate: Not(IsNull()),
+        },
       },
       relations: { userData: { users: true, wallet: true } },
     });
@@ -338,6 +341,7 @@ export class KycService {
       where: {
         name: KycStepName.RECOMMENDATION,
         status: ReviewStatus.INTERNAL_REVIEW,
+        recommendation: { isConfirmed: Not(IsNull()) },
       },
       relations: { userData: { wallet: true }, recommendation: true },
     });
@@ -345,8 +349,6 @@ export class KycService {
     for (const entity of entities) {
       try {
         entity.userData.kycSteps = await this.kycStepRepo.findBy({ userData: { id: entity.userData.id } });
-
-        if (!entity.recommendation || entity.recommendation.isConfirmed) continue;
 
         const errors = this.getRecommendationsErrors(entity);
         const comment = errors.join(';');
@@ -1082,9 +1084,9 @@ export class KycService {
       case KycStepName.RECOMMENDATION:
         const recommendationSteps = user.getStepsWith(KycStepName.RECOMMENDATION);
         if (
-          (recommendationSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) ||
+          (recommendationSteps.some((r) => r.comment?.split(';').includes(KycError.BLOCKED)) ||
             recommendationSteps.length > Config.kyc.maxRecommendationTries) &&
-          !recommendationSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED))
+          !recommendationSteps.some((r) => r.comment?.split(';').includes(KycError.RELEASED))
         )
           return { nextStep: undefined };
 
