@@ -13,7 +13,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
@@ -113,6 +113,9 @@ export class BuyFiat extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   bankFeeAmount?: number; //inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  partnerFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
   percentFeeAmount?: number; //inputAsset
@@ -281,7 +284,7 @@ export class BuyFiat extends IEntity {
   }
 
   setFeeAndFiatReference(
-    fee: InternalFeeDto & FeeDto,
+    fee: InternalFeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyFiat> {
@@ -301,6 +304,7 @@ export class BuyFiat extends IEntity {
             totalFeeAmountChf,
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
+            partnerFeeAmount: fee.partner,
             inputReferenceAmountMinusFee,
             usedRef,
             refProvision,
