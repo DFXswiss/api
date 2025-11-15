@@ -4,6 +4,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { WalletType } from 'src/subdomains/generic/user/models/user/user.enum';
@@ -39,7 +40,7 @@ export class IpLogService {
   }
 
   async getLoginCountries(userDataId: number, dateFrom: Date, dateTo = new Date()): Promise<string[]> {
-    const nearestLog = await this.last24hLogCache.get(`nearestLog-${dateFrom.toISOString()}`, () =>
+    const nearestLog = await this.last24hLogCache.get(`nearestLog-${Util.isoDate(dateFrom)}`, () =>
       this.ipLogRepo.findOne({ where: { created: LessThanOrEqual(dateFrom) }, order: { id: 'DESC' } }),
     );
 
