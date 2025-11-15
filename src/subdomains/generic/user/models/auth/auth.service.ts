@@ -184,6 +184,9 @@ export class AuthService {
         user.userData.reactivateUserData(),
       );
 
+    if (!user.userData.tradeApprovalDate && user.userData.wallet.autoTradeApproval)
+      await this.userDataService.updateUserDataInternal(user.userData, { tradeApprovalDate: new Date() });
+
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 

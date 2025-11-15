@@ -451,6 +451,7 @@ export class UserDataService {
       organizationLocation: data.organizationAddress?.city,
       organizationZip: data.organizationAddress?.zip,
       organizationCountry: data.organizationAddress?.country,
+      tradeApprovalDate: data.accountType === AccountType.ORGANIZATION ? new Date() : undefined,
     };
 
     const isPersonalAccount =

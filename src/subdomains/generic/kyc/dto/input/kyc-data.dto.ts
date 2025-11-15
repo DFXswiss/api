@@ -183,6 +183,18 @@ export class KycOperationalData {
   websiteUrl: string;
 }
 
+export class KycRecommendationData {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  recommendedAlias: string;
+
+  @ApiProperty({ description: 'Recommendation data: ref-code or recommendation-code or mail of existing user' })
+  @IsNotEmpty()
+  @IsString()
+  key: string;
+}
+
 export class KycNationalityData {
   @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
