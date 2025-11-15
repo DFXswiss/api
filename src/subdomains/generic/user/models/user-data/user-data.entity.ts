@@ -229,6 +229,9 @@ export class UserData extends IEntity {
   phoneCallIpCheckDate?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
+  phoneCallIpCountryCheckDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
   tradeApprovalDate?: Date;
 
   // AML

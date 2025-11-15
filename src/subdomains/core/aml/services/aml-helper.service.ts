@@ -38,6 +38,7 @@ export class AmlHelperService {
     banks?: Bank[],
     ibanCountry?: Country,
     refUser?: User,
+    ipLogCountries?: string[],
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -169,6 +170,13 @@ export class AmlHelperService {
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
+      if (
+        entity.userData.country &&
+        !entity.userData.phoneCallIpCountryCheckDate &&
+        ipLogCountries.some((l) => l !== entity.userData.country.symbol)
+      )
+        errors.push(AmlError.IP_COUNTRY_MISMATCH);
+
       if (
         entity.userData.hasSuspiciousMail &&
         !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_5) &&
@@ -473,6 +481,7 @@ export class AmlHelperService {
     ibanCountry?: Country,
     refUser?: User,
     banks?: Bank[],
+    ipLogCountries?: string[],
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -494,6 +503,7 @@ export class AmlHelperService {
       banks,
       ibanCountry,
       refUser,
+      ipLogCountries,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');

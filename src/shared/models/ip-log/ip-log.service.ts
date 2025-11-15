@@ -3,9 +3,12 @@ import { Config, Environment } from 'src/config/config';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { WalletType } from 'src/subdomains/generic/user/models/user/user.enum';
+import { LessThanOrEqual } from 'typeorm';
 import { CountryService } from '../country/country.service';
 import { IpLog } from './ip-log.entity';
 import { IpLogRepository } from './ip-log.repository';
@@ -18,6 +21,8 @@ export class IpLogService {
     private readonly ipLogRepo: IpLogRepository,
     private readonly repos: RepositoryFactory,
   ) {}
+
+  private readonly last24hLogCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_24_HOURS);
 
   async create(ip: string, url: string, address: string, walletType?: WalletType): Promise<IpLog> {
     const { country, result, user } = await this.checkIpCountry(ip, address);
@@ -32,6 +37,27 @@ export class IpLogService {
     });
 
     return this.ipLogRepo.save(ipLog);
+  }
+
+  async getLoginCountries(userDataId: number, dateFrom: Date, dateTo = new Date()): Promise<string[]> {
+    const nearestLog = await this.last24hLogCache.get(`nearestLog-${Util.isoDate(dateFrom)}`, () =>
+      this.ipLogRepo.findOne({ where: { created: LessThanOrEqual(dateFrom) }, order: { id: 'DESC' } }),
+    );
+
+    return this.ipLogRepo
+      .createQueryBuilder('log')
+      .select('log.country', 'country')
+      .addSelect('MAX(log.created)', 'maxCreated')
+      .leftJoin('log.user', 'user')
+      .leftJoin('user.userData', 'userData')
+      .where('log.id >= :id', { id: nearestLog.id })
+      .andWhere('log.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('userData.id = :userDataId', { userDataId })
+      .andWhere('log.country IS NOT NULL')
+      .groupBy('log.country')
+      .orderBy('maxCreated', 'DESC')
+      .getRawMany<{ country: string; maxCreated: Date }>()
+      .then((ipLogs) => ipLogs.map((i) => i.country));
   }
 
   async getUserDataIdsWith(ip: string): Promise<number[]> {
