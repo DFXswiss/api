@@ -251,6 +251,22 @@
         "transaction_button": "Cliquez sur le bouton ci-dessous pour plus de détails sur votre récompense de parrainage:<br>[url:cliquez ici]",
         "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
     },
+    "recommendation": {
+        "recommended": {
+            "title": "Invitation DFX",
+            "salutation": "Vous avez été invité à DFX!",
+            "message": "{name} ({mail}) vous a invité à utiliser DFX",
+            "registration_button": "Il vous suffit de cliquer sur le bouton ci-dessous pour vous inscrire:<br>[url:cliquez ici]",
+            "registration_link": "Ou vous pouvez utiliser le lien suivant:<br>[url:{urlText}]"
+        },
+        "confirmation": {
+            "title": "Confirmer la recommandation DFX",
+            "salutation": "Vous avez une recommandation DFX en attente",
+            "message": "Pouvez-vous confirmer {name} ({mail}) pour l'utilisation de DFX ?",
+            "button": "Il vous suffit de cliquer sur le bouton ci-dessous pour accepter ou refuser l'invitation:<br>[url:cliquez ici]",
+            "link": "Ou vous pouvez utiliser le lien suivant:<br>[url:{urlText}]"
+        }
+    },
     "kyc": {
         "success": {
             "title": "Vérification réussie",

@@ -251,6 +251,22 @@
         "transaction_button": "Haga clic en el siguiente botón para obtener más información sobre su recompensa por recomendación:<br>[url:haga clic aquí]",
         "dfx_ambassador": "Eres un auténtico embajador de DFX - Gracias por compartir DFX!"
     },
+    "recommendation": {
+        "recommended": {
+            "title": "Invitación DFX",
+            "salutation": "Has sido invitado a DFX!",
+            "message": "{name} ({mail}) te ha invitado a utilizar DFX",
+            "registration_button": "Solo tienes que hacer clic en el botón de abajo para registrarte:<br>[url:haga clic aquí]",
+            "registration_link": "O puede utilizar el siguiente enlace:<br>[url:{urlText}]"
+        },
+        "confirmation": {
+            "title": "Confirmar recomendación DFX",
+            "salutation": "Tienes una recomendación DFX pendiente",
+            "message": "¿Puede confirmar {name} ({mail}) para el uso de DFX?",
+            "button": "Solo tienes que hacer clic en el botón de abajo para aceptar o rechazar la invitación:<br>[url:haga clic aquí]",
+            "link": "O puede utilizar el siguiente enlace:<br>[url:{urlText}]"
+        }
+    },
     "kyc": {
         "success": {
             "title": "Verificación exitosa",

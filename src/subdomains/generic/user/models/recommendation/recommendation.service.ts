@@ -1,9 +1,13 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
+import { KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
 import {
@@ -17,6 +21,8 @@ import { RecommendationRepository } from './recommendation.repository';
 
 @Injectable()
 export class RecommendationService {
+  private readonly logger = new DfxLogger(RecommendationService);
+
   constructor(
     private readonly recommendationRepo: RecommendationRepository,
     private readonly notificationService: NotificationService,
@@ -29,9 +35,18 @@ export class RecommendationService {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData) throw new NotFoundException('Account not found');
 
-    const recruit = dto.mail ? await this.userDataService.getUsersByMail(dto.mail)?.[0] : undefined;
+    const recruit = dto.mail
+      ? (await this.userDataService.getUsersByMail(dto.mail)?.[0]) ??
+        (await this.userDataService.createUserData({
+          mail: dto.mail,
+          status: UserDataStatus.KYC_ONLY,
+          kycType: KycType.DFX,
+          language: userData.language,
+          currency: userData.currency,
+        }))
+      : undefined;
 
-    return this.createRecommendationInternal(
+    const entity = await this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDER,
       RecommendationType.MAIL,
       dto.recommendedAlias,
@@ -40,6 +55,10 @@ export class RecommendationService {
       undefined,
       dto.mail,
     );
+
+    if (dto.mail) await this.sendRecommenderMail(entity);
+
+    return entity;
   }
 
   async createRecommendationByRecommended(
@@ -55,7 +74,7 @@ export class RecommendationService {
       ? await this.userDataService.getUsersByMail(dto.mail)?.[0]
       : undefined;
 
-    return this.createRecommendationInternal(
+    const entity = await this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDED,
       type,
       recommendedAlias,
@@ -63,6 +82,10 @@ export class RecommendationService {
       creator,
       kycStep,
     );
+
+    await this.sendPendingConfirmationMail(entity);
+
+    return entity;
   }
 
   async createRecommendationInternal(
@@ -142,5 +165,95 @@ export class RecommendationService {
       where: { recommended: { id: userDataId } },
       relations: { recommended: true, recommender: true },
     });
+  }
+
+  private async sendRecommenderMail(entity: Recommendation): Promise<void> {
+    try {
+      if (entity.recommended.mail) {
+        await this.notificationService.sendMail({
+          type: MailType.USER_V2,
+          context: MailContext.RECOMMENDER_MAIL,
+          input: {
+            userData: entity.recommended,
+            wallet: entity.recommended.wallet,
+            title: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.title`,
+            salutation: { key: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.salutation` },
+            texts: [
+              { key: MailKey.SPACE, params: { value: '3' } },
+              {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: entity.recommendedAlias },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.message`,
+                params: { name: entity.recommender.completeName, mail: entity.recommender.mail },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.registration_button`,
+                params: { url: entity.url, button: 'true' },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.registration_link`,
+                params: { url: entity.url, urlText: entity.url },
+              },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+      } else {
+        this.logger.warn(`Failed to send recommendation (${entity.id}) recommender mail: user has no email`);
+      }
+    } catch (e) {
+      this.logger.error(`Failed to send recommendation (${entity.id}) recommender mail:`, e);
+    }
+  }
+
+  private async sendPendingConfirmationMail(entity: Recommendation): Promise<void> {
+    try {
+      if (entity.recommender.mail) {
+        await this.notificationService.sendMail({
+          type: MailType.USER_V2,
+          context: MailContext.RECOMMENDATION_CONFIRMATION_MAIL,
+          input: {
+            userData: entity.recommender,
+            wallet: entity.recommender.wallet,
+            title: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.title`,
+            salutation: { key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.salutation` },
+            texts: [
+              { key: MailKey.SPACE, params: { value: '3' } },
+              {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: entity.recommender.firstname },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.message`,
+                params: { name: entity.recommended.completeName, mail: entity.recommended.mail },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.button`,
+                params: { url: entity.url, button: 'true' },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.link`,
+                params: { url: entity.url, urlText: entity.url },
+              },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+      } else {
+        this.logger.warn(`Failed to send recommendation (${entity.id}) confirmation mail: user has no email`);
+      }
+    } catch (e) {
+      this.logger.error(`Failed to send recommendation (${entity.id}) confirmation mail:`, e);
+    }
   }
 }

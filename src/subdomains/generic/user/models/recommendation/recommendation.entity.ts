@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { IEntity } from 'src/shared/models/entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -60,5 +61,9 @@ export class Recommendation extends IEntity {
 
   get isValid(): boolean {
     return this.isExpired && !this.isUsed;
+  }
+
+  get url(): string {
+    return `${Config.frontend.services}/recommendation?code=${this.code}`;
   }
 }
