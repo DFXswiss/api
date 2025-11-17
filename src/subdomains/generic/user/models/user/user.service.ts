@@ -307,8 +307,7 @@ export class UserService {
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user, user.userData);
 
-    if (update.status && update.status === UserStatus.BLOCKED)
-      this.siftService.sendUserBlocked(user, update.comment);
+    if (update.status && update.status === UserStatus.BLOCKED) this.siftService.sendUserBlocked(user, update.comment);
 
     if (update.setRef) await this.userRepo.setUserRef(user, KycLevel.LEVEL_50);
 
@@ -353,6 +352,16 @@ export class UserService {
     }
 
     await this.userDataService.deactivateUserData(userData);
+  }
+
+  async faucet(userDataId: number): Promise<{ txId: string }> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+    });
+    if (!userData) throw new NotFoundException('User account not found');
+    if (userData.isBlockedOrDeactivated) throw new BadRequestException('User account already deactivated');
+
+    return { txId: 'fake' };
   }
 
   // --- VOLUMES --- //

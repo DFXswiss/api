@@ -7,6 +7,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlListStatus } from 'src/subdomains/core/aml/enums/aml-list-status.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { Faucet } from 'src/subdomains/core/faucet/entities/faucet.entity';
 import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
@@ -149,6 +150,9 @@ export class UserData extends IEntity {
 
   @ManyToOne(() => Fiat, { eager: true })
   currency: Fiat;
+
+  @OneToMany(() => Faucet, (faucet) => faucet.userData)
+  faucets: Faucet[];
 
   // --- KYC --- //
 

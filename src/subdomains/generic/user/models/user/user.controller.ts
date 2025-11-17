@@ -17,6 +17,8 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { FaucetDto, GetFaucetDto } from 'src/subdomains/core/faucet/dto/faucet.dto';
+import { FaucetService } from 'src/subdomains/core/faucet/services/faucet.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -215,7 +217,7 @@ export class UserController {
 @ApiTags('User')
 @Controller({ path: 'user', version: ['2'] })
 export class UserV2Controller {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService, private readonly faucetService: FaucetService) {}
 
   @Get()
   @ApiBearerAuth()
@@ -294,5 +296,13 @@ export class UserV2Controller {
   @ApiOkResponse({ type: ReferralDto })
   async getRef(@GetJwt() jwt: JwtPayload): Promise<ReferralDto> {
     return this.userService.getRefDtoV2(jwt.user);
+  }
+
+  @Post('faucet')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  async faucet(@GetJwt() jwt: JwtPayload, @Body() faucet: GetFaucetDto): Promise<FaucetDto> {
+    return this.faucetService.createFaucet(jwt.account, jwt.address, faucet);
   }
 }
