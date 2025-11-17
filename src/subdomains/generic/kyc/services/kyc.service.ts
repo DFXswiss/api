@@ -22,7 +22,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { FindOptionsRelations, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -171,7 +171,7 @@ export class KycService {
         name: KycStepName.NATIONALITY_DATA,
         status: ReviewStatus.INTERNAL_REVIEW,
       },
-      relations: { userData: true },
+      relations: { userData: { wallet: true } },
     });
 
     for (const entity of entities) {
@@ -597,7 +597,7 @@ export class KycService {
   }
 
   async updateRecommendationData(kycHash: string, stepId: number, data: KycRecommendationData) {
-    const user = await this.getUser(kycHash, { wallet: true, users: true, kycSteps: { userData: true } });
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     if (Config.formats.recommendationCode.test(data.key)) {
@@ -1472,11 +1472,12 @@ export class KycService {
     return KycInfoMapper.toDto(user, withSession, kycClients, currentStep);
   }
 
-  private async getUser(
-    kycHash: string,
-    relations: FindOptionsRelations<UserData> = { users: true, kycSteps: { userData: true } },
-  ): Promise<UserData> {
-    return this.userDataService.getByKycHashOrThrow(kycHash, relations);
+  private async getUser(kycHash: string): Promise<UserData> {
+    return this.userDataService.getByKycHashOrThrow(kycHash, {
+      users: true,
+      kycSteps: { userData: true },
+      wallet: true,
+    });
   }
 
   private async getUserByTransactionOrThrow(
@@ -1485,7 +1486,7 @@ export class KycService {
   ): Promise<{ user: UserData; stepId: number }> {
     const kycStep = await this.kycStepRepo.findOne({
       where: { transactionId },
-      relations: { userData: true },
+      relations: { userData: { wallet: true } },
     });
 
     if (!kycStep) {
