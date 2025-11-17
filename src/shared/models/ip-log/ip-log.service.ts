@@ -47,16 +47,14 @@ export class IpLogService {
     return this.ipLogRepo
       .createQueryBuilder('log')
       .select('log.country', 'country')
-      .addSelect('MAX(log.created)', 'maxCreated')
-      .leftJoin('log.user', 'user')
-      .leftJoin('user.userData', 'userData')
+      .distinct()
+      .innerJoin('log.user', 'user')
+      .innerJoin('user.userData', 'userData')
       .where('log.id >= :id', { id: nearestLog.id })
       .andWhere('log.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('userData.id = :userDataId', { userDataId })
       .andWhere('log.country IS NOT NULL')
-      .groupBy('log.country')
-      .orderBy('maxCreated', 'DESC')
-      .getRawMany<{ country: string; maxCreated: Date }>()
+      .getRawMany<{ country: string }>()
       .then((ipLogs) => ipLogs.map((i) => i.country));
   }
 
