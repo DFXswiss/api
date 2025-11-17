@@ -82,7 +82,10 @@ export class CoinTrackingHistoryDtoMapper {
                 buyCrypto.cryptoInput.asset.blockchain,
               ),
               fee: buyCrypto.totalFeeAmount
-                ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+                ? Util.roundReadable(
+                    (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount,
+                    AmountType.ASSET_FEE,
+                  )
                 : null,
               feeAsset: buyCrypto.totalFeeAmount
                 ? this.getAssetSymbol(buyCrypto.cryptoInput.asset.dexName, buyCrypto.cryptoInput.asset.blockchain)
@@ -145,7 +148,10 @@ export class CoinTrackingHistoryDtoMapper {
           sellAmount: buyCrypto.inputAmount,
           sellAsset: buyCrypto.inputAsset,
           fee: buyCrypto.totalFeeAmount
-            ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+            ? Util.roundReadable(
+                (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount,
+                AmountType.FIAT_FEE,
+              )
             : null,
           feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
           exchange: 'DFX',
@@ -186,7 +192,10 @@ export class CoinTrackingHistoryDtoMapper {
           sellAmount: buyFiat.inputAmount,
           sellAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain),
           fee: buyFiat.totalFeeAmount
-            ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
+            ? Util.roundReadable(
+                (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount,
+                AmountType.ASSET_FEE,
+              )
             : null,
           feeAsset: buyFiat.totalFeeAmount
             ? this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain)
