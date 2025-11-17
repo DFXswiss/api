@@ -1,4 +1,5 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
@@ -110,7 +111,10 @@ export class RecommendationService {
       recommendedMail,
       recommender,
       recommended,
-      expirationDate: creator === RecommendationCreator.RECOMMENDER ? Util.daysAfter(7) : Util.daysAfter(30),
+      expirationDate:
+        creator === RecommendationCreator.RECOMMENDER
+          ? Util.daysAfter(Config.recommendation.recommenderExpiration)
+          : Util.daysAfter(Config.recommendation.confirmationExpiration),
       code: `${hash.slice(0, 2)}-${hash.slice(2, 6)}-${hash.slice(6, 10)}-${hash.slice(10, 12)}`,
     });
 
@@ -138,7 +142,7 @@ export class RecommendationService {
 
       if (entity.recommended.id) throw new Error('Recommended already set');
 
-      entity.expirationDate = Util.daysAfter(30);
+      entity.expirationDate = Util.daysAfter(Config.recommendation.confirmationExpiration);
     }
 
     Object.assign(entity, dto);

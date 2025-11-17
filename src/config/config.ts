@@ -236,6 +236,11 @@ export class Configuration {
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_',
   };
 
+  recommendation = {
+    recommenderExpiration: 7, // days
+    confirmationExpiration: 30, // days
+  };
+
   kyc = {
     gatewayHost: process.env.KYC_GATEWAY_HOST,
     auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
