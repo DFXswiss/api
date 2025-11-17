@@ -1,4 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { WalletType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Column, Entity, ManyToOne } from 'typeorm';
@@ -25,4 +26,7 @@ export class IpLog extends IEntity {
 
   @ManyToOne(() => User, { nullable: true })
   user?: User;
+
+  @ManyToOne(() => UserData, { nullable: true })
+  userData?: UserData;
 }
