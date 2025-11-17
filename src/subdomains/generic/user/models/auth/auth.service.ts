@@ -289,10 +289,11 @@ export class AuthService {
       const entry = this.mailKeyList.get(code);
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
 
-      const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail);
+      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
+
+      const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail, undefined, account);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
-      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
       const token = this.generateAccountToken(account, ip);
 
       await this.checkIpBlacklistFor(account, ip);
