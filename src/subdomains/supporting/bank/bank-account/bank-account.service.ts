@@ -55,14 +55,14 @@ export class BankAccountService {
 
   async getOrCreateIbanBankAccountInternal(iban: string, validateIbanCountry = true): Promise<BankAccount> {
     return (
-      (await this.bankAccountRepo.findOneBy({ iban: Equal(iban) })) ??
+      (await this.bankAccountRepo.findOneCachedBy(iban, { iban: Equal(iban) })) ??
       this.createBankAccountInternal(iban, undefined, validateIbanCountry)
     );
   }
 
   async getOrCreateBicBankAccountInternal(bic: string): Promise<BankAccount> {
     return (
-      (await this.bankAccountRepo.findOneBy({ bic: Equal(bic) })) ??
+      (await this.bankAccountRepo.findOneCachedBy(bic, { bic: Equal(bic) })) ??
       this.createBankAccountInternal(undefined, bic, false)
     );
   }

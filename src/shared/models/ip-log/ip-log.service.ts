@@ -24,7 +24,7 @@ export class IpLogService {
 
   private readonly last24hLogCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_24_HOURS);
 
-  async create(ip: string, url: string, address: string, walletType?: WalletType): Promise<IpLog> {
+  async create(ip: string, url: string, address: string, walletType?: WalletType, userData?: UserData): Promise<IpLog> {
     const { country, result, user } = await this.checkIpCountry(ip, address);
     const ipLog = this.ipLogRepo.create({
       ip,
@@ -33,6 +33,7 @@ export class IpLogService {
       url,
       address,
       user,
+      userData: userData ?? user.userData,
       walletType,
     });
 
@@ -94,7 +95,7 @@ export class IpLogService {
     const country = this.geoLocationService.getCountry(userIp);
     const countryObject = await this.countryService.getCountryWithSymbol(country);
 
-    const user = await this.repos.user.findOneBy({ address });
+    const user = await this.repos.user.findOne({ where: { address }, relations: { userData: true } });
 
     if (!countryObject || (user && user.role != UserRole.USER)) return { country, result: true, user };
 
