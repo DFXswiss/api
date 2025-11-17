@@ -175,14 +175,21 @@ export class BankDataService {
   }
 
   async replaceBankDataWithNewType(oldBankData: BankData, newDto: CreateBankDataDto): Promise<BankData> {
+    if (await this.bankDataRepo.existsBy({ iban: newDto.iban, type: newDto.type })) return;
+
     if (oldBankData.approved && newDto.type === BankDataType.BANK_IN) {
       newDto.approved = oldBankData.approved;
       newDto.status = oldBankData.status;
 
-      await this.bankDataRepo.update(oldBankData.id, { approved: false, status: ReviewStatus.FAILED });
+      await this.bankDataRepo.update(oldBankData.id, {
+        approved: false,
+        status: ReviewStatus.FAILED,
+        comment: `${oldBankData.comment};${BankDataVerificationError.REPLACED_WITH_NEW_BANK_DATA}`,
+      });
     } else {
       newDto.approved = false;
-      newDto.status = ReviewStatus.FAILED;
+      newDto.status = oldBankData.approved ? ReviewStatus.FAILED : ReviewStatus.INTERNAL_REVIEW;
+      newDto.comment = oldBankData.approved ? BankDataVerificationError.ALREADY_ACTIVE_EXISTS : undefined;
     }
 
     return this.createBankDataInternal(oldBankData.userData, newDto);
@@ -213,7 +220,7 @@ export class BankDataService {
       preferredCurrency: existingUserBankData?.preferredCurrency,
     });
 
-    if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
+    if (bankData.type !== BankDataType.USER && !dto.status) bankData.status = ReviewStatus.INTERNAL_REVIEW;
 
     if (![BankDataType.IDENT, BankDataType.NAME_CHECK, BankDataType.CARD_IN].includes(bankData.type)) {
       const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(bankData.iban, false);

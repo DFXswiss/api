@@ -30,4 +30,8 @@ export class CreateBankDataDto {
   @IsOptional()
   @IsEnum(ReviewStatus)
   status?: ReviewStatus;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
