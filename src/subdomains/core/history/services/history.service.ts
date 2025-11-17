@@ -143,7 +143,7 @@ export class HistoryService {
     const refRewards =
       all || query.ref
         ? transactions
-            .filter((t) => t.refReward && blockchainFilter.includes(t.refReward.outputAssetEntity.blockchain))
+            .filter((t) => t.refReward && blockchainFilter.includes(t.refReward.outputAsset.blockchain))
             .map((t) => t.refReward)
         : [];
 
