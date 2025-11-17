@@ -184,7 +184,7 @@ export class BankDataService {
       await this.bankDataRepo.update(oldBankData.id, {
         approved: false,
         status: ReviewStatus.FAILED,
-        comment: `${oldBankData.comment};${BankDataVerificationError.REPLACED_WITH_NEW_BANK_DATA}`,
+        comment: `${oldBankData.comment};${BankDataVerificationError.REPLACED}`,
       });
     } else {
       newDto.approved = false;
