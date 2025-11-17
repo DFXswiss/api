@@ -68,19 +68,11 @@ export const getHoldersQuery = (first?: number, before?: string, after?: string)
 
   return gql`
     query HoldersInformationPaginated {
-      changeTotalShares(limit: 1, orderBy: "timestamp", orderDirection: "desc") {
-        items {
-          total
-          timestamp
-          txHash
-        }
+    totalSupplys(limit: 1, orderBy: "timestamp", orderDirection: "desc") {
+      items {
+        value
       }
-      totalSupplys(limit: 1, orderBy: "timestamp", orderDirection: "desc") {
-        items {
-          value
-          timestamp
-        }
-      }
+    }
       accounts(where: { balance_gt: "0" }, orderBy: "balance", orderDirection: "desc", limit: ${limit}${beforeClause}${afterClause}) {
         items {
           address
@@ -97,3 +89,21 @@ export const getHoldersQuery = (first?: number, before?: string, after?: string)
     }
   `;
 };
+
+export const getTokenInfoQuery = () => gql`
+  query TokenInfo {
+    changeTotalShares(limit: 1, orderBy: "timestamp", orderDirection: "desc") {
+      items {
+        total
+        timestamp
+        txHash
+      }
+    }
+    totalSupplys(limit: 1, orderBy: "timestamp", orderDirection: "desc") {
+      items {
+        value
+        timestamp
+      }
+    }
+  }
+`;
