@@ -303,6 +303,7 @@ export class BankDataService {
     return (
       (preferredType && bankDatas.find((b) => b.type === preferredType && b.approved)) ??
       bankDatas.find((b) => b.approved) ??
+      (preferredType && bankDatas.find((b) => b.type === preferredType)) ??
       bankDatas[0]
     );
   }
