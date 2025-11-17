@@ -40,7 +40,7 @@
         },
         {
           "name": "ALLOWED_ORIGINS",
-          "value": "https://dev.monitoring.testnet.citrusdollar.com,https://monitoring.testnet.citrusdollar.com"
+          "value": "https://dev.monitoring.testnet.juicedollar.com,https://monitoring.testnet.juicedollar.com"
         },
         {
           "name": "DATABASE_URL",

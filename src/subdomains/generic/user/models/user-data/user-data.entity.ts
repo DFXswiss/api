@@ -18,7 +18,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { AccountOpenerAuthorization, Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
@@ -186,7 +186,6 @@ export class UserData extends IEntity {
   kycLevel: KycLevel;
 
   @Column()
-  @Generated('uuid')
   @Index({ unique: true })
   kycHash: string;
 
@@ -228,6 +227,9 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   phoneCallIpCheckDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  tradeApprovalDate?: Date;
 
   // AML
   @Column({ type: 'datetime2', nullable: true })

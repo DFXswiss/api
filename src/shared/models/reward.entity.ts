@@ -24,11 +24,8 @@ export class Reward extends IEntity {
   @Column({ type: 'float', nullable: true })
   outputAmount?: number;
 
-  @Column({ length: 256, nullable: true })
-  outputAssetString?: string;
-
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  outputAssetEntity?: Asset;
+  outputAsset?: Asset;
 
   @Column({ length: 256, nullable: true })
   txId?: string;

@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { randomUUID } from 'crypto';
 import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
@@ -134,6 +135,8 @@ export class UserDataService {
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
+    if (!Config.formats.kycHash.test(kycHash)) throw new UnauthorizedException('Invalid KYC hash');
+
     let user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
@@ -230,6 +233,7 @@ export class UserDataService {
       ...dto,
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
+      kycHash: randomUUID().toUpperCase(),
     });
 
     await this.loadRelationsAndVerify(userData, dto);
@@ -1054,6 +1058,10 @@ export class UserDataService {
         if (user.isBlockedOrDeleted) continue;
 
         await this.userRepo.update(...user.activateUser());
+        await this.userRepo.setUserRef(user, master.kycLevel);
+      }
+    } else if (master.users?.some((u) => u.ref)) {
+      for (const user of master.users) {
         await this.userRepo.setUserRef(user, master.kycLevel);
       }
     }

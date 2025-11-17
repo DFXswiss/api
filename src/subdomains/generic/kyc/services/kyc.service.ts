@@ -1209,7 +1209,7 @@ export class KycService {
         await this.createKycLevelLog(userData, KycLevel.LEVEL_30);
 
         if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-          await this.bankDataService.createVerifyBankData(kycStep.userData, {
+          await this.bankDataService.createBankDataInternal(kycStep.userData, {
             name: kycStep.userName,
             iban: `Ident${kycStep.identDocumentId}`,
             type: BankDataType.IDENT,

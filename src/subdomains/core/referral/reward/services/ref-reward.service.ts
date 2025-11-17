@@ -14,7 +14,7 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, In, IsNull, Not } from 'typeorm';
+import { Between, In, Not } from 'typeorm';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
 import { CreateManualRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
@@ -68,20 +68,6 @@ export class RefRewardService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  async syncOutputEntity(): Promise<void> {
-    const entities = await this.rewardRepo.find({ where: { outputAssetEntity: { id: IsNull() } }, take: 5000 });
-
-    for (const entity of entities) {
-      const asset = await this.assetService.getAssetByQuery({
-        blockchain: entity.targetBlockchain,
-        name: entity.outputAssetString,
-        type: entity.outputAssetString === 'dEURO' ? AssetType.TOKEN : AssetType.COIN,
-      });
-
-      await this.rewardRepo.update(entity.id, { outputAssetEntity: asset });
-    }
-  }
-
   async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
     const user = await this.userService.getUser(dto.user.id, { userData: true });
     if (!user) throw new NotFoundException('User not found');
@@ -103,8 +89,8 @@ export class RefRewardService {
     const entity = this.rewardRepo.create({
       user,
       targetAddress: user.address,
-      outputAssetString: asset.dexName,
-      outputAssetEntity: asset,
+      outputAsset: asset,
+      sourceTransaction,
       status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
       targetBlockchain: asset.blockchain,
       amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
@@ -166,8 +152,7 @@ export class RefRewardService {
         if (!(refCreditEur >= minCredit)) continue;
 
         const entity = this.rewardRepo.create({
-          outputAssetString: payoutAsset.dexName,
-          outputAssetEntity: payoutAsset,
+          outputAsset: payoutAsset,
           user,
           status: refCreditEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
           targetAddress: user.address,
@@ -251,7 +236,7 @@ export class RefRewardService {
       fiatCurrency: 'EUR',
       date: v.outputDate,
       cryptoAmount: v.outputAmount,
-      cryptoCurrency: v.outputAssetString,
+      cryptoCurrency: v.outputAsset.dexName,
     }));
   }
 }
