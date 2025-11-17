@@ -518,7 +518,7 @@ export class ChainReportHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.REWARD_BONUS,
           buyAmount: refReward.outputAmount,
-          buyAsset: refReward.outputAssetEntity.dexName,
+          buyAsset: refReward.outputAsset.dexName,
           sellAmount: null,
           sellAsset: null,
           fee: null,
@@ -531,7 +531,7 @@ export class ChainReportHistoryDtoMapper {
           buyValueInEur: refReward.amountInEur,
           sellValueInEur: null,
           inputBlockchain: null,
-          outputBlockchain: refReward.outputAssetEntity.blockchain,
+          outputBlockchain: refReward.outputAsset.blockchain,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
