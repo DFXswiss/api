@@ -1,5 +1,5 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
@@ -63,7 +63,10 @@ export class CoinTrackingHistoryDtoMapper {
                 date: buyCrypto.outputDate,
                 txid: buyCrypto.txId,
                 buyValueInEur: null,
-                sellValueInEur: (buyCrypto.amountInEur / buyCrypto.amountInChf) * buyCrypto.totalFeeAmountChf,
+                sellValueInEur: Util.roundReadable(
+                  (buyCrypto.amountInEur / buyCrypto.amountInChf) * buyCrypto.totalFeeAmountChf,
+                  AmountType.FIAT,
+                ),
               }
             : null
           : {

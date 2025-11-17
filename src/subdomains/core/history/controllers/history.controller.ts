@@ -82,24 +82,15 @@ export class HistoryController {
       : await this.userDataService.checkApiKey(key, sign, timestamp);
     query = Object.assign(query, ApiKeyService.getFilter(user.apiFilterCT));
 
-    switch (exportType) {
-      case 'CT':
-        return this.historyService.getApiHistory(
-          user,
-          { format: ExportFormat.JSON, ...query },
-          ExportType.COIN_TRACKING,
-        );
+    const exportTypeMap = {
+      CT: ExportType.COIN_TRACKING,
+      CR: ExportType.CHAIN_REPORT,
+    };
 
-      case 'CR':
-        return (await this.historyService.getApiHistory(
-          user,
-          { format: ExportFormat.JSON, ...query },
-          ExportType.CHAIN_REPORT,
-        )) as ChainReportApiHistoryDto[];
+    const type = exportTypeMap[exportType];
+    if (!type) throw new BadRequestException('ExportType not supported');
 
-      default:
-        throw new BadRequestException('ExportType not supported');
-    }
+    return this.historyService.getApiHistory(user, { format: ExportFormat.JSON, ...query }, type);
   }
 
   @Post('csv')
