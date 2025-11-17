@@ -7,7 +7,7 @@ import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notificat
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
-import { KycType, UserDataStatus } from '../user-data/user-data.enum';
+import { KycLevel, KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
 import {
@@ -34,6 +34,8 @@ export class RecommendationService {
   async createRecommendationByRecommender(userDataId: number, dto: CreateRecommendationDto): Promise<Recommendation> {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData) throw new NotFoundException('Account not found');
+    if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
+    if (!userData.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
 
     const recruit = dto.mail
       ? (await this.userDataService.getUsersByMail(dto.mail)?.[0]) ??
@@ -68,11 +70,12 @@ export class RecommendationService {
     kycStep: KycStep,
     dto: CreateRecommendationInternalDto,
   ): Promise<Recommendation> {
-    const advertiser = dto.refCode
+    const advertiser: UserData = dto.refCode
       ? await this.userService.getRefUser(dto.refCode).then((u) => u.userData)
       : dto.mail
       ? await this.userDataService.getUsersByMail(dto.mail)?.[0]
       : undefined;
+    if (advertiser.isBlocked) throw new BadRequestException('Recommender blocked');
 
     const entity = await this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDED,
@@ -115,10 +118,12 @@ export class RecommendationService {
   }
 
   async updateRecommendation(userDataId: number, id: number, dto: UpdateRecommendationDto): Promise<Recommendation> {
-    const entity = await this.recommendationRepo.findOneBy({ id });
+    const entity = await this.recommendationRepo.findOne({ where: { id }, relations: { recommender: true } });
     if (!entity) throw new NotFoundException('Recommendation not found');
     if (entity.recommender.id !== userDataId)
       throw new BadRequestException('You can not confirm a recommendation from another account');
+    if (entity.recommender.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
+    if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
 
     return this.updateRecommendationInternal(entity, { ...dto, confirmationDate: new Date() });
   }
