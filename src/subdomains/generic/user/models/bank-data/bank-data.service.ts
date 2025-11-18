@@ -415,7 +415,7 @@ export class BankDataService {
     return ibanCountry.isEnabled(kycType);
   }
 
-  get bankBalanceObservable(): Observable<BankData> {
+  get bankDataObservable(): Observable<BankData> {
     return this.newUserBankDataSubject.asObservable();
   }
 }

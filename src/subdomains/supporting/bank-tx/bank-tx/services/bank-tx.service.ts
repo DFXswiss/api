@@ -95,7 +95,7 @@ export class BankTxService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.bankDataService.bankBalanceObservable.subscribe((dto) =>
+    this.bankDataService.bankDataObservable.subscribe((dto) =>
       this.checkAssignAndNotifyUserData(dto.iban, dto.userData),
     );
   }
@@ -467,7 +467,6 @@ export class BankTxService implements OnModuleInit {
 
   async checkAssignAndNotifyUserData(iban: string, userData: UserData): Promise<void> {
     const bankTxs = await this.getUnassignedBankTx([iban], { transaction: { userData: true } });
-    if (!bankTxs.length) return;
 
     for (const bankTx of bankTxs) {
       if (bankTx.transaction.userData) continue;
