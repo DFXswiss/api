@@ -22,8 +22,7 @@ export class IpLogService {
     private readonly repos: RepositoryFactory,
   ) {}
 
-  private readonly last24hLogCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_24_HOURS);
-  private readonly last6mLogCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_6_MONTH);
+  private readonly idCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_6_MONTH);
 
   async create(ip: string, url: string, address: string, walletType?: WalletType, userData?: UserData): Promise<IpLog> {
     const { country, result, user } = await this.checkIpCountry(ip, address);
@@ -42,7 +41,7 @@ export class IpLogService {
   }
 
   async getLoginCountries(userDataId: number, dateFrom: Date, dateTo = new Date()): Promise<string[]> {
-    const nearestLog = await this.last24hLogCache.get(`nearestLog-${Util.isoDate(dateFrom)}`, () =>
+    const nearestLog = await this.idCache.get(Util.isoDate(dateFrom), () =>
       this.ipLogRepo.findOne({ where: { created: LessThanOrEqual(dateFrom) }, order: { id: 'DESC' } }),
     );
 
@@ -86,7 +85,7 @@ export class IpLogService {
 
   async updateUserIpLogs(user: User): Promise<void> {
     const dateFrom = Util.daysBefore(180);
-    const nearestLog = await this.last6mLogCache.get(`nearestLog-${Util.isoDate(dateFrom)}`, () =>
+    const nearestLog = await this.idCache.get(Util.isoDate(dateFrom), () =>
       this.ipLogRepo.findOne({ where: { created: LessThanOrEqual(dateFrom) }, order: { id: 'DESC' } }),
     );
 
