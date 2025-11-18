@@ -98,10 +98,12 @@ export class RealUnitDtoMapper {
     return dto;
   }
 
-  static priceToHistoricalPriceDto(price: Price): HistoricalPriceDto {
+  static priceToHistoricalPriceDto(chfPrice?: Price, eurPrice?: Price, usdPrice?: Price): HistoricalPriceDto {
     return {
-      timestamp: price.timestamp,
-      chf: price.price,
+      timestamp: chfPrice?.timestamp ?? eurPrice?.timestamp ?? usdPrice?.timestamp ?? new Date(),
+      chf: chfPrice ? Util.round(chfPrice.convert(1), 8) : undefined,
+      eur: eurPrice ? Util.round(eurPrice.convert(1), 8) : undefined,
+      usd: usdPrice ? Util.round(usdPrice.convert(1), 8) : undefined,
     };
   }
 
