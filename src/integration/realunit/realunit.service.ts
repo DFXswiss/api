@@ -6,7 +6,11 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { PriceCurrency, PricingService, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
 import {
   AccountHistoryClientResponse,
@@ -31,7 +35,6 @@ export class RealUnitService {
   private readonly ponderUrl: string;
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
-  private static readonly ZCHF = 'ZCHF';
   private readonly historicalPriceCache = new AsyncCache<HistoricalPriceDto[]>(CacheItemResetPeriod.EVERY_6_HOURS);
 
   constructor(
@@ -74,9 +77,9 @@ export class RealUnitService {
     const realuAsset = await this.getRealuAsset();
 
     const [chfPrice, eurPrice, usdPrice] = await Promise.all([
-      this.pricingService.getPrice(realuAsset, PriceCurrency.CHF, PriceValidity.ANY).catch(() => null),
-      this.pricingService.getPrice(realuAsset, PriceCurrency.EUR, PriceValidity.ANY).catch(() => null),
-      this.pricingService.getPrice(realuAsset, PriceCurrency.USD, PriceValidity.ANY).catch(() => null),
+      this.pricingService.getPrice(PriceCurrency.CHF, realuAsset, PriceValidity.ANY).catch(() => null),
+      this.pricingService.getPrice(PriceCurrency.EUR, realuAsset, PriceValidity.ANY).catch(() => null),
+      this.pricingService.getPrice(PriceCurrency.USD, realuAsset, PriceValidity.ANY).catch(() => null),
     ]);
 
     return RealUnitDtoMapper.priceToHistoricalPriceDto(chfPrice, eurPrice, usdPrice);
