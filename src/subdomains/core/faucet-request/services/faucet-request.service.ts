@@ -42,7 +42,7 @@ export class FaucetRequestService {
     for (const faucet of pendingFaucets) {
       const client = this.blockchainRegistry.getEvmClient(faucet.asset.blockchain);
       try {
-        if (await client.isTxComplete(faucet.transactionId)) await this.faucetRequestRepo.update(...faucet.complete());
+        if (await client.isTxComplete(faucet.txId)) await this.faucetRequestRepo.update(...faucet.complete());
       } catch (e) {
         await this.faucetRequestRepo.update(...faucet.failed());
         this.logger.error(`Faucet request ${faucet.id} failed:`, e);
@@ -67,16 +67,16 @@ export class FaucetRequestService {
       const client = this.blockchainRegistry.getEvmClient(Blockchain.ETHEREUM);
       const asset = await this.assetService.getNativeAsset(Blockchain.ETHEREUM);
       const price = await this.pricingService.getPrice(PriceCurrency.CHF, asset, PriceValidity.ANY);
-      const transactionId = await client.sendNativeCoinFromDex(user.address, price.convert(Config.faucetAmount));
+      const txId = await client.sendNativeCoinFromDex(user.address, price.convert(Config.faucetAmount));
 
       const faucetRequest = this.faucetRequestRepo.create({
         userData: user.userData,
-        transactionId,
+        txId,
         amount: price.convert(Config.faucetAmount),
       });
       await this.faucetRequestRepo.save(faucetRequest);
 
-      return { transactionId, amount: price.convert(Config.faucetAmount) };
+      return { txId, amount: price.convert(Config.faucetAmount) };
     } catch (e) {
       this.logger.error(`Faucet request from user ${userId} failed:`, e);
       throw new ServiceUnavailableException('Faucet currently not available');
