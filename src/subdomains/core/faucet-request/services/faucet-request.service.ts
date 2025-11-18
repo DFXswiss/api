@@ -68,7 +68,8 @@ export class FaucetRequestService {
       await this.faucetRequestRepo.save(faucetRequest);
 
       return { txId, amount: sendFee.amount };
-    } catch {
+    } catch (e) {
+      this.logger.error(`Faucet request from user ${userId} failed:`, e);
       throw new ServiceUnavailableException('Faucet currently not available');
     }
   }
