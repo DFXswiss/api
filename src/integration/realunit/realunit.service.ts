@@ -6,20 +6,35 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
-import { AccountHistoryClientResponse, AccountSummaryClientResponse, HoldersClientResponse } from './dto/client.dto';
+import {
+  AccountHistoryClientResponse,
+  AccountSummaryClientResponse,
+  HoldersClientResponse,
+  TokenInfoClientResponse,
+} from './dto/client.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
-import { AccountHistoryDto, AccountSummaryDto, HistoricalPriceDto, HoldersDto, TimeFrame } from './dto/realunit.dto';
+import {
+  AccountHistoryDto,
+  AccountSummaryDto,
+  HistoricalPriceDto,
+  HoldersDto,
+  TimeFrame,
+  TokenInfoDto,
+} from './dto/realunit.dto';
 import { PriceUtils } from './utils/price-utils';
-import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery } from './utils/queries';
+import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 
 @Injectable()
 export class RealUnitService {
   private readonly ponderUrl: string;
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
-  private static readonly ZCHF = 'ZCHF';
   private readonly historicalPriceCache = new AsyncCache<HistoricalPriceDto[]>(CacheItemResetPeriod.EVERY_6_HOURS);
 
   constructor(
@@ -38,8 +53,8 @@ export class RealUnitService {
     return RealUnitDtoMapper.toAccountSummaryDto(clientResponse, historicalPrices);
   }
 
-  async getHolders(first?: number, after?: string): Promise<HoldersDto> {
-    const holdersQuery = getHoldersQuery(first, after);
+  async getHolders(first?: number, before?: string, after?: string): Promise<HoldersDto> {
+    const holdersQuery = getHoldersQuery(first, before, after);
     const clientResponse = await request<HoldersClientResponse>(this.ponderUrl, holdersQuery);
     return RealUnitDtoMapper.toHoldersDto(clientResponse);
   }
@@ -59,8 +74,15 @@ export class RealUnitService {
   }
 
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
-    const price = await this.pricingService.realunitService.getPrice(RealUnitService.ZCHF, this.tokenName);
-    return RealUnitDtoMapper.priceToHistoricalPriceDto(price);
+    const realuAsset = await this.getRealuAsset();
+
+    const [chfPrice, eurPrice, usdPrice] = await Promise.all([
+      this.pricingService.getPrice(realuAsset, PriceCurrency.CHF, PriceValidity.ANY).catch(() => null),
+      this.pricingService.getPrice(realuAsset, PriceCurrency.EUR, PriceValidity.ANY).catch(() => null),
+      this.pricingService.getPrice(realuAsset, PriceCurrency.USD, PriceValidity.ANY).catch(() => null),
+    ]);
+
+    return RealUnitDtoMapper.priceToHistoricalPriceDto(chfPrice, eurPrice, usdPrice);
   }
 
   private async getHistoricalPriceStartDate(timeFrame: TimeFrame): Promise<Date> {
@@ -69,6 +91,8 @@ export class RealUnitService {
         return Util.daysBefore(30);
       case TimeFrame.YEAR:
         return Util.daysBefore(365);
+      case TimeFrame.QUARTER:
+        return Util.daysBefore(90);
       case TimeFrame.ALL:
         return this.genesisDate;
       default: // WEEK
@@ -83,5 +107,11 @@ export class RealUnitService {
       const filledPrices = PriceUtils.fillMissingDates(prices);
       return RealUnitDtoMapper.assetPricesToHistoricalPricesDto(filledPrices);
     });
+  }
+
+  async getRealUnitInfo(): Promise<TokenInfoDto> {
+    const tokenInfoQuery = getTokenInfoQuery();
+    const clientResponse = await request<TokenInfoClientResponse>(this.ponderUrl, tokenInfoQuery);
+    return RealUnitDtoMapper.toTokenInfoDto(clientResponse);
   }
 }

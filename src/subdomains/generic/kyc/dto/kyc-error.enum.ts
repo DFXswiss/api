@@ -43,6 +43,9 @@ export enum KycError {
   // PersonalData errors
   PERSONAL_DATA_NOT_MATCHING = 'PersonalDataNotMatching',
 
+  // DfxApproval errors
+  BANK_RECALL_FEE_NOT_PAID = 'BankRecallFeeNotPaid',
+
   // Deactivated userData errors
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
 }
@@ -81,6 +84,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.DENIED_RECOMMENDATION]: 'Your recommendation request was denied',
   [KycError.EXPIRED_RECOMMENDATION]: 'Your recommendation request is expired',
   [KycError.RECOMMENDER_BLOCKED]: 'Unknown error',
+  [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee is missing',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

@@ -1,6 +1,16 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { AccountHistoryDto, AccountSummaryDto, HistoricalPriceDto, HoldersDto, TimeFrame } from '../dto/realunit.dto';
+import { ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  AccountHistoryDto,
+  AccountHistoryQueryDto,
+  AccountSummaryDto,
+  HistoricalPriceDto,
+  HistoricalPriceQueryDto,
+  HoldersDto,
+  HoldersQueryDto,
+  TimeFrame,
+  TokenInfoDto,
+} from '../dto/realunit.dto';
 import { RealUnitService } from '../realunit.service';
 
 @ApiTags('Realunit')
@@ -29,22 +39,9 @@ export class RealUnitController {
     name: 'address',
     description: 'The wallet address to query',
   })
-  @ApiQuery({
-    name: 'first',
-    required: false,
-    type: Number,
-    description: 'Number of history events to return (default: 50)',
-  })
-  @ApiQuery({
-    name: 'after',
-    required: false,
-    type: String,
-    description: 'Cursor for pagination - return events after this cursor',
-  })
   async getAccountHistory(
     @Param('address') address: string,
-    @Query('first') first?: number,
-    @Query('after') after?: string,
+    @Query() { first, after }: AccountHistoryQueryDto,
   ): Promise<AccountHistoryDto> {
     return this.realunitService.getAccountHistory(address, first, after);
   }
@@ -54,22 +51,9 @@ export class RealUnitController {
     summary: 'Get token holders',
     description: 'Retrieves a paginated list of token holders on the Realunit protocol',
   })
-  @ApiQuery({
-    name: 'first',
-    required: false,
-    type: Number,
-    description: 'Number of holders to return (default: 50)',
-  })
-  @ApiQuery({
-    name: 'after',
-    required: false,
-    type: String,
-    description:
-      'Cursor for pagination - return holders after this cursor, cursor is the endCursor of the previous page',
-  })
   @ApiOkResponse({ type: HoldersDto })
-  async getHolders(@Query('first') first?: number, @Query('after') after?: string): Promise<HoldersDto> {
-    return this.realunitService.getHolders(first, after);
+  async getHolders(@Query() { first, before, after }: HoldersQueryDto): Promise<HoldersDto> {
+    return this.realunitService.getHolders(first, before, after);
   }
 
   @Get('price/history')
@@ -77,15 +61,9 @@ export class RealUnitController {
     summary: 'Get historical prices',
     description: 'Retrieves the historical prices of RealUnit token in multiple currencies (CHF, EUR, USD)',
   })
-  @ApiQuery({
-    name: 'timeFrame',
-    required: false,
-    enum: TimeFrame,
-    description: 'Time frame for historical prices (default: WEEK)',
-  })
   @ApiOkResponse({ type: [HistoricalPriceDto] })
-  async getHistoricalPrice(@Query('timeFrame') timeFrame: TimeFrame = TimeFrame.WEEK): Promise<HistoricalPriceDto[]> {
-    return this.realunitService.getHistoricalPrice(timeFrame);
+  async getHistoricalPrice(@Query() { timeFrame }: HistoricalPriceQueryDto): Promise<HistoricalPriceDto[]> {
+    return this.realunitService.getHistoricalPrice(timeFrame ?? TimeFrame.WEEK);
   }
 
   @Get('price')
@@ -96,5 +74,14 @@ export class RealUnitController {
   @ApiOkResponse({ type: HistoricalPriceDto })
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
     return this.realunitService.getRealUnitPrice();
+  }
+  @Get('tokenInfo')
+  @ApiOperation({
+    summary: 'Get token info',
+    description: 'Retrieves the information of the RealUnit token',
+  })
+  @ApiOkResponse({ type: TokenInfoDto })
+  async getTokenInfo(): Promise<TokenInfoDto> {
+    return this.realunitService.getRealUnitInfo();
   }
 }

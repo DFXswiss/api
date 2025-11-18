@@ -2,8 +2,13 @@ import { Util } from 'src/shared/utils/util';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceUtils } from '../utils/price-utils';
-import { AccountHistoryClientResponse, AccountSummaryClientResponse, HoldersClientResponse } from './client.dto';
-import { AccountHistoryDto, AccountSummaryDto, HistoricalPriceDto, HoldersDto } from './realunit.dto';
+import {
+  AccountHistoryClientResponse,
+  AccountSummaryClientResponse,
+  HoldersClientResponse,
+  TokenInfoClientResponse,
+} from './client.dto';
+import { AccountHistoryDto, AccountSummaryDto, HistoricalPriceDto, HoldersDto, TokenInfoDto } from './realunit.dto';
 
 export class RealUnitDtoMapper {
   static toAccountSummaryDto(
@@ -36,26 +41,28 @@ export class RealUnitDtoMapper {
     return dto;
   }
 
+  static toTokenInfoDto(clientResponse: TokenInfoClientResponse): TokenInfoDto {
+    const dto = new TokenInfoDto();
+    const changeTotalShares = clientResponse.changeTotalShares.items[0];
+    dto.totalShares = {
+      total: changeTotalShares.total,
+      timestamp: new Date(Number(changeTotalShares.timestamp) * 1000),
+      txHash: changeTotalShares.txHash,
+    };
+
+    const totalSupply = clientResponse.totalSupplys.items[0];
+    dto.totalSupply = {
+      value: totalSupply.value,
+      timestamp: new Date(Number(totalSupply.timestamp) * 1000),
+    };
+
+    return dto;
+  }
+
   static toHoldersDto(clientResponse: HoldersClientResponse): HoldersDto {
     const dto = new HoldersDto();
 
-    const totalShares = clientResponse.changeTotalShares.items[0];
     const totalSupply = clientResponse.totalSupplys.items[0];
-
-    dto.totalShares = totalShares
-      ? {
-          total: totalShares.total,
-          timestamp: new Date(Number(totalShares.timestamp) * 1000),
-          txHash: totalShares.txHash,
-        }
-      : null;
-
-    dto.totalSupply = totalSupply
-      ? {
-          value: totalSupply.value,
-          timestamp: new Date(Number(totalSupply.timestamp) * 1000),
-        }
-      : null;
 
     dto.holders = clientResponse.accounts.items.map((holder) => ({
       address: holder.address,
@@ -91,10 +98,12 @@ export class RealUnitDtoMapper {
     return dto;
   }
 
-  static priceToHistoricalPriceDto(price: Price): HistoricalPriceDto {
+  static priceToHistoricalPriceDto(chfPrice?: Price, eurPrice?: Price, usdPrice?: Price): HistoricalPriceDto {
     return {
-      timestamp: price.timestamp,
-      chf: price.price,
+      timestamp: chfPrice?.timestamp ?? eurPrice?.timestamp ?? usdPrice?.timestamp ?? new Date(),
+      chf: chfPrice ? Util.round(chfPrice.convert(1), 8) : undefined,
+      eur: eurPrice ? Util.round(eurPrice.convert(1), 8) : undefined,
+      usd: usdPrice ? Util.round(usdPrice.convert(1), 8) : undefined,
     };
   }
 

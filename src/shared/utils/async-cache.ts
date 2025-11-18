@@ -8,6 +8,8 @@ export enum CacheItemResetPeriod {
   EVERY_5_MINUTES = 5 * 60,
   EVERY_HOUR = 3600,
   EVERY_6_HOURS = 3600 * 6,
+  EVERY_24_HOURS = 3600 * 24,
+  EVERY_6_MONTHS = 3600 * 24 * 30 * 6,
 }
 
 export class AsyncCache<T> {

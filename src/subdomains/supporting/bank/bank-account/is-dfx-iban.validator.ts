@@ -72,7 +72,7 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
 
   defaultMessage(args: ValidationArguments): string | undefined {
     const iban = args.value;
-    if (!iban) return 'IBAN required';
+    if (!iban) return;
 
     // IBAN tools
     const { valid } = IbanTools.validateIBAN(iban);
