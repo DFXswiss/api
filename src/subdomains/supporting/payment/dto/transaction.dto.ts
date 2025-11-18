@@ -223,6 +223,9 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   externalTransactionId?: string;
+
+  @ApiPropertyOptional()
+  networkStartTx?: NetworkStartTxDto;
 }
 
 export class TransactionDetailDto extends TransactionDto {
@@ -231,6 +234,20 @@ export class TransactionDetailDto extends TransactionDto {
 
   @ApiPropertyOptional()
   targetAccount?: string;
+}
+
+export class NetworkStartTxDto {
+  @ApiProperty()
+  transactionId: string;
+
+  @ApiProperty()
+  amount: number;
+
+  @ApiProperty()
+  exchangeRate: number;
+
+  @ApiProperty()
+  asset: string;
 }
 
 export class TransactionTarget {

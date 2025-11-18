@@ -144,7 +144,7 @@ export class BuyCryptoOutService {
 
       const networkStartFeeRequest: PayoutRequest = {
         context: PayoutOrderContext.BUY_CRYPTO,
-        correlationId: `${transaction.id}-network-start-fee`,
+        correlationId: transaction.correlationId,
         asset: nativeAsset,
         amount: networkStartFeePrice.convert(transaction.networkStartFeeAmount),
         destinationAddress: transaction.targetAddress,
@@ -182,6 +182,18 @@ export class BuyCryptoOutService {
           );
 
           tx.complete(payoutFee);
+
+          if (tx.networkStartFeeAmount) {
+            const { payoutTxId, payoutAmount, payoutAsset } = await this.payoutService.checkOrderCompletion(
+              PayoutOrderContext.BUY_CRYPTO,
+              tx.correlationId,
+            );
+
+            tx.networkStartAmount = payoutAmount;
+            tx.networkStartTx = payoutTxId;
+            tx.networkStartAsset = payoutAsset.name;
+          }
+
           await this.buyCryptoRepo.save(tx);
 
           const custodyOrder = await this.custodyOrderService.getCustodyOrderByTx(tx);

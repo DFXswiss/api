@@ -169,6 +169,15 @@ export class BuyCrypto extends IEntity {
   networkStartFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
+  networkStartAmount?: number;
+
+  @Column({ length: 256, nullable: true })
+  networkStartTx?: string;
+
+  @Column({ length: 256, nullable: true })
+  networkStartAsset?: string;
+
+  @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee?: number;
 
   @Column({ type: 'float', nullable: true })
@@ -633,6 +642,10 @@ export class BuyCrypto extends IEntity {
 
   get chargebackBankRemittanceInfo(): string {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
+  get correlationId(): string {
+    return `${this.id}-network-start-fee`;
   }
 
   get refundAmount(): number {

@@ -91,6 +91,17 @@ export class TransactionDtoMapper {
       chargebackDate: buyCrypto.chargebackDate,
       date: buyCrypto.transaction.created,
       externalTransactionId: buyCrypto.transaction.externalId,
+      networkStartTx: buyCrypto.networkStartFeeAmount
+        ? {
+            transactionId: buyCrypto.networkStartTx,
+            amount: buyCrypto.networkStartAmount,
+            exchangeRate: Util.roundReadable(
+              buyCrypto.networkStartFeeAmount / buyCrypto.networkStartAmount,
+              AmountType.FIAT,
+            ),
+            asset: buyCrypto.networkStartAsset,
+          }
+        : null,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -206,6 +217,7 @@ export class TransactionDtoMapper {
       chargebackDate: null,
       date: txRequest.created,
       externalTransactionId: null,
+      networkStartTx: null,
     };
 
     return Object.assign(new TransactionDto(), dto);
