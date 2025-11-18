@@ -7,7 +7,6 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -35,7 +34,6 @@ describe('UserService', () => {
   let tfaService: TfaService;
   let siftService: SiftService;
   let kycAdminService: KycAdminService;
-  let faucetRequestService: FaucetRequestService;
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
@@ -52,7 +50,6 @@ describe('UserService', () => {
     tfaService = createMock<TfaService>();
     siftService = createMock<SiftService>();
     kycAdminService = createMock<KycAdminService>();
-    faucetRequestService = createMock<FaucetRequestService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -71,7 +68,6 @@ describe('UserService', () => {
         { provide: TfaService, useValue: tfaService },
         { provide: SiftService, useValue: siftService },
         { provide: KycAdminService, useValue: kycAdminService },
-        { provide: FaucetRequestService, useValue: faucetRequestService },
         TestUtil.provideConfig(),
       ],
     }).compile();

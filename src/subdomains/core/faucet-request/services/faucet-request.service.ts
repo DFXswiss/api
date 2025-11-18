@@ -3,6 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -22,16 +23,18 @@ export class FaucetRequestService {
     private readonly assetService: AssetService,
     private readonly userService: UserService,
   ) {}
+  private readonly logger = new DfxLogger(FaucetRequestService);
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.CRYPTO_PAYOUT })
   async checkFaucetRequests(): Promise<void> {
     const pendingFaucets = await this.faucetRequestRepo.find({ where: { status: FaucetRequestStatus.IN_PROGRESS } });
     for (const faucet of pendingFaucets) {
       const client = this.blockchainRegistry.getEvmClient(Blockchain.ETHEREUM);
-      if (await client.isTxComplete(faucet.txId)) {
-        await this.faucetRequestRepo.update(...faucet.complete());
-      } else if (!(await client.getTx(faucet.txId))) {
+      try {
+        if (await client.isTxComplete(faucet.txId)) await this.faucetRequestRepo.update(...faucet.complete());
+      } catch (e) {
         await this.faucetRequestRepo.update(...faucet.failed());
+        this.logger.error(`Faucet request failed for tx ${faucet.txId}: ${e.message}`);
       }
     }
   }

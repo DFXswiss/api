@@ -20,7 +20,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -61,7 +60,6 @@ export class UserService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly siftService: SiftService,
-    private readonly faucetRequestService: FaucetRequestService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
