@@ -1,7 +1,9 @@
-import verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
 import { MainNet } from '@defichain/jellyfish-network';
+import { Address } from '@emurgo/cardano-serialization-lib-nodejs';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
+import blake2b from 'blake2b';
+import cbor from 'cbor';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Config } from 'src/config/config';
@@ -10,6 +12,8 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
+import nacl from 'tweetnacl';
+import util from 'tweetnacl-util';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
@@ -86,6 +90,69 @@ export class CryptoService {
       default:
         return undefined;
     }
+  }
+
+  hashPublicKey(pubKey: Uint8Array): Buffer {
+    const h = blake2b(28); // 28 = 224 bits
+    h.update(pubKey);
+    return Buffer.from(h.digest());
+  }
+
+  doesAddressMatchKey(publicKey: Uint8Array, address: string): boolean {
+    try {
+      const addr = Address.from_bech32(address);
+      const keyHash = addr.payment_cred().to_keyhash();
+      const myPubKeyHash = this.hashPublicKey(publicKey);
+      console.log('Public Key Hash:', myPubKeyHash.toString('hex'));
+
+      if (!keyHash) return false;
+
+      // Key Hash als Bytes
+      const addrKeyHashBytes = Buffer.from(keyHash.to_bytes());
+      // Blake2b-224 Hash vom Public Key berechnen
+      const h = blake2b(28);
+      h.update(publicKey);
+      const pubKeyHashBytes = Buffer.from(h.digest());
+      console.log('Address:', address);
+      console.log('Addr kind:', addr.kind());
+      console.log('Payment cred type:', addr.payment_cred().kind());
+      console.log('Key hash from address:', addrKeyHashBytes.toString('hex'));
+      console.log('Public key:', Buffer.from(publicKey).toString('hex'));
+      console.log('Public key hash:', pubKeyHashBytes.toString('hex'));
+
+      return addrKeyHashBytes.equals(pubKeyHashBytes);
+    } catch {
+      return false;
+    }
+  }
+
+  validateCIP30Signature(message: string, address: string, signatureBase64: string, keyBase64: string): boolean {
+    const signatureBuf = Buffer.from(signatureBase64, 'base64');
+    const keyBuf = Buffer.from(keyBase64, 'base64');
+
+    const coseKey = cbor.decodeFirstSync(keyBuf) as Map<number, Buffer>;
+    const publicKey = coseKey.get(-2);
+    if (!publicKey) throw new Error('Public key nicht gefunden im COSE_Key');
+
+    const coseSign1 = cbor.decodeFirstSync(signatureBuf) as [Buffer, Map<any, any>, Buffer, Buffer];
+    const protectedHeader = coseSign1[0];
+    const payload = coseSign1[2];
+    const signature = coseSign1[3];
+    const messageBytes = util.decodeUTF8(message);
+
+    if (!Buffer.from(payload).equals(Buffer.from(messageBytes))) {
+      return false;
+    }
+
+    if (!this.doesAddressMatchKey(publicKey, address)) {
+      return false;
+    }
+
+    const context = 'Signature1';
+    const externalAAD = Buffer.alloc(0);
+    const toSign = cbor.encode([context, protectedHeader, externalAAD, payload]);
+
+    return nacl.sign.detached.verify(toSign, signature, publicKey);
   }
 
   // --- ADDRESSES --- //
@@ -238,7 +305,7 @@ export class CryptoService {
       if (blockchain === Blockchain.TRON) return await this.verifyTron(message, address, signature);
       if (blockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
       if (blockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
-      if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
+      if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, signature, address, key);
       if (blockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
       if (blockchain === Blockchain.DEFICHAIN)
         return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
@@ -298,8 +365,8 @@ export class CryptoService {
     return this.verifyBitcoinBased(message, LiquidHelper.getUnconfidentialAddress(address), signature, null);
   }
 
-  private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {
-    return verifyCardanoSignature(signature, key, message, address);
+  private verifyCardano(message: string, signature: string, address: string, key?: string): boolean {
+    return this.validateCIP30Signature(message, address, signature, key);
   }
 
   private async verifyArweave(message: string, signature: string, key: string): Promise<boolean> {
