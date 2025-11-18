@@ -91,10 +91,10 @@ export class TransactionDtoMapper {
       chargebackDate: buyCrypto.chargebackDate,
       date: buyCrypto.transaction.created,
       externalTransactionId: buyCrypto.transaction.externalId,
-      networkStartTx: buyCrypto.networkStartFeeAmount
+      networkStartTx: buyCrypto.networkStartAmount
         ? {
-            transactionId: buyCrypto.networkStartTx,
-            transactionUrl: txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.networkStartTx),
+            txId: buyCrypto.networkStartTx,
+            txUrl: txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.networkStartTx),
             amount: buyCrypto.networkStartAmount,
             exchangeRate: Util.roundReadable(
               buyCrypto.networkStartFeeAmount / buyCrypto.networkStartAmount,
@@ -329,6 +329,7 @@ export class TransactionDtoMapper {
     if (entity.percentFee == null) return null;
 
     const referencePrice = entity.inputAmount / entity.inputReferenceAmount;
+    const networkStartFee = (entity instanceof BuyCrypto && entity.networkStartFeeAmount) || 0;
     const blockchainFee = entity.blockchainFee ?? 0;
 
     return {
@@ -349,13 +350,16 @@ export class TransactionDtoMapper {
       dfx:
         entity.totalFeeAmount != null
           ? Util.roundReadable(
-              (entity.totalFeeAmount - blockchainFee) * referencePrice,
+              (entity.totalFeeAmount - (blockchainFee + networkStartFee)) * referencePrice,
               feeAmountType(entity.inputAssetEntity),
             )
           : null,
       total:
         entity.totalFeeAmount != null
-          ? Util.roundReadable(entity.totalFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
+          ? Util.roundReadable(
+              (entity.totalFeeAmount - networkStartFee) * referencePrice,
+              feeAmountType(entity.inputAssetEntity),
+            )
           : null,
     };
   }

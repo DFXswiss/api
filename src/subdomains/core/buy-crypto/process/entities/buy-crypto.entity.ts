@@ -644,7 +644,7 @@ export class BuyCrypto extends IEntity {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
   }
 
-  get correlationId(): string {
+  get networkStartCorrelationId(): string {
     return `${this.id}-network-start-fee`;
   }
 

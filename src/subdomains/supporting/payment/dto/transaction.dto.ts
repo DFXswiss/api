@@ -177,10 +177,10 @@ export class UnassignedTransactionDto {
 
 export class NetworkStartTxDto {
   @ApiProperty()
-  transactionId: string;
+  txId: string;
 
   @ApiProperty()
-  transactionUrl: string;
+  txUrl: string;
 
   @ApiProperty()
   amount: number;
@@ -241,7 +241,7 @@ export class TransactionDto extends UnassignedTransactionDto {
   @ApiPropertyOptional()
   externalTransactionId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: NetworkStartTxDto })
   networkStartTx?: NetworkStartTxDto;
 }
 
