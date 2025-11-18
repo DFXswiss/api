@@ -110,6 +110,7 @@ export const TransactionReasonMapper: {
   [AmlReason.MERGE_INCOMPLETE]: TransactionReason.MERGE_INCOMPLETE,
   [AmlReason.MANUAL_CHECK_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
   [AmlReason.MANUAL_CHECK_IP_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
+  [AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
   [AmlReason.BANK_RELEASE_PENDING]: TransactionReason.BANK_RELEASE_PENDING,
 };
 
