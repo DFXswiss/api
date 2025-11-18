@@ -180,6 +180,9 @@ export class NetworkStartTxDto {
   transactionId: string;
 
   @ApiProperty()
+  transactionUrl: string;
+
+  @ApiProperty()
   amount: number;
 
   @ApiProperty()

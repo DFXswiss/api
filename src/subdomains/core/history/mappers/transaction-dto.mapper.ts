@@ -94,6 +94,7 @@ export class TransactionDtoMapper {
       networkStartTx: buyCrypto.networkStartFeeAmount
         ? {
             transactionId: buyCrypto.networkStartTx,
+            transactionUrl: txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.networkStartTx),
             amount: buyCrypto.networkStartAmount,
             exchangeRate: Util.roundReadable(
               buyCrypto.networkStartFeeAmount / buyCrypto.networkStartAmount,
