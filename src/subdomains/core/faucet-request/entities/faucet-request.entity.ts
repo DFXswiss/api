@@ -22,12 +22,22 @@ export class FaucetRequest extends IEntity {
   @ManyToOne(() => User, { nullable: false })
   user: User;
 
-  @Column({ nullable: false, default: FaucetRequestStatus.CREATED })
+  @Column({ nullable: false, default: FaucetRequestStatus.IN_PROGRESS })
   status: FaucetRequestStatus;
 
   complete(): UpdateResult<FaucetRequest> {
     const update: Partial<FaucetRequest> = {
       status: FaucetRequestStatus.COMPLETED,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  failed(): UpdateResult<FaucetRequest> {
+    const update: Partial<FaucetRequest> = {
+      status: FaucetRequestStatus.FAILED,
     };
 
     Object.assign(this, update);

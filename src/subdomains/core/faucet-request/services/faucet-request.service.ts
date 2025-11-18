@@ -6,9 +6,9 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { Not } from 'typeorm';
 import { FaucetRequestDto } from '../dto/faucet-request.dto';
 import { FaucetRequestStatus } from '../enums/faucet-request';
 import { FaucetRequestRepository } from '../repositories/faucet-request.repository';
@@ -16,7 +16,6 @@ import { FaucetRequestRepository } from '../repositories/faucet-request.reposito
 @Injectable()
 export class FaucetRequestService {
   constructor(
-    private readonly userDataService: UserDataService,
     private readonly faucetRequestRepo: FaucetRequestRepository,
     private readonly blockchainRegistry: BlockchainRegistryService,
     private readonly payoutService: PayoutService,
@@ -24,12 +23,16 @@ export class FaucetRequestService {
     private readonly userService: UserService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.CRYPTO_PAYOUT })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.CRYPTO_PAYOUT })
   async checkFaucetRequests(): Promise<void> {
-    const pendingFaucets = await this.faucetRequestRepo.find({ where: { status: FaucetRequestStatus.CREATED } });
+    const pendingFaucets = await this.faucetRequestRepo.find({ where: { status: FaucetRequestStatus.IN_PROGRESS } });
     for (const faucet of pendingFaucets) {
       const client = this.blockchainRegistry.getEvmClient(Blockchain.ETHEREUM);
-      if (await client.isTxComplete(faucet.txId)) await this.faucetRequestRepo.update(...faucet.complete());
+      if (await client.isTxComplete(faucet.txId)) {
+        await this.faucetRequestRepo.update(...faucet.complete());
+      } else if (!(await client.getTx(faucet.txId))) {
+        await this.faucetRequestRepo.update(...faucet.failed());
+      }
     }
   }
 
@@ -41,7 +44,9 @@ export class FaucetRequestService {
     if (!user.userData) throw new NotFoundException('Account not found');
     if (user.userData.kycLevel < KycLevel.LEVEL_30) throw new ForbiddenException('Account not verified');
 
-    const faucetUsed = await this.faucetRequestRepo.exists({ where: { id: user.userData.id } });
+    const faucetUsed = await this.faucetRequestRepo.exists({
+      where: { id: user.userData.id, status: Not(FaucetRequestStatus.FAILED) },
+    });
     if (!faucetUsed) throw new BadRequestException('Faucet already exists for this account');
 
     const client = this.blockchainRegistry.getEvmClient(Blockchain.ETHEREUM);
