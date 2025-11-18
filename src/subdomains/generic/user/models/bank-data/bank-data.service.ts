@@ -394,7 +394,7 @@ export class BankDataService {
     await this.bankAccountService.getOrCreateIbanBankAccountInternal(dto.iban);
 
     const bankData = this.bankDataRepo.create({
-      userData: { id: userDataId },
+      userData,
       iban: dto.iban,
       approved: null,
       type: BankDataType.USER,
