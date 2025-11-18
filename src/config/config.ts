@@ -140,7 +140,7 @@ export class Configuration {
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
   arweaveAddressFormat = '[\\w\\-]{43}';
-  cardanoAddressFormat = 'addr1[a-z0-9]+';
+  cardanoAddressFormat = '(addr1[a-z0-9]+|stake[a-z0-9]+|[1-9A-HJ-NP-Za-km-z]+)';
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
   railgunAddressFormat = '0zk[a-z0-9]{1,124}';

@@ -22,7 +22,9 @@ export class SignInDto {
   @IsNotEmpty()
   @IsString()
   @Matches(GetConfig().formats.key)
-  @ValidateIf((dto: SignInDto) => CryptoService.isArweaveAddress(dto.address))
+  @ValidateIf(
+    (dto: SignInDto) => CryptoService.isArweaveAddress(dto.address) || CryptoService.isCardanoAddress(dto.address),
+  )
   key?: string;
 
   @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })
