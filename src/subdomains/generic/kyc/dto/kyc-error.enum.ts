@@ -76,7 +76,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.COUNTRY_IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
   [KycError.MISSING_RESPONSE]: 'Missing data',
   [KycError.RISKY_BUSINESS]: 'Your business is involved in risky business',
-  [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee is missing',
+  [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee not paid',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
