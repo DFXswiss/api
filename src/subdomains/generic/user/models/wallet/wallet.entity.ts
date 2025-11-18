@@ -3,7 +3,7 @@ import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MailContextType } from 'src/subdomains/supporting/notification/enums';
-import { Column, Entity, Index, OneToMany } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { WebhookType } from '../../services/webhook/dto/webhook.dto';
 import { KycType } from '../user-data/user-data.enum';
 
@@ -21,6 +21,9 @@ export enum WebhookConfigOption {
 
 @Entity()
 export class Wallet extends IEntity {
+  @ManyToOne(() => User, { nullable: true })
+  owner?: User;
+
   @Column({ length: 256, nullable: true })
   @Index({ unique: true, where: 'address IS NOT NULL' })
   address?: string;

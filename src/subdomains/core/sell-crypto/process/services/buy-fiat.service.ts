@@ -470,13 +470,16 @@ export class BuyFiatService {
 
     for (const ref of refs) {
       const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.getRefVolume(ref);
+      const { volume: buyFiatPartnerVolume, credit: buyFiatPartnerCredit } = await this.getPartnerFeeRefVolume(ref);
       const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.buyCryptoService.getRefVolume(ref);
+      const { volume: buyCryptoPartnerVolume, credit: buyCryptoPartnerCredit } =
+        await this.buyCryptoService.getPartnerFeeRefVolume(ref);
       const { volume: manualVolume, credit: manualCredit } = await this.transactionService.getManualRefVolume(ref);
 
       await this.userService.updateRefVolume(
         ref,
-        buyFiatVolume + buyCryptoVolume + manualVolume,
-        buyFiatCredit + buyCryptoCredit + manualCredit,
+        buyFiatVolume + buyFiatPartnerVolume + buyCryptoVolume + buyCryptoPartnerVolume + manualVolume,
+        buyFiatCredit + buyFiatPartnerCredit + buyCryptoCredit + buyCryptoPartnerCredit + manualCredit,
       );
     }
   }
@@ -487,6 +490,18 @@ export class BuyFiatService {
       .select('SUM(amountInEur * refFactor)', 'volume')
       .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
       .where('usedRef = :ref', { ref })
+      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .getRawOne<{ volume: number; credit: number }>();
+
+    return { volume: volume ?? 0, credit: credit ?? 0 };
+  }
+
+  async getPartnerFeeRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
+    const { volume, credit } = await this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('SUM((partnerFeeAmount * (amountInEur/amountInChf )) / (refProvision * 0.01))', 'volume')
+      .addSelect('SUM(partnerFeeAmount * (amountInEur/amountInChf ))', 'credit')
+      .where('usedPartnerFeeRef = :ref', { ref })
       .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 

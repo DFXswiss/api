@@ -873,13 +873,16 @@ export class BuyCryptoService {
 
     for (const ref of refs) {
       const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.getRefVolume(ref);
+      const { volume: buyCryptoPartnerVolume, credit: buyCryptoPartnerCredit } = await this.getPartnerFeeRefVolume(ref);
       const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.buyFiatService.getRefVolume(ref);
+      const { volume: buyFiatPartnerVolume, credit: buyFiatPartnerCredit } =
+        await this.buyFiatService.getPartnerFeeRefVolume(ref);
       const { volume: manualVolume, credit: manualCredit } = await this.transactionService.getManualRefVolume(ref);
 
       await this.userService.updateRefVolume(
         ref,
-        buyCryptoVolume + buyFiatVolume + manualVolume,
-        buyCryptoCredit + buyFiatCredit + manualCredit,
+        buyCryptoVolume + buyCryptoPartnerVolume + buyFiatVolume + buyFiatPartnerVolume + manualVolume,
+        buyCryptoCredit + buyCryptoPartnerCredit + buyFiatCredit + buyFiatPartnerCredit + manualCredit,
       );
     }
   }
@@ -890,6 +893,18 @@ export class BuyCryptoService {
       .select('SUM(amountInEur * refFactor)', 'volume')
       .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
       .where('usedRef = :ref', { ref })
+      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .getRawOne<{ volume: number; credit: number }>();
+
+    return { volume: volume ?? 0, credit: credit ?? 0 };
+  }
+
+  async getPartnerFeeRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
+    const { volume, credit } = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM((partnerFeeAmount * (amountInEur/amountInChf )) / (refProvision * 0.01))', 'volume')
+      .addSelect('SUM(partnerFeeAmount * (amountInEur/amountInChf ))', 'credit')
+      .where('usedPartnerFeeRef = :ref', { ref })
       .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 

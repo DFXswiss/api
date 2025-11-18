@@ -297,7 +297,7 @@ export class FeeService {
   }
 
   private async getAllFees(): Promise<Fee[]> {
-    return this.feeRepo.findCached('all');
+    return this.feeRepo.findCached('all', { relations: { wallet: { owner: true } } });
   }
 
   private async calculateFee(
