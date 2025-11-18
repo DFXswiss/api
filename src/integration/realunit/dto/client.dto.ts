@@ -40,12 +40,17 @@ export interface TotalSupply {
   timestamp: number;
 }
 
-export interface HoldersClientResponse {
+export interface TokenInfoClientResponse {
   changeTotalShares: {
     items: ChangeTotalShares[];
   };
   totalSupplys: {
     items: TotalSupply[];
+  };
+}
+export interface HoldersClientResponse {
+  totalSupplys: {
+    items: [{ value: string }];
   };
   accounts: {
     items: HolderClientResponse[];

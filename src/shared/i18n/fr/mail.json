@@ -93,6 +93,7 @@
                 "bank_tx_needed": "Une transaction bancaire est nécessaire pour que cette opération puisse être effectuée",
                 "manual_check_phone": "Nous n'avons pas réussi à vous joindre au numéro de téléphone que vous avez fourni",
                 "manual_check_ip_phone": "Nous n'avons pas réussi à vous joindre au numéro de téléphone que vous avez fourni",
+                "manual_check_ip_country_phone": "Nous n'avons pas réussi à vous joindre au numéro de téléphone que vous avez fourni",
                 "merge_incomplete": "L'e-mail de confirmation n'a pas été accepté"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
@@ -241,6 +242,15 @@
                 "line3": "Une fois toutes les questions clarifiées, votre transaction sera traitée automatiquement.",
                 "line4": "",
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
+            },
+            "manual_check_ip_country_phone": {
+                "title": "Appel téléphonique requis",
+                "salutation": "Une vérification manuelle par téléphone est requise",
+                "line1": "Nous avons bien reçu votre acompte.",
+                "line2": "Nous vous contacterons sous peu au {phone}.",
+                "line3": "Une fois toutes les questions clarifiées, votre transaction sera traitée automatiquement.",
+                "line4": "",
+                "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             }
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]"
@@ -283,7 +293,10 @@
                 "blocked": "Erreur inconnue",
                 "personal_data_not_matching": "Incohérence dans vos données personnelles",
                 "ip_country_mismatch": "Exigences réglementaires non respectées",
-                "country_ip_country_mismatch": "Exigences réglementaires non respectées"
+                "country_ip_country_mismatch": "Exigences réglementaires non respectées",
+                "missing_response": "Données manquantes",
+                "risky_business": "Votre entreprise est impliquée dans des activités risquées",
+                "bank_recall_fee_not_paid": "Frais de rappel non payés"
             }
         },
         "missing_data": {

@@ -93,6 +93,7 @@
                 "bank_tx_needed": "A bank transaction is required before this transaction can be carried out",
                 "manual_check_phone": "We were unable to reach you at the phone number you provided",
                 "manual_check_ip_phone": "We were unable to reach you at the phone number you provided",
+                "manual_check_ip_country_phone": "We were unable to reach you at the phone number you provided",
                 "merge_incomplete": "The email confirmation was not accepted"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
@@ -241,6 +242,15 @@
                 "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
                 "line4": "",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
+            },
+            "manual_check_ip_country_phone": {
+                "title": "Phone call required",
+                "salutation": "A manual verification by phone is required",
+                "line1": "We have received your deposit.",
+                "line2": "We will contact you shortly at {phone}.",
+                "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
+                "line4": "",
+                "line5": "If you would like to request a refund instead:<br>[url:click here]"
             }
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]"
@@ -283,7 +293,10 @@
                 "blocked": "Unknown error",
                 "personal_data_not_matching": "Inconsistency in your personal data",
                 "ip_country_mismatch": "Regulatory requirements not met",
-                "country_ip_country_mismatch": "Regulatory requirements not met"
+                "country_ip_country_mismatch": "Regulatory requirements not met",
+                "missing_response": "Missing data",
+                "risky_business": "Your business is involved in risky business",
+                "bank_recall_fee_not_paid": "Recall fee not paid"
             }
         },
         "missing_data": {

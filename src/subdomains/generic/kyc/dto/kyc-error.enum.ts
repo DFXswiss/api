@@ -38,6 +38,9 @@ export enum KycError {
   // PersonalData errors
   PERSONAL_DATA_NOT_MATCHING = 'PersonalDataNotMatching',
 
+  // DfxApproval errors
+  BANK_RECALL_FEE_NOT_PAID = 'BankRecallFeeNotPaid',
+
   // Deactivated userData errors
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
 }
@@ -73,6 +76,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.COUNTRY_IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
   [KycError.MISSING_RESPONSE]: 'Missing data',
   [KycError.RISKY_BUSINESS]: 'Your business is involved in risky business',
+  [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee not paid',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

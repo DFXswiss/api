@@ -1,4 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { HistoryEventType, HolderClientResponse, PageInfo } from './client.dto';
 
 export class HistoricalBalanceDto {
@@ -7,6 +9,9 @@ export class HistoricalBalanceDto {
 
   @ApiProperty({ description: 'Timestamp when this balance was recorded' })
   timestamp: Date;
+
+  @ApiPropertyOptional({ description: 'Valuation in CHF at this point in time' })
+  valueChf?: number;
 }
 
 export class PageInfoDto implements PageInfo {
@@ -125,13 +130,15 @@ export class HolderDto implements HolderClientResponse {
   percentage: number;
 }
 
+export class TokenInfoDto {
+  @ApiProperty({ type: ChangeTotalSharesDto, description: 'Latest change in total shares information' })
+  totalShares: ChangeTotalSharesDto;
+
+  @ApiProperty({ type: TotalSupplyDto, description: 'Current total supply information' })
+  totalSupply: TotalSupplyDto;
+}
+
 export class HoldersDto {
-  @ApiPropertyOptional({ type: ChangeTotalSharesDto, description: 'Latest change in total shares information' })
-  totalShares: ChangeTotalSharesDto | null;
-
-  @ApiPropertyOptional({ type: TotalSupplyDto, description: 'Current total supply information' })
-  totalSupply: TotalSupplyDto | null;
-
   @ApiProperty({ type: [HolderDto], description: 'List of token holders' })
   holders: HolderDto[];
 
@@ -162,4 +169,72 @@ export class AccountHistoryDto {
 export class RealUnitPriceDto {
   @ApiProperty({ description: 'Current price of RealUnit in CHF' })
   chf: number;
+}
+
+export enum TimeFrame {
+  WEEK = '1W',
+  MONTH = '1M',
+  QUARTER = '1Q',
+  YEAR = '1Y',
+  ALL = 'ALL',
+}
+
+export class AccountHistoryQueryDto {
+  @ApiPropertyOptional({ type: Number, description: 'Number of history events to return (default: 50)' })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  first?: number;
+
+  @ApiPropertyOptional({ type: String, description: 'Cursor for pagination - return events after this cursor' })
+  @IsOptional()
+  @IsString()
+  after?: string;
+}
+
+export class HoldersQueryDto {
+  @ApiPropertyOptional({ type: Number, description: 'Number of holders to return (default: 50)' })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  first?: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Cursor for pagination - return holders before this cursor, cursor is the startCursor of the previous page',
+  })
+  @IsOptional()
+  @IsString()
+  before?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Cursor for pagination - return holders after this cursor, cursor is the endCursor of the previous page',
+  })
+  @IsOptional()
+  @IsString()
+  after?: string;
+}
+
+export class HistoricalPriceQueryDto {
+  @ApiPropertyOptional({ enum: TimeFrame, description: 'Time frame for historical prices (default: WEEK)' })
+  @IsOptional()
+  @IsEnum(TimeFrame)
+  timeFrame?: TimeFrame;
+}
+
+export class HistoricalPriceDto {
+  @ApiProperty({ description: 'Timestamp when the price was recorded' })
+  timestamp: Date;
+
+  @ApiProperty({ description: 'Price in CHF' })
+  chf: number;
+
+  @ApiProperty({ description: 'Price in EUR' })
+  eur?: number;
+
+  @ApiProperty({ description: 'Price in USD' })
+  usd?: number;
 }
