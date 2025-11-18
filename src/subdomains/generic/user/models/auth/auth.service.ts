@@ -162,6 +162,9 @@ export class AuthService {
       dto.moderator,
     );
 
+    // update ip Logs
+    await this.ipLogService.updateUserIpLogs(user);
+
     await this.checkIpBlacklistFor(user.userData, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };

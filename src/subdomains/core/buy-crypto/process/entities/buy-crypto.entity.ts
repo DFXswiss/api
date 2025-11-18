@@ -510,6 +510,7 @@ export class BuyCrypto extends IEntity {
     banks: Bank[],
     ibanCountry: Country,
     refUser?: User,
+    ipLogCountries?: string[],
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...AmlHelperService.getAmlResult(
@@ -525,6 +526,7 @@ export class BuyCrypto extends IEntity {
         ibanCountry,
         refUser,
         banks,
+        ipLogCountries,
       ),
       amountInChf,
       amountInEur,
@@ -771,6 +773,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.MERGE_INCOMPLETE,
   AmlReason.BANK_RELEASE_PENDING,
   AmlReason.MANUAL_CHECK_IP_PHONE,
+  AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];
