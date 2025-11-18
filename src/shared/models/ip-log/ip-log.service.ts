@@ -28,7 +28,7 @@ export class IpLogService {
       url,
       address,
       user,
-      userData: userData ?? user.userData,
+      userData: userData ?? user?.userData,
       walletType,
     });
 
