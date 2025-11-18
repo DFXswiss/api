@@ -5,13 +5,13 @@ import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
-import { Faucet } from './entities/faucet.entity';
-import { FaucetRepository } from './repositories/faucet.repository';
-import { FaucetService } from './services/faucet.service';
+import { FaucetRequest } from './entities/faucet-request.entity';
+import { FaucetRequestRepository } from './repositories/faucet-request.repository';
+import { FaucetRequestService } from './services/faucet-request.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Faucet]),
+    TypeOrmModule.forFeature([FaucetRequest]),
     forwardRef(() => UserModule),
     SharedModule,
     BlockchainModule,
@@ -19,7 +19,7 @@ import { FaucetService } from './services/faucet.service';
     PayoutModule,
   ],
   controllers: [],
-  providers: [FaucetService, FaucetRepository],
-  exports: [FaucetService],
+  providers: [FaucetRequestService, FaucetRequestRepository],
+  exports: [FaucetRequestService],
 })
-export class FaucetModule {}
+export class FaucetRequestModule {}

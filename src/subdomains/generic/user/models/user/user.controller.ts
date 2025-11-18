@@ -17,8 +17,8 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { FaucetDto, GetFaucetDto } from 'src/subdomains/core/faucet/dto/faucet.dto';
-import { FaucetService } from 'src/subdomains/core/faucet/services/faucet.service';
+import { FaucetRequestDto } from 'src/subdomains/core/faucet-request/dto/faucet-request.dto';
+import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -217,7 +217,7 @@ export class UserController {
 @ApiTags('User')
 @Controller({ path: 'user', version: ['2'] })
 export class UserV2Controller {
-  constructor(private readonly userService: UserService, private readonly faucetService: FaucetService) {}
+  constructor(private readonly userService: UserService, private readonly faucetService: FaucetRequestService) {}
 
   @Get()
   @ApiBearerAuth()
@@ -298,11 +298,11 @@ export class UserV2Controller {
     return this.userService.getRefDtoV2(jwt.user);
   }
 
-  @Post('faucet')
+  @Post('faucetRequest')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
-  async faucet(@GetJwt() jwt: JwtPayload, @Body() faucet: GetFaucetDto): Promise<FaucetDto> {
-    return this.faucetService.createFaucet(jwt.account, jwt.address, faucet);
+  async faucetRequest(@GetJwt() jwt: JwtPayload): Promise<FaucetRequestDto> {
+    return this.faucetService.createFaucet(jwt.user);
   }
 }

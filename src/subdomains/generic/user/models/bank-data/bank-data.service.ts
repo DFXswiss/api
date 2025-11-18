@@ -175,6 +175,27 @@ export class BankDataService {
     return this.createVerifyBankData(userData, dto);
   }
 
+  async replaceBankDataWithNewType(oldBankData: BankData, newDto: CreateBankDataDto): Promise<BankData> {
+    if (await this.bankDataRepo.existsBy({ iban: newDto.iban, type: newDto.type })) return;
+
+    if (oldBankData.approved && newDto.type === BankDataType.BANK_IN) {
+      newDto.approved = oldBankData.approved;
+      newDto.status = oldBankData.status;
+
+      await this.bankDataRepo.update(oldBankData.id, {
+        approved: false,
+        status: ReviewStatus.FAILED,
+        comment: `${oldBankData.comment};${BankDataVerificationError.REPLACED}`,
+      });
+    } else {
+      newDto.approved = false;
+      newDto.status = oldBankData.approved ? ReviewStatus.FAILED : ReviewStatus.INTERNAL_REVIEW;
+      newDto.comment = oldBankData.approved ? BankDataVerificationError.ALREADY_ACTIVE_EXISTS : undefined;
+    }
+
+    return this.createBankDataInternal(oldBankData.userData, newDto);
+  }
+
   async createVerifyBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
     const bankData = await this.createBankDataInternal(userData, dto);
 
@@ -200,7 +221,7 @@ export class BankDataService {
       preferredCurrency: existingUserBankData?.preferredCurrency,
     });
 
-    if (bankData.type !== BankDataType.USER) bankData.status = ReviewStatus.INTERNAL_REVIEW;
+    if (bankData.type !== BankDataType.USER && !dto.status) bankData.status = ReviewStatus.INTERNAL_REVIEW;
 
     if (![BankDataType.IDENT, BankDataType.NAME_CHECK, BankDataType.CARD_IN].includes(bankData.type)) {
       const bankAccount = await this.bankAccountService.getOrCreateIbanBankAccountInternal(bankData.iban, false);
@@ -278,16 +299,23 @@ export class BankDataService {
   async getVerifiedBankDataWithIban(
     iban: string,
     userDataId?: number,
+    preferredType?: BankDataType,
     relations: FindOptionsRelations<BankData> = { userData: true },
-    filterTypeUser = true,
+    includeTypeUserSearch = false,
   ): Promise<BankData> {
     if (!iban) return undefined;
-    return this.bankDataRepo
-      .find({
-        where: { iban, userData: { id: userDataId }, type: filterTypeUser ? Not(BankDataType.USER) : undefined },
-        relations,
-      })
-      .then((b) => b.filter((b) => b.approved)[0] ?? b[0]);
+
+    const bankDatas = await this.bankDataRepo.find({
+      where: { iban, userData: { id: userDataId }, type: includeTypeUserSearch ? undefined : Not(BankDataType.USER) },
+      relations,
+    });
+
+    return (
+      (preferredType && bankDatas.find((b) => b.type === preferredType && b.approved)) ??
+      bankDatas.find((b) => b.approved) ??
+      (preferredType && bankDatas.find((b) => b.type === preferredType)) ??
+      bankDatas[0]
+    );
   }
 
   async existsUserBankDataWithIban(iban: string): Promise<boolean> {

@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { Faucet } from '../entities/faucet.entity';
+import { FaucetRequest } from '../entities/faucet-request.entity';
 
 @Injectable()
-export class FaucetRepository extends BaseRepository<Faucet> {
+export class FaucetRequestRepository extends BaseRepository<FaucetRequest> {
   constructor(manager: EntityManager) {
-    super(Faucet, manager);
+    super(FaucetRequest, manager);
   }
 }

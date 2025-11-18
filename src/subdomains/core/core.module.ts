@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BuyCryptoModule } from './buy-crypto/buy-crypto.module';
 import { CustodyModule } from './custody/custody.module';
-import { FaucetModule } from './faucet/faucet.module';
+import { FaucetModule } from './faucet-request/faucet-request.module';
 import { HistoryModule } from './history/history.module';
 import { LiquidityManagementModule } from './liquidity-management/liquidity-management.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
