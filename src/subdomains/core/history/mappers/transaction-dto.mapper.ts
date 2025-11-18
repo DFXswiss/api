@@ -91,6 +91,18 @@ export class TransactionDtoMapper {
       chargebackDate: buyCrypto.chargebackDate,
       date: buyCrypto.transaction.created,
       externalTransactionId: buyCrypto.transaction.externalId,
+      networkStartTx: buyCrypto.networkStartAmount
+        ? {
+            txId: buyCrypto.networkStartTx,
+            txUrl: txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.networkStartTx),
+            amount: buyCrypto.networkStartAmount,
+            exchangeRate: Util.roundReadable(
+              buyCrypto.networkStartFeeAmount / buyCrypto.networkStartAmount,
+              AmountType.FIAT,
+            ),
+            asset: buyCrypto.networkStartAsset,
+          }
+        : null,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -206,6 +218,7 @@ export class TransactionDtoMapper {
       chargebackDate: null,
       date: txRequest.created,
       externalTransactionId: null,
+      networkStartTx: null,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -343,9 +356,11 @@ export class TransactionDtoMapper {
           : null,
       total:
         entity.totalFeeAmount != null
-          ? Util.roundReadable(entity.totalFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
+          ? Util.roundReadable(
+              (entity.totalFeeAmount - networkStartFee) * referencePrice,
+              feeAmountType(entity.inputAssetEntity),
+            )
           : null,
-      networkStart: Util.roundReadable(networkStartFee * referencePrice, feeAmountType(entity.inputAssetEntity)),
     };
   }
 }
