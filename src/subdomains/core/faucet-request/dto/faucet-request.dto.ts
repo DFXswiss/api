@@ -1,9 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class FaucetRequestDto {
-  @ApiProperty({ description: 'TX ID of faucet transaction' })
-  txId: string;
+  @ApiProperty({ description: 'Transaction ID of faucet transaction' })
+  transactionId: string;
 
-  @ApiProperty({ description: 'TX amount of faucet transaction' })
+  @ApiProperty({ description: 'Transaction amount of faucet transaction' })
   amount: number;
 }

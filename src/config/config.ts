@@ -49,6 +49,7 @@ export class Configuration {
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
   financeLogTotalBalanceChangeLimit = 5000;
+  faucetAmount = 20; //CHF
 
   defaults = {
     currency: 'EUR',

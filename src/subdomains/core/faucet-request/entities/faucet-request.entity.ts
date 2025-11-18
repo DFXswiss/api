@@ -8,7 +8,7 @@ import { FaucetRequestStatus } from '../enums/faucet-request';
 @Entity()
 export class FaucetRequest extends IEntity {
   @Column({ nullable: false })
-  txId: string;
+  transactionId: string;
 
   @Column({ type: 'float', nullable: false })
   amount: number;
