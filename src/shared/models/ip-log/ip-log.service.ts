@@ -22,7 +22,7 @@ export class IpLogService {
     private readonly repos: RepositoryFactory,
   ) {}
 
-  private readonly idCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_6_MONTH);
+  private readonly idCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_6_MONTHS);
 
   async create(ip: string, url: string, address: string, walletType?: WalletType, userData?: UserData): Promise<IpLog> {
     const { country, result, user } = await this.checkIpCountry(ip, address);
