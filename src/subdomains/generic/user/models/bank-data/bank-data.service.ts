@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
+import { Observable, Subject } from 'rxjs';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -30,6 +31,7 @@ import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 @Injectable()
 export class BankDataService {
   private readonly logger = new DfxLogger(BankDataService);
+  private readonly newUserBankDataSubject: Subject<BankData> = new Subject<BankData>();
 
   constructor(
     private readonly userDataRepo: UserDataRepository,
@@ -420,7 +422,7 @@ export class BankDataService {
     await this.bankAccountService.getOrCreateIbanBankAccountInternal(dto.iban);
 
     const bankData = this.bankDataRepo.create({
-      userData: { id: userDataId },
+      userData,
       iban: dto.iban,
       approved: null,
       type: BankDataType.USER,
@@ -429,6 +431,9 @@ export class BankDataService {
       default: dto.default,
     });
 
+    // check unassigned bankTx and notify and assign userData
+    this.newUserBankDataSubject.next(bankData);
+
     return this.bankDataRepo.saveWithUniqueDefault(bankData);
   }
 
@@ -436,5 +441,9 @@ export class BankDataService {
     const ibanCountry = await this.countryService.getCountryWithSymbol(iban.substring(0, 2));
 
     return ibanCountry.isEnabled(kycType);
+  }
+
+  get bankDataObservable(): Observable<BankData> {
+    return this.newUserBankDataSubject.asObservable();
   }
 }

@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Observable, Subject } from 'rxjs';
@@ -17,6 +18,8 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { BankBalanceUpdate } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -68,7 +71,7 @@ export const TransactionBankTxTypeMapper: {
 };
 
 @Injectable()
-export class BankTxService {
+export class BankTxService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankTxService);
   private readonly bankBalanceSubject: Subject<BankBalanceUpdate> = new Subject<BankBalanceUpdate>();
 
@@ -88,7 +91,14 @@ export class BankTxService {
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,
+    private readonly bankDataService: BankDataService,
   ) {}
+
+  onModuleInit() {
+    this.bankDataService.bankDataObservable.subscribe((dto) =>
+      this.checkAssignAndNotifyUserData(dto.iban, dto.userData),
+    );
+  }
 
   // --- TRANSACTION HANDLING --- //
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
@@ -441,15 +451,28 @@ export class BankTxService {
     return null;
   }
 
-  getUnassignedBankTx(accounts: string[]): Promise<BankTx[]> {
+  async getUnassignedBankTx(
+    accounts: string[],
+    relations: FindOptionsRelations<BankTx> = { transaction: true },
+  ): Promise<BankTx[]> {
     return this.bankTxRepo.find({
       where: {
         type: In(BankTxUnassignedTypes),
         senderAccount: In(accounts),
         creditDebitIndicator: 'CRDT',
       },
-      relations: { transaction: true },
+      relations,
     });
+  }
+
+  async checkAssignAndNotifyUserData(iban: string, userData: UserData): Promise<void> {
+    const bankTxs = await this.getUnassignedBankTx([iban], { transaction: { userData: true } });
+
+    for (const bankTx of bankTxs) {
+      if (bankTx.transaction.userData) continue;
+
+      await this.transactionService.updateInternal(bankTx.transaction, { userData });
+    }
   }
 
   private createTx(entity: DeepPartial<BankTx>, multiAccounts: SpecialExternalAccount[]): BankTx {
