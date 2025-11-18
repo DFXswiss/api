@@ -77,9 +77,9 @@ export class RealUnitService {
     const realuAsset = await this.getRealuAsset();
 
     const [chfPrice, eurPrice, usdPrice] = await Promise.all([
-      this.pricingService.getPrice(PriceCurrency.CHF, realuAsset, PriceValidity.ANY).catch(() => null),
-      this.pricingService.getPrice(PriceCurrency.EUR, realuAsset, PriceValidity.ANY).catch(() => null),
-      this.pricingService.getPrice(PriceCurrency.USD, realuAsset, PriceValidity.ANY).catch(() => null),
+      this.pricingService.getPrice(realuAsset, PriceCurrency.CHF, PriceValidity.ANY).catch(() => null),
+      this.pricingService.getPrice(realuAsset, PriceCurrency.EUR, PriceValidity.ANY).catch(() => null),
+      this.pricingService.getPrice(realuAsset, PriceCurrency.USD, PriceValidity.ANY).catch(() => null),
     ]);
 
     return RealUnitDtoMapper.priceToHistoricalPriceDto(chfPrice, eurPrice, usdPrice);
