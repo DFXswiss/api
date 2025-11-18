@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
@@ -12,7 +12,7 @@ import { FaucetRequestService } from './services/faucet-request.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([FaucetRequest]),
-    forwardRef(() => UserModule),
+    UserModule,
     SharedModule,
     BlockchainModule,
     PricingModule,
@@ -20,6 +20,6 @@ import { FaucetRequestService } from './services/faucet-request.service';
   ],
   controllers: [],
   providers: [FaucetRequestService, FaucetRequestRepository],
-  exports: [FaucetRequestService],
+  exports: [],
 })
 export class FaucetRequestModule {}

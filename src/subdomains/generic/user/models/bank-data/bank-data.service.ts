@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -40,7 +40,6 @@ export class BankDataService {
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
     private readonly bankAccountService: BankAccountService,
-    @Inject(forwardRef(() => KycAdminService))
     private readonly kycAdminService: KycAdminService,
   ) {}
 
