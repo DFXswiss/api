@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
@@ -27,7 +27,6 @@ export class KycAdminService {
     private readonly webhookService: WebhookService,
     private readonly kycService: KycService,
     private readonly kycNotificationService: KycNotificationService,
-    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
   ) {}
 
