@@ -169,7 +169,7 @@ export class BuyCrypto extends IEntity {
   networkStartFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  networkStartAmount?: number;
+  networkStartAmount?: number; // networkStartAsset
 
   @Column({ length: 256, nullable: true })
   networkStartTx?: string;
