@@ -30,6 +30,7 @@ import {
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -696,6 +697,12 @@ export class BuyCrypto extends IEntity {
 
   get chargebackBankFee(): number {
     return this.bankTx ? this.bankTx.chargeAmountChf : 0;
+  }
+
+  get manualChfPrice(): Price {
+    return this.amountInChf
+      ? Price.create(PriceCurrency.CHF, this.inputAsset, this.amountInChf / this.inputAmount)
+      : undefined;
   }
 
   get wallet(): Wallet {
