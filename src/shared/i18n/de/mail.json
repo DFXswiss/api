@@ -309,7 +309,10 @@
                 "blocked": "Unbekannter Fehler",
                 "personal_data_not_matching": "Unstimmigkeit bei deinen persönlichen Daten",
                 "ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
-                "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt"
+                "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+                "missing_response": "Es fehlen Daten",
+                "risky_business": "Deine Firma ist in riskante Geschäfte verwickelt",
+                "bank_recall_fee_not_paid": "Die Recall Gebühr wurde noch nicht bezahlt"
             }
         },
         "missing_data": {

@@ -84,7 +84,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.DENIED_RECOMMENDATION]: 'Your recommendation request was denied',
   [KycError.EXPIRED_RECOMMENDATION]: 'Your recommendation request is expired',
   [KycError.RECOMMENDER_BLOCKED]: 'Unknown error',
-  [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee is missing',
+  [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee not paid',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

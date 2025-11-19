@@ -309,7 +309,10 @@
                 "blocked": "Unknown error",
                 "personal_data_not_matching": "Inconsistency in your personal data",
                 "ip_country_mismatch": "Regulatory requirements not met",
-                "country_ip_country_mismatch": "Regulatory requirements not met"
+                "country_ip_country_mismatch": "Regulatory requirements not met",
+                "missing_response": "Missing data",
+                "risky_business": "Your business is involved in risky business",
+                "bank_recall_fee_not_paid": "Recall fee not paid"
             }
         },
         "missing_data": {

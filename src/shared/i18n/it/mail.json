@@ -309,7 +309,10 @@
                 "blocked": "Errore sconosciuto",
                 "personal_data_not_matching": "Incoerenza nei tuoi dati personali",
                 "ip_country_mismatch": "Requisiti normativi non soddisfatti",
-                "country_ip_country_mismatch": "Requisiti normativi non soddisfatti"
+                "country_ip_country_mismatch": "Requisiti normativi non soddisfatti",
+                "missing_response": "Dati mancanti",
+                "risky_business": "La tua azienda è coinvolta in attività rischiose",
+                "bank_recall_fee_not_paid": "Tassa di richiamo non pagata"
             }
         },
         "missing_data": {
