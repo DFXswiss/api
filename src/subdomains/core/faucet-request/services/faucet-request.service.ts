@@ -51,19 +51,18 @@ export class FaucetRequestService {
   }
 
   async createFaucet(userId: number): Promise<FaucetRequestDto> {
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.blockchains.includes(Blockchain.ETHEREUM))
+      throw new BadRequestException('Faucet not available for this user');
+
+    if (user.userData.kycLevel < KycLevel.LEVEL_30) throw new ForbiddenException('Account not verified');
+
+    const faucetUsed = await this.faucetRequestRepo.exists({
+      where: { userData: { id: user.userData.id }, status: Not(FaucetRequestStatus.FAILED) },
+    });
+    if (faucetUsed) throw new BadRequestException('Faucet already used for this account');
     try {
-      const user = await this.userService.getUser(userId, { userData: true });
-      if (!user) throw new NotFoundException('User not found');
-      if (!user.blockchains.includes(Blockchain.ETHEREUM))
-        throw new BadRequestException('Faucet not available for this user');
-
-      if (user.userData.kycLevel < KycLevel.LEVEL_30) throw new ForbiddenException('Account not verified');
-
-      const faucetUsed = await this.faucetRequestRepo.exists({
-        where: { userData: { id: user.userData.id }, status: Not(FaucetRequestStatus.FAILED) },
-      });
-      if (!faucetUsed) throw new BadRequestException('Faucet already used for this account');
-
       const client = this.blockchainRegistry.getEvmClient(Blockchain.ETHEREUM);
       const asset = await this.assetService.getNativeAsset(Blockchain.ETHEREUM);
       const price = await this.pricingService.getPrice(PriceCurrency.CHF, asset, PriceValidity.ANY);
