@@ -28,7 +28,7 @@ export enum Environment {
   PRD = 'prd',
 }
 
-export type Version = '1' | '2';
+type Version = '1' | '2';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -45,10 +45,12 @@ export class Configuration {
   defaultRef = '000-000';
   transactionRefundExpirySeconds = 30;
   refRewardManualCheckLimit = 3000; // EUR
-  manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
   financeLogTotalBalanceChangeLimit = 5000;
+
+  priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
+  priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
 
   defaults = {
     currency: 'EUR',
@@ -574,6 +576,7 @@ export class Configuration {
       [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
+    cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
@@ -601,8 +604,8 @@ export class Configuration {
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
 
-    forexFee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
-      if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
+    forexFee: (standard: PaymentStandard, invoiceCurrency: Fiat, paymentCurrency: Asset): number => {
+      if (invoiceCurrency.name === 'CHF' && paymentCurrency.name === 'ZCHF') return 0;
 
       switch (standard) {
         case PaymentStandard.PAY_TO_ADDRESS:
@@ -861,23 +864,6 @@ export class Configuration {
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
-    },
-  };
-
-  payIn = {
-    minDeposit: {
-      Bitcoin: {
-        BTC: 0.000001,
-      },
-      Monero: {
-        XMR: 0.000001,
-      },
-    },
-  };
-
-  buy = {
-    fee: {
-      limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.001),
     },
   };
 

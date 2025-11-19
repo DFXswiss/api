@@ -1,11 +1,10 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
+import { Route } from 'src/subdomains/core/route/route.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, JoinColumn, OneToOne, TableInheritance } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
-
-export type DepositRouteType = Sell | Staking | Swap;
 
 export enum RouteType {
   SELL = 'Sell',
@@ -27,4 +26,15 @@ export class DepositRoute extends IEntity {
   @OneToOne(() => Deposit, (deposit) => deposit.route, { eager: true, nullable: false })
   @JoinColumn()
   deposit: Deposit;
+
+  // child property declarations for TypeScript
+  user?: User;
+  route?: Route;
+  paymentLinks?: PaymentLink[];
+
+  // --- ENTITY METHODS --- //
+
+  get userData(): UserData | undefined {
+    return this.user?.userData;
+  }
 }

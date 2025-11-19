@@ -1,38 +1,25 @@
 import { merge } from 'lodash';
-import { GetConfig } from 'src/config/config';
-import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
-import { Sell } from '../../sell-crypto/route/sell.entity';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
 import {
   PaymentLinkMode,
   PaymentLinkPaymentStatus,
   PaymentLinkStatus,
-  PaymentQuoteStatus,
   PaymentStandard,
 } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
-import { PaymentLinkConfig } from './payment-link.config';
-
-export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
-  standards: [PaymentStandard.OPEN_CRYPTO_PAY],
-  blockchains: PaymentLinkBlockchains,
-  minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
-  displayQr: false,
-  fee: GetConfig().payment.fee,
-  paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
-  cancellable: true,
-};
+import { DefaultPaymentLinkConfig, PaymentLinkConfig } from './payment-link.config';
 
 @Entity()
 export class PaymentLink extends IEntity {
   @OneToMany(() => PaymentLinkPayment, (payment) => payment.link, { nullable: true })
   payments?: PaymentLinkPayment[];
 
-  @ManyToOne(() => Sell, { nullable: false })
-  route: Sell;
+  @ManyToOne(() => DepositRoute, { nullable: false })
+  route: DepositRoute;
 
   @Column({ length: 256, unique: true })
   uniqueId: string;

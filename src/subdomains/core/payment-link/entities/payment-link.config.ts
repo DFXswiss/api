@@ -1,4 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { GetConfig } from 'src/config/config';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
 import { PaymentQuoteStatus, PaymentStandard } from '../enums';
 
@@ -31,3 +33,13 @@ export interface PaymentLinkConfig {
   // access key related
   accessKeys?: string[];
 }
+
+export const DefaultPaymentLinkConfig: PaymentLinkConfig = {
+  standards: [PaymentStandard.OPEN_CRYPTO_PAY],
+  blockchains: PaymentLinkBlockchains,
+  minCompletionStatus: PaymentQuoteStatus.TX_MEMPOOL,
+  displayQr: false,
+  fee: GetConfig().payment.fee,
+  paymentTimeout: GetConfig().payment.defaultPaymentTimeout,
+  cancellable: true,
+};

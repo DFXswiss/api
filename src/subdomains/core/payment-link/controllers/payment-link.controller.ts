@@ -31,9 +31,9 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
-import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
 import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
@@ -69,7 +69,7 @@ export class PaymentLinkController {
     private readonly userDataService: UserDataService,
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
-    private readonly sellService: SellService,
+    private readonly depositRouteService: DepositRouteService,
     private readonly paymentLinkStickerService: OCPStickerService,
     private readonly paymentMerchantService: PaymentMerchantService,
   ) {}
@@ -207,7 +207,7 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   @ApiQuery({ name: 'id', description: 'Route ID or label', required: true })
   async getPaymentRecipient(@Query('id') id: string): Promise<PaymentRecipientDto> {
-    const sellRoute = await this.sellService.getPaymentRoute(id);
+    const sellRoute = await this.depositRouteService.getPaymentRoute(id);
     return PaymentRecipientMapper.toDto(sellRoute);
   }
 
@@ -434,7 +434,7 @@ export class PaymentLinkController {
 
   private async getAndCheckUserId(jwt?: JwtPayload, key?: string): Promise<number> {
     if (key) {
-      const route = await this.sellService.getPaymentRouteForKey(key);
+      const route = await this.depositRouteService.getPaymentRouteForKey(key);
       if (!route) throw new BadRequestException('Invalid access key');
 
       await this.checkPaymentLinksAllowed(route.user.userData);
