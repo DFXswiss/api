@@ -38,6 +38,9 @@ export abstract class NodeClient extends BlockchainClient {
   }
 
   // common
+  async getBlockCount(): Promise<number> {
+    return this.callNode((c) => c.blockchain.getBlockCount());
+  }
 
   async getInfo(): Promise<BlockchainInfo> {
     return this.callNode((c) => c.blockchain.getBlockchainInfo());

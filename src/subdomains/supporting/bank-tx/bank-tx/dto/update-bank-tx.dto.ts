@@ -1,83 +1,74 @@
 import { Type } from 'class-transformer';
-import {
-  IsBoolean,
-  IsDate,
-  IsEnum,
-  IsInt,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-  ValidateIf,
-} from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsInt, IsNotEmpty, IsNumber, IsString, ValidateIf } from 'class-validator';
+import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { BankTxType } from '../entities/bank-tx.entity';
 
 export class UpdateBankTxDto {
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsEnum(BankTxType)
   type: BankTxType;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsNumber()
   accountingAmountBeforeFee?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsNumber()
   accountingFeeAmount?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsNumber()
   accountingFeePercent?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsNumber()
   accountingAmountAfterFee?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsNumber()
   accountingAmountBeforeFeeChf?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsNumber()
   accountingAmountAfterFeeChf?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   iban?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   bic?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   name?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   addressLine1?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   addressLine2?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   country?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   ultimateName?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   ultimateAddressLine1?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   ultimateAddressLine2?: string;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsString()
   ultimateCountry?: string;
 
@@ -86,11 +77,11 @@ export class UpdateBankTxDto {
   @ValidateIf((p: UpdateBankTxDto) => p.type === BankTxType.BUY_CRYPTO)
   buyId?: number;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsBoolean()
   highRisk?: boolean;
 
-  @IsOptional()
+  @IsOptionalButNotNull()
   @IsDate()
   @Type(() => Date)
   bankReleaseDate?: Date;

@@ -42,6 +42,7 @@ import { CreatePaymentMerchantDto } from '../dto/create-payment-merchant.dto';
 import { GetPaymentLinkHistoryDto } from '../dto/get-payment-link-history.dto';
 import { UpdatePaymentLinkConfigDto, UserPaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
+import { PaymentLinkRecipientAddressDto } from '../dto/payment-link-recipient-address.dto';
 import {
   PaymentLinkDto,
   PaymentLinkHistoryDto,
@@ -244,7 +245,7 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   @ApiQuery({ name: 'route', description: 'Route label', required: false })
   async createPayment(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('key') key: string,
@@ -253,7 +254,7 @@ export class PaymentLinkController {
   ): Promise<PaymentLinkDto> {
     const link = Boolean(key)
       ? await this.paymentLinkService.createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
-      : await this.paymentLinkService.createPayment(dto, +jwt.user, +linkId, externalLinkId, route);
+      : await this.paymentLinkService.createPayment(dto, jwt && +jwt.user, +linkId, externalLinkId, route);
 
     return PaymentLinkDtoMapper.toLinkDto(link);
   }
@@ -308,7 +309,7 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   @ApiQuery({ name: 'route', description: 'Route label', required: false })
   async cancelPayment(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
@@ -316,11 +317,17 @@ export class PaymentLinkController {
     @Query('route') route: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key, route)
+      .cancelPayment(jwt && +jwt.user, +linkId, externalLinkId, externalPaymentId, key, route)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
   // --- MERCHANT --- //
+
+  @Get('locations')
+  @ApiOkResponse()
+  async getLocations(@Query('publicName') publicName: string): Promise<PaymentLinkRecipientAddressDto[]> {
+    return this.paymentLinkService.getLocations(publicName);
+  }
 
   @Post('merchant')
   @ApiBearerAuth()
@@ -384,7 +391,7 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'lang', description: 'Language code', required: false })
   @ApiQuery({ name: 'mode', description: 'QR code mode', required: false, enum: StickerQrMode })
   async generateOcpStickers(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
     @Query('ids') ids: string,

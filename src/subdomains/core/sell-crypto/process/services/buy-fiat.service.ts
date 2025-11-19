@@ -10,6 +10,7 @@ import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -89,13 +90,24 @@ export class BuyFiatService {
     });
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(sell.iban, sell.userData.id);
-      if (!bankData && sell.userData.completeName)
-        await this.bankDataService.createVerifyBankData(sell.userData, {
-          name: sell.userData.completeName,
-          iban: sell.iban,
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+        sell.iban,
+        sell.userData.id,
+        BankDataType.BANK_OUT,
+      );
+      if ((!bankData || bankData.type !== BankDataType.BANK_OUT) && sell.userData.completeName) {
+        const createDto: CreateBankDataDto = {
           type: BankDataType.BANK_OUT,
-        });
+          iban: sell.iban,
+          name: sell.userData.completeName,
+        };
+
+        if (bankData) {
+          await this.bankDataService.replaceBankDataWithNewType(bankData, createDto);
+        } else {
+          await this.bankDataService.createVerifyBankData(sell.userData, createDto);
+        }
+      }
     }
 
     entity = await this.buyFiatRepo.save(entity);
@@ -197,22 +209,30 @@ export class BuyFiatService {
     return entity;
   }
 
-  async getBuyFiatByKey(key: string, value: any): Promise<BuyFiat> {
-    return this.buyFiatRepo
+  async getBuyFiatByKey(key: string, value: any, onlyDefaultRelation = false): Promise<BuyFiat> {
+    const query = this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('buyFiat')
-      .leftJoinAndSelect('buyFiat.sell', 'sell')
       .leftJoinAndSelect('buyFiat.transaction', 'transaction')
       .leftJoinAndSelect('transaction.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `buyFiat.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `buyFiat.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('buyFiat.sell', 'sell');
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
+  }
+
+  async getBuyFiatByTransactionId(transactionId: number, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat> {
+    return this.buyFiatRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
   async getBuyFiat(from: Date, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat[]> {

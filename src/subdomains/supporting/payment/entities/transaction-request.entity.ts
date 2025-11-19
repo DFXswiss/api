@@ -1,4 +1,4 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -108,5 +108,13 @@ export class TransactionRequest extends IEntity {
 
   get userData(): UserData {
     return this.user.userData;
+  }
+
+  resetStatus(): UpdateResult<TransactionRequest> {
+    const update: Partial<TransactionRequest> = { status: TransactionRequestStatus.CREATED };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 }

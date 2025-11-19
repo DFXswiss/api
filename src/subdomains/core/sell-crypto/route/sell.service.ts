@@ -141,22 +141,30 @@ export class SellService {
     return Array.from(new Map((route.paymentLinks || []).map((l) => [l.id, l])).values());
   }
 
-  async getSellByKey(key: string, value: any): Promise<Sell> {
-    return this.sellRepo
+  async getSellByKey(key: string, value: any, onlyDefaultRelation = false): Promise<Sell> {
+    const query = this.sellRepo
       .createQueryBuilder('sell')
       .select('sell')
       .leftJoinAndSelect('sell.deposit', 'deposit')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `sell.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `sell.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
+  }
+
+  async getSellsByIban(iban: string): Promise<Sell[]> {
+    return this.sellRepo.find({ where: { iban }, relations: { user: { userData: true } } });
   }
 
   async getUserSells(userId: number): Promise<Sell[]> {
@@ -247,10 +255,6 @@ export class SellService {
     if (!sell) throw new NotFoundException('Sell route not found');
 
     return this.sellRepo.save({ ...sell, ...dto });
-  }
-
-  async count(): Promise<number> {
-    return this.sellRepo.count();
   }
 
   // --- VOLUMES --- //
@@ -390,8 +394,8 @@ export class SellService {
     return sellDto;
   }
 
-  async getPaymentRouteForPublicName(publicName: string): Promise<Sell | undefined> {
-    return this.sellRepo.findOne({
+  async getPaymentRoutesForPublicName(publicName: string): Promise<Sell[]> {
+    return this.sellRepo.find({
       where: {
         active: true,
         deposit: { blockchains: Blockchain.LIGHTNING },

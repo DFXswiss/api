@@ -25,6 +25,7 @@ import { PricingDeuroService } from './integration/pricing-deuro.service';
 import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
+import { PricingRealUnitService } from './integration/pricing-realunit.service';
 
 export enum PriceCurrency {
   EUR = 'EUR',
@@ -64,6 +65,7 @@ export class PricingService implements OnModuleInit {
     readonly frankencoinService: PricingFrankencoinService,
     readonly deuroService: PricingDeuroService,
     readonly ebel2xService: PricingEbel2xService,
+    readonly realunitService: PricingRealUnitService,
     readonly constantService: PricingConstantService,
   ) {
     this.providerMap = {
@@ -79,6 +81,7 @@ export class PricingService implements OnModuleInit {
       [PriceSource.FRANKENCOIN]: frankencoinService,
       [PriceSource.DEURO]: deuroService,
       [PriceSource.EBEL2X]: ebel2xService,
+      [PriceSource.REALUNIT]: realunitService,
       [PriceSource.CONSTANT]: constantService,
     };
   }
@@ -225,7 +228,7 @@ export class PricingService implements OnModuleInit {
         rule.source
       } (limit is ${Util.toPercent(rule.limit)})`;
 
-      this.logger.warn(message);
+      this.logger.verbose(message);
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
         context: MailContext.PRICING,

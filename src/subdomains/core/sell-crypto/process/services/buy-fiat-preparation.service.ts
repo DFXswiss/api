@@ -9,7 +9,8 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
-import { KycStatus, RiskStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
@@ -93,7 +94,7 @@ export class BuyFiatPreparationService {
         );
 
         const { users, refUser, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
-        if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
+        if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(
           inputReferenceCurrency,
@@ -434,7 +435,14 @@ export class BuyFiatPreparationService {
         chargebackAllowedDateUser: Not(IsNull()),
         chargebackAmount: Not(IsNull()),
         isComplete: false,
-        transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
+        transaction: {
+          userData: {
+            kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
+            status: Not(UserDataStatus.BLOCKED),
+            riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
+          },
+          user: { status: In([UserStatus.NA, UserStatus.ACTIVE]) },
+        },
         chargebackAddress: Not(IsNull()),
       },
       relations: { cryptoInput: true, transaction: { userData: true } },

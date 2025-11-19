@@ -1,5 +1,5 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
@@ -7,7 +7,11 @@ import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
 import { StakingRefReward, StakingRefType } from '../../staking/entities/staking-ref-reward.entity';
 import { PayoutType, StakingReward } from '../../staking/entities/staking-reward.entity';
-import { CoinTrackingCsvHistoryDto, CoinTrackingTransactionType } from '../dto/output/coin-tracking-history.dto';
+import {
+  CoinTrackingApiHistoryDto,
+  CoinTrackingCsvHistoryDto,
+  CoinTrackingTransactionType,
+} from '../dto/output/coin-tracking-history.dto';
 
 export class CoinTrackingHistoryDtoMapper {
   static mapBuyCryptoCryptoTransactions(buyCryptos: BuyCrypto[]): CoinTrackingCsvHistoryDto[] {
@@ -46,7 +50,7 @@ export class CoinTrackingHistoryDtoMapper {
                 type: CoinTrackingTransactionType.OTHER_FEE,
                 buyAmount: null,
                 buyAsset: null,
-                sellAmount: buyCrypto.percentFee * buyCrypto.inputAmount,
+                sellAmount: buyCrypto.totalFeeAmount,
                 sellAsset: this.getAssetSymbol(
                   buyCrypto.cryptoInput.asset.dexName,
                   buyCrypto.cryptoInput.asset.blockchain,
@@ -59,7 +63,10 @@ export class CoinTrackingHistoryDtoMapper {
                 date: buyCrypto.outputDate,
                 txid: buyCrypto.txId,
                 buyValueInEur: null,
-                sellValueInEur: buyCrypto.amountInEur,
+                sellValueInEur: Util.roundReadable(
+                  (buyCrypto.amountInEur / buyCrypto.amountInChf) * buyCrypto.totalFeeAmountChf,
+                  AmountType.FIAT,
+                ),
               }
             : null
           : {
@@ -75,7 +82,10 @@ export class CoinTrackingHistoryDtoMapper {
                 buyCrypto.cryptoInput.asset.blockchain,
               ),
               fee: buyCrypto.totalFeeAmount
-                ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+                ? Util.roundReadable(
+                    (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount,
+                    AmountType.ASSET_FEE,
+                  )
                 : null,
               feeAsset: buyCrypto.totalFeeAmount
                 ? this.getAssetSymbol(buyCrypto.cryptoInput.asset.dexName, buyCrypto.cryptoInput.asset.blockchain)
@@ -91,6 +101,12 @@ export class CoinTrackingHistoryDtoMapper {
       ])
       .reduce((prev, curr) => prev.concat(curr), [])
       .filter((e) => e != null);
+  }
+
+  static mapBuyCryptoCryptoTransactionsForApi(buyCryptos: BuyCrypto[]): CoinTrackingApiHistoryDto[] {
+    return this.mapBuyCryptoCryptoTransactions(buyCryptos).map((t) => {
+      return { ...t, date: t.date?.getTime() / 1000 };
+    });
   }
 
   static mapBuyCryptoFiatTransactions(buyCryptos: BuyCrypto[]): CoinTrackingCsvHistoryDto[] {
@@ -132,7 +148,10 @@ export class CoinTrackingHistoryDtoMapper {
           sellAmount: buyCrypto.inputAmount,
           sellAsset: buyCrypto.inputAsset,
           fee: buyCrypto.totalFeeAmount
-            ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+            ? Util.roundReadable(
+                (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount,
+                AmountType.FIAT_FEE,
+              )
             : null,
           feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
           exchange: 'DFX',
@@ -145,6 +164,12 @@ export class CoinTrackingHistoryDtoMapper {
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  static mapBuyCryptoFiatTransactionsForApi(buyCryptos: BuyCrypto[]): CoinTrackingApiHistoryDto[] {
+    return this.mapBuyCryptoFiatTransactions(buyCryptos).map((t) => {
+      return { ...t, date: t.date?.getTime() / 1000 };
+    });
   }
 
   static mapBuyFiatTransactions(buyFiats: BuyFiat[]): CoinTrackingCsvHistoryDto[] {
@@ -167,7 +192,10 @@ export class CoinTrackingHistoryDtoMapper {
           sellAmount: buyFiat.inputAmount,
           sellAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain),
           fee: buyFiat.totalFeeAmount
-            ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
+            ? Util.roundReadable(
+                (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount,
+                AmountType.ASSET_FEE,
+              )
             : null,
           feeAsset: buyFiat.totalFeeAmount
             ? this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain)
@@ -200,13 +228,19 @@ export class CoinTrackingHistoryDtoMapper {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
+  static mapBuyFiatTransactionsForApi(buyFiats: BuyFiat[]): CoinTrackingApiHistoryDto[] {
+    return this.mapBuyFiatTransactions(buyFiats).map((t) => {
+      return { ...t, date: t.date?.getTime() / 1000 };
+    });
+  }
+
   static mapStakingRewards(stakingRewards: StakingReward[]): CoinTrackingCsvHistoryDto[] {
     return stakingRewards
       .map((stakingReward) => [
         {
           type: CoinTrackingTransactionType.STAKING,
           buyAmount: stakingReward.outputAmount,
-          buyAsset: this.getAssetSymbol(stakingReward.outputAsset, Blockchain.DEFICHAIN),
+          buyAsset: this.getAssetSymbol(stakingReward.outputAsset.dexName, Blockchain.DEFICHAIN),
           sellAmount: null,
           sellAsset: null,
           fee:
@@ -215,7 +249,7 @@ export class CoinTrackingHistoryDtoMapper {
               : null,
           feeAsset:
             stakingReward.fee && stakingReward.fee != 0
-              ? this.getAssetSymbol(stakingReward.outputAsset, Blockchain.DEFICHAIN)
+              ? this.getAssetSymbol(stakingReward.outputAsset.dexName, Blockchain.DEFICHAIN)
               : null,
           exchange: stakingReward.payoutType === PayoutType.REINVEST ? 'DFX Staking' : 'DFX',
           tradeGroup: stakingReward.payoutType === PayoutType.REINVEST ? 'Staking' : null,
@@ -334,7 +368,7 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.REWARD_BONUS,
           buyAmount: refReward.outputAmount,
-          buyAsset: refReward.outputAsset,
+          buyAsset: refReward.outputAsset.dexName,
           sellAmount: null,
           sellAsset: null,
           fee: null,
@@ -351,13 +385,19 @@ export class CoinTrackingHistoryDtoMapper {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
+  static mapRefRewardsForApi(refRewards: RefReward[]): CoinTrackingApiHistoryDto[] {
+    return this.mapRefRewards(refRewards).map((t) => {
+      return { ...t, date: t.date?.getTime() / 1000 };
+    });
+  }
+
   static mapStakingRefRewards(stakingRefRewards: StakingRefReward[]): CoinTrackingCsvHistoryDto[] {
     return stakingRefRewards
       .map((stakingRefReward) => [
         {
           type: CoinTrackingTransactionType.REWARD_BONUS,
           buyAmount: stakingRefReward.outputAmount,
-          buyAsset: stakingRefReward.outputAsset,
+          buyAsset: stakingRefReward.outputAsset.dexName,
           sellAmount: null,
           sellAsset: null,
           fee: null,

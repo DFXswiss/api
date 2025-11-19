@@ -92,6 +92,8 @@
                 "kyc_data_needed": "Sus datos KYC son necesarios para la transacción",
                 "bank_tx_needed": "Para poder realizar esta operación es necesaria una transacción bancaria",
                 "manual_check_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
+                "manual_check_ip_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
+                "manual_check_ip_country_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
                 "merge_incomplete": "El correo electrónico de confirmación no fue aceptado"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
@@ -231,6 +233,24 @@
                 "line3": "",
                 "line4": "",
                 "line5": "Para ver el estado actual de su transacción:<br>[url:haga clic aquí]"
+            },
+            "manual_check_ip_phone": {
+                "title": "Se requiere llamada telefónica",
+                "salutation": "Se requiere una verificación manual por teléfono",
+                "line1": "Hemos recibido su depósito.",
+                "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
+                "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
+                "line4": "",
+                "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
+            },
+            "manual_check_ip_country_phone": {
+                "title": "Se requiere llamada telefónica",
+                "salutation": "Se requiere una verificación manual por teléfono",
+                "line1": "Hemos recibido su depósito.",
+                "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
+                "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
+                "line4": "",
+                "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
             }
         },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]"
@@ -253,19 +273,36 @@
             "message": "El paso '{stepName}' no ha podido completarse por el siguiente motivo:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Su cuenta está fusionada",
+                "user_data_merge_requested": "Confirmación por correo electrónico pendiente",
+                "user_data_existing": "Error desconocido",
                 "user_data_blocked": "Error desconocido",
-                "first_name_not_matching": "Su nombre no coincide",
-                "last_name_not_matching": "Su apellido no coincide",
+                "first_name_not_matching": "Incoherencia con tu nombre de pila",
+                "last_name_not_matching": "Incoherencia con tu apellido",
                 "nationality_not_matching": "Su nacionalidad no coincide",
                 "nationality_missing": "Falta la nacionalidad",
-                "invalid_document_type": "El tipo de documento no es válido",
+                "nationality_not_allowed": "Tu nacionalidad no está permitida",
+                "invalid_document_type": "El tipo de documento de identificación no es válido",
+                "document_type_not_allowed": "El tipo de documento de identificación no está permitido en su país",
                 "identification_number_missing": "Falta su número de identificación",
                 "invalid_result": "Error desconocido",
                 "verified_name_missing": "Falta el nombre de la cuenta",
-                "first_name_not_matching_verified_name": "Su nombre no coincide con el nombre de su cuenta",
-                "last_name_not_matching_verified_name": "Su apellido no coincide con el nombre de su cuenta",
-                "organization_name_not_matching_verified_name": "El nombre de su organización no coincide con el nombre de su cuenta"
+                "first_name_not_matching_verified_name": "Incoherencia entre tu nombre y el nombre de la cuenta",
+                "last_name_not_matching_verified_name": "Incoherencia entre su apellido y el nombre de la cuenta",
+                "organization_name_not_matching_verified_name": "Incoherencia entre el nombre de su organización y el nombre de la cuenta",
+                "country_not_allowed": "Tu país no está autorizado",
+                "blocked": "Error desconocido",
+                "personal_data_not_matching": "Incoherencia en tus datos personales",
+                "ip_country_mismatch": "No se cumplen los requisitos reglamentarios",
+                "country_ip_country_mismatch": "No se cumplen los requisitos reglamentarios",
+                "missing_response": "Datos faltantes",
+                "risky_business": "Su empresa está involucrada en negocios arriesgados",
+                "bank_recall_fee_not_paid": "Tasa de devolución no pagada"
             }
+        },
+        "missing_data": {
+            "title": "Falta de datos durante la verificación",
+            "salutation": "Faltan datos en su verificación",
+            "message": "Al paso '{stepName}' aún le faltan datos que debe añadir para completar su verificación."
         },
         "reminder": {
             "title": "Completa tu verificación",

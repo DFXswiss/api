@@ -12,8 +12,14 @@ environmentOptions=("loc" "dev" "prd")
 # "dea": dEuro API
 # "ded": dEuro dApp
 # "dem": dEuro Monitoring
+# "jsp": JuiceSwap Ponder
 # "jsw": JuiceSwap API
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsw")
+# "n8n": N8N workflow automation
+# "jdtp": JuiceDollar Testnet Ponder
+# "jdta": JuiceDollar Testnet API
+# "jdtd": JuiceDollar Testnet dApp
+# "jdtm": JuiceDollar Testnet Monitoring
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "ctn" "jdtp" "jdta" "jdtd" "jdtm")
 
 # --- FUNCTIONS --- #
 selectOption() {

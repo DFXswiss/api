@@ -12,7 +12,7 @@ import { LiquidityManagementService } from 'src/subdomains/core/liquidity-manage
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInputSettledStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -64,7 +64,7 @@ export class BuyCryptoBatchService {
         where: [
           {
             ...search,
-            cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+            cryptoInput: { status: In(CryptoInputSettledStatus) },
           },
           { ...search, cryptoInput: IsNull() },
         ],
@@ -87,15 +87,22 @@ export class BuyCryptoBatchService {
         )}`,
       );
 
+      const riskyTxs = txWithAssets.filter((t) => t.userData.isRisky);
+      for (const riskyTx of riskyTxs) {
+        await this.buyCryptoRepo.update(...riskyTx.resetAmlCheck());
+      }
+
       const filteredTx = txWithAssets.filter(
         (t) =>
-          (!t.liquidityPipeline &&
+          !t.userData.isSuspicious &&
+          !t.userData.isRisky &&
+          ((!t.liquidityPipeline &&
             !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
-          [
-            LiquidityManagementPipelineStatus.FAILED,
-            LiquidityManagementPipelineStatus.STOPPED,
-            LiquidityManagementPipelineStatus.COMPLETE,
-          ].includes(t.liquidityPipeline?.status),
+            [
+              LiquidityManagementPipelineStatus.FAILED,
+              LiquidityManagementPipelineStatus.STOPPED,
+              LiquidityManagementPipelineStatus.COMPLETE,
+            ].includes(t.liquidityPipeline?.status)),
       );
 
       const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);

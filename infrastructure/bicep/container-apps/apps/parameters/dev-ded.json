@@ -69,6 +69,10 @@
         {
           "name": "NEXT_PUBLIC_RPC_URL_POLYGON",
           "value": "https://polygon-mainnet.g.alchemy.com/v2"
+        },
+        {
+          "name": "NEXT_PUBLIC_PONDER_FALLBACK_URL",
+          "value": "https://dev.ponder.deuro.com"
         }
       ]
     },

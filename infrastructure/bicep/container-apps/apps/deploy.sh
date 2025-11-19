@@ -13,10 +13,15 @@ environmentOptions=("loc" "dev" "prd")
 # "dea": dEuro API
 # "ded": dEuro dApp
 # "dem": dEuro Monitoring
-# "zanod": Zano Node
-# "zanolw": Zano Liquidity Wallet
+# "jsp": JuiceSwap Ponder
 # "jsw": JuiceSwap API
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "zanod" "zanolw" "jsw")
+# "n8n": N8N workflow automation
+# "jdtp": JuiceDollar Testnet Ponder
+# "jdta": JuiceDollar Testnet API
+# "jdtd": JuiceDollar Testnet dApp
+# "jdtm": JuiceDollar Testnet Monitoring
+# "rup": realUnit Ponder
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "jdtp" "jdta" "jdtd" "jdtm" "rup")
 
 # --- FUNCTIONS --- #
 selectOption() {

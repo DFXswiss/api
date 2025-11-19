@@ -7,6 +7,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlListStatus } from 'src/subdomains/core/aml/enums/aml-list-status.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { FaucetRequest } from 'src/subdomains/core/faucet-request/entities/faucet-request.entity';
 import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
@@ -14,15 +15,16 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { AccountOpenerAuthorization, Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
+import { UserStatus } from '../user/user.enum';
 import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
 import { KycIdentificationType } from './kyc-identification-type.enum';
@@ -149,6 +151,9 @@ export class UserData extends IEntity {
   @ManyToOne(() => Fiat, { eager: true })
   currency: Fiat;
 
+  @OneToMany(() => FaucetRequest, (faucetRequest) => faucetRequest.userData)
+  faucetRequests: FaucetRequest[];
+
   // --- KYC --- //
 
   // TODO remove
@@ -164,6 +169,9 @@ export class UserData extends IEntity {
 
   @Column({ nullable: true })
   olkypayAllowed?: boolean;
+
+  @Column({ nullable: true })
+  recallAgreementAccepted?: boolean; // null = deactivated, false = step activated, true = step completed by user
 
   // TODO remove
   @Column({ nullable: true })
@@ -182,7 +190,6 @@ export class UserData extends IEntity {
   kycLevel: KycLevel;
 
   @Column()
-  @Generated('uuid')
   @Index({ unique: true })
   kycHash: string;
 
@@ -222,6 +229,15 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   phoneCallCheckDate?: Date;
 
+  @Column({ type: 'datetime2', nullable: true })
+  phoneCallIpCheckDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  phoneCallIpCountryCheckDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  tradeApprovalDate?: Date;
+
   // AML
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate?: Date;
@@ -249,6 +265,9 @@ export class UserData extends IEntity {
 
   @Column({ nullable: true })
   hasBankTx?: boolean;
+
+  @Column({ nullable: true })
+  hasIpRisk?: boolean;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -691,6 +710,9 @@ export class UserData extends IEntity {
 }
 
 export const KycCompletedStates = [KycStatus.COMPLETED];
+
+export const UserDataSupportUpdateCols = ['status', 'riskStatus', 'recallAgreementAccepted'];
+export const UserDataComplianceUpdateCols = ['kycStatus', 'depositLimit'];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {
   return KycCompletedStates.includes(kycStatus);

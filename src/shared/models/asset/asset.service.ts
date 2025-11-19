@@ -57,6 +57,10 @@ export class AssetService {
     return this.assetRepo.findOneCachedBy(`${id}`, { id });
   }
 
+  async getAssetsById(ids: number[]): Promise<Asset[]> {
+    return this.assetRepo.findCachedBy(`${ids}`, { id: In(ids) });
+  }
+
   async getAssetByChainId(blockchain: Blockchain, chainId: string): Promise<Asset> {
     return this.assetRepo.findOneCachedBy(`${blockchain}-${chainId}`, { blockchain, chainId });
   }
@@ -75,6 +79,10 @@ export class AssetService {
 
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
     return this.assetRepo.findOneCachedBy(`native-${blockchain}`, { blockchain, type: AssetType.COIN });
+  }
+
+  async getTokens(blockchain: Blockchain): Promise<Asset[]> {
+    return this.assetRepo.findCachedBy(`token-${blockchain}`, { blockchain, type: AssetType.TOKEN });
   }
 
   async getSellableBlockchains(): Promise<Blockchain[]> {

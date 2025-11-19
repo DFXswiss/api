@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { randomUUID } from 'crypto';
 import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
@@ -16,6 +17,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
@@ -31,12 +33,13 @@ import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
-import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycLogType, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -98,9 +101,13 @@ export class UserDataService {
     private readonly kycAdminService: KycAdminService,
     private readonly organizationService: OrganizationService,
     private readonly tfaService: TfaService,
+    @Inject(forwardRef(() => TransactionService))
     private readonly transactionService: TransactionService,
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
+    @Inject(forwardRef(() => KycService))
+    private readonly kycService: KycService,
+    private readonly ipLogService: IpLogService,
   ) {}
 
   // --- GETTERS --- //
@@ -116,11 +123,20 @@ export class UserDataService {
       .getOne();
   }
 
-  async getUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
-    return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
+  async getUserData(
+    userDataId: number,
+    relations?: FindOptionsRelations<UserData>,
+    useCachedValues = false,
+  ): Promise<UserData> {
+    const request = { where: { id: userDataId }, relations };
+    return useCachedValues
+      ? this.userDataRepo.findOneCached(JSON.stringify(request), request)
+      : this.userDataRepo.findOne(request);
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
+    if (!Config.formats.kycHash.test(kycHash)) throw new UnauthorizedException('Invalid KYC hash');
+
     let user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
@@ -151,14 +167,49 @@ export class UserDataService {
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
-  async getUsersByMail(mail: string): Promise<UserData[]> {
+  async getUsersByMail(mail: string, onlyValidUser = true): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
         mail,
-        status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED]),
+        status: onlyValidUser
+          ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
+          : undefined,
       },
       relations: { users: true, wallet: true },
     });
+  }
+
+  async getUsersByName(name: string): Promise<UserData[]> {
+    const where = { status: Not(UserDataStatus.MERGED) };
+    const wheres = [
+      { ...where, firstname: Util.contains(name) },
+      { ...where, surname: Util.contains(name) },
+      { ...where, verifiedName: Util.contains(name) },
+      { ...where, organization: { name: Util.contains(name) } },
+    ];
+
+    const nameParts = name.split(' ');
+    const first = nameParts.shift();
+    const last = nameParts.pop();
+
+    if (last)
+      wheres.push({
+        ...where,
+        firstname: Util.contains(first),
+        surname: Util.contains([...nameParts, last].join(' ')),
+      });
+    if (nameParts.length)
+      wheres.push({
+        ...where,
+        firstname: Util.contains([first, ...nameParts].join(' ')),
+        surname: Util.contains(last),
+      });
+
+    return this.userDataRepo.find({ where: wheres });
+  }
+
+  async getUsersByPhone(phone: string): Promise<UserData[]> {
+    return this.userDataRepo.findBy({ phone });
   }
 
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
@@ -182,6 +233,7 @@ export class UserDataService {
       ...dto,
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
+      kycHash: randomUUID().toUpperCase(),
     });
 
     await this.loadRelationsAndVerify(userData, dto);
@@ -369,6 +421,12 @@ export class UserDataService {
         signatoryPower: dto.signatoryPower,
       });
 
+    if (userData.users && (userData.kycLevel >= KycLevel.LEVEL_50 || dto.kycLevel >= KycLevel.LEVEL_50)) {
+      for (const user of userData.users) {
+        await this.userRepo.setUserRef(user, dto.kycLevel ?? userData.kycLevel);
+      }
+    }
+
     return userData;
   }
 
@@ -485,6 +543,12 @@ export class UserDataService {
   async deactivateUserData(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.deactivateUserData());
     await this.kycAdminService.resetKyc(userData, KycError.USER_DATA_DEACTIVATED);
+    await this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.KYC,
+      `UserData deactivated on ${userData.deactivationDate.toISOString()}`,
+    );
+    await this.kycService.createKycLevelLog(userData, userData.kycLevel);
     await this.userDataNotificationService.deactivateAccountMail(userData);
   }
 
@@ -638,6 +702,11 @@ export class UserDataService {
 
   async triggerVideoIdent(userData: UserData): Promise<void> {
     await this.kycAdminService.triggerVideoIdentInternal(userData);
+  }
+
+  async setCheckIpRisk(ip: string): Promise<void> {
+    const userDataIdsWithIpRisk = await this.ipLogService.getUserDataIdsWith(ip);
+    if (userDataIdsWithIpRisk.length) await this.userDataRepo.update(userDataIdsWithIpRisk, { hasIpRisk: true });
   }
 
   // --- API KEY --- //
@@ -816,7 +885,6 @@ export class UserDataService {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
     this.logger.info(`Merge between ${masterId} and ${slaveId} started`);
-    this.logger.info(`Merge Memory before userData load: ${Util.createMemoryLogString()}`);
 
     const master = await this.userDataRepo.findOne({
       where: { id: masterId },
@@ -855,8 +923,6 @@ export class UserDataService {
     });
     slave.bankDatas = await this.bankDataService.getAllBankDatasForUser(slaveId);
     slave.kycSteps = await this.kycAdminService.getKycSteps(slaveId);
-
-    this.logger.info(`Merge Memory after userData load: ${Util.createMemoryLogString()}`);
 
     master.checkIfMergePossibleWith(slave);
 
@@ -989,7 +1055,13 @@ export class UserDataService {
       await this.userDataRepo.activateUserData(master);
 
       for (const user of master.users) {
+        if (user.isBlockedOrDeleted) continue;
+
         await this.userRepo.update(...user.activateUser());
+        await this.userRepo.setUserRef(user, master.kycLevel);
+      }
+    } else if (master.users?.some((u) => u.ref)) {
+      for (const user of master.users) {
         await this.userRepo.setUserRef(user, master.kycLevel);
       }
     }

@@ -15,7 +15,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Not } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
 import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
@@ -24,6 +24,7 @@ import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.
 import { CreatePaymentLinkDto } from '../dto/create-payment-link.dto';
 import { UpdatePaymentLinkConfigDto, UserPaymentLinkConfigDto } from '../dto/payment-link-config.dto';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
+import { PaymentLinkRecipientAddressDto } from '../dto/payment-link-recipient-address.dto';
 import { PaymentLinkPaymentErrorResponseDto, PaymentLinkPayRequestDto } from '../dto/payment-link.dto';
 import { UpdatePaymentLinkDto, UpdatePaymentLinkInternalDto } from '../dto/update-payment-link.dto';
 import { PaymentLinkPayment } from '../entities/payment-link-payment.entity';
@@ -392,7 +393,7 @@ export class PaymentLinkService {
       mode,
       label,
       webhookUrl,
-      config: this.getMergedConfigString(paymentLink, config),
+      config: JSON.stringify(config),
     };
 
     await this.updatePaymentLinkInternal(paymentLink, updatePaymentLink);
@@ -476,12 +477,25 @@ export class PaymentLinkService {
     });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
-    const route = await this.sellService.getPaymentRouteForPublicName(dto.publicName);
+    const route = await this.sellService.getPaymentRoutesForPublicName(dto.publicName).then((l) => l.at(0));
     if (!route) throw new NotFoundException('No matching payment route found');
 
     await this.updatePaymentLinkInternal(paymentLink, { status: PaymentLinkStatus.ACTIVE, route });
 
     return paymentLink;
+  }
+
+  async getLocations(publicName: string): Promise<PaymentLinkRecipientAddressDto[]> {
+    const routes = await this.sellService.getPaymentRoutesForPublicName(publicName);
+    const paymentLinks = await this.paymentLinkRepo.find({
+      where: { route: { id: In(routes.map((r) => r.id)) } },
+      relations: { route: { user: { userData: true } } },
+    });
+
+    const locations = paymentLinks.map((pl) => pl.configObj.recipient?.address);
+
+    // unique
+    return Array.from(new Map(locations.map((l) => [JSON.stringify(l), l])).values());
   }
 
   // --- PAYMENTS --- //

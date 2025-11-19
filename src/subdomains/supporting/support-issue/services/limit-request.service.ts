@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -63,8 +62,6 @@ export class LimitRequestService {
     if (!entity) throw new NotFoundException('LimitRequest not found');
     if (LimitRequestFinal(entity.decision)) throw new BadRequestException('Limit request already final');
 
-    const update = this.limitRequestRepo.create(dto);
-
     if (dto.decision !== entity.decision && LimitRequestFinal(dto.decision)) {
       await this.supportIssueRepo.update(entity.supportIssue.id, {
         state: SupportIssueInternalState.COMPLETED,
@@ -75,10 +72,10 @@ export class LimitRequestService {
     await this.supportLogService.createSupportLog(entity.supportIssue.userData, {
       type: SupportLogType.LIMIT_REQUEST,
       limitRequest: entity,
-      ...update,
+      ...dto,
     });
 
-    return this.limitRequestRepo.save({ ...entity, ...Util.removeNullFields(update) });
+    return this.limitRequestRepo.save({ ...entity, ...dto });
   }
 
   async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {

@@ -25,6 +25,7 @@ export enum Process {
   KYC = 'Kyc',
   KYC_IDENT_REVIEW = 'KycIdentReview',
   KYC_NATIONALITY_REVIEW = 'KycNationalityReview',
+  KYC_FINANCIAL_REVIEW = 'KycFinancialReview',
   KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
@@ -79,6 +80,7 @@ export enum Process {
   SAFETY_MODE = 'SafetyMode',
   BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
   AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
+  ZANO_ASSET_WHITELIST = 'ZanoAssetWhitelist',
 }
 
 const safetyProcesses: Process[] = [

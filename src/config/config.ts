@@ -49,6 +49,7 @@ export class Configuration {
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
   financeLogTotalBalanceChangeLimit = 5000;
+  faucetAmount = 20; //CHF
 
   defaults = {
     currency: 'EUR',
@@ -135,7 +136,7 @@ export class Configuration {
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
-  sparkAddressFormat = 'sp(1|t1|rt1|s1|l1)[a-z0-9]{58,89}';
+  sparkAddressFormat = 'sp1[a-z0-9]{6,87}';
   moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
@@ -177,6 +178,10 @@ export class Configuration {
     key: new RegExp(`^(${this.allKeyFormat})$`),
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
+    kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+    phone: /^\+\d+$/,
+    accountServiceRef: /^[A-Z]{2}\d{8}\/\d+\/\d+$/,
+    number: /^\d+$/,
   };
 
   database: TypeOrmModuleOptions = {
@@ -620,6 +625,27 @@ export class Configuration {
           return this.payment.defaultQuoteTimeout;
       }
     },
+
+    standards: [
+      {
+        id: PaymentStandard.OPEN_CRYPTO_PAY,
+        label: 'OpenCryptoPay.io',
+        description: 'Pay with OpenCryptoPay, Bitcoin Lightning LNURL',
+        paymentIdentifierLabel: 'URL',
+      },
+      {
+        id: PaymentStandard.LIGHTNING_BOLT11,
+        label: 'Bitcoin Lightning',
+        description: 'Pay with a Bolt 11 Invoice',
+        paymentIdentifierLabel: 'LNR',
+      },
+      {
+        id: PaymentStandard.PAY_TO_ADDRESS,
+        label: '{{blockchain}} address',
+        description: 'Pay to a {{blockchain}} Blockchain address',
+        paymentIdentifierLabel: 'URI',
+      },
+    ],
   };
 
   blockchain = {
@@ -830,6 +856,9 @@ export class Configuration {
     deuro: {
       graphUrl: process.env.DEURO_GRAPH_URL,
       apiUrl: process.env.DEURO_API_URL,
+    },
+    realunit: {
+      graphUrl: process.env.REALUNIT_GRAPH_URL,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,

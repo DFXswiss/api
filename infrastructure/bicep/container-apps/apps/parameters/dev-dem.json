@@ -65,6 +65,26 @@
         {
           "name": "PG_MAX_CLIENTS",
           "value": "10"
+        },
+        {
+          "name": "MAX_BLOCKS_PER_BATCH",
+          "value": "1000"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "value": "[TELEGRAM_BOT_TOKEN]"
+        },
+        {
+          "name": "TELEGRAM_CHAT_ID",
+          "value": "[TELEGRAM_CHAT_ID]"
+        },
+        {
+          "name": "TELEGRAM_ALERTS_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "ALERT_TIMEFRAME_HOURS",
+          "value": "12"
         }
       ]
     },

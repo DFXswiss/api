@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
@@ -27,7 +27,6 @@ export class KycAdminService {
     private readonly webhookService: WebhookService,
     private readonly kycService: KycService,
     private readonly kycNotificationService: KycNotificationService,
-    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
   ) {}
 
@@ -38,7 +37,7 @@ export class KycAdminService {
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({
       where: { id: stepId },
-      relations: { userData: { bankDatas: true, wallet: true, kycSteps: true } },
+      relations: { userData: { bankDatas: true, wallet: true, kycSteps: true, users: true } },
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
@@ -78,12 +77,17 @@ export class KycAdminService {
         }
         break;
 
+      case KycStepName.FINANCIAL_DATA:
+        if (kycStep.isCompleted) await this.kycService.completeFinancialData(kycStep);
+        break;
+
       case KycStepName.DFX_APPROVAL:
         if (kycStep.isCompleted && kycStep.userData.kycLevel < KycLevel.LEVEL_50)
           await this.userDataService.updateUserDataInternal(kycStep.userData, {
             kycLevel: KycLevel.LEVEL_50,
             kycStatus: KycStatus.COMPLETED,
           });
+        await this.kycService.createKycLevelLog(kycStep.userData, KycLevel.LEVEL_50);
         break;
     }
 

@@ -4,12 +4,13 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { UpdateResult } from 'src/shared/models/entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { In, MoreThanOrEqual } from 'typeorm';
 import { AssetPrice } from '../domain/entities/asset-price.entity';
+import { PriceInvalidException } from '../domain/exceptions/price-invalid.exception';
 import { AssetPriceRepository } from '../repositories/asset-price.repository';
 import { PriceCurrency, PriceValidity, PricingService } from './pricing.service';
 
@@ -39,9 +40,10 @@ export class AssetPricesService {
 
         updates.push(asset.updatePrice(usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1)));
 
-        if (asset.type === AssetType.COIN || asset.type === AssetType.TOKEN) await this.saveAssetPrices(asset);
+        if ([AssetType.COIN, AssetType.TOKEN].includes(asset.type)) await this.saveAssetPrices(asset);
       } catch (e) {
-        this.logger.error(`Failed to update price of asset ${asset.uniqueName}:`, e);
+        const level = e instanceof PriceInvalidException ? LogLevel.INFO : LogLevel.ERROR;
+        this.logger.log(level, `Failed to update price of asset ${asset.uniqueName}:`, e);
       }
     }
 

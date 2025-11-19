@@ -92,6 +92,8 @@
                 "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt",
                 "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich",
                 "manual_check_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
+                "manual_check_ip_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
+                "manual_check_ip_country_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
@@ -231,6 +233,24 @@
                 "line3": "",
                 "line4": "",
                 "line5": "Um den aktuellen Stand deiner Transaktion einsehen zu können:<br>[url:Klick hier]"
+            },
+            "manual_check_ip_phone": {
+                "title": "Telefongespräch benötigt",
+                "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
+                "line1": "Wir haben deine Einzahlung erhalten.",
+                "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
+                "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
+                "line4": "",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
+            },
+            "manual_check_ip_country_phone": {
+                "title": "Telefongespräch benötigt",
+                "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
+                "line1": "Wir haben deine Einzahlung erhalten.",
+                "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
+                "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
+                "line4": "",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]"
@@ -253,19 +273,36 @@
             "message": "Der Schritt '{stepName}' konnte aus folgendem Grund nicht abgeschlossen werden:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Dein Account wurde gemerged",
+                "user_data_merge_requested": "E-Mail Bestätigung ausstehend",
+                "user_data_existing": "Unbekannter Fehler",
                 "user_data_blocked": "Unbekannter Fehler",
-                "first_name_not_matching": "Dein Vorname stimmt nicht überein",
-                "last_name_not_matching": "Dein Nachname stimmt nicht überein",
+                "first_name_not_matching": "Umstimmigkeit bei deinem Vornamen",
+                "last_name_not_matching": "Umstimmigkeit bei deinem Nachnamen",
                 "nationality_not_matching": "Deine Nationalität stimmt nicht überein",
                 "nationality_missing": "Deine Nationalität fehlt",
-                "invalid_document_type": "Deine Dokumentenart ist nicht gültig",
+                "nationality_not_allowed": "Deine Nationaltität ist nicht erlaubt",
+                "invalid_document_type": "Die Art des Ausweisdokuments ist nicht gültig",
+                "document_type_not_allowed": "Die Art des Ausweisdokuments ist für dein Land nicht erlaubt",
                 "identification_number_missing": "Deine Ausweisnummer fehlt",
                 "invalid_result": "Unbekannter Fehler",
                 "verified_name_missing": "Dein Accountname fehlt",
-                "first_name_not_matching_verified_name": "Dein Vorname stimmt nicht mit dem Accountnamen überein",
-                "last_name_not_matching_verified_name": "Dein Nachname stimmt nicht mit dem Accountnamen überein",
-                "organization_name_not_matching_verified_name": "Der Name deiner Organisation stimmt nicht mit dem Accountnamen überein"
+                "first_name_not_matching_verified_name": "Umstimmigkeit zwischen deinem Vornamen und dem Accountnamen",
+                "last_name_not_matching_verified_name": "Umstimmigkeit zwischen deinem Nachnamen und dem Accountnamen",
+                "organization_name_not_matching_verified_name": "Umstimmigkeit zwischen dem Namen deiner Organisation und dem Accountnamen",
+                "country_not_allowed": "Dein Land ist nicht erlaubt",
+                "blocked": "Unbekannter Fehler",
+                "personal_data_not_matching": "Unstimmigkeit bei deinen persönlichen Daten",
+                "ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+                "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+                "missing_response": "Es fehlen Daten",
+                "risky_business": "Deine Firma ist in riskante Geschäfte verwickelt",
+                "bank_recall_fee_not_paid": "Die Recall Gebühr wurde noch nicht bezahlt"
             }
+        },
+        "missing_data": {
+            "title": "Fehlende Daten bei Verifizierung",
+            "salutation": "Es fehlen noch Daten bei deiner Verifizierung",
+            "message": "Bei dem Schritt '{stepName}' fehlen noch Daten, die du noch ergänzen musst, um deine Verifizierung abzuschließen"
         },
         "reminder": {
             "title": "Vervollständige Verifizierung",

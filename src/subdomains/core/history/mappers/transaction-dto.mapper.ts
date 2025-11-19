@@ -36,10 +36,6 @@ export class BuyFiatExtended extends BuyFiat {
   inputReferenceAssetEntity: Active;
 }
 
-export class RefRewardExtended extends RefReward {
-  outputAssetEntity: Active;
-}
-
 export class TransactionRequestExtended extends TransactionRequest {
   route: Buy | Sell | Swap;
   sourceAssetEntity: Active;
@@ -95,6 +91,18 @@ export class TransactionDtoMapper {
       chargebackDate: buyCrypto.chargebackDate,
       date: buyCrypto.transaction.created,
       externalTransactionId: buyCrypto.transaction.externalId,
+      networkStartTx: buyCrypto.networkStartAmount
+        ? {
+            txId: buyCrypto.networkStartTx,
+            txUrl: txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.networkStartTx),
+            amount: buyCrypto.networkStartAmount,
+            exchangeRate: Util.roundReadable(
+              buyCrypto.networkStartFeeAmount / buyCrypto.networkStartAmount,
+              AmountType.FIAT,
+            ),
+            asset: buyCrypto.networkStartAsset,
+          }
+        : null,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -210,6 +218,7 @@ export class TransactionDtoMapper {
       chargebackDate: null,
       date: txRequest.created,
       externalTransactionId: null,
+      networkStartTx: null,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -228,7 +237,7 @@ export class TransactionDtoMapper {
   }
 
   // RefReward
-  static mapReferralReward(refReward: RefRewardExtended): TransactionDto {
+  static mapReferralReward(refReward: RefReward): TransactionDto {
     const dto: TransactionDto = {
       id: refReward.transaction.id,
       uid: refReward.transaction.uid,
@@ -244,10 +253,10 @@ export class TransactionDtoMapper {
       rate: null,
       outputAmount:
         refReward.outputAmount != null
-          ? Util.roundReadable(refReward.outputAmount, amountType(refReward.outputAssetEntity))
+          ? Util.roundReadable(refReward.outputAmount, amountType(refReward.outputAsset))
           : null,
-      outputAsset: refReward.outputAssetEntity.name,
-      outputAssetId: refReward.outputAssetEntity?.id,
+      outputAsset: refReward.outputAsset.name,
+      outputAssetId: refReward.outputAsset?.id,
       outputBlockchain: refReward.targetBlockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       outputDate: refReward.outputDate,
@@ -272,7 +281,7 @@ export class TransactionDtoMapper {
     return Object.assign(new TransactionDto(), dto);
   }
 
-  static mapReferralRewardDetail(refReward: RefRewardExtended): TransactionDetailDto {
+  static mapReferralRewardDetail(refReward: RefReward): TransactionDetailDto {
     return {
       ...this.mapReferralReward(refReward),
       sourceAccount: null,
@@ -280,7 +289,7 @@ export class TransactionDtoMapper {
     };
   }
 
-  static mapReferralRewards(refRewards: RefRewardExtended[]): TransactionDto[] {
+  static mapReferralRewards(refRewards: RefReward[]): TransactionDto[] {
     return refRewards.map(TransactionDtoMapper.mapReferralReward);
   }
 
@@ -347,9 +356,11 @@ export class TransactionDtoMapper {
           : null,
       total:
         entity.totalFeeAmount != null
-          ? Util.roundReadable(entity.totalFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
+          ? Util.roundReadable(
+              (entity.totalFeeAmount - networkStartFee) * referencePrice,
+              feeAmountType(entity.inputAssetEntity),
+            )
           : null,
-      networkStart: Util.roundReadable(networkStartFee * referencePrice, feeAmountType(entity.inputAssetEntity)),
     };
   }
 }
@@ -381,7 +392,11 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
     return { state: RefRewardStatusMapper[entity.status], reason: null };
   }
 
-  const reason = entity.amlReason ? TransactionReasonMapper[entity.amlReason] : null;
+  const reason = entity.amlReason
+    ? TransactionReasonMapper[entity.amlReason]
+    : entity.cryptoInput && !entity.cryptoInput.isSettled
+    ? TransactionReason.INPUT_NOT_CONFIRMED
+    : null;
 
   if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {

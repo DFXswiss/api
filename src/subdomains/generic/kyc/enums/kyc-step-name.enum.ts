@@ -20,4 +20,5 @@ export enum KycStepName {
 
   // additional features
   PAYMENT_AGREEMENT = 'PaymentAgreement',
+  RECALL_AGREEMENT = 'RecallAgreement',
 }

@@ -23,10 +23,11 @@ import {
   MerchantCategory,
   StoreType,
 } from 'src/subdomains/core/payment-link/enums/merchant.enum';
-import { GenderType, IdentDocumentType } from 'src/subdomains/generic/kyc/dto/manual-ident-result.dto';
+import { GenderType } from 'src/subdomains/generic/kyc/dto/manual-ident-result.dto';
 import { LegalEntity, SignatoryPower } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
+import { IdentDocumentType } from '../ident-result-data.dto';
 
 export class KycContactData {
   @ApiProperty()
@@ -188,6 +189,13 @@ export class KycNationalityData {
   @ValidateNested()
   @Type(() => EntityDto)
   nationality: Country;
+}
+
+export class RecallAgreementData {
+  @ApiProperty({ description: 'Is the recall condition accepted?' })
+  @IsNotEmpty()
+  @IsBoolean()
+  accepted: boolean;
 }
 
 export class KycFileData {

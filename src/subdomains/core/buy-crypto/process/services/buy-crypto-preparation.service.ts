@@ -11,7 +11,8 @@ import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
-import { KycStatus, RiskStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -103,8 +104,10 @@ export class BuyCryptoPreparationService {
           isPayment,
         );
 
-        const { users, refUser, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
-        if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
+        const { users, refUser, bankData, blacklist, banks, ipLogCountries } = await this.amlService.getAmlCheckInput(
+          entity,
+        );
+        if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(
           inputReferenceCurrency,
@@ -175,6 +178,7 @@ export class BuyCryptoPreparationService {
             banks,
             ibanCountry,
             refUser,
+            ipLogCountries,
           ),
         );
 
@@ -185,9 +189,9 @@ export class BuyCryptoPreparationService {
         if (entity.amlCheck === CheckStatus.PASS && amlCheckBefore === CheckStatus.PENDING)
           await this.buyCryptoNotificationService.paymentProcessing(entity);
 
-        // create sift transaction
+        // create sift transaction (non-blocking)
         if (entity.amlCheck === CheckStatus.FAIL)
-          await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
+          void this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} AML check:`, e);
       }
@@ -285,8 +289,8 @@ export class BuyCryptoPreparationService {
         );
 
         if (entity.amlCheck === CheckStatus.FAIL) {
-          // create sift transaction
-          await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
+          // create sift transaction (non-blocking)
+          void this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
           return;
         }
 
@@ -307,7 +311,14 @@ export class BuyCryptoPreparationService {
       chargebackAllowedDateUser: Not(IsNull()),
       chargebackAmount: Not(IsNull()),
       isComplete: false,
-      transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
+      transaction: {
+        userData: {
+          kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
+          status: Not(UserDataStatus.BLOCKED),
+          riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
+        },
+        user: { status: In([UserStatus.NA, UserStatus.ACTIVE]) },
+      },
     };
     const entities = await this.buyCryptoRepo.find({
       where: [

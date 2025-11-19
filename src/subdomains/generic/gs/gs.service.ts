@@ -18,11 +18,9 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
-import { KycFileBlob } from '../kyc/dto/kyc-file.dto';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
-import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
@@ -160,7 +158,7 @@ export class GsService {
       kycSteps: await this.kycAdminService.getKycSteps(userData.id, { userData: true }),
       bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
-      documents: await this.getAllUserDocuments(userData.id, userData.accountType),
+      documents: await this.kycDocumentService.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
@@ -226,6 +224,13 @@ export class GsService {
         };
       }, {});
 
+      // if (table === 'support_issue' && selects.some((s) => s.includes('messages[max].author')))
+      //   this.logger.info(
+      //     `GS array select log, entities: ${entities.map(
+      //       (e) => `${e['messages_id']}-${e['messages_author']}`,
+      //     )}, selectedData: ${selectedData['messages[max].author']}`,
+      //   );
+
       return selectedData;
     });
   }
@@ -271,7 +276,7 @@ export class GsService {
       const docs = Util.sort(
         commonPathPrefix
           ? await this.kycDocumentService.listFilesByPrefix(commonPathPrefix)
-          : await this.getAllUserDocuments(userDataId, userData.accountType),
+          : await this.kycDocumentService.getAllUserDocuments(userDataId, userData.accountType),
         'created',
         sorting,
       );
@@ -281,14 +286,6 @@ export class GsService {
         userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.url.includes(docPath));
       }
     }
-  }
-
-  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFileBlob[]> {
-    return [
-      ...(await this.kycDocumentService.listUserFiles(userDataId)),
-      ...(await this.kycDocumentService.listSpiderFiles(userDataId, false)),
-      ...(accountType !== AccountType.PERSONAL ? await this.kycDocumentService.listSpiderFiles(userDataId, true) : []),
-    ];
   }
 
   private getBiggestCommonPrefix(selects: string[]): string | undefined {
@@ -338,7 +335,9 @@ export class GsService {
       case SupportTable.SWAP:
         return this.swapService.getSwapByKey(query.key, query.value).then((swap) => swap?.user.userData);
       case SupportTable.BUY_CRYPTO:
-        return this.buyCryptoService.getBuyCryptoByKey(query.key, query.value).then((buyCrypto) => buyCrypto?.userData);
+        return this.buyCryptoService
+          .getBuyCryptoByKeys([query.key], query.value)
+          .then((buyCrypto) => buyCrypto?.userData);
       case SupportTable.BUY_FIAT:
         return this.buyFiatService.getBuyFiatByKey(query.key, query.value).then((buyFiat) => buyFiat?.userData);
       case SupportTable.BANK_TX:
@@ -441,13 +440,15 @@ export class GsService {
   }
 
   private transformResultArray(data: any[], table: string): DbReturnData {
+    if (data.length === 0) return undefined;
+    const keys = Object.keys(data[0]);
+    const uniqueData = Util.toUniqueList(data, keys[0]);
+
     // transform to array
-    return data.length > 0
-      ? {
-          keys: this.renameDbKeys(table, Object.keys(data[0])),
-          values: data.map((e) => Object.values(e)),
-        }
-      : undefined;
+    return {
+      keys: this.renameDbKeys(table, keys),
+      values: uniqueData.map((e) => Object.values(e)),
+    };
   }
 
   private renameDbKeys(table: string, keys: string[]): string[] {

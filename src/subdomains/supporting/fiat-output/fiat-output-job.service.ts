@@ -147,9 +147,8 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
-          if (entity.userData?.isSuspicious) continue;
           if (
-            (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked || entity.userData?.isRisky) &&
+            (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
             entity.type === FiatOutputType.BUY_FIAT
           )
             throw new Error('Payout stopped for blocked user');
@@ -305,7 +304,7 @@ export class FiatOutputJobService {
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_FIAT });
 
       case FiatOutputType.BANK_TX_REPEAT:
-        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_REPEAT });
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_REPEAT_CHARGEBACK });
 
       case FiatOutputType.BANK_TX_RETURN:
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });

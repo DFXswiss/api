@@ -26,7 +26,10 @@ export class SupportIssueController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
-  async createIssue(@Body() dto: CreateSupportIssueDto, @GetJwt() jwt?: JwtPayload): Promise<SupportIssueDto> {
+  async createIssue(
+    @GetJwt() jwt: JwtPayload | undefined,
+    @Body() dto: CreateSupportIssueDto,
+  ): Promise<SupportIssueDto> {
     const input: CreateSupportIssueDto = { ...dto, author: CustomerAuthor, department: Department.SUPPORT };
     return jwt?.account
       ? this.supportIssueService.createIssue(jwt.account, input)
@@ -55,7 +58,7 @@ export class SupportIssueController {
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
   async getIssue(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Param('id') id: string,
     @Query() query: GetSupportIssueFilter,
   ): Promise<SupportIssueDto> {
@@ -66,11 +69,11 @@ export class SupportIssueController {
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
   async createSupportMessage(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Param('id') id: string,
     @Body() dto: CreateSupportMessageDto,
   ): Promise<SupportMessageDto> {
-    return [UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN].includes(jwt.role)
+    return [UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN].includes(jwt?.role)
       ? this.supportIssueService.createMessageSupport(+id, dto)
       : this.supportIssueService.createMessage(id, dto, jwt?.account);
   }
@@ -79,7 +82,7 @@ export class SupportIssueController {
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
   async getFile(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Param('id') id: string,
     @Param('messageId') messageId: string,
   ): Promise<BlobContent> {

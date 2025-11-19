@@ -36,7 +36,11 @@ export class AuthController {
   @Post()
   @UseGuards(IpCountryGuard, OptionalJwtAuthGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
-  authenticate(@GetJwt() jwt: JwtPayload, @Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
+  authenticate(
+    @GetJwt() jwt: JwtPayload | undefined,
+    @Body() dto: SignUpDto,
+    @RealIP() ip: string,
+  ): Promise<AuthResponseDto> {
     return this.authService.authenticate(dto, ip, jwt?.account, jwt?.user);
   }
 
@@ -73,7 +77,7 @@ export class AuthController {
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: MergeResponseDto })
   async executeMerge(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query('code') code: string,
     @RealIP() ip: string,
   ): Promise<MergeResponseDto> {

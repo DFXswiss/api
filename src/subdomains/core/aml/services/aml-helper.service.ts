@@ -8,7 +8,8 @@ import { BankData, BankDataVerificationError } from 'src/subdomains/generic/user
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
@@ -37,6 +38,7 @@ export class AmlHelperService {
     banks?: Bank[],
     ibanCountry?: Country,
     refUser?: User,
+    ipLogCountries?: string[],
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -69,6 +71,10 @@ export class AmlHelperService {
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (entity.userData.kycLevel < KycLevel.LEVEL_50 && last365dVolume > Config.tradingLimits.yearlyWithoutKyc)
       errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
+    if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate)
+      entity.userData.kycLevel >= KycLevel.LEVEL_50
+        ? errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED)
+        : errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
     if (last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc) {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -164,6 +170,13 @@ export class AmlHelperService {
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
+      if (
+        entity.userData.country &&
+        !entity.userData.phoneCallIpCountryCheckDate &&
+        ipLogCountries.some((l) => l !== entity.userData.country.symbol)
+      )
+        errors.push(AmlError.IP_COUNTRY_MISMATCH);
+
       if (
         entity.userData.hasSuspiciousMail &&
         !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_5) &&
@@ -468,6 +481,7 @@ export class AmlHelperService {
     ibanCountry?: Country,
     refUser?: User,
     banks?: Bank[],
+    ipLogCountries?: string[],
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -489,6 +503,7 @@ export class AmlHelperService {
       banks,
       ibanCountry,
       refUser,
+      ipLogCountries,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');
@@ -524,8 +539,8 @@ export class AmlHelperService {
     if (crucialErrorResults.length) {
       const crucialErrorResult =
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ??
-        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.PENDING) ??
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.GSHEET) ??
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.PENDING) ??
         crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
         ? {
@@ -547,7 +562,8 @@ export class AmlHelperService {
     if (
       amlResults.every((r) => r.type === AmlErrorType.MULTI) &&
       (amlResults.every((r) => r.amlCheck === CheckStatus.PENDING) ||
-        amlResults.every((r) => r.amlCheck === CheckStatus.FAIL))
+        amlResults.every((r) => r.amlCheck === CheckStatus.FAIL) ||
+        amlResults.every((r) => r.amlCheck === CheckStatus.GSHEET))
     )
       return {
         bankData,

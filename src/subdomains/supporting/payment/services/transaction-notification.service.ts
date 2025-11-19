@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { In, IsNull } from 'typeorm';
+import { In, IsNull, MoreThan } from 'typeorm';
 import { BankTxIndicator, BankTxUnassignedTypes } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
@@ -54,7 +54,8 @@ export class TransactionNotificationService {
       try {
         if (
           !entity.targetEntity ||
-          (!(entity.targetEntity instanceof BuyCrypto) && !(entity.targetEntity instanceof BuyFiat))
+          (!(entity.targetEntity instanceof BuyCrypto) && !(entity.targetEntity instanceof BuyFiat)) ||
+          (!entity.targetEntity.comment && !entity.targetEntity.amlCheck)
         )
           continue;
 
@@ -106,6 +107,7 @@ export class TransactionNotificationService {
       where: {
         bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: BankTxIndicator.CREDIT },
         mailSendDate: IsNull(),
+        created: MoreThan(Util.daysBefore(7)),
       },
       relations: { bankTx: true },
     });
@@ -116,8 +118,9 @@ export class TransactionNotificationService {
         const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
           entity.bankTx.senderAccount,
           undefined,
+          undefined,
           { userData: { wallet: true } },
-          false,
+          true,
         );
         if (!bankData) continue;
 
@@ -146,6 +149,8 @@ export class TransactionNotificationService {
           });
 
           await this.repo.update(...entity.mailSent(bankData.userData));
+        } else {
+          await this.repo.update(entity.id, { userData: bankData.userData });
         }
       } catch (e) {
         this.logger.error(`Failed to send tx unassigned mail for ${entity.id}:`, e);

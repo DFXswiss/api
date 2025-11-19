@@ -169,6 +169,15 @@ export class BuyCrypto extends IEntity {
   networkStartFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
+  networkStartAmount?: number;
+
+  @Column({ length: 256, nullable: true })
+  networkStartTx?: string;
+
+  @Column({ length: 256, nullable: true })
+  networkStartAsset?: string;
+
+  @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee?: number;
 
   @Column({ type: 'float', nullable: true })
@@ -245,6 +254,9 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   transaction: Transaction;
 
+  // NOTE: This field is deprecated and no longer actively used.
+  // Sift calls are now fire-and-forget to prevent blocking operations.
+  // Consider removing in future migration or repurposing for error tracking.
   @Column({ length: 'MAX', nullable: true })
   siftResponse?: string;
 
@@ -507,6 +519,7 @@ export class BuyCrypto extends IEntity {
     banks: Bank[],
     ibanCountry: Country,
     refUser?: User,
+    ipLogCountries?: string[],
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...AmlHelperService.getAmlResult(
@@ -522,6 +535,7 @@ export class BuyCrypto extends IEntity {
         ibanCountry,
         refUser,
         banks,
+        ipLogCountries,
       ),
       amountInChf,
       amountInEur,
@@ -573,6 +587,31 @@ export class BuyCrypto extends IEntity {
       chargebackAmount: null,
       chargebackAllowedBy: null,
       chargebackOutput: null,
+      priceDefinitionAllowedDate: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  resetFees(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      percentFee: null,
+      percentFeeAmount: null,
+      minFeeAmount: null,
+      minFeeAmountFiat: null,
+      totalFeeAmount: null,
+      totalFeeAmountChf: null,
+      blockchainFee: null,
+      bankFeeAmount: null,
+      inputReferenceAmountMinusFee: null,
+      usedRef: null,
+      refProvision: null,
+      refFactor: null,
+      usedFees: null,
+      networkStartFeeAmount: null,
+      status: null,
     };
 
     Object.assign(this, update);
@@ -607,6 +646,10 @@ export class BuyCrypto extends IEntity {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
   }
 
+  get networkStartCorrelationId(): string {
+    return `${this.id}-network-start-fee`;
+  }
+
   get refundAmount(): number {
     return this.bankTx ? this.bankTx.refundAmount : this.inputAmount;
   }
@@ -635,7 +678,9 @@ export class BuyCrypto extends IEntity {
   get exchangeRate(): { exchangeRate: number; rate: number } {
     const exchangeRate =
       (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);
-    const rate = this.inputAmount / this.outputAmount;
+    const rate =
+      (this.inputAmount / this.inputReferenceAmount) *
+      ((this.inputReferenceAmount - this.networkStartFeeAmount) / this.outputAmount);
     const amountType = this.isCryptoCryptoTransaction ? AmountType.ASSET : AmountType.FIAT;
 
     return {
@@ -742,6 +787,8 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.MANUAL_CHECK_PHONE,
   AmlReason.MERGE_INCOMPLETE,
   AmlReason.BANK_RELEASE_PENDING,
+  AmlReason.MANUAL_CHECK_IP_PHONE,
+  AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

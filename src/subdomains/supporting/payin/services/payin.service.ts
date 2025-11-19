@@ -91,6 +91,20 @@ export class PayInService {
     return payIns;
   }
 
+  async getCryptoInputByKeys(keys: string[], value: any): Promise<CryptoInput> {
+    const query = this.payInRepository
+      .createQueryBuilder('cryptoInput')
+      .select('cryptoInput')
+      .leftJoinAndSelect('cryptoInput.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.userData', 'userData');
+
+    for (const key of keys) {
+      query.orWhere(`${key.includes('.') ? key : `cryptoInput.${key}`} = :param`, { param: value });
+    }
+
+    return query.getOne();
+  }
+
   private async fetchPayment(payIn: CryptoInput): Promise<void> {
     try {
       payIn.paymentQuote = await this.paymentLinkPaymentService.getPaymentQuoteByCryptoInput(payIn);
@@ -243,11 +257,11 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.doSend(group[1], SendType.FORWARD);
-      } catch {
+        await strategy.doSend(payIns, SendType.FORWARD);
+      } catch (e) {
+        this.logger.info(`Failed to forward ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`, e);
         continue;
       }
     }
@@ -263,11 +277,14 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.checkConfirmations(group[1], PayInConfirmationType.OUTPUT);
-      } catch {
+        await strategy.checkConfirmations(payIns, PayInConfirmationType.OUTPUT);
+      } catch (e) {
+        this.logger.info(
+          `Failed to check forward confirmations for ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`,
+          e,
+        );
         continue;
       }
     }
@@ -283,11 +300,14 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.checkConfirmations(group[1], PayInConfirmationType.RETURN);
-      } catch {
+        await strategy.checkConfirmations(payIns, PayInConfirmationType.RETURN);
+      } catch (e) {
+        this.logger.info(
+          `Failed to check return confirmations for ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`,
+          e,
+        );
         continue;
       }
     }
@@ -310,11 +330,11 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.doSend(group[1], SendType.RETURN);
-      } catch {
+        await strategy.doSend(payIns, SendType.RETURN);
+      } catch (e) {
+        this.logger.info(`Failed to return ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`, e);
         continue;
       }
     }
@@ -330,11 +350,14 @@ export class PayInService {
 
     const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
-    for (const group of groups.entries()) {
+    for (const [strategy, payIns] of groups.entries()) {
       try {
-        const strategy = group[0];
-        await strategy.checkConfirmations(group[1], PayInConfirmationType.INPUT);
-      } catch {
+        await strategy.checkConfirmations(payIns, PayInConfirmationType.INPUT);
+      } catch (e) {
+        this.logger.info(
+          `Failed to check input confirmations for ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`,
+          e,
+        );
         continue;
       }
     }

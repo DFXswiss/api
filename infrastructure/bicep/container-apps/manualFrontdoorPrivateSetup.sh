@@ -7,9 +7,8 @@ set -e
 # --- OPTIONS --- #
 environmentOptions=("loc" "dev" "prd")
 
-# "zanod": Zano Node
-# "zanolw" Zano Liquidity Wallet
-appNameOptions=("zanod" "zanolw")
+# "rup": RealUnit Ponder
+appNameOptions=("rup")
 
 # --- FUNCTIONS --- #
 selectOption() {
