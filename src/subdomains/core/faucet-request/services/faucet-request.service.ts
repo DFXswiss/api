@@ -72,7 +72,8 @@ export class FaucetRequestService {
         userData: user.userData,
         txId,
         amount: price.convert(Config.faucetAmount),
-        asset: asset,
+        asset,
+        user,
       });
       await this.faucetRequestRepo.save(faucetRequest);
 
