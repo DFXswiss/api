@@ -91,6 +91,7 @@ describe('TransactionHelper', () => {
       buyCrypto: createCustomBuyCrypto({
         amlCheck: CheckStatus.FAIL,
         bankTx: createDefaultBankTx(),
+        amountInChf: null,
       }),
       bankTx: createDefaultBankTx(),
     });
@@ -112,6 +113,34 @@ describe('TransactionHelper', () => {
     ).resolves.toMatchObject({
       fee: { network: 0, bank: 1.01 },
       refundAmount: 99.99,
+      refundTarget: 'DE12500105170648489890',
+    });
+  });
+
+  it('should return buyCrypto refund data with manualPrice', async () => {
+    const transaction = createCustomTransaction({
+      buyCrypto: createCustomBuyCrypto({
+        amlCheck: CheckStatus.FAIL,
+        bankTx: createDefaultBankTx(),
+        amountInChf: 90,
+      }),
+      bankTx: createDefaultBankTx(),
+    });
+
+    jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+
+    await expect(
+      txHelper.getRefundData(
+        transaction.refundTargetEntity,
+        defaultUserData,
+        IbanBankName.MAERKI,
+        'DE12500105170648489890',
+        !transaction.cryptoInput,
+      ),
+    ).resolves.toMatchObject({
+      fee: { network: 0, bank: 1.13 },
+      refundAmount: 99.87,
       refundTarget: 'DE12500105170648489890',
     });
   });
@@ -179,6 +208,7 @@ describe('TransactionHelper', () => {
       buyFiat: createCustomBuyFiat({
         amlCheck: CheckStatus.FAIL,
         cryptoInput: createDefaultCryptoInput(),
+        amountInChf: null,
       }),
     });
 
