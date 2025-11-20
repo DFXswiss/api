@@ -400,7 +400,9 @@ export class TransactionHelper implements OnModuleInit {
     const inputCurrency = await this.getRefundActive(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
-    const price = await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.VALID_ONLY);
+    const price =
+      refundEntity.manualChfPrice ??
+      (await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.PREFER_VALID));
 
     const amountType = !isFiat ? AmountType.ASSET : AmountType.FIAT;
     const feeAmountType = !isFiat ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
