@@ -94,7 +94,7 @@ export class UserData extends IEntity {
   zip?: string;
 
   @ManyToOne(() => Country, { eager: true })
-  country: Country;
+  country?: Country;
 
   @ManyToOne(() => Country, { eager: true, nullable: true })
   nationality?: Country;
@@ -125,7 +125,7 @@ export class UserData extends IEntity {
 
   // TODO remove
   @ManyToOne(() => Country, { eager: true })
-  organizationCountry: Country;
+  organizationCountry?: Country;
 
   @Column({ type: 'float', nullable: true })
   totalVolumeChfAuditPeriod?: number;
@@ -149,10 +149,10 @@ export class UserData extends IEntity {
   language: Language;
 
   @ManyToOne(() => Fiat, { eager: true })
-  currency: Fiat;
+  currency?: Fiat;
 
   @OneToMany(() => FaucetRequest, (faucetRequest) => faucetRequest.userData)
-  faucetRequests: FaucetRequest[];
+  faucetRequests?: FaucetRequest[];
 
   // --- KYC --- //
 
@@ -181,7 +181,7 @@ export class UserData extends IEntity {
   kycStatus: KycStatus;
 
   @OneToMany(() => KycFile, (kycFile) => kycFile.userData)
-  kycFiles: KycFile[];
+  kycFiles?: KycFile[];
 
   @Column({ type: 'integer', nullable: true })
   kycFileId?: number;
@@ -197,7 +197,7 @@ export class UserData extends IEntity {
   kycType?: KycType;
 
   @OneToMany(() => KycStep, (step) => step.userData)
-  kycSteps: KycStep[];
+  kycSteps?: KycStep[];
 
   @Column({ type: 'float', nullable: true })
   depositLimit?: number;
@@ -323,10 +323,10 @@ export class UserData extends IEntity {
 
   // References
   @ManyToOne(() => Wallet, { nullable: true })
-  wallet: Wallet;
+  wallet?: Wallet;
 
   @OneToMany(() => Transaction, (tx) => tx.userData)
-  transactions: Transaction[];
+  transactions?: Transaction[];
 
   // TODO remove
   @ManyToOne(() => UserData, { nullable: true })
@@ -334,25 +334,25 @@ export class UserData extends IEntity {
   accountOpener?: UserData;
 
   @ManyToOne(() => Organization, { nullable: true, eager: true })
-  organization: Organization;
+  organization?: Organization;
 
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
-  accountRelations: UserDataRelation[];
+  accountRelations?: UserDataRelation[];
 
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.relatedAccount)
-  relatedAccountRelations: UserDataRelation[];
+  relatedAccountRelations?: UserDataRelation[];
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
-  bankDatas: BankData[];
+  bankDatas?: BankData[];
 
   @OneToMany(() => BankTxReturn, (bankTxReturn) => bankTxReturn.userData)
-  bankTxReturns: BankTxReturn[];
+  bankTxReturns?: BankTxReturn[];
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.userData)
-  supportIssues: SupportIssue[];
+  supportIssues?: SupportIssue[];
 
   @OneToMany(() => User, (user) => user.userData)
-  users: User[];
+  users?: User[];
 
   // --- ENTITY METHODS --- //
   sendMail(): UpdateResult<UserData> {
