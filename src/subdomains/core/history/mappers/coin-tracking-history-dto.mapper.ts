@@ -2,7 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { RefReward } from '../../referral/reward/ref-reward.entity';
+import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
 import { StakingRefReward, StakingRefType } from '../../staking/entities/staking-ref-reward.entity';
@@ -44,7 +44,7 @@ export class CoinTrackingHistoryDtoMapper {
           buyValueInEur: buyCrypto.amountInEur,
           sellValueInEur: null,
         },
-        buyCrypto.inputAsset == buyCrypto.outputAsset?.dexName
+        buyCrypto.inputAsset == buyCrypto.outputAsset.dexName
           ? buyCrypto.percentFee && buyCrypto.inputAmount && buyCrypto.inputAsset
             ? {
                 type: CoinTrackingTransactionType.OTHER_FEE,
@@ -93,7 +93,7 @@ export class CoinTrackingHistoryDtoMapper {
               exchange: 'DFX',
               tradeGroup: null,
               comment: 'DFX Purchase',
-              date: buyCrypto.outputDate ? buyCrypto.outputDate : null,
+              date: buyCrypto.outputDate,
               txid: buyCrypto.txId,
               buyValueInEur: buyCrypto.amountInEur,
               sellValueInEur: buyCrypto.amountInEur,
@@ -134,10 +134,10 @@ export class CoinTrackingHistoryDtoMapper {
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Purchase',
-          date: buyCrypto.outputDate ? this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount) : null,
+          date: this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount),
           txid:
             buyCrypto.bankTx?.id.toString() ??
-            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx?.id.toString()}` : undefined),
+            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx.id.toString()}` : undefined),
           buyValueInEur: buyCrypto.amountInEur,
           sellValueInEur: null,
         },
@@ -157,7 +157,7 @@ export class CoinTrackingHistoryDtoMapper {
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Purchase',
-          date: buyCrypto.outputDate ? buyCrypto.outputDate : null,
+          date: buyCrypto.outputDate,
           txid: buyCrypto.txId,
           buyValueInEur: buyCrypto.amountInEur,
           sellValueInEur: buyCrypto.amountInEur,
@@ -219,7 +219,7 @@ export class CoinTrackingHistoryDtoMapper {
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Sale',
-          date: buyFiat.fiatOutput.outputDate ? buyFiat.fiatOutput.outputDate : null,
+          date: buyFiat.fiatOutput.outputDate,
           txid: buyFiat.fiatOutput.remittanceInfo,
           buyValueInEur: null,
           sellValueInEur: buyFiat.amountInEur,
@@ -364,6 +364,7 @@ export class CoinTrackingHistoryDtoMapper {
 
   static mapRefRewards(refRewards: RefReward[]): CoinTrackingCsvHistoryDto[] {
     return refRewards
+      .filter((refReward) => refReward.status === RewardStatus.COMPLETE && refReward.txId && refReward.outputDate)
       .map((refReward) => [
         {
           type: CoinTrackingTransactionType.REWARD_BONUS,

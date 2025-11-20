@@ -2,7 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { RefReward } from '../../referral/reward/ref-reward.entity';
+import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
 import { StakingRefReward } from '../../staking/entities/staking-ref-reward.entity';
@@ -42,7 +42,7 @@ export class ChainReportHistoryDtoMapper {
           txid: buyCrypto.cryptoInput.inTxId,
           description: 'DFX Purchase',
         },
-        buyCrypto.inputAsset == buyCrypto.outputAsset?.dexName
+        buyCrypto.inputAsset == buyCrypto.outputAsset.dexName
           ? buyCrypto.percentFee && buyCrypto.inputAmount && buyCrypto.inputAsset
             ? {
                 timestamp: buyCrypto.outputDate,
@@ -61,7 +61,7 @@ export class ChainReportHistoryDtoMapper {
               }
             : null
           : {
-              timestamp: buyCrypto.outputDate ? buyCrypto.outputDate : null,
+              timestamp: buyCrypto.outputDate,
               transactionType: ChainReportTransactionType.TRADE,
               inputAmount: buyCrypto.outputAmount,
               inputAsset: this.getAssetSymbol(
@@ -119,7 +119,7 @@ export class ChainReportHistoryDtoMapper {
           inputBlockchain: buyCrypto.cryptoInput.asset.blockchain,
           outputBlockchain: buyCrypto.outputAsset.blockchain,
         },
-        buyCrypto.inputAsset == buyCrypto.outputAsset?.dexName
+        buyCrypto.inputAsset == buyCrypto.outputAsset.dexName
           ? buyCrypto.percentFee && buyCrypto.inputAmount && buyCrypto.inputAsset
             ? {
                 type: CoinTrackingTransactionType.OTHER_FEE,
@@ -149,7 +149,7 @@ export class ChainReportHistoryDtoMapper {
           : {
               type: CoinTrackingTransactionType.TRADE,
               buyAmount: buyCrypto.outputAmount,
-              buyAsset: this.getAssetSymbol(buyCrypto.outputAsset?.dexName, buyCrypto.outputAsset?.blockchain),
+              buyAsset: this.getAssetSymbol(buyCrypto.outputAsset.dexName, buyCrypto.outputAsset.blockchain),
               sellAmount: buyCrypto.inputAmount,
               sellAsset: this.getAssetSymbol(
                 buyCrypto.cryptoInput.asset.dexName,
@@ -167,7 +167,7 @@ export class ChainReportHistoryDtoMapper {
               exchange: 'DFX',
               tradeGroup: null,
               comment: 'DFX Purchase',
-              date: buyCrypto.outputDate?.getTime() / 1000,
+              date: buyCrypto.outputDate.getTime() / 1000,
               txid: buyCrypto.txId,
               buyValueInEur: buyCrypto.amountInEur,
               sellValueInEur: buyCrypto.amountInEur,
@@ -194,9 +194,7 @@ export class ChainReportHistoryDtoMapper {
       )
       .map((buyCrypto) => [
         {
-          timestamp: buyCrypto.outputDate
-            ? this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount)
-            : null,
+          timestamp: this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount),
           transactionType: ChainReportTransactionType.DEPOSIT,
           inputAmount: buyCrypto.inputAmount,
           inputAsset: buyCrypto.inputAsset,
@@ -206,11 +204,11 @@ export class ChainReportHistoryDtoMapper {
           feeAsset: null,
           txid:
             buyCrypto.bankTx?.id.toString() ??
-            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx?.id.toString()}` : undefined),
+            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx.id.toString()}` : undefined),
           description: 'DFX Purchase',
         },
         {
-          timestamp: buyCrypto.outputDate ? buyCrypto.outputDate : null,
+          timestamp: buyCrypto.outputDate,
           transactionType: ChainReportTransactionType.TRADE,
           inputAmount: buyCrypto.outputAmount,
           inputAsset: this.getAssetSymbol(buyCrypto.buy.asset.dexName, buyCrypto.buy.asset.blockchain),
@@ -252,12 +250,10 @@ export class ChainReportHistoryDtoMapper {
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Purchase',
-          date: buyCrypto.outputDate
-            ? this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount).getTime() / 1000
-            : null,
+          date: this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount).getTime() / 1000,
           txid:
             buyCrypto.bankTx?.id.toString() ??
-            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx?.id.toString()}` : undefined),
+            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx.id.toString()}` : undefined),
           buyValueInEur: buyCrypto.amountInEur,
           sellValueInEur: null,
           inputBlockchain: null,
@@ -279,7 +275,7 @@ export class ChainReportHistoryDtoMapper {
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Purchase',
-          date: buyCrypto.outputDate?.getTime() / 1000,
+          date: buyCrypto.outputDate.getTime() / 1000,
           txid: buyCrypto.txId,
           buyValueInEur: buyCrypto.amountInEur,
           sellValueInEur: buyCrypto.amountInEur,
@@ -309,18 +305,18 @@ export class ChainReportHistoryDtoMapper {
           inputAmount: buyFiat.outputAmount,
           inputAsset: buyFiat.outputAsset.name,
           outputAmount: buyFiat.inputAmount,
-          outputAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName, buyFiat.cryptoInput.asset?.blockchain),
+          outputAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain),
           feeAmount: buyFiat.totalFeeAmount
             ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
             : null,
           feeAsset: buyFiat.totalFeeAmount
-            ? this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName, buyFiat.cryptoInput.asset?.blockchain)
+            ? this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain)
             : null,
           txid: buyFiat.cryptoInput.inTxId,
           description: 'DFX Sale',
         },
         {
-          timestamp: buyFiat.fiatOutput.outputDate ? buyFiat.fiatOutput.outputDate : null,
+          timestamp: buyFiat.fiatOutput.outputDate,
           transactionType: ChainReportTransactionType.WITHDRAWAL,
           inputAmount: null,
           inputAsset: null,
@@ -504,6 +500,7 @@ export class ChainReportHistoryDtoMapper {
 
   static mapRefRewards(refRewards: RefReward[]): ChainReportCsvHistoryDto[] {
     return refRewards
+      .filter((refReward) => refReward.status === RewardStatus.COMPLETE && refReward.txId && refReward.outputDate)
       .map((refReward) => [
         {
           timestamp: refReward.outputDate,
@@ -523,6 +520,7 @@ export class ChainReportHistoryDtoMapper {
 
   static mapRefRewardsForApi(refRewards: RefReward[]): ChainReportApiHistoryDto[] {
     return refRewards
+      .filter((refReward) => refReward.status === RewardStatus.COMPLETE && refReward.txId && refReward.outputDate)
       .map((refReward) => [
         {
           type: CoinTrackingTransactionType.REWARD_BONUS,
@@ -535,7 +533,7 @@ export class ChainReportHistoryDtoMapper {
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Referral Reward',
-          date: refReward.outputDate?.getTime() / 1000,
+          date: refReward.outputDate.getTime() / 1000,
           txid: refReward.txId,
           buyValueInEur: refReward.amountInEur,
           sellValueInEur: null,
@@ -548,6 +546,7 @@ export class ChainReportHistoryDtoMapper {
 
   static mapStakingRefRewards(stakingRefRewards: StakingRefReward[]): ChainReportCsvHistoryDto[] {
     return stakingRefRewards
+      .filter((refReward) => refReward.txId && refReward.outputDate)
       .map((stakingRefReward) => [
         {
           timestamp: stakingRefReward.outputDate,
