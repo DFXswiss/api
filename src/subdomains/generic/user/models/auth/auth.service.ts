@@ -137,7 +137,7 @@ export class AuthService {
     const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
     const primaryUser = userId && (await this.userService.getUser(userId));
 
-    const custodyProvider = !dto.key ? await this.custodyProviderService.getWithMasterKey(dto.signature) : undefined;
+    const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
     if (!custodyProvider && !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key))) {
       throw new BadRequestException('Invalid signature');
     }
