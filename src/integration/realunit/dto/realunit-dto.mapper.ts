@@ -1,7 +1,7 @@
 import { Util } from 'src/shared/utils/util';
 import { AssetPrice } from 'src/subdomains/supporting/pricing/domain/entities/asset-price.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { PriceUtils } from '../utils/price-utils';
+import { TimeseriesUtils } from '../utils/timeseries-utils';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
@@ -27,10 +27,10 @@ export class RealUnitDtoMapper {
 
     const historicalBalances = account.historicalBalances.items.map((hb) => ({
       balance: hb.balance,
-      created: PriceUtils.stripTime(new Date(Number(hb.timestamp) * 1000)),
+      created: TimeseriesUtils.stripTime(new Date(Number(hb.timestamp) * 1000)),
     }));
 
-    const historicalBalancesFilled = PriceUtils.fillMissingDates(historicalBalances);
+    const historicalBalancesFilled = TimeseriesUtils.fillMissingDates(historicalBalances);
 
     dto.historicalBalances = historicalBalancesFilled.map((hb) => ({
       balance: hb.balance,

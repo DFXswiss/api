@@ -301,4 +301,9 @@ export class UpdateUserDataDto {
   @IsDate()
   @Type(() => Date)
   tradeApprovalDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  phoneCallIpCountryCheckDate?: Date;
 }

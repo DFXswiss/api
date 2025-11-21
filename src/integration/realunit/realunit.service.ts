@@ -27,8 +27,8 @@ import {
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
-import { PriceUtils } from './utils/price-utils';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
+import { TimeseriesUtils } from './utils/timeseries-utils';
 
 @Injectable()
 export class RealUnitService {
@@ -104,7 +104,7 @@ export class RealUnitService {
     return this.historicalPriceCache.get(timeFrame, async () => {
       const startDate = await this.getHistoricalPriceStartDate(timeFrame);
       const prices = await this.assetPricesService.getAssetPrices([await this.getRealuAsset()], startDate);
-      const filledPrices = PriceUtils.fillMissingDates(prices);
+      const filledPrices = TimeseriesUtils.fillMissingDates(prices);
       return RealUnitDtoMapper.assetPricesToHistoricalPricesDto(filledPrices);
     });
   }
