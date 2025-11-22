@@ -60,7 +60,7 @@ export class Recommendation extends IEntity {
   }
 
   get isValid(): boolean {
-    return this.isExpired && !this.isUsed;
+    return !this.isExpired && !this.isUsed;
   }
 
   get url(): string {

@@ -1,13 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Util } from 'src/shared/utils/util';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { UserData } from '../../user-data/user-data.entity';
 import { RecommendationType } from '../recommendation.entity';
-
-export interface CreateRecommendationInternalDto {
-  refCode?: string;
-  mail?: string;
-}
 
 export interface UpdateRecommendationInternalDto extends UpdateRecommendationDto {
   recommended?: UserData;
@@ -19,8 +16,9 @@ export interface UpdateRecommendationInternalDto extends UpdateRecommendationDto
 export class CreateRecommendationDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  mail: string;
+  @IsEmail()
+  @Transform(Util.trim)
+  recommendedMail: string;
 
   @ApiProperty()
   @IsNotEmpty()

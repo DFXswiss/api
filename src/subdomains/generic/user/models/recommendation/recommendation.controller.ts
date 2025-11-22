@@ -32,17 +32,7 @@ export class RecommendationController {
   async getAllRecommendation(@GetJwt() jwt: JwtPayload): Promise<RecommendationDto[]> {
     return this.recommendationService
       .getAllRecommendationForUserData(jwt.account)
-      .then((r) => RecommendationDtoMapper.entitiesToDto(r));
-  }
-
-  @Get('pending')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  async getAllPendingRecommendation(@GetJwt() jwt: JwtPayload): Promise<RecommendationDto[]> {
-    return this.recommendationService
-      .getAllRecommendationForUserData(jwt.account, true)
-      .then((r) => RecommendationDtoMapper.entitiesToDto(r));
+      .then((r) => RecommendationDtoMapper.entitiesToDto(r, true));
   }
 
   @Put(':id')
@@ -54,7 +44,7 @@ export class RecommendationController {
     @Param('id') id: string,
     @Body() data: UpdateRecommendationDto,
   ): Promise<void> {
-    await this.recommendationService.updateRecommendation(jwt.account, +id, data);
+    await this.recommendationService.confirmRecommendation(jwt.account, +id, data);
   }
 
   @Post()
@@ -67,6 +57,6 @@ export class RecommendationController {
   ): Promise<RecommendationDto> {
     return this.recommendationService
       .createRecommendationByRecommender(jwt.account, data)
-      .then((r) => RecommendationDtoMapper.entityToDto(r));
+      .then((r) => RecommendationDtoMapper.entityToDto(r, true));
   }
 }

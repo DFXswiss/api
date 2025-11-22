@@ -2,18 +2,17 @@ import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException 
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { KycRecommendationData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
 import {
   CreateRecommendationDto,
-  CreateRecommendationInternalDto,
   UpdateRecommendationDto,
   UpdateRecommendationInternalDto,
 } from './dto/recommendation.dto';
@@ -38,10 +37,10 @@ export class RecommendationService {
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
     if (!userData.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
 
-    const recruit = dto.mail
-      ? (await this.userDataService.getUsersByMail(dto.mail)?.[0]) ??
+    const recommended = dto.recommendedMail
+      ? (await this.userDataService.getUsersByMail(dto.recommendedMail)?.[0]) ??
         (await this.userDataService.createUserData({
-          mail: dto.mail,
+          mail: dto.recommendedMail,
           status: UserDataStatus.KYC_ONLY,
           kycType: KycType.DFX,
           language: userData.language,
@@ -51,38 +50,36 @@ export class RecommendationService {
 
     const entity = await this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDER,
-      RecommendationType.MAIL,
+      dto.recommendedMail ? RecommendationType.MAIL : RecommendationType.RECOMMENDATION_CODE,
       dto.recommendedAlias,
       userData,
-      recruit,
+      recommended,
       undefined,
-      dto.mail,
+      dto.recommendedMail,
     );
 
-    if (dto.mail) await this.sendRecommenderMail(entity);
+    if (dto.recommendedMail) await this.sendInvitationMail(entity);
 
     return entity;
   }
 
   async createRecommendationByRecommended(
-    type: RecommendationType,
-    recommendedAlias: string,
     creator: UserData,
     kycStep: KycStep,
-    dto: CreateRecommendationInternalDto,
+    data: KycRecommendationData,
   ): Promise<Recommendation> {
-    const advertiser: UserData = dto.refCode
-      ? await this.userService.getRefUser(dto.refCode).then((u) => u.userData)
-      : dto.mail
-      ? await this.userDataService.getUsersByMail(dto.mail)?.[0]
+    const recommender: UserData = Config.formats.ref.test(data.key)
+      ? await this.userService.getRefUser(data.key).then((u) => u.userData)
+      : data.key.includes('@')
+      ? await this.userDataService.getUsersByMail(data.key)?.[0]
       : undefined;
-    if (advertiser.isBlocked) throw new BadRequestException('Recommender blocked');
+    if (recommender?.isBlocked) throw new BadRequestException('Recommender blocked');
 
     const entity = await this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDED,
-      type,
-      recommendedAlias,
-      advertiser,
+      Config.formats.ref.test(data.key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
+      data.recommendedAlias,
+      recommender,
       creator,
       kycStep,
     );
@@ -121,7 +118,7 @@ export class RecommendationService {
     return this.recommendationRepo.save(entity);
   }
 
-  async updateRecommendation(userDataId: number, id: number, dto: UpdateRecommendationDto): Promise<Recommendation> {
+  async confirmRecommendation(userDataId: number, id: number, dto: UpdateRecommendationDto): Promise<Recommendation> {
     const entity = await this.recommendationRepo.findOne({ where: { id }, relations: { recommender: true } });
     if (!entity) throw new NotFoundException('Recommendation not found');
     if (entity.recommender.id !== userDataId)
@@ -162,9 +159,9 @@ export class RecommendationService {
     return entity;
   }
 
-  async getAllRecommendationForUserData(userDataId: number, onlyUnconfirmed = false): Promise<Recommendation[]> {
+  async getAllRecommendationForUserData(userDataId: number): Promise<Recommendation[]> {
     return this.recommendationRepo.find({
-      where: { recommender: { id: userDataId }, isConfirmed: onlyUnconfirmed ? IsNull() : undefined },
+      where: { recommender: { id: userDataId } },
       relations: { recommended: true, recommender: true },
     });
   }
@@ -176,17 +173,17 @@ export class RecommendationService {
     });
   }
 
-  private async sendRecommenderMail(entity: Recommendation): Promise<void> {
+  private async sendInvitationMail(entity: Recommendation): Promise<void> {
     try {
       if (entity.recommended.mail) {
         await this.notificationService.sendMail({
           type: MailType.USER_V2,
-          context: MailContext.RECOMMENDER_MAIL,
+          context: MailContext.RECOMMENDATION_MAIL,
           input: {
             userData: entity.recommended,
             wallet: entity.recommended.wallet,
-            title: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.title`,
-            salutation: { key: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.salutation` },
+            title: `${MailTranslationKey.RECOMMENDATION_MAIL}.title`,
+            salutation: { key: `${MailTranslationKey.RECOMMENDATION_MAIL}.salutation` },
             texts: [
               { key: MailKey.SPACE, params: { value: '3' } },
               {
@@ -195,17 +192,17 @@ export class RecommendationService {
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
-                key: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.message`,
+                key: `${MailTranslationKey.RECOMMENDATION_MAIL}.message`,
                 params: { name: entity.recommender.completeName, mail: entity.recommender.mail },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
-                key: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.registration_button`,
+                key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_button`,
                 params: { url: entity.url, button: 'true' },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
-                key: `${MailTranslationKey.RECOMMENDATION_RECOMMENDED}.registration_link`,
+                key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_link`,
                 params: { url: entity.url, urlText: entity.url },
               },
               { key: MailKey.SPACE, params: { value: '4' } },
@@ -226,7 +223,7 @@ export class RecommendationService {
       if (entity.recommender.mail) {
         await this.notificationService.sendMail({
           type: MailType.USER_V2,
-          context: MailContext.RECOMMENDATION_CONFIRMATION_MAIL,
+          context: MailContext.RECOMMENDATION_CONFIRMATION,
           input: {
             userData: entity.recommender,
             wallet: entity.recommender.wallet,

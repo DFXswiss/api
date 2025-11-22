@@ -22,7 +22,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { FindOptionsWhere, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -337,12 +337,19 @@ export class KycService {
   async reviewRecommendationStep(): Promise<void> {
     if (DisabledProcess(Process.KYC_RECOMMENDATION_REVIEW)) return;
 
+    const request: FindOptionsWhere<KycStep> = {
+      name: KycStepName.RECOMMENDATION,
+      status: ReviewStatus.INTERNAL_REVIEW,
+    };
+
     const entities = await this.kycStepRepo.find({
-      where: {
-        name: KycStepName.RECOMMENDATION,
-        status: ReviewStatus.INTERNAL_REVIEW,
-        recommendation: { isConfirmed: Not(IsNull()) },
-      },
+      where: [
+        {
+          ...request,
+          recommendation: { isConfirmed: Not(IsNull()) },
+        },
+        { ...request, recommendation: { expirationDate: LessThan(new Date()) } },
+      ],
       relations: { userData: { wallet: true }, recommendation: true },
     });
 
@@ -357,8 +364,6 @@ export class KycService {
           await this.kycStepRepo.update(...entity.complete());
         } else if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
           await this.kycStepRepo.update(...entity.ignored(comment));
-        } else if (errors.length > 0) {
-          await this.kycStepRepo.update(...entity.manualReview(comment));
         } else if (errors.every((e) => [KycError.EXPIRED_RECOMMENDATION, KycError.DENIED_RECOMMENDATION].includes(e))) {
           await this.kycStepRepo.update(...entity.fail(undefined, comment));
         } else {
@@ -612,13 +617,7 @@ export class KycService {
       });
     } else {
       // create new recommendation
-      await this.recommendationService.createRecommendationByRecommended(
-        Config.formats.ref.test(data.key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
-        data.recommendedAlias,
-        user,
-        kycStep,
-        Config.formats.ref.test(data.key) ? { refCode: data.key } : { mail: data.key },
-      );
+      await this.recommendationService.createRecommendationByRecommended(user, kycStep, data);
     }
 
     await this.kycStepRepo.update(...kycStep.internalReview(data));
@@ -1087,7 +1086,7 @@ export class KycService {
         const recommendationSteps = user.getStepsWith(KycStepName.RECOMMENDATION);
         if (
           (recommendationSteps.some((r) => r.comment?.split(';').includes(KycError.BLOCKED)) ||
-            recommendationSteps.length > Config.kyc.maxRecommendationTries) &&
+            recommendationSteps.length >= Config.kyc.maxRecommendationTries) &&
           !recommendationSteps.some((r) => r.comment?.split(';').includes(KycError.RELEASED))
         )
           return { nextStep: undefined };

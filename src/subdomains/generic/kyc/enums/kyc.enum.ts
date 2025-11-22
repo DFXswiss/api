@@ -18,8 +18,6 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     .find((s) => s.isInReview || s.isCompleted)
     ?.getResult<KycNationalityData>();
 
-  // TODO: userData/users wallet relation
-
   return [
     KycStepName.CONTACT_DATA,
     KycStepName.PERSONAL_DATA,
