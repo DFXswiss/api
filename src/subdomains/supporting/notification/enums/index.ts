@@ -52,6 +52,8 @@ export enum MailContext {
   SUPPORT_MESSAGE = 'SupportMessage',
   VERIFICATION_MAIL = 'VerificationMail',
   EMAIL_VERIFICATION = 'EmailVerification',
+  RECOMMENDATION_MAIL = 'RecommendationMail',
+  RECOMMENDATION_CONFIRMATION = 'RecommendationConfirmation',
 }
 
 export enum MailContextType {
@@ -90,6 +92,8 @@ export const MailContextTypeMapper: {
   [MailContext.SUPPORT_MESSAGE]: MailContextType.INFO,
   [MailContext.UNASSIGNED_TX]: MailContextType.INFO,
   [MailContext.ACCOUNT_DEACTIVATION]: MailContextType.INFO,
+  [MailContext.RECOMMENDATION_CONFIRMATION]: MailContextType.INFO,
+  [MailContext.RECOMMENDATION_MAIL]: MailContextType.INFO,
   [MailContext.LOGIN]: MailContextType.AUTH,
   [MailContext.VERIFICATION_MAIL]: MailContextType.AUTH,
   [MailContext.EMAIL_VERIFICATION]: MailContextType.AUTH,

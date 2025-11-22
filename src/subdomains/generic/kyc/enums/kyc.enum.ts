@@ -22,6 +22,9 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     KycStepName.CONTACT_DATA,
     KycStepName.PERSONAL_DATA,
     KycStepName.NATIONALITY_DATA,
+    !userData.wallet.autoTradeApproval && userData.accountType !== AccountType.ORGANIZATION
+      ? KycStepName.RECOMMENDATION
+      : null,
     nationalityStep?.nationality?.symbol &&
     Config.kyc.residencePermitCountries.includes(nationalityStep.nationality.symbol)
       ? KycStepName.RESIDENCE_PERMIT
