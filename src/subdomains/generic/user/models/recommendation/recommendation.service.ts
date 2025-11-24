@@ -11,11 +11,7 @@ import { UserData } from '../user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
-import {
-  CreateRecommendationDto,
-  UpdateRecommendationDto,
-  UpdateRecommendationInternalDto,
-} from './dto/recommendation.dto';
+import { CreateRecommendationDto, UpdateRecommendationInternalDto } from './dto/recommendation.dto';
 import { Recommendation, RecommendationCreator, RecommendationType } from './recommendation.entity';
 import { RecommendationRepository } from './recommendation.repository';
 
@@ -45,6 +41,7 @@ export class RecommendationService {
           kycType: KycType.DFX,
           language: userData.language,
           currency: userData.currency,
+          tradeApprovalDate: new Date(),
         }))
       : undefined;
 
@@ -117,7 +114,7 @@ export class RecommendationService {
     return this.recommendationRepo.save(entity);
   }
 
-  async confirmRecommendation(userDataId: number, id: number, dto: UpdateRecommendationDto): Promise<Recommendation> {
+  async confirmRecommendation(userDataId: number, id: number, isConfirmed: boolean): Promise<Recommendation> {
     const entity = await this.recommendationRepo.findOne({ where: { id }, relations: { recommender: true } });
     if (!entity) throw new NotFoundException('Recommendation not found');
     if (entity.recommender.id !== userDataId)
@@ -125,7 +122,10 @@ export class RecommendationService {
     if (entity.recommender.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
 
-    return this.updateRecommendationInternal(entity, { ...dto, confirmationDate: new Date() });
+    return this.updateRecommendationInternal(entity, {
+      isConfirmed,
+      confirmationDate: isConfirmed ? new Date() : undefined,
+    });
   }
 
   async updateRecommendationInternal(
@@ -154,6 +154,9 @@ export class RecommendationService {
     if (!entity) throw new NotFoundException('Recommendation code not found');
     if (entity.isExpired) throw new BadRequestException('Recommendation code is expired');
     if (entity.isUsed) throw new BadRequestException('Recommendation code is already used');
+    if (entity.creator === RecommendationCreator.RECOMMENDED)
+      throw new BadRequestException('Recommendation code is not valid');
+    if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('Recommender is not approved yet');
 
     return entity;
   }

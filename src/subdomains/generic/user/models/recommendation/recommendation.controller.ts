@@ -6,7 +6,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CreateRecommendationDto, RecommendationDto, UpdateRecommendationDto } from './dto/recommendation.dto';
+import { CreateRecommendationDto, RecommendationDto } from './dto/recommendation.dto';
 import { RecommendationDtoMapper } from './mapper/recommendation-dto.mapper';
 import { RecommendationService } from './recommendation.service';
 
@@ -15,16 +15,6 @@ import { RecommendationService } from './recommendation.service';
 export class RecommendationController {
   constructor(private readonly recommendationService: RecommendationService) {}
 
-  @Get()
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  async getOwnRecommendation(@GetJwt() jwt: JwtPayload): Promise<RecommendationDto[]> {
-    return this.recommendationService
-      .getOwnRecommendationForUserData(jwt.account)
-      .then((r) => RecommendationDtoMapper.entitiesToDto(r, false));
-  }
-
   @Get('all')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -32,19 +22,23 @@ export class RecommendationController {
   async getAllRecommendation(@GetJwt() jwt: JwtPayload): Promise<RecommendationDto[]> {
     return this.recommendationService
       .getAllRecommendationForUserData(jwt.account)
-      .then((r) => RecommendationDtoMapper.entitiesToDto(r, true));
+      .then((r) => RecommendationDtoMapper.entitiesToDto(r));
   }
 
-  @Put(':id')
+  @Put(':id/confirm')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  async confirmRecommendation(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Body() data: UpdateRecommendationDto,
-  ): Promise<void> {
-    await this.recommendationService.confirmRecommendation(jwt.account, +id, data);
+  async confirmRecommendation(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
+    await this.recommendationService.confirmRecommendation(jwt.account, +id, true);
+  }
+
+  @Put(':id/reject')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  async rejectRecommendation(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
+    await this.recommendationService.confirmRecommendation(jwt.account, +id, false);
   }
 
   @Post()
@@ -57,6 +51,6 @@ export class RecommendationController {
   ): Promise<RecommendationDto> {
     return this.recommendationService
       .createRecommendationByRecommender(jwt.account, data)
-      .then((r) => RecommendationDtoMapper.entityToDto(r, true));
+      .then((r) => RecommendationDtoMapper.entityToDto(r));
   }
 }

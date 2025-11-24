@@ -2,16 +2,12 @@ import { RecommendationDto } from '../dto/recommendation.dto';
 import { Recommendation } from '../recommendation.entity';
 
 export class RecommendationDtoMapper {
-  static entityToDto(recommendation: Recommendation, forRecommender: boolean): RecommendationDto {
+  static entityToDto(recommendation: Recommendation): RecommendationDto {
     const dto: RecommendationDto = {
       id: recommendation.id,
       type: recommendation.type,
-      name:
-        (forRecommender ? recommendation.recommender?.completeName : recommendation.recommended?.completeName) ??
-        recommendation.recommendedAlias,
-      mail:
-        (forRecommender ? recommendation.recommender?.mail : recommendation.recommended?.mail) ??
-        recommendation.recommendedMail,
+      name: recommendation.recommended?.completeName ?? recommendation.recommendedAlias,
+      mail: recommendation.recommended?.mail ?? recommendation.recommendedMail,
       confirmationDate: recommendation.confirmationDate,
       expirationDate: recommendation.expirationDate,
       isConfirmed: recommendation.isConfirmed,
@@ -21,7 +17,7 @@ export class RecommendationDtoMapper {
     return Object.assign(new RecommendationDto(), dto);
   }
 
-  static entitiesToDto(recommendations: Recommendation[], forRecommender: boolean): RecommendationDto[] {
-    return recommendations.map((r) => RecommendationDtoMapper.entityToDto(r, forRecommender));
+  static entitiesToDto(recommendations: Recommendation[]): RecommendationDto[] {
+    return recommendations.map(RecommendationDtoMapper.entityToDto);
   }
 }
