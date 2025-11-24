@@ -23,6 +23,8 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
+import { RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -59,7 +61,15 @@ export class SellController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.USER),
+    UserActiveGuard(
+      [UserStatus.BLOCKED, UserStatus.DELETED],
+      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+    ),
+  )
   @ApiExcludeEndpoint()
   async getAllSell(@GetJwt() jwt: JwtPayload): Promise<SellDto[]> {
     return this.sellService.getUserSells(jwt.user).then((l) => this.toDtoList(l));
@@ -67,7 +77,15 @@ export class SellController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.USER),
+    UserActiveGuard(
+      [UserStatus.BLOCKED, UserStatus.DELETED],
+      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+    ),
+  )
   @ApiOkResponse({ type: SellDto })
   async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellDto> {
     return this.sellService.get(jwt.user, +id).then((l) => this.toDto(l));
@@ -75,7 +93,15 @@ export class SellController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.USER),
+    UserActiveGuard(
+      [UserStatus.BLOCKED, UserStatus.DELETED],
+      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+    ),
+  )
   @ApiExcludeEndpoint()
   async createSell(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSellDto): Promise<SellDto> {
     dto.currency ??= dto.fiat;
@@ -142,7 +168,16 @@ export class SellController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.USER),
+    IpGuard,
+    UserActiveGuard(
+      [UserStatus.BLOCKED, UserStatus.DELETED],
+      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+    ),
+  )
   @ApiOkResponse({ type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -154,7 +189,16 @@ export class SellController {
 
   @Put('/paymentInfos/:id/confirm')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.USER),
+    IpGuard,
+    UserActiveGuard(
+      [UserStatus.BLOCKED, UserStatus.DELETED],
+      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+    ),
+  )
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
     @GetJwt() jwt: JwtPayload,
@@ -170,7 +214,15 @@ export class SellController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.USER),
+    UserActiveGuard(
+      [UserStatus.BLOCKED, UserStatus.DELETED],
+      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+    ),
+  )
   @ApiExcludeEndpoint()
   async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateSellDto): Promise<SellDto> {
     return this.sellService.updateSell(jwt.user, +id, dto).then((s) => this.toDto(s));
