@@ -52,7 +52,7 @@ export class AmlHelperService {
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
     if (entity.user.isDeleted) errors.push(AmlError.USER_DELETED);
-    if (entity.userData.isBlocked || entity.userData.isRisky) errors.push(AmlError.USER_DATA_BLOCKED);
+    if (entity.userData.isBlocked || entity.userData.isRiskBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
     if (entity.userData.isDeactivated) errors.push(AmlError.USER_DATA_DEACTIVATED);
     if (!entity.userData.isPaymentStatusEnabled) errors.push(AmlError.INVALID_USER_DATA_STATUS);
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
@@ -170,6 +170,7 @@ export class AmlHelperService {
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
+      if (entity.userData.isRiskBuyBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
       if (
         entity.userData.country &&
         !entity.userData.phoneCallIpCountryCheckDate &&
@@ -279,6 +280,7 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
+      if (entity.userData.isRiskSellBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
       if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
         errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);

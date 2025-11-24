@@ -10,6 +10,8 @@ export enum RiskStatus {
   NA = 'NA',
   SUSPICIOUS = 'Suspicious',
   BLOCKED = 'Blocked',
+  BLOCKED_BUY = 'BlockedBuy',
+  BLOCKED_SELL = 'BlockedSell',
   RELEASED = 'Released',
 }
 
