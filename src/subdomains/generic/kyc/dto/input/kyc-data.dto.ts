@@ -184,11 +184,6 @@ export class KycOperationalData {
 }
 
 export class KycRecommendationData {
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  recommendedAlias: string;
-
   @ApiProperty({ description: 'Recommendation data: ref-code or recommendation-code or mail of existing user' })
   @IsNotEmpty()
   @IsString()

@@ -272,7 +272,8 @@
         "confirmation": {
             "title": "Confirmer la recommandation DFX",
             "salutation": "Vous avez une recommandation DFX en attente",
-            "message": "Pouvez-vous confirmer {name} ({mail}) pour l'utilisation de DFX ?",
+            "message": "Pouvez-vous confirmer {name} ({mail}) pour l'utilisation de DFX et vous porter garant pour lui ?",
+            "warning": "Ne confirmez que les personnes que vous connaissez vraiment personnellement et pour lesquelles vous pouvez vous porter garant. Si cette personne est impliquée dans une affaire de fraude, votre compte pourrait également être bloqué si vous l'avez confirmée et si vous vous êtes porté garant pour elle.",
             "button": "Il vous suffit de cliquer sur le bouton ci-dessous pour accepter ou refuser l'invitation:<br>[url:cliquez ici]",
             "link": "Ou vous pouvez utiliser le lien suivant:<br>[url:{urlText}]"
         }

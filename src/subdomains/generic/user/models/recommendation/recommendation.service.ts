@@ -51,10 +51,10 @@ export class RecommendationService {
     const entity = await this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDER,
       dto.recommendedMail ? RecommendationType.MAIL : RecommendationType.RECOMMENDATION_CODE,
-      dto.recommendedAlias,
       userData,
       recommended,
       undefined,
+      dto.recommendedAlias,
       dto.recommendedMail,
     );
 
@@ -78,7 +78,6 @@ export class RecommendationService {
     const entity = await this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDED,
       Config.formats.ref.test(data.key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
-      data.recommendedAlias,
       recommender,
       creator,
       kycStep,
@@ -92,10 +91,10 @@ export class RecommendationService {
   async createRecommendationInternal(
     creator: RecommendationCreator,
     type: RecommendationType,
-    recommendedAlias: string,
     recommender: UserData,
     recommended?: UserData,
     kycStep?: KycStep,
+    recommendedAlias?: string,
     recommendedMail?: string,
   ): Promise<Recommendation> {
     const hash = Util.createHash(new Date().toISOString() + recommender.id).toUpperCase();
@@ -240,7 +239,9 @@ export class RecommendationService {
                 key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.message`,
                 params: { name: entity.recommended.completeName, mail: entity.recommended.mail },
               },
-              { key: MailKey.SPACE, params: { value: '2' } },
+              { key: MailKey.SPACE, params: { value: '5' } },
+              { key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.warning` },
+              { key: MailKey.SPACE, params: { value: '4' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.button`,
                 params: { url: entity.url, button: 'true' },
