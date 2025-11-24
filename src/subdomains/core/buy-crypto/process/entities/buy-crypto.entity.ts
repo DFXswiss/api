@@ -169,10 +169,10 @@ export class BuyCrypto extends IEntity {
   networkStartFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  networkStartAmount?: number;
+  networkStartAmount?: number; // networkStartAsset
 
   @Column({ length: 256, nullable: true })
-  networkStartTx?: string;
+  networkStartTxId?: string;
 
   @Column({ length: 256, nullable: true })
   networkStartAsset?: string;
@@ -678,9 +678,10 @@ export class BuyCrypto extends IEntity {
   get exchangeRate(): { exchangeRate: number; rate: number } {
     const exchangeRate =
       (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);
-    const rate =
-      (this.inputAmount / this.inputReferenceAmount) *
-      ((this.inputReferenceAmount - this.networkStartFeeAmount) / this.outputAmount);
+    const rate = this.networkStartAmount
+      ? (this.inputAmount / this.inputReferenceAmount) *
+        ((this.inputReferenceAmount - this.networkStartFeeAmount) / this.outputAmount)
+      : this.inputAmount / this.outputAmount;
     const amountType = this.isCryptoCryptoTransaction ? AmountType.ASSET : AmountType.FIAT;
 
     return {

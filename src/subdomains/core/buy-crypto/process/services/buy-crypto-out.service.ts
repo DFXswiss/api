@@ -190,7 +190,7 @@ export class BuyCryptoOutService {
             );
 
             tx.networkStartAmount = payoutAmount;
-            tx.networkStartTx = payoutTxId;
+            tx.networkStartTxId = payoutTxId;
             tx.networkStartAsset = payoutAsset.name;
           }
 

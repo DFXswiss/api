@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -9,7 +10,6 @@ import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto'
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
-import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
@@ -17,8 +17,8 @@ import { StakingRefReward } from '../../staking/entities/staking-ref-reward.enti
 import { StakingReward } from '../../staking/entities/staking-reward.entity';
 import { StakingService } from '../../staking/services/staking.service';
 import { ExportFormat, HistoryQuery, HistoryQueryUser } from '../dto/history-query.dto';
-import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
-import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
+import { ChainReportApiHistoryDto, ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
+import { CoinTrackingApiHistoryDto, CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { ChainReportHistoryDtoMapper } from '../mappers/chain-report-history-dto.mapper';
 import { CoinTrackingHistoryDtoMapper } from '../mappers/coin-tracking-history-dto.mapper';
 import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
@@ -42,16 +42,51 @@ export class HistoryService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
     private readonly stakingService: StakingService,
-    private readonly refRewardService: RefRewardService,
     private readonly transactionService: TransactionService,
   ) {}
+
+  async getApiHistory<T extends ExportType>(
+    user: User | UserData,
+    query: HistoryQuery,
+    exportType: T,
+  ): Promise<ChainReportApiHistoryDto[] | CoinTrackingApiHistoryDto[]> {
+    const { buyCryptos, buyFiats, refRewards } = await this.getHistoryTransactions(user, query);
+
+    switch (exportType) {
+      case ExportType.COIN_TRACKING:
+        return Util.sort(
+          this.fixDuplicateTx([
+            ...CoinTrackingHistoryDtoMapper.mapBuyCryptoFiatTransactionsForApi(buyCryptos),
+            ...CoinTrackingHistoryDtoMapper.mapBuyCryptoCryptoTransactionsForApi(buyCryptos),
+            ...CoinTrackingHistoryDtoMapper.mapBuyFiatTransactionsForApi(buyFiats),
+            ...CoinTrackingHistoryDtoMapper.mapRefRewardsForApi(refRewards),
+          ]),
+          'date',
+          'DESC',
+        );
+
+      case ExportType.CHAIN_REPORT:
+        return Util.sort(
+          this.fixDuplicateTx([
+            ...ChainReportHistoryDtoMapper.mapBuyCryptoFiatTransactionsForApi(buyCryptos),
+            ...ChainReportHistoryDtoMapper.mapBuyCryptoCryptoTransactionsForApi(buyCryptos),
+            ...ChainReportHistoryDtoMapper.mapBuyFiatTransactionsForApi(buyFiats),
+            ...ChainReportHistoryDtoMapper.mapRefRewardsForApi(refRewards),
+          ]),
+          'date',
+          'DESC',
+        );
+    }
+
+    return;
+  }
 
   async getJsonHistory<T extends ExportType>(
     user: User | UserData,
     query: HistoryQuery,
     exportType: T,
   ): Promise<HistoryDto<T>[]> {
-    return (await this.getHistoryInternal(user, query, exportType)) as HistoryDto<T>[];
+    return (await this.getCompleteHistoryDto(user, query, exportType)) as HistoryDto<T>[];
   }
 
   async getCsvHistory<T extends ExportType>(query: HistoryQueryUser, exportFormat: T): Promise<StreamableFile> {
@@ -65,36 +100,70 @@ export class HistoryService {
     const user = await this.userService.getUserByAddress(query.userAddress);
     if (!user) throw new NotFoundException('User not found');
 
-    return this.getHistoryInternal(user, query, exportType);
+    return this.getCompleteHistoryDto(user, query, exportType);
   }
 
-  async getHistoryInternal<T extends ExportType>(
+  private async getCompleteHistoryDto<T extends ExportType>(
     user: User | UserData,
     query: HistoryQuery,
     exportType: T,
   ): Promise<HistoryDto<T>[] | StreamableFile> {
-    const all =
-      query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
+    const staking = query.staking ? await this.getStakingTransactions(user, query, exportType) : [];
+    const history = await this.mapTxHistory(user, query, exportType);
 
+    const txArray: HistoryDto<T>[] = [...history, ...staking];
+
+    return query.format === ExportFormat.CSV ? this.getCsv(txArray, exportType) : txArray;
+  }
+
+  private async getHistoryTransactions(
+    user: User | UserData,
+    query: HistoryQuery,
+  ): Promise<{ buyCryptos: BuyCrypto[]; buyFiats: BuyFiat[]; refRewards: RefReward[] }> {
     const transactions =
       user instanceof UserData
         ? await this.transactionService.getTransactionsForAccount(user.id, query.from, query.to)
         : await this.transactionService.getTransactionsForUser(user.id, query.from, query.to);
 
-    const buyCryptos = all || query.buy ? transactions.filter((t) => t.buyCrypto).map((t) => t.buyCrypto) : [];
-    const buyFiats = all || query.sell ? transactions.filter((t) => t.buyFiat).map((t) => t.buyFiat) : [];
-    const refRewards = all || query.ref ? transactions.filter((t) => t.refReward).map((t) => t.refReward) : [];
+    const all =
+      query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
-    const staking = query.staking ? await this.getStakingTransactions(user, query, exportType) : [];
+    const blockchainFilter = query.blockchains
+      ?.split(';')
+      .map((b) => Object.values(Blockchain).find((blockchain) => blockchain === b))
+      .filter((b) => b);
 
-    const txArray: HistoryDto<T>[] = [
-      await this.getBuyCryptoTransactions(buyCryptos, exportType),
-      await this.getBuyFiatTransactions(buyFiats, exportType),
-      await this.getRefRewards(refRewards, exportType),
-      staking,
-    ].flat();
+    const buyCryptos =
+      all || query.buy
+        ? transactions
+            .filter(
+              (t) =>
+                t.buyCrypto &&
+                (!blockchainFilter ||
+                  blockchainFilter.includes(t.buyCrypto.outputAsset.blockchain) ||
+                  blockchainFilter.includes(t.buyCrypto.cryptoInput?.asset.blockchain)),
+            )
+            .map((t) => t.buyCrypto)
+        : [];
+    const buyFiats =
+      all || query.sell
+        ? transactions
+            .filter(
+              (t) => t.buyFiat && (!blockchainFilter || blockchainFilter.includes(t.cryptoInput.asset.blockchain)),
+            )
+            .map((t) => t.buyFiat)
+        : [];
+    const refRewards =
+      all || query.ref
+        ? transactions
+            .filter(
+              (t) =>
+                t.refReward && (!blockchainFilter || blockchainFilter.includes(t.refReward.outputAsset.blockchain)),
+            )
+            .map((t) => t.refReward)
+        : [];
 
-    return query.format === ExportFormat.CSV ? this.getCsv(txArray, exportType) : txArray;
+    return { buyCryptos, buyFiats, refRewards };
   }
 
   getCsv(tx: any[], exportType: ExportType): StreamableFile {
@@ -106,13 +175,17 @@ export class HistoryService {
 
   // --- HELPER METHODS --- //
 
-  private async getBuyCryptoTransactions<T>(buyCryptos: BuyCrypto[] = [], exportFormat: T): Promise<HistoryDto<T>[]> {
-    switch (exportFormat) {
+  private async mapTxHistory<T>(user: User | UserData, query: HistoryQuery, exportType: T): Promise<HistoryDto<T>[]> {
+    const { buyCryptos, buyFiats, refRewards } = await this.getHistoryTransactions(user, query);
+
+    switch (exportType) {
       case ExportType.COIN_TRACKING:
         return Util.sort(
-          this.fixDuplicateTxCT([
+          this.fixDuplicateTx([
             ...CoinTrackingHistoryDtoMapper.mapBuyCryptoFiatTransactions(buyCryptos),
             ...CoinTrackingHistoryDtoMapper.mapBuyCryptoCryptoTransactions(buyCryptos),
+            ...CoinTrackingHistoryDtoMapper.mapBuyFiatTransactions(buyFiats),
+            ...CoinTrackingHistoryDtoMapper.mapRefRewards(refRewards),
           ]),
           'date',
           'DESC',
@@ -120,60 +193,33 @@ export class HistoryService {
 
       case ExportType.CHAIN_REPORT:
         return Util.sort(
-          this.fixDuplicateTxCR([
+          this.fixDuplicateTx([
             ...ChainReportHistoryDtoMapper.mapBuyCryptoFiatTransactions(buyCryptos),
             ...ChainReportHistoryDtoMapper.mapBuyCryptoCryptoTransactions(buyCryptos),
+            ...ChainReportHistoryDtoMapper.mapBuyFiatTransactions(buyFiats),
+            ...ChainReportHistoryDtoMapper.mapRefRewards(refRewards),
           ]),
           'timestamp',
           'DESC',
         ) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        const extended = await Util.asyncMap(buyCryptos, (b) => this.buyCryptoWebhookService.extendBuyCrypto(b));
-        return Util.sort(TransactionDtoMapper.mapBuyCryptoTransactions(extended), 'date', 'DESC') as HistoryDto<T>[];
-    }
-  }
+        const extendedBuyCryptos = buyCryptos.length
+          ? await Util.asyncMap(buyCryptos, (b) => this.buyCryptoWebhookService.extendBuyCrypto(b))
+          : [];
+        const extendedBuyFiats = buyFiats.length
+          ? await Util.asyncMap(buyFiats, (b) => this.buyFiatService.extendBuyFiat(b))
+          : [];
 
-  private async getBuyFiatTransactions<T>(buyFiats: BuyFiat[] = [], exportFormat: T): Promise<HistoryDto<T>[]> {
-    switch (exportFormat) {
-      case ExportType.COIN_TRACKING:
         return Util.sort(
-          this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapBuyFiatTransactions(buyFiats)),
+          [
+            ...TransactionDtoMapper.mapBuyCryptoTransactions(extendedBuyCryptos),
+            ...TransactionDtoMapper.mapBuyFiatTransactions(extendedBuyFiats),
+            ...TransactionDtoMapper.mapReferralRewards(refRewards),
+          ],
           'date',
           'DESC',
         ) as HistoryDto<T>[];
-
-      case ExportType.CHAIN_REPORT:
-        return Util.sort(
-          this.fixDuplicateTxCR(ChainReportHistoryDtoMapper.mapBuyFiatTransactions(buyFiats)),
-          'timestamp',
-          'DESC',
-        ) as HistoryDto<T>[];
-
-      case ExportType.COMPACT:
-        const extended = await Util.asyncMap(buyFiats, (b) => this.buyFiatService.extendBuyFiat(b));
-        return Util.sort(TransactionDtoMapper.mapBuyFiatTransactions(extended), 'date', 'DESC') as HistoryDto<T>[];
-    }
-  }
-
-  private async getRefRewards<T>(refRewards: RefReward[] = [], exportFormat: T): Promise<HistoryDto<T>[]> {
-    switch (exportFormat) {
-      case ExportType.COIN_TRACKING:
-        return Util.sort(
-          this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapRefRewards(refRewards)),
-          'date',
-          'DESC',
-        ) as HistoryDto<T>[];
-
-      case ExportType.CHAIN_REPORT:
-        return Util.sort(
-          this.fixDuplicateTxCR(ChainReportHistoryDtoMapper.mapRefRewards(refRewards)),
-          'timestamp',
-          'DESC',
-        ) as HistoryDto<T>[];
-
-      case ExportType.COMPACT:
-        return Util.sort(TransactionDtoMapper.mapReferralRewards(refRewards), 'date', 'DESC') as HistoryDto<T>[];
     }
   }
 
@@ -202,7 +248,7 @@ export class HistoryService {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
         return Util.sort(
-          this.fixDuplicateTxCT([
+          this.fixDuplicateTx([
             ...CoinTrackingHistoryDtoMapper.mapStakingDeposits(deposits),
             ...CoinTrackingHistoryDtoMapper.mapStakingWithdrawals(withdrawals),
           ]),
@@ -212,7 +258,7 @@ export class HistoryService {
 
       case ExportType.CHAIN_REPORT:
         return Util.sort(
-          this.fixDuplicateTxCR([
+          this.fixDuplicateTx([
             ...ChainReportHistoryDtoMapper.mapStakingDeposits(deposits),
             ...ChainReportHistoryDtoMapper.mapStakingWithdrawals(withdrawals),
           ]),
@@ -233,7 +279,7 @@ export class HistoryService {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
         return Util.sort(
-          this.fixDuplicateTxCT([
+          this.fixDuplicateTx([
             ...CoinTrackingHistoryDtoMapper.mapStakingRewards(stakingRewards),
             ...CoinTrackingHistoryDtoMapper.mapStakingRefRewards(stakingRefRewards),
           ]),
@@ -243,7 +289,7 @@ export class HistoryService {
 
       case ExportType.CHAIN_REPORT:
         return Util.sort(
-          this.fixDuplicateTxCR([
+          this.fixDuplicateTx([
             ...ChainReportHistoryDtoMapper.mapStakingRewards(stakingRewards),
             ...ChainReportHistoryDtoMapper.mapStakingRefRewards(stakingRefRewards),
           ]),
@@ -256,16 +302,9 @@ export class HistoryService {
     }
   }
 
-  private fixDuplicateTxCT(history: CoinTrackingCsvHistoryDto[]): CoinTrackingCsvHistoryDto[] {
-    Array.from(Util.groupBy(history, 'txid'))
-      .map(([_, tx]) => tx)
-      .filter((r) => r.length > 1)
-      .forEach((tx) => tx.forEach((r, i) => (r.txid += i > 0 ? i : '')));
-
-    return history;
-  }
-
-  private fixDuplicateTxCR(history: ChainReportCsvHistoryDto[]): ChainReportCsvHistoryDto[] {
+  private fixDuplicateTx<T extends CoinTrackingApiHistoryDto | CoinTrackingCsvHistoryDto | ChainReportCsvHistoryDto>(
+    history: T[],
+  ): T[] {
     Array.from(Util.groupBy(history, 'txid'))
       .map(([_, tx]) => tx)
       .filter((r) => r.length > 1)

@@ -93,8 +93,8 @@ export class TransactionDtoMapper {
       externalTransactionId: buyCrypto.transaction.externalId,
       networkStartTx: buyCrypto.networkStartAmount
         ? {
-            txId: buyCrypto.networkStartTx,
-            txUrl: txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.networkStartTx),
+            txId: buyCrypto.networkStartTxId,
+            txUrl: txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.networkStartTxId),
             amount: buyCrypto.networkStartAmount,
             exchangeRate: Util.roundReadable(
               buyCrypto.networkStartFeeAmount / buyCrypto.networkStartAmount,
@@ -330,7 +330,10 @@ export class TransactionDtoMapper {
 
     const referencePrice = entity.inputAmount / entity.inputReferenceAmount;
     const networkStartFee = (entity instanceof BuyCrypto && entity.networkStartFeeAmount) || 0;
+    const networkStartAmount = (entity instanceof BuyCrypto && entity.networkStartAmount) || undefined;
     const blockchainFee = entity.blockchainFee ?? 0;
+
+    const totalFee = networkStartAmount ? entity.totalFeeAmount - networkStartFee : entity.totalFeeAmount;
 
     return {
       rate: entity.percentFee,
@@ -356,11 +359,11 @@ export class TransactionDtoMapper {
           : null,
       total:
         entity.totalFeeAmount != null
-          ? Util.roundReadable(
-              (entity.totalFeeAmount - networkStartFee) * referencePrice,
-              feeAmountType(entity.inputAssetEntity),
-            )
+          ? Util.roundReadable(totalFee * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
+      networkStart: networkStartAmount
+        ? undefined
+        : Util.roundReadable(networkStartFee * referencePrice, feeAmountType(entity.inputAssetEntity)),
     };
   }
 }
