@@ -96,15 +96,14 @@ export class BuyCryptoBatchService {
         (t) =>
           !t.userData.isSuspicious &&
           !t.userData.isRiskBlocked &&
-          !t.userData.isRiskBuyBlocked(
-            (!t.liquidityPipeline &&
-              !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
-              [
-                LiquidityManagementPipelineStatus.FAILED,
-                LiquidityManagementPipelineStatus.STOPPED,
-                LiquidityManagementPipelineStatus.COMPLETE,
-              ].includes(t.liquidityPipeline?.status),
-          ),
+          !t.userData.isRiskBuyBlocked &&
+          ((!t.liquidityPipeline &&
+            !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
+            [
+              LiquidityManagementPipelineStatus.FAILED,
+              LiquidityManagementPipelineStatus.STOPPED,
+              LiquidityManagementPipelineStatus.COMPLETE,
+            ].includes(t.liquidityPipeline?.status)),
       );
 
       const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);
