@@ -98,7 +98,7 @@ export class TransactionDtoMapper {
             amount: buyCrypto.networkStartAmount,
             exchangeRate: Util.roundReadable(
               buyCrypto.networkStartFeeAmount / buyCrypto.networkStartAmount,
-              AmountType.FIAT,
+              amountType(buyCrypto.inputAssetEntity),
             ),
             asset: buyCrypto.networkStartAsset,
           }

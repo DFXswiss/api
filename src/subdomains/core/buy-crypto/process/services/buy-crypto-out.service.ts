@@ -146,7 +146,7 @@ export class BuyCryptoOutService {
         context: PayoutOrderContext.BUY_CRYPTO,
         correlationId: transaction.networkStartCorrelationId,
         asset: nativeAsset,
-        amount: networkStartFeePrice.convert(transaction.networkStartFeeAmount),
+        amount: networkStartFeePrice.convert(transaction.networkStartFeeAmount, 8),
         destinationAddress: transaction.targetAddress,
       };
 
