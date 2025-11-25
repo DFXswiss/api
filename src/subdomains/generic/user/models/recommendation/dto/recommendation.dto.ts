@@ -32,6 +32,9 @@ export class RecommendationDto {
   id: number;
 
   @ApiProperty()
+  code: string;
+
+  @ApiProperty()
   type: RecommendationType;
 
   @ApiPropertyOptional()
