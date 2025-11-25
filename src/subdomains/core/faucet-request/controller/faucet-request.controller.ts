@@ -19,6 +19,6 @@ export class FaucetRequestController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   async faucetRequest(@GetJwt() jwt: JwtPayload): Promise<FaucetRequestDto> {
-    return this.faucetService.createFaucet(jwt.user);
+    return this.faucetService.createFaucetRequest(jwt.user);
   }
 }
