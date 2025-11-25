@@ -66,7 +66,7 @@ export class SwapController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
     ),
   )
   @ApiExcludeEndpoint()
@@ -82,7 +82,7 @@ export class SwapController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
     ),
   )
   @ApiOkResponse({ type: SwapDto })
@@ -98,7 +98,7 @@ export class SwapController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
     ),
   )
   @ApiExcludeEndpoint()
@@ -172,7 +172,7 @@ export class SwapController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
     ),
   )
   @ApiOkResponse({ type: SwapPaymentInfoDto })
@@ -193,7 +193,7 @@ export class SwapController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
     ),
   )
   @ApiOkResponse({ type: TransactionDto })
@@ -217,7 +217,7 @@ export class SwapController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
     ),
   )
   @ApiExcludeEndpoint()

@@ -78,7 +78,7 @@ export class BuyCryptoOutService {
             transaction.user.isBlockedOrDeleted ||
             transaction.userData.isBlocked ||
             transaction.userData.isRiskBlocked ||
-            transaction.userData.isRiskBuyBlocked
+            transaction.userData.isRiskBuyCryptoBlocked
           )
             throw new Error('Payout stopped for blocked user');
 

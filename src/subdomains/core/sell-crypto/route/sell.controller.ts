@@ -67,7 +67,7 @@ export class SellController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
     ),
   )
   @ApiExcludeEndpoint()
@@ -83,7 +83,7 @@ export class SellController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
     ),
   )
   @ApiOkResponse({ type: SellDto })
@@ -99,7 +99,7 @@ export class SellController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
     ),
   )
   @ApiExcludeEndpoint()
@@ -175,7 +175,7 @@ export class SellController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
     ),
   )
   @ApiOkResponse({ type: SellPaymentInfoDto })
@@ -196,7 +196,7 @@ export class SellController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
     ),
   )
   @ApiOkResponse({ type: TransactionDto })
@@ -220,7 +220,7 @@ export class SellController {
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_SELL],
+      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
     ),
   )
   @ApiExcludeEndpoint()

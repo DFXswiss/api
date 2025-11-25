@@ -170,7 +170,7 @@ export class AmlHelperService {
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
-      if (entity.userData.isRiskBuyBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
+      if (entity.userData.isRiskBuyCryptoBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
       if (
         entity.userData.country &&
         !entity.userData.phoneCallIpCountryCheckDate &&
@@ -280,7 +280,7 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
-      if (entity.userData.isRiskSellBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
+      if (entity.userData.isRiskBuyFiatBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
       if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
         errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
