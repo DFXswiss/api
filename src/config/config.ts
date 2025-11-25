@@ -1052,6 +1052,12 @@ export class Configuration {
     };
   }
 
+  scrypt = {
+    wsUrl: process.env.SCRYPT_WS_URL ?? 'wss://otc.scrypt.swiss/ws/v1',
+    apiKey: process.env.SCRYPT_API_KEY,
+    apiSecret: process.env.SCRYPT_API_SECRET,
+  };
+
   get evmWallets(): Map<string, string> {
     return splitWithdrawKeys(process.env.EVM_WALLETS);
   }

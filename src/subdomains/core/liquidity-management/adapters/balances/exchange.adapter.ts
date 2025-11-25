@@ -58,7 +58,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
 
   async getForExchange(exchange: string, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     try {
-      const exchangeService = this.exchangeRegistry.get(exchange);
+      const exchangeService = this.exchangeRegistry.getBalanceProvider(exchange);
       const balances = await exchangeService.getTotalBalances();
 
       return assets.map((a) => {
