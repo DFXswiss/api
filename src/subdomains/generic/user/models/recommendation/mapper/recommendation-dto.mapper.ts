@@ -6,7 +6,7 @@ export class RecommendationDtoMapper {
     const dto: RecommendationDto = {
       id: recommendation.id,
       code: recommendation.code,
-      status: this.getStatus(recommendation),
+      status: getStatus(recommendation),
       type: recommendation.type,
       name: recommendation.recommended?.completeName ?? recommendation.recommendedAlias,
       mail: recommendation.recommended?.mail ?? recommendation.recommendedMail,
@@ -20,11 +20,11 @@ export class RecommendationDtoMapper {
   static entitiesToDto(recommendations: Recommendation[]): RecommendationDto[] {
     return recommendations.map(RecommendationDtoMapper.entityToDto);
   }
+}
 
-  static getStatus(recommendation: Recommendation): RecommendationDtoStatus {
-    if (recommendation.isConfirmed) return RecommendationDtoStatus.COMPLETED;
-    if (recommendation.isExpired) return RecommendationDtoStatus.EXPIRED;
-    if (recommendation.isUsed) return RecommendationDtoStatus.PENDING;
-    return RecommendationDtoStatus.CREATED;
-  }
+function getStatus(recommendation: Recommendation): RecommendationDtoStatus {
+  if (recommendation.isConfirmed) return RecommendationDtoStatus.COMPLETED;
+  if (recommendation.isExpired) return RecommendationDtoStatus.EXPIRED;
+  if (recommendation.isUsed) return RecommendationDtoStatus.PENDING;
+  return RecommendationDtoStatus.CREATED;
 }

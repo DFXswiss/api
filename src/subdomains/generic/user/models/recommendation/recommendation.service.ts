@@ -136,6 +136,7 @@ export class RecommendationService {
       throw new BadRequestException('You can not confirm a recommendation from another account');
     if (entity.recommender.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
+    if (entity.isConfirmed !== null) throw new BadRequestException('Recommendation is already confirmed');
     if (entity.isExpired) throw new BadRequestException('Recommendation is expired');
 
     return this.updateRecommendationInternal(entity, {
