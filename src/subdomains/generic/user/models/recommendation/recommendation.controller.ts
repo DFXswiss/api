@@ -15,7 +15,7 @@ import { RecommendationService } from './recommendation.service';
 export class RecommendationController {
   constructor(private readonly recommendationService: RecommendationService) {}
 
-  @Get('all')
+  @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
