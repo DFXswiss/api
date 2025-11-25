@@ -6,6 +6,13 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { UserData } from '../../user-data/user-data.entity';
 import { RecommendationType } from '../recommendation.entity';
 
+export enum RecommendationDtoStatus {
+  CREATED = 'Created',
+  PENDING = 'Pending',
+  EXPIRED = 'Expired',
+  COMPLETED = 'Completed',
+}
+
 export interface UpdateRecommendationInternalDto {
   recommended?: UserData;
   type?: RecommendationType;
@@ -35,6 +42,9 @@ export class RecommendationDto {
   code: string;
 
   @ApiProperty()
+  status: RecommendationDtoStatus;
+
+  @ApiProperty()
   type: RecommendationType;
 
   @ApiPropertyOptional()
@@ -48,10 +58,4 @@ export class RecommendationDto {
 
   @ApiPropertyOptional()
   expirationDate: Date;
-
-  @ApiPropertyOptional()
-  isConfirmed?: boolean;
-
-  @ApiProperty()
-  isExpired: boolean;
 }

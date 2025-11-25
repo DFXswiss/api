@@ -266,7 +266,7 @@
             "title": "DFX-Einladung",
             "salutation": "Du wurdest zu DFX eingeladen!",
             "message": "{name} ({mail}) hat dich eingeladen DFX zu nutzen",
-            "registration_button": "Du kannst ganz einfach den nachfolgenden Button anklicken, um dich zu registrieren:<br>[url:Klick hier]",
+            "registration_button": "Du kannst ganz einfach den nachfolgenden Button anklicken und dir einen Account mit dieser Email Adresse einrichten:<br>[url:Klick hier]",
             "registration_link": "Oder du benutzt den nachfolgenden Link:<br>[url:{urlText}]"
         },
         "confirmation": {

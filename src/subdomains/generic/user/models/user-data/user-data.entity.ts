@@ -541,7 +541,7 @@ export class UserData extends IEntity {
   }
 
   get naturalPersonName(): string {
-    return [this.firstname, this.surname].filter((n) => n).join(' ');
+    return this.firstname || this.surname ? [this.firstname, this.surname].filter((n) => n).join(' ') : undefined;
   }
 
   get isBlocked(): boolean {

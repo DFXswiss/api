@@ -7,6 +7,7 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { IsNull, MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
@@ -33,17 +34,31 @@ export class RecommendationService {
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
     if (!userData.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
 
-    const recommended = dto.recommendedMail
-      ? (await this.userDataService.getUsersByMail(dto.recommendedMail)?.[0]) ??
-        (await this.userDataService.createUserData({
-          mail: dto.recommendedMail,
-          status: UserDataStatus.KYC_ONLY,
-          kycType: KycType.DFX,
-          language: userData.language,
-          currency: userData.currency,
-          tradeApprovalDate: new Date(),
-        }))
+    const mailUser: UserData = dto.recommendedMail
+      ? (await this.userDataService.getUsersByMail(dto.recommendedMail))?.[0]
       : undefined;
+
+    if (mailUser && mailUser.tradeApprovalDate) throw new BadRequestException('Account is already approved');
+    if (
+      dto.recommendedMail &&
+      (await this.recommendationRepo.existsBy({
+        recommendedMail: dto.recommendedMail,
+        isConfirmed: IsNull(),
+        expirationDate: MoreThan(new Date()),
+      }))
+    )
+      throw new BadRequestException('Another active recommendation for this mail exists');
+
+    const recommended =
+      mailUser ??
+      (await this.userDataService.createUserData({
+        mail: dto.recommendedMail,
+        status: UserDataStatus.KYC_ONLY,
+        kycType: KycType.DFX,
+        language: userData.language,
+        currency: userData.currency,
+        tradeApprovalDate: new Date(),
+      }));
 
     const entity = await this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDER,
@@ -121,6 +136,7 @@ export class RecommendationService {
       throw new BadRequestException('You can not confirm a recommendation from another account');
     if (entity.recommender.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
+    if (entity.isExpired) throw new BadRequestException('Recommendation is expired');
 
     return this.updateRecommendationInternal(entity, {
       isConfirmed,
@@ -200,12 +216,12 @@ export class RecommendationService {
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_button`,
-                params: { url: entity.url, button: 'true' },
+                params: { url: Config.frontend.services, button: 'true' },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_link`,
-                params: { url: entity.url, urlText: entity.url },
+                params: { url: Config.frontend.services, urlText: Config.frontend.services },
               },
               { key: MailKey.SPACE, params: { value: '4' } },
               { key: MailKey.DFX_TEAM_CLOSING },
