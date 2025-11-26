@@ -176,7 +176,7 @@ export class RaiffeisenService implements OnModuleInit {
 
       for (const entry of entryMatches) {
         // Check if entry belongs to the requested account
-        const entryIban = this.extractTag(xmlData, 'IBAN');
+        const entryIban = this.extractTag(entry, 'IBAN');
         if (entryIban && entryIban !== accountIban) continue;
 
         const tx = this.parseNtryElement(entry);
@@ -212,7 +212,7 @@ export class RaiffeisenService implements OnModuleInit {
       const valueDate = valueDateStr ? this.parseDate(valueDateStr) : bookingDate;
 
       // Reference
-      const acctSvcrRef = this.extractTag(entryXml, 'AcctSvcrRef') || `RAIF-${Date.now()}-${Math.random().toString(36)}`;
+      const acctSvcrRef = this.extractTag(entryXml, 'AcctSvcrRef') || Util.createUniqueId('RAIF');
 
       // Transaction details (inside TxDtls)
       const txDtls = entryXml.match(/<TxDtls>[\s\S]*?<\/TxDtls>/)?.[0] || entryXml;
