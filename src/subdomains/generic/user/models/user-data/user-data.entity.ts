@@ -552,8 +552,16 @@ export class UserData extends IEntity {
     return this.status === UserDataStatus.DEACTIVATED;
   }
 
-  get isRisky(): boolean {
+  get isRiskBlocked(): boolean {
     return this.riskStatus === RiskStatus.BLOCKED;
+  }
+
+  get isRiskBuyCryptoBlocked(): boolean {
+    return this.riskStatus === RiskStatus.BLOCKED_BUY_CRYPTO;
+  }
+
+  get isRiskBuyFiatBlocked(): boolean {
+    return this.riskStatus === RiskStatus.BLOCKED_BUY_FIAT;
   }
 
   get isSuspicious(): boolean {
