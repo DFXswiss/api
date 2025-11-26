@@ -176,6 +176,23 @@ export class UnassignedTransactionDto {
   date: Date;
 }
 
+export class NetworkStartTxDto {
+  @ApiProperty()
+  txId: string;
+
+  @ApiProperty()
+  txUrl: string;
+
+  @ApiProperty()
+  amount: number;
+
+  @ApiProperty()
+  exchangeRate: number;
+
+  @ApiProperty()
+  asset: string;
+}
+
 export class TransactionDto extends UnassignedTransactionDto {
   @ApiPropertyOptional({ enum: TransactionReason })
   reason?: TransactionReason;
@@ -224,6 +241,9 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   externalTransactionId?: string;
+
+  @ApiPropertyOptional({ type: NetworkStartTxDto })
+  networkStartTx?: NetworkStartTxDto;
 }
 
 export class TransactionDetailDto extends TransactionDto {

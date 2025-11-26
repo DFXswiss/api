@@ -48,6 +48,7 @@ export class AuthController {
   @UseGuards(RateLimitGuard, IpCountryGuard)
   @Throttle(20, 864000)
   @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiExcludeEndpoint()
   signUp(@Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signUp(dto, ip);
   }
@@ -55,6 +56,7 @@ export class AuthController {
   @Post('signIn')
   @UseGuards(IpCountryGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiExcludeEndpoint()
   signIn(@Body() credentials: SignInDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signIn(credentials, ip);
   }
