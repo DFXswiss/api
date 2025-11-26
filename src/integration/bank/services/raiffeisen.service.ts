@@ -11,7 +11,6 @@ const { Client, Orders } = require('ebics-client');
 
 interface EbicsKeyStorage {
   read: () => Promise<string>;
-  write: (data: string) => Promise<void>;
 }
 
 interface EbicsDownloadResult {
@@ -75,7 +74,6 @@ export class RaiffeisenService implements OnModuleInit {
 
       const keyStorage: EbicsKeyStorage = {
         read: async () => this.readKeysFromStorage(),
-        write: async (data: string) => this.writeKeysToStorage(data),
       };
 
       this.client = new Client({
@@ -116,97 +114,7 @@ export class RaiffeisenService implements OnModuleInit {
     }
   }
 
-  private async writeKeysToStorage(data: string): Promise<void> {
-    try {
-      await this.storageService.uploadBlob(this.keyFileName, Buffer.from(data, 'utf-8'), 'application/json', {
-        createdAt: new Date().toISOString(),
-        service: 'raiffeisen-ebics',
-      });
-      this.logger.info('EBICS keys stored to Azure Blob Storage');
-    } catch (e) {
-      this.logger.error('Failed to store EBICS keys:', e);
-      throw e;
-    }
-  }
-
-  // --- EBICS INITIALIZATION --- //
-
-  /**
-   * Initialize EBICS connection - Step 1: Send INI order
-   * This generates keys and sends the public signature key to the bank
-   */
-  async sendINI(): Promise<EbicsDownloadResult> {
-    if (!this.client) throw new Error('Raiffeisen client not configured');
-
-    this.logger.info('Sending INI order to Raiffeisen...');
-    const result = await this.client.send(Orders.INI);
-    this.logger.info(`INI result: ${result.technicalCodeSymbol} - ${result.businessCodeSymbol}`);
-    return result;
-  }
-
-  /**
-   * Initialize EBICS connection - Step 2: Send HIA order
-   * This sends the public encryption and authentication keys to the bank
-   */
-  async sendHIA(): Promise<EbicsDownloadResult> {
-    if (!this.client) throw new Error('Raiffeisen client not configured');
-
-    this.logger.info('Sending HIA order to Raiffeisen...');
-    const result = await this.client.send(Orders.HIA);
-    this.logger.info(`HIA result: ${result.technicalCodeSymbol} - ${result.businessCodeSymbol}`);
-    return result;
-  }
-
-  /**
-   * Download bank keys - Step 3: After bank has activated the account
-   * This downloads the bank's public keys for encryption
-   */
-  async downloadBankKeys(): Promise<EbicsDownloadResult> {
-    if (!this.client) throw new Error('Raiffeisen client not configured');
-
-    this.logger.info('Downloading bank keys (HPB) from Raiffeisen...');
-    const result = await this.client.send(Orders.HPB);
-
-    if (result.bankKeys) {
-      await this.client.setBankKeys(result.bankKeys);
-      this.isInitialized = true;
-      this.logger.info('Bank keys successfully stored');
-    }
-
-    return result;
-  }
-
   // --- EBICS ORDERS --- //
-
-  /**
-   * Get customer protocol (HAC order) - available per Raiffeisen permissions
-   */
-  async getCustomerProtocol(startDate?: Date, endDate?: Date): Promise<EbicsDownloadResult> {
-    if (!this.client || !this.isInitialized) {
-      throw new Error('Raiffeisen EBICS client not initialized');
-    }
-
-    const start = startDate ? Util.isoDate(startDate) : null;
-    const end = endDate ? Util.isoDate(endDate) : null;
-
-    this.logger.info(`Fetching HAC (customer protocol) from ${start} to ${end}`);
-    return this.client.send(Orders.HAC(start, end));
-  }
-
-  /**
-   * Get PTK protocol - available per Raiffeisen permissions
-   */
-  async getPTKProtocol(startDate?: Date, endDate?: Date): Promise<EbicsDownloadResult> {
-    if (!this.client || !this.isInitialized) {
-      throw new Error('Raiffeisen EBICS client not initialized');
-    }
-
-    const start = startDate ? Util.isoDate(startDate) : null;
-    const end = endDate ? Util.isoDate(endDate) : null;
-
-    this.logger.info(`Fetching PTK (customer protocol) from ${start} to ${end}`);
-    return this.client.send(Orders.PTK(start, end));
-  }
 
   /**
    * Get bank statements (camt.053 / C53)
@@ -404,22 +312,4 @@ export class RaiffeisenService implements OnModuleInit {
     };
   }
 
-  // --- STATUS METHODS --- //
-
-  /**
-   * Check if the service is ready for transaction polling
-   */
-  isReady(): boolean {
-    return this.client !== null && this.isInitialized;
-  }
-
-  /**
-   * Get initialization status
-   */
-  getStatus(): { configured: boolean; initialized: boolean } {
-    return {
-      configured: this.client !== null,
-      initialized: this.isInitialized,
-    };
-  }
 }
