@@ -948,6 +948,12 @@ export class Configuration {
         userId: process.env.RAIFFEISEN_USER_ID,
         passphrase: process.env.RAIFFEISEN_PASSPHRASE,
       },
+      debtor: {
+        name: process.env.RAIFFEISEN_DEBTOR_NAME,
+        ibanChf: process.env.RAIFFEISEN_IBAN_CHF,
+        ibanEur: process.env.RAIFFEISEN_IBAN_EUR,
+        bic: process.env.RAIFFEISEN_BIC,
+      },
     },
     forexFee: 0.02,
   };

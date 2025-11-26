@@ -63,6 +63,7 @@ export enum Process {
   FIAT_OUTPUT_BATCH_ID_UPDATE = 'FiatOutputBatchIdUpdate',
   FIAT_OUTPUT_BATCH_ID_UPDATE_JOB = 'FiatOutputBatchIdUpdateJob',
   FIAT_OUTPUT_TRANSMISSION_CHECK = 'FiatOutputTransmissionCheck',
+  FIAT_OUTPUT_RAIFFEISEN_TRANSMISSION = 'FiatOutputRaiffeisenTransmission',
   FIAT_OUTPUT_BANK_TX_SEARCH = 'FiatOutputBankTxSearch',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TX_REQUEST_STATUS_SYNC = 'TxRequestStatusSync',
