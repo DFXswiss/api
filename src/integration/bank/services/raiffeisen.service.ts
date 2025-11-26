@@ -41,6 +41,17 @@ interface CamtTransaction {
   endToEndId?: string;
 }
 
+export interface Pain001Payment {
+  amount: number;
+  currency: 'CHF' | 'EUR';
+  creditorName: string;
+  creditorIban: string;
+  creditorBic?: string;
+  remittanceInfo?: string;
+  endToEndId?: string;
+  executionDate?: Date;
+}
+
 @Injectable()
 export class RaiffeisenService implements OnModuleInit {
   private readonly logger = new DfxLogger(RaiffeisenService);
@@ -283,6 +294,122 @@ export class RaiffeisenService implements OnModuleInit {
     // camt.053 dates can be in format: <Dt>2025-01-15</Dt> or <DtTm>2025-01-15T10:30:00</DtTm>
     const dateMatch = dateStr.match(/(\d{4}-\d{2}-\d{2})/);
     return dateMatch ? new Date(dateMatch[1]) : new Date();
+  }
+
+  // --- PAYMENT INITIATION (pain.001) --- //
+
+  /**
+   * Send a payment via EBICS
+   * Uses CCT for EUR (SEPA) and XE2 for CHF (Swiss)
+   */
+  async sendPayment(payment: Pain001Payment): Promise<EbicsDownloadResult> {
+    if (!this.client || !this.isInitialized) {
+      throw new Error('Raiffeisen EBICS client not initialized');
+    }
+
+    const debtor = Config.bank.raiffeisen?.debtor;
+    if (!debtor?.name || !debtor?.bic) {
+      throw new Error('Raiffeisen debtor configuration missing');
+    }
+
+    const debtorIban = payment.currency === 'CHF' ? debtor.ibanChf : debtor.ibanEur;
+    if (!debtorIban) {
+      throw new Error(`Raiffeisen IBAN for ${payment.currency} not configured`);
+    }
+
+    const pain001Xml = this.createPain001Xml(payment, debtorIban, debtor.name, debtor.bic);
+
+    this.logger.info(`Sending ${payment.currency} payment of ${payment.amount} to ${payment.creditorName}`);
+
+    // CCT for SEPA (EUR), XE2 for Swiss (CHF)
+    const order = payment.currency === 'EUR' ? Orders.CCT(pain001Xml) : Orders.XE2(pain001Xml);
+    return this.client.send(order);
+  }
+
+  /**
+   * Generate pain.001.001.03 XML for payment initiation
+   */
+  private createPain001Xml(
+    payment: Pain001Payment,
+    debtorIban: string,
+    debtorName: string,
+    debtorBic: string,
+  ): string {
+    const messageId = Util.createUniqueId('MSG');
+    const paymentId = Util.createUniqueId('PMT');
+    const endToEndId = payment.endToEndId || Util.createUniqueId('E2E');
+    const creationDateTime = new Date().toISOString();
+    const executionDate = Util.isoDate(payment.executionDate || new Date());
+    const amount = payment.amount.toFixed(2);
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <CstmrCdtTrfInitn>
+    <GrpHdr>
+      <MsgId>${messageId}</MsgId>
+      <CreDtTm>${creationDateTime}</CreDtTm>
+      <NbOfTxs>1</NbOfTxs>
+      <CtrlSum>${amount}</CtrlSum>
+      <InitgPty>
+        <Nm>${this.escapeXml(debtorName)}</Nm>
+      </InitgPty>
+    </GrpHdr>
+    <PmtInf>
+      <PmtInfId>${paymentId}</PmtInfId>
+      <PmtMtd>TRF</PmtMtd>
+      <BtchBookg>false</BtchBookg>
+      <NbOfTxs>1</NbOfTxs>
+      <CtrlSum>${amount}</CtrlSum>
+      <PmtTpInf>
+        <SvcLvl>
+          <Cd>SEPA</Cd>
+        </SvcLvl>
+      </PmtTpInf>
+      <ReqdExctnDt>${executionDate}</ReqdExctnDt>
+      <Dbtr>
+        <Nm>${this.escapeXml(debtorName)}</Nm>
+      </Dbtr>
+      <DbtrAcct>
+        <Id>
+          <IBAN>${debtorIban}</IBAN>
+        </Id>
+      </DbtrAcct>
+      <DbtrAgt>
+        <FinInstnId>
+          <BIC>${debtorBic}</BIC>
+        </FinInstnId>
+      </DbtrAgt>
+      <ChrgBr>SLEV</ChrgBr>
+      <CdtTrfTxInf>
+        <PmtId>
+          <EndToEndId>${endToEndId}</EndToEndId>
+        </PmtId>
+        <Amt>
+          <InstdAmt Ccy="${payment.currency}">${amount}</InstdAmt>
+        </Amt>
+        ${payment.creditorBic ? `<CdtrAgt><FinInstnId><BIC>${payment.creditorBic}</BIC></FinInstnId></CdtrAgt>` : ''}
+        <Cdtr>
+          <Nm>${this.escapeXml(payment.creditorName)}</Nm>
+        </Cdtr>
+        <CdtrAcct>
+          <Id>
+            <IBAN>${payment.creditorIban}</IBAN>
+          </Id>
+        </CdtrAcct>
+        ${payment.remittanceInfo ? `<RmtInf><Ustrd>${this.escapeXml(payment.remittanceInfo)}</Ustrd></RmtInf>` : ''}
+      </CdtTrfTxInf>
+    </PmtInf>
+  </CstmrCdtTrfInitn>
+</Document>`;
+  }
+
+  private escapeXml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 
   // --- TRANSACTION MAPPING --- //

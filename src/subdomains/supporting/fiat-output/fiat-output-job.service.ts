@@ -1,6 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { RaiffeisenService } from 'src/integration/bank/services/raiffeisen.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -33,6 +34,7 @@ export class FiatOutputJobService {
     private readonly assetService: AssetService,
     private readonly logService: LogService,
     private readonly bankTxReturnService: BankTxReturnService,
+    private readonly raiffeisenService: RaiffeisenService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -40,6 +42,7 @@ export class FiatOutputJobService {
     await this.assignBankAccount();
     await this.setReadyDate();
     await this.createBatches();
+    await this.transmitRaiffeisenPayments();
     await this.checkTransmission();
     await this.searchOutgoingBankTx();
   }
@@ -233,6 +236,58 @@ export class FiatOutputJobService {
     batches.push(...currentBatch);
 
     await this.fiatOutputRepo.save(batches);
+  }
+
+  private async transmitRaiffeisenPayments(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_RAIFFEISEN_TRANSMISSION)) return;
+
+    const raiffeisenIbans = [Config.bank.raiffeisen?.debtor?.ibanChf, Config.bank.raiffeisen?.debtor?.ibanEur].filter(
+      Boolean,
+    );
+
+    if (!raiffeisenIbans.length) return;
+
+    const entities = await this.fiatOutputRepo.find({
+      where: {
+        isReadyDate: Not(IsNull()),
+        isTransmittedDate: IsNull(),
+        isComplete: false,
+        accountIban: In(raiffeisenIbans),
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        if (!entity.amount || !entity.currency || !entity.iban || !entity.name) {
+          this.logger.warn(`FiatOutput ${entity.id} missing required payment data`);
+          continue;
+        }
+
+        const currency = entity.currency as 'CHF' | 'EUR';
+        if (!['CHF', 'EUR'].includes(currency)) {
+          this.logger.warn(`FiatOutput ${entity.id} has unsupported currency: ${entity.currency}`);
+          continue;
+        }
+
+        const result = await this.raiffeisenService.sendPayment({
+          amount: entity.amount,
+          currency,
+          creditorName: entity.name,
+          creditorIban: entity.iban,
+          creditorBic: entity.bic,
+          remittanceInfo: entity.remittanceInfo,
+          endToEndId: entity.endToEndId,
+        });
+
+        this.logger.info(
+          `FiatOutput ${entity.id} transmitted to Raiffeisen: ${result.technicalCodeSymbol} - ${result.businessCodeSymbol}`,
+        );
+
+        await this.fiatOutputRepo.update(entity.id, { isTransmittedDate: new Date() });
+      } catch (e) {
+        this.logger.error(`Failed to transmit FiatOutput ${entity.id} to Raiffeisen:`, e);
+      }
+    }
   }
 
   private async checkTransmission(): Promise<void> {
