@@ -49,6 +49,12 @@ export class RecommendationService {
     )
       throw new BadRequestException('Another active recommendation for this mail exists');
 
+    const existingRecommendations = dto.recommendedMail
+      ? await this.recommendationRepo.findBy({ recommendedMail: dto.recommendedMail })
+      : [];
+    if (existingRecommendations.length > Config.recommendation.maxRecommendationPerMail)
+      throw new BadRequestException('Max amount of recommendations for this mail reached');
+
     const recommended = mailUser
       ? await this.userDataService.updateUserDataInternal(mailUser, { tradeApprovalDate: new Date() })
       : await this.userDataService.createUserData({

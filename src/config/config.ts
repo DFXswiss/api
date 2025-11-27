@@ -240,6 +240,7 @@ export class Configuration {
   recommendation = {
     recommenderExpiration: 7, // days
     confirmationExpiration: 30, // days
+    maxRecommendationPerMail: 3,
   };
 
   kyc = {
