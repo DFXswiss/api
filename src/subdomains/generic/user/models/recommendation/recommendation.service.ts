@@ -2,7 +2,6 @@ import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException 
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { KycRecommendationData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -12,7 +11,7 @@ import { UserData } from '../user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
-import { CreateRecommendationDto, UpdateRecommendationInternalDto } from './dto/recommendation.dto';
+import { CreateRecommendationDto } from './dto/recommendation.dto';
 import { Recommendation, RecommendationCreator, RecommendationType } from './recommendation.entity';
 import { RecommendationRepository } from './recommendation.repository';
 
@@ -31,8 +30,8 @@ export class RecommendationService {
   async createRecommendationByRecommender(userDataId: number, dto: CreateRecommendationDto): Promise<Recommendation> {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData) throw new NotFoundException('Account not found');
-    if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
-    if (!userData.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
+    if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
+    if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
 
     const mailUser: UserData = dto.recommendedMail
       ? (await this.userDataService.getUsersByMail(dto.recommendedMail))?.[0]
@@ -50,9 +49,9 @@ export class RecommendationService {
       throw new BadRequestException('Another active recommendation for this mail exists');
 
     const existingRecommendations = dto.recommendedMail
-      ? await this.recommendationRepo.findBy({ recommendedMail: dto.recommendedMail })
-      : [];
-    if (existingRecommendations.length > Config.recommendation.maxRecommendationPerMail)
+      ? await this.recommendationRepo.countBy({ recommendedMail: dto.recommendedMail })
+      : 0;
+    if (existingRecommendations > Config.recommendation.maxRecommendationPerMail)
       throw new BadRequestException('Max amount of recommendations for this mail reached');
 
     const recommended = mailUser
@@ -81,9 +80,13 @@ export class RecommendationService {
     return entity;
   }
 
-  async processRecommendationData(kycStep: KycStep, userData: UserData, data: KycRecommendationData): Promise<void> {
-    if (Config.formats.recommendationCode.test(data.key)) {
-      const recommendation = await this.getAndCheckRecommendationByCode(data.key);
+  async handleRecommendationRequest(kycStep: KycStep, userData: UserData, key: string): Promise<void> {
+    if (Config.formats.recommendationCode.test(key)) {
+      // search for existing recommendation
+      const recommendation = await this.getAndCheckRecommendationByCode(key);
+      if (recommendation.recommender.id === userData.id)
+        throw new Error('Recommender and recommended can not be the same account');
+      if (recommendation.recommended?.id) throw new Error('Recommended already set');
 
       await this.updateRecommendationInternal(recommendation, {
         isConfirmed: true,
@@ -94,17 +97,17 @@ export class RecommendationService {
       });
     } else {
       // create new recommendation
-      const recommender: UserData = Config.formats.ref.test(data.key)
-        ? await this.userService.getRefUser(data.key).then((u) => u.userData)
-        : data.key.includes('@')
-        ? await this.userDataService.getUsersByMail(data.key)?.[0]
+      const recommender: UserData = Config.formats.ref.test(key)
+        ? await this.userService.getRefUser(key).then((u) => u.userData)
+        : key.includes('@')
+        ? await this.userDataService.getUsersByMail(key)?.[0]
         : undefined;
       if (!recommender) throw new NotFoundException('Recommender not found');
       if (recommender.isBlocked) throw new BadRequestException('Recommender blocked');
 
       const entity = await this.createRecommendationInternal(
         RecommendationCreator.RECOMMENDED,
-        Config.formats.ref.test(data.key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
+        Config.formats.ref.test(key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
         recommender,
         userData,
         kycStep,
@@ -114,7 +117,7 @@ export class RecommendationService {
     }
   }
 
-  async createRecommendationInternal(
+  private async createRecommendationInternal(
     creator: RecommendationCreator,
     type: RecommendationType,
     recommender: UserData,
@@ -159,20 +162,8 @@ export class RecommendationService {
     });
   }
 
-  async updateRecommendationInternal(
-    entity: Recommendation,
-    dto: UpdateRecommendationInternalDto,
-  ): Promise<Recommendation> {
-    if (dto.recommended) {
-      if (entity.recommender.id === dto.recommended.id)
-        throw new Error('Recommender and recommended can not be the same account');
-
-      if (entity.recommended?.id) throw new Error('Recommended already set');
-
-      entity.expirationDate = Util.daysAfter(Config.recommendation.confirmationExpiration);
-    }
-
-    Object.assign(entity, dto);
+  async updateRecommendationInternal(entity: Recommendation, update: Partial<Recommendation>): Promise<Recommendation> {
+    Object.assign(entity, update);
 
     return this.recommendationRepo.save(entity);
   }
@@ -199,6 +190,7 @@ export class RecommendationService {
     });
   }
 
+  // --- NOTIFICATIONS --- //
   private async sendInvitationMail(entity: Recommendation): Promise<void> {
     try {
       if (entity.recommended.mail) {

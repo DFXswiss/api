@@ -604,7 +604,7 @@ export class KycService {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    await this.recommendationService.processRecommendationData(kycStep, user, data);
+    await this.recommendationService.handleRecommendationRequest(kycStep, user, data.key);
 
     await this.kycStepRepo.update(...kycStep.internalReview(data));
 
