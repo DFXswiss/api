@@ -8,6 +8,7 @@ export class RecommendationDtoMapper {
       code: recommendation.code,
       status: getStatus(recommendation),
       type: recommendation.type,
+      creator: recommendation.creator,
       name: recommendation.recommended?.completeName ?? recommendation.recommendedAlias,
       mail: recommendation.recommended?.mail ?? recommendation.recommendedMail,
       confirmationDate: recommendation.confirmationDate,
