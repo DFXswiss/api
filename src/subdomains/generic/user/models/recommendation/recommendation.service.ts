@@ -49,16 +49,16 @@ export class RecommendationService {
     )
       throw new BadRequestException('Another active recommendation for this mail exists');
 
-    const recommended =
-      mailUser ??
-      (await this.userDataService.createUserData({
-        mail: dto.recommendedMail,
-        status: UserDataStatus.KYC_ONLY,
-        kycType: KycType.DFX,
-        language: userData.language,
-        currency: userData.currency,
-        tradeApprovalDate: new Date(),
-      }));
+    const recommended = mailUser
+      ? await this.userDataService.updateUserDataInternal(mailUser, { tradeApprovalDate: new Date() })
+      : await this.userDataService.createUserData({
+          mail: dto.recommendedMail,
+          status: UserDataStatus.KYC_ONLY,
+          kycType: KycType.DFX,
+          language: userData.language,
+          currency: userData.currency,
+          tradeApprovalDate: new Date(),
+        });
 
     const entity = await this.createRecommendationInternal(
       RecommendationCreator.RECOMMENDER,
@@ -75,29 +75,37 @@ export class RecommendationService {
     return entity;
   }
 
-  async createRecommendationByRecommended(
-    creator: UserData,
-    kycStep: KycStep,
-    data: KycRecommendationData,
-  ): Promise<Recommendation> {
-    const recommender: UserData = Config.formats.ref.test(data.key)
-      ? await this.userService.getRefUser(data.key).then((u) => u.userData)
-      : data.key.includes('@')
-      ? await this.userDataService.getUsersByMail(data.key)?.[0]
-      : undefined;
-    if (recommender?.isBlocked) throw new BadRequestException('Recommender blocked');
+  async processRecommendationData(kycStep: KycStep, userData: UserData, data: KycRecommendationData): Promise<void> {
+    if (Config.formats.recommendationCode.test(data.key)) {
+      const recommendation = await this.getAndCheckRecommendationByCode(data.key);
 
-    const entity = await this.createRecommendationInternal(
-      RecommendationCreator.RECOMMENDED,
-      Config.formats.ref.test(data.key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
-      recommender,
-      creator,
-      kycStep,
-    );
+      await this.updateRecommendationInternal(recommendation, {
+        isConfirmed: true,
+        recommended: userData,
+        type: RecommendationType.RECOMMENDATION_CODE,
+        kycStep,
+        confirmationDate: new Date(),
+      });
+    } else {
+      // create new recommendation
+      const recommender: UserData = Config.formats.ref.test(data.key)
+        ? await this.userService.getRefUser(data.key).then((u) => u.userData)
+        : data.key.includes('@')
+        ? await this.userDataService.getUsersByMail(data.key)?.[0]
+        : undefined;
+      if (!recommender) throw new NotFoundException('Recommender not found');
+      if (recommender.isBlocked) throw new BadRequestException('Recommender blocked');
 
-    await this.sendPendingConfirmationMail(entity);
+      const entity = await this.createRecommendationInternal(
+        RecommendationCreator.RECOMMENDED,
+        Config.formats.ref.test(data.key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
+        recommender,
+        userData,
+        kycStep,
+      );
 
-    return entity;
+      await this.sendPendingConfirmationMail(entity);
+    }
   }
 
   async createRecommendationInternal(
@@ -153,7 +161,7 @@ export class RecommendationService {
       if (entity.recommender.id === dto.recommended.id)
         throw new Error('Recommender and recommended can not be the same account');
 
-      if (entity.recommended.id) throw new Error('Recommended already set');
+      if (entity.recommended?.id) throw new Error('Recommended already set');
 
       entity.expirationDate = Util.daysAfter(Config.recommendation.confirmationExpiration);
     }
@@ -181,13 +189,6 @@ export class RecommendationService {
   async getAllRecommendationForUserData(userDataId: number): Promise<Recommendation[]> {
     return this.recommendationRepo.find({
       where: { recommender: { id: userDataId } },
-      relations: { recommended: true, recommender: true },
-    });
-  }
-
-  async getOwnRecommendationForUserData(userDataId: number): Promise<Recommendation[]> {
-    return this.recommendationRepo.find({
-      where: { recommended: { id: userDataId } },
       relations: { recommended: true, recommender: true },
     });
   }

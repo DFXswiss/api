@@ -27,7 +27,6 @@ import { MergeReason } from '../../user/models/account-merge/account-merge.entit
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
-import { RecommendationType } from '../../user/models/recommendation/recommendation.entity';
 import { RecommendationService } from '../../user/models/recommendation/recommendation.service';
 import { UserDataRelationState } from '../../user/models/user-data-relation/dto/user-data-relation.enum';
 import { UserDataRelationService } from '../../user/models/user-data-relation/user-data-relation.service';
@@ -605,20 +604,7 @@ export class KycService {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    if (Config.formats.recommendationCode.test(data.key)) {
-      const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(data.key);
-
-      await this.recommendationService.updateRecommendationInternal(recommendation, {
-        isConfirmed: true,
-        recommended: user,
-        type: RecommendationType.RECOMMENDATION_CODE,
-        kycStep,
-        confirmationDate: new Date(),
-      });
-    } else {
-      // create new recommendation
-      await this.recommendationService.createRecommendationByRecommended(user, kycStep, data);
-    }
+    await this.recommendationService.processRecommendationData(kycStep, user, data);
 
     await this.kycStepRepo.update(...kycStep.internalReview(data));
 

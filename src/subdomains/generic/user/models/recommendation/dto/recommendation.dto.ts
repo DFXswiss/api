@@ -31,6 +31,7 @@ export class CreateRecommendationDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(Util.trim)
   recommendedAlias: string;
 }
 
@@ -41,10 +42,10 @@ export class RecommendationDto {
   @ApiProperty()
   code: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: RecommendationDtoStatus })
   status: RecommendationDtoStatus;
 
-  @ApiProperty()
+  @ApiProperty({ enum: RecommendationType })
   type: RecommendationType;
 
   @ApiPropertyOptional()

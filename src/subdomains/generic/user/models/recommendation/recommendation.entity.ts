@@ -39,7 +39,7 @@ export class Recommendation extends IEntity {
   expirationDate: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  confirmationDate: Date; // only set for recommendations created by Recommender
+  confirmationDate: Date; // only set for recommendations created by Recommended
 
   @ManyToOne(() => UserData, { nullable: false })
   recommender: UserData;
@@ -64,6 +64,6 @@ export class Recommendation extends IEntity {
   }
 
   get url(): string {
-    return `${Config.frontend.services}/recommendation?code=${this.code}`;
+    return `${Config.frontend.services}/recommendation`;
   }
 }
