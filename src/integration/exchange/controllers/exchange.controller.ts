@@ -38,7 +38,7 @@ import { ExchangeService, OrderSide } from '../services/exchange.service';
 export class ExchangeController {
   private readonly logger = new DfxLogger(ExchangeController);
 
-  private trades: { [key: number]: TradeResult } = {};
+  private trades: { [key: string]: TradeResult } = {};
 
   constructor(
     private readonly exchangeRegistry: ExchangeRegistryService,
@@ -98,13 +98,13 @@ export class ExchangeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async trade(@Param('exchange') exchange: string, @Body() { from, to, amount }: TradeOrder): Promise<number> {
+  async trade(@Param('exchange') exchange: string, @Body() { from, to, amount }: TradeOrder): Promise<string> {
     if (DisabledProcess(Process.EXCHANGE_TRADE)) throw new BadRequestException('Process disabled');
 
     // start and register trade
     const orderId = await this.call(exchange, (e) => e.sell(from.toUpperCase(), to.toUpperCase(), amount));
 
-    const tradeId = Util.randomId();
+    const tradeId = Util.randomString();
     this.trades[tradeId] = {
       exchange,
       status: TradeStatus.OPEN,
@@ -121,9 +121,9 @@ export class ExchangeController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getTrade(@Param('id') tradeId: string): Promise<TradeResult> {
-    const trade = this.trades[+tradeId];
+    const trade = this.trades[tradeId];
     if (!trade) throw new NotFoundException('Trade not found');
-    if ([TradeStatus.CLOSED, TradeStatus.FAILED].includes(trade.status)) delete this.trades[+tradeId];
+    if ([TradeStatus.CLOSED, TradeStatus.FAILED].includes(trade.status)) delete this.trades[tradeId];
 
     return trade;
   }

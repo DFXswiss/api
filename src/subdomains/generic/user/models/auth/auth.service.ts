@@ -218,14 +218,8 @@ export class AuthService {
   }
 
   async signInByMail(dto: AuthMailDto, url: string, userIp: string): Promise<void> {
-    if (dto.redirectUri) {
-      try {
-        const redirectUrl = new URL(dto.redirectUri);
-        if (!Config.frontend.allowedUrls.includes(redirectUrl.origin)) throw new Error('Redirect URL not allowed');
-      } catch (e) {
-        throw new BadRequestException(e.message);
-      }
-    }
+    if (dto.redirectUri && !Config.frontend.isRedirectUrlAllowed(dto.redirectUri))
+      throw new BadRequestException('Redirect URL not allowed');
 
     const ipCountry = this.geoLocationService.getCountry(userIp);
     const language = await this.languageService.getLanguageByCountry(ipCountry);

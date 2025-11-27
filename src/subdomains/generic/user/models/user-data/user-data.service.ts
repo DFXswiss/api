@@ -566,7 +566,7 @@ export class UserDataService {
     await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
     // mail verification
-    const secret = Util.randomId().toString().slice(0, 6);
+    const secret = Util.randomIdString(6);
     const codeExpiryMinutes = 30;
 
     this.secretCache.set(userData.id, {
