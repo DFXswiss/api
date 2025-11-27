@@ -536,12 +536,12 @@ export class UserData extends IEntity {
     return Util.floor(this.kycLevel, -1);
   }
 
-  get completeName(): string {
+  get completeName(): string | undefined {
     return this.organizationName ?? this.naturalPersonName;
   }
 
-  get naturalPersonName(): string {
-    return [this.firstname, this.surname].filter((n) => n).join(' ');
+  get naturalPersonName(): string | undefined {
+    return this.firstname || this.surname ? [this.firstname, this.surname].filter((n) => n).join(' ') : undefined;
   }
 
   get isBlocked(): boolean {
