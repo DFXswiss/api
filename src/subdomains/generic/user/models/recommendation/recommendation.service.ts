@@ -173,7 +173,7 @@ export class RecommendationService {
       where: { code },
       relations: { recommended: true, recommender: true },
     });
-    if (!entity) throw new NotFoundException('Recommendation code not found');
+    if (!entity) throw new BadRequestException('Recommendation code not found');
     if (entity.isExpired) throw new BadRequestException('Recommendation code is expired');
     if (entity.isUsed) throw new BadRequestException('Recommendation code is already used');
     if (entity.type === RecommendationType.RECOMMENDED)
