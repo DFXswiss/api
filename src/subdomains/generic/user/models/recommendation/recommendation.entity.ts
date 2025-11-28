@@ -4,12 +4,12 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 
-export enum RecommendationCreator {
+export enum RecommendationType {
   RECOMMENDER = 'Recommender',
   RECOMMENDED = 'Recommended',
 }
 
-export enum RecommendationType {
+export enum RecommendationMethod {
   REF_CODE = 'RefCode',
   MAIL = 'Mail',
   RECOMMENDATION_CODE = 'RecommendationCode',
@@ -18,10 +18,10 @@ export enum RecommendationType {
 @Entity()
 export class Recommendation extends IEntity {
   @Column({ length: 256 })
-  type: RecommendationType;
+  method: RecommendationMethod;
 
   @Column({ length: 256 })
-  creator: RecommendationCreator;
+  type: RecommendationType;
 
   @Column({ length: 256, unique: true })
   code: string;

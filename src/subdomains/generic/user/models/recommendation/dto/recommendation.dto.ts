@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
-import { RecommendationCreator, RecommendationType } from '../recommendation.entity';
+import { RecommendationMethod, RecommendationType } from '../recommendation.entity';
 
 export enum RecommendationDtoStatus {
   CREATED = 'Created',
@@ -35,11 +35,11 @@ export class RecommendationDto {
   @ApiProperty({ enum: RecommendationDtoStatus })
   status: RecommendationDtoStatus;
 
-  @ApiProperty({ enum: RecommendationCreator })
-  creator: RecommendationCreator;
-
   @ApiProperty({ enum: RecommendationType })
   type: RecommendationType;
+
+  @ApiProperty({ enum: RecommendationMethod })
+  method: RecommendationMethod;
 
   @ApiPropertyOptional()
   name?: string;

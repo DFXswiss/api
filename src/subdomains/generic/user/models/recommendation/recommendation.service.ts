@@ -12,7 +12,7 @@ import { KycLevel, KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
 import { CreateRecommendationDto } from './dto/recommendation.dto';
-import { Recommendation, RecommendationCreator, RecommendationType } from './recommendation.entity';
+import { Recommendation, RecommendationMethod, RecommendationType } from './recommendation.entity';
 import { RecommendationRepository } from './recommendation.repository';
 
 @Injectable()
@@ -66,8 +66,8 @@ export class RecommendationService {
         });
 
     const entity = await this.createRecommendationInternal(
-      RecommendationCreator.RECOMMENDER,
-      dto.recommendedMail ? RecommendationType.MAIL : RecommendationType.RECOMMENDATION_CODE,
+      RecommendationType.RECOMMENDER,
+      dto.recommendedMail ? RecommendationMethod.MAIL : RecommendationMethod.RECOMMENDATION_CODE,
       userData,
       recommended,
       undefined,
@@ -91,7 +91,7 @@ export class RecommendationService {
       await this.updateRecommendationInternal(recommendation, {
         isConfirmed: true,
         recommended: userData,
-        type: RecommendationType.RECOMMENDATION_CODE,
+        method: RecommendationMethod.RECOMMENDATION_CODE,
         kycStep,
         confirmationDate: new Date(),
       });
@@ -106,8 +106,8 @@ export class RecommendationService {
       if (recommender.isBlocked) throw new BadRequestException('Recommender blocked');
 
       const entity = await this.createRecommendationInternal(
-        RecommendationCreator.RECOMMENDED,
-        Config.formats.ref.test(key) ? RecommendationType.REF_CODE : RecommendationType.MAIL,
+        RecommendationType.RECOMMENDED,
+        Config.formats.ref.test(key) ? RecommendationMethod.REF_CODE : RecommendationMethod.MAIL,
         recommender,
         userData,
         kycStep,
@@ -118,8 +118,8 @@ export class RecommendationService {
   }
 
   private async createRecommendationInternal(
-    creator: RecommendationCreator,
     type: RecommendationType,
+    method: RecommendationMethod,
     recommender: UserData,
     recommended?: UserData,
     kycStep?: KycStep,
@@ -130,14 +130,14 @@ export class RecommendationService {
 
     const entity = this.recommendationRepo.create({
       kycStep,
-      creator,
       type,
+      method,
       recommendedAlias,
       recommendedMail,
       recommender,
       recommended,
       expirationDate:
-        creator === RecommendationCreator.RECOMMENDER
+        type === RecommendationType.RECOMMENDER
           ? Util.daysAfter(Config.recommendation.recommenderExpiration)
           : Util.daysAfter(Config.recommendation.confirmationExpiration),
       code: `${hash.slice(0, 2)}-${hash.slice(2, 6)}-${hash.slice(6, 10)}-${hash.slice(10, 12)}`,
@@ -176,7 +176,7 @@ export class RecommendationService {
     if (!entity) throw new NotFoundException('Recommendation code not found');
     if (entity.isExpired) throw new BadRequestException('Recommendation code is expired');
     if (entity.isUsed) throw new BadRequestException('Recommendation code is already used');
-    if (entity.creator === RecommendationCreator.RECOMMENDED)
+    if (entity.type === RecommendationType.RECOMMENDED)
       throw new BadRequestException('Recommendation code is not valid');
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('Recommender is not approved yet');
 
