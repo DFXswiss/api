@@ -66,7 +66,7 @@ export class RecommendationService {
         });
 
     const entity = await this.createRecommendationInternal(
-      RecommendationType.RECOMMENDER,
+      RecommendationType.INVITATION,
       dto.recommendedMail ? RecommendationMethod.MAIL : RecommendationMethod.RECOMMENDATION_CODE,
       userData,
       recommended,
@@ -104,9 +104,18 @@ export class RecommendationService {
         : undefined;
       if (!recommender) throw new NotFoundException('Recommender not found');
       if (recommender.isBlocked) throw new BadRequestException('Recommender blocked');
+      if (recommender.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
+      if (!recommender.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
+
+      const existingRecommendations = await this.recommendationRepo.countBy({
+        recommender: { id: recommender.id },
+        recommended: { id: userData.id },
+      });
+      if (existingRecommendations > Config.recommendation.maxRecommendationPerMail)
+        throw new BadRequestException('Max amount of recommendations for this account reached');
 
       const entity = await this.createRecommendationInternal(
-        RecommendationType.RECOMMENDED,
+        RecommendationType.REQUEST,
         Config.formats.ref.test(key) ? RecommendationMethod.REF_CODE : RecommendationMethod.MAIL,
         recommender,
         userData,
@@ -137,7 +146,7 @@ export class RecommendationService {
       recommender,
       recommended,
       expirationDate:
-        type === RecommendationType.RECOMMENDER
+        type === RecommendationType.INVITATION
           ? Util.daysAfter(Config.recommendation.recommenderExpiration)
           : Util.daysAfter(Config.recommendation.confirmationExpiration),
       code: `${hash.slice(0, 2)}-${hash.slice(2, 6)}-${hash.slice(6, 10)}-${hash.slice(10, 12)}`,
@@ -176,8 +185,7 @@ export class RecommendationService {
     if (!entity) throw new BadRequestException('Recommendation code not found');
     if (entity.isExpired) throw new BadRequestException('Recommendation code is expired');
     if (entity.isUsed) throw new BadRequestException('Recommendation code is already used');
-    if (entity.type === RecommendationType.RECOMMENDED)
-      throw new BadRequestException('Recommendation code is not valid');
+    if (entity.type === RecommendationType.REQUEST) throw new BadRequestException('Recommendation code is not valid');
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('Recommender is not approved yet');
 
     return entity;

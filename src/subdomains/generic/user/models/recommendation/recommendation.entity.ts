@@ -5,8 +5,8 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 
 export enum RecommendationType {
-  RECOMMENDER = 'Recommender',
-  RECOMMENDED = 'Recommended',
+  INVITATION = 'Invitation',
+  REQUEST = 'Request',
 }
 
 export enum RecommendationMethod {
