@@ -1,9 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
@@ -15,16 +14,19 @@ export enum ScryptAdapterCommands {
   WITHDRAW = 'withdraw',
 }
 
+export enum ScryptTransactionStatus {
+  COMPLETE = 'Complete',
+  FAILED = 'Failed',
+  REJECTED = 'Rejected',
+}
+
 @Injectable()
 export class ScryptAdapter extends LiquidityActionAdapter {
   private readonly logger = new DfxLogger(ScryptAdapter);
 
   protected commands = new Map<string, Command>();
 
-  constructor(
-    private readonly scryptService: ScryptService,
-    private readonly dexService: DexService,
-  ) {
+  constructor(@Inject(forwardRef(() => ScryptService)) private readonly scryptService: ScryptService) {
     super(LiquidityManagementSystem.SCRYPT);
 
     this.commands.set(ScryptAdapterCommands.WITHDRAW, this.withdraw.bind(this));
@@ -53,7 +55,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   // --- COMMAND IMPLEMENTATIONS --- //
 
   private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { address, asset, blockchain } = this.parseWithdrawParams(order.action.paramMap);
+    const { address, asset } = this.parseWithdrawParams(order.action.paramMap);
 
     const token = asset ?? order.pipeline.rule.targetAsset.dexName;
 
@@ -86,16 +88,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   // --- COMPLETION CHECKS --- //
 
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const {
-      pipeline: {
-        rule: { targetAsset },
-      },
-      action: { paramMap },
-      correlationId,
-    } = order;
-
-    const { asset, blockchain } = this.parseWithdrawParams(paramMap);
-    const token = asset ?? targetAsset.dexName;
+    const { correlationId } = order;
 
     const withdrawal = await this.scryptService.getWithdrawalStatus(correlationId);
     if (!withdrawal) {
@@ -103,22 +96,15 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       return false;
     }
 
-    if (withdrawal.status === 'Failed' || withdrawal.status === 'Rejected') {
+    if (withdrawal.status === ScryptTransactionStatus.FAILED || withdrawal.status === ScryptTransactionStatus.REJECTED)
       throw new OrderFailedException(`Withdrawal ${correlationId} has failed with status: ${withdrawal.status}`);
-    }
 
-    if (withdrawal.status !== 'Complete') {
+    if (withdrawal.status !== ScryptTransactionStatus.COMPLETE) {
       this.logger.verbose(`Withdrawal ${correlationId} status: ${withdrawal.status}`);
       return false;
     }
 
     order.outputAmount = withdrawal.amount ?? order.inputAmount;
-
-    // For crypto withdrawals, verify on-chain completion
-    if (blockchain) {
-      // Scrypt doesn't return txid, so we consider Complete status as done
-      return true;
-    }
 
     return true;
   }

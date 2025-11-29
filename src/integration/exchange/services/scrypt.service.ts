@@ -1,7 +1,9 @@
-import { createHmac, randomUUID } from 'crypto';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { GetConfig } from 'src/config/config';
+import { randomUUID } from 'crypto';
+import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
+import { ScryptTransactionStatus } from 'src/subdomains/core/liquidity-management/adapters/actions/scrypt.adapter';
 import WebSocket from 'ws';
 import { ExchangeRegistryService } from './exchange-registry.service';
 
@@ -33,7 +35,7 @@ interface ScryptBalanceTransaction {
 
 interface ScryptMessage {
   reqid?: number;
-  type: string;
+  type: ScryptMessageType;
   ts?: string;
   data?: ScryptBalance[] | ScryptBalanceTransaction[];
   initial?: boolean;
@@ -55,9 +57,19 @@ export interface ScryptWithdrawStatus {
   rejectText?: string;
 }
 
+export enum ScryptMessageType {
+  NEW_WITHDRAW_REQUEST = 'NewWithdrawRequest',
+  BALANCE_TRANSACTION = 'BalanceTransaction',
+  BALANCE = 'Balance',
+  ERROR = 'error',
+}
+
 @Injectable()
 export class ScryptService implements OnModuleInit {
   private readonly logger = new DfxLogger(ScryptService);
+
+  private ws: WebSocket = undefined;
+  private messageHandlers: Map<string, (message: ScryptMessage) => void> = new Map();
 
   readonly name: string = 'Scrypt';
 
@@ -94,7 +106,7 @@ export class ScryptService implements OnModuleInit {
 
     const withdrawRequest = {
       reqid: Date.now(),
-      type: 'NewWithdrawRequest',
+      type: ScryptMessageType.NEW_WITHDRAW_REQUEST,
       data: [
         {
           Quantity: amount.toString(),
@@ -113,9 +125,10 @@ export class ScryptService implements OnModuleInit {
     // Send withdrawal and wait for BalanceTransaction confirmation
     const response = await this.sendWithdrawRequest(withdrawRequest, clReqId);
 
-    if (response.status === 'Rejected') {
-      throw new Error(`Scrypt withdrawal rejected: ${response.rejectText ?? response.rejectReason ?? 'Unknown reason'}`);
-    }
+    if (response.status === ScryptTransactionStatus.REJECTED)
+      throw new Error(
+        `Scrypt withdrawal rejected: ${response.rejectText ?? response.rejectReason ?? 'Unknown reason'}`,
+      );
 
     return {
       id: clReqId,
@@ -123,120 +136,11 @@ export class ScryptService implements OnModuleInit {
     };
   }
 
-  private async sendWithdrawRequest(
-    withdrawRequest: Record<string, unknown>,
-    clReqId: string,
-  ): Promise<{ status: string; transactionId?: string; rejectReason?: string; rejectText?: string }> {
-    const config = GetConfig().scrypt;
-
-    if (!config.apiKey || !config.apiSecret) {
-      this.logger.warn('Scrypt API credentials not configured');
-      throw new Error('Scrypt API credentials not configured');
-    }
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        ws.close();
-        reject(new Error('Scrypt WebSocket timeout'));
-      }, 60000);
-
-      const url = new URL(config.wsUrl);
-      const host = url.host;
-      const path = url.pathname;
-
-      const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, '.000000Z');
-      const signaturePayload = ['GET', timestamp, host, path].join('\n');
-      const hmac = createHmac('sha256', config.apiSecret);
-      hmac.update(signaturePayload);
-      const signature = hmac.digest('base64').replace(/\+/g, '-').replace(/\//g, '_');
-
-      const headers = {
-        ApiKey: config.apiKey,
-        ApiSign: signature,
-        ApiTimestamp: timestamp,
-      };
-
-      this.logger.verbose(`Connecting to Scrypt WebSocket for withdrawal: ${config.wsUrl}`);
-      const ws = new WebSocket(config.wsUrl, { headers });
-
-      let subscribed = false;
-
-      ws.on('open', () => {
-        this.logger.verbose('Scrypt WebSocket connected, subscribing to BalanceTransaction stream');
-        const subscribeMessage = {
-          reqid: Date.now(),
-          type: 'subscribe',
-          streams: [{ name: 'BalanceTransaction' }],
-        };
-        ws.send(JSON.stringify(subscribeMessage));
-      });
-
-      ws.on('message', (data: WebSocket.Data) => {
-        try {
-          const message: ScryptMessage = JSON.parse(data.toString());
-          this.logger.verbose(`Scrypt message received: ${message.type}`);
-
-          if (message.type === 'error') {
-            clearTimeout(timeout);
-            ws.close();
-            const errorMsg = typeof message.error === 'object' ? JSON.stringify(message.error) : message.error;
-            reject(new Error(`Scrypt error: ${errorMsg}`));
-            return;
-          }
-
-          // After initial subscription, send the withdraw request
-          if (message.type === 'BalanceTransaction' && message.initial === true && !subscribed) {
-            subscribed = true;
-            this.logger.verbose('Subscribed to BalanceTransaction, sending withdrawal request');
-            ws.send(JSON.stringify(withdrawRequest));
-            return;
-          }
-
-          // Look for our withdrawal in BalanceTransaction updates
-          if (message.type === 'BalanceTransaction' && message.data && subscribed) {
-            const transactions = message.data as ScryptBalanceTransaction[];
-            const ourWithdrawal = transactions.find(
-              (t) => t.ClReqID === clReqId && t.TransactionType === 'Withdrawal',
-            );
-
-            if (ourWithdrawal) {
-              this.logger.verbose(`Found withdrawal transaction: ${ourWithdrawal.TransactionID}, status: ${ourWithdrawal.Status}`);
-              clearTimeout(timeout);
-              ws.close();
-              resolve({
-                status: ourWithdrawal.Status,
-                transactionId: ourWithdrawal.TransactionID,
-                rejectReason: ourWithdrawal.RejectReason,
-                rejectText: ourWithdrawal.RejectText,
-              });
-            }
-          }
-        } catch (e) {
-          this.logger.error('Failed to parse Scrypt message:', e);
-        }
-      });
-
-      ws.on('error', (error) => {
-        clearTimeout(timeout);
-        this.logger.error('Scrypt WebSocket error:', error);
-        reject(error);
-      });
-
-      ws.on('close', () => {
-        this.logger.verbose('Scrypt WebSocket closed');
-      });
-    });
-  }
-
   async getWithdrawalStatus(clReqId: string): Promise<ScryptWithdrawStatus | null> {
     const transactions = await this.fetchBalanceTransactions();
-    const transaction = transactions.find(
-      (t) => t.ClReqID === clReqId && t.TransactionType === 'Withdrawal',
-    );
+    const transaction = transactions.find((t) => t.ClReqID === clReqId && t.TransactionType === 'Withdrawal');
 
-    if (!transaction) {
-      return null;
-    }
+    if (!transaction) return null;
 
     return {
       id: transaction.TransactionID,
@@ -255,9 +159,9 @@ export class ScryptService implements OnModuleInit {
       streams: [{ name: 'BalanceTransaction' }],
     };
 
-    const response = await this.sendWebSocketRequest<ScryptBalanceTransaction[]>(
+    const response = await this.sendWebSocketRequest(
       subscribeMessage,
-      (message) => message.type === 'BalanceTransaction' && message.initial === true,
+      (message) => message.type === ScryptMessageType.BALANCE_TRANSACTION && message.initial === true,
     );
 
     return (response.data as ScryptBalanceTransaction[]) ?? [];
@@ -275,53 +179,49 @@ export class ScryptService implements OnModuleInit {
       ],
     };
 
-    const response = await this.sendWebSocketRequest<ScryptBalance[]>(
+    const response = await this.sendWebSocketRequest(
       subscribeMessage,
-      (message) => message.type === 'Balance' && message.initial === true,
+      (message) => message.type === ScryptMessageType.BALANCE && message.initial === true,
     );
 
     return (response.data as ScryptBalance[]) ?? [];
   }
 
-  private async sendWebSocketRequest<T>(
-    request: Record<string, unknown>,
-    responseCondition: (message: ScryptMessage) => boolean,
-  ): Promise<ScryptMessage> {
-    const config = GetConfig().scrypt;
+  private async ensureWebSocketConnection(): Promise<void> {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
 
-    if (!config.apiKey || !config.apiSecret) {
-      this.logger.warn('Scrypt API credentials not configured');
-      throw new Error('Scrypt API credentials not configured');
-    }
+    await this.connectWebSocket();
+
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) throw new Error('WebSocket connection failed');
+  }
+
+  private async connectWebSocket(): Promise<void> {
+    const scryptConfig = Config.scrypt;
 
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        ws.close();
-        reject(new Error('Scrypt WebSocket timeout'));
-      }, 30000);
-
-      const url = new URL(config.wsUrl);
+      const url = new URL(scryptConfig.wsUrl);
       const host = url.host;
       const path = url.pathname;
 
       const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, '.000000Z');
       const signaturePayload = ['GET', timestamp, host, path].join('\n');
-      const hmac = createHmac('sha256', config.apiSecret);
-      hmac.update(signaturePayload);
-      const signature = hmac.digest('base64').replace(/\+/g, '-').replace(/\//g, '_');
+      const signature = Util.createHmac(scryptConfig.apiSecret, signaturePayload, 'sha256', 'base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
 
       const headers = {
-        ApiKey: config.apiKey,
+        ApiKey: scryptConfig.apiKey,
         ApiSign: signature,
         ApiTimestamp: timestamp,
       };
 
-      this.logger.verbose(`Connecting to Scrypt WebSocket: ${config.wsUrl}`);
-      const ws = new WebSocket(config.wsUrl, { headers });
+      this.logger.verbose(`Connecting to Scrypt WebSocket: ${scryptConfig.wsUrl}`);
+      const ws = new WebSocket(scryptConfig.wsUrl, { headers });
 
       ws.on('open', () => {
-        this.logger.verbose(`Scrypt WebSocket connected, sending request: ${request.type}`);
-        ws.send(JSON.stringify(request));
+        this.logger.verbose('Scrypt WebSocket connected');
+        this.ws = ws;
+        resolve();
       });
 
       ws.on('message', (data: WebSocket.Data) => {
@@ -329,32 +229,124 @@ export class ScryptService implements OnModuleInit {
           const message: ScryptMessage = JSON.parse(data.toString());
           this.logger.verbose(`Scrypt message received: ${message.type}`);
 
-          if (message.type === 'error') {
-            clearTimeout(timeout);
-            ws.close();
-            reject(new Error(`Scrypt error: ${message.error}`));
-            return;
-          }
-
-          if (responseCondition(message)) {
-            clearTimeout(timeout);
-            ws.close();
-            resolve(message);
-          }
+          this.messageHandlers.forEach((handler) => {
+            handler(message);
+          });
         } catch (e) {
           this.logger.error('Failed to parse Scrypt message:', e);
         }
       });
 
       ws.on('error', (error) => {
-        clearTimeout(timeout);
         this.logger.error('Scrypt WebSocket error:', error);
+        this.ws = null;
         reject(error);
       });
 
       ws.on('close', () => {
         this.logger.verbose('Scrypt WebSocket closed');
+        this.ws = null;
       });
+    });
+  }
+
+  private async sendWithdrawRequest(
+    withdrawRequest: Record<string, unknown>,
+    clReqId: string,
+  ): Promise<{ status: string; transactionId?: string; rejectReason?: string; rejectText?: string }> {
+    await this.ensureWebSocketConnection();
+
+    return new Promise((resolve, reject) => {
+      const handlerId = `withdraw_${Util.randomString()}`;
+      let subscribed = false;
+
+      const timeout = setTimeout(() => {
+        this.messageHandlers.delete(handlerId);
+        reject(new Error('Scrypt WebSocket timeout'));
+      }, 60000);
+
+      this.messageHandlers.set(handlerId, (message: ScryptMessage) => {
+        if (message.type === ScryptMessageType.ERROR) {
+          clearTimeout(timeout);
+          this.messageHandlers.delete(handlerId);
+          const errorMsg = typeof message.error === 'object' ? JSON.stringify(message.error) : message.error;
+          reject(new Error(`Scrypt error: ${errorMsg}`));
+          return;
+        }
+
+        // After initial subscription, send the withdraw request
+        if (message.type === ScryptMessageType.BALANCE_TRANSACTION && message.initial === true && !subscribed) {
+          if (message.initial === true && !subscribed) {
+            subscribed = true;
+            this.logger.verbose('Subscribed to BalanceTransaction, sending withdrawal request');
+            this.ws!.send(JSON.stringify(withdrawRequest));
+            return;
+          }
+
+          // Look for our withdrawal in BalanceTransaction updates
+          if (message.data && subscribed) {
+            const transactions = message.data as ScryptBalanceTransaction[];
+            const ourWithdrawal = transactions.find((t) => t.ClReqID === clReqId && t.TransactionType === 'Withdrawal');
+
+            if (ourWithdrawal) {
+              this.logger.verbose(
+                `Found withdrawal transaction: ${ourWithdrawal.TransactionID}, status: ${ourWithdrawal.Status}`,
+              );
+              clearTimeout(timeout);
+              this.messageHandlers.delete(handlerId);
+              resolve({
+                status: ourWithdrawal.Status,
+                transactionId: ourWithdrawal.TransactionID,
+                rejectReason: ourWithdrawal.RejectReason,
+                rejectText: ourWithdrawal.RejectText,
+              });
+            }
+          }
+        }
+      });
+
+      // Subscribe to BalanceTransaction stream
+      this.logger.verbose('Subscribing to BalanceTransaction stream');
+      const subscribeMessage = {
+        reqid: Date.now(),
+        type: 'subscribe',
+        streams: [{ name: 'BalanceTransaction' }],
+      };
+      this.ws!.send(JSON.stringify(subscribeMessage));
+    });
+  }
+
+  private async sendWebSocketRequest(
+    request: Record<string, unknown>,
+    responseCondition: (message: ScryptMessage) => boolean,
+  ): Promise<ScryptMessage> {
+    await this.ensureWebSocketConnection();
+
+    return new Promise((resolve, reject) => {
+      const handlerId = `handler_${Util.randomString()}`;
+
+      const timeout = setTimeout(() => {
+        this.messageHandlers.delete(handlerId);
+        reject(new Error('Scrypt WebSocket timeout'));
+      }, 30000);
+
+      this.messageHandlers.set(handlerId, (message: ScryptMessage) => {
+        if (message.type === ScryptMessageType.ERROR) {
+          clearTimeout(timeout);
+          this.messageHandlers.delete(handlerId);
+          reject(new Error(`Scrypt error: ${message.error}`));
+          return;
+        }
+
+        if (responseCondition(message)) {
+          clearTimeout(timeout);
+          this.messageHandlers.delete(handlerId);
+          resolve(message);
+        }
+      });
+
+      this.logger.verbose(`Sending Scrypt request: ${request.type}`);
+      this.ws!.send(JSON.stringify(request));
     });
   }
 }
