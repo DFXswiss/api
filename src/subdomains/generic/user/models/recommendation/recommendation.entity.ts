@@ -26,7 +26,7 @@ export class Recommendation extends IEntity {
   @Column({ length: 256, unique: true })
   code: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   recommendedAlias: string; // only set for recommendations created by Recommender
 
   @Column({ length: 256, nullable: true })

@@ -34,7 +34,7 @@ export class RecommendationService {
     if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
 
     const mailUser: UserData = dto.recommendedMail
-      ? (await this.userDataService.getUsersByMail(dto.recommendedMail))?.[0]
+      ? (await this.userDataService.getUsersByMail(dto.recommendedMail, true))?.[0]
       : undefined;
 
     if (mailUser && mailUser.tradeApprovalDate) throw new BadRequestException('Account is already approved');
@@ -98,9 +98,9 @@ export class RecommendationService {
     } else {
       // create new recommendation
       const recommender: UserData = Config.formats.ref.test(key)
-        ? await this.userService.getRefUser(key).then((u) => u.userData)
+        ? await this.userService.getRefUser(key).then((u) => u?.userData)
         : key.includes('@')
-        ? await this.userDataService.getUsersByMail(key)?.[0]
+        ? (await this.userDataService.getUsersByMail(key, true))?.[0]
         : undefined;
       if (!recommender) throw new NotFoundException('Recommender not found');
       if (recommender.isBlocked) throw new BadRequestException('Recommender blocked');
