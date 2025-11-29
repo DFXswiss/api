@@ -153,7 +153,7 @@ export class Configuration {
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
-  bitcoinSignatureFormat = '.{87}=';
+  bitcoinSignatureFormat = '(.{87}=|[A-Za-z0-9+/]+={0,2})';
   lightningSignatureFormat = '[a-z0-9]{104}';
   lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
   moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
