@@ -25,7 +25,7 @@ export class RecommendationDtoMapper {
 
 function getStatus(recommendation: Recommendation): RecommendationDtoStatus {
   if (recommendation.isConfirmed) return RecommendationDtoStatus.COMPLETED;
-  if (recommendation.isConfirmed === false) RecommendationDtoStatus.DENIED;
+  if (recommendation.isConfirmed === false) return RecommendationDtoStatus.REJECTED;
   if (recommendation.isExpired) return RecommendationDtoStatus.EXPIRED;
   if (recommendation.isUsed) return RecommendationDtoStatus.PENDING;
   return RecommendationDtoStatus.CREATED;
