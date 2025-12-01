@@ -6,10 +6,11 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -50,7 +51,9 @@ export class FaucetRequestService {
     }
   }
 
-  async createFaucet(userId: number): Promise<FaucetRequestDto> {
+  async createFaucetRequest(userId: number): Promise<FaucetRequestDto> {
+    if (Config.environment !== Environment.PRD) throw new BadRequestException('Faucet ony available on PRD');
+
     const user = await this.userService.getUser(userId, { userData: true, wallet: true });
     if (!user) throw new NotFoundException('User not found');
     if (!user.blockchains.includes(Blockchain.ETHEREUM))
@@ -62,6 +65,7 @@ export class FaucetRequestService {
       where: { userData: { id: user.userData.id }, status: Not(FaucetRequestStatus.FAILED) },
     });
     if (faucetUsed) throw new BadRequestException('Faucet already used for this account');
+
     try {
       const client = this.blockchainRegistry.getEvmClient(Blockchain.ETHEREUM);
       const asset = await this.assetService.getNativeAsset(Blockchain.ETHEREUM);
@@ -77,7 +81,7 @@ export class FaucetRequestService {
       });
       await this.faucetRequestRepo.save(faucetRequest);
 
-      return { txId, amount: price.convert(Config.faucetAmount) };
+      return { txId, amount: price.convert(Config.faucetAmount), asset: AssetDtoMapper.toDto(asset) };
     } catch (e) {
       this.logger.error(`Faucet request from user ${userId} failed:`, e);
       throw new ServiceUnavailableException('Faucet currently not available');

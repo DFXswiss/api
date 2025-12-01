@@ -7,10 +7,10 @@ import { FaucetRequestStatus } from '../enums/faucet-request';
 
 @Entity()
 export class FaucetRequest extends IEntity {
-  @Column({ nullable: false })
+  @Column()
   txId: string;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   amount: number;
 
   @ManyToOne(() => Asset, { eager: true, nullable: false })
@@ -22,7 +22,7 @@ export class FaucetRequest extends IEntity {
   @ManyToOne(() => User, { nullable: false })
   user: User;
 
-  @Column({ nullable: false, default: FaucetRequestStatus.IN_PROGRESS })
+  @Column({ default: FaucetRequestStatus.IN_PROGRESS })
   status: FaucetRequestStatus;
 
   complete(): UpdateResult<FaucetRequest> {

@@ -28,6 +28,7 @@ import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notificat
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { CustodyProviderService } from '../custody-provider/custody-provider.service';
+import { RecommendationService } from '../recommendation/recommendation.service';
 import { UserData } from '../user-data/user-data.entity';
 import { KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
@@ -82,6 +83,7 @@ export class AuthService {
     private readonly languageService: LanguageService,
     private readonly geoLocationService: GeoLocationService,
     private readonly settingService: SettingService,
+    private readonly recommendationService: RecommendationService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE)
@@ -137,7 +139,7 @@ export class AuthService {
     const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
     const primaryUser = userId && (await this.userService.getUser(userId));
 
-    const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature);
+    const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
     if (!custodyProvider && !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key))) {
       throw new BadRequestException('Invalid signature');
     }
@@ -164,6 +166,15 @@ export class AuthService {
 
     // update ip Logs
     await this.ipLogService.updateUserIpLogs(user);
+
+    if (dto.recommendationCode) {
+      const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(dto.recommendationCode);
+      if (recommendation)
+        await this.recommendationService.updateRecommendationInternal(recommendation, {
+          isConfirmed: true,
+          confirmationDate: new Date(),
+        });
+    }
 
     await this.checkIpBlacklistFor(user.userData, userIp);
 
@@ -198,6 +209,13 @@ export class AuthService {
         // TODO: temporary code to update empty signatures (remove?)
         await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
       }
+    }
+
+    if (!user.userData.tradeApprovalDate) {
+      if (user.wallet.autoTradeApproval)
+        await this.userDataService.updateUserDataInternal(user.userData, { tradeApprovalDate: new Date() });
+
+      await this.recommendationService.checkAndConfirmRecommendInvitation(user.userData.id);
     }
 
     try {

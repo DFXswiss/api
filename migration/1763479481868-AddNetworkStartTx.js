@@ -15,7 +15,7 @@ module.exports = class AddNetworkStartTx1763479481868 {
      */
     async up(queryRunner) {
         await queryRunner.query(`ALTER TABLE "buy_crypto" ADD "networkStartAmount" float`);
-        await queryRunner.query(`ALTER TABLE "buy_crypto" ADD "networkStartTx" nvarchar(256)`);
+        await queryRunner.query(`ALTER TABLE "buy_crypto" ADD "networkStartTxId" nvarchar(256)`);
         await queryRunner.query(`ALTER TABLE "buy_crypto" ADD "networkStartAsset" nvarchar(256)`);
     }
 
@@ -24,7 +24,7 @@ module.exports = class AddNetworkStartTx1763479481868 {
      */
     async down(queryRunner) {
         await queryRunner.query(`ALTER TABLE "buy_crypto" DROP COLUMN "networkStartAsset"`);
-        await queryRunner.query(`ALTER TABLE "buy_crypto" DROP COLUMN "networkStartTx"`);
+        await queryRunner.query(`ALTER TABLE "buy_crypto" DROP COLUMN "networkStartTxId"`);
         await queryRunner.query(`ALTER TABLE "buy_crypto" DROP COLUMN "networkStartAmount"`);
     }
 }
