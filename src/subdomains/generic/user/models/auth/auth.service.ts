@@ -187,9 +187,6 @@ export class AuthService {
         user.userData.reactivateUserData(),
       );
 
-    if (!user.userData.tradeApprovalDate && user.userData.wallet.autoTradeApproval)
-      await this.userDataService.updateUserDataInternal(user.userData, { tradeApprovalDate: new Date() });
-
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 
@@ -202,6 +199,9 @@ export class AuthService {
         await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
       }
     }
+
+    if (!user.userData.tradeApprovalDate && user.wallet.autoTradeApproval)
+      await this.userDataService.updateUserDataInternal(user.userData, { tradeApprovalDate: new Date() });
 
     try {
       if (dto.specialCode || dto.discountCode)

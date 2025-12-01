@@ -349,7 +349,7 @@ export class KycService {
         },
         { ...request, recommendation: { expirationDate: LessThan(new Date()) } },
       ],
-      relations: { userData: { wallet: true }, recommendation: true },
+      relations: { userData: { wallet: true }, recommendation: { recommender: true } },
     });
 
     for (const entity of entities) {

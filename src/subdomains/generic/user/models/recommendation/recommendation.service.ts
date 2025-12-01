@@ -33,8 +33,10 @@ export class RecommendationService {
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
     if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
 
-    const mailUser: UserData = dto.recommendedMail
-      ? (await this.userDataService.getUsersByMail(dto.recommendedMail, true))?.[0]
+    const mailUser = dto.recommendedMail
+      ? await this.userDataService
+          .getUsersByMail(dto.recommendedMail, true)
+          .then((u) => u.find((us) => us.tradeApprovalDate) ?? u?.[0])
       : undefined;
 
     if (mailUser && mailUser.tradeApprovalDate) throw new BadRequestException('Account is already approved');

@@ -8,6 +8,7 @@ export enum RecommendationDtoStatus {
   CREATED = 'Created',
   PENDING = 'Pending',
   EXPIRED = 'Expired',
+  DENIED = 'Denied',
   COMPLETED = 'Completed',
 }
 
