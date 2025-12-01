@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -22,6 +23,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     KycStepName.CONTACT_DATA,
     KycStepName.PERSONAL_DATA,
     KycStepName.NATIONALITY_DATA,
+    !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
     !userData.wallet.autoTradeApproval &&
     userData.accountType !== AccountType.ORGANIZATION &&
     !userData.tradeApprovalDate

@@ -49,7 +49,7 @@ export class AmlHelperService {
     )
       return errors;
 
-    if (!DisabledProcess(Process.TRADE_APPROVAL_AML_CHECK) && !entity.userData.tradeApprovalDate)
+    if (!DisabledProcess(Process.TRADE_APPROVAL_DATE) && !entity.userData.tradeApprovalDate)
       errors.push(AmlError.TRADE_APPROVAL_DATE_MISSING);
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
