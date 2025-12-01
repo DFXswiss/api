@@ -187,69 +187,6 @@ export class ScryptService implements OnModuleInit {
     return (response.data as ScryptBalance[]) ?? [];
   }
 
-  private async ensureWebSocketConnection(): Promise<void> {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
-
-    await this.connectWebSocket();
-
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) throw new Error('WebSocket connection failed');
-  }
-
-  private async connectWebSocket(): Promise<void> {
-    const scryptConfig = Config.scrypt;
-
-    return new Promise((resolve, reject) => {
-      const url = new URL(scryptConfig.wsUrl);
-      const host = url.host;
-      const path = url.pathname;
-
-      const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, '.000000Z');
-      const signaturePayload = ['GET', timestamp, host, path].join('\n');
-      const signature = Util.createHmac(scryptConfig.apiSecret, signaturePayload, 'sha256', 'base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-
-      const headers = {
-        ApiKey: scryptConfig.apiKey,
-        ApiSign: signature,
-        ApiTimestamp: timestamp,
-      };
-
-      this.logger.verbose(`Connecting to Scrypt WebSocket: ${scryptConfig.wsUrl}`);
-      const ws = new WebSocket(scryptConfig.wsUrl, { headers });
-
-      ws.on('open', () => {
-        this.logger.verbose('Scrypt WebSocket connected');
-        this.ws = ws;
-        resolve();
-      });
-
-      ws.on('message', (data: WebSocket.Data) => {
-        try {
-          const message: ScryptMessage = JSON.parse(data.toString());
-          this.logger.verbose(`Scrypt message received: ${message.type}`);
-
-          this.messageHandlers.forEach((handler) => {
-            handler(message);
-          });
-        } catch (e) {
-          this.logger.error('Failed to parse Scrypt message:', e);
-        }
-      });
-
-      ws.on('error', (error) => {
-        this.logger.error('Scrypt WebSocket error:', error);
-        this.ws = null;
-        reject(error);
-      });
-
-      ws.on('close', () => {
-        this.logger.verbose('Scrypt WebSocket closed');
-        this.ws = null;
-      });
-    });
-  }
-
   private async sendWithdrawRequest(
     withdrawRequest: Record<string, unknown>,
     clReqId: string,
@@ -347,6 +284,69 @@ export class ScryptService implements OnModuleInit {
 
       this.logger.verbose(`Sending Scrypt request: ${request.type}`);
       this.ws!.send(JSON.stringify(request));
+    });
+  }
+
+  private async ensureWebSocketConnection(): Promise<void> {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+
+    await this.connectWebSocket();
+
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) throw new Error('WebSocket connection failed');
+  }
+
+  private async connectWebSocket(): Promise<void> {
+    const scryptConfig = Config.scrypt;
+
+    return new Promise((resolve, reject) => {
+      const url = new URL(scryptConfig.wsUrl);
+      const host = url.host;
+      const path = url.pathname;
+
+      const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, '.000000Z');
+      const signaturePayload = ['GET', timestamp, host, path].join('\n');
+      const signature = Util.createHmac(scryptConfig.apiSecret, signaturePayload, 'sha256', 'base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+
+      const headers = {
+        ApiKey: scryptConfig.apiKey,
+        ApiSign: signature,
+        ApiTimestamp: timestamp,
+      };
+
+      this.logger.verbose(`Connecting to Scrypt WebSocket: ${scryptConfig.wsUrl}`);
+      const ws = new WebSocket(scryptConfig.wsUrl, { headers });
+
+      ws.on('open', () => {
+        this.logger.verbose('Scrypt WebSocket connected');
+        this.ws = ws;
+        resolve();
+      });
+
+      ws.on('message', (data: WebSocket.Data) => {
+        try {
+          const message: ScryptMessage = JSON.parse(data.toString());
+          this.logger.verbose(`Scrypt message received: ${message.type}`);
+
+          this.messageHandlers.forEach((handler) => {
+            handler(message);
+          });
+        } catch (e) {
+          this.logger.error('Failed to parse Scrypt message:', e);
+        }
+      });
+
+      ws.on('error', (error) => {
+        this.logger.error('Scrypt WebSocket error:', error);
+        this.ws = null;
+        reject(error);
+      });
+
+      ws.on('close', () => {
+        this.logger.verbose('Scrypt WebSocket closed');
+        this.ws = null;
+      });
     });
   }
 }
