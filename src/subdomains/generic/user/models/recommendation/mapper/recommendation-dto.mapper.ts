@@ -5,7 +5,7 @@ export class RecommendationDtoMapper {
   static entityToDto(recommendation: Recommendation): RecommendationDto {
     const dto: RecommendationDto = {
       id: recommendation.id,
-      code: recommendation.code,
+      code: recommendation.isUsed ? undefined : recommendation.code,
       status: getStatus(recommendation),
       method: recommendation.method,
       type: recommendation.type,

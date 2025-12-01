@@ -188,6 +188,9 @@ export class RecommendationService {
   async updateRecommendationInternal(entity: Recommendation, update: Partial<Recommendation>): Promise<Recommendation> {
     Object.assign(entity, update);
 
+    if (update.isConfirmed)
+      await this.userDataService.updateUserDataInternal(entity.recommended, { tradeApprovalDate: new Date() });
+
     return this.recommendationRepo.save(entity);
   }
 
@@ -210,6 +213,22 @@ export class RecommendationService {
       where: { recommender: { id: userDataId } },
       relations: { recommended: true, recommender: true },
     });
+  }
+
+  async checkAndConfirmRecommendInvitation(recommendedId: number): Promise<Recommendation> {
+    const entity = await this.recommendationRepo.findOne({
+      where: { recommended: { id: recommendedId }, isConfirmed: IsNull(), expirationDate: MoreThan(new Date()) },
+      relations: { recommended: true, recommender: true },
+    });
+    if (
+      !entity ||
+      entity.recommender.isBlocked ||
+      entity.recommender.hasAnyRiskStatus ||
+      !entity.recommender.tradeApprovalDate
+    )
+      return;
+
+    return this.updateRecommendationInternal(entity, { isConfirmed: true, confirmationDate: new Date() });
   }
 
   // --- NOTIFICATIONS --- //
@@ -238,12 +257,12 @@ export class RecommendationService {
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_button`,
-                params: { url: Config.frontend.services, button: 'true' },
+                params: { url: entity.loginUrl, button: 'true' },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_link`,
-                params: { url: Config.frontend.services, urlText: Config.frontend.services },
+                params: { url: entity.loginUrl, urlText: Config.frontend.services },
               },
               { key: MailKey.SPACE, params: { value: '4' } },
               { key: MailKey.DFX_TEAM_CLOSING },

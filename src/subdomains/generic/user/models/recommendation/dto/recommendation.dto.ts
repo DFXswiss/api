@@ -30,8 +30,8 @@ export class RecommendationDto {
   @ApiProperty()
   id: number;
 
-  @ApiProperty()
-  code: string;
+  @ApiPropertyOptional()
+  code?: string;
 
   @ApiProperty({ enum: RecommendationDtoStatus })
   status: RecommendationDtoStatus;
