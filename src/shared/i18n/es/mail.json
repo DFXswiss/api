@@ -93,6 +93,7 @@
                 "bank_tx_needed": "Para poder realizar esta operación es necesaria una transacción bancaria",
                 "manual_check_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
                 "manual_check_ip_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
+                "manual_check_ip_country_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
                 "merge_incomplete": "El correo electrónico de confirmación no fue aceptado"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
@@ -241,6 +242,15 @@
                 "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
                 "line4": "",
                 "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
+            },
+            "manual_check_ip_country_phone": {
+                "title": "Se requiere llamada telefónica",
+                "salutation": "Se requiere una verificación manual por teléfono",
+                "line1": "Hemos recibido su depósito.",
+                "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
+                "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
+                "line4": "",
+                "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
             }
         },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]"
@@ -250,6 +260,23 @@
         "salutation": "Tus recompensas por referidos han sido pagadas",
         "transaction_button": "Haga clic en el siguiente botón para obtener más información sobre su recompensa por recomendación:<br>[url:haga clic aquí]",
         "dfx_ambassador": "Eres un auténtico embajador de DFX - Gracias por compartir DFX!"
+    },
+    "recommendation": {
+        "recommended": {
+            "title": "Invitación DFX",
+            "salutation": "Has sido invitado a DFX!",
+            "message": "{name} ({mail}) te ha invitado a utilizar DFX",
+            "registration_button": "Solo tienes que hacer clic en el botón de abajo y crear una cuenta con esta dirección de correo electrónico:<br>[url:haga clic aquí]",
+            "registration_link": "O puede utilizar el siguiente enlace:<br>[url:{urlText}]"
+        },
+        "confirmation": {
+            "title": "Confirmar recomendación DFX",
+            "salutation": "Tienes una recomendación DFX pendiente",
+            "message": "¿Puede confirmar {name} ({mail}) para el uso de DFX y responder por él?",
+            "warning": "Solo confirma a personas que conozcas personalmente y por las que puedas responder. Si la persona está involucrada en un caso de fraude, también podrían bloquear tu cuenta si la has confirmado y respondido por ella.",
+            "button": "Solo tienes que hacer clic en el botón de abajo para aceptar o rechazar la invitación:<br>[url:haga clic aquí]",
+            "link": "O puede utilizar el siguiente enlace:<br>[url:{urlText}]"
+        }
     },
     "kyc": {
         "success": {
@@ -283,7 +310,10 @@
                 "blocked": "Error desconocido",
                 "personal_data_not_matching": "Incoherencia en tus datos personales",
                 "ip_country_mismatch": "No se cumplen los requisitos reglamentarios",
-                "country_ip_country_mismatch": "No se cumplen los requisitos reglamentarios"
+                "country_ip_country_mismatch": "No se cumplen los requisitos reglamentarios",
+                "missing_response": "Datos faltantes",
+                "risky_business": "Su empresa está involucrada en negocios arriesgados",
+                "bank_recall_fee_not_paid": "Tasa de devolución no pagada"
             }
         },
         "missing_data": {

@@ -33,6 +33,7 @@ import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statist
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -111,18 +112,29 @@ export class BuyCryptoService {
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(bankTx.senderAccount, buy.userData.id);
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+        bankTx.senderAccount,
+        buy.userData.id,
+        BankDataType.BANK_IN,
+      );
 
-      if (!bankData) {
+      if (!bankData || bankData.type !== BankDataType.BANK_IN) {
         const multiAccounts = await this.specialExternalAccountService.getMultiAccounts();
         const bankDataName = bankTx.bankDataName(multiAccounts);
-        if (bankDataName)
-          await this.bankDataService.createVerifyBankData(buy.userData, {
-            name: bankDataName,
+        if (bankDataName) {
+          const createDto: CreateBankDataDto = {
+            type: BankDataType.BANK_IN,
             iban: bankTx.senderAccount,
             bic: bankTx.bic,
-            type: BankDataType.BANK_IN,
-          });
+            name: bankDataName,
+          };
+
+          if (bankData) {
+            await this.bankDataService.replaceBankDataWithNewType(bankData, createDto);
+          } else {
+            await this.bankDataService.createVerifyBankData(buy.userData, createDto);
+          }
+        }
       }
     }
 
@@ -154,14 +166,22 @@ export class BuyCryptoService {
       const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
         checkoutTx.cardFingerPrint,
         buy.userData.id,
+        BankDataType.CARD_IN,
       );
 
-      if (!bankData)
-        await this.bankDataService.createVerifyBankData(buy.userData, {
-          name: checkoutTx.cardName ?? buy.userData.completeName ?? buy.userData.verifiedName,
-          iban: checkoutTx.cardFingerPrint,
+      if (!bankData || bankData.type !== BankDataType.CARD_IN) {
+        const createDto: CreateBankDataDto = {
           type: BankDataType.CARD_IN,
-        });
+          iban: checkoutTx.cardFingerPrint,
+          name: checkoutTx.cardName ?? buy.userData.completeName ?? buy.userData.verifiedName,
+        };
+
+        if (bankData) {
+          await this.bankDataService.replaceBankDataWithNewType(bankData, createDto);
+        } else {
+          await this.bankDataService.createVerifyBankData(buy.userData, createDto);
+        }
+      }
     }
 
     // create entity

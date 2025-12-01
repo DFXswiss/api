@@ -59,7 +59,6 @@ export enum AmlError {
   IP_PHONE_VERIFICATION_NEEDED = 'IpPhoneVerificationNeeded',
   IP_BLACKLISTED_WITHOUT_KYC = 'IpBlacklistedWithoutKyc',
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
-  TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
 }
 
 export const DelayResultError = [
@@ -276,10 +275,5 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.HIGH_RISK_KYC_NEEDED,
-  },
-  [AmlError.TRADE_APPROVAL_DATE_MISSING]: {
-    type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK_PHONE,
   },
 };

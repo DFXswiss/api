@@ -49,6 +49,7 @@ export class Configuration {
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
   financeLogTotalBalanceChangeLimit = 5000;
+  faucetAmount = 20; //CHF
 
   defaults = {
     currency: 'EUR',
@@ -140,7 +141,7 @@ export class Configuration {
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
   arweaveAddressFormat = '[\\w\\-]{43}';
-  cardanoAddressFormat = 'stake[a-z0-9]{54}';
+  cardanoAddressFormat = '^(stake[a-z0-9]+|addr1[a-z0-9]+)$';
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
   railgunAddressFormat = '0zk[a-z0-9]{1,124}';
@@ -158,7 +159,7 @@ export class Configuration {
   moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
   arweaveSignatureFormat = '[\\w\\-]{683}';
-  cardanoSignatureFormat = '[a-f0-9]{582}';
+  cardanoSignatureFormat = '[a-f0-9]+';
   railgunSignatureFormat = '[a-f0-9]{128}';
   solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
   tronSignatureFormat = '(0x)?[a-f0-9]{130}';
@@ -167,7 +168,7 @@ export class Configuration {
   allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
-  cardanoKeyFormat = '[a-f0-9]{84}';
+  cardanoKeyFormat = '.*';
 
   allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}`;
 
@@ -177,6 +178,7 @@ export class Configuration {
     key: new RegExp(`^(${this.allKeyFormat})$`),
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
+    recommendationCode: /[0-9A-Z]{2}-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{2}/,
     kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
     phone: /^\+\d+$/,
     accountServiceRef: /^[A-Z]{2}\d{8}\/\d+\/\d+$/,
@@ -235,6 +237,12 @@ export class Configuration {
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_',
   };
 
+  recommendation = {
+    recommenderExpiration: 30, // days
+    confirmationExpiration: 30, // days
+    maxRecommendationPerMail: 3,
+  };
+
   kyc = {
     gatewayHost: process.env.KYC_GATEWAY_HOST,
     auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
@@ -248,6 +256,7 @@ export class Configuration {
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
     maxIdentTries: 7,
+    maxRecommendationTries: 3,
   };
 
   fileDownloadConfig: {
