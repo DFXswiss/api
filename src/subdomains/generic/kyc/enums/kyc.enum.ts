@@ -24,7 +24,7 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
     KycStepName.PERSONAL_DATA,
     KycStepName.NATIONALITY_DATA,
     !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
-    !userData.wallet.autoTradeApproval &&
+    !userData.wallet?.autoTradeApproval &&
     userData.accountType !== AccountType.ORGANIZATION &&
     !userData.tradeApprovalDate
       ? KycStepName.RECOMMENDATION

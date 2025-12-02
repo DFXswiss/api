@@ -212,7 +212,7 @@ export class UserService {
         language,
         currency,
         wallet: user.wallet,
-        tradeApprovalDate: user.wallet.autoTradeApproval ? new Date() : undefined,
+        tradeApprovalDate: user.wallet?.autoTradeApproval ? new Date() : undefined,
       }));
 
     if (user.userData.status === UserDataStatus.KYC_ONLY)

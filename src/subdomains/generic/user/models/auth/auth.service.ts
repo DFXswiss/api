@@ -167,14 +167,7 @@ export class AuthService {
     // update ip Logs
     await this.ipLogService.updateUserIpLogs(user);
 
-    if (dto.recommendationCode) {
-      const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(dto.recommendationCode);
-      if (recommendation)
-        await this.recommendationService.updateRecommendationInternal(recommendation, {
-          isConfirmed: true,
-          confirmationDate: new Date(),
-        });
-    }
+    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode);
 
     await this.checkIpBlacklistFor(user.userData, userIp);
 
@@ -212,7 +205,7 @@ export class AuthService {
     }
 
     if (!user.userData.tradeApprovalDate) {
-      if (user.wallet.autoTradeApproval)
+      if (user.wallet?.autoTradeApproval)
         await this.userDataService.updateUserDataInternal(user.userData, { tradeApprovalDate: new Date() });
 
       await this.recommendationService.checkAndConfirmRecommendInvitation(user.userData.id);
@@ -259,6 +252,8 @@ export class AuthService {
         status: UserDataStatus.KYC_ONLY,
         wallet: await this.walletService.getDefault(),
       }));
+
+    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode);
 
     await this.checkIpBlacklistFor(userData, userIp);
 
@@ -386,6 +381,15 @@ export class AuthService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async confirmRecommendationCode(code: string): Promise<void> {
+    const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(code);
+    if (recommendation)
+      await this.recommendationService.updateRecommendationInternal(recommendation, {
+        isConfirmed: true,
+        confirmationDate: new Date(),
+      });
+  }
 
   private async checkIpBlacklistFor(userData: UserData, ip: string): Promise<void> {
     if (userData.hasIpRisk) return;
