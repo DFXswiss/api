@@ -49,6 +49,6 @@ import { PricingService } from './services/pricing.service';
     PricingRealUnitService,
     PricingConstantService,
   ],
-  exports: [PricingService, AssetPricesService],
+  exports: [PricingService, AssetPricesService, CoinGeckoService],
 })
 export class PricingModule {}

@@ -96,4 +96,46 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
   private getCurrency(token: string): string | undefined {
     return this.currencies.find((c) => c === token.toLowerCase());
   }
+
+  async getHistoricalPrice(
+    coinId: string,
+    date: Date,
+    currency: 'usd' | 'eur' | 'chf',
+  ): Promise<number | undefined> {
+    try {
+      const dateStr = this.formatDateForCoinGecko(date);
+      const data = await this.client.coinIdHistory({ id: coinId, date: dateStr, localization: false });
+      return data.market_data?.current_price?.[currency];
+    } catch (e) {
+      this.logger.error(`Failed to get historical price for ${coinId} on ${date}:`, e);
+      return undefined;
+    }
+  }
+
+  async getHistoricalPriceByContract(
+    platform: string,
+    contractAddress: string,
+    date: Date,
+    currency: 'usd' | 'eur' | 'chf',
+  ): Promise<number | undefined> {
+    try {
+      const dateStr = this.formatDateForCoinGecko(date);
+      const data = await this.client.contractHistory({
+        id: platform,
+        contract_address: contractAddress,
+        date: dateStr,
+      });
+      return data.market_data?.current_price?.[currency];
+    } catch (e) {
+      this.logger.error(`Failed to get historical price for contract ${contractAddress} on ${date}:`, e);
+      return undefined;
+    }
+  }
+
+  private formatDateForCoinGecko(date: Date): string {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
 }

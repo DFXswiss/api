@@ -61,10 +61,10 @@ export class AlchemyService {
     return [AssetTransfersCategory.ERC20];
   }
 
-  async getNativeCoinBalance(chainId: ChainId, address: string): Promise<AlchemyBigNumber> {
+  async getNativeCoinBalance(chainId: ChainId, address: string, blockTag?: number | 'latest'): Promise<AlchemyBigNumber> {
     const alchemy = this.getAlchemy(chainId);
 
-    return alchemy.core.getBalance(address, 'latest');
+    return alchemy.core.getBalance(address, blockTag ?? 'latest');
   }
 
   async getTokenBalances(chainId: ChainId, address: string, assets: Asset[]): Promise<TokenBalance[]> {
@@ -78,6 +78,57 @@ export class AlchemyService {
 
       return response.tokenBalances;
     }, 3);
+  }
+
+  async getTokenBalanceAtBlock(
+    chainId: ChainId,
+    address: string,
+    contractAddress: string,
+    blockNumber: number,
+  ): Promise<string> {
+    const alchemy = this.getAlchemy(chainId);
+
+    const data = alchemy.core.call(
+      {
+        to: contractAddress,
+        data: `0x70a08231000000000000000000000000${address.slice(2).toLowerCase()}`, // balanceOf(address)
+      },
+      blockNumber,
+    );
+
+    return data;
+  }
+
+  async getBlock(chainId: ChainId, blockNumber: number): Promise<{ timestamp: number } | null> {
+    const alchemy = this.getAlchemy(chainId);
+    return alchemy.core.getBlock(blockNumber);
+  }
+
+  async findBlockByTimestamp(chainId: ChainId, targetTimestamp: number): Promise<number> {
+    const alchemy = this.getAlchemy(chainId);
+
+    const currentBlock = await alchemy.core.getBlockNumber();
+    let low = 1;
+    let high = currentBlock;
+    let bestBlock = high;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const block = await alchemy.core.getBlock(mid);
+
+      if (!block || !block.timestamp) {
+        throw new Error(`Failed to get block ${mid}`);
+      }
+
+      if (block.timestamp <= targetTimestamp) {
+        bestBlock = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return bestBlock;
   }
 
   async getBlockNumber(blockchain: Blockchain): Promise<number> {
