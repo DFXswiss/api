@@ -12,6 +12,7 @@ import {
   TokenBalance,
   TransactionResponse,
 } from 'alchemy-sdk';
+import { ethers } from 'ethers';
 import { Observable, Subject, filter, map } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -88,15 +89,17 @@ export class AlchemyService {
   ): Promise<string> {
     const alchemy = this.getAlchemy(chainId);
 
-    const data = alchemy.core.call(
+    const normalizedAddress = ethers.utils.getAddress(address.toLowerCase());
+    const iface = new ethers.utils.Interface(['function balanceOf(address account) view returns (uint256)']);
+    const data = iface.encodeFunctionData('balanceOf', [normalizedAddress]);
+
+    return alchemy.core.call(
       {
         to: contractAddress,
-        data: `0x70a08231000000000000000000000000${address.slice(2).toLowerCase()}`, // balanceOf(address)
+        data,
       },
       blockNumber,
     );
-
-    return data;
   }
 
   async getBlock(chainId: ChainId, blockNumber: number): Promise<{ timestamp: number } | null> {
