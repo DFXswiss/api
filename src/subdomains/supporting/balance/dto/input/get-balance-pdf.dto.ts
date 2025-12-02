@@ -1,12 +1,19 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export enum FiatCurrency {
   CHF = 'CHF',
   EUR = 'EUR',
   USD = 'USD',
+}
+
+export enum PdfLanguage {
+  DE = 'DE',
+  EN = 'EN',
+  FR = 'FR',
+  IT = 'IT',
 }
 
 export class GetBalancePdfDto {
@@ -29,4 +36,9 @@ export class GetBalancePdfDto {
   @IsDate()
   @Type(() => Date)
   date: Date;
+
+  @ApiPropertyOptional({ description: 'Language for the report', enum: PdfLanguage, default: PdfLanguage.EN })
+  @IsOptional()
+  @IsEnum(PdfLanguage)
+  language?: PdfLanguage = PdfLanguage.EN;
 }

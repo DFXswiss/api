@@ -1,7 +1,6 @@
-import { Controller, Get, Query, Res, StreamableFile } from '@nestjs/common';
-import { ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
-import { Response } from 'express';
-import { Util } from 'src/shared/utils/util';
+import { Controller, Get, Query } from '@nestjs/common';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { GetBalancePdfDto } from '../dto/input/get-balance-pdf.dto';
 import { BalancePdfService } from '../services/balance-pdf.service';
 
@@ -11,19 +10,9 @@ export class BalanceController {
   constructor(private readonly balancePdfService: BalancePdfService) {}
 
   @Get('pdf')
-  @ApiProduces('application/pdf')
-  @ApiOkResponse({ description: 'Balance PDF report' })
-  async getBalancePdf(
-    @Query() dto: GetBalancePdfDto,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<StreamableFile> {
-    const pdfBuffer = await this.balancePdfService.generateBalancePdf(dto);
-
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="DFX_Balance_${dto.blockchain}_${Util.filenameDate(dto.date)}.pdf"`,
-    });
-
-    return new StreamableFile(pdfBuffer);
+  @ApiOkResponse({ type: PdfDto, description: 'Balance PDF report (base64 encoded)' })
+  async getBalancePdf(@Query() dto: GetBalancePdfDto): Promise<PdfDto> {
+    const pdfData = await this.balancePdfService.generateBalancePdf(dto);
+    return { pdfData };
   }
 }

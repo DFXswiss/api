@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -8,13 +9,23 @@ import { Util } from 'src/shared/utils/util';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { CoinGeckoService } from '../../pricing/services/integration/coin-gecko.service';
-import { FiatCurrency, GetBalancePdfDto } from '../dto/input/get-balance-pdf.dto';
+import { FiatCurrency, GetBalancePdfDto, PdfLanguage } from '../dto/input/get-balance-pdf.dto';
 
 interface BalanceEntry {
   asset: Asset;
   balance: number;
   value: number | undefined;
 }
+
+// DFX Logo SVG Paths
+const dfxLogoBall1 =
+  'M86.1582 126.274C109.821 126.274 129.004 107.092 129.004 83.4287C129.004 59.7657 109.821 40.583 86.1582 40.583C62.4952 40.583 43.3126 59.7657 43.3126 83.4287C43.3126 107.092 62.4952 126.274 86.1582 126.274Z';
+
+const dfxLogoBall2 =
+  'M47.1374 132.146C73.1707 132.146 94.2748 111.042 94.2748 85.009C94.2748 58.9757 73.1707 37.8716 47.1374 37.8716C21.1041 37.8716 0 58.9757 0 85.009C0 111.042 21.1041 132.146 47.1374 132.146Z';
+
+const dfxLogoText =
+  'M61.5031 0H124.245C170.646 0 208.267 36.5427 208.267 84.0393C208.267 131.536 169.767 170.018 122.288 170.018H61.5031V135.504H114.046C141.825 135.504 164.541 112.789 164.541 85.009C164.541 57.2293 141.825 34.5136 114.046 34.5136H61.5031V0ZM266.25 31.5686V76.4973H338.294V108.066H266.25V170H226.906V0H355.389V31.5686H266.25ZM495.76 170L454.71 110.975L414.396 170H369.216L432.12 83.5365L372.395 0H417.072L456.183 55.1283L494.557 0H537.061L477.803 82.082L541.191 170H495.778H495.76Z';
 
 // Map blockchain to CoinGecko platform ID (only EVM chains supported)
 const COINGECKO_PLATFORMS: Partial<Record<Blockchain, string>> = {
@@ -55,9 +66,10 @@ export class BalancePdfService {
     private readonly assetService: AssetService,
     private readonly assetPricesService: AssetPricesService,
     private readonly coinGeckoService: CoinGeckoService,
+    private readonly i18n: I18nService,
   ) {}
 
-  async generateBalancePdf(dto: GetBalancePdfDto): Promise<Buffer> {
+  async generateBalancePdf(dto: GetBalancePdfDto): Promise<string> {
     const balances = await this.getBalancesForAddress(dto.address, dto.blockchain, dto.currency, dto.date);
     const totalValue = balances.reduce((sum, b) => sum + (b.value ?? 0), 0);
     const hasIncompleteData = balances.some((b) => b.value == null);
@@ -177,18 +189,23 @@ export class BalancePdfService {
     totalValue: number,
     hasIncompleteData: boolean,
     dto: GetBalancePdfDto,
-  ): Promise<Buffer> {
-    return new Promise<Buffer>((resolve, reject) => {
+  ): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A4', margin: 50 });
         const chunks: Buffer[] = [];
+        const language = dto.language ?? PdfLanguage.EN;
 
         pdf.on('data', (chunk) => chunks.push(chunk));
-        pdf.on('end', () => resolve(Buffer.concat(chunks)));
+        pdf.on('end', () => {
+          const base64PDF = Buffer.concat(chunks).toString('base64');
+          resolve(base64PDF);
+        });
 
-        this.drawHeader(pdf, dto);
-        this.drawTable(pdf, balances, dto.currency);
-        this.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency);
+        this.drawLogo(pdf);
+        this.drawHeader(pdf, dto, language);
+        this.drawTable(pdf, balances, dto.currency, language);
+        this.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language);
 
         pdf.end();
       } catch (e) {
@@ -197,24 +214,51 @@ export class BalancePdfService {
     });
   }
 
-  private drawHeader(pdf: InstanceType<typeof PDFDocument>, dto: GetBalancePdfDto): void {
+  private drawLogo(pdf: InstanceType<typeof PDFDocument>): void {
+    pdf.save();
+    pdf.translate(50, 30);
+    pdf.scale(0.12);
+
+    // Gradient for ball 1
+    const gradient1 = pdf.linearGradient(122.111, 64.6777, 45.9618, 103.949);
+    gradient1
+      .stop(0.04, '#F5516C')
+      .stop(0.14, '#C74863')
+      .stop(0.31, '#853B57')
+      .stop(0.44, '#55324E')
+      .stop(0.55, '#382D49')
+      .stop(0.61, '#2D2B47');
+
+    // Gradient for ball 2
+    const gradient2 = pdf.linearGradient(75.8868, 50.7468, 15.2815, 122.952);
+    gradient2.stop(0.2, '#F5516C').stop(1, '#6B3753');
+
+    pdf.path(dfxLogoBall1).fill(gradient1);
+    pdf.path(dfxLogoBall2).fill(gradient2);
+    pdf.path(dfxLogoText).fill('#072440');
+    pdf.restore();
+  }
+
+  private drawHeader(pdf: InstanceType<typeof PDFDocument>, dto: GetBalancePdfDto, language: PdfLanguage): void {
     const { width } = pdf.page;
     const marginX = 50;
 
     // Title
-    pdf.fontSize(24).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text('DFX Balance Report', marginX, 50);
+    pdf.fontSize(20).font('Helvetica-Bold').fillColor('#072440');
+    pdf.text(this.translate('balance.title', language), marginX, 60);
 
     // Date
-    pdf.fontSize(12).font('Helvetica').fillColor('#707070');
+    pdf.fontSize(11).font('Helvetica').fillColor('#707070');
     const dateStr = Util.isoDate(dto.date);
-    pdf.text(`Date: ${dateStr}`, marginX, 85);
+    pdf.text(`${this.translate('balance.date', language)}: ${dateStr}`, marginX, 90);
 
     // Blockchain
-    pdf.text(`Blockchain: ${dto.blockchain}`, marginX, 105);
+    pdf.text(`${this.translate('balance.blockchain', language)}: ${dto.blockchain}`, marginX, 108);
 
     // Address
-    pdf.text(`Address: ${dto.address}`, marginX, 125, { width: width - marginX * 2 });
+    pdf.text(`${this.translate('balance.address', language)}: ${dto.address}`, marginX, 126, {
+      width: width - marginX * 2,
+    });
 
     // Horizontal line
     pdf.moveTo(marginX, 155).lineTo(width - marginX, 155).stroke('#072440');
@@ -222,7 +266,12 @@ export class BalancePdfService {
     pdf.y = 175;
   }
 
-  private drawTable(pdf: InstanceType<typeof PDFDocument>, balances: BalanceEntry[], currency: FiatCurrency): void {
+  private drawTable(
+    pdf: InstanceType<typeof PDFDocument>,
+    balances: BalanceEntry[],
+    currency: FiatCurrency,
+    language: PdfLanguage,
+  ): void {
     const marginX = 50;
     const { width } = pdf.page;
     const tableWidth = width - marginX * 2;
@@ -235,9 +284,9 @@ export class BalancePdfService {
 
     // Table header
     pdf.fontSize(11).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text('Asset', marginX, y);
-    pdf.text('Balance', marginX + col1Width, y);
-    pdf.text(`Value (${currency})`, marginX + col1Width + col2Width, y);
+    pdf.text(this.translate('balance.table.headers.asset', language), marginX, y);
+    pdf.text(this.translate('balance.table.headers.balance', language), marginX + col1Width, y);
+    pdf.text(this.translate('balance.table.headers.value', language, { currency }), marginX + col1Width + col2Width, y);
 
     y += 20;
     pdf.moveTo(marginX, y).lineTo(width - marginX, y).stroke('#CCCCCC');
@@ -247,7 +296,7 @@ export class BalancePdfService {
     pdf.fontSize(10).font('Helvetica').fillColor('#333333');
 
     if (balances.length === 0) {
-      pdf.text('No assets found for this address.', marginX, y);
+      pdf.text(this.translate('balance.table.no_assets', language), marginX, y);
       y += 20;
     } else {
       for (const entry of balances) {
@@ -275,6 +324,7 @@ export class BalancePdfService {
     totalValue: number,
     hasIncompleteData: boolean,
     currency: FiatCurrency,
+    language: PdfLanguage,
   ): void {
     const marginX = 50;
     const { width } = pdf.page;
@@ -282,18 +332,22 @@ export class BalancePdfService {
     let y = pdf.y + 10;
 
     pdf.fontSize(12).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text('Total Value:', marginX, y);
+    pdf.text(`${this.translate('balance.total_value', language)}:`, marginX, y);
     pdf.text(this.formatCurrency(totalValue, currency), width - marginX - 150, y, { width: 150, align: 'right' });
 
     if (hasIncompleteData) {
-      y += 20;
+      y += 25;
       pdf.fontSize(9).font('Helvetica').fillColor('#707070');
-      pdf.text('* Some assets have no historical price data available (n/a)', marginX, y);
+      pdf.text(this.translate('balance.incomplete_data', language), marginX, y);
     }
 
     pdf.fontSize(8).font('Helvetica').fillColor('#999999');
-    pdf.text('Generated by DFX', marginX, pdf.page.height - 50);
+    pdf.text(this.translate('balance.generated_by', language), marginX, pdf.page.height - 50);
     pdf.text(new Date().toISOString(), marginX, pdf.page.height - 40);
+  }
+
+  private translate(key: string, language: PdfLanguage, args?: any): string {
+    return this.i18n.translate(key, { lang: language.toLowerCase(), args });
   }
 
   private formatNumber(value: number, decimals: number): string {

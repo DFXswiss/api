@@ -1,0 +1,17 @@
+{
+  "title": "Rapporto saldo DFX",
+  "date": "Data",
+  "blockchain": "Blockchain",
+  "address": "Indirizzo",
+  "table": {
+    "headers": {
+      "asset": "Asset",
+      "balance": "Saldo",
+      "value": "Valore ({currency})"
+    },
+    "no_assets": "Nessun asset trovato per questo indirizzo."
+  },
+  "total_value": "Valore totale",
+  "incomplete_data": "* Alcuni asset non hanno dati storici sui prezzi disponibili (n/a)",
+  "generated_by": "Generato da DFX"
+}
