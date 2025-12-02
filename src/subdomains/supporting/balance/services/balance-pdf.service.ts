@@ -1,15 +1,17 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { CoinGeckoService } from '../../pricing/services/integration/coin-gecko.service';
-import { FiatCurrency, GetBalancePdfDto, PdfLanguage } from '../dto/input/get-balance-pdf.dto';
+import { PriceCurrency } from '../../pricing/services/pricing.service';
+import { GetBalancePdfDto, PdfLanguage } from '../dto/input/get-balance-pdf.dto';
 
 interface BalanceEntry {
   asset: Asset;
@@ -63,6 +65,8 @@ const NATIVE_COIN_IDS: Partial<Record<Blockchain, string>> = {
 
 @Injectable()
 export class BalancePdfService {
+  private readonly logger = new DfxLogger(BalancePdfService);
+
   constructor(
     private readonly alchemyService: AlchemyService,
     private readonly assetService: AssetService,
@@ -78,6 +82,10 @@ export class BalancePdfService {
       );
     }
 
+    if (dto.date > new Date()) {
+      throw new BadRequestException('Date must be in the past');
+    }
+
     const balances = await this.getBalancesForAddress(dto.address, dto.blockchain, dto.currency, dto.date);
     const totalValue = balances.reduce((sum, b) => sum + (b.value ?? 0), 0);
     const hasIncompleteData = balances.some((b) => b.value == null);
@@ -88,7 +96,7 @@ export class BalancePdfService {
   private async getBalancesForAddress(
     address: string,
     blockchain: Blockchain,
-    currency: FiatCurrency,
+    currency: PriceCurrency,
     date: Date,
   ): Promise<BalanceEntry[]> {
     const chainId = EvmUtil.getChainId(blockchain);
@@ -103,7 +111,7 @@ export class BalancePdfService {
     const nativeCoinBalance = await this.alchemyService.getNativeCoinBalance(chainId, address, blockNumber);
     const nativeCoin = assets.find((a) => !a.chainId);
     if (nativeCoin && nativeCoinBalance) {
-      const balance = Number(nativeCoinBalance) / Math.pow(10, 18);
+      const balance = EvmUtil.fromWeiAmount(nativeCoinBalance, 18);
       if (balance > 0) {
         const price = await this.getHistoricalPrice(nativeCoin, blockchain, date, currency);
         balances.push({
@@ -131,19 +139,18 @@ export class BalancePdfService {
               asset.chainId,
               blockNumber,
             );
-            const balance = Number(rawBalance) / Math.pow(10, asset.decimals ?? 18);
+            const balance = EvmUtil.fromWeiAmount(rawBalance, asset.decimals ?? 18);
             if (balance > 0) {
               const price = await this.getHistoricalPrice(asset, blockchain, date, currency);
               return {
                 asset,
                 balance,
-                price,
                 value: price != null ? balance * price : undefined,
               };
             }
             return null;
           } catch (e) {
-            // Skip assets that fail to fetch
+            this.logger.warn(`Failed to fetch balance for asset ${asset.name} (${asset.uniqueName}):`, e);
             return null;
           }
         }),
@@ -165,17 +172,17 @@ export class BalancePdfService {
     asset: Asset,
     blockchain: Blockchain,
     date: Date,
-    currency: FiatCurrency,
+    currency: PriceCurrency,
   ): Promise<number | undefined> {
     // First, check local database for historical price
     const localPrice = await this.assetPricesService.getAssetPriceForDate(asset.id, date);
     if (localPrice) {
       switch (currency) {
-        case FiatCurrency.CHF:
+        case PriceCurrency.CHF:
           return localPrice.priceChf;
-        case FiatCurrency.EUR:
+        case PriceCurrency.EUR:
           return localPrice.priceEur;
-        case FiatCurrency.USD:
+        case PriceCurrency.USD:
           return localPrice.priceUsd;
       }
     }
@@ -194,12 +201,7 @@ export class BalancePdfService {
 
     // For tokens, use contract address
     if (asset.chainId && platform) {
-      return this.coinGeckoService.getHistoricalPriceByContract(
-        platform,
-        asset.chainId,
-        date,
-        currencyLower,
-      );
+      return this.coinGeckoService.getHistoricalPriceByContract(platform, asset.chainId, date, currencyLower);
     }
 
     return undefined;
@@ -282,7 +284,10 @@ export class BalancePdfService {
     });
 
     // Horizontal line
-    pdf.moveTo(marginX, 170).lineTo(width - marginX, 170).stroke('#072440');
+    pdf
+      .moveTo(marginX, 170)
+      .lineTo(width - marginX, 170)
+      .stroke('#072440');
 
     pdf.y = 190;
   }
@@ -290,7 +295,7 @@ export class BalancePdfService {
   private drawTable(
     pdf: InstanceType<typeof PDFDocument>,
     balances: BalanceEntry[],
-    currency: FiatCurrency,
+    currency: PriceCurrency,
     language: PdfLanguage,
   ): void {
     const marginX = 50;
@@ -309,10 +314,17 @@ export class BalancePdfService {
     pdf.text(this.translate('balance.table.headers.asset', language), marginX, y);
     pdf.text(this.translate('balance.table.headers.balance', language), marginX + col1Width, y);
     pdf.text(this.translate('balance.table.headers.price', language, { currency }), marginX + col1Width + col2Width, y);
-    pdf.text(this.translate('balance.table.headers.value', language, { currency }), marginX + col1Width + col2Width + col3Width, y);
+    pdf.text(
+      this.translate('balance.table.headers.value', language, { currency }),
+      marginX + col1Width + col2Width + col3Width,
+      y,
+    );
 
     y += 20;
-    pdf.moveTo(marginX, y).lineTo(width - marginX, y).stroke('#CCCCCC');
+    pdf
+      .moveTo(marginX, y)
+      .lineTo(width - marginX, y)
+      .stroke('#CCCCCC');
     y += 10;
 
     // Table rows
@@ -330,7 +342,9 @@ export class BalancePdfService {
 
         pdf.text(entry.asset.name, marginX, y, { width: col1Width - 10 });
         pdf.text(this.formatNumber(entry.balance, 8), marginX + col1Width, y, { width: col2Width - 10 });
-        pdf.text(this.formatCurrency(entry.price, currency), marginX + col1Width + col2Width, y, { width: col3Width - 10 });
+        pdf.text(this.formatCurrency(entry.price, currency), marginX + col1Width + col2Width, y, {
+          width: col3Width - 10,
+        });
         pdf.text(this.formatCurrency(entry.value, currency), marginX + col1Width + col2Width + col3Width, y, {
           width: col4Width - 10,
         });
@@ -339,7 +353,10 @@ export class BalancePdfService {
       }
     }
 
-    pdf.moveTo(marginX, y).lineTo(width - marginX, y).stroke('#CCCCCC');
+    pdf
+      .moveTo(marginX, y)
+      .lineTo(width - marginX, y)
+      .stroke('#CCCCCC');
     pdf.y = y + 10;
   }
 
@@ -347,7 +364,7 @@ export class BalancePdfService {
     pdf: InstanceType<typeof PDFDocument>,
     totalValue: number,
     hasIncompleteData: boolean,
-    currency: FiatCurrency,
+    currency: PriceCurrency,
     language: PdfLanguage,
   ): void {
     const marginX = 50;
@@ -381,9 +398,9 @@ export class BalancePdfService {
     return value.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
   }
 
-  private formatCurrency(value: number | undefined, currency: FiatCurrency): string {
+  private formatCurrency(value: number | undefined, currency: PriceCurrency): string {
     if (value == null) return 'n/a';
-    const symbol = currency === FiatCurrency.CHF ? 'CHF' : currency === FiatCurrency.EUR ? '€' : '$';
+    const symbol = currency === PriceCurrency.CHF ? 'CHF' : currency === PriceCurrency.EUR ? '€' : '$';
     return `${symbol} ${value.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 }
