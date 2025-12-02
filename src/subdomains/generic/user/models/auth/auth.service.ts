@@ -23,6 +23,8 @@ import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -84,6 +86,7 @@ export class AuthService {
     private readonly geoLocationService: GeoLocationService,
     private readonly settingService: SettingService,
     private readonly recommendationService: RecommendationService,
+    private readonly kycAdminService: KycAdminService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE)
@@ -167,7 +170,7 @@ export class AuthService {
     // update ip Logs
     await this.ipLogService.updateUserIpLogs(user);
 
-    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode);
+    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, user.userData.id);
 
     await this.checkIpBlacklistFor(user.userData, userIp);
 
@@ -253,7 +256,7 @@ export class AuthService {
         wallet: await this.walletService.getDefault(),
       }));
 
-    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode);
+    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, userData.id);
 
     await this.checkIpBlacklistFor(userData, userIp);
 
@@ -382,13 +385,19 @@ export class AuthService {
 
   // --- HELPER METHODS --- //
 
-  private async confirmRecommendationCode(code: string): Promise<void> {
+  private async confirmRecommendationCode(code: string, userDataId: number): Promise<void> {
     const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(code);
-    if (recommendation)
+    if (recommendation && !recommendation.isConfirmed && !recommendation.isValid) {
       await this.recommendationService.updateRecommendationInternal(recommendation, {
         isConfirmed: true,
         confirmationDate: new Date(),
       });
+
+      const recommendationStep = await this.kycAdminService
+        .getKycSteps(userDataId)
+        .then((k) => k.find((s) => s.name === KycStepName.RECOMMENDATION && !s.isCompleted));
+      if (recommendationStep) await this.kycAdminService.updateKycStepInternal(recommendationStep.cancel());
+    }
   }
 
   private async checkIpBlacklistFor(userData: UserData, ip: string): Promise<void> {
