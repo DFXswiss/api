@@ -58,14 +58,16 @@ export class RecommendationService {
 
     const recommended = mailUser
       ? await this.userDataService.updateUserDataInternal(mailUser, { tradeApprovalDate: new Date() })
-      : await this.userDataService.createUserData({
+      : dto.recommendedMail
+      ? await this.userDataService.createUserData({
           mail: dto.recommendedMail,
           status: UserDataStatus.KYC_ONLY,
           kycType: KycType.DFX,
           language: userData.language,
           currency: userData.currency,
           tradeApprovalDate: new Date(),
-        });
+        })
+      : undefined;
 
     const entity = await this.createRecommendationInternal(
       RecommendationType.INVITATION,
@@ -262,7 +264,7 @@ export class RecommendationService {
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_link`,
-                params: { url: entity.loginUrl, urlText: Config.frontend.services },
+                params: { url: entity.loginUrl, urlText: entity.loginUrl },
               },
               { key: MailKey.SPACE, params: { value: '4' } },
               { key: MailKey.DFX_TEAM_CLOSING },
