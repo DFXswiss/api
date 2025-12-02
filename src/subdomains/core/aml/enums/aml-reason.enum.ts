@@ -65,6 +65,8 @@ export const RecheckAmlReasons = [
   AmlReason.BANK_RELEASE_PENDING,
 ];
 
+export const BlockAmlReasons = [AmlReason.MANUAL_CHECK, AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE];
+
 export const AmlReasonWithoutReason = [
   AmlReason.NA,
   AmlReason.MANUAL_CHECK,
