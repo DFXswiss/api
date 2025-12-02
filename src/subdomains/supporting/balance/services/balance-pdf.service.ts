@@ -12,7 +12,7 @@ import { FiatCurrency, GetBalancePdfDto } from '../dto/input/get-balance-pdf.dto
 interface BalanceEntry {
   asset: Asset;
   balance: number;
-  value: number;
+  value: number | undefined;
 }
 
 // Map blockchain to CoinGecko platform ID (only EVM chains supported)
@@ -57,9 +57,10 @@ export class BalancePdfService {
 
   async generateBalancePdf(dto: GetBalancePdfDto): Promise<Buffer> {
     const balances = await this.getBalancesForAddress(dto.address, dto.blockchain, dto.currency, dto.date);
-    const totalValue = balances.reduce((sum, b) => sum + b.value, 0);
+    const totalValue = balances.reduce((sum, b) => sum + (b.value ?? 0), 0);
+    const hasIncompleteData = balances.some((b) => b.value == null);
 
-    return this.createPdf(balances, totalValue, dto);
+    return this.createPdf(balances, totalValue, hasIncompleteData, dto);
   }
 
   private async getBalancesForAddress(
@@ -86,7 +87,7 @@ export class BalancePdfService {
         balances.push({
           asset: nativeCoin,
           balance,
-          value: balance * price,
+          value: price != null ? balance * price : undefined,
         });
       }
     }
@@ -107,7 +108,7 @@ export class BalancePdfService {
           balances.push({
             asset,
             balance,
-            value: balance * price,
+            value: price != null ? balance * price : undefined,
           });
         }
       } catch (e) {
@@ -116,7 +117,13 @@ export class BalancePdfService {
       }
     }
 
-    return balances.sort((a, b) => b.value - a.value);
+    // Sort by value (entries with undefined value go to the end)
+    return balances.sort((a, b) => {
+      if (a.value == null && b.value == null) return 0;
+      if (a.value == null) return 1;
+      if (b.value == null) return -1;
+      return b.value - a.value;
+    });
   }
 
   private async getHistoricalPrice(
@@ -124,7 +131,7 @@ export class BalancePdfService {
     blockchain: Blockchain,
     date: Date,
     currency: FiatCurrency,
-  ): Promise<number> {
+  ): Promise<number | undefined> {
     const currencyLower = currency.toLowerCase() as 'usd' | 'eur' | 'chf';
     const platform = COINGECKO_PLATFORMS[blockchain];
 
@@ -132,38 +139,29 @@ export class BalancePdfService {
     if (!asset.chainId) {
       const coinId = NATIVE_COIN_IDS[blockchain];
       if (coinId) {
-        const price = await this.coinGeckoService.getHistoricalPrice(coinId, date, currencyLower);
-        if (price) return price;
+        return this.coinGeckoService.getHistoricalPrice(coinId, date, currencyLower);
       }
     }
 
     // For tokens, use contract address
     if (asset.chainId && platform) {
-      const price = await this.coinGeckoService.getHistoricalPriceByContract(
+      return this.coinGeckoService.getHistoricalPriceByContract(
         platform,
         asset.chainId,
         date,
         currencyLower,
       );
-      if (price) return price;
     }
 
-    // Fallback to current price from asset
-    return this.getCurrentPriceForCurrency(asset, currency);
+    return undefined;
   }
 
-  private getCurrentPriceForCurrency(asset: Asset, currency: FiatCurrency): number {
-    switch (currency) {
-      case FiatCurrency.CHF:
-        return asset.approxPriceChf ?? 0;
-      case FiatCurrency.EUR:
-        return asset.approxPriceEur ?? 0;
-      case FiatCurrency.USD:
-        return asset.approxPriceUsd ?? 0;
-    }
-  }
-
-  private createPdf(balances: BalanceEntry[], totalValue: number, dto: GetBalancePdfDto): Promise<Buffer> {
+  private createPdf(
+    balances: BalanceEntry[],
+    totalValue: number,
+    hasIncompleteData: boolean,
+    dto: GetBalancePdfDto,
+  ): Promise<Buffer> {
     return new Promise<Buffer>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A4', margin: 50 });
@@ -174,7 +172,7 @@ export class BalancePdfService {
 
         this.drawHeader(pdf, dto);
         this.drawTable(pdf, balances, dto.currency);
-        this.drawFooter(pdf, totalValue, dto.currency);
+        this.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency);
 
         pdf.end();
       } catch (e) {
@@ -256,15 +254,26 @@ export class BalancePdfService {
     pdf.y = y + 10;
   }
 
-  private drawFooter(pdf: InstanceType<typeof PDFDocument>, totalValue: number, currency: FiatCurrency): void {
+  private drawFooter(
+    pdf: InstanceType<typeof PDFDocument>,
+    totalValue: number,
+    hasIncompleteData: boolean,
+    currency: FiatCurrency,
+  ): void {
     const marginX = 50;
     const { width } = pdf.page;
 
-    const y = pdf.y + 10;
+    let y = pdf.y + 10;
 
     pdf.fontSize(12).font('Helvetica-Bold').fillColor('#072440');
     pdf.text('Total Value:', marginX, y);
     pdf.text(this.formatCurrency(totalValue, currency), width - marginX - 150, y, { width: 150, align: 'right' });
+
+    if (hasIncompleteData) {
+      y += 20;
+      pdf.fontSize(9).font('Helvetica').fillColor('#707070');
+      pdf.text('* Some assets have no historical price data available (n/a)', marginX, y);
+    }
 
     pdf.fontSize(8).font('Helvetica').fillColor('#999999');
     pdf.text('Generated by DFX', marginX, pdf.page.height - 50);
@@ -275,7 +284,8 @@ export class BalancePdfService {
     return value.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
   }
 
-  private formatCurrency(value: number, currency: FiatCurrency): string {
+  private formatCurrency(value: number | undefined, currency: FiatCurrency): string {
+    if (value == null) return 'n/a';
     const symbol = currency === FiatCurrency.CHF ? 'CHF' : currency === FiatCurrency.EUR ? '€' : '$';
     return `${symbol} ${value.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
