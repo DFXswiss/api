@@ -113,29 +113,40 @@ export class BalancePdfService {
       }
     }
 
-    // Get token balances at historical block
+    // Get token balances at historical block (parallelized in batches)
     const tokenAssets = assets.filter((a) => a.chainId != null);
-    for (const asset of tokenAssets) {
-      try {
-        const rawBalance = await this.alchemyService.getTokenBalanceAtBlock(
-          chainId,
-          address,
-          asset.chainId,
-          blockNumber,
-        );
-        const balance = Number(rawBalance) / Math.pow(10, asset.decimals ?? 18);
-        if (balance > 0) {
-          const price = await this.getHistoricalPrice(asset, blockchain, date, currency);
-          balances.push({
-            asset,
-            balance,
-            value: price != null ? balance * price : undefined,
-          });
-        }
-      } catch (e) {
-        // Skip assets that fail to fetch
-        continue;
-      }
+    const BATCH_SIZE = 10;
+
+    for (let i = 0; i < tokenAssets.length; i += BATCH_SIZE) {
+      const batch = tokenAssets.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(
+        batch.map(async (asset) => {
+          try {
+            const rawBalance = await this.alchemyService.getTokenBalanceAtBlock(
+              chainId,
+              address,
+              asset.chainId,
+              blockNumber,
+            );
+            const balance = Number(rawBalance) / Math.pow(10, asset.decimals ?? 18);
+            if (balance > 0) {
+              const price = await this.getHistoricalPrice(asset, blockchain, date, currency);
+              return {
+                asset,
+                balance,
+                value: price != null ? balance * price : undefined,
+              };
+            }
+            return null;
+          } catch (e) {
+            // Skip assets that fail to fetch
+            return null;
+          }
+        }),
+      );
+
+      balances.push(...batchResults.filter((b): b is BalanceEntry => b !== null));
     }
 
     // Sort by value (entries with undefined value go to the end)

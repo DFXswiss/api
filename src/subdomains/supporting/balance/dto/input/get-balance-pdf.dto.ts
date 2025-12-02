@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsEthereumAddress, IsNotEmpty, IsOptional } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { IsPastDate } from 'src/shared/validators/is-past-date.validator';
 
 export enum FiatCurrency {
   CHF = 'CHF',
@@ -17,9 +18,9 @@ export enum PdfLanguage {
 }
 
 export class GetBalancePdfDto {
-  @ApiProperty({ description: 'Blockchain address' })
+  @ApiProperty({ description: 'Blockchain address (EVM)' })
   @IsNotEmpty()
-  @IsString()
+  @IsEthereumAddress()
   address: string;
 
   @ApiProperty({ description: 'Blockchain', enum: Blockchain })
@@ -32,8 +33,9 @@ export class GetBalancePdfDto {
   @IsEnum(FiatCurrency)
   currency: FiatCurrency;
 
-  @ApiProperty({ description: 'Date for the portfolio report' })
+  @ApiProperty({ description: 'Date for the portfolio report (must be in the past)' })
   @IsDate()
+  @IsPastDate()
   @Type(() => Date)
   date: Date;
 
