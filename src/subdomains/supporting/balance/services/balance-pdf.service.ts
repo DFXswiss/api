@@ -312,13 +312,16 @@ export class BalancePdfService {
 
     // Table header
     pdf.fontSize(11).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text(this.translate('balance.table.headers.asset', language), marginX, y);
-    pdf.text(this.translate('balance.table.headers.balance', language), marginX + col1Width, y);
-    pdf.text(this.translate('balance.table.headers.price', language, { currency }), marginX + col1Width + col2Width, y);
+    pdf.text(this.translate('balance.table.headers.asset', language), marginX, y, { width: col1Width - 10 });
+    pdf.text(this.translate('balance.table.headers.balance', language), marginX + col1Width, y, { width: col2Width - 10 });
+    pdf.text(this.translate('balance.table.headers.price', language, { currency }), marginX + col1Width + col2Width, y, {
+      width: col3Width - 10,
+    });
     pdf.text(
       this.translate('balance.table.headers.value', language, { currency }),
       marginX + col1Width + col2Width + col3Width,
       y,
+      { width: col4Width - 10, align: 'right' },
     );
 
     y += 20;
@@ -347,6 +350,7 @@ export class BalancePdfService {
           width: col3Width - 10,
         });
         pdf.text(this.formatCurrency(entry.value, currency), marginX + col1Width + col2Width + col3Width, y, {
+          align: 'right',
           width: col4Width - 10,
         });
 
