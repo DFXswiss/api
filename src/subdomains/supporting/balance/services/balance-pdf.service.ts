@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -27,6 +27,17 @@ const dfxLogoBall2 =
 const dfxLogoText =
   'M61.5031 0H124.245C170.646 0 208.267 36.5427 208.267 84.0393C208.267 131.536 169.767 170.018 122.288 170.018H61.5031V135.504H114.046C141.825 135.504 164.541 112.789 164.541 85.009C164.541 57.2293 141.825 34.5136 114.046 34.5136H61.5031V0ZM266.25 31.5686V76.4973H338.294V108.066H266.25V170H226.906V0H355.389V31.5686H266.25ZM495.76 170L454.71 110.975L414.396 170H369.216L432.12 83.5365L372.395 0H417.072L456.183 55.1283L494.557 0H537.061L477.803 82.082L541.191 170H495.778H495.76Z';
 
+// Supported EVM blockchains (must have Alchemy support and chainId mapping)
+const SUPPORTED_BLOCKCHAINS: Blockchain[] = [
+  Blockchain.ETHEREUM,
+  Blockchain.BINANCE_SMART_CHAIN,
+  Blockchain.POLYGON,
+  Blockchain.ARBITRUM,
+  Blockchain.OPTIMISM,
+  Blockchain.BASE,
+  Blockchain.GNOSIS,
+];
+
 // Map blockchain to CoinGecko platform ID (only EVM chains supported)
 const COINGECKO_PLATFORMS: Partial<Record<Blockchain, string>> = {
   [Blockchain.ETHEREUM]: 'ethereum',
@@ -36,7 +47,6 @@ const COINGECKO_PLATFORMS: Partial<Record<Blockchain, string>> = {
   [Blockchain.OPTIMISM]: 'optimistic-ethereum',
   [Blockchain.BASE]: 'base',
   [Blockchain.GNOSIS]: 'xdai',
-  [Blockchain.HAQQ]: 'haqq-network',
 };
 
 // Map native coins to CoinGecko IDs
@@ -48,15 +58,6 @@ const NATIVE_COIN_IDS: Partial<Record<Blockchain, string>> = {
   [Blockchain.OPTIMISM]: 'ethereum',
   [Blockchain.BASE]: 'ethereum',
   [Blockchain.GNOSIS]: 'xdai',
-  [Blockchain.HAQQ]: 'islamic-coin',
-  [Blockchain.BITCOIN]: 'bitcoin',
-  [Blockchain.LIGHTNING]: 'bitcoin',
-  [Blockchain.MONERO]: 'monero',
-  [Blockchain.LIQUID]: 'bitcoin',
-  [Blockchain.CARDANO]: 'cardano',
-  [Blockchain.ARWEAVE]: 'arweave',
-  [Blockchain.SOLANA]: 'solana',
-  [Blockchain.TRON]: 'tron',
 };
 
 @Injectable()
@@ -70,6 +71,12 @@ export class BalancePdfService {
   ) {}
 
   async generateBalancePdf(dto: GetBalancePdfDto): Promise<string> {
+    if (!SUPPORTED_BLOCKCHAINS.includes(dto.blockchain)) {
+      throw new BadRequestException(
+        `Blockchain ${dto.blockchain} is not supported. Supported blockchains: ${SUPPORTED_BLOCKCHAINS.join(', ')}`,
+      );
+    }
+
     const balances = await this.getBalancesForAddress(dto.address, dto.blockchain, dto.currency, dto.date);
     const totalValue = balances.reduce((sum, b) => sum + (b.value ?? 0), 0);
     const hasIncompleteData = balances.some((b) => b.value == null);
