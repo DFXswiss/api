@@ -1,5 +1,5 @@
 {
-  "title": "Vermögensübersicht",
+  "title": "Vermögensbericht",
   "date": "Datum",
   "blockchain": "Blockchain",
   "address": "Adresse",
@@ -7,6 +7,7 @@
     "headers": {
       "asset": "Vermögenswert",
       "balance": "Bestand",
+      "price": "Preis ({currency})",
       "value": "Wert ({currency})"
     },
     "no_assets": "Keine Vermögenswerte für diese Adresse gefunden."

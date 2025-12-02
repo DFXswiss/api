@@ -14,6 +14,7 @@ import { FiatCurrency, GetBalancePdfDto, PdfLanguage } from '../dto/input/get-ba
 interface BalanceEntry {
   asset: Asset;
   balance: number;
+  price: number | undefined;
   value: number | undefined;
 }
 
@@ -108,6 +109,7 @@ export class BalancePdfService {
         balances.push({
           asset: nativeCoin,
           balance,
+          price,
           value: price != null ? balance * price : undefined,
         });
       }
@@ -135,6 +137,7 @@ export class BalancePdfService {
               return {
                 asset,
                 balance,
+                price,
                 value: price != null ? balance * price : undefined,
               };
             }
@@ -261,27 +264,27 @@ export class BalancePdfService {
     const { width } = pdf.page;
     const marginX = 50;
 
-    // Title
+    // Title (with space after logo)
     pdf.fontSize(20).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text(this.translate('balance.title', language), marginX, 60);
+    pdf.text(this.translate('balance.title', language), marginX, 75);
 
     // Date
     pdf.fontSize(11).font('Helvetica').fillColor('#707070');
     const dateStr = Util.isoDate(dto.date);
-    pdf.text(`${this.translate('balance.date', language)}: ${dateStr}`, marginX, 90);
+    pdf.text(`${this.translate('balance.date', language)}: ${dateStr}`, marginX, 105);
 
     // Blockchain
-    pdf.text(`${this.translate('balance.blockchain', language)}: ${dto.blockchain}`, marginX, 108);
+    pdf.text(`${this.translate('balance.blockchain', language)}: ${dto.blockchain}`, marginX, 123);
 
     // Address
-    pdf.text(`${this.translate('balance.address', language)}: ${dto.address}`, marginX, 126, {
+    pdf.text(`${this.translate('balance.address', language)}: ${dto.address}`, marginX, 141, {
       width: width - marginX * 2,
     });
 
     // Horizontal line
-    pdf.moveTo(marginX, 155).lineTo(width - marginX, 155).stroke('#072440');
+    pdf.moveTo(marginX, 170).lineTo(width - marginX, 170).stroke('#072440');
 
-    pdf.y = 175;
+    pdf.y = 190;
   }
 
   private drawTable(
@@ -294,9 +297,10 @@ export class BalancePdfService {
     const { width } = pdf.page;
     const tableWidth = width - marginX * 2;
 
-    const col1Width = tableWidth * 0.4;
-    const col2Width = tableWidth * 0.3;
-    const col3Width = tableWidth * 0.3;
+    const col1Width = tableWidth * 0.3;
+    const col2Width = tableWidth * 0.2;
+    const col3Width = tableWidth * 0.25;
+    const col4Width = tableWidth * 0.25;
 
     let y = pdf.y + 10;
 
@@ -304,7 +308,8 @@ export class BalancePdfService {
     pdf.fontSize(11).font('Helvetica-Bold').fillColor('#072440');
     pdf.text(this.translate('balance.table.headers.asset', language), marginX, y);
     pdf.text(this.translate('balance.table.headers.balance', language), marginX + col1Width, y);
-    pdf.text(this.translate('balance.table.headers.value', language, { currency }), marginX + col1Width + col2Width, y);
+    pdf.text(this.translate('balance.table.headers.price', language, { currency }), marginX + col1Width + col2Width, y);
+    pdf.text(this.translate('balance.table.headers.value', language, { currency }), marginX + col1Width + col2Width + col3Width, y);
 
     y += 20;
     pdf.moveTo(marginX, y).lineTo(width - marginX, y).stroke('#CCCCCC');
@@ -325,8 +330,9 @@ export class BalancePdfService {
 
         pdf.text(entry.asset.name, marginX, y, { width: col1Width - 10 });
         pdf.text(this.formatNumber(entry.balance, 8), marginX + col1Width, y, { width: col2Width - 10 });
-        pdf.text(this.formatCurrency(entry.value, currency), marginX + col1Width + col2Width, y, {
-          width: col3Width - 10,
+        pdf.text(this.formatCurrency(entry.price, currency), marginX + col1Width + col2Width, y, { width: col3Width - 10 });
+        pdf.text(this.formatCurrency(entry.value, currency), marginX + col1Width + col2Width + col3Width, y, {
+          width: col4Width - 10,
         });
 
         y += 25;
