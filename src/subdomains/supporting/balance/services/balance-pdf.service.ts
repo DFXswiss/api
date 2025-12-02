@@ -357,11 +357,14 @@ export class BalancePdfService {
       y += 25;
       pdf.fontSize(9).font('Helvetica').fillColor('#707070');
       pdf.text(this.translate('balance.incomplete_data', language), marginX, y);
+      y += 15;
+    } else {
+      y += 25;
     }
 
+    y += 20;
     pdf.fontSize(8).font('Helvetica').fillColor('#999999');
-    pdf.text(this.translate('balance.generated_by', language), marginX, pdf.page.height - 50);
-    pdf.text(new Date().toISOString(), marginX, pdf.page.height - 40);
+    pdf.text(`${this.translate('balance.generated_by', language)} - ${new Date().toISOString()}`, marginX, y);
   }
 
   private translate(key: string, language: PdfLanguage, args?: any): string {
