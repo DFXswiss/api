@@ -145,6 +145,7 @@ export class BalancePdfService {
               return {
                 asset,
                 balance,
+                price,
                 value: price != null ? balance * price : undefined,
               };
             }
