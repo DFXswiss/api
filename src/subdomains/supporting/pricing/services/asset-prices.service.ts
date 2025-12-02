@@ -8,7 +8,7 @@ import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { In, MoreThanOrEqual } from 'typeorm';
+import { Between, In, MoreThanOrEqual } from 'typeorm';
 import { AssetPrice } from '../domain/entities/asset-price.entity';
 import { PriceInvalidException } from '../domain/exceptions/price-invalid.exception';
 import { AssetPriceRepository } from '../repositories/asset-price.repository';
@@ -83,9 +83,8 @@ export class AssetPricesService {
     return this.assetPriceRepo.findOne({
       where: {
         asset: { id: assetId },
-        created: MoreThanOrEqual(startOfDay),
+        created: Between(startOfDay, endOfDay),
       },
-      order: { created: 'ASC' },
     });
   }
 
