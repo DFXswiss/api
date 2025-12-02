@@ -7,6 +7,7 @@
     "headers": {
       "asset": "Actif",
       "balance": "Solde",
+      "price": "Prix ({currency})",
       "value": "Valeur ({currency})"
     },
     "no_assets": "Aucun actif trouvé pour cette adresse."
