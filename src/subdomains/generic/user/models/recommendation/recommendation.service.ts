@@ -175,6 +175,7 @@ export class RecommendationService {
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
     if (entity.isConfirmed !== null) throw new BadRequestException('Recommendation is already confirmed');
     if (entity.isExpired) throw new BadRequestException('Recommendation is expired');
+    if (!entity.isUsed) throw new BadRequestException('Recommendation is not used');
 
     if (entity.recommended.isBlocked || entity.recommended.hasAnyRiskStatus) {
       await this.updateRecommendationInternal(entity, { isConfirmed: false });
@@ -190,8 +191,10 @@ export class RecommendationService {
   async updateRecommendationInternal(entity: Recommendation, update: Partial<Recommendation>): Promise<Recommendation> {
     Object.assign(entity, update);
 
-    if (update.isConfirmed)
-      await this.userDataService.updateUserDataInternal(entity.recommended, { tradeApprovalDate: new Date() });
+    if (update.isConfirmed && entity.recommended)
+      await this.userDataService.updateUserDataInternal(update.recommended ?? entity.recommended, {
+        tradeApprovalDate: new Date(),
+      });
 
     return this.recommendationRepo.save(entity);
   }

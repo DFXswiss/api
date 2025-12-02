@@ -170,7 +170,7 @@ export class AuthService {
     // update ip Logs
     await this.ipLogService.updateUserIpLogs(user);
 
-    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, user.userData.id);
+    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, user.userData);
 
     await this.checkIpBlacklistFor(user.userData, userIp);
 
@@ -256,7 +256,7 @@ export class AuthService {
         wallet: await this.walletService.getDefault(),
       }));
 
-    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, userData.id);
+    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, userData);
 
     await this.checkIpBlacklistFor(userData, userIp);
 
@@ -385,16 +385,17 @@ export class AuthService {
 
   // --- HELPER METHODS --- //
 
-  private async confirmRecommendationCode(code: string, userDataId: number): Promise<void> {
+  private async confirmRecommendationCode(code: string, userData: UserData): Promise<void> {
     const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(code);
-    if (recommendation && !recommendation.isConfirmed && !recommendation.isValid) {
+    if (recommendation) {
       await this.recommendationService.updateRecommendationInternal(recommendation, {
         isConfirmed: true,
         confirmationDate: new Date(),
+        recommended: userData,
       });
 
       const recommendationStep = await this.kycAdminService
-        .getKycSteps(userDataId)
+        .getKycSteps(userData.id)
         .then((k) => k.find((s) => s.name === KycStepName.RECOMMENDATION && !s.isCompleted));
       if (recommendationStep) await this.kycAdminService.updateKycStepInternal(recommendationStep.cancel());
     }
