@@ -53,7 +53,6 @@ export const KycAmlReasons = [
 export const RecheckAmlReasons = [
   AmlReason.MANUAL_CHECK_PHONE,
   AmlReason.MANUAL_CHECK_IP_PHONE,
-  AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
   AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.VIDEO_IDENT_NEEDED,
   AmlReason.MONTHLY_LIMIT,
