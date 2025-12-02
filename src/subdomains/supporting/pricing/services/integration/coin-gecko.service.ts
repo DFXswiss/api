@@ -120,11 +120,20 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
   ): Promise<number | undefined> {
     try {
       const dateStr = this.formatDateForCoinGecko(date);
-      const data = await this.client.contractHistory({
-        id: platform,
-        contract_address: contractAddress,
-        date: dateStr,
-      });
+      const apiKey = GetConfig().coinGecko.apiKey;
+      const baseUrl = apiKey ? 'https://pro-api.coingecko.com/api/v3' : 'https://api.coingecko.com/api/v3';
+      const historyUrl = `${baseUrl}/coins/${platform}/contract/${contractAddress.toLowerCase()}/history?date=${dateStr}`;
+
+      const headers: Record<string, string> = { accept: 'application/json' };
+      if (apiKey) headers['x-cg-pro-api-key'] = apiKey;
+
+      const response = await fetch(historyUrl, { headers });
+      if (!response.ok) {
+        this.logger.info(`No historical price for contract ${contractAddress} on ${dateStr}: ${response.status}`);
+        return undefined;
+      }
+
+      const data = await response.json();
       return data.market_data?.current_price?.[currency];
     } catch (e) {
       this.logger.error(`Failed to get historical price for contract ${contractAddress} on ${date}:`, e);
