@@ -6,6 +6,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { CoinGeckoService } from '../../pricing/services/integration/coin-gecko.service';
 import { FiatCurrency, GetBalancePdfDto } from '../dto/input/get-balance-pdf.dto';
 
@@ -52,6 +53,7 @@ export class BalancePdfService {
   constructor(
     private readonly alchemyService: AlchemyService,
     private readonly assetService: AssetService,
+    private readonly assetPricesService: AssetPricesService,
     private readonly coinGeckoService: CoinGeckoService,
   ) {}
 
@@ -132,6 +134,20 @@ export class BalancePdfService {
     date: Date,
     currency: FiatCurrency,
   ): Promise<number | undefined> {
+    // First, check local database for historical price
+    const localPrice = await this.assetPricesService.getAssetPriceForDate(asset.id, date);
+    if (localPrice) {
+      switch (currency) {
+        case FiatCurrency.CHF:
+          return localPrice.priceChf;
+        case FiatCurrency.EUR:
+          return localPrice.priceEur;
+        case FiatCurrency.USD:
+          return localPrice.priceUsd;
+      }
+    }
+
+    // Fallback to CoinGecko for historical price
     const currencyLower = currency.toLowerCase() as 'usd' | 'eur' | 'chf';
     const platform = COINGECKO_PLATFORMS[blockchain];
 

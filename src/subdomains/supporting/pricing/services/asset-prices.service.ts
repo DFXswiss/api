@@ -73,6 +73,22 @@ export class AssetPricesService {
     });
   }
 
+  async getAssetPriceForDate(assetId: number, date: Date): Promise<AssetPrice | null> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return this.assetPriceRepo.findOne({
+      where: {
+        asset: { id: assetId },
+        created: MoreThanOrEqual(startOfDay),
+      },
+      order: { created: 'ASC' },
+    });
+  }
+
   async saveAssetPrices(asset: Asset): Promise<void> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
