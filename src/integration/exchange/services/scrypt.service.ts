@@ -1,11 +1,10 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { ScryptTransactionStatus } from 'src/subdomains/core/liquidity-management/adapters/actions/scrypt.adapter';
 import WebSocket from 'ws';
-import { ExchangeRegistryService } from './exchange-registry.service';
 
 interface ScryptBalance {
   Currency: string;
@@ -65,19 +64,13 @@ export enum ScryptMessageType {
 }
 
 @Injectable()
-export class ScryptService implements OnModuleInit {
+export class ScryptService {
   private readonly logger = new DfxLogger(ScryptService);
 
   private ws: WebSocket = undefined;
   private messageHandlers: Map<string, (message: ScryptMessage) => void> = new Map();
 
   readonly name: string = 'Scrypt';
-
-  constructor(private readonly registry: ExchangeRegistryService) {}
-
-  onModuleInit() {
-    this.registry.addBalanceProvider(this.name, this);
-  }
 
   async getTotalBalances(): Promise<Record<string, number>> {
     const balances = await this.fetchBalances();
