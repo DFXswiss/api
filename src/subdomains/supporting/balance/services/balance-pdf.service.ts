@@ -121,29 +121,40 @@ export class BalancePdfService {
       }
     }
 
-    // Get token balances at historical block
+    // Get token balances at historical block (parallelized in batches)
     const tokenAssets = assets.filter((a) => a.chainId != null);
-    for (const asset of tokenAssets) {
-      try {
-        const rawBalance = await this.alchemyService.getTokenBalanceAtBlock(
-          chainId,
-          address,
-          asset.chainId,
-          blockNumber,
-        );
-        const balance = EvmUtil.fromWeiAmount(rawBalance, asset.decimals ?? 18);
-        if (balance > 0) {
-          const price = await this.getHistoricalPrice(asset, blockchain, date, currency);
-          balances.push({
-            asset,
-            balance,
-            value: price != null ? balance * price : undefined,
-          });
-        }
-      } catch (e) {
-        this.logger.warn(`Failed to fetch balance for asset ${asset.name} (${asset.uniqueName}):`, e);
-        continue;
-      }
+    const BATCH_SIZE = 10;
+
+    for (let i = 0; i < tokenAssets.length; i += BATCH_SIZE) {
+      const batch = tokenAssets.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(
+        batch.map(async (asset) => {
+          try {
+            const rawBalance = await this.alchemyService.getTokenBalanceAtBlock(
+              chainId,
+              address,
+              asset.chainId,
+              blockNumber,
+            );
+            const balance = EvmUtil.fromWeiAmount(rawBalance, asset.decimals ?? 18);
+            if (balance > 0) {
+              const price = await this.getHistoricalPrice(asset, blockchain, date, currency);
+              return {
+                asset,
+                balance,
+                value: price != null ? balance * price : undefined,
+              };
+            }
+            return null;
+          } catch (e) {
+            this.logger.warn(`Failed to fetch balance for asset ${asset.name} (${asset.uniqueName}):`, e);
+            return null;
+          }
+        }),
+      );
+
+      balances.push(...batchResults.filter((b): b is BalanceEntry => b !== null));
     }
 
     // Sort by value (entries with undefined value go to the end)
@@ -354,11 +365,14 @@ export class BalancePdfService {
       y += 25;
       pdf.fontSize(9).font('Helvetica').fillColor('#707070');
       pdf.text(this.translate('balance.incomplete_data', language), marginX, y);
+      y += 15;
+    } else {
+      y += 25;
     }
 
+    y += 20;
     pdf.fontSize(8).font('Helvetica').fillColor('#999999');
-    pdf.text(this.translate('balance.generated_by', language), marginX, pdf.page.height - 50);
-    pdf.text(new Date().toISOString(), marginX, pdf.page.height - 40);
+    pdf.text(`${this.translate('balance.generated_by', language)} - ${new Date().toISOString()}`, marginX, y);
   }
 
   private translate(key: string, language: PdfLanguage, args?: any): string {
