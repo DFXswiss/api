@@ -1,4 +1,5 @@
 {
   "title": "Rapporto saldo DFX Safe",
-  "type": "Tipo di conto"
+  "type": "Tipo di conto",
+  "name": "Nome"
 }

@@ -1,9 +1,32 @@
 import { Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { CoinGeckoClient } from 'coingecko-api-v3';
 import { GetConfig } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Price } from '../../domain/entities/price';
 import { PricingProvider } from './pricing-provider';
+
+// Map blockchain to CoinGecko platform ID
+export const COINGECKO_PLATFORMS: Partial<Record<Blockchain, string>> = {
+  [Blockchain.ETHEREUM]: 'ethereum',
+  [Blockchain.BINANCE_SMART_CHAIN]: 'binance-smart-chain',
+  [Blockchain.POLYGON]: 'polygon-pos',
+  [Blockchain.ARBITRUM]: 'arbitrum-one',
+  [Blockchain.OPTIMISM]: 'optimistic-ethereum',
+  [Blockchain.BASE]: 'base',
+  [Blockchain.GNOSIS]: 'xdai',
+};
+
+// Map native coins to CoinGecko IDs
+export const NATIVE_COIN_IDS: Partial<Record<Blockchain, string>> = {
+  [Blockchain.ETHEREUM]: 'ethereum',
+  [Blockchain.BINANCE_SMART_CHAIN]: 'binancecoin',
+  [Blockchain.POLYGON]: 'matic-network',
+  [Blockchain.ARBITRUM]: 'ethereum',
+  [Blockchain.OPTIMISM]: 'ethereum',
+  [Blockchain.BASE]: 'ethereum',
+  [Blockchain.GNOSIS]: 'xdai',
+};
 
 @Injectable()
 export class CoinGeckoService extends PricingProvider implements OnModuleInit {
@@ -95,6 +118,31 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
 
   private getCurrency(token: string): string | undefined {
     return this.currencies.find((c) => c === token.toLowerCase());
+  }
+
+  async getHistoricalPriceForAsset(
+    blockchain: Blockchain,
+    chainId: string | undefined,
+    date: Date,
+    currency: 'usd' | 'eur' | 'chf',
+  ): Promise<number | undefined> {
+    const platform = COINGECKO_PLATFORMS[blockchain];
+
+    // For native coins, use coin ID
+    if (!chainId) {
+      const coinId = NATIVE_COIN_IDS[blockchain];
+      if (coinId) {
+        return this.getHistoricalPrice(coinId, date, currency);
+      }
+      return undefined;
+    }
+
+    // For tokens, use contract address
+    if (platform) {
+      return this.getHistoricalPriceByContract(platform, chainId, date, currency);
+    }
+
+    return undefined;
   }
 
   async getHistoricalPrice(
