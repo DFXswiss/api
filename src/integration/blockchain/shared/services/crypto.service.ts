@@ -1,6 +1,7 @@
 import verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
 import { MainNet } from '@defichain/jellyfish-network';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Verifier } from 'bip322-js';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
@@ -258,7 +259,7 @@ export class CryptoService {
   private verifyBitcoinBased(message: string, address: string, signature: string, prefix: string | null): boolean {
     let isValid = false;
     try {
-      isValid = verify(message, address, signature, prefix, true);
+      isValid = Verifier.verifySignature(address, message, signature, true);
     } catch {}
 
     if (!isValid) isValid = verify(message, address, signature, prefix);
