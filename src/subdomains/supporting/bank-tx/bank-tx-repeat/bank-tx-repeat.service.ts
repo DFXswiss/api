@@ -41,6 +41,11 @@ export class BankTxRepeatService {
 
     const update = this.bankTxRepeatRepo.create(dto);
 
+    if (dto.userId) {
+      update.user = await this.userService.getUser(dto.userId);
+      if(!update.user) throw new NotFoundException('User not found')
+    }
+
     // chargeback bank tx
     if (dto.chargebackBankTxId && !entity.chargebackBankTx) {
       update.chargebackBankTx = await this.bankTxRepo.findOneBy({ id: dto.chargebackBankTxId });
