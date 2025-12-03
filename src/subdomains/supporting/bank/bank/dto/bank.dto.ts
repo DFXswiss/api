@@ -20,6 +20,7 @@ export enum IbanBankName {
   MAERKI = 'Maerki Baumann',
   REVOLUT = 'Revolut',
   KALEIDO = 'Kaleido',
+  RAIFFEISEN = 'Raiffeisen',
 }
 
 export enum CardBankName {
