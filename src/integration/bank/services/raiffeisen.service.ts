@@ -5,8 +5,8 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
-import { CamtParserService, CamtTransaction } from './camt-parser.service';
 import { EbicsKeyEncryptor } from './ebics-key-encryptor';
+import { CamtTransaction, Iso20022Service, Pain001Payment } from './iso20022.service';
 
 enum CamtOrderType {
   C52 = 'C52',
@@ -107,12 +107,23 @@ export class RaiffeisenService {
 
       if (!result.orderData) return [];
 
-      const transactions = CamtParserService.parseCamtXml(result.orderData.toString(), accountIban);
+      const transactions = Iso20022Service.parseCamtXml(result.orderData.toString(), accountIban);
       return transactions.map((t) => this.parseTransaction(t, accountIban));
     } catch (e) {
       this.logger.error(`Failed to get Raiffeisen ${orderType} transactions:`, e);
       return [];
     }
+  }
+
+  // --- PAYMENT INITIATION --- //
+
+  async sendPayment(payment: Pain001Payment): Promise<EbicsDownloadResult> {
+    if (!this.client) throw new Error('Raiffeisen EBICS client not initialized');
+
+    const pain001Xml = Iso20022Service.createPain001Xml(payment);
+
+    const order = payment.currency === 'EUR' ? Orders.CCT(pain001Xml) : Orders.XE3(pain001Xml);
+    return this.client.send(order);
   }
 
   // --- EBICS ORDERS --- //
