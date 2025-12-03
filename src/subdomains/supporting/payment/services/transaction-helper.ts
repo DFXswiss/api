@@ -823,6 +823,9 @@ export class TransactionHelper implements OnModuleInit {
     )
       return;
 
+    if (!DisabledProcess(Process.TRADE_APPROVAL_DATE) && user?.userData && !user.userData.tradeApprovalDate)
+      return QuoteError.TRADING_NOT_ALLOWED;
+
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
     if (
