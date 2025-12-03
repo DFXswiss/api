@@ -1,4 +1,5 @@
 {
   "title": "DFX Safe Balance Report",
-  "type": "Account Type"
+  "type": "Account Type",
+  "name": "Name"
 }
