@@ -947,6 +947,7 @@ export class Configuration {
         partnerId: process.env.RAIFFEISEN_PARTNER_ID,
         userId: process.env.RAIFFEISEN_USER_ID,
         passphrase: process.env.RAIFFEISEN_PASSPHRASE,
+        iv: process.env.RAIFFEISEN_IV,
       },
     },
     forexFee: 0.02,
