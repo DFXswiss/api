@@ -77,6 +77,8 @@ export class HistoryController {
     @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
     @Param('exportType') exportType: string,
   ): Promise<CoinTrackingApiHistoryDto[] | ChainReportApiHistoryDto[]> {
+    if (!key || !sign || !timestamp) throw new BadRequestException('Missing header');
+
     const user = key.endsWith('0')
       ? await this.userService.checkApiKey(key, sign, timestamp)
       : await this.userDataService.checkApiKey(key, sign, timestamp);
