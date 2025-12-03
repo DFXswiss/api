@@ -1,11 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from 'src/shared/utils/dfx-logo';
 import { Util } from 'src/shared/utils/util';
+import { BalanceEntry, COINGECKO_PLATFORMS, NATIVE_COIN_IDS, PdfUtil } from 'src/shared/utils/pdf.util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
@@ -14,35 +13,6 @@ import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricin
 import { In } from 'typeorm';
 import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
-
-// Map blockchain to CoinGecko platform ID
-const COINGECKO_PLATFORMS: Partial<Record<Blockchain, string>> = {
-  [Blockchain.ETHEREUM]: 'ethereum',
-  [Blockchain.BINANCE_SMART_CHAIN]: 'binance-smart-chain',
-  [Blockchain.POLYGON]: 'polygon-pos',
-  [Blockchain.ARBITRUM]: 'arbitrum-one',
-  [Blockchain.OPTIMISM]: 'optimistic-ethereum',
-  [Blockchain.BASE]: 'base',
-  [Blockchain.GNOSIS]: 'xdai',
-};
-
-// Map native coins to CoinGecko IDs
-const NATIVE_COIN_IDS: Partial<Record<Blockchain, string>> = {
-  [Blockchain.ETHEREUM]: 'ethereum',
-  [Blockchain.BINANCE_SMART_CHAIN]: 'binancecoin',
-  [Blockchain.POLYGON]: 'matic-network',
-  [Blockchain.ARBITRUM]: 'ethereum',
-  [Blockchain.OPTIMISM]: 'ethereum',
-  [Blockchain.BASE]: 'ethereum',
-  [Blockchain.GNOSIS]: 'xdai',
-};
-
-interface BalanceEntry {
-  asset: Asset;
-  balance: number;
-  price: number | undefined;
-  value: number | undefined;
-}
 
 @Injectable()
 export class CustodyPdfService {
@@ -101,13 +71,7 @@ export class CustodyPdfService {
       });
     }
 
-    // Sort by value (entries with undefined value go to the end)
-    return balances.sort((a, b) => {
-      if (a.value == null && b.value == null) return 0;
-      if (a.value == null) return 1;
-      if (b.value == null) return -1;
-      return b.value - a.value;
-    });
+    return PdfUtil.sortBalancesByValue(balances);
   }
 
   private async getHistoricalPrice(asset: Asset, date: Date, currency: PriceCurrency): Promise<number | undefined> {
@@ -176,39 +140,16 @@ export class CustodyPdfService {
           resolve(base64PDF);
         });
 
-        this.drawLogo(pdf);
+        PdfUtil.drawLogo(pdf);
         this.drawHeader(pdf, dto, language, verifiedName);
-        this.drawTable(pdf, balances, dto.currency, language);
-        this.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language);
+        PdfUtil.drawTable(pdf, balances, dto.currency, language, this.i18n);
+        PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);
 
         pdf.end();
       } catch (e) {
         reject(e);
       }
     });
-  }
-
-  private drawLogo(pdf: InstanceType<typeof PDFDocument>): void {
-    pdf.save();
-    pdf.translate(50, 30);
-    pdf.scale(0.12);
-
-    const gradient1 = pdf.linearGradient(122.111, 64.6777, 45.9618, 103.949);
-    gradient1
-      .stop(0.04, '#F5516C')
-      .stop(0.14, '#C74863')
-      .stop(0.31, '#853B57')
-      .stop(0.44, '#55324E')
-      .stop(0.55, '#382D49')
-      .stop(0.61, '#2D2B47');
-
-    const gradient2 = pdf.linearGradient(75.8868, 50.7468, 15.2815, 122.952);
-    gradient2.stop(0.2, '#F5516C').stop(1, '#6B3753');
-
-    pdf.path(dfxLogoBall1).fill(gradient1);
-    pdf.path(dfxLogoBall2).fill(gradient2);
-    pdf.path(dfxLogoText).fill('#072440');
-    pdf.restore();
   }
 
   private drawHeader(
@@ -221,16 +162,16 @@ export class CustodyPdfService {
     const marginX = 50;
 
     pdf.fontSize(20).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text(this.translate('custody.title', language), marginX, 75);
+    pdf.text(PdfUtil.translate('custody.title', language, this.i18n), marginX, 75);
 
     pdf.fontSize(11).font('Helvetica').fillColor('#707070');
     const dateStr = Util.isoDate(dto.date);
-    pdf.text(`${this.translate('balance.date', language)}: ${dateStr}`, marginX, 105);
+    pdf.text(`${PdfUtil.translate('balance.date', language, this.i18n)}: ${dateStr}`, marginX, 105);
 
-    pdf.text(`${this.translate('custody.type', language)}: DFX Safe`, marginX, 123);
+    pdf.text(`${PdfUtil.translate('custody.type', language, this.i18n)}: DFX Safe`, marginX, 123);
 
     if (verifiedName) {
-      pdf.text(`${this.translate('custody.name', language)}: ${verifiedName}`, marginX, 141);
+      pdf.text(`${PdfUtil.translate('custody.name', language, this.i18n)}: ${verifiedName}`, marginX, 141);
     }
 
     const lineY = verifiedName ? 173 : 155;
@@ -240,119 +181,5 @@ export class CustodyPdfService {
       .stroke('#072440');
 
     pdf.y = lineY + 20;
-  }
-
-  private drawTable(
-    pdf: InstanceType<typeof PDFDocument>,
-    balances: BalanceEntry[],
-    currency: PriceCurrency,
-    language: PdfLanguage,
-  ): void {
-    const marginX = 50;
-    const { width } = pdf.page;
-    const tableWidth = width - marginX * 2;
-
-    const col1Width = tableWidth * 0.3;
-    const col2Width = tableWidth * 0.2;
-    const col3Width = tableWidth * 0.25;
-    const col4Width = tableWidth * 0.25;
-
-    let y = pdf.y + 10;
-
-    pdf.fontSize(11).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text(this.translate('balance.table.headers.asset', language), marginX, y, { width: col1Width - 10 });
-    pdf.text(this.translate('balance.table.headers.balance', language), marginX + col1Width, y, { width: col2Width - 10 });
-    pdf.text(this.translate('balance.table.headers.price', language, { currency }), marginX + col1Width + col2Width, y, {
-      width: col3Width - 10,
-    });
-    pdf.text(
-      this.translate('balance.table.headers.value', language, { currency }),
-      marginX + col1Width + col2Width + col3Width,
-      y,
-      { width: col4Width - 10, align: 'right' },
-    );
-
-    y += 20;
-    pdf
-      .moveTo(marginX, y)
-      .lineTo(width - marginX, y)
-      .stroke('#CCCCCC');
-    y += 10;
-
-    pdf.fontSize(10).font('Helvetica').fillColor('#333333');
-
-    if (balances.length === 0) {
-      pdf.text(this.translate('balance.table.no_assets', language), marginX, y);
-      y += 20;
-    } else {
-      for (const entry of balances) {
-        if (y > pdf.page.height - 100) {
-          pdf.addPage();
-          y = 50;
-        }
-
-        pdf.text(entry.asset.name, marginX, y, { width: col1Width - 10 });
-        pdf.text(this.formatNumber(entry.balance, 8), marginX + col1Width, y, { width: col2Width - 10 });
-        pdf.text(this.formatCurrency(entry.price, currency), marginX + col1Width + col2Width, y, {
-          width: col3Width - 10,
-        });
-        pdf.text(this.formatCurrency(entry.value, currency), marginX + col1Width + col2Width + col3Width, y, {
-          align: 'right',
-          width: col4Width - 10,
-        });
-
-        y += 25;
-      }
-    }
-
-    pdf
-      .moveTo(marginX, y)
-      .lineTo(width - marginX, y)
-      .stroke('#CCCCCC');
-    pdf.y = y + 10;
-  }
-
-  private drawFooter(
-    pdf: InstanceType<typeof PDFDocument>,
-    totalValue: number,
-    hasIncompleteData: boolean,
-    currency: PriceCurrency,
-    language: PdfLanguage,
-  ): void {
-    const marginX = 50;
-    const { width } = pdf.page;
-
-    let y = pdf.y + 10;
-
-    pdf.fontSize(12).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text(`${this.translate('balance.total_value', language)}:`, marginX, y);
-    pdf.text(this.formatCurrency(totalValue, currency), width - marginX - 150, y, { width: 150, align: 'right' });
-
-    if (hasIncompleteData) {
-      y += 25;
-      pdf.fontSize(9).font('Helvetica').fillColor('#707070');
-      pdf.text(this.translate('balance.incomplete_data', language), marginX, y);
-      y += 15;
-    } else {
-      y += 25;
-    }
-
-    y += 20;
-    pdf.fontSize(8).font('Helvetica').fillColor('#999999');
-    pdf.text(`${this.translate('balance.generated_by', language)} - ${new Date().toISOString()}`, marginX, y);
-  }
-
-  private translate(key: string, language: PdfLanguage, args?: any): string {
-    return this.i18n.translate(key, { lang: language.toLowerCase(), args });
-  }
-
-  private formatNumber(value: number, decimals: number): string {
-    return value.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
-  }
-
-  private formatCurrency(value: number | undefined, currency: PriceCurrency): string {
-    if (value == null) return 'n/a';
-    const symbol = currency === PriceCurrency.CHF ? 'CHF' : currency === PriceCurrency.EUR ? '€' : '$';
-    return `${symbol} ${value.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 }

@@ -1,0 +1,188 @@
+import PDFDocument from 'pdfkit';
+import { I18nService } from 'nestjs-i18n';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from './dfx-logo';
+import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
+import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
+
+// Map blockchain to CoinGecko platform ID
+export const COINGECKO_PLATFORMS: Partial<Record<Blockchain, string>> = {
+  [Blockchain.ETHEREUM]: 'ethereum',
+  [Blockchain.BINANCE_SMART_CHAIN]: 'binance-smart-chain',
+  [Blockchain.POLYGON]: 'polygon-pos',
+  [Blockchain.ARBITRUM]: 'arbitrum-one',
+  [Blockchain.OPTIMISM]: 'optimistic-ethereum',
+  [Blockchain.BASE]: 'base',
+  [Blockchain.GNOSIS]: 'xdai',
+};
+
+// Map native coins to CoinGecko IDs
+export const NATIVE_COIN_IDS: Partial<Record<Blockchain, string>> = {
+  [Blockchain.ETHEREUM]: 'ethereum',
+  [Blockchain.BINANCE_SMART_CHAIN]: 'binancecoin',
+  [Blockchain.POLYGON]: 'matic-network',
+  [Blockchain.ARBITRUM]: 'ethereum',
+  [Blockchain.OPTIMISM]: 'ethereum',
+  [Blockchain.BASE]: 'ethereum',
+  [Blockchain.GNOSIS]: 'xdai',
+};
+
+export interface BalanceEntry {
+  asset: Asset;
+  balance: number;
+  price: number | undefined;
+  value: number | undefined;
+}
+
+export class PdfUtil {
+  static drawLogo(pdf: InstanceType<typeof PDFDocument>): void {
+    pdf.save();
+    pdf.translate(50, 30);
+    pdf.scale(0.12);
+
+    const gradient1 = pdf.linearGradient(122.111, 64.6777, 45.9618, 103.949);
+    gradient1
+      .stop(0.04, '#F5516C')
+      .stop(0.14, '#C74863')
+      .stop(0.31, '#853B57')
+      .stop(0.44, '#55324E')
+      .stop(0.55, '#382D49')
+      .stop(0.61, '#2D2B47');
+
+    const gradient2 = pdf.linearGradient(75.8868, 50.7468, 15.2815, 122.952);
+    gradient2.stop(0.2, '#F5516C').stop(1, '#6B3753');
+
+    pdf.path(dfxLogoBall1).fill(gradient1);
+    pdf.path(dfxLogoBall2).fill(gradient2);
+    pdf.path(dfxLogoText).fill('#072440');
+    pdf.restore();
+  }
+
+  static drawTable(
+    pdf: InstanceType<typeof PDFDocument>,
+    balances: BalanceEntry[],
+    currency: PriceCurrency,
+    language: PdfLanguage,
+    i18n: I18nService,
+  ): void {
+    const marginX = 50;
+    const { width } = pdf.page;
+    const tableWidth = width - marginX * 2;
+
+    const col1Width = tableWidth * 0.3;
+    const col2Width = tableWidth * 0.2;
+    const col3Width = tableWidth * 0.25;
+    const col4Width = tableWidth * 0.25;
+
+    let y = pdf.y + 10;
+
+    pdf.fontSize(11).font('Helvetica-Bold').fillColor('#072440');
+    pdf.text(this.translate('balance.table.headers.asset', language, i18n), marginX, y, { width: col1Width - 10 });
+    pdf.text(this.translate('balance.table.headers.balance', language, i18n), marginX + col1Width, y, {
+      width: col2Width - 10,
+    });
+    pdf.text(this.translate('balance.table.headers.price', language, i18n, { currency }), marginX + col1Width + col2Width, y, {
+      width: col3Width - 10,
+    });
+    pdf.text(
+      this.translate('balance.table.headers.value', language, i18n, { currency }),
+      marginX + col1Width + col2Width + col3Width,
+      y,
+      { width: col4Width - 10, align: 'right' },
+    );
+
+    y += 20;
+    pdf
+      .moveTo(marginX, y)
+      .lineTo(width - marginX, y)
+      .stroke('#CCCCCC');
+    y += 10;
+
+    pdf.fontSize(10).font('Helvetica').fillColor('#333333');
+
+    if (balances.length === 0) {
+      pdf.text(this.translate('balance.table.no_assets', language, i18n), marginX, y);
+      y += 20;
+    } else {
+      for (const entry of balances) {
+        if (y > pdf.page.height - 100) {
+          pdf.addPage();
+          y = 50;
+        }
+
+        pdf.text(entry.asset.name, marginX, y, { width: col1Width - 10 });
+        pdf.text(this.formatNumber(entry.balance, 8), marginX + col1Width, y, { width: col2Width - 10 });
+        pdf.text(this.formatCurrency(entry.price, currency), marginX + col1Width + col2Width, y, {
+          width: col3Width - 10,
+        });
+        pdf.text(this.formatCurrency(entry.value, currency), marginX + col1Width + col2Width + col3Width, y, {
+          align: 'right',
+          width: col4Width - 10,
+        });
+
+        y += 25;
+      }
+    }
+
+    pdf
+      .moveTo(marginX, y)
+      .lineTo(width - marginX, y)
+      .stroke('#CCCCCC');
+    pdf.y = y + 10;
+  }
+
+  static drawFooter(
+    pdf: InstanceType<typeof PDFDocument>,
+    totalValue: number,
+    hasIncompleteData: boolean,
+    currency: PriceCurrency,
+    language: PdfLanguage,
+    i18n: I18nService,
+  ): void {
+    const marginX = 50;
+    const { width } = pdf.page;
+
+    let y = pdf.y + 10;
+
+    pdf.fontSize(12).font('Helvetica-Bold').fillColor('#072440');
+    pdf.text(`${this.translate('balance.total_value', language, i18n)}:`, marginX, y);
+    pdf.text(this.formatCurrency(totalValue, currency), width - marginX - 150, y, { width: 150, align: 'right' });
+
+    if (hasIncompleteData) {
+      y += 25;
+      pdf.fontSize(9).font('Helvetica').fillColor('#707070');
+      pdf.text(this.translate('balance.incomplete_data', language, i18n), marginX, y);
+      y += 15;
+    } else {
+      y += 25;
+    }
+
+    y += 20;
+    pdf.fontSize(8).font('Helvetica').fillColor('#999999');
+    pdf.text(`${this.translate('balance.generated_by', language, i18n)} - ${new Date().toISOString()}`, marginX, y);
+  }
+
+  static translate(key: string, language: PdfLanguage, i18n: I18nService, args?: any): string {
+    return i18n.translate(key, { lang: language.toLowerCase(), args });
+  }
+
+  static formatNumber(value: number, decimals: number): string {
+    return value.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
+  }
+
+  static formatCurrency(value: number | undefined, currency: PriceCurrency): string {
+    if (value == null) return 'n/a';
+    const symbol = currency === PriceCurrency.CHF ? 'CHF' : currency === PriceCurrency.EUR ? '€' : '$';
+    return `${symbol} ${value.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  static sortBalancesByValue(balances: BalanceEntry[]): BalanceEntry[] {
+    return balances.sort((a, b) => {
+      if (a.value == null && b.value == null) return 0;
+      if (a.value == null) return 1;
+      if (b.value == null) return -1;
+      return b.value - a.value;
+    });
+  }
+}
