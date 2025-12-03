@@ -11,4 +11,5 @@ export enum QuoteError {
   NAME_REQUIRED = 'NameRequired',
   VIDEO_IDENT_REQUIRED = 'VideoIdentRequired',
   IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
+  MISSING_TRADE_APPROVAL_DATE = 'MissingTradeApprovalDate',
 }
