@@ -28,11 +28,6 @@ export class CustodyAssetBalanceDtoMapper {
     const dto: CustodyAssetBalanceDto = {
       asset: { name: asset.name, description: asset.description },
       balance: Util.roundReadable(balance, AmountType.ASSET),
-      price: {
-        eur: Util.roundReadable(priceInEur.price, AmountType.FIAT),
-        chf: Util.roundReadable(priceInChf.price, AmountType.FIAT),
-        usd: Util.roundReadable(priceInUsd.price, AmountType.FIAT),
-      },
       value: {
         eur: Util.roundReadable(priceInEur.convert(balance), AmountType.FIAT),
         chf: Util.roundReadable(priceInChf.convert(balance), AmountType.FIAT),

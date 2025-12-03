@@ -10,7 +10,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BalanceEntry, PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
-import { COINGECKO_PLATFORMS, CoinGeckoService, NATIVE_COIN_IDS } from '../../pricing/services/integration/coin-gecko.service';
+import { CoinGeckoService } from '../../pricing/services/integration/coin-gecko.service';
 import { PriceCurrency } from '../../pricing/services/pricing.service';
 import { GetBalancePdfDto, PdfLanguage } from '../dto/input/get-balance-pdf.dto';
 
@@ -146,22 +146,7 @@ export class BalancePdfService {
 
     // Fallback to CoinGecko for historical price
     const currencyLower = currency.toLowerCase() as 'usd' | 'eur' | 'chf';
-    const platform = COINGECKO_PLATFORMS[blockchain];
-
-    // For native coins, use coin ID
-    if (!asset.chainId) {
-      const coinId = NATIVE_COIN_IDS[blockchain];
-      if (coinId) {
-        return this.coinGeckoService.getHistoricalPrice(coinId, date, currencyLower);
-      }
-    }
-
-    // For tokens, use contract address
-    if (asset.chainId && platform) {
-      return this.coinGeckoService.getHistoricalPriceByContract(platform, asset.chainId, date, currencyLower);
-    }
-
-    return undefined;
+    return this.coinGeckoService.getHistoricalPriceForAsset(blockchain, asset.chainId, date, currencyLower);
   }
 
   private createPdf(

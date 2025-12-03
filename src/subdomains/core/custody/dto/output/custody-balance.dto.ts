@@ -26,9 +26,6 @@ export class CustodyAssetBalanceDto {
   @ApiProperty({ description: 'Balance in asset' })
   balance: number;
 
-  @ApiProperty({ description: 'Price per unit in fiat values' })
-  price: CustodyFiatValueDto;
-
   @ApiProperty({ description: 'Total value in fiat values' })
   value: CustodyFiatValueDto;
 }

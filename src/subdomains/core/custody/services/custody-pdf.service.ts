@@ -8,7 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { COINGECKO_PLATFORMS, CoinGeckoService, NATIVE_COIN_IDS } from 'src/subdomains/supporting/pricing/services/integration/coin-gecko.service';
+import { CoinGeckoService } from 'src/subdomains/supporting/pricing/services/integration/coin-gecko.service';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
 import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
@@ -90,22 +90,7 @@ export class CustodyPdfService {
 
     // Fallback to CoinGecko for historical price
     const currencyLower = currency.toLowerCase() as 'usd' | 'eur' | 'chf';
-    const platform = COINGECKO_PLATFORMS[asset.blockchain];
-
-    // For native coins, use coin ID
-    if (!asset.chainId) {
-      const coinId = NATIVE_COIN_IDS[asset.blockchain];
-      if (coinId) {
-        return this.coinGeckoService.getHistoricalPrice(coinId, date, currencyLower);
-      }
-    }
-
-    // For tokens, use contract address
-    if (asset.chainId && platform) {
-      return this.coinGeckoService.getHistoricalPriceByContract(platform, asset.chainId, date, currencyLower);
-    }
-
-    return undefined;
+    return this.coinGeckoService.getHistoricalPriceForAsset(asset.blockchain, asset.chainId, date, currencyLower);
   }
 
   private mapLanguage(symbol?: string): PdfLanguage {

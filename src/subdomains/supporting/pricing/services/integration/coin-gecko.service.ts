@@ -120,6 +120,31 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
     return this.currencies.find((c) => c === token.toLowerCase());
   }
 
+  async getHistoricalPriceForAsset(
+    blockchain: Blockchain,
+    chainId: string | undefined,
+    date: Date,
+    currency: 'usd' | 'eur' | 'chf',
+  ): Promise<number | undefined> {
+    const platform = COINGECKO_PLATFORMS[blockchain];
+
+    // For native coins, use coin ID
+    if (!chainId) {
+      const coinId = NATIVE_COIN_IDS[blockchain];
+      if (coinId) {
+        return this.getHistoricalPrice(coinId, date, currency);
+      }
+      return undefined;
+    }
+
+    // For tokens, use contract address
+    if (platform) {
+      return this.getHistoricalPriceByContract(platform, chainId, date, currency);
+    }
+
+    return undefined;
+  }
+
   async getHistoricalPrice(
     coinId: string,
     date: Date,
