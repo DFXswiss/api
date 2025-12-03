@@ -7,6 +7,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from 'src/shared/utils/dfx-logo';
 import { Util } from 'src/shared/utils/util';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { CoinGeckoService } from '../../pricing/services/integration/coin-gecko.service';
@@ -19,16 +20,6 @@ interface BalanceEntry {
   price: number | undefined;
   value: number | undefined;
 }
-
-// DFX Logo SVG Paths
-const dfxLogoBall1 =
-  'M86.1582 126.274C109.821 126.274 129.004 107.092 129.004 83.4287C129.004 59.7657 109.821 40.583 86.1582 40.583C62.4952 40.583 43.3126 59.7657 43.3126 83.4287C43.3126 107.092 62.4952 126.274 86.1582 126.274Z';
-
-const dfxLogoBall2 =
-  'M47.1374 132.146C73.1707 132.146 94.2748 111.042 94.2748 85.009C94.2748 58.9757 73.1707 37.8716 47.1374 37.8716C21.1041 37.8716 0 58.9757 0 85.009C0 111.042 21.1041 132.146 47.1374 132.146Z';
-
-const dfxLogoText =
-  'M61.5031 0H124.245C170.646 0 208.267 36.5427 208.267 84.0393C208.267 131.536 169.767 170.018 122.288 170.018H61.5031V135.504H114.046C141.825 135.504 164.541 112.789 164.541 85.009C164.541 57.2293 141.825 34.5136 114.046 34.5136H61.5031V0ZM266.25 31.5686V76.4973H338.294V108.066H266.25V170H226.906V0H355.389V31.5686H266.25ZM495.76 170L454.71 110.975L414.396 170H369.216L432.12 83.5365L372.395 0H417.072L456.183 55.1283L494.557 0H537.061L477.803 82.082L541.191 170H495.778H495.76Z';
 
 // Supported EVM blockchains (must have Alchemy support and chainId mapping)
 const SUPPORTED_BLOCKCHAINS: Blockchain[] = [
