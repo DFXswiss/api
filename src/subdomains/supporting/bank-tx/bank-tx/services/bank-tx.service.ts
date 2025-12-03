@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Observable, Subject } from 'rxjs';
-import { RaiffeisenService } from 'src/integration/bank/services/raiffeisen.service';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -89,7 +88,6 @@ export class BankTxService implements OnModuleInit {
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
-    private readonly raiffeisenService: RaiffeisenService,
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,
@@ -116,25 +114,13 @@ export class BankTxService implements OnModuleInit {
     // Get settings
     const settingKeyOlky = 'lastBankOlkyDate';
     const settingKeyRevolut = 'lastBankRevolutDate';
-    const settingKeyRaiffeisenChf = 'lastBankRaiffeisenChfDate';
-    const settingKeyRaiffeisenEur = 'lastBankRaiffeisenEurDate';
     const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
     const lastModificationTimeRevolut = await this.settingService.get(settingKeyRevolut, new Date(0).toISOString());
-    const lastModificationTimeRaiffeisenChf = await this.settingService.get(
-      settingKeyRaiffeisenChf,
-      new Date(0).toISOString(),
-    );
-    const lastModificationTimeRaiffeisenEur = await this.settingService.get(
-      settingKeyRaiffeisenEur,
-      new Date(0).toISOString(),
-    );
 
     const newModificationTime = new Date().toISOString();
 
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     const revolutBank = await this.bankService.getBankInternal(IbanBankName.REVOLUT, 'EUR');
-    const raiffeisenBankChf = await this.bankService.getBankInternal(IbanBankName.RAIFFEISEN, 'CHF');
-    const raiffeisenBankEur = await this.bankService.getBankInternal(IbanBankName.RAIFFEISEN, 'EUR');
 
     // Get bank transactions
     const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
@@ -142,19 +128,7 @@ export class BankTxService implements OnModuleInit {
       lastModificationTimeRevolut,
       revolutBank.iban,
     );
-
-    // Get Raiffeisen transactions (CHF and EUR accounts)
-    const raiffeisenTransactionsChf = raiffeisenBankChf
-      ? await this.raiffeisenService.getRaiffeisenTransactions(lastModificationTimeRaiffeisenChf, raiffeisenBankChf.iban)
-      : [];
-    const raiffeisenTransactionsEur = raiffeisenBankEur
-      ? await this.raiffeisenService.getRaiffeisenTransactions(lastModificationTimeRaiffeisenEur, raiffeisenBankEur.iban)
-      : [];
-
-    const allTransactions = olkyTransactions
-      .concat(revolutTransactions)
-      .concat(raiffeisenTransactionsChf)
-      .concat(raiffeisenTransactionsEur);
+    const allTransactions = olkyTransactions.concat(revolutTransactions);
 
     const multiAccounts = await this.specialAccountService.getMultiAccounts();
     for (const transaction of allTransactions) {
@@ -167,10 +141,6 @@ export class BankTxService implements OnModuleInit {
 
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
     if (revolutTransactions.length > 0) await this.settingService.set(settingKeyRevolut, newModificationTime);
-    if (raiffeisenTransactionsChf.length > 0)
-      await this.settingService.set(settingKeyRaiffeisenChf, newModificationTime);
-    if (raiffeisenTransactionsEur.length > 0)
-      await this.settingService.set(settingKeyRaiffeisenEur, newModificationTime);
   }
 
   async assignTransactions(): Promise<void> {
