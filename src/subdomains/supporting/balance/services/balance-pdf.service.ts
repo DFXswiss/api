@@ -7,10 +7,10 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { BalanceEntry, PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
-import { BalanceEntry, COINGECKO_PLATFORMS, NATIVE_COIN_IDS, PdfUtil } from 'src/shared/utils/pdf.util';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
-import { CoinGeckoService } from '../../pricing/services/integration/coin-gecko.service';
+import { COINGECKO_PLATFORMS, CoinGeckoService, NATIVE_COIN_IDS } from '../../pricing/services/integration/coin-gecko.service';
 import { PriceCurrency } from '../../pricing/services/pricing.service';
 import { GetBalancePdfDto, PdfLanguage } from '../dto/input/get-balance-pdf.dto';
 

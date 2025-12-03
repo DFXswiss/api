@@ -1,32 +1,9 @@
-import PDFDocument from 'pdfkit';
 import { I18nService } from 'nestjs-i18n';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import PDFDocument from 'pdfkit';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from './dfx-logo';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
-
-// Map blockchain to CoinGecko platform ID
-export const COINGECKO_PLATFORMS: Partial<Record<Blockchain, string>> = {
-  [Blockchain.ETHEREUM]: 'ethereum',
-  [Blockchain.BINANCE_SMART_CHAIN]: 'binance-smart-chain',
-  [Blockchain.POLYGON]: 'polygon-pos',
-  [Blockchain.ARBITRUM]: 'arbitrum-one',
-  [Blockchain.OPTIMISM]: 'optimistic-ethereum',
-  [Blockchain.BASE]: 'base',
-  [Blockchain.GNOSIS]: 'xdai',
-};
-
-// Map native coins to CoinGecko IDs
-export const NATIVE_COIN_IDS: Partial<Record<Blockchain, string>> = {
-  [Blockchain.ETHEREUM]: 'ethereum',
-  [Blockchain.BINANCE_SMART_CHAIN]: 'binancecoin',
-  [Blockchain.POLYGON]: 'matic-network',
-  [Blockchain.ARBITRUM]: 'ethereum',
-  [Blockchain.OPTIMISM]: 'ethereum',
-  [Blockchain.BASE]: 'ethereum',
-  [Blockchain.GNOSIS]: 'xdai',
-};
+import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from './dfx-logo';
 
 export interface BalanceEntry {
   asset: Asset;
