@@ -1,67 +1,70 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from 'src/shared/utils/dfx-logo';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In } from 'typeorm';
 import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
-import { CustodyAssetBalanceDto } from '../dto/output/custody-balance.dto';
-import { CustodyAssetBalanceDtoMapper } from '../mappers/custody-asset-balance-dto.mapper';
-import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
-
-// DFX Logo SVG Paths
-const dfxLogoBall1 =
-  'M86.1582 126.274C109.821 126.274 129.004 107.092 129.004 83.4287C129.004 59.7657 109.821 40.583 86.1582 40.583C62.4952 40.583 43.3126 59.7657 43.3126 83.4287C43.3126 107.092 62.4952 126.274 86.1582 126.274Z';
-
-const dfxLogoBall2 =
-  'M47.1374 132.146C73.1707 132.146 94.2748 111.042 94.2748 85.009C94.2748 58.9757 73.1707 37.8716 47.1374 37.8716C21.1041 37.8716 0 58.9757 0 85.009C0 111.042 21.1041 132.146 47.1374 132.146Z';
-
-const dfxLogoText =
-  'M61.5031 0H124.245C170.646 0 208.267 36.5427 208.267 84.0393C208.267 131.536 169.767 170.018 122.288 170.018H61.5031V135.504H114.046C141.825 135.504 164.541 112.789 164.541 85.009C164.541 57.2293 141.825 34.5136 114.046 34.5136H61.5031V0ZM266.25 31.5686V76.4973H338.294V108.066H266.25V170H226.906V0H355.389V31.5686H266.25ZM495.76 170L454.71 110.975L414.396 170H369.216L432.12 83.5365L372.395 0H417.072L456.183 55.1283L494.557 0H537.061L477.803 82.082L541.191 170H495.778H495.76Z';
+import { CustodyAssetBalanceDto, CustodyBalanceDto } from '../dto/output/custody-balance.dto';
+import { CustodyService } from './custody.service';
 
 @Injectable()
 export class CustodyPdfService {
   constructor(
     private readonly userDataService: UserDataService,
-    private readonly custodyBalanceRepo: CustodyBalanceRepository,
+    private readonly custodyService: CustodyService,
     private readonly i18n: I18nService,
   ) {}
 
   async generateCustodyPdf(accountId: number, dto: GetCustodyPdfDto): Promise<string> {
-    const account = await this.userDataService.getUserData(accountId, { users: true });
+    const account = await this.userDataService.getUserData(accountId, { language: true });
     if (!account) throw new NotFoundException('User not found');
 
-    const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
-    if (custodyUserIds.length === 0) throw new NotFoundException('No custody accounts found');
+    const custodyBalance = await this.custodyService.getUserCustodyBalance(accountId);
+    if (custodyBalance.balances.length === 0) throw new NotFoundException('No custody balances found');
 
-    const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
-    const balances = CustodyAssetBalanceDtoMapper.mapCustodyBalances(custodyBalances);
+    const language = this.mapLanguage(account.language?.symbol);
+    const totalValue = this.getTotalValue(custodyBalance, dto.currency);
 
-    const totalValue = this.getTotalValue(balances, dto.currency);
-
-    return this.createPdf(balances, totalValue, dto);
+    return this.createPdf(custodyBalance.balances, totalValue, dto, language);
   }
 
-  private getTotalValue(balances: CustodyAssetBalanceDto[], currency: PriceCurrency): number {
-    switch (currency) {
-      case PriceCurrency.CHF:
-        return balances.reduce((sum, b) => sum + b.value.chf, 0);
-      case PriceCurrency.EUR:
-        return balances.reduce((sum, b) => sum + b.value.eur, 0);
-      case PriceCurrency.USD:
-        return balances.reduce((sum, b) => sum + b.value.usd, 0);
+  private mapLanguage(symbol?: string): PdfLanguage {
+    switch (symbol?.toUpperCase()) {
+      case 'DE':
+        return PdfLanguage.DE;
+      case 'FR':
+        return PdfLanguage.FR;
+      case 'IT':
+        return PdfLanguage.IT;
+      default:
+        return PdfLanguage.EN;
     }
   }
 
-  private createPdf(balances: CustodyAssetBalanceDto[], totalValue: number, dto: GetCustodyPdfDto): Promise<string> {
+  private getTotalValue(balance: CustodyBalanceDto, currency: PriceCurrency): number {
+    switch (currency) {
+      case PriceCurrency.CHF:
+        return balance.totalValue.chf;
+      case PriceCurrency.EUR:
+        return balance.totalValue.eur;
+      case PriceCurrency.USD:
+        return balance.totalValue.usd;
+    }
+  }
+
+  private createPdf(
+    balances: CustodyAssetBalanceDto[],
+    totalValue: number,
+    dto: GetCustodyPdfDto,
+    language: PdfLanguage,
+  ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A4', margin: 50 });
         const chunks: Buffer[] = [];
-        const language = dto.language ?? PdfLanguage.EN;
 
         pdf.on('data', (chunk) => chunks.push(chunk));
         pdf.on('end', () => {
