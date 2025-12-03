@@ -261,6 +261,23 @@
         "transaction_button": "Click the button below for more details about your referral reward:<br>[url:click here]",
         "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
     },
+    "recommendation": {
+        "recommended": {
+            "title": "DFX invitation",
+            "salutation": "You have been invited to DFX!",
+            "message": "{name} ({mail}) has invited you to use DFX",
+            "registration_button": "You can simply click on the button below and set up an account with this email address:<br>[url:Click here]",
+            "registration_link": "Or you can use the following link:<br>[url:{urlText}]"
+        },
+        "confirmation": {
+            "title": "Confirm DFX recommendation",
+            "salutation": "You have a pending DFX recommendation",
+            "message": "Can you confirm {name} ({mail}) for the use of DFX and vouch for him?",
+            "warning": "Only confirm people you really know personally and for whom you can vouch. If the person is involved in a case of fraud, you could also have your account blocked if you confirmed and vouched for this person.",
+            "button": "You can simply click on the button below to accept or decline the invitation:<br>[url:Click here]",
+            "link": "Or you can use the following link:<br>[url:{urlText}]"
+        }
+    },
     "kyc": {
         "success": {
             "title": "Verification successful",

@@ -1,4 +1,11 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -69,6 +76,7 @@ export class FeeService {
     private readonly feeRepo: FeeRepository,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
+    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
     private readonly walletService: WalletService,

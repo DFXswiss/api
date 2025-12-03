@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -53,6 +55,7 @@ export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
+    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
     private readonly geoLocationService: GeoLocationService,
@@ -209,6 +212,7 @@ export class UserService {
         language,
         currency,
         wallet: user.wallet,
+        tradeApprovalDate: user.wallet?.autoTradeApproval ? new Date() : undefined,
       }));
 
     if (user.userData.status === UserDataStatus.KYC_ONLY)

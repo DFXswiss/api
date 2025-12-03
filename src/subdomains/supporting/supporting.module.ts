@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AddressPoolModule } from './address-pool/address-pool.module';
+import { BalanceModule } from './balance/balance.module';
 import { BankTxModule } from './bank-tx/bank-tx.module';
 import { BankModule } from './bank/bank.module';
 import { DexModule } from './dex/dex.module';
@@ -16,6 +17,7 @@ import { SupportIssueModule } from './support-issue/support-issue.module';
 @Module({
   imports: [
     AddressPoolModule,
+    BalanceModule,
     BankModule,
     BankTxModule,
     DexModule,
