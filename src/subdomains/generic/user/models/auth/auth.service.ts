@@ -207,12 +207,7 @@ export class AuthService {
       }
     }
 
-    if (!user.userData.tradeApprovalDate) {
-      if (user.wallet?.autoTradeApproval)
-        await this.userDataService.updateUserDataInternal(user.userData, { tradeApprovalDate: new Date() });
-
-      await this.recommendationService.checkAndConfirmRecommendInvitation(user.userData.id);
-    }
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData);
 
     try {
       if (dto.specialCode || dto.discountCode)
@@ -320,6 +315,8 @@ export class AuthService {
       if (account.isDeactivated)
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
+      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
+
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
       url.searchParams.set('session', token);
       return url.toString();
@@ -384,6 +381,13 @@ export class AuthService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async checkPendingRecommendation(userData: UserData): Promise<void> {
+    if (userData.wallet?.autoTradeApproval)
+      await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
+
+    await this.recommendationService.checkAndConfirmRecommendInvitation(userData.id);
+  }
 
   private async confirmRecommendationCode(code: string, userData: UserData): Promise<void> {
     const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(code);
