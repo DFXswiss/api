@@ -91,10 +91,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const { correlationId } = order;
 
     const withdrawal = await this.scryptService.getWithdrawalStatus(correlationId);
-    if (!withdrawal) {
-      this.logger.verbose(`No withdrawal for clReqId ${correlationId} at Scrypt found`);
-      return false;
-    }
+    if (!withdrawal) return false;
 
     if ([ScryptTransactionStatus.FAILED, ScryptTransactionStatus.REJECTED].includes(withdrawal.status)) {
       const rejectMessage = withdrawal.rejectReason
@@ -105,14 +102,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       );
     }
 
-    if (withdrawal.status !== ScryptTransactionStatus.COMPLETE) {
-      this.logger.verbose(`Withdrawal ${correlationId} status: ${withdrawal.status}`);
-      return false;
-    }
-
-    order.outputAmount = withdrawal.amount ?? order.inputAmount;
-
-    return true;
+    return withdrawal.status == ScryptTransactionStatus.COMPLETE;
   }
 
   // --- PARAM VALIDATION --- //
