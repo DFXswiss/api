@@ -210,7 +210,7 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: {
           kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED },
-          tradeApprovalDate: Not(IsNull()),
+          tradeApprovalDate: DisabledProcess(Process.TRADE_APPROVAL_DATE) ? undefined : Not(IsNull()),
         },
       },
       relations: { userData: { users: true, wallet: true } },
