@@ -21,6 +21,17 @@ export class VirtualIbanService {
     return this.virtualIbanRepo.findOneBy({ id });
   }
 
+  async getActiveForUserAndCurrency(userDataId: number, currencyName: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOneCached({
+      where: {
+        userData: { id: userDataId },
+        currency: { name: currencyName },
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      },
+    });
+  }
+
   async create(
     userData: UserData,
     bank: Bank,
