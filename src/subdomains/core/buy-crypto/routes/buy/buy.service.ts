@@ -300,6 +300,7 @@ export class BuyService {
       maxVolumeTarget,
       isValid,
       error,
+      isPersonalIban: bankInfo.isPersonalIban,
       // bank info
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant,
@@ -323,7 +324,7 @@ export class BuyService {
     return buyDto;
   }
 
-  async getBankInfo(selector: BankSelectorInput): Promise<BankInfoDto> {
+  async getBankInfo(selector: BankSelectorInput): Promise<BankInfoDto & { isPersonalIban: boolean }> {
     // Check if user has an active vIBAN for the currency
     const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(
       selector.userData.id,
@@ -337,6 +338,7 @@ export class BuyService {
         iban: virtualIban.iban,
         bic: virtualIban.bank.bic,
         sepaInstant: virtualIban.bank.sctInst,
+        isPersonalIban: true,
       };
     }
 
@@ -345,7 +347,7 @@ export class BuyService {
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
-    return { ...Config.bank.dfxAddress, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+    return { ...Config.bank.dfxAddress, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst, isPersonalIban: false };
   }
 
   private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto, userData: UserData): string {
