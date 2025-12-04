@@ -20,6 +20,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
@@ -49,6 +50,7 @@ export class BuyService {
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly checkoutService: CheckoutService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   // --- VOLUMES --- //
@@ -322,6 +324,23 @@ export class BuyService {
   }
 
   async getBankInfo(selector: BankSelectorInput): Promise<BankInfoDto> {
+    // Check if user has an active vIBAN for the currency
+    const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(
+      selector.userData.id,
+      selector.currency,
+    );
+
+    if (virtualIban) {
+      return {
+        ...Config.bank.dfxAddress,
+        bank: virtualIban.bank.name,
+        iban: virtualIban.iban,
+        bic: virtualIban.bank.bic,
+        sepaInstant: virtualIban.bank.sctInst,
+      };
+    }
+
+    // Fallback: Normal bank selection
     const bank = await this.bankService.getBank(selector);
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
