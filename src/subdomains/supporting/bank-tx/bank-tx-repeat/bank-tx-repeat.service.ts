@@ -99,4 +99,8 @@ export class BankTxRepeatService {
       relations: { chargebackBankTx: true, bankTx: true },
     });
   }
+
+  async getBankTxRepeat(id: number): Promise<BankTxRepeat> {
+    return this.bankTxRepeatRepo.findOneBy({ id });
+  }
 }
