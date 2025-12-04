@@ -948,6 +948,16 @@ export class Configuration {
       refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
       clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
     },
+    raiffeisen: {
+      credentials: {
+        url: process.env.RAIFFEISEN_EBICS_URL,
+        hostId: process.env.RAIFFEISEN_HOST_ID,
+        partnerId: process.env.RAIFFEISEN_PARTNER_ID,
+        userId: process.env.RAIFFEISEN_USER_ID,
+        passphrase: process.env.RAIFFEISEN_PASSPHRASE,
+        iv: process.env.RAIFFEISEN_IV,
+      },
+    },
     forexFee: 0.02,
   };
 
