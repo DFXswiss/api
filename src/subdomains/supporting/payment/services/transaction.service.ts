@@ -24,7 +24,7 @@ export class TransactionService {
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
 
-    entity.uid = `${Config.prefixes.transactionUidPrefix}${Util.randomString(16)}`;
+    entity.uid = Util.createUid(Config.prefixes.transactionUidPrefix);
 
     return this.repo.save(entity);
   }

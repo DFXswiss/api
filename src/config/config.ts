@@ -524,6 +524,14 @@ export class Configuration {
     allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
     services: (process.env.SERVICES_URL ?? '').split(';')[0],
     payment: process.env.PAYMENT_URL,
+
+    isRedirectUrlAllowed: (url: string): boolean => {
+      try {
+        return this.frontend.allowedUrls.includes(new URL(url).origin);
+      } catch {
+        return false;
+      }
+    },
   };
 
   fixer = {
