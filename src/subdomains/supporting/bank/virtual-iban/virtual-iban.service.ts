@@ -100,10 +100,14 @@ export class VirtualIbanService {
       throw new ConflictException('Currency not found');
     }
 
-    // Get Yapeal bank for this currency
-    const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
+    // Get Yapeal bank for this currency, or fallback to any bank for placeholder implementation
+    let bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
     if (!bank) {
-      throw new ConflictException('No Yapeal bank available for this currency');
+      // TODO: Remove fallback once Yapeal bank is configured in production
+      bank = await this.bankService.getBankInternal(IbanBankName.KALEIDO, currencyName);
+    }
+    if (!bank) {
+      throw new ConflictException('No bank available for this currency');
     }
 
     // Generate placeholder IBAN (will be replaced with actual Yapeal API call)

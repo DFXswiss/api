@@ -332,8 +332,14 @@ export class BuyService {
     );
 
     if (virtualIban) {
+      const { address } = selector.userData;
       return {
-        ...Config.bank.dfxAddress,
+        name: selector.userData.completeName,
+        street: address.street,
+        number: address.houseNumber,
+        zip: address.zip,
+        city: address.city,
+        country: address.country?.name,
         bank: virtualIban.bank.name,
         iban: virtualIban.iban,
         bic: virtualIban.bank.bic,
