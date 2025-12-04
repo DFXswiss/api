@@ -4,7 +4,7 @@ import PDFDocument from 'pdfkit';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BalanceEntry, PdfUtil } from 'src/shared/utils/pdf.util';
@@ -62,7 +62,8 @@ export class BalancePdfService {
     date: Date,
   ): Promise<BalanceEntry[]> {
     const chainId = EvmUtil.getChainId(blockchain);
-    const assets = await this.assetService.getAllBlockchainAssets([blockchain]);
+    const allAssets = await this.assetService.getAllBlockchainAssets([blockchain]);
+    const assets = allAssets.filter((a) => ![AssetType.PRESALE, AssetType.CUSTOM].includes(a.type));
     const balances: BalanceEntry[] = [];
 
     // Find block number for the target date
