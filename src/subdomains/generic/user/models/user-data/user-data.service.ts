@@ -221,6 +221,7 @@ export class UserDataService {
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.nationality', 'nationality')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `userData.${key}`} = :param`, { param: value })

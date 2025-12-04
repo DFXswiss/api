@@ -324,6 +324,7 @@ export class BankTxService implements OnModuleInit {
         .leftJoinAndSelect('userData.country', 'country')
         .leftJoinAndSelect('userData.nationality', 'nationality')
         .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+        .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
         .leftJoinAndSelect('userData.language', 'language');
     }
 

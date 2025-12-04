@@ -209,6 +209,7 @@ export class BuyService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }
