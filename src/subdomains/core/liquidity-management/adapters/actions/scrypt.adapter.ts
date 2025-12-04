@@ -96,8 +96,14 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       return false;
     }
 
-    if (withdrawal.status === ScryptTransactionStatus.FAILED || withdrawal.status === ScryptTransactionStatus.REJECTED)
-      throw new OrderFailedException(`Withdrawal ${correlationId} has failed with status: ${withdrawal.status}`);
+    if ([ScryptTransactionStatus.FAILED, ScryptTransactionStatus.REJECTED].includes(withdrawal.status)) {
+      const rejectMessage = withdrawal.rejectReason
+        ? `${withdrawal.rejectReason} (${withdrawal.rejectText})`
+        : 'unknown reason';
+      throw new OrderFailedException(
+        `Withdrawal ${correlationId} has failed with status ${withdrawal.status}: ${rejectMessage}`,
+      );
+    }
 
     if (withdrawal.status !== ScryptTransactionStatus.COMPLETE) {
       this.logger.verbose(`Withdrawal ${correlationId} status: ${withdrawal.status}`);
