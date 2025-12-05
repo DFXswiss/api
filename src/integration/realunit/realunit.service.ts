@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Contract, ethers } from 'ethers';
 import { request } from 'graphql-request';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -22,6 +23,11 @@ import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AccountHistoryDto,
   AccountSummaryDto,
+  AllowlistStatusDto,
+  BrokerbotBuyPriceDto,
+  BrokerbotInfoDto,
+  BrokerbotPriceDto,
+  BrokerbotSharesDto,
   HistoricalPriceDto,
   HoldersDto,
   TimeFrame,
@@ -30,6 +36,27 @@ import {
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
+// Contract ABIs
+const BROKERBOT_ABI = [
+  'function getPrice() public view returns (uint256)',
+  'function getBuyPrice(uint256 shares) public view returns (uint256)',
+  'function getShares(uint256 money) public view returns (uint256)',
+  'function token() public view returns (address)',
+  'function base() public view returns (address)',
+  'function settings() public view returns (uint256)',
+];
+
+const REALU_TOKEN_ABI = [
+  'function canReceiveFromAnyone(address account) public view returns (bool)',
+  'function isForbidden(address account) public view returns (bool)',
+  'function isPowerlisted(address account) public view returns (bool)',
+];
+
+// Contract addresses
+const BROKERBOT_ADDRESS = '0xcff32c60b87296b8c0c12980de685bed6cb9dd6d';
+const REALU_TOKEN_ADDRESS = '0x553C7f9C780316FC1D34b8e14ac2465Ab22a090B';
+const ZCHF_ADDRESS = '0xb58e61c3098d85632df34eecfb899a1ed80921cb';
+
 @Injectable()
 export class RealUnitService {
   private readonly ponderUrl: string;
@@ -37,12 +64,22 @@ export class RealUnitService {
   private readonly tokenName = 'REALU';
   private readonly historicalPriceCache = new AsyncCache<HistoricalPriceDto[]>(CacheItemResetPeriod.EVERY_6_HOURS);
 
+  private readonly provider: ethers.providers.JsonRpcProvider;
+  private readonly brokerbotContract: Contract;
+  private readonly realuTokenContract: Contract;
+
   constructor(
     private readonly assetPricesService: AssetPricesService,
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
+
+    // Initialize Ethereum provider and contracts
+    const { ethGatewayUrl, ethApiKey } = GetConfig().blockchain.ethereum;
+    this.provider = new ethers.providers.JsonRpcProvider(`${ethGatewayUrl}/${ethApiKey}`);
+    this.brokerbotContract = new Contract(BROKERBOT_ADDRESS, BROKERBOT_ABI, this.provider);
+    this.realuTokenContract = new Contract(REALU_TOKEN_ADDRESS, REALU_TOKEN_ABI, this.provider);
   }
 
   async getAccount(address: string): Promise<AccountSummaryDto> {
@@ -113,5 +150,74 @@ export class RealUnitService {
     const tokenInfoQuery = getTokenInfoQuery();
     const clientResponse = await request<TokenInfoClientResponse>(this.ponderUrl, tokenInfoQuery);
     return RealUnitDtoMapper.toTokenInfoDto(clientResponse);
+  }
+
+  // --- Brokerbot Methods ---
+
+  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
+    const priceRaw = await this.brokerbotContract.getPrice();
+    return {
+      pricePerShare: ethers.utils.formatUnits(priceRaw, 18),
+      pricePerShareRaw: priceRaw.toString(),
+    };
+  }
+
+  async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
+    const totalPriceRaw = await this.brokerbotContract.getBuyPrice(shares);
+    const pricePerShareRaw = await this.brokerbotContract.getPrice();
+
+    return {
+      shares,
+      totalPrice: ethers.utils.formatUnits(totalPriceRaw, 18),
+      totalPriceRaw: totalPriceRaw.toString(),
+      pricePerShare: ethers.utils.formatUnits(pricePerShareRaw, 18),
+    };
+  }
+
+  async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
+    const amountWei = ethers.utils.parseUnits(amountChf, 18);
+    const shares = await this.brokerbotContract.getShares(amountWei);
+    const pricePerShareRaw = await this.brokerbotContract.getPrice();
+
+    return {
+      amount: amountChf,
+      shares: shares.toNumber(),
+      pricePerShare: ethers.utils.formatUnits(pricePerShareRaw, 18),
+    };
+  }
+
+  async getAllowlistStatus(address: string): Promise<AllowlistStatusDto> {
+    const [canReceive, isForbidden, isPowerlisted] = await Promise.all([
+      this.realuTokenContract.canReceiveFromAnyone(address),
+      this.realuTokenContract.isForbidden(address),
+      this.realuTokenContract.isPowerlisted(address),
+    ]);
+
+    return {
+      address,
+      canReceive,
+      isForbidden,
+      isPowerlisted,
+    };
+  }
+
+  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
+    const [priceRaw, settings] = await Promise.all([
+      this.brokerbotContract.getPrice(),
+      this.brokerbotContract.settings(),
+    ]);
+
+    // Settings bitmask: bit 0 = buying enabled, bit 1 = selling enabled
+    const buyingEnabled = (settings.toNumber() & 1) === 1;
+    const sellingEnabled = (settings.toNumber() & 2) === 2;
+
+    return {
+      brokerbotAddress: BROKERBOT_ADDRESS,
+      tokenAddress: REALU_TOKEN_ADDRESS,
+      baseCurrencyAddress: ZCHF_ADDRESS,
+      pricePerShare: ethers.utils.formatUnits(priceRaw, 18),
+      buyingEnabled,
+      sellingEnabled,
+    };
   }
 }

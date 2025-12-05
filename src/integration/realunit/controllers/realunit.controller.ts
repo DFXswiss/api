@@ -1,9 +1,14 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
   AccountSummaryDto,
+  AllowlistStatusDto,
+  BrokerbotBuyPriceDto,
+  BrokerbotInfoDto,
+  BrokerbotPriceDto,
+  BrokerbotSharesDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
   HoldersDto,
@@ -83,5 +88,60 @@ export class RealUnitController {
   @ApiOkResponse({ type: TokenInfoDto })
   async getTokenInfo(): Promise<TokenInfoDto> {
     return this.realunitService.getRealUnitInfo();
+  }
+
+  // --- Brokerbot Endpoints ---
+
+  @Get('brokerbot/info')
+  @ApiOperation({
+    summary: 'Get Brokerbot info',
+    description: 'Retrieves general information about the REALU Brokerbot (addresses, settings)',
+  })
+  @ApiOkResponse({ type: BrokerbotInfoDto })
+  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
+    return this.realunitService.getBrokerbotInfo();
+  }
+
+  @Get('brokerbot/price')
+  @ApiOperation({
+    summary: 'Get current Brokerbot price',
+    description: 'Retrieves the current price per REALU share from the Brokerbot smart contract',
+  })
+  @ApiOkResponse({ type: BrokerbotPriceDto })
+  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
+    return this.realunitService.getBrokerbotPrice();
+  }
+
+  @Get('brokerbot/buyPrice')
+  @ApiOperation({
+    summary: 'Get buy price for shares',
+    description: 'Calculates the total cost to buy a specific number of REALU shares (includes price increment)',
+  })
+  @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to buy' })
+  @ApiOkResponse({ type: BrokerbotBuyPriceDto })
+  async getBrokerbotBuyPrice(@Query('shares') shares: number): Promise<BrokerbotBuyPriceDto> {
+    return this.realunitService.getBrokerbotBuyPrice(Number(shares));
+  }
+
+  @Get('brokerbot/shares')
+  @ApiOperation({
+    summary: 'Get shares for amount',
+    description: 'Calculates how many REALU shares can be purchased for a given CHF amount',
+  })
+  @ApiQuery({ name: 'amount', type: String, description: 'Amount in CHF (e.g., "1000.50")' })
+  @ApiOkResponse({ type: BrokerbotSharesDto })
+  async getBrokerbotShares(@Query('amount') amount: string): Promise<BrokerbotSharesDto> {
+    return this.realunitService.getBrokerbotShares(amount);
+  }
+
+  @Get('allowlist/:address')
+  @ApiOperation({
+    summary: 'Check allowlist status',
+    description: 'Checks if a wallet address is allowed to receive REALU tokens',
+  })
+  @ApiParam({ name: 'address', description: 'Wallet address to check' })
+  @ApiOkResponse({ type: AllowlistStatusDto })
+  async getAllowlistStatus(@Param('address') address: string): Promise<AllowlistStatusDto> {
+    return this.realunitService.getAllowlistStatus(address);
   }
 }
