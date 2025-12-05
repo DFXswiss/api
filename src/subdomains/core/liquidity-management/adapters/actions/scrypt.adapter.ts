@@ -1,8 +1,9 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
+import { ScryptService, ScryptTransactionStatus } from 'src/integration/exchange/services/scrypt.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
@@ -14,19 +15,13 @@ export enum ScryptAdapterCommands {
   WITHDRAW = 'withdraw',
 }
 
-export enum ScryptTransactionStatus {
-  COMPLETE = 'Complete',
-  FAILED = 'Failed',
-  REJECTED = 'Rejected',
-}
-
 @Injectable()
 export class ScryptAdapter extends LiquidityActionAdapter {
   private readonly logger = new DfxLogger(ScryptAdapter);
 
   protected commands = new Map<string, Command>();
 
-  constructor(@Inject(forwardRef(() => ScryptService)) private readonly scryptService: ScryptService) {
+  constructor(private readonly scryptService: ScryptService, private readonly dexService: DexService) {
     super(LiquidityManagementSystem.SCRYPT);
 
     this.commands.set(ScryptAdapterCommands.WITHDRAW, this.withdraw.bind(this));
@@ -91,9 +86,10 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const { correlationId } = order;
 
     const withdrawal = await this.scryptService.getWithdrawalStatus(correlationId);
-    if (!withdrawal) return false;
-
-    if ([ScryptTransactionStatus.FAILED, ScryptTransactionStatus.REJECTED].includes(withdrawal.status)) {
+    if (!withdrawal?.txHash) {
+      this.logger.verbose(`No withdrawal id for id ${correlationId} at ${this.scryptService.name} found`);
+      return false;
+    } else if ([ScryptTransactionStatus.FAILED, ScryptTransactionStatus.REJECTED].includes(withdrawal.status)) {
       const rejectMessage = withdrawal.rejectReason
         ? `${withdrawal.rejectReason} (${withdrawal.rejectText})`
         : 'unknown reason';
@@ -102,7 +98,10 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       );
     }
 
-    return withdrawal.status == ScryptTransactionStatus.COMPLETE;
+    order.outputAmount = withdrawal.amount;
+
+    const { blockchain } = this.parseWithdrawParams(order.action.paramMap);
+    return this.dexService.checkTransferCompletion(withdrawal.txHash, blockchain);
   }
 
   // --- PARAM VALIDATION --- //
@@ -119,13 +118,13 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   private parseWithdrawParams(params: Record<string, unknown>): {
     address: string;
     asset?: string;
-    blockchain?: Blockchain;
+    blockchain: Blockchain;
   } {
     const address = process.env[params.destinationAddress as string];
     const asset = params.asset as string | undefined;
     const blockchain = params.destinationBlockchain as Blockchain | undefined;
 
-    if (!address) {
+    if (!address || !blockchain) {
       throw new Error(`Params provided to ScryptAdapter.withdraw(...) command are invalid.`);
     }
 
@@ -134,7 +133,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
   // --- HELPER METHODS --- //
 
-  private isBalanceTooLowError(e: Error): boolean {
-    return ['Insufficient funds', 'insufficient balance', 'not enough balance'].some((m) => e.message?.includes(m));
+  private isBalanceTooLowError(_e: Error): boolean {
+    return false; // TODO: implement specific error check for Scrypt
   }
 }

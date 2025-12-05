@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { GetConfig } from 'src/config/config';
-import { ScryptTransactionStatus } from 'src/subdomains/core/liquidity-management/adapters/actions/scrypt.adapter';
 import { ScryptMessageType, ScryptWebSocketConnection } from './scrypt-websocket-connection';
+
+export enum ScryptTransactionStatus {
+  COMPLETE = 'Complete',
+  FAILED = 'Failed',
+  REJECTED = 'Rejected',
+}
 
 interface ScryptBalance {
   Currency: string;
