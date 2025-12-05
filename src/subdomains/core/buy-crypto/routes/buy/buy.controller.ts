@@ -22,7 +22,7 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { KycLevel, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -260,6 +260,10 @@ export class BuyController {
   @ApiOkResponse({ type: VirtualIbanDto })
   async createPersonalIban(@GetJwt() jwt: JwtPayload, @Body() dto: CreateVirtualIbanDto): Promise<VirtualIbanDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
+
+    if (user.userData.kycLevel < KycLevel.LEVEL_50)
+      throw new BadRequestException('KYC level 50 or higher required for personal IBAN');
+
     const virtualIban = await this.virtualIbanService.createForUser(user.userData, dto.currency);
 
     return {
