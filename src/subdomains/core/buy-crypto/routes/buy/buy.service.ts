@@ -326,10 +326,7 @@ export class BuyService {
 
   async getBankInfo(selector: BankSelectorInput): Promise<BankInfoDto & { isPersonalIban: boolean }> {
     // personal IBAN
-    const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(
-      selector.userData.id,
-      selector.currency,
-    );
+    const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
 
     if (virtualIban) {
       const { address } = selector.userData;

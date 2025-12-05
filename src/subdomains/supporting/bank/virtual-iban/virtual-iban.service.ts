@@ -27,10 +27,10 @@ export class VirtualIbanService {
     return `${countryCode}${checkDigits}${bankCode}${accountNumber}`;
   }
 
-  async getActiveForUserAndCurrency(userDataId: number, currencyName: string): Promise<VirtualIban | null> {
-    return this.virtualIbanRepo.findOneCached(`${userDataId}-${currencyName}`, {
+  async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOneCached(`${userData.id}-${currencyName}`, {
       where: {
-        userData: { id: userDataId },
+        userData: { id: userData.id },
         currency: { name: currencyName },
         active: true,
         status: VirtualIbanStatus.ACTIVE,
@@ -39,14 +39,14 @@ export class VirtualIbanService {
   }
 
   async createForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
-    const existing = await this.getActiveForUserAndCurrency(userData.id, currencyName);
+    const existing = await this.getActiveForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
 
     const currency = await this.fiatService.getFiatByName(currencyName);
     if (!currency) throw new BadRequestException('Currency not found');
 
     const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
-    if (!bank) throw new ConflictException('No bank available for this currency');
+    if (!bank) throw new BadRequestException('No bank available for this currency');
 
     // generate IBAN (placeholder implementation)
     const iban = this.generatePlaceholderIban();
