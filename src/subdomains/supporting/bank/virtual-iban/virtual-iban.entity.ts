@@ -1,4 +1,4 @@
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { IEntity } from '../../../../shared/models/entity';
 import { Fiat } from '../../../../shared/models/fiat/fiat.entity';
 import { UserData } from '../../../generic/user/models/user-data/user-data.entity';
@@ -13,8 +13,7 @@ export enum VirtualIbanStatus {
 
 @Entity()
 export class VirtualIban extends IEntity {
-  @Column({ length: 34 })
-  @Index({ unique: true })
+  @Column({ length: 34, unique: true })
   iban: string;
 
   @Column({ length: 12, nullable: true })

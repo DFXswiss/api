@@ -17,7 +17,7 @@ export class VirtualIbanDto {
   @ApiProperty()
   active: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: VirtualIbanStatus })
   status?: VirtualIbanStatus;
 
   @ApiPropertyOptional()
