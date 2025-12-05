@@ -967,6 +967,12 @@ export class Configuration {
         iv: process.env.RAIFFEISEN_IV,
       },
     },
+    yapeal: {
+      baseUrl: process.env.YAPEAL_BASE_URL ?? 'https://auth.yapeal.ch:3031',
+      partnershipUid: process.env.YAPEAL_PARTNERSHIP_UID,
+      baseAccountIban: process.env.YAPEAL_BASE_ACCOUNT_IBAN,
+      apiKey: process.env.YAPEAL_API_KEY,
+    },
     forexFee: 0.02,
   };
 
