@@ -972,6 +972,7 @@ export class Configuration {
       partnershipUid: process.env.YAPEAL_PARTNERSHIP_UID,
       baseAccountIban: process.env.YAPEAL_BASE_ACCOUNT_IBAN,
       apiKey: process.env.YAPEAL_API_KEY,
+      webhookSecret: process.env.YAPEAL_WEBHOOK_SECRET,
     },
     forexFee: 0.02,
   };
