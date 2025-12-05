@@ -1,16 +1,16 @@
 import { Body, Controller, ForbiddenException, Headers, Post } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
+import { YapealWebhookPayloadDto } from 'src/integration/bank/dto/yapeal-webhook.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { YapealWebhookPayloadDto } from '../dto/yapeal-webhook.dto';
-import { YapealWebhookService } from '../services/yapeal-webhook.service';
+import { YapealBankTxService } from '../services/yapeal-bank-tx.service';
 
 @ApiTags('Webhook')
 @Controller('webhook')
 export class YapealWebhookController {
   private readonly logger = new DfxLogger(YapealWebhookController);
 
-  constructor(private readonly yapealWebhookService: YapealWebhookService) {}
+  constructor(private readonly yapealBankTxService: YapealBankTxService) {}
 
   @Post('yapeal')
   @ApiExcludeEndpoint()
@@ -28,7 +28,7 @@ export class YapealWebhookController {
     this.logger.info(`Received YAPEAL webhook: ${payload.eventType} - ${payload.eventUid}`);
 
     try {
-      await this.yapealWebhookService.processWebhook(payload);
+      await this.yapealBankTxService.processWebhook(payload);
       return { received: true };
     } catch (e) {
       this.logger.error('Failed to process YAPEAL webhook:', e);
