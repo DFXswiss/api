@@ -16,6 +16,7 @@ import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
@@ -344,6 +345,9 @@ export class UserData extends IEntity {
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas?: BankData[];
+
+  @OneToMany(() => VirtualIban, (virtualIban) => virtualIban.userData)
+  virtualIbans?: VirtualIban[];
 
   @OneToMany(() => BankTxReturn, (bankTxReturn) => bankTxReturn.userData)
   bankTxReturns?: BankTxReturn[];

@@ -83,6 +83,12 @@ export class BankService {
 
       case 'Olkypay':
         return accountIban === 'LU116060002000005040';
+
+      case 'Yapeal':
+        return (
+          (asset.dexName === 'CHF' && accountIban === 'CH7489144562527626887') ||
+          (asset.dexName === 'EUR' && accountIban === 'CH1489144171823255648')
+        );
     }
   }
 
