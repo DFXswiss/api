@@ -5,6 +5,7 @@ import {
   AccountHistoryQueryDto,
   AccountSummaryDto,
   AllowlistStatusDto,
+  BankDetailsDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
@@ -143,5 +144,15 @@ export class RealUnitController {
   @ApiOkResponse({ type: AllowlistStatusDto })
   async getAllowlistStatus(@Param('address') address: string): Promise<AllowlistStatusDto> {
     return this.realunitService.getAllowlistStatus(address);
+  }
+
+  @Get('bank')
+  @ApiOperation({
+    summary: 'Get bank details',
+    description: 'Retrieves bank account details for REALU purchases via bank transfer',
+  })
+  @ApiOkResponse({ type: BankDetailsDto })
+  getBankDetails(): BankDetailsDto {
+    return this.realunitService.getBankDetails();
   }
 }

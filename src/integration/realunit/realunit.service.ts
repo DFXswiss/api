@@ -24,6 +24,7 @@ import {
   AccountHistoryDto,
   AccountSummaryDto,
   AllowlistStatusDto,
+  BankDetailsDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
@@ -142,5 +143,18 @@ export class RealUnitService {
 
   async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
     return this.blockchainService.getBrokerbotInfo();
+  }
+
+  getBankDetails(): BankDetailsDto {
+    const { bank } = GetConfig().blockchain.realunit;
+
+    return {
+      recipient: bank.recipient,
+      address: bank.address,
+      iban: bank.iban,
+      bic: bank.bic,
+      bankName: bank.name,
+      currency: 'CHF',
+    };
   }
 }
