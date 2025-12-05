@@ -8,7 +8,7 @@ import {
 } from 'src/integration/bank/dto/yapeal-webhook.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { BankTxService } from './bank-tx.service';
-import { BankTx, BankTxIndicator, BankTxType } from '../entities/bank-tx.entity';
+import { BankTx, BankTxIndicator } from '../entities/bank-tx.entity';
 import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
 
 @Injectable()
@@ -87,7 +87,7 @@ export class YapealBankTxService {
       remittanceInfo: data.remittanceInfo,
       endToEndId: data.endToEndId,
       txRaw: JSON.stringify(data.rawData ?? data),
-      type: BankTxType.BUY_CRYPTO, // Personal IBAN payments are for buying crypto
+      // type is not set here - assignTransactions() will find the Buy route via remittanceInfo
     };
   }
 }
