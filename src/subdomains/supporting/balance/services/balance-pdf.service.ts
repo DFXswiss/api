@@ -63,7 +63,7 @@ export class BalancePdfService {
   ): Promise<BalanceEntry[]> {
     const chainId = EvmUtil.getChainId(blockchain);
     const allAssets = await this.assetService.getAllBlockchainAssets([blockchain]);
-    const assets = allAssets.filter((a) => ![AssetType.PRESALE, AssetType.CUSTOM].includes(a.type));
+    const assets = allAssets.filter((a) => [AssetType.COIN, AssetType.TOKEN].includes(a.type));
     const balances: BalanceEntry[] = [];
 
     // Find block number for the target date
