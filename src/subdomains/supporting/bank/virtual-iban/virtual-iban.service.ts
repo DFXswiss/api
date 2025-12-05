@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -95,13 +96,12 @@ export class VirtualIbanService {
   }
 
   private generatePlaceholderIban(): string {
-    const countryCode = 'CH';
-    const checkDigits = Math.floor(10 + Math.random() * 90).toString();
     const bankCode = '89144';
     const accountNumber = Util.createHash(Date.now().toString() + Math.random().toString())
       .substring(0, 12)
       .toUpperCase()
       .replace(/[^0-9]/g, '0');
-    return `${countryCode}${checkDigits}${bankCode}${accountNumber}`;
+
+    return IbanTools.composeIBAN({ countryCode: 'CH', bban: bankCode + accountNumber });
   }
 }
