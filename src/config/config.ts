@@ -876,6 +876,13 @@ export class Configuration {
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
+      bank: {
+        recipient: process.env.REALUNIT_BANK_RECIPIENT,
+        address: process.env.REALUNIT_BANK_ADDRESS,
+        iban: process.env.REALUNIT_BANK_IBAN,
+        bic: process.env.REALUNIT_BANK_BIC,
+        name: process.env.REALUNIT_BANK_NAME,
+      },
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
