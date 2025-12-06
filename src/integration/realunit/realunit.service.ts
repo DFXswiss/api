@@ -12,6 +12,7 @@ import {
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
+import { RealUnitBlockchainService } from '../blockchain/realunit/realunit-blockchain.service';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
@@ -22,6 +23,12 @@ import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AccountHistoryDto,
   AccountSummaryDto,
+  AllowlistStatusDto,
+  BankDetailsDto,
+  BrokerbotBuyPriceDto,
+  BrokerbotInfoDto,
+  BrokerbotPriceDto,
+  BrokerbotSharesDto,
   HistoricalPriceDto,
   HoldersDto,
   TimeFrame,
@@ -41,6 +48,7 @@ export class RealUnitService {
     private readonly assetPricesService: AssetPricesService,
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
+    private readonly blockchainService: RealUnitBlockchainService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -113,5 +121,40 @@ export class RealUnitService {
     const tokenInfoQuery = getTokenInfoQuery();
     const clientResponse = await request<TokenInfoClientResponse>(this.ponderUrl, tokenInfoQuery);
     return RealUnitDtoMapper.toTokenInfoDto(clientResponse);
+  }
+
+  // --- Brokerbot Methods ---
+
+  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
+    return this.blockchainService.getBrokerbotPrice();
+  }
+
+  async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
+    return this.blockchainService.getBrokerbotBuyPrice(shares);
+  }
+
+  async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
+    return this.blockchainService.getBrokerbotShares(amountChf);
+  }
+
+  async getAllowlistStatus(address: string): Promise<AllowlistStatusDto> {
+    return this.blockchainService.getAllowlistStatus(address);
+  }
+
+  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
+    return this.blockchainService.getBrokerbotInfo();
+  }
+
+  getBankDetails(): BankDetailsDto {
+    const { bank } = GetConfig().blockchain.realunit;
+
+    return {
+      recipient: bank.recipient,
+      address: bank.address,
+      iban: bank.iban,
+      bic: bank.bic,
+      bankName: bank.name,
+      currency: 'CHF',
+    };
   }
 }

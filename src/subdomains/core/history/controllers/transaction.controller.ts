@@ -547,7 +547,7 @@ export class TransactionController {
   }
 
   private cacheCsv(csvFile: StreamableFile): string {
-    const fileKey = Util.randomId().toString();
+    const fileKey = Util.randomString(16);
     this.files[fileKey] = csvFile;
 
     return fileKey;

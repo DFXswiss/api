@@ -12,6 +12,7 @@ import { ExchangeTxService } from './services/exchange-tx.service';
 import { KrakenService } from './services/kraken.service';
 import { KucoinService } from './services/kucoin.service';
 import { MexcService } from './services/mexc.service';
+import { ScryptService } from './services/scrypt.service';
 import { XtService } from './services/xt.service';
 // import { P2BService } from './services/p2b.service';
 
@@ -28,6 +29,7 @@ import { XtService } from './services/xt.service';
     ExchangeTxService,
     XtService,
     MexcService,
+    ScryptService,
     // P2BService,
   ],
   exports: [
@@ -39,6 +41,7 @@ import { XtService } from './services/xt.service';
     ExchangeTxService,
     XtService,
     MexcService,
+    ScryptService,
   ],
 })
 export class ExchangeModule {}

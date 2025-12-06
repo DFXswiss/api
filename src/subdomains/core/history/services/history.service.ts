@@ -149,7 +149,8 @@ export class HistoryService {
       all || query.sell
         ? transactions
             .filter(
-              (t) => t.buyFiat && (!blockchainFilter || blockchainFilter.includes(t.cryptoInput.asset.blockchain)),
+              (t) =>
+                t.buyFiat && (!blockchainFilter || blockchainFilter.includes(t.buyFiat.cryptoInput.asset.blockchain)),
             )
             .map((t) => t.buyFiat)
         : [];

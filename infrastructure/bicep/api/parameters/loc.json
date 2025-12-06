@@ -431,6 +431,15 @@
     "mexcSecret": {
       "value": "xxx"
     },
+    "scryptWsUrl": {
+      "value": "xxx"
+    },
+    "scryptApiKey": {
+      "value": "xxx"
+    },
+    "scryptApiSecret": {
+      "value": "xxx"
+    },
     "olkyClient": {
       "value": "xxx"
     },

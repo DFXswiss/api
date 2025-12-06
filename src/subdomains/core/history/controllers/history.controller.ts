@@ -42,7 +42,7 @@ import { TransactionController } from './transaction.controller';
 @Controller('history')
 @ApiExcludeController()
 export class HistoryController {
-  private files: { [key: number]: StreamableFile } = {};
+  private files: { [key: string]: StreamableFile } = {};
 
   constructor(
     private readonly historyService: HistoryService,
@@ -100,12 +100,12 @@ export class HistoryController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   @ApiCreatedResponse()
-  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<number> {
+  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<string> {
     const csvFile = await this.historyService.getCsvHistory(
       { ...query, userAddress: jwt.address, format: ExportFormat.CSV },
       query.type,
     );
-    const fileKey = Util.randomId();
+    const fileKey = Util.randomString(16);
     this.files[fileKey] = csvFile;
 
     return fileKey;
@@ -116,9 +116,9 @@ export class HistoryController {
   @ApiOkResponse({ type: StreamableFile })
   @ApiExcludeEndpoint()
   async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res): Promise<StreamableFile> {
-    const csvFile = this.files[+key];
+    const csvFile = this.files[key];
     if (!csvFile) throw new NotFoundException('File not found');
-    delete this.files[+key];
+    delete this.files[key];
 
     res.set({
       'Content-Type': 'text/csv',

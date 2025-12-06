@@ -13,7 +13,7 @@ export class KycFileService {
   async createKycFile(dto: CreateKycFileDto): Promise<KycFile> {
     const entity = this.kycFileRepository.create(dto);
 
-    entity.uid = `${Config.prefixes.kycFileUidPrefix}${Util.randomString(16)}`;
+    entity.uid = Util.createUid(Config.prefixes.kycFileUidPrefix);
 
     return this.kycFileRepository.save(entity);
   }

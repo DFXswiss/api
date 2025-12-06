@@ -1373,9 +1373,23 @@ export class KycService {
     const nationalityStepResult = nationalityStep.getResult<{ nationality: IEntity }>();
 
     // IP check
-    if (ipCountry && identStep.userData.users?.some((u) => u.ipCountry !== ipCountry.symbol))
+    if (
+      ipCountry &&
+      identStep.userData.users?.some(
+        (u) =>
+          u.ipCountry !== ipCountry.symbol &&
+          ![u.ipCountry, ipCountry.symbol].every((c) => Config.kyc.allowedBorderRegions.includes(c)),
+      )
+    )
       errors.push(KycError.IP_COUNTRY_MISMATCH);
-    if (country && identStep.userData.users?.some((u) => u.ipCountry !== country.symbol))
+    if (
+      country &&
+      identStep.userData.users?.some(
+        (u) =>
+          u.ipCountry !== country.symbol &&
+          ![u.ipCountry, country.symbol].every((c) => Config.kyc.allowedBorderRegions.includes(c)),
+      )
+    )
       errors.push(KycError.COUNTRY_IP_COUNTRY_MISMATCH);
 
     // Name check

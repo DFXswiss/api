@@ -221,6 +221,7 @@ export class UserDataService {
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.nationality', 'nationality')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `userData.${key}`} = :param`, { param: value })
@@ -567,7 +568,7 @@ export class UserDataService {
     await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
     // mail verification
-    const secret = Util.randomId().toString().slice(0, 6);
+    const secret = Util.randomIdString(6);
     const codeExpiryMinutes = 30;
 
     this.secretCache.set(userData.id, {
