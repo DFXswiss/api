@@ -13,6 +13,7 @@ import { createCustomLiquidityBalance } from 'src/subdomains/core/liquidity-mana
 import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createDefaultBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createCustomBank } from '../../bank/bank/__mocks__/bank.entity.mock';
@@ -37,6 +38,7 @@ describe('FiatOutputJobService', () => {
   let assetService: AssetService;
   let logService: LogService;
   let bankTxReturnService: BankTxReturnService;
+  let bankTxRepeatService: BankTxRepeatService;
 
   beforeEach(async () => {
     fiatOutputRepo = createMock<FiatOutputRepository>();
@@ -47,6 +49,7 @@ describe('FiatOutputJobService', () => {
     assetService = createMock<AssetService>();
     logService = createMock<LogService>();
     bankTxReturnService = createMock<BankTxReturnService>();
+    bankTxRepeatService = createMock<BankTxRepeatService>();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -61,6 +64,7 @@ describe('FiatOutputJobService', () => {
         { provide: AssetService, useValue: assetService },
         { provide: LogService, useValue: logService },
         { provide: BankTxReturnService, useValue: bankTxReturnService },
+        { provide: BankTxRepeatService, useValue: bankTxRepeatService },
 
         TestUtil.provideConfig(),
       ],

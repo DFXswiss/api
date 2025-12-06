@@ -102,6 +102,10 @@ export class BankTxReturnService {
     return this.bankTxReturnRepo.save({ ...update, ...Util.removeNullFields(entity) });
   }
 
+  async getBankTxReturn(id: number): Promise<BankTxReturn> {
+    return this.bankTxReturnRepo.findOneBy({ id });
+  }
+
   async getBankTxReturnsByIban(iban: string): Promise<BankTxReturn[]> {
     return this.bankTxReturnRepo.find({
       where: { chargebackIban: iban },

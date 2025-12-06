@@ -41,11 +41,6 @@ export class BankTxRepeatService {
 
     const update = this.bankTxRepeatRepo.create(dto);
 
-    if (dto.userId) {
-      update.user = await this.userService.getUser(dto.userId);
-      if(!update.user) throw new NotFoundException('User not found')
-    }
-
     // chargeback bank tx
     if (dto.chargebackBankTxId && !entity.chargebackBankTx) {
       update.chargebackBankTx = await this.bankTxRepo.findOneBy({ id: dto.chargebackBankTxId });
@@ -72,14 +67,20 @@ export class BankTxRepeatService {
 
     // user
     if (dto.userId) {
-      const user = await this.userService.getUser(dto.userId, { userData: true });
-      if (!user) throw new NotFoundException('User not found');
+      update.user = await this.userService.getUser(dto.userId, { userData: true });
+      if (!update.user) throw new NotFoundException('User not found');
       await this.transactionService.updateInternal(entity.transaction, {
         type: TransactionTypeInternal.BANK_TX_REPEAT,
-        user,
-        userData: user.userData,
+        user: update.user,
+        userData: update.user.userData,
       });
     }
+
+    return this.updateInternal(entity, update);
+  }
+
+  async updateInternal(entity: BankTxRepeat, dto: Partial<BankTxRepeat>): Promise<BankTxRepeat> {
+    const update = this.bankTxRepeatRepo.create(dto);
 
     return this.bankTxRepeatRepo.save({ ...update, ...Util.removeNullFields(entity) });
   }
@@ -97,5 +98,9 @@ export class BankTxRepeatService {
       where: { chargebackBankTx: { id: IsNull() } },
       relations: { chargebackBankTx: true, bankTx: true },
     });
+  }
+
+  async getBankTxRepeat(id: number): Promise<BankTxRepeat> {
+    return this.bankTxRepeatRepo.findOneBy({ id });
   }
 }

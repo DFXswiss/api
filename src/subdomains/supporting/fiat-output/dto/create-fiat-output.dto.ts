@@ -15,6 +15,10 @@ export class CreateFiatOutputDto {
   @IsNumber()
   bankTxReturnId?: number;
 
+  @IsOptional()
+  @IsNumber()
+  bankTxRepeatId?: number;
+
   @IsNotEmpty()
   @IsEnum(FiatOutputType)
   type: FiatOutputType;
