@@ -877,11 +877,11 @@ export class Configuration {
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
       bank: {
-        recipient: process.env.REALUNIT_BANK_RECIPIENT,
-        address: process.env.REALUNIT_BANK_ADDRESS,
-        iban: process.env.REALUNIT_BANK_IBAN,
-        bic: process.env.REALUNIT_BANK_BIC,
-        name: process.env.REALUNIT_BANK_NAME,
+        recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
+        address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',
+        iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
+        bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
+        name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
       },
     },
     ebel2x: {
