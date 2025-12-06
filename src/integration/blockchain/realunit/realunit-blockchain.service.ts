@@ -6,6 +6,7 @@ import {
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
+  BrokerbotSellPriceDto,
   BrokerbotSharesDto,
 } from 'src/integration/realunit/dto/realunit.dto';
 import { Blockchain } from '../shared/enums/blockchain.enum';
@@ -22,6 +23,7 @@ const ZCHF_ADDRESS = '0xb58e61c3098d85632df34eecfb899a1ed80921cb';
 const BROKERBOT_ABI = [
   'function getPrice() public view returns (uint256)',
   'function getBuyPrice(uint256 shares) public view returns (uint256)',
+  'function getSellPrice(uint256 shares) public view returns (uint256)',
   'function getShares(uint256 money) public view returns (uint256)',
   'function settings() public view returns (uint256)',
 ];
@@ -80,6 +82,21 @@ export class RealUnitBlockchainService implements OnModuleInit {
       shares,
       totalPrice: EvmUtil.fromWeiAmount(totalPriceRaw).toString(),
       totalPriceRaw: totalPriceRaw.toString(),
+      pricePerShare: EvmUtil.fromWeiAmount(pricePerShareRaw).toString(),
+    };
+  }
+
+  async getBrokerbotSellPrice(shares: number): Promise<BrokerbotSellPriceDto> {
+    const contract = this.getBrokerbotContract();
+    const [totalProceedsRaw, pricePerShareRaw] = await Promise.all([
+      contract.getSellPrice(shares),
+      contract.getPrice(),
+    ]);
+
+    return {
+      shares,
+      totalProceeds: EvmUtil.fromWeiAmount(totalProceedsRaw).toString(),
+      totalProceedsRaw: totalProceedsRaw.toString(),
       pricePerShare: EvmUtil.fromWeiAmount(pricePerShareRaw).toString(),
     };
   }

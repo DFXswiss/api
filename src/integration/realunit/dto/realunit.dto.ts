@@ -263,6 +263,20 @@ export class BrokerbotBuyPriceDto {
   pricePerShare: string;
 }
 
+export class BrokerbotSellPriceDto {
+  @ApiProperty({ description: 'Number of shares to sell' })
+  shares: number;
+
+  @ApiProperty({ description: 'Total proceeds in CHF (18 decimals formatted)' })
+  totalProceeds: string;
+
+  @ApiProperty({ description: 'Raw total proceeds in wei' })
+  totalProceedsRaw: string;
+
+  @ApiProperty({ description: 'Current price per share in CHF' })
+  pricePerShare: string;
+}
+
 export class BrokerbotSharesDto {
   @ApiProperty({ description: 'Amount in CHF' })
   amount: string;

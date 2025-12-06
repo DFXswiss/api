@@ -28,6 +28,7 @@ import {
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
+  BrokerbotSellPriceDto,
   BrokerbotSharesDto,
   HistoricalPriceDto,
   HoldersDto,
@@ -131,6 +132,10 @@ export class RealUnitService {
 
   async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
     return this.blockchainService.getBrokerbotBuyPrice(shares);
+  }
+
+  async getBrokerbotSellPrice(shares: number): Promise<BrokerbotSellPriceDto> {
+    return this.blockchainService.getBrokerbotSellPrice(shares);
   }
 
   async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {

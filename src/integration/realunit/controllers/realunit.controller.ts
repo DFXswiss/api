@@ -9,6 +9,7 @@ import {
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
+  BrokerbotSellPriceDto,
   BrokerbotSharesDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
@@ -122,6 +123,17 @@ export class RealUnitController {
   @ApiOkResponse({ type: BrokerbotBuyPriceDto })
   async getBrokerbotBuyPrice(@Query('shares') shares: number): Promise<BrokerbotBuyPriceDto> {
     return this.realunitService.getBrokerbotBuyPrice(Number(shares));
+  }
+
+  @Get('brokerbot/sellPrice')
+  @ApiOperation({
+    summary: 'Get sell price for shares',
+    description: 'Calculates the total proceeds from selling a specific number of REALU shares',
+  })
+  @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to sell' })
+  @ApiOkResponse({ type: BrokerbotSellPriceDto })
+  async getBrokerbotSellPrice(@Query('shares') shares: number): Promise<BrokerbotSellPriceDto> {
+    return this.realunitService.getBrokerbotSellPrice(Number(shares));
   }
 
   @Get('brokerbot/shares')
