@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiHeader, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { RealUnitRegistrationResponseDto, RealUnitUserRegistrationDto } from '../dto/realunit-registration.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
@@ -17,12 +18,32 @@ import {
   TimeFrame,
   TokenInfoDto,
 } from '../dto/realunit.dto';
+import { RealUnitApiKeyGuard } from '../guards/realunit-api-key.guard';
 import { RealUnitService } from '../realunit.service';
+import { RealUnitRegistrationService } from '../services/realunit-registration.service';
 
 @ApiTags('Realunit')
 @Controller('realunit')
 export class RealUnitController {
-  constructor(private readonly realunitService: RealUnitService) {}
+  constructor(
+    private readonly realunitService: RealUnitService,
+    private readonly registrationService: RealUnitRegistrationService,
+  ) {}
+
+  // --- Registration Endpoint (B2B) ---
+
+  @Post('register')
+  @UseGuards(RealUnitApiKeyGuard)
+  @ApiOperation({
+    summary: 'Register user with RealUnit/Aktionariat',
+    description:
+      'Registers a user with the RealUnit/Aktionariat platform. Requires API key authentication and EIP-712 signed user data.',
+  })
+  @ApiHeader({ name: 'x-api-key', description: 'API key for B2B authentication', required: true })
+  @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
+  async registerUser(@Body() dto: RealUnitUserRegistrationDto): Promise<RealUnitRegistrationResponseDto> {
+    return this.registrationService.registerUser(dto);
+  }
 
   @Get('account/:address')
   @ApiOperation({
