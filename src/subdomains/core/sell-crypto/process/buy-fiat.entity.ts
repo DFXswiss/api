@@ -13,12 +13,13 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FeeType } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -85,6 +86,9 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   usedRef?: string;
 
+  @Column({ length: 256, nullable: true })
+  usedPartnerFeeRef?: string;
+
   @Column({ type: 'float', nullable: true })
   refProvision?: number;
 
@@ -113,6 +117,9 @@ export class BuyFiat extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   bankFeeAmount?: number; //inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  partnerFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
   percentFeeAmount?: number; //inputAsset
@@ -281,11 +288,11 @@ export class BuyFiat extends IEntity {
   }
 
   setFeeAndFiatReference(
-    fee: InternalFeeDto & FeeDto,
+    fee: InternalFeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyFiat> {
-    const { usedRef, refProvision } = this.user.specifiedRef;
+    const partnerFee = fee.partner ? fee.fees.find((f) => f.type === FeeType.PARTNER) : undefined;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
 
     const update: Partial<BuyFiat> =
@@ -301,10 +308,12 @@ export class BuyFiat extends IEntity {
             totalFeeAmountChf,
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
+            partnerFeeAmount: fee.partner,
+            usedPartnerFeeRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
             inputReferenceAmountMinusFee,
-            usedRef,
-            refProvision,
-            refFactor: !fee.payoutRefBonus || usedRef === Config.defaultRef ? 0 : 1,
+            usedRef: this.user.usedRef,
+            refProvision: this.user.refFeePercent,
+            refFactor: !fee.payoutRefBonus || this.user.usedRef === Config.defaultRef ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
           };
 
@@ -467,6 +476,8 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDateUser: null,
       chargebackAmount: null,
       chargebackAllowedBy: null,
+      partnerFeeAmount: null,
+      usedPartnerFeeRef: null,
     };
 
     Object.assign(this, update);
