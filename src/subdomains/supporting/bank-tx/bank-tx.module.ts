@@ -20,6 +20,7 @@ import { BankTxReturn } from './bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnRepository } from './bank-tx-return/bank-tx-return.repository';
 import { BankTxReturnService } from './bank-tx-return/bank-tx-return.service';
 import { BankTxController } from './bank-tx/bank-tx.controller';
+import { YapealWebhookController } from './bank-tx/controllers/yapeal-webhook.controller';
 import { BankTxBatch } from './bank-tx/entities/bank-tx-batch.entity';
 import { BankTx } from './bank-tx/entities/bank-tx.entity';
 import { BankTxBatchRepository } from './bank-tx/repositories/bank-tx-batch.repository';
@@ -27,6 +28,7 @@ import { BankTxRepository } from './bank-tx/repositories/bank-tx.repository';
 import { BankTxBatchService } from './bank-tx/services/bank-tx-batch.service';
 import { BankTxService } from './bank-tx/services/bank-tx.service';
 import { SepaParser } from './bank-tx/services/sepa-parser.service';
+import { YapealBankTxService } from './bank-tx/services/yapeal-bank-tx.service';
 
 @Module({
   imports: [
@@ -43,7 +45,7 @@ import { SepaParser } from './bank-tx/services/sepa-parser.service';
     forwardRef(() => FiatOutputModule),
   ],
 
-  controllers: [BankTxController, BankTxReturnController, BankTxRepeatController],
+  controllers: [BankTxController, BankTxReturnController, BankTxRepeatController, YapealWebhookController],
   providers: [
     BankTxRepository,
     BankTxBatchRepository,
@@ -55,7 +57,8 @@ import { SepaParser } from './bank-tx/services/sepa-parser.service';
     BankTxBatchService,
     SepaParser,
     BankTxReturnNotificationService,
+    YapealBankTxService,
   ],
-  exports: [BankTxService, BankTxRepeatService, BankTxBatchService, BankTxReturnService],
+  exports: [BankTxService, BankTxRepeatService, BankTxBatchService, BankTxReturnService, YapealBankTxService],
 })
 export class BankTxModule {}
