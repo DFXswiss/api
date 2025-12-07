@@ -271,7 +271,7 @@ export class FiatOutputJobService {
         bankTx: { id: IsNull() },
         isReadyDate: Not(IsNull()),
       },
-      relations: { bankTx: { transaction: true }, bankTxReturn: true },
+      relations: { bankTx: { transaction: true }, bankTxReturn: true, bankTxRepeat: true },
     });
 
     for (const entity of entities) {
