@@ -5,7 +5,7 @@ export class RecommendationDtoMapper {
   static entityToDto(recommendation: Recommendation): RecommendationDto {
     const dto: RecommendationDto = {
       id: recommendation.id,
-      code: recommendation.code,
+      code: recommendation.isUsed ? undefined : recommendation.code,
       status: getStatus(recommendation),
       method: recommendation.method,
       type: recommendation.type,
@@ -25,6 +25,7 @@ export class RecommendationDtoMapper {
 
 function getStatus(recommendation: Recommendation): RecommendationDtoStatus {
   if (recommendation.isConfirmed) return RecommendationDtoStatus.COMPLETED;
+  if (recommendation.isConfirmed === false) return RecommendationDtoStatus.REJECTED;
   if (recommendation.isExpired) return RecommendationDtoStatus.EXPIRED;
   if (recommendation.isUsed) return RecommendationDtoStatus.PENDING;
   return RecommendationDtoStatus.CREATED;

@@ -9,6 +9,7 @@ export enum LiquidityManagementSystem {
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
   MEXC = 'MEXC',
+  SCRYPT = 'Scrypt',
   DFX_DEX = 'DfxDex',
   ARBITRUM_L2_BRIDGE = 'ArbitrumL2Bridge',
   OPTIMISM_L2_BRIDGE = 'OptimismL2Bridge',
@@ -49,7 +50,11 @@ export enum LiquidityOptimizationType {
   REDUNDANCY = 'Redundancy',
 }
 
-export const LiquidityManagementExchanges = [LiquidityManagementSystem.KRAKEN, LiquidityManagementSystem.BINANCE];
+export const LiquidityManagementExchanges = [
+  LiquidityManagementSystem.KRAKEN,
+  LiquidityManagementSystem.BINANCE,
+  LiquidityManagementSystem.SCRYPT,
+];
 export const LiquidityManagementBridges = [
   LiquidityManagementSystem.BASE_L2_BRIDGE,
   LiquidityManagementSystem.POLYGON_L2_BRIDGE,

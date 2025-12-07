@@ -230,6 +230,12 @@ param mexcSecret string
 
 param mexcWithdrawKeys string
 
+param scryptWsUrl string
+@secure()
+param scryptApiKey string
+@secure()
+param scryptApiSecret string
+
 param olkyClient string
 @secure()
 param olkySecret string
@@ -1191,6 +1197,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'MEXC_WITHDRAW_KEYS'
           value: mexcWithdrawKeys
+        }
+        {
+          name: 'SCRYPT_WS_URL'
+          value: scryptWsUrl
+        }
+        {
+          name: 'SCRYPT_API_KEY'
+          value: scryptApiKey
+        }
+        {
+          name: 'SCRYPT_API_SECRET'
+          value: scryptApiSecret
         }
         {
           name: 'LETTER_URL'

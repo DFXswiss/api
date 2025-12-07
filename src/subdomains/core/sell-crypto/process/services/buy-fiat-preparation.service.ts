@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
-import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
@@ -61,7 +61,7 @@ export class BuyFiatPreparationService {
           amlReason: IsNull(),
           ...request,
         },
-        { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
+        { amlCheck: CheckStatus.PENDING, amlReason: Not(In(BlockAmlReasons)), ...request },
       ],
       relations: {
         cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },

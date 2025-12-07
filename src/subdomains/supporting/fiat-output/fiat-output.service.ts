@@ -98,6 +98,7 @@ export class FiatOutputService {
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.nationality', 'nationality')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `fiatOutput.${key}`} = :param`, { param: value })

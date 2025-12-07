@@ -23,11 +23,14 @@ import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { CustodyProviderService } from '../custody-provider/custody-provider.service';
+import { RecommendationService } from '../recommendation/recommendation.service';
 import { UserData } from '../user-data/user-data.entity';
 import { KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
@@ -82,6 +85,8 @@ export class AuthService {
     private readonly languageService: LanguageService,
     private readonly geoLocationService: GeoLocationService,
     private readonly settingService: SettingService,
+    private readonly recommendationService: RecommendationService,
+    private readonly kycAdminService: KycAdminService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE)
@@ -165,6 +170,8 @@ export class AuthService {
     // update ip Logs
     await this.ipLogService.updateUserIpLogs(user);
 
+    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, user.userData);
+
     await this.checkIpBlacklistFor(user.userData, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
@@ -187,9 +194,6 @@ export class AuthService {
         user.userData.reactivateUserData(),
       );
 
-    if (!user.userData.tradeApprovalDate && user.userData.wallet.autoTradeApproval)
-      await this.userDataService.updateUserDataInternal(user.userData, { tradeApprovalDate: new Date() });
-
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 
@@ -202,6 +206,8 @@ export class AuthService {
         await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
       }
     }
+
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData);
 
     try {
       if (dto.specialCode || dto.discountCode)
@@ -221,14 +227,8 @@ export class AuthService {
   }
 
   async signInByMail(dto: AuthMailDto, url: string, userIp: string): Promise<void> {
-    if (dto.redirectUri) {
-      try {
-        const redirectUrl = new URL(dto.redirectUri);
-        if (!Config.frontend.allowedUrls.includes(redirectUrl.origin)) throw new Error('Redirect URL not allowed');
-      } catch (e) {
-        throw new BadRequestException(e.message);
-      }
-    }
+    if (dto.redirectUri && !Config.frontend.isRedirectUrlAllowed(dto.redirectUri))
+      throw new BadRequestException('Redirect URL not allowed');
 
     const ipCountry = this.geoLocationService.getCountry(userIp);
     const language = await this.languageService.getLanguageByCountry(ipCountry);
@@ -244,6 +244,8 @@ export class AuthService {
         status: UserDataStatus.KYC_ONLY,
         wallet: await this.walletService.getDefault(),
       }));
+
+    if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, userData);
 
     await this.checkIpBlacklistFor(userData, userIp);
 
@@ -306,6 +308,8 @@ export class AuthService {
 
       if (account.isDeactivated)
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
+
+      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
 
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
       url.searchParams.set('session', token);
@@ -371,6 +375,29 @@ export class AuthService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async checkPendingRecommendation(userData: UserData): Promise<void> {
+    if (userData.wallet?.autoTradeApproval)
+      await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
+
+    await this.recommendationService.checkAndConfirmRecommendInvitation(userData.id);
+  }
+
+  private async confirmRecommendationCode(code: string, userData: UserData): Promise<void> {
+    const recommendation = await this.recommendationService.getAndCheckRecommendationByCode(code);
+    if (recommendation) {
+      await this.recommendationService.updateRecommendationInternal(recommendation, {
+        isConfirmed: true,
+        confirmationDate: new Date(),
+        recommended: userData,
+      });
+
+      const recommendationStep = await this.kycAdminService
+        .getKycSteps(userData.id)
+        .then((k) => k.find((s) => s.name === KycStepName.RECOMMENDATION && !s.isCompleted));
+      if (recommendationStep) await this.kycAdminService.updateKycStepInternal(recommendationStep.cancel());
+    }
+  }
 
   private async checkIpBlacklistFor(userData: UserData, ip: string): Promise<void> {
     if (userData.hasIpRisk) return;

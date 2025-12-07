@@ -83,7 +83,7 @@ export class TransactionRequestService {
     userId: number,
   ): Promise<void> {
     try {
-      const uid = `${Config.prefixes.quoteUidPrefix}${Util.randomString(16)}`;
+      const uid = Util.createUid(Config.prefixes.quoteUidPrefix);
 
       // create the entity
       const transactionRequest = this.transactionRequestRepo.create({

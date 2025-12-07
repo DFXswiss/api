@@ -33,8 +33,10 @@ export class RecommendationService {
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
     if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
 
-    const mailUser: UserData = dto.recommendedMail
-      ? (await this.userDataService.getUsersByMail(dto.recommendedMail, true))?.[0]
+    const mailUser = dto.recommendedMail
+      ? await this.userDataService
+          .getUsersByMail(dto.recommendedMail, true)
+          .then((u) => u.find((us) => us.tradeApprovalDate) ?? u?.[0])
       : undefined;
 
     if (mailUser && mailUser.tradeApprovalDate) throw new BadRequestException('Account is already approved');
@@ -56,14 +58,16 @@ export class RecommendationService {
 
     const recommended = mailUser
       ? await this.userDataService.updateUserDataInternal(mailUser, { tradeApprovalDate: new Date() })
-      : await this.userDataService.createUserData({
+      : dto.recommendedMail
+      ? await this.userDataService.createUserData({
           mail: dto.recommendedMail,
           status: UserDataStatus.KYC_ONLY,
           kycType: KycType.DFX,
           language: userData.language,
           currency: userData.currency,
           tradeApprovalDate: new Date(),
-        });
+        })
+      : undefined;
 
     const entity = await this.createRecommendationInternal(
       RecommendationType.INVITATION,
@@ -97,15 +101,19 @@ export class RecommendationService {
       });
     } else {
       // create new recommendation
-      const recommender: UserData = Config.formats.ref.test(key)
+      const recommender = Config.formats.ref.test(key)
         ? await this.userService.getRefUser(key).then((u) => u?.userData)
         : key.includes('@')
-        ? (await this.userDataService.getUsersByMail(key, true))?.[0]
+        ? await this.userDataService.getUsersByMail(key, true).then((u) => u.find((us) => us.tradeApprovalDate))
         : undefined;
-      if (!recommender) throw new NotFoundException('Recommender not found');
-      if (recommender.isBlocked) throw new BadRequestException('Recommender blocked');
-      if (recommender.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
-      if (!recommender.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
+      if (
+        !recommender ||
+        recommender.isBlocked ||
+        recommender.hasAnyRiskStatus ||
+        recommender.kycLevel < KycLevel.LEVEL_50 ||
+        !recommender.tradeApprovalDate
+      )
+        throw new NotFoundException('Recommender not found');
 
       const existingRecommendations = await this.recommendationRepo.countBy({
         recommender: { id: recommender.id },
@@ -156,7 +164,10 @@ export class RecommendationService {
   }
 
   async confirmRecommendation(userDataId: number, id: number, isConfirmed: boolean): Promise<Recommendation> {
-    const entity = await this.recommendationRepo.findOne({ where: { id }, relations: { recommender: true } });
+    const entity = await this.recommendationRepo.findOne({
+      where: { id },
+      relations: { recommender: true, recommended: true },
+    });
     if (!entity) throw new NotFoundException('Recommendation not found');
     if (entity.recommender.id !== userDataId)
       throw new BadRequestException('You can not confirm a recommendation from another account');
@@ -164,6 +175,12 @@ export class RecommendationService {
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
     if (entity.isConfirmed !== null) throw new BadRequestException('Recommendation is already confirmed');
     if (entity.isExpired) throw new BadRequestException('Recommendation is expired');
+    if (!entity.isUsed) throw new BadRequestException('Recommendation is not used');
+
+    if (entity.recommended.isBlocked || entity.recommended.hasAnyRiskStatus) {
+      await this.updateRecommendationInternal(entity, { isConfirmed: false });
+      throw new BadRequestException('Confirmation rejected');
+    }
 
     return this.updateRecommendationInternal(entity, {
       isConfirmed,
@@ -173,6 +190,11 @@ export class RecommendationService {
 
   async updateRecommendationInternal(entity: Recommendation, update: Partial<Recommendation>): Promise<Recommendation> {
     Object.assign(entity, update);
+
+    if (update.isConfirmed && entity.recommended)
+      await this.userDataService.updateUserDataInternal(update.recommended ?? entity.recommended, {
+        tradeApprovalDate: new Date(),
+      });
 
     return this.recommendationRepo.save(entity);
   }
@@ -196,6 +218,22 @@ export class RecommendationService {
       where: { recommender: { id: userDataId } },
       relations: { recommended: true, recommender: true },
     });
+  }
+
+  async checkAndConfirmRecommendInvitation(recommendedId: number): Promise<Recommendation> {
+    const entity = await this.recommendationRepo.findOne({
+      where: { recommended: { id: recommendedId }, isConfirmed: IsNull(), expirationDate: MoreThan(new Date()) },
+      relations: { recommended: true, recommender: true },
+    });
+    if (
+      !entity ||
+      entity.recommender.isBlocked ||
+      entity.recommender.hasAnyRiskStatus ||
+      !entity.recommender.tradeApprovalDate
+    )
+      return;
+
+    return this.updateRecommendationInternal(entity, { isConfirmed: true, confirmationDate: new Date() });
   }
 
   // --- NOTIFICATIONS --- //
@@ -224,12 +262,12 @@ export class RecommendationService {
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_button`,
-                params: { url: Config.frontend.services, button: 'true' },
+                params: { url: entity.loginUrl, button: 'true' },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_link`,
-                params: { url: Config.frontend.services, urlText: Config.frontend.services },
+                params: { url: entity.loginUrl, urlText: entity.loginUrl },
               },
               { key: MailKey.SPACE, params: { value: '4' } },
               { key: MailKey.DFX_TEAM_CLOSING },
