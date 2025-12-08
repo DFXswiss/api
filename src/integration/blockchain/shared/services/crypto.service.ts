@@ -352,7 +352,7 @@ export class CryptoService {
       ],
     };
 
-    const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
+    const signatureToUse = signature.startsWith('0x') ? signature : `0x${signature}`;
     const recoveredAddress = verifyTypedData(domain, types, data, signatureToUse);
 
     return recoveredAddress.toLowerCase() === data.walletAddress.toLowerCase();

@@ -11,7 +11,6 @@ import { UserModule } from '../user/user.module';
 import { KycAdminController } from './controllers/kyc-admin.controller';
 import { KycClientController } from './controllers/kyc-client.controller';
 import { KycController } from './controllers/kyc.controller';
-import { RealUnitController } from './controllers/realunit.controller';
 import { KycFile } from './entities/kyc-file.entity';
 import { KycLog } from './entities/kyc-log.entity';
 import { KycStep } from './entities/kyc-step.entity';
@@ -39,7 +38,7 @@ import { KycLogService } from './services/kyc-log.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
-import { RealUnitService } from './services/realunit.service';
+import { RealUnitRegistrationService } from './services/realunit-registration.service';
 import { TfaService } from './services/tfa.service';
 
 @Module({
@@ -64,7 +63,7 @@ import { TfaService } from './services/tfa.service';
     TransactionModule,
     forwardRef(() => SupportIssueModule),
   ],
-  controllers: [KycController, KycAdminController, KycClientController, RealUnitController],
+  controllers: [KycController, KycAdminController, KycClientController],
   providers: [
     KycService,
     KycAdminService,
@@ -85,7 +84,7 @@ import { TfaService } from './services/tfa.service';
     KycNotificationService,
     KycClientService,
     SumsubService,
-    RealUnitService,
+    RealUnitRegistrationService,
   ],
   exports: [
     KycDocumentService,
@@ -96,6 +95,7 @@ import { TfaService } from './services/tfa.service';
     KycNotificationService,
     KycService,
     KycFileService,
+    RealUnitRegistrationService,
   ],
 })
 export class KycModule {}

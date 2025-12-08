@@ -8,7 +8,7 @@ import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
 @Injectable()
-export class RealUnitService {
+export class RealUnitRegistrationService {
   constructor(
     private readonly userDataService: UserDataService,
     private readonly kycStepRepo: KycStepRepository,
