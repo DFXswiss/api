@@ -1,6 +1,5 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import * as IbanTools from 'ibantools';
-import { Config } from 'src/config/config';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -50,7 +49,6 @@ export class VirtualIbanService {
     const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
     if (!bank) throw new BadRequestException('No bank available for this currency');
 
-    // Reserve IBAN via YAPEAL API or use placeholder if not configured
     const { iban, bban, accountUid } = await this.reserveVibanFromYapeal();
 
     const virtualIban = this.virtualIbanRepo.create({
@@ -69,30 +67,18 @@ export class VirtualIbanService {
   }
 
   private async reserveVibanFromYapeal(): Promise<{ iban: string; bban?: string; accountUid?: string }> {
-    const { apiKey, partnershipUid } = Config.bank.yapeal;
-
-    // If YAPEAL is not configured, use placeholder IBAN
-    if (!apiKey || !partnershipUid) {
-      this.logger.warn('YAPEAL not configured, using placeholder IBAN');
+    if (!this.yapealService.isAvailable()) {
+      this.logger.info('YAPEAL not configured, using placeholder IBAN');
       return { iban: this.generatePlaceholderIban() };
     }
 
-    try {
-      // First get a VIBAN proposal to get a unique bban
-      const proposal = await this.yapealService.getVibanProposal();
+    const result = await this.yapealService.createViban();
 
-      // Then reserve the VIBAN with the proposed bban
-      const result = await this.yapealService.reserveViban(proposal.bban);
-
-      return {
-        iban: result.iban,
-        bban: result.bban,
-        accountUid: result.accountUid,
-      };
-    } catch (e) {
-      this.logger.error('Failed to reserve VIBAN from YAPEAL, falling back to placeholder:', e);
-      return { iban: this.generatePlaceholderIban() };
-    }
+    return {
+      iban: result.iban,
+      bban: result.bban,
+      accountUid: result.accountUid,
+    };
   }
 
   private generatePlaceholderIban(): string {
