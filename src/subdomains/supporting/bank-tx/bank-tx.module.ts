@@ -26,6 +26,7 @@ import { BankTxBatchRepository } from './bank-tx/repositories/bank-tx-batch.repo
 import { BankTxRepository } from './bank-tx/repositories/bank-tx.repository';
 import { BankTxBatchService } from './bank-tx/services/bank-tx-batch.service';
 import { BankTxService } from './bank-tx/services/bank-tx.service';
+import { BankTransactionHandler } from './bank-tx/services/bank-transaction-handler.service';
 import { SepaParser } from './bank-tx/services/sepa-parser.service';
 
 @Module({
@@ -55,6 +56,7 @@ import { SepaParser } from './bank-tx/services/sepa-parser.service';
     BankTxBatchService,
     SepaParser,
     BankTxReturnNotificationService,
+    BankTransactionHandler,
   ],
   exports: [BankTxService, BankTxRepeatService, BankTxBatchService, BankTxReturnService],
 })
