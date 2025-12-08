@@ -968,7 +968,7 @@ export class Configuration {
       },
     },
     yapeal: {
-      baseUrl: process.env.YAPEAL_BASE_URL ?? 'https://auth.yapeal.ch:3031',
+      baseUrl: process.env.YAPEAL_BASE_URL,
       partnershipUid: process.env.YAPEAL_PARTNERSHIP_UID,
       baseAccountIban: process.env.YAPEAL_BASE_ACCOUNT_IBAN,
       apiKey: process.env.YAPEAL_API_KEY,
