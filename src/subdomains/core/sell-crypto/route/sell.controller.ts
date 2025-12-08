@@ -10,21 +10,19 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
+import { SellActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -34,12 +32,15 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionDtoMapper } from '../../history/mappers/transaction-dto.mapper';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
+import { BroadcastSellDto } from './dto/broadcast-sell.dto';
 import { ConfirmDto } from './dto/confirm.dto';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
+import { PreparedTxDto } from './dto/prepared-tx.dto';
 import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
 import { SellHistoryDto } from './dto/sell-history.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
+import { SellPaymentInfoWithTxDto } from './dto/sell-payment-info-with-tx.dto';
 import { SellQuoteDto } from './dto/sell-quote.dto';
 import { SellDto } from './dto/sell.dto';
 import { UpdateSellDto } from './dto/update-sell.dto';
@@ -61,15 +62,7 @@ export class SellController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SellActiveGuard())
   @ApiExcludeEndpoint()
   async getAllSell(@GetJwt() jwt: JwtPayload): Promise<SellDto[]> {
     return this.sellService.getUserSells(jwt.user).then((l) => this.toDtoList(l));
@@ -77,15 +70,7 @@ export class SellController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SellActiveGuard())
   @ApiOkResponse({ type: SellDto })
   async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellDto> {
     return this.sellService.get(jwt.user, +id).then((l) => this.toDto(l));
@@ -93,15 +78,7 @@ export class SellController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SellActiveGuard())
   @ApiExcludeEndpoint()
   async createSell(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSellDto): Promise<SellDto> {
     dto.currency ??= dto.fiat;
@@ -168,16 +145,7 @@ export class SellController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    IpGuard,
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
   @ApiOkResponse({ type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -187,18 +155,45 @@ export class SellController {
     return this.sellService.createSellPaymentInfo(jwt.user, dto);
   }
 
+  @Put('/paymentInfos/withTx')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
+  @ApiOperation({
+    summary: 'Create sell order with unsigned transaction',
+    description:
+      'Creates a sell order and returns payment info together with unsigned transaction data. ' +
+      'Combines PUT /sell/paymentInfos and GET /sell/paymentInfos/:id/prepareTx in one call.',
+  })
+  @ApiOkResponse({ type: SellPaymentInfoWithTxDto })
+  async createSellWithPaymentInfoAndTx(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: GetSellPaymentInfoDto,
+  ): Promise<SellPaymentInfoWithTxDto> {
+    dto = await this.paymentInfoService.sellCheck(dto, jwt);
+    return this.sellService.createSellPaymentInfoWithTx(jwt.user, dto);
+  }
+
+  @Get('/paymentInfos/:id/prepareTx')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
+  @ApiOperation({
+    summary: 'Get unsigned transaction data',
+    description:
+      'Returns unsigned transaction data that the user can sign locally. ' +
+      'After signing, submit via PUT /sell/paymentInfos/:id/broadcast.',
+  })
+  @ApiOkResponse({ type: PreparedTxDto })
+  async prepareTx(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PreparedTxDto> {
+    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+
+    return this.sellService.prepareTx(request);
+  }
+
   @Put('/paymentInfos/:id/confirm')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    IpGuard,
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
     @GetJwt() jwt: JwtPayload,
@@ -212,17 +207,31 @@ export class SellController {
     return this.sellService.confirmSell(request, dto).then((tx) => TransactionDtoMapper.mapBuyFiatTransaction(tx));
   }
 
+  @Put('/paymentInfos/:id/broadcast')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
+  @ApiOperation({
+    summary: 'Broadcast signed transaction',
+    description:
+      'Validates and broadcasts a user-signed transaction. ' +
+      'The transaction must transfer the correct amount to the deposit address.',
+  })
+  @ApiOkResponse({ type: TransactionDto })
+  async broadcastSell(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: BroadcastSellDto,
+  ): Promise<TransactionDto> {
+    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+
+    return this.sellService.broadcastSell(request, dto).then((tx) => TransactionDtoMapper.mapBuyFiatTransaction(tx));
+  }
+
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SellActiveGuard())
   @ApiExcludeEndpoint()
   async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateSellDto): Promise<SellDto> {
     return this.sellService.updateSell(jwt.user, +id, dto).then((s) => this.toDto(s));

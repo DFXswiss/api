@@ -156,6 +156,10 @@ export abstract class EvmClient extends BlockchainClient {
     return this.provider.getBlockNumber();
   }
 
+  async getTransactionCount(address: string): Promise<number> {
+    return this.provider.getTransactionCount(address);
+  }
+
   async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 

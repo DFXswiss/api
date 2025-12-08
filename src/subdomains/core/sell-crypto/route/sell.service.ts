@@ -9,8 +9,13 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { merge } from 'lodash';
 import { Config } from 'src/config/config';
+import { BigNumber } from 'ethers';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
@@ -24,7 +29,8 @@ import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { PayInPurpose, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
@@ -40,9 +46,12 @@ import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
+import { BroadcastSellDto } from './dto/broadcast-sell.dto';
+import { PreparedTxDto } from './dto/prepared-tx.dto';
 import { ConfirmDto } from './dto/confirm.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
+import { SellPaymentInfoWithTxDto } from './dto/sell-payment-info-with-tx.dto';
 import { Sell } from './sell.entity';
 
 @Injectable()
@@ -68,6 +77,8 @@ export class SellService {
     private readonly cryptoService: CryptoService,
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly txValidationService: TxValidationService,
   ) {}
 
   // --- SELLS --- //
@@ -198,6 +209,19 @@ export class SellService {
     return this.toPaymentInfoDto(userId, sell, dto);
   }
 
+  async createSellPaymentInfoWithTx(userId: number, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoWithTxDto> {
+    const paymentInfo = await this.createSellPaymentInfo(userId, dto);
+
+    // Only prepare TX if quote is valid
+    let unsignedTx: PreparedTxDto | undefined;
+    if (paymentInfo.isValid) {
+      const request = await this.transactionRequestService.getOrThrow(paymentInfo.id, userId);
+      unsignedTx = await this.prepareTx(request);
+    }
+
+    return { ...paymentInfo, unsignedTx };
+  }
+
   async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
     // check user data
     const userData = await this.userDataService.getUserDataByUser(userId);
@@ -323,6 +347,144 @@ export class SellService {
       this.logger.warn(`Failed to execute permit transfer for sell request ${request.id}:`, e);
       throw new BadRequestException(`Failed to execute permit transfer: ${e.message}`);
     }
+  }
+
+  async broadcastSell(request: TransactionRequest, dto: BroadcastSellDto): Promise<BuyFiatExtended> {
+    try {
+      const route = await this.sellRepo.findOne({
+        where: { id: request.routeId },
+        relations: { deposit: true, user: { wallet: true, userData: true } },
+      });
+
+      if (!route) throw new NotFoundException('Sell route not found');
+
+      // Get the asset from the transaction request
+      const asset = await this.assetService.getAssetById(request.sourceId);
+      if (!asset) throw new BadRequestException('Asset not found');
+
+      // Validate blockchain matches
+      if (asset.blockchain !== dto.blockchain) {
+        throw new BadRequestException(
+          `Blockchain mismatch: expected ${asset.blockchain}, got ${dto.blockchain}`,
+        );
+      }
+
+      // Calculate expected amount in wei
+      const expectedAmountWei = EvmUtil.toWeiAmount(request.amount, asset.decimals);
+
+      // Validate the transaction (recipient and amount)
+      this.txValidationService.assertValidEvmTransaction(
+        dto.hex,
+        route.deposit.address,
+        expectedAmountWei,
+        asset,
+      );
+
+      // Get the blockchain client and broadcast the transaction
+      const client = this.blockchainRegistryService.getEvmClient(dto.blockchain);
+
+      // Broadcast the signed transaction
+      const txResponse = await client.sendSignedTransaction(dto.hex);
+
+      if (txResponse.error) {
+        throw new BadRequestException(`Transaction broadcast failed: ${txResponse.error.message}`);
+      }
+
+      const txId = txResponse.response.hash;
+      const blockHeight = await client.getCurrentBlock();
+
+      // Parse the transaction to get sender address
+      const parsedTx = this.txValidationService.parseEvmTransaction(dto.hex, asset);
+      if (!parsedTx) throw new BadRequestException('Failed to parse signed transaction');
+      const senderAddress = parsedTx.sender;
+
+      // Create the crypto input (pay-in)
+      const [payIn] = await this.payInService.createPayIns([
+        {
+          senderAddresses: senderAddress,
+          receiverAddress: BlockchainAddress.create(route.deposit.address, dto.blockchain),
+          txId,
+          txType: PayInType.DEPOSIT,
+          blockHeight,
+          amount: request.amount,
+          asset,
+        },
+      ]);
+
+      // Create the BuyFiat record
+      const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
+
+      // Acknowledge the pay-in
+      await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);
+
+      return await this.buyFiatService.extendBuyFiat(buyFiat);
+    } catch (e) {
+      this.logger.warn(`Failed to broadcast sell transaction for request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to broadcast sell transaction: ${e.message}`);
+    }
+  }
+
+  async prepareTx(request: TransactionRequest): Promise<PreparedTxDto> {
+    const route = await this.sellRepo.findOne({
+      where: { id: request.routeId },
+      relations: { deposit: true },
+    });
+
+    if (!route) throw new NotFoundException('Sell route not found');
+
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    const chainId = EvmUtil.getChainId(asset.blockchain);
+    if (!chainId) throw new BadRequestException(`Unsupported blockchain: ${asset.blockchain}`);
+
+    const userAddress = request.user.address;
+    const client = this.blockchainRegistryService.getEvmClient(asset.blockchain);
+    const amountWei = EvmUtil.toWeiAmount(request.amount, asset.decimals);
+    const depositAddress = route.deposit.address;
+
+    let to: string;
+    let data: string;
+    let value: string;
+    let gasLimitPromise: Promise<string>;
+
+    if (asset.type === AssetType.COIN) {
+      // Native token transfer (ETH, MATIC, etc.)
+      to = depositAddress;
+      data = '0x';
+      value = amountWei.toString();
+      gasLimitPromise = Promise.resolve('21000');
+    } else {
+      // ERC20 token transfer
+      if (!asset.chainId) throw new BadRequestException('Asset has no contract address');
+
+      to = asset.chainId;
+      data = EvmUtil.encodeErc20Transfer(depositAddress, amountWei);
+      value = '0';
+      gasLimitPromise = client.getTokenGasLimitForAsset(asset).then((g) => g.toString());
+    }
+
+    // Fetch nonce, gasPrice, and gasLimit in parallel
+    const [nonce, gasPrice, gasLimit] = await Promise.all([
+      client.getTransactionCount(userAddress),
+      client.getRecommendedGasPrice(),
+      gasLimitPromise,
+    ]);
+
+    return {
+      from: userAddress,
+      to,
+      data,
+      value,
+      nonce,
+      gasPrice: gasPrice.toString(),
+      gasLimit,
+      chainId,
+      blockchain: asset.blockchain,
+      depositAddress,
+      amount: request.amount,
+      asset: asset.name,
+    };
   }
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
