@@ -103,6 +103,9 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   birthday?: Date;
 
+  @Column({ length: 256, nullable: true })
+  tin?: string;
+
   // --- ORGANIZATION DATA --- //
   // TODO remove after sync
   @Column({ length: 256, nullable: true })
