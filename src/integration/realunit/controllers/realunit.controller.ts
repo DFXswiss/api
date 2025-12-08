@@ -1,19 +1,32 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
   AccountSummaryDto,
   AllowlistStatusDto,
   BankDetailsDto,
+  BrokerbotBroadcastRequest,
+  BrokerbotBroadcastResponse,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
+  BrokerbotSellPriceDto,
+  BrokerbotSellRequest,
+  BrokerbotSellTxDto,
   BrokerbotSharesDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
   HoldersDto,
   HoldersQueryDto,
+  Permit2ApprovalDto,
+  Permit2ApproveRequest,
+  Permit2ApproveTxDto,
   TimeFrame,
   TokenInfoDto,
 } from '../dto/realunit.dto';
@@ -124,6 +137,17 @@ export class RealUnitController {
     return this.realunitService.getBrokerbotBuyPrice(Number(shares));
   }
 
+  @Get('brokerbot/sellPrice')
+  @ApiOperation({
+    summary: 'Get sell price for shares',
+    description: 'Calculates the total proceeds from selling a specific number of REALU shares',
+  })
+  @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to sell' })
+  @ApiOkResponse({ type: BrokerbotSellPriceDto })
+  async getBrokerbotSellPrice(@Query('shares') shares: number): Promise<BrokerbotSellPriceDto> {
+    return this.realunitService.getBrokerbotSellPrice(Number(shares));
+  }
+
   @Get('brokerbot/shares')
   @ApiOperation({
     summary: 'Get shares for amount',
@@ -154,5 +178,72 @@ export class RealUnitController {
   @ApiOkResponse({ type: BankDetailsDto })
   getBankDetails(): BankDetailsDto {
     return this.realunitService.getBankDetails();
+  }
+
+  // --- Sell Endpoints ---
+
+  @Post('brokerbot/sell')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
+  @ApiOperation({
+    summary: 'Prepare sell transaction',
+    description:
+      'Prepares transaction data for selling REALU shares via Brokerbot. ' +
+      'Client signs the returned TX data and sends it via POST /brokerbot/broadcast.',
+  })
+  @ApiCreatedResponse({ type: BrokerbotSellTxDto })
+  async prepareSellTx(
+    @GetJwt() _jwt: JwtPayload,
+    @Body() dto: BrokerbotSellRequest,
+  ): Promise<BrokerbotSellTxDto> {
+    return this.realunitService.prepareSellTx(dto.shares, dto.minPrice);
+  }
+
+  @Post('brokerbot/broadcast')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
+  @ApiOperation({
+    summary: 'Broadcast signed sell transaction',
+    description:
+      'Validates and broadcasts a signed Brokerbot sell transaction (REALU → ZCHF). ' +
+      'After this succeeds, use PUT /sell/paymentInfos and PUT /sell/paymentInfos/:id/confirm ' +
+      'to complete the ZCHF → CHF sale via Permit2.',
+  })
+  @ApiCreatedResponse({ type: BrokerbotBroadcastResponse })
+  async broadcastSellTx(
+    @GetJwt() _jwt: JwtPayload,
+    @Body() dto: BrokerbotBroadcastRequest,
+  ): Promise<BrokerbotBroadcastResponse> {
+    return this.realunitService.broadcastSellTx(dto.signedTransaction);
+  }
+
+  // --- Permit2 Approval Endpoints ---
+
+  @Get('brokerbot/approval/:address')
+  @ApiOperation({
+    summary: 'Check Permit2 approval status',
+    description: 'Checks the ZCHF allowance for the Permit2 contract for a given wallet address',
+  })
+  @ApiParam({ name: 'address', description: 'Wallet address to check' })
+  @ApiOkResponse({ type: Permit2ApprovalDto })
+  async getPermit2Approval(@Param('address') address: string): Promise<Permit2ApprovalDto> {
+    return this.realunitService.getPermit2Approval(address);
+  }
+
+  @Post('brokerbot/approve')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
+  @ApiOperation({
+    summary: 'Prepare Permit2 approval transaction',
+    description:
+      'Prepares transaction data for approving ZCHF to the Permit2 contract. ' +
+      'This is required once before using Permit2 for gasless ZCHF transfers.',
+  })
+  @ApiCreatedResponse({ type: Permit2ApproveTxDto })
+  async prepareApproveTx(
+    @GetJwt() _jwt: JwtPayload,
+    @Body() dto: Permit2ApproveRequest,
+  ): Promise<Permit2ApproveTxDto> {
+    return this.realunitService.prepareApproveTx(dto.unlimited ?? true);
   }
 }

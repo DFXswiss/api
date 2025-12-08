@@ -714,6 +714,7 @@ export class Configuration {
       ethChainId: +process.env.ETH_CHAIN_ID,
       swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.ETH_QUOTE_CONTRACT_ADDRESS,
+      permit2Address: process.env.ETH_PERMIT2_ADDRESS ?? '0x000000000022D473030F116dDEE9F6B43aC78BA3',
     },
     sepolia: {
       sepoliaWalletAddress: process.env.SEPOLIA_WALLET_ADDRESS,
@@ -876,6 +877,7 @@ export class Configuration {
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
+      brokerbotAddress: process.env.REALUNIT_BROKERBOT_ADDRESS ?? '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d',
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
         address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',

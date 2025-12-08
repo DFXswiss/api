@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { HistoryEventType, HolderClientResponse, PageInfo } from './client.dto';
 
 export class HistoricalBalanceDto {
@@ -263,6 +263,20 @@ export class BrokerbotBuyPriceDto {
   pricePerShare: string;
 }
 
+export class BrokerbotSellPriceDto {
+  @ApiProperty({ description: 'Number of shares to sell' })
+  shares: number;
+
+  @ApiProperty({ description: 'Total proceeds in CHF (18 decimals formatted)' })
+  totalProceeds: string;
+
+  @ApiProperty({ description: 'Raw total proceeds in wei' })
+  totalProceedsRaw: string;
+
+  @ApiProperty({ description: 'Current price per share in CHF' })
+  pricePerShare: string;
+}
+
 export class BrokerbotSharesDto {
   @ApiProperty({ description: 'Amount in CHF' })
   amount: string;
@@ -326,4 +340,118 @@ export class BankDetailsDto {
 
   @ApiProperty({ description: 'Currency (always CHF)' })
   currency: string;
+}
+
+// --- Brokerbot Sell DTOs ---
+
+export class BrokerbotSellRequest {
+  @ApiProperty({ description: 'Number of shares to sell' })
+  @IsNotEmpty()
+  @IsNumber()
+  @Type(() => Number)
+  shares: number;
+
+  @ApiProperty({ description: 'Wallet address of the seller' })
+  @IsNotEmpty()
+  @IsString()
+  walletAddress: string;
+
+  @ApiPropertyOptional({ description: 'Minimum acceptable price (slippage protection)' })
+  @IsOptional()
+  @IsString()
+  minPrice?: string;
+}
+
+export class BrokerbotSellTxDto {
+  @ApiProperty({ description: 'Target contract address (REALU token)' })
+  to: string;
+
+  @ApiProperty({ description: 'Encoded transferAndCall() function data' })
+  data: string;
+
+  @ApiProperty({ description: 'ETH value (always "0")' })
+  value: string;
+
+  @ApiProperty({ description: 'Estimated gas limit' })
+  gasLimit: string;
+
+  @ApiProperty({ description: 'Chain ID (1 for Ethereum mainnet)' })
+  chainId: number;
+
+  @ApiProperty({ description: 'Number of shares being sold' })
+  expectedShares: number;
+
+  @ApiProperty({ description: 'Expected ZCHF proceeds' })
+  expectedPrice: string;
+
+  @ApiProperty({ description: 'TX data validity expiration (ISO timestamp)' })
+  expiresAt: string;
+}
+
+export class BrokerbotBroadcastRequest {
+  @ApiProperty({ description: 'Hex-encoded signed transaction' })
+  @IsNotEmpty()
+  @IsString()
+  signedTransaction: string;
+}
+
+export class BrokerbotBroadcastResponse {
+  @ApiProperty({ description: 'Transaction hash' })
+  txHash: string;
+
+  @ApiProperty({ description: 'Number of shares sold' })
+  shares: number;
+
+  @ApiProperty({ description: 'ZCHF received from Brokerbot' })
+  zchfReceived: string;
+}
+
+// --- Permit2 Approval DTOs ---
+
+export class Permit2ApprovalDto {
+  @ApiProperty({ description: 'Wallet address' })
+  address: string;
+
+  @ApiProperty({ description: 'Spender address (Permit2 contract)' })
+  spender: string;
+
+  @ApiProperty({ description: 'Current allowance amount' })
+  allowance: string;
+
+  @ApiProperty({ description: 'Whether any approval exists' })
+  isApproved: boolean;
+
+  @ApiProperty({ description: 'Whether approval is unlimited (MaxUint256)' })
+  isUnlimited: boolean;
+}
+
+export class Permit2ApproveRequest {
+  @ApiProperty({ description: 'Wallet address' })
+  @IsNotEmpty()
+  @IsString()
+  walletAddress: string;
+
+  @ApiPropertyOptional({ description: 'Set to true for unlimited approval (default: true)' })
+  @IsOptional()
+  unlimited?: boolean;
+}
+
+export class Permit2ApproveTxDto {
+  @ApiProperty({ description: 'Target contract address (ZCHF token)' })
+  to: string;
+
+  @ApiProperty({ description: 'Encoded approve() function data' })
+  data: string;
+
+  @ApiProperty({ description: 'ETH value (always "0")' })
+  value: string;
+
+  @ApiProperty({ description: 'Estimated gas limit' })
+  gasLimit: string;
+
+  @ApiProperty({ description: 'Chain ID (1 for Ethereum mainnet)' })
+  chainId: number;
+
+  @ApiProperty({ description: 'Approval amount for display' })
+  approvalAmount: string;
 }

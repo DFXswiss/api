@@ -3,8 +3,8 @@ import { request } from 'graphql-request';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import {
   PriceCurrency,
@@ -25,12 +25,17 @@ import {
   AccountSummaryDto,
   AllowlistStatusDto,
   BankDetailsDto,
+  BrokerbotBroadcastResponse,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
+  BrokerbotSellPriceDto,
+  BrokerbotSellTxDto,
   BrokerbotSharesDto,
   HistoricalPriceDto,
   HoldersDto,
+  Permit2ApprovalDto,
+  Permit2ApproveTxDto,
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
@@ -133,6 +138,10 @@ export class RealUnitService {
     return this.blockchainService.getBrokerbotBuyPrice(shares);
   }
 
+  async getBrokerbotSellPrice(shares: number): Promise<BrokerbotSellPriceDto> {
+    return this.blockchainService.getBrokerbotSellPrice(shares);
+  }
+
   async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
     return this.blockchainService.getBrokerbotShares(amountChf);
   }
@@ -156,5 +165,52 @@ export class RealUnitService {
       bankName: bank.name,
       currency: 'CHF',
     };
+  }
+
+  // --- Sell Methods ---
+
+  /**
+   * Prepares transaction data for client to sign
+   */
+  async prepareSellTx(shares: number, minPrice?: string): Promise<BrokerbotSellTxDto> {
+    return this.blockchainService.prepareSellTx(shares, minPrice);
+  }
+
+  /**
+   * Validates and broadcasts a signed Brokerbot sell transaction.
+   * Returns the TX hash after confirmation.
+   */
+  async broadcastSellTx(signedTransaction: string): Promise<BrokerbotBroadcastResponse> {
+    // 1. Validate and decode the signed TX
+    const { shares } = await this.blockchainService.validateBrokerbotSellTx(signedTransaction);
+
+    // 2. Get expected ZCHF output
+    const sellPrice = await this.blockchainService.getBrokerbotSellPrice(shares);
+
+    // 3. Broadcast and wait for confirmation
+    const txHash = await this.blockchainService.broadcastSignedTransaction(signedTransaction);
+    await this.blockchainService.waitForTransaction(txHash);
+
+    return {
+      txHash,
+      shares,
+      zchfReceived: sellPrice.totalProceeds,
+    };
+  }
+
+  // --- Permit2 Approval Methods ---
+
+  /**
+   * Gets ZCHF allowance for Permit2 contract
+   */
+  async getPermit2Approval(address: string): Promise<Permit2ApprovalDto> {
+    return this.blockchainService.getPermit2Approval(address);
+  }
+
+  /**
+   * Prepares approve transaction for Permit2 contract
+   */
+  async prepareApproveTx(unlimited = true): Promise<Permit2ApproveTxDto> {
+    return this.blockchainService.prepareApproveTx(unlimited);
   }
 }
