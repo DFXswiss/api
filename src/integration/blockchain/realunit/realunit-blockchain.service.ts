@@ -18,6 +18,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Blockchain } from '../shared/enums/blockchain.enum';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
+import SIGNATURE_TRANSFER_ABI from '../shared/evm/abi/signature-transfer.abi.json';
 import { EvmClient } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
@@ -79,6 +80,19 @@ export class RealUnitBlockchainService {
   private async getZchfContract(): Promise<Contract> {
     const zchfAsset = await this.getZchfAsset();
     return new Contract(zchfAsset.chainId, ERC20_ABI, this.getEvmClient().wallet);
+  }
+
+  private getPermit2Contract(): Contract {
+    return new Contract(this.ethereumConfig.permit2Address, SIGNATURE_TRANSFER_ABI, this.getEvmClient().wallet);
+  }
+
+  /**
+   * Gets the next available nonce for Permit2 signature
+   */
+  async getPermit2Nonce(ownerAddress: string): Promise<number> {
+    const contract = this.getPermit2Contract();
+    const nonce = await contract.findFreeNonce(ownerAddress, 0);
+    return nonce.toNumber();
   }
 
   async getRealUnitPrice(): Promise<number> {
@@ -235,12 +249,15 @@ export class RealUnitBlockchainService {
 
   /**
    * Prepares transaction data for client to sign (transferAndCall to Brokerbot)
+   * Returns both Brokerbot TX data and Permit2 signature data
    */
-  async prepareSellTx(shares: number, minPrice?: string): Promise<BrokerbotSellTxDto> {
-    // Get expected price and REALU address in parallel
-    const [sellPrice, realuAsset] = await Promise.all([
+  async prepareSellTx(shares: number, walletAddress: string, minPrice?: string): Promise<BrokerbotSellTxDto> {
+    // Get expected price, REALU address, ZCHF address, and nonce in parallel
+    const [sellPrice, realuAsset, zchfAsset, nonce] = await Promise.all([
       this.getBrokerbotSellPrice(shares),
       this.getRealuAsset(),
+      this.getZchfAsset(),
+      this.getPermit2Nonce(walletAddress),
     ]);
 
     // Check minimum price if provided
@@ -260,15 +277,29 @@ export class RealUnitBlockchainService {
     // Estimate gas
     const gasLimit = 150000; // Conservative estimate for transferAndCall
 
+    // Suggested deadline: 5 minutes from now
+    const deadline = Math.floor(Date.now() / 1000) + 5 * 60;
+    const expiresAt = new Date(deadline * 1000).toISOString();
+
     return {
-      to: realuAsset.chainId,
-      data: encodedData,
-      value: '0',
-      gasLimit: gasLimit.toString(),
-      chainId: 1,
+      brokerbotTx: {
+        to: realuAsset.chainId,
+        data: encodedData,
+        value: '0',
+        gasLimit: gasLimit.toString(),
+        chainId: 1,
+      },
+      permit2: {
+        token: zchfAsset.chainId,
+        amount: sellPrice.totalProceedsRaw,
+        spender: this.getEvmClient().walletAddress,
+        nonce,
+        deadline,
+      },
       expectedShares: shares,
       expectedPrice: sellPrice.totalProceeds,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutes
+      expectedPriceRaw: sellPrice.totalProceedsRaw,
+      expiresAt,
     };
   }
 

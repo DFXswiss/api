@@ -173,9 +173,10 @@ export class RealUnitService {
 
   /**
    * Prepares transaction data for client to sign
+   * Returns both Brokerbot TX data and Permit2 signature data
    */
-  async prepareSellTx(shares: number, minPrice?: string): Promise<BrokerbotSellTxDto> {
-    return this.blockchainService.prepareSellTx(shares, minPrice);
+  async prepareSellTx(shares: number, walletAddress: string, minPrice?: string): Promise<BrokerbotSellTxDto> {
+    return this.blockchainService.prepareSellTx(shares, walletAddress, minPrice);
   }
 
   /**

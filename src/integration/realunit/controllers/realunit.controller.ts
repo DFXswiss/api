@@ -191,14 +191,15 @@ export class RealUnitController {
     summary: 'Prepare sell transaction',
     description:
       'Prepares transaction data for selling REALU shares via Brokerbot. ' +
-      'Client signs the returned TX data and sends it via POST /brokerbot/broadcast.',
+      'Returns both Brokerbot TX data and Permit2 signature data. ' +
+      'Client signs both and sends to POST /realunit/sell for atomic execution.',
   })
   @ApiCreatedResponse({ type: BrokerbotSellTxDto })
   async prepareSellTx(
     @GetJwt() _jwt: JwtPayload,
     @Body() dto: BrokerbotSellRequest,
   ): Promise<BrokerbotSellTxDto> {
-    return this.realunitService.prepareSellTx(dto.shares, dto.minPrice);
+    return this.realunitService.prepareSellTx(dto.shares, dto.walletAddress, dto.minPrice);
   }
 
   @Post('brokerbot/broadcast')

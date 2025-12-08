@@ -362,7 +362,24 @@ export class BrokerbotSellRequest {
   minPrice?: string;
 }
 
-export class BrokerbotSellTxDto {
+export class Permit2DataDto {
+  @ApiProperty({ description: 'ZCHF token address' })
+  token: string;
+
+  @ApiProperty({ description: 'Amount in wei (matches expected ZCHF proceeds)' })
+  amount: string;
+
+  @ApiProperty({ description: 'Spender address (DFX executor wallet)' })
+  spender: string;
+
+  @ApiProperty({ description: 'Available nonce for Permit2 signature' })
+  nonce: number;
+
+  @ApiProperty({ description: 'Suggested deadline (unix timestamp)' })
+  deadline: number;
+}
+
+export class BrokerbotTxDataDto {
   @ApiProperty({ description: 'Target contract address (REALU token)' })
   to: string;
 
@@ -377,12 +394,23 @@ export class BrokerbotSellTxDto {
 
   @ApiProperty({ description: 'Chain ID (1 for Ethereum mainnet)' })
   chainId: number;
+}
+
+export class BrokerbotSellTxDto {
+  @ApiProperty({ type: BrokerbotTxDataDto, description: 'Brokerbot transaction data for signing' })
+  brokerbotTx: BrokerbotTxDataDto;
+
+  @ApiProperty({ type: Permit2DataDto, description: 'Permit2 signature data' })
+  permit2: Permit2DataDto;
 
   @ApiProperty({ description: 'Number of shares being sold' })
   expectedShares: number;
 
-  @ApiProperty({ description: 'Expected ZCHF proceeds' })
+  @ApiProperty({ description: 'Expected ZCHF proceeds (formatted)' })
   expectedPrice: string;
+
+  @ApiProperty({ description: 'Expected ZCHF proceeds in wei' })
+  expectedPriceRaw: string;
 
   @ApiProperty({ description: 'TX data validity expiration (ISO timestamp)' })
   expiresAt: string;
