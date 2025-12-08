@@ -9,7 +9,6 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { merge } from 'lodash';
 import { Config } from 'src/config/config';
-import { BigNumber } from 'ethers';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';

@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SellPaymentInfoDto } from './sell-payment-info.dto';
 import { PreparedTxDto } from './prepared-tx.dto';
 
