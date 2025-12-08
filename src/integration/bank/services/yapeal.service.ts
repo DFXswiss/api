@@ -2,7 +2,24 @@ import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { VibanListResponse, VibanProposalResponse, VibanReserveRequest, VibanReserveResponse } from '../dto/yapeal.dto';
+import { Util } from 'src/shared/utils/util';
+import { Pain001Payment } from './iso20022.service';
+import {
+  VibanListResponse,
+  VibanProposalResponse,
+  VibanReserveRequest,
+  VibanReserveResponse,
+  YapealAccountsResponse,
+  YapealPain001Request,
+  YapealPaymentStatusResponse,
+} from '../dto/yapeal.dto';
+
+export interface YapealBalanceInfo {
+  iban: string;
+  currency: string;
+  availableBalance: number;
+  totalBalance: number;
+}
 
 @Injectable()
 export class YapealService {
@@ -13,6 +30,8 @@ export class YapealService {
     return !!(baseUrl && apiKey && partnershipUid);
   }
 
+  // --- VIBAN METHODS --- //
+
   async createViban(): Promise<VibanReserveResponse> {
     const proposal = await this.getVibanProposal();
     return this.reserveViban(proposal.bban);
@@ -22,7 +41,45 @@ export class YapealService {
     return this.callApi<VibanListResponse>(`b2b/v2/cash-accounts/${accountUid}/vibans`, 'GET');
   }
 
+  // --- ACCOUNT/BALANCE METHODS --- //
+
+  async getAccounts(): Promise<YapealAccountsResponse> {
+    const { partnershipUid } = Config.bank.yapeal;
+    return this.callApi<YapealAccountsResponse>(`b2b/v2/agent/${partnershipUid}/accounts`, 'GET');
+  }
+
+  async getBalance(iban?: string): Promise<YapealBalanceInfo | undefined> {
+    const response = await this.getAccounts();
+    const targetIban = iban ?? Config.bank.yapeal.baseAccountIban;
+
+    const account = response.accounts.find((a) => a.iban === targetIban && a.status === 'active');
+    if (!account) return undefined;
+
+    return {
+      iban: account.iban,
+      currency: account.currency,
+      availableBalance: this.convertYapealAmount(account.balances.available.amount),
+      totalBalance: this.convertYapealAmount(account.balances.total.amount),
+    };
+  }
+
+  // --- PAYMENT METHODS --- //
+
+  async sendPayment(payment: Pain001Payment): Promise<{ msgId: string; status: string }> {
+    const msgId = Util.createUniqueId('MSG');
+    const request = this.buildPain001Request(payment, msgId);
+
+    await this.callPaymentApi<unknown>('b2b/instant-payment-orders/by-pain', 'POST', request);
+
+    return { msgId, status: 'CREATED' };
+  }
+
+  async getPaymentStatus(msgId: string): Promise<YapealPaymentStatusResponse> {
+    return this.callApi<YapealPaymentStatusResponse>(`b2b/instant-payment-order/${msgId}/state`, 'GET');
+  }
+
   // --- HELPER METHODS --- //
+
   private async getVibanProposal(): Promise<VibanProposalResponse> {
     const { partnershipUid } = Config.bank.yapeal;
     return this.callApi<VibanProposalResponse>(`b2b/v2/partnerships/${partnershipUid}/viban/proposal`, 'GET');
@@ -43,6 +100,74 @@ export class YapealService {
     );
   }
 
+  private buildPain001Request(payment: Pain001Payment, msgId: string): YapealPain001Request {
+    const endToEndId = payment.endToEndId || Util.createUniqueId('E2E');
+
+    return {
+      CstmrCdtTrfInitn: {
+        GrpHdr: {
+          MsgId: msgId,
+          NbOfTxs: '1',
+          CtrlSum: payment.amount,
+          InitgPty: {
+            Nm: payment.debtor.name,
+          },
+        },
+        PmtInf: [
+          {
+            Dbtr: {
+              Nm: payment.debtor.name,
+              PstlAdr: {
+                Ctry: 'CH',
+              },
+            },
+            DbtrAcct: {
+              Id: {
+                IBAN: payment.debtor.iban,
+              },
+              Ccy: payment.currency,
+            },
+            CdtTrfTxInf: [
+              {
+                PmtId: {
+                  EndToEndId: endToEndId,
+                },
+                Amt: {
+                  InstdAmt: {
+                    Ccy: payment.currency,
+                    value: payment.amount,
+                  },
+                },
+                Cdtr: {
+                  Nm: payment.creditor.name,
+                  PstlAdr: {
+                    Ctry: 'CH',
+                  },
+                },
+                CdtrAcct: {
+                  Id: {
+                    IBAN: payment.creditor.iban,
+                  },
+                },
+                ...(payment.remittanceInfo && {
+                  RmtInf: {
+                    Ustrd: payment.remittanceInfo,
+                  },
+                }),
+              },
+            ],
+          },
+        ],
+      },
+    };
+  }
+
+  private convertYapealAmount(amount: { factor: number; value: number }): number {
+    // YAPEAL returns amount as value * 10^(-factor)
+    // e.g., { value: 12345, factor: 2 } = 123.45
+    return amount.value / Math.pow(10, amount.factor);
+  }
+
   private async callApi<T>(url: string, method: Method = 'GET', data?: unknown): Promise<T> {
     if (!this.isAvailable()) throw new Error('YAPEAL is not configured');
 
@@ -56,6 +181,25 @@ export class YapealService {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        'x-requestor-role': 'client',
+      },
+    });
+  }
+
+  private async callPaymentApi<T>(url: string, method: Method = 'POST', data?: unknown): Promise<T> {
+    if (!this.isAvailable()) throw new Error('YAPEAL is not configured');
+
+    const { baseUrl, apiKey, partnershipUid } = Config.bank.yapeal;
+
+    return this.http.request<T>({
+      url: `${baseUrl}/${url}`,
+      method,
+      data,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'x-partnership-uid': partnershipUid,
         'x-requestor-role': 'client',
       },
     });

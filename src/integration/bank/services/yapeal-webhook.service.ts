@@ -35,7 +35,13 @@ export class YapealWebhookService {
   processWebhook(payload: YapealWebhookPayloadDto): void {
     const { data } = payload;
 
-    if (data.status !== YapealTransactionStatus.BOOKED || data.type !== YapealTransactionType.CREDIT) {
+    // Only process BOOKED transactions (both CREDIT and DEBIT)
+    if (data.status !== YapealTransactionStatus.BOOKED) {
+      return;
+    }
+
+    // Process both CREDIT and DEBIT transactions
+    if (data.type !== YapealTransactionType.CREDIT && data.type !== YapealTransactionType.DEBIT) {
       return;
     }
 
@@ -50,7 +56,7 @@ export class YapealWebhookService {
       accountServiceRef: `YAPEAL-${data.transactionUid}`,
       bookingDate: data.bookingDate ? new Date(data.bookingDate) : undefined,
       valueDate: data.valueDate ? new Date(data.valueDate) : undefined,
-      amount: data.amount,
+      amount: Math.abs(data.amount),
       currency: data.currency,
       creditDebitIndicator:
         data.type === YapealTransactionType.CREDIT ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
