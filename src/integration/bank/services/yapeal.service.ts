@@ -11,6 +11,7 @@ import {
   VibanReserveResponse,
   YapealAccountsResponse,
   YapealPain001Request,
+  YapealPaymentStatus,
   YapealPaymentStatusResponse,
 } from '../dto/yapeal.dto';
 
@@ -65,13 +66,15 @@ export class YapealService {
 
   // --- PAYMENT METHODS --- //
 
-  async sendPayment(payment: Pain001Payment): Promise<{ msgId: string; status: string }> {
+  async sendPayment(payment: Pain001Payment): Promise<{ msgId: string; status: YapealPaymentStatus }> {
     const msgId = Util.createUniqueId('MSG');
     const request = this.buildPain001Request(payment, msgId);
 
-    await this.callPaymentApi<unknown>('b2b/instant-payment-orders/by-pain', 'POST', request);
+    await this.callApi<unknown>('b2b/instant-payment-orders/by-pain', 'POST', request, true);
 
-    return { msgId, status: 'CREATED' };
+    const { status } = await this.getPaymentStatus(msgId);
+
+    return { msgId, status };
   }
 
   async getPaymentStatus(msgId: string): Promise<YapealPaymentStatusResponse> {
@@ -118,7 +121,7 @@ export class YapealService {
             Dbtr: {
               Nm: payment.debtor.name,
               PstlAdr: {
-                Ctry: 'CH',
+                Ctry: payment.debtor.country,
               },
             },
             DbtrAcct: {
@@ -141,7 +144,7 @@ export class YapealService {
                 Cdtr: {
                   Nm: payment.creditor.name,
                   PstlAdr: {
-                    Ctry: 'CH',
+                    Ctry: payment.creditor.country,
                   },
                 },
                 CdtrAcct: {
@@ -168,25 +171,12 @@ export class YapealService {
     return amount.value / Math.pow(10, amount.factor);
   }
 
-  private async callApi<T>(url: string, method: Method = 'GET', data?: unknown): Promise<T> {
-    if (!this.isAvailable()) throw new Error('YAPEAL is not configured');
-
-    const { baseUrl, apiKey } = Config.bank.yapeal;
-
-    return this.http.request<T>({
-      url: `${baseUrl}/${url}`,
-      method,
-      data,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'x-requestor-role': 'client',
-      },
-    });
-  }
-
-  private async callPaymentApi<T>(url: string, method: Method = 'POST', data?: unknown): Promise<T> {
+  private async callApi<T>(
+    url: string,
+    method: Method = 'GET',
+    data?: unknown,
+    includePartnershipHeader = false,
+  ): Promise<T> {
     if (!this.isAvailable()) throw new Error('YAPEAL is not configured');
 
     const { baseUrl, apiKey, partnershipUid } = Config.bank.yapeal;
@@ -199,8 +189,8 @@ export class YapealService {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
-        'x-partnership-uid': partnershipUid,
         'x-requestor-role': 'client',
+        ...(includePartnershipHeader && { 'x-partnership-uid': partnershipUid }),
       },
     });
   }

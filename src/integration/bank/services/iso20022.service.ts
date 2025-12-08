@@ -18,6 +18,7 @@ export interface Party {
   name: string;
   iban: string;
   bic: string;
+  country?: string;
 }
 
 export interface Pain001Payment {
