@@ -3,7 +3,7 @@ import { MainNet } from '@defichain/jellyfish-network';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
-import { verifyMessage } from 'ethers/lib/utils';
+import { verifyMessage, verifyTypedData } from 'ethers/lib/utils';
 import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
@@ -308,5 +308,53 @@ export class CryptoService {
 
   private async verifyRailgun(message: string, address: string, signature: string): Promise<boolean> {
     return this.railgunService.verifySignature(message, address, signature);
+  }
+
+  // --- EIP-712 TYPED DATA VERIFICATION --- //
+  public verifyRealUnitRegistrationSignature(
+    data: {
+      email: string;
+      name: string;
+      type: string;
+      phoneNumber: string;
+      birthday: string;
+      nationality: string;
+      addressStreet: string;
+      addressPostalCode: string;
+      addressCity: string;
+      addressCountry: string;
+      swissTaxResidence: boolean;
+      registrationDate: string;
+      walletAddress: string;
+    },
+    signature: string,
+  ): boolean {
+    const domain = {
+      name: 'RealUnitUser',
+      version: '1',
+    };
+
+    const types = {
+      RealUnitUserRegistration: [
+        { name: 'email', type: 'string' },
+        { name: 'name', type: 'string' },
+        { name: 'type', type: 'string' },
+        { name: 'phoneNumber', type: 'string' },
+        { name: 'birthday', type: 'string' },
+        { name: 'nationality', type: 'string' },
+        { name: 'addressStreet', type: 'string' },
+        { name: 'addressPostalCode', type: 'string' },
+        { name: 'addressCity', type: 'string' },
+        { name: 'addressCountry', type: 'string' },
+        { name: 'swissTaxResidence', type: 'bool' },
+        { name: 'registrationDate', type: 'string' },
+        { name: 'walletAddress', type: 'address' },
+      ],
+    };
+
+    const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
+    const recoveredAddress = verifyTypedData(domain, types, data, signatureToUse);
+
+    return recoveredAddress.toLowerCase() === data.walletAddress.toLowerCase();
   }
 }

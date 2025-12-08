@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
@@ -10,6 +11,7 @@ import { UserModule } from '../user/user.module';
 import { KycAdminController } from './controllers/kyc-admin.controller';
 import { KycClientController } from './controllers/kyc-client.controller';
 import { KycController } from './controllers/kyc.controller';
+import { RealUnitController } from './controllers/realunit.controller';
 import { KycFile } from './entities/kyc-file.entity';
 import { KycLog } from './entities/kyc-log.entity';
 import { KycStep } from './entities/kyc-step.entity';
@@ -37,6 +39,7 @@ import { KycLogService } from './services/kyc-log.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
+import { RealUnitService } from './services/realunit.service';
 import { TfaService } from './services/tfa.service';
 
 @Module({
@@ -53,6 +56,7 @@ import { TfaService } from './services/tfa.service';
       KycFile,
     ]),
     SharedModule,
+    BlockchainModule,
     NotificationModule,
     forwardRef(() => UserModule),
     forwardRef(() => BuyCryptoModule),
@@ -60,7 +64,7 @@ import { TfaService } from './services/tfa.service';
     TransactionModule,
     forwardRef(() => SupportIssueModule),
   ],
-  controllers: [KycController, KycAdminController, KycClientController],
+  controllers: [KycController, KycAdminController, KycClientController, RealUnitController],
   providers: [
     KycService,
     KycAdminService,
@@ -81,6 +85,7 @@ import { TfaService } from './services/tfa.service';
     KycNotificationService,
     KycClientService,
     SumsubService,
+    RealUnitService,
   ],
   exports: [
     KycDocumentService,
