@@ -27,6 +27,8 @@ import {
   Permit2ApprovalDto,
   Permit2ApproveRequest,
   Permit2ApproveTxDto,
+  RealUnitAtomicSellRequest,
+  RealUnitAtomicSellResponse,
   TimeFrame,
   TokenInfoDto,
 } from '../dto/realunit.dto';
@@ -245,5 +247,25 @@ export class RealUnitController {
     @Body() dto: Permit2ApproveRequest,
   ): Promise<Permit2ApproveTxDto> {
     return this.realunitService.prepareApproveTx(dto.unlimited ?? true);
+  }
+
+  // --- Atomic Sell Endpoint ---
+
+  @Post('sell')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
+  @ApiOperation({
+    summary: 'Atomic REALU sell',
+    description:
+      'Executes an atomic REALU sell: validates both the signed Brokerbot TX and Permit2 signature, ' +
+      'verifies amounts match, broadcasts Brokerbot TX (REALU → ZCHF), ' +
+      'then executes Permit2 transfer (ZCHF → DFX). Only succeeds if both operations complete.',
+  })
+  @ApiCreatedResponse({ type: RealUnitAtomicSellResponse })
+  async atomicSell(
+    @GetJwt() _jwt: JwtPayload,
+    @Body() dto: RealUnitAtomicSellRequest,
+  ): Promise<RealUnitAtomicSellResponse> {
+    return this.realunitService.executeAtomicSell(dto.signedBrokerbotTx, dto.permit);
   }
 }

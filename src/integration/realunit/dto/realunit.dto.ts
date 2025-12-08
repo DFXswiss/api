@@ -455,3 +455,59 @@ export class Permit2ApproveTxDto {
   @ApiProperty({ description: 'Approval amount for display' })
   approvalAmount: string;
 }
+
+// --- Atomic Sell DTOs ---
+
+export class RealUnitPermitDto {
+  @ApiProperty({ description: 'Permit2 signature' })
+  @IsNotEmpty()
+  @IsString()
+  signature: string;
+
+  @ApiProperty({ description: 'Permitted ZCHF amount in wei' })
+  @IsNotEmpty()
+  @IsString()
+  amount: string;
+
+  @ApiProperty({ description: 'Permit2 nonce' })
+  @IsNotEmpty()
+  @IsNumber()
+  @Type(() => Number)
+  nonce: number;
+
+  @ApiProperty({ description: 'Permit2 deadline (unix timestamp)' })
+  @IsNotEmpty()
+  @IsNumber()
+  @Type(() => Number)
+  deadline: number;
+}
+
+export class RealUnitAtomicSellRequest {
+  @ApiProperty({ description: 'Hex-encoded signed Brokerbot transaction (REALU → ZCHF)' })
+  @IsNotEmpty()
+  @IsString()
+  signedBrokerbotTx: string;
+
+  @ApiProperty({ type: RealUnitPermitDto, description: 'Permit2 signature data for ZCHF transfer' })
+  @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => RealUnitPermitDto)
+  permit: RealUnitPermitDto;
+}
+
+export class RealUnitAtomicSellResponse {
+  @ApiProperty({ description: 'Brokerbot transaction hash' })
+  brokerbotTxHash: string;
+
+  @ApiProperty({ description: 'Permit2 transfer transaction hash' })
+  permitTxHash: string;
+
+  @ApiProperty({ description: 'Number of REALU shares sold' })
+  shares: number;
+
+  @ApiProperty({ description: 'ZCHF received from Brokerbot' })
+  zchfReceived: string;
+
+  @ApiProperty({ description: 'ZCHF transferred to DFX via Permit2' })
+  zchfTransferred: string;
+}

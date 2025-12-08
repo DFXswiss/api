@@ -11,6 +11,8 @@ import {
   BrokerbotSharesDto,
   Permit2ApprovalDto,
   Permit2ApproveTxDto,
+  RealUnitAtomicSellResponse,
+  RealUnitPermitDto,
 } from 'src/integration/realunit/dto/realunit.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -304,6 +306,79 @@ export class RealUnitBlockchainService {
       gasLimit: '60000',
       chainId: 1,
       approvalAmount: unlimited ? 'unlimited' : '0',
+    };
+  }
+
+  // --- Atomic Sell Methods ---
+
+  /**
+   * Validates that the Permit2 amount matches the expected Brokerbot output
+   */
+  async validateAtomicSell(
+    signedBrokerbotTx: string,
+    permit: RealUnitPermitDto,
+  ): Promise<{ sender: string; shares: number; expectedZchfWei: string }> {
+    // 1. Validate Brokerbot TX and get shares
+    const { sender, shares } = await this.validateBrokerbotSellTx(signedBrokerbotTx);
+
+    // 2. Get expected ZCHF output from Brokerbot
+    const sellPrice = await this.getBrokerbotSellPrice(shares);
+    const expectedZchfWei = sellPrice.totalProceedsRaw;
+
+    // 3. Validate Permit2 amount matches expected output
+    if (permit.amount !== expectedZchfWei) {
+      throw new BadRequestException(
+        `AMOUNT_MISMATCH: Permit2 amount (${permit.amount}) does not match expected ZCHF output (${expectedZchfWei})`,
+      );
+    }
+
+    // 4. Validate Permit2 deadline is not expired
+    const now = Math.floor(Date.now() / 1000);
+    if (permit.deadline <= now) {
+      throw new BadRequestException('PERMIT_EXPIRED: Permit2 deadline has passed');
+    }
+
+    return { sender, shares, expectedZchfWei };
+  }
+
+  /**
+   * Executes the atomic sell: broadcasts Brokerbot TX, then executes Permit2 transfer
+   */
+  async executeAtomicSell(
+    signedBrokerbotTx: string,
+    permit: RealUnitPermitDto,
+  ): Promise<RealUnitAtomicSellResponse> {
+    // 1. Validate everything first
+    const { sender, shares, expectedZchfWei } = await this.validateAtomicSell(signedBrokerbotTx, permit);
+
+    // 2. Broadcast Brokerbot TX
+    const brokerbotTxHash = await this.broadcastSignedTransaction(signedBrokerbotTx);
+
+    // 3. Wait for Brokerbot TX confirmation
+    await this.waitForTransaction(brokerbotTxHash);
+
+    // 4. Execute Permit2 transfer (ZCHF from user to DFX)
+    const zchfAsset = await this.getZchfAsset();
+    const client = this.getEvmClient();
+
+    const permitTxHash = await client.permitTransfer(
+      sender,
+      permit.signature,
+      this.ethereumConfig.permit2Address,
+      zchfAsset,
+      EvmUtil.fromWeiAmount(ethers.BigNumber.from(permit.amount), zchfAsset.decimals),
+      EvmUtil.fromWeiAmount(ethers.BigNumber.from(permit.amount), zchfAsset.decimals),
+      client.walletAddress,
+      permit.nonce,
+      permit.deadline,
+    );
+
+    return {
+      brokerbotTxHash,
+      permitTxHash,
+      shares,
+      zchfReceived: EvmUtil.fromWeiAmount(ethers.BigNumber.from(expectedZchfWei)).toString(),
+      zchfTransferred: EvmUtil.fromWeiAmount(ethers.BigNumber.from(permit.amount)).toString(),
     };
   }
 }

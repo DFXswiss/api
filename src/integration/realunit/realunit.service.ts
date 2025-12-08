@@ -36,6 +36,8 @@ import {
   HoldersDto,
   Permit2ApprovalDto,
   Permit2ApproveTxDto,
+  RealUnitAtomicSellResponse,
+  RealUnitPermitDto,
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
@@ -212,5 +214,21 @@ export class RealUnitService {
    */
   async prepareApproveTx(unlimited = true): Promise<Permit2ApproveTxDto> {
     return this.blockchainService.prepareApproveTx(unlimited);
+  }
+
+  // --- Atomic Sell Methods ---
+
+  /**
+   * Executes an atomic REALU sell:
+   * 1. Validates Brokerbot TX and Permit2 signature
+   * 2. Verifies amounts match
+   * 3. Broadcasts Brokerbot TX (REALU → ZCHF)
+   * 4. Executes Permit2 transfer (ZCHF → DFX)
+   */
+  async executeAtomicSell(
+    signedBrokerbotTx: string,
+    permit: RealUnitPermitDto,
+  ): Promise<RealUnitAtomicSellResponse> {
+    return this.blockchainService.executeAtomicSell(signedBrokerbotTx, permit);
   }
 }
