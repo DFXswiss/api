@@ -21,6 +21,7 @@ import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
+import { LoggerOptions } from 'typeorm';
 
 export enum Environment {
   LOC = 'loc',
@@ -204,6 +205,7 @@ export class Configuration {
       max: +(process.env.SQL_POOL_MAX ?? 10),
       idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
     },
+    logging: process.env.SQL_LOGGING as LoggerOptions,
   };
 
   i18n: I18nOptions = {

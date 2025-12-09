@@ -12,7 +12,7 @@ import { Observable, Subject } from 'rxjs';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -109,8 +109,6 @@ export class BankTxService implements OnModuleInit {
   }
 
   async checkTransactions(): Promise<void> {
-    if (DisabledProcess(Process.BANK_TX)) return;
-
     // Get settings
     const settingKeyOlky = 'lastBankOlkyDate';
     const settingKeyRevolut = 'lastBankRevolutDate';
