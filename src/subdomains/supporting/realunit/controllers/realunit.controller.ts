@@ -1,9 +1,10 @@
-import { Body, Controller, Get, HttpStatus, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiExcludeEndpoint,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -23,7 +24,11 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { RealUnitRegistrationDto } from '../dto/realunit-registration.dto';
+import {
+  RealUnitRegistrationDto,
+  RealUnitRegistrationResponseDto,
+  RealUnitRegistrationStatus,
+} from '../dto/realunit-registration.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
@@ -181,8 +186,8 @@ export class RealUnitController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOperation({ summary: 'Register for RealUnit' })
-  @ApiOkResponse({ description: 'Registration completed successfully' })
-  @ApiAcceptedResponse({ description: 'Registration accepted, pending manual review' })
+  @ApiOkResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration completed successfully' })
+  @ApiAcceptedResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration accepted, pending manual review' })
   @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
   async register(
     @GetJwt() jwt: JwtPayload,
@@ -191,8 +196,20 @@ export class RealUnitController {
   ): Promise<void> {
     const needsReview = await this.realunitService.register(jwt.account, dto);
 
-    res
-      .status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK)
-      .json({ status: needsReview ? 'pending_review' : 'completed' });
+    const response: RealUnitRegistrationResponseDto = {
+      status: needsReview ? RealUnitRegistrationStatus.PENDING_REVIEW : RealUnitRegistrationStatus.COMPLETED,
+    };
+
+    res.status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK).json(response);
+  }
+
+  // --- Admin Endpoints ---
+
+  @Put('admin/registration/:kycStepId/forward')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async forwardRegistration(@Param('kycStepId') kycStepId: string): Promise<void> {
+    await this.realunitService.forwardRegistrationToAktionariat(+kycStepId);
   }
 }

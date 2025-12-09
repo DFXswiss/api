@@ -22,6 +22,16 @@ export enum RealUnitUserType {
   CORPORATION = 'CORPORATION',
 }
 
+export enum RealUnitRegistrationStatus {
+  COMPLETED = 'completed',
+  PENDING_REVIEW = 'pending_review',
+}
+
+export class RealUnitRegistrationResponseDto {
+  @ApiProperty({ enum: RealUnitRegistrationStatus })
+  status: RealUnitRegistrationStatus;
+}
+
 export enum RealUnitLanguage {
   EN = 'EN',
   DE = 'DE',
