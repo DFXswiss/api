@@ -187,7 +187,7 @@ export class RealUnitService {
 
     // 2. Email validation - user must have submitted email via KYC step first
     if (!userData.mail) throw new BadRequestException('User email not verified');
-    if (!Util.equalsIgnoreCase(dto.mail, userData.mail)) {
+    if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
       throw new BadRequestException('Email does not match verified email');
     }
 
@@ -240,7 +240,7 @@ export class RealUnitService {
 
     const types = {
       RealUnitUserRegistration: [
-        { name: 'mail', type: 'string' },
+        { name: 'email', type: 'string' },
         { name: 'name', type: 'string' },
         { name: 'type', type: 'string' },
         { name: 'phoneNumber', type: 'string' },

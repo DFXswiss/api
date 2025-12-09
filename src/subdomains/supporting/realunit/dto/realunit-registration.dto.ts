@@ -45,7 +45,7 @@ export class RealUnitRegistrationDto {
   @IsNotEmpty()
   @IsEmail()
   @Transform(Util.trim)
-  mail: string;
+  email: string;
 
   @ApiProperty({ description: 'Full name' })
   @IsNotEmpty()
