@@ -7,7 +7,7 @@ import {
   PositionV2ABI,
   StablecoinBridgeABI,
 } from '@deuro/eurocoin';
-import { Contract } from 'ethers';
+import { Contract, ethers } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
 import { EvmClient } from '../shared/evm/evm-client';
@@ -175,5 +175,35 @@ export class DEuroClient {
 
   getBridgeEURAContract(): Contract {
     return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURA, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  async getBridgeEurcRemainingCapacity(): Promise<ethers.BigNumber> {
+    const bridgeContract = this.getBridgeEURCContract();
+    const limit = await bridgeContract.limit();
+    const minted = await bridgeContract.minted();
+    return limit.sub(minted);
+  }
+
+  async bridgeEurcToDeuro(amount: ethers.BigNumber): Promise<string> {
+    const bridgeContract = this.getBridgeEURCContract();
+
+    const remainingCapacity = await this.getBridgeEurcRemainingCapacity();
+    if (remainingCapacity.lt(amount)) {
+      throw new Error(
+        `Bridge capacity exceeded (remaining: ${remainingCapacity.toString()}, requested: ${amount.toString()})`,
+      );
+    }
+
+    const eurcAddress = await bridgeContract.eur();
+    const eurcContract = this.getErc20Contract(eurcAddress);
+
+    const allowance = await eurcContract.allowance(this.evmClient.wallet.address, bridgeContract.address);
+    if (allowance.lt(amount)) {
+      const approveTx = await eurcContract.approve(bridgeContract.address, ethers.constants.MaxUint256);
+      await approveTx.wait();
+    }
+
+    const tx = await bridgeContract.mint(amount);
+    return tx.hash;
   }
 }
