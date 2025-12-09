@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { GetConfig } from 'src/config/config';
+import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
@@ -11,14 +13,8 @@ import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import {
-  PriceCurrency,
-  PriceValidity,
-  PricingService,
-} from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { RealUnitBlockchainService } from '../blockchain/realunit/realunit-blockchain.service';
-import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
+import { AssetPricesService } from '../pricing/services/asset-prices.service';
+import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,

@@ -7,7 +7,7 @@ import {
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
-} from 'src/integration/realunit/dto/realunit.dto';
+} from 'src/subdomains/supporting/realunit/dto/realunit.dto';
 import { Blockchain } from '../shared/enums/blockchain.enum';
 import { EvmClient } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
