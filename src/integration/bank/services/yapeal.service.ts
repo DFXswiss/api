@@ -42,8 +42,11 @@ export class YapealService {
   }
 
   private async getVibanProposal(): Promise<VibanProposalResponse> {
-    const { partnershipUid } = Config.bank.yapeal;
-    return this.callApi<VibanProposalResponse>(`b2b/v2/partnerships/${partnershipUid}/viban/proposal`, 'GET');
+    const { partnershipUid, partnerUid } = Config.bank.yapeal;
+    return this.callApi<VibanProposalResponse>(
+      `b2b/v2/partnerships/${partnershipUid}/viban/proposal?executingAgentUID=${partnerUid}`,
+      'GET',
+    );
   }
 
   private async reserveViban(bban: string): Promise<VibanReserveResponse> {
