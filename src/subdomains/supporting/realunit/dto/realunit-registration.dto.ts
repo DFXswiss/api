@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -51,6 +52,7 @@ export class RealUnitRegistrationDto {
   @ApiProperty({ description: 'Full name' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   name: string;
 
@@ -82,18 +84,21 @@ export class RealUnitRegistrationDto {
   @ApiProperty({ description: 'Street address including house number' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   addressStreet: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   addressPostalCode: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   addressCity: string;
 
@@ -134,23 +139,27 @@ export class RealUnitRegistrationDto {
   @ApiProperty({ description: 'First name (not signed, must combine with surname to match signed name)' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   firstname: string;
 
   @ApiProperty({ description: 'Surname (not signed, must combine with firstname to match signed name)' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   surname: string;
 
   @ApiProperty({ description: 'Street name (not signed, must combine with houseNumber to match signed addressStreet)' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   street: string;
 
   @ApiProperty({ description: 'House number (not signed, must combine with street to match signed addressStreet). Can be empty.' })
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   houseNumber: string;
 
