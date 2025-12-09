@@ -172,7 +172,12 @@ export class RealUnitService {
 
   // --- Registration Methods ---
 
-  async register(userDataId: number, dto: RealUnitRegistrationDto): Promise<void> {
+  /**
+   * Register user for RealUnit
+   * @returns true if registration needs manual review, false if completed
+   */
+  async register(userDataId: number, dto: RealUnitRegistrationDto): Promise<boolean> {
+    // 1. User & wallet validation
     const userData = await this.userService
       .getUserByAddress(dto.walletAddress, { userData: { kycSteps: true } })
       .then((u) => u?.userData);
@@ -180,21 +185,45 @@ export class RealUnitService {
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
 
-    // verify EIP-712 signature
-    const isValidSignature = this.verifyRealUnitRegistrationSignature(dto);
-    if (!isValidSignature) throw new BadRequestException('Invalid signature');
+    // 2. Signature validation
+    if (!this.verifyRealUnitRegistrationSignature(dto)) {
+      throw new BadRequestException('Invalid signature');
+    }
 
-    // check for existing registration
-    const existingStep = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (existingStep) throw new BadRequestException('RealUnit registration already exists');
+    // 3. Duplicate check
+    if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
+      throw new BadRequestException('RealUnit registration already exists');
+    }
 
-    // store data
-    await this.kycService.createCustomKycStep(
+    // 4. Store data with INTERNAL_REVIEW status
+    const kycStep = await this.kycService.createCustomKycStep(
       userData,
       KycStepName.REALUNIT_REGISTRATION,
       ReviewStatus.INTERNAL_REVIEW,
       dto,
     );
+
+    // 5. Auto-forward check: firstname AND mail must be NULL
+    const canAutoForward = userData.firstname == null && userData.mail == null;
+
+    if (!canAutoForward) {
+      await this.kycService.saveKycStepUpdate(kycStep.manualReview('User has existing KYC data'));
+      return true;
+    }
+
+    // 6. Forward to Aktionariat
+    try {
+      const { api } = GetConfig().blockchain.realunit;
+      await this.http.post(`${api.url}/registerUser`, dto, {
+        headers: { 'x-api-key': api.key },
+      });
+
+      await this.kycService.saveKycStepUpdate(kycStep.complete());
+      return false;
+    } catch (e) {
+      await this.kycService.saveKycStepUpdate(kycStep.manualReview(e.message ?? 'Aktionariat API error'));
+      return true;
+    }
   }
 
   private verifyRealUnitRegistrationSignature(data: RealUnitRegistrationDto): boolean {
@@ -233,8 +262,8 @@ export class RealUnitService {
 
     if (kycStep.name !== KycStepName.REALUNIT_REGISTRATION)
       throw new BadRequestException('Invalid KycStep type');
-    if (kycStep.status !== ReviewStatus.INTERNAL_REVIEW)
-      throw new BadRequestException('KycStep not in INTERNAL_REVIEW status');
+    if (kycStep.status !== ReviewStatus.MANUAL_REVIEW)
+      throw new BadRequestException('KycStep not in MANUAL_REVIEW status');
 
     const registrationData = kycStep.getResult<RealUnitRegistrationDto>();
 

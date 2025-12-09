@@ -1,15 +1,16 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import {
   AllowlistStatusDto,
   BrokerbotBuyPriceDto,
@@ -180,9 +181,16 @@ export class RealUnitController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOperation({ summary: 'Register for RealUnit' })
-  @ApiCreatedResponse({ description: 'Registration saved successfully' })
+  @ApiOkResponse({ description: 'Registration completed successfully' })
+  @ApiAcceptedResponse({ description: 'Registration accepted, pending manual review' })
   @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
-  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto): Promise<void> {
-    await this.realunitService.register(jwt.account, dto);
+  async register(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitRegistrationDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const needsReview = await this.realunitService.register(jwt.account, dto);
+
+    res.status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK).send();
   }
 }
