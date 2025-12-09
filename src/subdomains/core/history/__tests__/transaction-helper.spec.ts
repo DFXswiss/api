@@ -123,6 +123,7 @@ describe('TransactionHelper', () => {
         amlCheck: CheckStatus.FAIL,
         bankTx: createDefaultBankTx(),
         amountInChf: 90,
+        priceDefinitionAllowedDate: new Date(),
       }),
       bankTx: createDefaultBankTx(),
     });
