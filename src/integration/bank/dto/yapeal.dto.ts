@@ -147,3 +147,29 @@ export interface YapealPaymentStatusResponse {
   fileContent?: string; // base64 encoded pain.002 XML
   status: YapealPaymentStatus;
 }
+
+// --- Transaction Subscription DTOs --- //
+
+export enum YapealSubscriptionFormat {
+  JSON = 'JSON',
+  XML = 'XML',
+}
+
+export interface YapealSubscriptionRequest {
+  iban: string;
+  callbackPath?: string;
+  criteria?: string;
+  format?: YapealSubscriptionFormat;
+}
+
+export interface YapealSubscription {
+  uid: string;
+  iban: string;
+  callbackPath?: string;
+  format: YapealSubscriptionFormat;
+  criteria?: string;
+}
+
+export interface YapealSubscriptionsResponse {
+  subscriptions: YapealSubscription[];
+}
