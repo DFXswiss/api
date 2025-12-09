@@ -20,6 +20,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
@@ -49,6 +50,7 @@ export class BuyService {
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly checkoutService: CheckoutService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   // --- VOLUMES --- //
@@ -209,6 +211,7 @@ export class BuyService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }
@@ -298,6 +301,7 @@ export class BuyService {
       maxVolumeTarget,
       isValid,
       error,
+      isPersonalIban: bankInfo.isPersonalIban,
       // bank info
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant,
@@ -321,12 +325,40 @@ export class BuyService {
     return buyDto;
   }
 
-  async getBankInfo(selector: BankSelectorInput): Promise<BankInfoDto> {
+  async getBankInfo(selector: BankSelectorInput): Promise<BankInfoDto & { isPersonalIban: boolean }> {
+    // personal IBAN
+    const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
+
+    if (virtualIban) {
+      const { address } = selector.userData;
+      return {
+        name: selector.userData.completeName,
+        street: address.street,
+        number: address.houseNumber,
+        zip: address.zip,
+        city: address.city,
+        country: address.country?.name,
+        bank: virtualIban.bank.name,
+        iban: virtualIban.iban,
+        bic: virtualIban.bank.bic,
+        sepaInstant: virtualIban.bank.sctInst,
+        isPersonalIban: true,
+      };
+    }
+
+    // normal bank selection
     const bank = await this.bankService.getBank(selector);
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
-    return { ...Config.bank.dfxAddress, bank: bank.name, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+    return {
+      ...Config.bank.dfxAddress,
+      bank: bank.name,
+      iban: bank.iban,
+      bic: bank.bic,
+      sepaInstant: bank.sctInst,
+      isPersonalIban: false,
+    };
   }
 
   private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto, userData: UserData): string {

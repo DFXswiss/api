@@ -20,7 +20,8 @@ import {
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
@@ -168,7 +169,7 @@ export class BuyFiat extends IEntity {
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
-  priceDefinitionAllowedDate?: Date;
+  priceDefinitionAllowedDate?: Date; // is set for tx with amlCheck = true or for manualPrice calculation for refunds with missingPrice error
 
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount?: number;
@@ -496,6 +497,12 @@ export class BuyFiat extends IEntity {
 
   get refundAmount(): number {
     return this.inputAmount;
+  }
+
+  get manualChfPrice(): Price {
+    return this.amountInChf && this.priceDefinitionAllowedDate
+      ? Price.create(PriceCurrency.CHF, this.inputAsset, this.amountInChf / this.inputAmount)
+      : undefined;
   }
 
   get wallet(): Wallet {

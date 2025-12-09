@@ -216,7 +216,7 @@ export class PaymentLinkService {
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
       mode: dto.mode,
-      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix),
       webhookUrl: dto.webhookUrl,
       payments: [],
       config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),

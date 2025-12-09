@@ -255,6 +255,7 @@ export class Configuration {
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
+    allowedBorderRegions: ['CH', 'DE'],
     maxIdentTries: 7,
     maxRecommendationTries: 3,
   };
@@ -524,6 +525,14 @@ export class Configuration {
     allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
     services: (process.env.SERVICES_URL ?? '').split(';')[0],
     payment: process.env.PAYMENT_URL,
+
+    isRedirectUrlAllowed: (url: string): boolean => {
+      try {
+        return this.frontend.allowedUrls.includes(new URL(url).origin);
+      } catch {
+        return false;
+      }
+    },
   };
 
   fixer = {
@@ -867,6 +876,13 @@ export class Configuration {
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
+      bank: {
+        recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
+        address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',
+        iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
+        bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
+        name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
+      },
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
@@ -957,6 +973,13 @@ export class Configuration {
         passphrase: process.env.RAIFFEISEN_PASSPHRASE,
         iv: process.env.RAIFFEISEN_IV,
       },
+    },
+    yapeal: {
+      baseUrl: process.env.YAPEAL_BASE_URL,
+      partnershipUid: process.env.YAPEAL_PARTNERSHIP_UID,
+      baseAccountIban: process.env.YAPEAL_BASE_ACCOUNT_IBAN,
+      apiKey: process.env.YAPEAL_API_KEY,
+      webhookSecret: process.env.YAPEAL_WEBHOOK_SECRET,
     },
     forexFee: 0.02,
   };
@@ -1069,6 +1092,12 @@ export class Configuration {
       timeout: 30_000,
     };
   }
+
+  scrypt = {
+    wsUrl: process.env.SCRYPT_WS_URL,
+    apiKey: process.env.SCRYPT_API_KEY,
+    apiSecret: process.env.SCRYPT_API_SECRET,
+  };
 
   get evmWallets(): Map<string, string> {
     return splitWithdrawKeys(process.env.EVM_WALLETS);

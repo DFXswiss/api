@@ -4,6 +4,7 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, JoinColumn, OneToMany, OneToOne } from 'typeorm';
+import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 
@@ -33,6 +34,9 @@ export class FiatOutput extends IEntity {
 
   @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.chargebackOutput, { nullable: true })
   bankTxReturn?: BankTxReturn;
+
+  @OneToOne(() => BankTxRepeat, (bankTxRepeat) => bankTxRepeat.chargebackOutput, { nullable: true })
+  bankTxRepeat?: BankTxRepeat;
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()

@@ -223,7 +223,7 @@ export class PaymentLinkPaymentService {
       expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.configObj.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency: paymentLink.route.fiat,
-      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkPaymentUidPrefix, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkPaymentUidPrefix),
       status: PaymentLinkPaymentStatus.PENDING,
       link: paymentLink,
     });
