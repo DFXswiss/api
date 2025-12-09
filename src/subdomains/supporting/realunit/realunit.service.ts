@@ -203,18 +203,7 @@ export class RealUnitService {
       throw new BadRequestException('Invalid signature');
     }
 
-    // 4. Name parts validation (unsigned fields must match signed fields)
-    const combinedName = `${dto.firstname} ${dto.surname}`;
-    if (combinedName !== dto.name) {
-      throw new BadRequestException('firstname + surname does not match signed name');
-    }
-
-    const combinedAddress = dto.houseNumber ? `${dto.street} ${dto.houseNumber}` : dto.street;
-    if (combinedAddress !== dto.addressStreet) {
-      throw new BadRequestException('street + houseNumber does not match signed addressStreet');
-    }
-
-    // 5. AccountType validation
+    // 4. AccountType validation
     if (dto.type === RealUnitUserType.HUMAN && ![AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType)) {
       throw new BadRequestException('HUMAN type requires accountType Personal or SoleProprietorship');
     }
@@ -223,8 +212,20 @@ export class RealUnitService {
       throw new BadRequestException('CORPORATION type requires accountType Organization');
     }
 
-    // 5b. Organization fields must match signed fields
-    if (dto.accountType === AccountType.ORGANIZATION) {
+    // 5. Unsigned fields must match signed fields
+    if (dto.accountType !== AccountType.ORGANIZATION) {
+      // 5a. Personal account: firstname + surname must match signed name
+      const combinedName = `${dto.firstname} ${dto.surname}`;
+      if (combinedName !== dto.name) {
+        throw new BadRequestException('firstname + surname does not match signed name');
+      }
+
+      const combinedAddress = dto.houseNumber ? `${dto.street} ${dto.houseNumber}` : dto.street;
+      if (combinedAddress !== dto.addressStreet) {
+        throw new BadRequestException('street + houseNumber does not match signed addressStreet');
+      }
+    } else {
+      // 5b. Organization: org fields must match signed fields
       if (dto.organizationName !== dto.name) {
         throw new BadRequestException('organizationName must match signed name');
       }
