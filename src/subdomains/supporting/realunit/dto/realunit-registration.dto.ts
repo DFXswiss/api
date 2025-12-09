@@ -176,4 +176,53 @@ export class RealUnitRegistrationDto {
   @ValidateNested({ each: true })
   @Type(() => CountryAndTin)
   countryAndTINs?: CountryAndTin[];
+
+  // --- Organization fields (required if accountType is ORGANIZATION) ---
+
+  @ApiPropertyOptional({ description: 'Organization name. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationName is required for ORGANIZATION accounts' })
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationName?: string;
+
+  @ApiPropertyOptional({ description: 'Organization street. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationStreet is required for ORGANIZATION accounts' })
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationStreet?: string;
+
+  @ApiPropertyOptional({ description: 'Organization house number. Can be empty.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationHouseNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Organization city/location. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationLocation is required for ORGANIZATION accounts' })
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationLocation?: string;
+
+  @ApiPropertyOptional({ description: 'Organization postal code. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationZip is required for ORGANIZATION accounts' })
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationZip?: string;
+
+  @ApiPropertyOptional({ description: '2-letter country code for organization. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationCountry is required for ORGANIZATION accounts' })
+  @IsString()
+  @Matches(/^[A-Z]{2}$/, { message: 'organizationCountry must be a 2-letter country code' })
+  @Transform(Util.trim)
+  organizationCountry?: string;
 }

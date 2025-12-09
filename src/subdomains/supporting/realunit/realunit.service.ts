@@ -215,12 +215,12 @@ export class RealUnitService {
     }
 
     // 5. AccountType validation
-    if (dto.accountType === AccountType.ORGANIZATION) {
-      throw new BadRequestException('Organization accounts are not yet supported');
-    }
-
     if (dto.type === RealUnitUserType.HUMAN && ![AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType)) {
       throw new BadRequestException('HUMAN type requires accountType Personal or SoleProprietorship');
+    }
+
+    if (dto.type === RealUnitUserType.CORPORATION && dto.accountType !== AccountType.ORGANIZATION) {
+      throw new BadRequestException('CORPORATION type requires accountType Organization');
     }
 
     // 6. Duplicate check
@@ -245,10 +245,11 @@ export class RealUnitService {
     }
 
     // 9. Store personal data to userData
-    const [country, nationality, language] = await Promise.all([
+    const [country, nationality, language, organizationCountry] = await Promise.all([
       this.countryService.getCountryWithSymbol(dto.addressCountry),
       this.countryService.getCountryWithSymbol(dto.nationality),
       this.languageService.getLanguageBySymbol(dto.lang),
+      dto.organizationCountry ? this.countryService.getCountryWithSymbol(dto.organizationCountry) : undefined,
     ]);
 
     await this.userDataService.updateUserDataInternal(userData, {
@@ -265,6 +266,12 @@ export class RealUnitService {
       accountType: dto.accountType,
       birthday: new Date(dto.birthday),
       tin: dto.countryAndTINs ? JSON.stringify(dto.countryAndTINs) : undefined,
+      organizationName: dto.organizationName,
+      organizationStreet: dto.organizationStreet,
+      organizationHouseNumber: dto.organizationHouseNumber,
+      organizationLocation: dto.organizationLocation,
+      organizationZip: dto.organizationZip,
+      organizationCountry,
     });
 
     // 10. Forward to Aktionariat
