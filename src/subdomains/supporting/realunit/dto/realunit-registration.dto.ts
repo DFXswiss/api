@@ -130,6 +130,29 @@ export class RealUnitRegistrationDto {
   @IsEnum(RealUnitLanguage)
   lang?: RealUnitLanguage;
 
+  @ApiProperty({ description: 'First name (not signed, must combine with surname to match signed name)' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  firstname: string;
+
+  @ApiProperty({ description: 'Surname (not signed, must combine with firstname to match signed name)' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  surname: string;
+
+  @ApiProperty({ description: 'Street name (not signed, must combine with houseNumber to match signed addressStreet)' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  street: string;
+
+  @ApiProperty({ description: 'House number (not signed, must combine with street to match signed addressStreet). Can be empty.' })
+  @IsString()
+  @Transform(Util.sanitize)
+  houseNumber: string;
+
   @ApiPropertyOptional({ type: [CountryAndTin], description: 'Required if swissTaxResidence is false' })
   @ValidateIf((o: RealUnitRegistrationDto) => !o.swissTaxResidence)
   @IsNotEmpty({ message: 'countryAndTINs is required when swissTaxResidence is false' })

@@ -14,11 +14,13 @@ import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/r
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -55,7 +57,9 @@ export class RealUnitService {
     private readonly assetService: AssetService,
     private readonly blockchainService: RealUnitBlockchainService,
     private readonly userService: UserService,
+    private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
+    private readonly countryService: CountryService,
     private readonly http: HttpService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
@@ -196,12 +200,23 @@ export class RealUnitService {
       throw new BadRequestException('Invalid signature');
     }
 
-    // 4. Duplicate check
+    // 4. Name parts validation (unsigned fields must match signed fields)
+    const combinedName = `${dto.firstname} ${dto.surname}`;
+    if (combinedName !== dto.name) {
+      throw new BadRequestException('firstname + surname does not match signed name');
+    }
+
+    const combinedAddress = dto.houseNumber ? `${dto.street} ${dto.houseNumber}` : dto.street;
+    if (combinedAddress !== dto.addressStreet) {
+      throw new BadRequestException('street + houseNumber does not match signed addressStreet');
+    }
+
+    // 5. Duplicate check
     if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
       throw new BadRequestException('RealUnit registration already exists');
     }
 
-    // 5. Store data with INTERNAL_REVIEW status
+    // 6. Store data with INTERNAL_REVIEW status
     const kycStep = await this.kycService.createCustomKycStep(
       userData,
       KycStepName.REALUNIT_REGISTRATION,
@@ -209,7 +224,7 @@ export class RealUnitService {
       dto,
     );
 
-    // 6. Auto-forward check: firstname must be NULL
+    // 7. Auto-forward check: firstname must be NULL
     const canAutoForward = userData.firstname == null;
 
     if (!canAutoForward) {
@@ -217,7 +232,7 @@ export class RealUnitService {
       return true;
     }
 
-    // 7. Forward to Aktionariat
+    // 8. Forward to Aktionariat
     try {
       const { api } = GetConfig().blockchain.realunit;
       await this.http.post(`${api.url}/registerUser`, dto, {
@@ -225,6 +240,20 @@ export class RealUnitService {
       });
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
+
+      // 9. Store personal data to userData
+      const country = await this.countryService.getCountryWithSymbol(dto.addressCountry);
+      await this.userDataService.updateUserDataInternal(userData, {
+        firstname: dto.firstname,
+        surname: dto.surname,
+        street: dto.street,
+        houseNumber: dto.houseNumber,
+        location: dto.addressCity,
+        zip: dto.addressPostalCode,
+        country,
+        phone: dto.phoneNumber,
+      });
+
       return false;
     } catch (e) {
       await this.kycService.saveKycStepUpdate(kycStep.manualReview(e.message ?? 'Aktionariat API error'));
