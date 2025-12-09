@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from 'src/subdomains/generic/user/models/user-data/is-dfx-phone.validator';
 
 export enum RealUnitUserType {
@@ -125,10 +126,10 @@ export class RealUnitRegistrationDto {
   @IsString()
   signature: string;
 
-  @ApiPropertyOptional({ enum: RealUnitLanguage })
-  @IsOptional()
+  @ApiProperty({ enum: RealUnitLanguage })
+  @IsNotEmpty()
   @IsEnum(RealUnitLanguage)
-  lang?: RealUnitLanguage;
+  lang: RealUnitLanguage;
 
   @ApiProperty({ description: 'First name (not signed, must combine with surname to match signed name)' })
   @IsNotEmpty()
@@ -152,6 +153,11 @@ export class RealUnitRegistrationDto {
   @IsString()
   @Transform(Util.sanitize)
   houseNumber: string;
+
+  @ApiProperty({ enum: AccountType, description: 'Account type (not signed). HUMAN requires Personal/SoleProprietorship, CORPORATION requires Organization.' })
+  @IsNotEmpty()
+  @IsEnum(AccountType)
+  accountType: AccountType;
 
   @ApiPropertyOptional({ type: [CountryAndTin], description: 'Required if swissTaxResidence is false' })
   @ValidateIf((o: RealUnitRegistrationDto) => !o.swissTaxResidence)

@@ -20,6 +20,7 @@ import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
@@ -31,7 +32,7 @@ import {
   TokenInfoClientResponse,
 } from './dto/client.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
-import { RealUnitRegistrationDto } from './dto/realunit-registration.dto';
+import { RealUnitRegistrationDto, RealUnitUserType } from './dto/realunit-registration.dto';
 import {
   AccountHistoryDto,
   AccountSummaryDto,
@@ -211,12 +212,21 @@ export class RealUnitService {
       throw new BadRequestException('street + houseNumber does not match signed addressStreet');
     }
 
-    // 5. Duplicate check
+    // 5. AccountType validation
+    if (dto.accountType === AccountType.ORGANIZATION) {
+      throw new BadRequestException('Organization accounts are not yet supported');
+    }
+
+    if (dto.type === RealUnitUserType.HUMAN && ![AccountType.PERSONAL, AccountType.SOLE_PROPRIETORSHIP].includes(dto.accountType)) {
+      throw new BadRequestException('HUMAN type requires accountType Personal or SoleProprietorship');
+    }
+
+    // 6. Duplicate check
     if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
       throw new BadRequestException('RealUnit registration already exists');
     }
 
-    // 6. Store data with INTERNAL_REVIEW status
+    // 7. Store data with INTERNAL_REVIEW status
     const kycStep = await this.kycService.createCustomKycStep(
       userData,
       KycStepName.REALUNIT_REGISTRATION,
@@ -224,7 +234,7 @@ export class RealUnitService {
       dto,
     );
 
-    // 7. Auto-forward check: firstname must be NULL
+    // 8. Auto-forward check: firstname must be NULL
     const canAutoForward = userData.firstname == null;
 
     if (!canAutoForward) {
@@ -232,7 +242,7 @@ export class RealUnitService {
       return true;
     }
 
-    // 8. Forward to Aktionariat
+    // 9. Forward to Aktionariat
     try {
       const { api } = GetConfig().blockchain.realunit;
       await this.http.post(`${api.url}/registerUser`, dto, {
@@ -241,7 +251,7 @@ export class RealUnitService {
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
 
-      // 9. Store personal data to userData
+      // 10. Store personal data to userData
       const country = await this.countryService.getCountryWithSymbol(dto.addressCountry);
       await this.userDataService.updateUserDataInternal(userData, {
         firstname: dto.firstname,
@@ -252,6 +262,7 @@ export class RealUnitService {
         zip: dto.addressPostalCode,
         country,
         phone: dto.phoneNumber,
+        accountType: dto.accountType,
       });
 
       return false;
