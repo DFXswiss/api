@@ -244,7 +244,30 @@ export class RealUnitService {
       return true;
     }
 
-    // 9. Forward to Aktionariat
+    // 9. Store personal data to userData
+    const [country, nationality, language] = await Promise.all([
+      this.countryService.getCountryWithSymbol(dto.addressCountry),
+      this.countryService.getCountryWithSymbol(dto.nationality),
+      this.languageService.getLanguageBySymbol(dto.lang),
+    ]);
+
+    await this.userDataService.updateUserDataInternal(userData, {
+      firstname: dto.firstname,
+      surname: dto.surname,
+      street: dto.street,
+      houseNumber: dto.houseNumber,
+      location: dto.addressCity,
+      zip: dto.addressPostalCode,
+      country,
+      nationality,
+      language,
+      phone: dto.phoneNumber,
+      accountType: dto.accountType,
+      birthday: new Date(dto.birthday),
+      tin: dto.countryAndTINs ? JSON.stringify(dto.countryAndTINs) : undefined,
+    });
+
+    // 10. Forward to Aktionariat
     try {
       const { api } = GetConfig().blockchain.realunit;
       await this.http.post(`${api.url}/registerUser`, dto, {
@@ -252,28 +275,6 @@ export class RealUnitService {
       });
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
-
-      // 10. Store personal data to userData
-      const [country, nationality, language] = await Promise.all([
-        this.countryService.getCountryWithSymbol(dto.addressCountry),
-        this.countryService.getCountryWithSymbol(dto.nationality),
-        this.languageService.getLanguageBySymbol(dto.lang),
-      ]);
-
-      await this.userDataService.updateUserDataInternal(userData, {
-        firstname: dto.firstname,
-        surname: dto.surname,
-        street: dto.street,
-        houseNumber: dto.houseNumber,
-        location: dto.addressCity,
-        zip: dto.addressPostalCode,
-        country,
-        nationality,
-        language,
-        phone: dto.phoneNumber,
-        accountType: dto.accountType,
-        birthday: new Date(dto.birthday),
-      });
 
       return false;
     } catch (e) {

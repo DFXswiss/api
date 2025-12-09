@@ -157,11 +157,12 @@ export class RealUnitRegistrationDto {
   @Transform(Util.sanitize)
   street: string;
 
-  @ApiProperty({ description: 'House number (not signed, must combine with street to match signed addressStreet). Can be empty.' })
+  @ApiPropertyOptional({ description: 'House number (not signed, must combine with street to match signed addressStreet). Can be empty.' })
+  @IsOptional()
   @IsString()
   @MaxLength(256)
   @Transform(Util.sanitize)
-  houseNumber: string;
+  houseNumber?: string;
 
   @ApiProperty({ enum: AccountType, description: 'Account type (not signed). HUMAN requires Personal/SoleProprietorship, CORPORATION requires Organization.' })
   @IsNotEmpty()

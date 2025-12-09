@@ -191,6 +191,8 @@ export class RealUnitController {
   ): Promise<void> {
     const needsReview = await this.realunitService.register(jwt.account, dto);
 
-    res.status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK).send();
+    res
+      .status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK)
+      .json({ status: needsReview ? 'pending_review' : 'completed' });
   }
 }
