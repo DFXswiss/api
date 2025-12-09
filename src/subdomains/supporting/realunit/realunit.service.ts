@@ -223,6 +223,32 @@ export class RealUnitService {
       throw new BadRequestException('CORPORATION type requires accountType Organization');
     }
 
+    // 5b. Organization fields must match signed fields
+    if (dto.accountType === AccountType.ORGANIZATION) {
+      if (dto.organizationName !== dto.name) {
+        throw new BadRequestException('organizationName must match signed name');
+      }
+
+      const combinedOrgAddress = dto.organizationHouseNumber
+        ? `${dto.organizationStreet} ${dto.organizationHouseNumber}`
+        : dto.organizationStreet;
+      if (combinedOrgAddress !== dto.addressStreet) {
+        throw new BadRequestException('organizationStreet + organizationHouseNumber must match signed addressStreet');
+      }
+
+      if (dto.organizationZip !== dto.addressPostalCode) {
+        throw new BadRequestException('organizationZip must match signed addressPostalCode');
+      }
+
+      if (dto.organizationLocation !== dto.addressCity) {
+        throw new BadRequestException('organizationLocation must match signed addressCity');
+      }
+
+      if (dto.organizationCountry !== dto.addressCountry) {
+        throw new BadRequestException('organizationCountry must match signed addressCountry');
+      }
+    }
+
     // 6. Duplicate check
     if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
       throw new BadRequestException('RealUnit registration already exists');
