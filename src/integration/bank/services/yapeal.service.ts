@@ -109,11 +109,11 @@ export class YapealService {
     url: string,
     method: Method = 'GET',
     data?: unknown,
-    includePartnershipHeader = false,
+    includePaymentHeaders = false,
   ): Promise<T> {
     if (!this.isAvailable()) throw new Error('YAPEAL is not configured');
 
-    const { baseUrl, apiKey, partnershipUid } = Config.bank.yapeal;
+    const { baseUrl, apiKey, partnershipUid, partnerUid } = Config.bank.yapeal;
 
     return this.http.request<T>({
       url: `${baseUrl}/${url}`,
@@ -123,8 +123,10 @@ export class YapealService {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
-        'x-requestor-role': 'client',
-        ...(includePartnershipHeader && { 'x-partnership-uid': partnershipUid }),
+        ...(includePaymentHeaders && {
+          'x-partnership-uid': partnershipUid,
+          'x-partner-uid': partnerUid,
+        }),
       },
     });
   }
