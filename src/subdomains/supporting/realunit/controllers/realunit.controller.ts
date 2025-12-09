@@ -1,15 +1,33 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import {
-  AccountHistoryDto,
-  AccountHistoryQueryDto,
-  AccountSummaryDto,
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
   AllowlistStatusDto,
-  BankDetailsDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
+} from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { RealUnitRegistrationDto } from '../dto/realunit-registration.dto';
+import {
+  AccountHistoryDto,
+  AccountHistoryQueryDto,
+  AccountSummaryDto,
+  BankDetailsDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
   HoldersDto,
@@ -154,5 +172,17 @@ export class RealUnitController {
   @ApiOkResponse({ type: BankDetailsDto })
   getBankDetails(): BankDetailsDto {
     return this.realunitService.getBankDetails();
+  }
+
+  // --- Registration Endpoint ---
+
+  @Post('register')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOperation({ summary: 'Register for RealUnit' })
+  @ApiCreatedResponse({ description: 'Registration saved successfully' })
+  @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
+  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto): Promise<void> {
+    await this.realunitService.register(jwt.account, dto);
   }
 }

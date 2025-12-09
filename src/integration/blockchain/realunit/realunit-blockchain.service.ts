@@ -1,17 +1,17 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Contract } from 'ethers';
+import { Blockchain } from '../shared/enums/blockchain.enum';
+import { EvmClient } from '../shared/evm/evm-client';
+import { EvmUtil } from '../shared/evm/evm.util';
+import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
 import {
   AllowlistStatusDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
-} from 'src/integration/realunit/dto/realunit.dto';
-import { Blockchain } from '../shared/enums/blockchain.enum';
-import { EvmClient } from '../shared/evm/evm-client';
-import { EvmUtil } from '../shared/evm/evm.util';
-import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
+} from './dto/realunit-broker.dto';
 
 // Contract addresses
 const BROKERBOT_ADDRESS = '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d';
@@ -71,10 +71,7 @@ export class RealUnitBlockchainService implements OnModuleInit {
 
   async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
     const contract = this.getBrokerbotContract();
-    const [totalPriceRaw, pricePerShareRaw] = await Promise.all([
-      contract.getBuyPrice(shares),
-      contract.getPrice(),
-    ]);
+    const [totalPriceRaw, pricePerShareRaw] = await Promise.all([contract.getBuyPrice(shares), contract.getPrice()]);
 
     return {
       shares,
@@ -87,10 +84,7 @@ export class RealUnitBlockchainService implements OnModuleInit {
   async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
     const contract = this.getBrokerbotContract();
     const amountWei = EvmUtil.toWeiAmount(parseFloat(amountChf));
-    const [shares, pricePerShareRaw] = await Promise.all([
-      contract.getShares(amountWei),
-      contract.getPrice(),
-    ]);
+    const [shares, pricePerShareRaw] = await Promise.all([contract.getShares(amountWei), contract.getPrice()]);
 
     return {
       amount: amountChf,
@@ -117,10 +111,7 @@ export class RealUnitBlockchainService implements OnModuleInit {
 
   async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
     const contract = this.getBrokerbotContract();
-    const [priceRaw, settings] = await Promise.all([
-      contract.getPrice(),
-      contract.settings(),
-    ]);
+    const [priceRaw, settings] = await Promise.all([contract.getPrice(), contract.settings()]);
 
     // Settings bitmask: bit 0 = buying enabled, bit 1 = selling enabled
     const buyingEnabled = (settings.toNumber() & 1) === 1;
