@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { GetConfig } from 'src/config/config';
+import { HttpService } from 'src/shared/services/http.service';
 import {
   AllowlistStatusDto,
   BrokerbotBuyPriceDto,
@@ -55,6 +56,7 @@ export class RealUnitService {
     private readonly blockchainService: RealUnitBlockchainService,
     private readonly userService: UserService,
     private readonly kycService: KycService,
+    private readonly http: HttpService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -223,5 +225,30 @@ export class RealUnitService {
     const recoveredAddress = verifyTypedData(domain, types, data, signatureToUse);
 
     return Util.equalsIgnoreCase(recoveredAddress, data.walletAddress);
+  }
+
+  async forwardRegistrationToAktionariat(kycStepId: number): Promise<void> {
+    const kycStep = await this.kycService.getKycStepById(kycStepId);
+    if (!kycStep) throw new NotFoundException('KycStep not found');
+
+    if (kycStep.name !== KycStepName.REALUNIT_REGISTRATION)
+      throw new BadRequestException('Invalid KycStep type');
+    if (kycStep.status !== ReviewStatus.INTERNAL_REVIEW)
+      throw new BadRequestException('KycStep not in INTERNAL_REVIEW status');
+
+    const registrationData = kycStep.getResult<RealUnitRegistrationDto>();
+
+    const { api } = GetConfig().blockchain.realunit;
+    try {
+      await this.http.post(`${api.url}/registerUser`, registrationData, {
+        headers: { 'x-api-key': api.key },
+      });
+
+      await this.kycService.saveKycStepUpdate(kycStep.complete());
+    } catch (e) {
+      const errorMessage = e.message ?? 'Failed to forward to Aktionariat';
+      await this.kycService.saveKycStepUpdate(kycStep.manualReview(errorMessage));
+      throw e;
+    }
   }
 }

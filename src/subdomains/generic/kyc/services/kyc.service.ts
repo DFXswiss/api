@@ -1246,6 +1246,14 @@ export class KycService {
     await this.kycStepRepo.save(kycStep);
   }
 
+  async getKycStepById(id: number): Promise<KycStep | null> {
+    return this.kycStepRepo.findOne({ where: { id }, relations: { userData: true } });
+  }
+
+  async saveKycStepUpdate(updateResult: UpdateResult<KycStep>): Promise<void> {
+    await this.kycStepRepo.update(...updateResult);
+  }
+
   async completeIdent(
     kycStep: KycStep,
     nationality?: Country,

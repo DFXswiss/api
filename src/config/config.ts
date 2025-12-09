@@ -876,6 +876,10 @@ export class Configuration {
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
+      api: {
+        url: process.env.REALUNIT_API_URL ?? 'https://ext.aktionariat.com/realunit',
+        key: process.env.REALUNIT_API_KEY,
+      },
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
         address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',
