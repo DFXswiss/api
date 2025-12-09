@@ -26,6 +26,15 @@ export interface VibanListResponse {
 
 // --- Account/Balance DTOs --- //
 
+export enum YapealAccountStatus {
+  ACTIVE = 'active',
+  CANCELLED = 'cancelled',
+  CANCELLING = 'cancelling',
+  LOCKED = 'locked',
+  NEW = 'new',
+  RETIRED = 'retired',
+}
+
 export interface YapealAmount {
   factor: number;
   value: number;
@@ -46,7 +55,7 @@ export interface YapealAccount {
   currency: string;
   iban: string;
   name: string;
-  status: 'active' | 'cancelled' | 'cancelling' | 'locked' | 'new' | 'retired';
+  status: YapealAccountStatus;
 }
 
 export interface YapealAccountsResponse {
@@ -128,7 +137,11 @@ export interface YapealPain001Request {
 
 // --- Payment Status DTOs --- //
 
-export type YapealPaymentStatus = 'SUCCESS' | 'CREATED' | 'NOCONTENT';
+export enum YapealPaymentStatus {
+  SUCCESS = 'SUCCESS',
+  CREATED = 'CREATED',
+  NOCONTENT = 'NOCONTENT',
+}
 
 export interface YapealPaymentStatusResponse {
   fileContent?: string; // base64 encoded pain.002 XML

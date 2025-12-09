@@ -63,9 +63,11 @@ export class BankAdapter implements LiquidityBalanceIntegration {
           break;
 
         case IbanBankName.YAPEAL:
-          const yapealBalance = await this.yapealService.getBalance();
-          if (yapealBalance) {
-            assets.forEach((asset) => balances.push(LiquidityBalance.create(asset, yapealBalance.availableBalance)));
+          const yapealBalances = await this.yapealService.getBalances();
+
+          for (const balance of yapealBalances) {
+            const matchingAssets = assets.filter((asset) => asset.dexName === balance.currency);
+            matchingAssets.forEach((asset) => balances.push(LiquidityBalance.create(asset, balance.availableBalance)));
           }
 
           break;

@@ -86,21 +86,22 @@ export class BankObserver extends MetricObserver<BankData[]> {
   }
 
   private async getYapeal(): Promise<BankData[]> {
-    const balanceInfo = await this.yapealService.getBalance();
-    if (!balanceInfo) return [];
+    const yapealBalances = await this.yapealService.getBalances();
 
-    const yapealBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, balanceInfo.currency);
-    const dbBalance = await this.getDbBalance(yapealBank.iban, balanceInfo.currency);
+    const yapealBankData = [];
+    for (const balance of yapealBalances) {
+      const dbBalance = await this.getDbBalance(balance.iban, balance.currency);
 
-    return [
-      {
+      yapealBankData.push({
         name: 'Yapeal',
-        currency: balanceInfo.currency,
-        balance: balanceInfo.availableBalance,
+        currency: balance.currency,
+        balance: balance.availableBalance,
         dbBalance: Util.round(dbBalance, 2),
-        difference: balanceInfo.availableBalance - Util.round(dbBalance, 2),
-      },
-    ];
+        difference: balance.availableBalance - Util.round(dbBalance, 2),
+      });
+    }
+
+    return yapealBankData;
   }
 
   private async getDbBalance(iban: string, currency: string): Promise<number> {
