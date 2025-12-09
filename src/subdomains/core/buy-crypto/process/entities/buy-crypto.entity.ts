@@ -218,7 +218,7 @@ export class BuyCrypto extends IEntity {
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
-  priceDefinitionAllowedDate?: Date;
+  priceDefinitionAllowedDate?: Date; // is set for tx with amlCheck = true or for manualPrice calculation for refunds with missingPrice error
 
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount?: number;
@@ -700,7 +700,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get manualChfPrice(): Price {
-    return this.amountInChf
+    return this.amountInChf && this.priceDefinitionAllowedDate
       ? Price.create(PriceCurrency.CHF, this.inputAsset, this.amountInChf / this.inputAmount)
       : undefined;
   }
