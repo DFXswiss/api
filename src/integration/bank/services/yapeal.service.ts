@@ -128,6 +128,12 @@ export class YapealService {
     await this.callApi<void>(`b2b/v2/account/subscription?iban=${iban}`, 'DELETE', undefined, 'subscription');
   }
 
+  // Subscribe to base account - receives notifications for all associated vIBANs
+  async subscribeToBaseAccountTransactions(callbackUrl: string): Promise<YapealSubscription> {
+    const { baseAccountIban } = Config.bank.yapeal;
+    return this.createTransactionSubscription(baseAccountIban, callbackUrl);
+  }
+
   // --- HELPER METHODS --- //
 
   private convertYapealAmount(amount: { factor: number; value: number }): number {
