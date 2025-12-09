@@ -10,22 +10,24 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  AllowlistStatusDto,
+  BrokerbotBuyPriceDto,
+  BrokerbotInfoDto,
+  BrokerbotPriceDto,
+  BrokerbotSharesDto,
+} from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { RealUnitRegistrationDto } from 'src/subdomains/generic/kyc/dto/input/realunit-registration.dto';
+import { RealUnitRegistrationDto } from '../dto/realunit-registration.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
   AccountSummaryDto,
-  AllowlistStatusDto,
   BankDetailsDto,
-  BrokerbotBuyPriceDto,
-  BrokerbotInfoDto,
-  BrokerbotPriceDto,
-  BrokerbotSharesDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
   HoldersDto,

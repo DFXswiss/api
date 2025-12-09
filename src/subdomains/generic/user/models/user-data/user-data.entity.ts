@@ -16,8 +16,8 @@ import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
@@ -642,6 +642,10 @@ export class UserData extends IEntity {
 
   getCompletedStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
     return this.getStepsWith(name, type, sequenceNumber).find((s) => s.isCompleted);
+  }
+
+  getNonFailedStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
+    return this.getStepsWith(name, type, sequenceNumber).find((s) => !(s.isFailed || s.isCanceled));
   }
 
   getPendingStepOrThrow(stepId: number): KycStep {

@@ -13,7 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
-import { DfxPhoneTransform, IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
+import { DfxPhoneTransform, IsDfxPhone } from 'src/subdomains/generic/user/models/user-data/is-dfx-phone.validator';
 
 export enum RealUnitUserType {
   HUMAN = 'HUMAN',
