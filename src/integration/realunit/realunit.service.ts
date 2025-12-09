@@ -1,18 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { RealUnitRegistrationDto } from 'src/subdomains/generic/kyc/dto/input/realunit-registration.dto';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import {
   PriceCurrency,
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
 import { RealUnitBlockchainService } from '../blockchain/realunit/realunit-blockchain.service';
+import { Blockchain } from '../blockchain/shared/enums/blockchain.enum';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
@@ -49,6 +55,8 @@ export class RealUnitService {
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly blockchainService: RealUnitBlockchainService,
+    private readonly userDataService: UserDataService,
+    private readonly kycService: KycService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -156,5 +164,65 @@ export class RealUnitService {
       bankName: bank.name,
       currency: 'CHF',
     };
+  }
+
+  // --- Registration Methods ---
+
+  async register(userDataId: number, dto: RealUnitRegistrationDto): Promise<void> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true });
+    if (!userData) throw new NotFoundException('User not found');
+
+    const walletBelongsToUser = userData.users.some((u) => u.address.toLowerCase() === dto.walletAddress.toLowerCase());
+    if (!walletBelongsToUser) throw new BadRequestException('Wallet address does not belong to user');
+
+    // verify EIP-712 signature
+    const isValidSignature = this.verifyRealUnitRegistrationSignature(dto);
+    if (!isValidSignature) throw new BadRequestException('Invalid signature');
+
+    // check for existing registration
+    const existingStep = userData.kycSteps?.find(
+      (s) =>
+        s.name === KycStepName.REALUNIT_REGISTRATION &&
+        ![ReviewStatus.FAILED, ReviewStatus.CANCELED].includes(s.status),
+    );
+    if (existingStep) throw new BadRequestException('RealUnit registration already exists');
+
+    // store data
+    await this.kycService.createCustomKycStep(
+      userData,
+      KycStepName.REALUNIT_REGISTRATION,
+      ReviewStatus.INTERNAL_REVIEW,
+      dto,
+    );
+  }
+
+  private verifyRealUnitRegistrationSignature(data: RealUnitRegistrationDto): boolean {
+    const domain = {
+      name: 'RealUnitUser',
+      version: '1',
+    };
+
+    const types = {
+      RealUnitUserRegistration: [
+        { name: 'email', type: 'string' },
+        { name: 'name', type: 'string' },
+        { name: 'type', type: 'string' },
+        { name: 'phoneNumber', type: 'string' },
+        { name: 'birthday', type: 'string' },
+        { name: 'nationality', type: 'string' },
+        { name: 'addressStreet', type: 'string' },
+        { name: 'addressPostalCode', type: 'string' },
+        { name: 'addressCity', type: 'string' },
+        { name: 'addressCountry', type: 'string' },
+        { name: 'swissTaxResidence', type: 'bool' },
+        { name: 'registrationDate', type: 'string' },
+        { name: 'walletAddress', type: 'address' },
+      ],
+    };
+
+    const signatureToUse = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
+    const recoveredAddress = verifyTypedData(domain, types, data, signatureToUse);
+
+    return recoveredAddress.toLowerCase() === data.walletAddress.toLowerCase();
   }
 }

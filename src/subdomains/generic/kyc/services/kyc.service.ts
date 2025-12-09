@@ -1227,6 +1227,25 @@ export class KycService {
     await this.kycStepRepo.update(...referenceStep.complete());
   }
 
+  async createCustomKycStep(
+    userData: UserData,
+    stepName: KycStepName,
+    status: ReviewStatus,
+    result?: unknown,
+  ): Promise<void> {
+    const nextSequenceNumber = userData.getNextSequenceNumber(stepName);
+
+    const kycStep = this.kycStepRepo.create({
+      userData,
+      name: stepName,
+      status,
+      sequenceNumber: nextSequenceNumber,
+      result: result ? JSON.stringify(result) : undefined,
+    });
+
+    await this.kycStepRepo.save(kycStep);
+  }
+
   async completeIdent(
     kycStep: KycStep,
     nationality?: Country,

@@ -16,7 +16,6 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RealUnitRegistrationDto } from 'src/subdomains/generic/kyc/dto/input/realunit-registration.dto';
-import { RealUnitRegistrationService } from 'src/subdomains/generic/kyc/services/realunit-registration.service';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
@@ -39,10 +38,7 @@ import { RealUnitService } from '../realunit.service';
 @ApiTags('Realunit')
 @Controller('realunit')
 export class RealUnitController {
-  constructor(
-    private readonly realunitService: RealUnitService,
-    private readonly realUnitRegistrationService: RealUnitRegistrationService,
-  ) {}
+  constructor(private readonly realunitService: RealUnitService) {}
 
   @Get('account/:address')
   @ApiOperation({
@@ -184,8 +180,7 @@ export class RealUnitController {
   @ApiOperation({ summary: 'Register for RealUnit' })
   @ApiCreatedResponse({ description: 'Registration saved successfully' })
   @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
-  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto): Promise<{ id: number }> {
-    const kycStep = await this.realUnitRegistrationService.register(jwt.account, dto);
-    return { id: kycStep.id };
+  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto): Promise<void> {
+    await this.realunitService.register(jwt.account, dto);
   }
 }

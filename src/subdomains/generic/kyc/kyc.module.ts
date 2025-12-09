@@ -38,7 +38,6 @@ import { KycLogService } from './services/kyc-log.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
-import { RealUnitRegistrationService } from './services/realunit-registration.service';
 import { TfaService } from './services/tfa.service';
 
 @Module({
@@ -84,7 +83,6 @@ import { TfaService } from './services/tfa.service';
     KycNotificationService,
     KycClientService,
     SumsubService,
-    RealUnitRegistrationService,
   ],
   exports: [
     KycDocumentService,
@@ -95,7 +93,6 @@ import { TfaService } from './services/tfa.service';
     KycNotificationService,
     KycService,
     KycFileService,
-    RealUnitRegistrationService,
   ],
 })
 export class KycModule {}
