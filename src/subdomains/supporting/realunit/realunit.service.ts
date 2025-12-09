@@ -185,17 +185,23 @@ export class RealUnitService {
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
 
-    // 2. Signature validation
+    // 2. Email validation - user must have submitted email via KYC step first
+    if (!userData.mail) throw new BadRequestException('User email not verified');
+    if (!Util.equalsIgnoreCase(dto.mail, userData.mail)) {
+      throw new BadRequestException('Email does not match verified email');
+    }
+
+    // 3. Signature validation
     if (!this.verifyRealUnitRegistrationSignature(dto)) {
       throw new BadRequestException('Invalid signature');
     }
 
-    // 3. Duplicate check
+    // 4. Duplicate check
     if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
       throw new BadRequestException('RealUnit registration already exists');
     }
 
-    // 4. Store data with INTERNAL_REVIEW status
+    // 5. Store data with INTERNAL_REVIEW status
     const kycStep = await this.kycService.createCustomKycStep(
       userData,
       KycStepName.REALUNIT_REGISTRATION,
@@ -203,15 +209,15 @@ export class RealUnitService {
       dto,
     );
 
-    // 5. Auto-forward check: firstname AND mail must be NULL
-    const canAutoForward = userData.firstname == null && userData.mail == null;
+    // 6. Auto-forward check: firstname must be NULL
+    const canAutoForward = userData.firstname == null;
 
     if (!canAutoForward) {
       await this.kycService.saveKycStepUpdate(kycStep.manualReview('User has existing KYC data'));
       return true;
     }
 
-    // 6. Forward to Aktionariat
+    // 7. Forward to Aktionariat
     try {
       const { api } = GetConfig().blockchain.realunit;
       await this.http.post(`${api.url}/registerUser`, dto, {
@@ -234,7 +240,7 @@ export class RealUnitService {
 
     const types = {
       RealUnitUserRegistration: [
-        { name: 'email', type: 'string' },
+        { name: 'mail', type: 'string' },
         { name: 'name', type: 'string' },
         { name: 'type', type: 'string' },
         { name: 'phoneNumber', type: 'string' },
