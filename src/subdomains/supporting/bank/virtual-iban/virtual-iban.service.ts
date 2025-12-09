@@ -32,13 +32,6 @@ export class VirtualIbanService {
     });
   }
 
-  async getByIban(iban: string): Promise<VirtualIban | null> {
-    return this.virtualIbanRepo.findOne({
-      where: { iban, active: true },
-      relations: { userData: true },
-    });
-  }
-
   async createForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
     const existing = await this.getActiveForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
