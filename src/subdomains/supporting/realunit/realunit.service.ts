@@ -62,6 +62,8 @@ export class RealUnitService {
   async getAccount(address: string): Promise<AccountSummaryDto> {
     const accountSummaryQuery = getAccountSummaryQuery(address);
     const clientResponse = await request<AccountSummaryClientResponse>(this.ponderUrl, accountSummaryQuery);
+    if (!clientResponse.account) throw new NotFoundException('Account not found');
+
     const historicalPrices = await this.getHistoricalPrice(TimeFrame.ALL);
 
     return RealUnitDtoMapper.toAccountSummaryDto(clientResponse, historicalPrices);
@@ -76,6 +78,8 @@ export class RealUnitService {
   async getAccountHistory(address: string, first?: number, after?: string): Promise<AccountHistoryDto> {
     const accountHistoryQuery = getAccountHistoryQuery(address, first, after);
     const clientResponse = await request<AccountHistoryClientResponse>(this.ponderUrl, accountHistoryQuery);
+    if (!clientResponse.account) throw new NotFoundException('Account not found');
+
     return RealUnitDtoMapper.toAccountHistoryDto(clientResponse);
   }
 
