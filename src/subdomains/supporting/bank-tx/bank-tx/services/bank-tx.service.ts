@@ -156,28 +156,32 @@ export class BankTxService implements OnModuleInit {
       : [];
 
     for (const tx of unassignedBankTx) {
-      if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
-        const remittanceInfo = (!tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo)
-          ?.replace(/[ -]/g, '')
-          .replace(/O/g, '0');
-        const buy =
-          remittanceInfo &&
-          tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
-          buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
+      try {
+        if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
+          const remittanceInfo = (!tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo)
+            ?.replace(/[ -]/g, '')
+            .replace(/O/g, '0');
+          const buy =
+            remittanceInfo &&
+            tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
+            buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
-        if (buy) {
-          await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
+          if (buy) {
+            await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
 
-          continue;
+            continue;
+          }
         }
+
+        if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
+
+        await this.updateInternal(
+          tx,
+          tx.name === 'Payward Trading Ltd.' ? { type: BankTxType.KRAKEN } : { type: BankTxType.GSHEET },
+        );
+      } catch (e) {
+        this.logger.error(`Error during bankTx ${tx.id} assign:`, e);
       }
-
-      if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
-
-      await this.updateInternal(
-        tx,
-        tx.name === 'Payward Trading Ltd.' ? { type: BankTxType.KRAKEN } : { type: BankTxType.GSHEET },
-      );
     }
   }
 
