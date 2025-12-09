@@ -15,6 +15,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { LanguageService } from 'src/shared/models/language/language.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -61,6 +62,7 @@ export class RealUnitService {
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
     private readonly countryService: CountryService,
+    private readonly languageService: LanguageService,
     private readonly http: HttpService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
@@ -252,7 +254,12 @@ export class RealUnitService {
       await this.kycService.saveKycStepUpdate(kycStep.complete());
 
       // 10. Store personal data to userData
-      const country = await this.countryService.getCountryWithSymbol(dto.addressCountry);
+      const [country, nationality, language] = await Promise.all([
+        this.countryService.getCountryWithSymbol(dto.addressCountry),
+        this.countryService.getCountryWithSymbol(dto.nationality),
+        this.languageService.getLanguageBySymbol(dto.lang),
+      ]);
+
       await this.userDataService.updateUserDataInternal(userData, {
         firstname: dto.firstname,
         surname: dto.surname,
@@ -261,8 +268,11 @@ export class RealUnitService {
         location: dto.addressCity,
         zip: dto.addressPostalCode,
         country,
+        nationality,
+        language,
         phone: dto.phoneNumber,
         accountType: dto.accountType,
+        birthday: new Date(dto.birthday),
       });
 
       return false;
