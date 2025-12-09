@@ -9,6 +9,7 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import {
   SpecialExternalAccount,
@@ -254,6 +255,10 @@ export class BankTx extends IEntity {
 
   get refundAmount(): number {
     return this.amount + this.chargebackBankFee;
+  }
+
+  get manualChfPrice(): Price {
+    return undefined;
   }
 
   get feeAmountChf(): number {

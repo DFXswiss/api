@@ -7,6 +7,7 @@ import { BankService } from '../../bank/bank/bank.service';
 import { FiatOutput } from '../../fiat-output/fiat-output.entity';
 import { PaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Transaction } from '../../payment/entities/transaction.entity';
+import { Price } from '../../pricing/domain/entities/price';
 import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 
 @Entity()
@@ -90,6 +91,10 @@ export class BankTxReturn extends IEntity {
 
   get refundAmount(): number {
     return this.bankTx.refundAmount;
+  }
+
+  get manualChfPrice(): Price {
+    return undefined;
   }
 
   confirmSentMail(): UpdateResult<BankTxReturn> {
