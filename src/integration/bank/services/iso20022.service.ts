@@ -18,15 +18,17 @@ export interface Party {
   name: string;
   iban: string;
   bic: string;
+  country?: string;
 }
 
 export interface Pain001Payment {
+  messageId: string;
+  endToEndId: string;
   amount: number;
   currency: 'CHF' | 'EUR';
   debtor: Party;
   creditor: Party;
   remittanceInfo?: string;
-  endToEndId?: string;
   executionDate?: Date;
 }
 
@@ -105,10 +107,68 @@ export class Iso20022Service {
   }
 
   // --- PAIN.001 GENERATION --- //
+
+  static createPain001Json(payment: Pain001Payment): any {
+    return {
+      CstmrCdtTrfInitn: {
+        GrpHdr: {
+          MsgId: payment.messageId,
+          NbOfTxs: '1',
+          CtrlSum: payment.amount,
+          InitgPty: {
+            Nm: payment.debtor.name,
+          },
+        },
+        PmtInf: [
+          {
+            Dbtr: {
+              Nm: payment.debtor.name,
+              PstlAdr: {
+                Ctry: payment.debtor.country,
+              },
+            },
+            DbtrAcct: {
+              Id: {
+                IBAN: payment.debtor.iban,
+              },
+              Ccy: payment.currency,
+            },
+            CdtTrfTxInf: [
+              {
+                PmtId: {
+                  EndToEndId: payment.endToEndId,
+                },
+                Amt: {
+                  InstdAmt: {
+                    Ccy: payment.currency,
+                    value: payment.amount,
+                  },
+                },
+                Cdtr: {
+                  Nm: payment.creditor.name,
+                  PstlAdr: {
+                    Ctry: payment.creditor.country,
+                  },
+                },
+                CdtrAcct: {
+                  Id: {
+                    IBAN: payment.creditor.iban,
+                  },
+                },
+                ...(payment.remittanceInfo && {
+                  RmtInf: {
+                    Ustrd: payment.remittanceInfo,
+                  },
+                }),
+              },
+            ],
+          },
+        ],
+      },
+    };
+  }
+
   static createPain001Xml(payment: Pain001Payment): string {
-    const messageId = Util.createUniqueId('MSG');
-    const paymentId = Util.createUniqueId('PMT');
-    const endToEndId = payment.endToEndId || Util.createUniqueId('E2E');
     const creationDateTime = new Date().toISOString();
     const executionDate = Util.isoDate(payment.executionDate || new Date());
     const amount = payment.amount.toFixed(2);
@@ -117,7 +177,7 @@ export class Iso20022Service {
 <Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <CstmrCdtTrfInitn>
     <GrpHdr>
-      <MsgId>${messageId}</MsgId>
+      <MsgId>${payment.messageId}</MsgId>
       <CreDtTm>${creationDateTime}</CreDtTm>
       <NbOfTxs>1</NbOfTxs>
       <CtrlSum>${amount}</CtrlSum>
@@ -126,7 +186,7 @@ export class Iso20022Service {
       </InitgPty>
     </GrpHdr>
     <PmtInf>
-      <PmtInfId>${paymentId}</PmtInfId>
+      <PmtInfId>${payment.messageId}</PmtInfId>
       <PmtMtd>TRF</PmtMtd>
       <BtchBookg>false</BtchBookg>
       <NbOfTxs>1</NbOfTxs>
@@ -153,7 +213,7 @@ export class Iso20022Service {
       <ChrgBr>SLEV</ChrgBr>
       <CdtTrfTxInf>
         <PmtId>
-          <EndToEndId>${endToEndId}</EndToEndId>
+          <EndToEndId>${payment.endToEndId}</EndToEndId>
         </PmtId>
         <Amt>
           <InstdAmt Ccy="${payment.currency}">${amount}</InstdAmt>

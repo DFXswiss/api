@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Subject } from 'rxjs';
+import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import {
   YapealTransactionStatus,
   YapealTransactionType,
   YapealWebhookPayloadDto,
   YapealWebhookTransactionDto,
 } from '../dto/yapeal-webhook.dto';
-import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 
 export interface YapealTransactionEvent {
   accountIban: string;
@@ -35,7 +35,7 @@ export class YapealWebhookService {
   processWebhook(payload: YapealWebhookPayloadDto): void {
     const { data } = payload;
 
-    if (data.status !== YapealTransactionStatus.BOOKED || data.type !== YapealTransactionType.CREDIT) {
+    if (data.status !== YapealTransactionStatus.BOOKED) {
       return;
     }
 
@@ -50,10 +50,9 @@ export class YapealWebhookService {
       accountServiceRef: `YAPEAL-${data.transactionUid}`,
       bookingDate: data.bookingDate ? new Date(data.bookingDate) : undefined,
       valueDate: data.valueDate ? new Date(data.valueDate) : undefined,
-      amount: data.amount,
+      amount: Math.abs(data.amount),
       currency: data.currency,
-      creditDebitIndicator:
-        data.type === YapealTransactionType.CREDIT ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+      creditDebitIndicator: data.type === YapealTransactionType.CREDIT ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       name: data.counterpartyName,
       iban: data.counterpartyIban,
       accountIban: data.iban,
