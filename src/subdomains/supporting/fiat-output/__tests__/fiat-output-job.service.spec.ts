@@ -16,7 +16,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createDefaultBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
-import { createCustomBank } from '../../bank/bank/__mocks__/bank.entity.mock';
+import { createCustomBank, maerkiEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from '../../bank/bank/bank.service';
 import { createCustomLog } from '../../log/__mocks__/log.entity.mock';
 import { LogService } from '../../log/log.service';
@@ -107,16 +107,16 @@ describe('FiatOutputJobService', () => {
         .spyOn(countryService, 'getCountryWithSymbol')
         .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: true }));
 
-      jest.spyOn(bankService, 'getSenderBank').mockResolvedValue(createCustomBank({ iban: 'DE123456789' }));
+      jest.spyOn(bankService, 'getSenderBank').mockResolvedValue(maerkiEUR);
 
       await service['assignBankAccount']();
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
       expect(updateCalls[0][0]).toBe(1);
-      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: 'DE123456789' });
+      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: maerkiEUR.iban });
 
       expect(updateCalls[1][0]).toBe(3);
-      expect(updateCalls[1][1]).toMatchObject({ originEntityId: 102, accountIban: 'DE123456789' });
+      expect(updateCalls[1][1]).toMatchObject({ originEntityId: 102, accountIban: maerkiEUR.iban });
     });
   });
 

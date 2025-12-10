@@ -482,7 +482,7 @@ export class BuyFiat extends IEntity {
   pendingOutputAmount(asset: Asset): number {
     return this.outputAmount &&
       asset.dexName === this.sell.fiat.name &&
-      (asset.blockchain as string) === 'MaerkiBaumann'
+      ['MaerkiBaumann', 'Yapeal'].includes(asset.blockchain as string)
       ? this.outputAmount
       : 0;
   }
