@@ -306,12 +306,15 @@ export class FiatOutputJobService {
             iban: entity.iban,
             bic: entity.bic,
             country: entity.country,
+            address: entity.address,
+            zip: entity.zip,
+            city: entity.city,
           },
           remittanceInfo: entity.remittanceInfo,
         };
 
         await this.yapealService.sendPayment(payment);
-        await this.fiatOutputRepo.update(entity.id, { yapealMsgId: msgId });
+        await this.fiatOutputRepo.update(entity.id, { yapealMsgId: msgId, isTransmittedDate: new Date() });
       } catch (e) {
         this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
       }
@@ -325,7 +328,7 @@ export class FiatOutputJobService {
     const entities = await this.fiatOutputRepo.find({
       where: {
         yapealMsgId: Not(IsNull()),
-        isTransmittedDate: IsNull(),
+        isConfirmedDate: IsNull(),
         isComplete: false,
       },
     });
@@ -336,7 +339,6 @@ export class FiatOutputJobService {
 
         if (status.status === YapealPaymentStatus.SUCCESS) {
           await this.fiatOutputRepo.update(entity.id, {
-            isTransmittedDate: new Date(),
             isConfirmedDate: new Date(),
             isApprovedDate: new Date(),
           });
