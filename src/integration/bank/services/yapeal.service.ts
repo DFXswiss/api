@@ -12,6 +12,9 @@ import {
   YapealAccountsResponse,
   YapealAccountStatus,
   YapealPaymentStatusResponse,
+  YapealSubscription,
+  YapealSubscriptionFormat,
+  YapealSubscriptionRequest,
 } from '../dto/yapeal.dto';
 import { Iso20022Service, Pain001Payment } from './iso20022.service';
 
@@ -46,11 +49,8 @@ export class YapealService {
   }
 
   private async getVibanProposal(): Promise<VibanProposalResponse> {
-    const { partnershipUid, adminUid } = Config.bank.yapeal;
-    return this.callApi<VibanProposalResponse>(
-      `b2b/v2/partnerships/${partnershipUid}/viban/proposal?executingAgentUID=${adminUid}`,
-      'GET',
-    );
+    const { partnershipUid } = Config.bank.yapeal;
+    return this.callApi<VibanProposalResponse>(`b2b/v2/partnerships/${partnershipUid}/viban/proposal`, 'GET');
   }
 
   private async reserveViban(bban: string, baseAccountIban: string): Promise<VibanReserveResponse> {
@@ -107,6 +107,30 @@ export class YapealService {
 
   async getPaymentStatus(msgId: string): Promise<YapealPaymentStatusResponse> {
     return this.callApi<YapealPaymentStatusResponse>(`b2b/instant-payment-order/${msgId}/state`, 'GET');
+  }
+
+  // --- SUBSCRIPTION METHODS --- //
+
+  async createTransactionSubscription(
+    iban: string,
+    callbackPath?: string,
+    format: YapealSubscriptionFormat = YapealSubscriptionFormat.JSON,
+  ): Promise<YapealSubscription> {
+    const request: YapealSubscriptionRequest = {
+      iban,
+      format,
+    };
+    if (callbackPath) request.callbackPath = callbackPath;
+
+    return this.callApi<YapealSubscription>('b2b/v2/account/subscribe', 'POST', request, true);
+  }
+
+  async getTransactionSubscriptions(): Promise<YapealSubscription[]> {
+    return this.callApi<YapealSubscription[]>('b2b/v2/accounts/subscription', 'GET', undefined, true);
+  }
+
+  async deleteTransactionSubscription(iban: string): Promise<void> {
+    await this.callApi<void>(`b2b/v2/account/subscription?iban=${iban}`, 'DELETE', undefined, true);
   }
 
   // --- HELPER METHODS --- //
