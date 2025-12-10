@@ -4,7 +4,6 @@ import { Request } from 'express';
 import { TLSSocket } from 'tls';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { YapealWebhookPayloadDto } from '../dto/yapeal-webhook.dto';
 import { YapealWebhookService } from '../services/yapeal-webhook.service';
 
 @ApiTags('Bank')
@@ -16,7 +15,7 @@ export class YapealWebhookController {
 
   @Post('webhook')
   @ApiExcludeEndpoint()
-  handleYapealWebhook(@Req() req: Request, @Body() payload: YapealWebhookPayloadDto): { received: boolean } {
+  handleYapealWebhook(@Req() req: Request, @Body() payload: any): { received: boolean } {
     this.validateClientCertificate(req);
 
     this.yapealWebhookService.processWebhook(payload);

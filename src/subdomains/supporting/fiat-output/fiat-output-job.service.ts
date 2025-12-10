@@ -298,17 +298,17 @@ export class FiatOutputJobService {
           currency: entity.currency as 'CHF' | 'EUR',
           debtor: {
             name: Config.bank.dfxAddress.name,
-            iban: entity.accountIban,
             country: 'CH',
+            iban: entity.accountIban,
           },
           creditor: {
             name: entity.name,
-            iban: entity.iban,
-            bic: entity.bic,
-            country: entity.country,
             address: entity.address,
             zip: entity.zip,
             city: entity.city,
+            country: entity.country,
+            iban: entity.iban,
+            bic: entity.bic,
           },
           remittanceInfo: entity.remittanceInfo,
         };
