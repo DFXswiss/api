@@ -26,6 +26,7 @@ import { Ep2ReportService } from '../ep2-report.service';
 import { FiatOutputJobService } from '../fiat-output-job.service';
 import { FiatOutputType } from '../fiat-output.entity';
 import { FiatOutputRepository } from '../fiat-output.repository';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 
 describe('FiatOutputJobService', () => {
   let service: FiatOutputJobService;
@@ -39,6 +40,7 @@ describe('FiatOutputJobService', () => {
   let logService: LogService;
   let bankTxReturnService: BankTxReturnService;
   let bankTxRepeatService: BankTxRepeatService;
+  let yapealService: YapealService;
 
   beforeEach(async () => {
     fiatOutputRepo = createMock<FiatOutputRepository>();
@@ -50,6 +52,7 @@ describe('FiatOutputJobService', () => {
     logService = createMock<LogService>();
     bankTxReturnService = createMock<BankTxReturnService>();
     bankTxRepeatService = createMock<BankTxRepeatService>();
+    yapealService = createMock<YapealService>();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -65,6 +68,7 @@ describe('FiatOutputJobService', () => {
         { provide: LogService, useValue: logService },
         { provide: BankTxReturnService, useValue: bankTxReturnService },
         { provide: BankTxRepeatService, useValue: bankTxRepeatService },
+        { provide: YapealService, useValue: yapealService },
 
         TestUtil.provideConfig(),
       ],

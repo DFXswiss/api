@@ -138,6 +138,9 @@ export class FiatOutput extends IEntity {
   @Column({ nullable: true })
   reportCreated?: boolean;
 
+  @Column({ length: 256, nullable: true })
+  yapealMsgId?: string;
+
   // --- ENTITY METHODS --- //
 
   setBatch(batchId?: number, batchAmount?: number): UpdateResult<FiatOutput> {
