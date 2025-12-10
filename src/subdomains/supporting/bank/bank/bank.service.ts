@@ -20,12 +20,8 @@ export class BankService implements OnModuleInit {
 
   constructor(private bankRepo: BankRepository) {}
 
-  async onModuleInit(): Promise<void> {
-    const banks = await this.bankRepo.find();
-
-    for (const bank of banks) {
-      BankService.ibanCache.set(`${bank.name}-${bank.currency}`, bank.iban);
-    }
+  onModuleInit() {
+    void this.loadIbanCache();
   }
 
   async getAllBanks(): Promise<Bank[]> {
@@ -48,7 +44,7 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findOneCachedBy(currency, { currency, send: true });
   }
 
-  // --- BankSelector --- //
+  // --- BANK SELECTOR --- //
   async getBank({ amount, currency, paymentMethod, userData }: BankSelectorInput): Promise<Bank> {
     const frickAmountLimit = 9000;
     const fallBackCurrency = 'EUR';
@@ -92,6 +88,27 @@ export class BankService implements OnModuleInit {
     return expectedIban === accountIban;
   }
 
+  // --- HELPER METHODS --- //
+  private async loadIbanCache(): Promise<void> {
+    const banks = await this.bankRepo.find();
+
+    for (const bank of banks) {
+      BankService.ibanCache.set(`${bank.name}-${bank.currency}`, bank.iban);
+    }
+  }
+
+  private getMatchingBank(
+    banks: Bank[],
+    bankName: string | undefined,
+    currencyName: string,
+    fallBackCurrencyName?: string,
+  ): Bank {
+    return (
+      banks.find((b) => (!bankName || b.name === bankName) && b.currency === currencyName && b.receive) ??
+      banks.find((b) => (!bankName || b.name === bankName) && b.currency === fallBackCurrencyName && b.receive)
+    );
+  }
+
   private static blockchainToBankName(blockchain: Blockchain): IbanBankName | undefined {
     switch (blockchain) {
       case Blockchain.MAERKI_BAUMANN:
@@ -103,18 +120,5 @@ export class BankService implements OnModuleInit {
       default:
         return undefined;
     }
-  }
-
-  // --- HELPER METHODS --- //
-  private getMatchingBank(
-    banks: Bank[],
-    bankName: string | undefined,
-    currencyName: string,
-    fallBackCurrencyName?: string,
-  ): Bank {
-    return (
-      banks.find((b) => (!bankName || b.name === bankName) && b.currency === currencyName && b.receive) ??
-      banks.find((b) => (!bankName || b.name === bankName) && b.currency === fallBackCurrencyName && b.receive)
-    );
   }
 }
