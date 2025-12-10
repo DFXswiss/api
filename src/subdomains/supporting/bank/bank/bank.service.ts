@@ -86,8 +86,8 @@ export class BankService {
 
       case 'Yapeal':
         return (
-          (asset.dexName === 'CHF' && accountIban === 'CH7489144562527626887') ||
-          (asset.dexName === 'EUR' && accountIban === 'CH1489144171823255648')
+          (asset.dexName === 'CHF' && accountIban === 'CH5283019DFXCHF000001') ||
+          (asset.dexName === 'EUR' && accountIban === 'CH6783019DFXEUR000002')
         );
     }
   }
