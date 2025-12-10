@@ -18,7 +18,7 @@ import {
   YapealSubscriptionFormat,
   YapealSubscriptionRequest,
 } from '../dto/yapeal.dto';
-import { CamtTransaction, Iso20022Service, Pain001Payment } from './iso20022.service';
+import { CamtTransaction, Pain001Payment, Iso20022Service } from './iso20022.service';
 
 export interface YapealBalanceInfo {
   iban: string;
@@ -84,20 +84,93 @@ export class YapealService {
       const response = await this.getAccountStatement(accountIban, fromDate, toDate);
       if (!response) return [];
 
-      // API may return XML string directly or wrapped in JSON
-      const xmlData = typeof response === 'string' ? response : response.xml ?? response.data ?? JSON.stringify(response);
-
-      // Validate that we have XML data
-      if (!xmlData.includes('<Document') && !xmlData.includes('<Ntry>')) {
-        this.logger.warn(`Yapeal CAMT-053 response is not XML format for ${accountIban}. Response type: ${typeof response}`);
-        return [];
-      }
-
-      const transactions = Iso20022Service.parseCamtXml(xmlData, accountIban);
+      // Yapeal CAMT-053 API returns JSON (not XML!) with BkToCstmrStmt structure
+      const transactions = this.parseCamtJson(response, accountIban);
       return transactions.map((t) => this.parseTransaction(t, accountIban));
     } catch (e) {
       this.logger.error(`Failed to get Yapeal transactions for ${accountIban}:`, e);
       return [];
+    }
+  }
+
+  private parseCamtJson(response: any, accountIban: string): CamtTransaction[] {
+    const transactions: CamtTransaction[] = [];
+
+    try {
+      // Navigate JSON structure: BkToCstmrStmt.Stmt[].Ntry[]
+      const stmt = response?.BkToCstmrStmt?.Stmt;
+      if (!stmt) return [];
+
+      const statements = Array.isArray(stmt) ? stmt : [stmt];
+
+      for (const statement of statements) {
+        const entries = statement?.Ntry;
+        if (!entries) continue;
+
+        const entryList = Array.isArray(entries) ? entries : [entries];
+
+        for (const entry of entryList) {
+          const tx = this.parseCamtEntry(entry, accountIban);
+          if (tx) transactions.push(tx);
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to parse CAMT JSON for ${accountIban}:`, e);
+    }
+
+    return transactions;
+  }
+
+  private parseCamtEntry(entry: any, accountIban: string): CamtTransaction | null {
+    try {
+      const creditDebitIndicator = entry?.CdtDbtInd as 'CRDT' | 'DBIT';
+      if (!creditDebitIndicator) return null;
+
+      // Amount
+      const amt = entry?.Amt;
+      const amount = amt ? parseFloat(amt['#text'] ?? amt.value ?? amt) : 0;
+      const currency = amt?.Ccy ?? 'CHF';
+
+      // Dates
+      const bookingDate = entry?.BookgDt?.Dt ? new Date(entry.BookgDt.Dt) : new Date();
+      const valueDate = entry?.ValDt?.Dt ? new Date(entry.ValDt.Dt) : bookingDate;
+
+      // Reference - use AcctSvcrRef or generate unique ID
+      const accountServiceRef = entry?.AcctSvcrRef || Util.createUniqueId(accountIban);
+
+      // Transaction details (inside NtryDtls.TxDtls)
+      const txDtls = entry?.NtryDtls?.TxDtls;
+      const txDetail = Array.isArray(txDtls) ? txDtls[0] : txDtls;
+
+      // Party information
+      const relatedParties = txDetail?.RltdPties;
+      const name = relatedParties?.Dbtr?.Nm ?? relatedParties?.Cdtr?.Nm ?? txDetail?.Nm;
+      const iban = relatedParties?.DbtrAcct?.Id?.IBAN ?? relatedParties?.CdtrAcct?.Id?.IBAN;
+      const bic = txDetail?.RltdAgts?.DbtrAgt?.FinInstnId?.BIC ?? txDetail?.RltdAgts?.DbtrAgt?.FinInstnId?.BICFI;
+
+      // Remittance info
+      const rmtInf = txDetail?.RmtInf;
+      const remittanceInfo = rmtInf?.Ustrd ?? rmtInf?.Strd;
+
+      // End-to-end ID
+      const endToEndId = txDetail?.Refs?.EndToEndId;
+
+      return {
+        accountServiceRef,
+        bookingDate,
+        valueDate,
+        amount,
+        currency,
+        creditDebitIndicator,
+        name,
+        iban,
+        bic,
+        remittanceInfo,
+        endToEndId,
+      };
+    } catch (e) {
+      this.logger.warn(`Failed to parse CAMT entry:`, e);
+      return null;
     }
   }
 
