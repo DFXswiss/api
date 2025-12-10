@@ -1,34 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { Subject } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTransactionEvent } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-transaction-handler.service';
 import { CamtStatus, Iso20022Service } from './iso20022.service';
-
-export interface YapealTransactionEvent {
-  accountIban: string;
-  bankTxData: {
-    accountServiceRef: string;
-    bookingDate?: Date;
-    valueDate?: Date;
-    amount: number;
-    currency: string;
-    creditDebitIndicator: BankTxIndicator;
-    name?: string;
-    iban?: string;
-    accountIban: string;
-    bic?: string;
-    remittanceInfo?: string;
-    endToEndId?: string;
-    txRaw: string;
-  };
-}
 
 @Injectable()
 export class YapealWebhookService {
   private readonly logger = new DfxLogger(YapealWebhookService);
 
-  private readonly transactionSubject = new Subject<YapealTransactionEvent>();
-  public readonly transaction$ = this.transactionSubject.asObservable();
+  private readonly transactionSubject = new Subject<BankTransactionEvent>();
 
   processWebhook(payload: any): void {
     try {
@@ -49,6 +29,10 @@ export class YapealWebhookService {
           valueDate: transaction.valueDate,
           amount: transaction.amount,
           currency: transaction.currency,
+          instructedAmount: transaction.amount,
+          instructedCurrency: transaction.currency,
+          txAmount: transaction.amount,
+          txCurrency: transaction.currency,
           creditDebitIndicator: transaction.creditDebitIndicator,
           name: transaction.name,
           iban: transaction.iban,
@@ -59,10 +43,12 @@ export class YapealWebhookService {
           txRaw: JSON.stringify(payload),
         },
       });
-
-      this.logger.info(`Processed YAPEAL transaction: ${transaction.accountServiceRef}`);
     } catch (e) {
       this.logger.error('Failed to process YAPEAL webhook:', e);
     }
+  }
+
+  getTransactionObservable(): Observable<BankTransactionEvent> {
+    return this.transactionSubject.asObservable();
   }
 }
