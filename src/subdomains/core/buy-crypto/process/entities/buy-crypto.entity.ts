@@ -626,6 +626,7 @@ export class BuyCrypto extends IEntity {
     switch (asset.blockchain) {
       case Blockchain.MAERKI_BAUMANN:
       case Blockchain.OLKYPAY:
+      case Blockchain.YAPEAL:
         return BankService.isBankMatching(asset, this.bankTx?.accountIban) ? this.inputReferenceAmount : 0;
 
       case Blockchain.CHECKOUT:

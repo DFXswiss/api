@@ -126,6 +126,7 @@ export class BankTxReturn extends IEntity {
     switch (asset.blockchain) {
       case Blockchain.MAERKI_BAUMANN:
       case Blockchain.OLKYPAY:
+      case Blockchain.YAPEAL:
         return BankService.isBankMatching(asset, this.bankTx.accountIban) ? this.bankTx.amount : 0;
 
       default:
