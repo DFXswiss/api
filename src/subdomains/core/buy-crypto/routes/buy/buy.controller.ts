@@ -25,7 +25,6 @@ import { Util } from 'src/shared/utils/util';
 import { KycLevel, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CreateVirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/create-virtual-iban.dto';
 import { VirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/virtual-iban.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
@@ -319,7 +318,7 @@ export class BuyController {
       userId,
       FiatPaymentMethod.BANK,
       CryptoPaymentMethod.CRYPTO,
-      IbanBankName.MAERKI,
+      TransactionHelper.getDefaultBankByPaymentMethod(FiatPaymentMethod.BANK),
       undefined,
       await this.fiatService.getFiatByName('EUR'),
       buy.asset,

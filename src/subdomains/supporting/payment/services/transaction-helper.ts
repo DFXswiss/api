@@ -267,8 +267,8 @@ export class TransactionHelper implements OnModuleInit {
     const chfPrice = await this.pricingService.getPrice(txAsset, PriceCurrency.CHF, PriceValidity.ANY);
     const txAmountChf = chfPrice.convert(txAmount);
 
-    const bankIn = this.getDefaultBankByPaymentMethod(paymentMethodIn);
-    const bankOut = this.getDefaultBankByPaymentMethod(paymentMethodOut);
+    const bankIn = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn);
+    const bankOut = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodOut);
 
     const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
 
@@ -701,7 +701,7 @@ export class TransactionHelper implements OnModuleInit {
 
   // --- HELPER METHODS --- //
 
-  private getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
+  static getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
     switch (paymentMethod) {
       case FiatPaymentMethod.BANK:
         return IbanBankName.MAERKI;
