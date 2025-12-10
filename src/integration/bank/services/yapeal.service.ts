@@ -92,6 +92,14 @@ export class YapealService {
     return this.callApi<any>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
   }
 
+  async getEntitledAccounts(): Promise<YapealAccountsResponse> {
+    const { partnershipUid, adminUid } = Config.bank.yapeal;
+    return this.callApi<YapealAccountsResponse>(
+      `b2b/v2/agent/${partnershipUid}/accounts/entitled?executingAgentUID=${adminUid}`,
+      'GET',
+    );
+  }
+
   private async getAccounts(): Promise<YapealAccountsResponse> {
     const { partnershipUid } = Config.bank.yapeal;
     return this.callApi<YapealAccountsResponse>(`b2b/v2/agent/${partnershipUid}/accounts`, 'GET');
@@ -145,11 +153,11 @@ export class YapealService {
     url: string,
     method: Method = 'GET',
     data?: unknown,
-    includePartnershipHeaders = false,
+    includePartnerHeaders = false,
   ): Promise<T> {
     if (!this.isAvailable()) throw new Error('YAPEAL is not configured');
 
-    const { baseUrl, apiKey, partnershipUid, cert, key } = Config.bank.yapeal;
+    const { baseUrl, apiKey, adminUid, partnershipUid, cert, key } = Config.bank.yapeal;
 
     return this.http.request<T>({
       url: `${baseUrl}/${url}`,
@@ -160,8 +168,9 @@ export class YapealService {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        ...(includePartnershipHeaders && {
+        ...(includePartnerHeaders && {
           'x-partnership-uid': partnershipUid,
+          'x-partner-uid': adminUid,
         }),
       },
     });
