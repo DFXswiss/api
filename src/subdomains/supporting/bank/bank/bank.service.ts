@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -15,8 +15,18 @@ export interface BankSelectorInput {
 }
 
 @Injectable()
-export class BankService {
+export class BankService implements OnModuleInit {
+  private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
+
   constructor(private bankRepo: BankRepository) {}
+
+  async onModuleInit(): Promise<void> {
+    const banks = await this.bankRepo.find();
+
+    for (const bank of banks) {
+      BankService.ibanCache.set(`${bank.name}-${bank.currency}`, bank.iban);
+    }
+  }
 
   async getAllBanks(): Promise<Bank[]> {
     return this.bankRepo.findCached(`all`);
@@ -75,21 +85,23 @@ export class BankService {
   }
 
   static isBankMatching(asset: Asset, accountIban: string): boolean {
-    switch (asset.blockchain) {
+    const bankName = this.blockchainToBankName(asset.blockchain);
+    if (!bankName) return false;
+
+    const expectedIban = this.ibanCache.get(`${bankName}-${asset.dexName}`);
+    return expectedIban === accountIban;
+  }
+
+  private static blockchainToBankName(blockchain: Blockchain): IbanBankName | undefined {
+    switch (blockchain) {
       case Blockchain.MAERKI_BAUMANN:
-        return (
-          (asset.dexName === 'EUR' && accountIban === 'CH6808573177975201814') ||
-          (asset.dexName === 'CHF' && accountIban === 'CH3408573177975200001')
-        );
-
+        return IbanBankName.MAERKI;
       case Blockchain.OLKYPAY:
-        return accountIban === 'LU116060002000005040';
-
+        return IbanBankName.OLKY;
       case Blockchain.YAPEAL:
-        return (
-          (asset.dexName === 'CHF' && accountIban === 'CH5283019DFXCHF000001') ||
-          (asset.dexName === 'EUR' && accountIban === 'CH6783019DFXEUR000002')
-        );
+        return IbanBankName.YAPEAL;
+      default:
+        return undefined;
     }
   }
 
