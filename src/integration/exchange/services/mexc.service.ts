@@ -47,6 +47,7 @@ export class MexcService extends ExchangeService {
     Checkout: undefined,
     Kaleido: undefined,
     Sumixx: undefined,
+    Yapeal: undefined,
   };
 
   constructor(private readonly http: HttpService) {

@@ -107,7 +107,7 @@ export class FiatOutputJobService {
 
         await this.fiatOutputRepo.update(entity.id, {
           originEntityId: entity.originEntity?.id,
-          accountIban: country.maerkiBaumannEnable ? bank?.iban : undefined,
+          accountIban: bank?.isCountryEnabled(country) ? bank.iban : undefined,
         });
       } catch (e) {
         this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
