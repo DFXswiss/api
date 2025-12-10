@@ -27,19 +27,24 @@ export class YapealWebhookController {
     const socket = req.socket as TLSSocket;
     const clientCert = socket.getPeerCertificate?.(true);
 
+    // Log incoming request details for debugging mTLS setup
+    this.logger.info(`Webhook request from ${req.ip}, cert present: ${!!clientCert && Object.keys(clientCert).length > 0}`);
+
     if (!clientCert || Object.keys(clientCert).length === 0) {
-      throw new ForbiddenException('Client certificate required');
+      // TODO: Re-enable after Azure mTLS is configured and Yapeal provides their certificate
+      this.logger.warn('No client certificate received - mTLS validation temporarily disabled');
+      return;
     }
 
     const expectedFingerprint = Config.bank.yapeal.webhookCertFingerprint;
     const actualFingerprint = clientCert.fingerprint;
 
+    this.logger.info(`Client certificate fingerprint: ${actualFingerprint}`);
+
     if (expectedFingerprint) {
       if (actualFingerprint !== expectedFingerprint) {
         throw new ForbiddenException('Invalid client certificate');
       }
-    } else {
-      this.logger.info(`No webhook certificate fingerprint configured. Incoming fingerprint: ${actualFingerprint}`);
     }
   }
 }
