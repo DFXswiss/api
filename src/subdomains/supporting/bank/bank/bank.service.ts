@@ -28,6 +28,14 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findCached(`all`);
   }
 
+  async getBanksByName(bankName: IbanBankName): Promise<Bank[]> {
+    return this.bankRepo.findCachedBy(bankName, { name: bankName });
+  }
+
+  async getIbansByName(bankName: IbanBankName): Promise<string[]> {
+    return this.getBanksByName(bankName).then((banks) => banks.map((b) => b.iban));
+  }
+
   async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
     return this.bankRepo.findOneCachedBy(`${name}-${currency}`, { name, currency });
   }
@@ -86,13 +94,6 @@ export class BankService implements OnModuleInit {
 
     const expectedIban = this.ibanCache.get(`${bankName}-${asset.dexName}`);
     return expectedIban === accountIban;
-  }
-
-  static isYapealIban(accountIban: string): boolean {
-    if (!accountIban) return false;
-
-    const currencies = ['CHF', 'EUR'];
-    return currencies.some((currency) => this.ibanCache.get(`${IbanBankName.YAPEAL}-${currency}`) === accountIban);
   }
 
   // --- HELPER METHODS --- //

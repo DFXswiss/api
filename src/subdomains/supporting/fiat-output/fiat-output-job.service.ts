@@ -18,6 +18,7 @@ import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.se
 import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
+import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutput, FiatOutputType } from './fiat-output.entity';
@@ -203,15 +204,15 @@ export class FiatOutputJobService {
     )
       return;
 
-    const allEntities = await this.fiatOutputRepo.findBy({
+    const yapealIbans = await this.bankService.getIbansByName(IbanBankName.YAPEAL);
+
+    const entities = await this.fiatOutputRepo.findBy({
       amount: Not(IsNull()),
       isReadyDate: Not(IsNull()),
       batchId: IsNull(),
       isComplete: false,
+      accountIban: Not(In(yapealIbans)),
     });
-
-    // Exclude YAPEAL transactions - they are transmitted individually, not batched
-    const entities = allEntities.filter((e) => !BankService.isYapealIban(e.accountIban));
 
     let currentBatch: FiatOutput[] = [];
     let currentBatchId = (await this.getLastBatchId()) + 1;
@@ -274,19 +275,20 @@ export class FiatOutputJobService {
     if (DisabledProcess(Process.FIAT_OUTPUT_YAPEAL_TRANSMISSION)) return;
     if (!this.yapealService.isAvailable()) return;
 
+    const yapealIbans = await this.bankService.getIbansByName(IbanBankName.YAPEAL);
+
     const entities = await this.fiatOutputRepo.find({
       where: {
         isReadyDate: Not(IsNull()),
         isTransmittedDate: IsNull(),
         yapealMsgId: IsNull(),
         isComplete: false,
+        accountIban: In(yapealIbans),
       },
     });
 
     for (const entity of entities) {
       try {
-        if (!BankService.isYapealIban(entity.accountIban)) continue;
-
         const msgId = `YAPEAL-${entity.id}-${Date.now()}`;
 
         const payment: Pain001Payment = {
@@ -310,10 +312,8 @@ export class FiatOutputJobService {
 
         await this.yapealService.sendPayment(payment);
         await this.fiatOutputRepo.update(entity.id, { yapealMsgId: msgId });
-
-        this.logger.info(`YAPEAL payment sent for FiatOutput ${entity.id}, msgId: ${msgId}`);
       } catch (e) {
-        this.logger.error(`Failed to transmit YAPEAL payment for FiatOutput ${entity.id}:`, e);
+        this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
       }
     }
   }
@@ -340,10 +340,9 @@ export class FiatOutputJobService {
             isConfirmedDate: new Date(),
             isApprovedDate: new Date(),
           });
-          this.logger.info(`YAPEAL payment confirmed for FiatOutput ${entity.id}`);
         }
       } catch (e) {
-        this.logger.error(`Failed to check YAPEAL status for FiatOutput ${entity.id}:`, e);
+        this.logger.error(`Failed to check YAPEAL status for fiat output ${entity.id}:`, e);
       }
     }
   }
