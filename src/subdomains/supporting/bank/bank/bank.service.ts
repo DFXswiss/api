@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
@@ -74,17 +75,17 @@ export class BankService {
   }
 
   static isBankMatching(asset: Asset, accountIban: string): boolean {
-    switch (asset.blockchain as string) {
-      case 'MaerkiBaumann':
+    switch (asset.blockchain) {
+      case Blockchain.MAERKI_BAUMANN:
         return (
           (asset.dexName === 'EUR' && accountIban === 'CH6808573177975201814') ||
           (asset.dexName === 'CHF' && accountIban === 'CH3408573177975200001')
         );
 
-      case 'Olkypay':
+      case Blockchain.OLKYPAY:
         return accountIban === 'LU116060002000005040';
 
-      case 'Yapeal':
+      case Blockchain.YAPEAL:
         return (
           (asset.dexName === 'CHF' && accountIban === 'CH7489144562527626887') ||
           (asset.dexName === 'EUR' && accountIban === 'CH1489144171823255648')

@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -68,9 +69,9 @@ export class BankTxRepeat extends IEntity {
   //*** METHODS ***//
 
   pendingInputAmount(asset: Asset): number {
-    switch (asset.blockchain as string) {
-      case 'MaerkiBaumann':
-      case 'Olkypay':
+    switch (asset.blockchain) {
+      case Blockchain.MAERKI_BAUMANN:
+      case Blockchain.OLKYPAY:
         return BankService.isBankMatching(asset, this.bankTx.accountIban) ? this.bankTx.amount : 0;
 
       default:

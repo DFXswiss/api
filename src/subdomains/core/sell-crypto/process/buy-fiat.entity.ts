@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -482,7 +483,7 @@ export class BuyFiat extends IEntity {
   pendingOutputAmount(asset: Asset): number {
     return this.outputAmount &&
       asset.dexName === this.sell.fiat.name &&
-      ['MaerkiBaumann', 'Yapeal'].includes(asset.blockchain as string)
+      [Blockchain.MAERKI_BAUMANN, Blockchain.YAPEAL].includes(asset.blockchain)
       ? this.outputAmount
       : 0;
   }

@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -622,12 +623,12 @@ export class BuyCrypto extends IEntity {
 
   pendingInputAmount(asset: Asset): number {
     if (this.outputAmount) return 0;
-    switch (asset.blockchain as string) {
-      case 'MaerkiBaumann':
-      case 'Olkypay':
+    switch (asset.blockchain) {
+      case Blockchain.MAERKI_BAUMANN:
+      case Blockchain.OLKYPAY:
         return BankService.isBankMatching(asset, this.bankTx?.accountIban) ? this.inputReferenceAmount : 0;
 
-      case 'Checkout':
+      case Blockchain.CHECKOUT:
         return this.checkoutTx?.currency === asset.dexName ? this.inputReferenceAmount : 0;
 
       default:

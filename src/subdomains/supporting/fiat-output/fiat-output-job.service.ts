@@ -15,7 +15,6 @@ import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.se
 import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
-import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutput, FiatOutputType } from './fiat-output.entity';
@@ -106,13 +105,9 @@ export class FiatOutputJobService {
         const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
         const bank = await this.bankService.getSenderBank(entity.bankAccountCurrency);
 
-        const isBankAllowedForCountry =
-          (bank?.name === IbanBankName.YAPEAL && country.yapealEnable) ||
-          (bank?.name === IbanBankName.MAERKI && country.maerkiBaumannEnable);
-
         await this.fiatOutputRepo.update(entity.id, {
           originEntityId: entity.originEntity?.id,
-          accountIban: isBankAllowedForCountry ? bank?.iban : undefined,
+          accountIban: bank?.isCountryEnabled(country) ? bank.iban : undefined,
         });
       } catch (e) {
         this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
