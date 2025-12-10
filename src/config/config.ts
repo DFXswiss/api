@@ -979,10 +979,11 @@ export class Configuration {
     yapeal: {
       baseUrl: process.env.YAPEAL_BASE_URL,
       partnershipUid: process.env.YAPEAL_PARTNERSHIP_UID,
-      partnerUid: process.env.YAPEAL_PARTNER_UID,
-      baseAccountIban: process.env.YAPEAL_BASE_ACCOUNT_IBAN,
+      adminUid: process.env.YAPEAL_ADMIN_UID,
       apiKey: process.env.YAPEAL_API_KEY,
-      webhookSecret: process.env.YAPEAL_WEBHOOK_SECRET,
+      cert: process.env.YAPEAL_CERT?.split('<br>').join('\n'),
+      key: process.env.YAPEAL_KEY?.split('<br>').join('\n'),
+      webhookCertFingerprint: process.env.YAPEAL_WEBHOOK_CERT_FINGERPRINT,
     },
     forexFee: 0.02,
   };

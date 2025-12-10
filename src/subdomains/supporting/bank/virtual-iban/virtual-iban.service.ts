@@ -42,7 +42,7 @@ export class VirtualIbanService {
     const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
     if (!bank) throw new BadRequestException('No bank available for this currency');
 
-    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal();
+    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal(bank.iban);
 
     const virtualIban = this.virtualIbanRepo.create({
       userData,
@@ -59,13 +59,15 @@ export class VirtualIbanService {
     return this.virtualIbanRepo.save(virtualIban);
   }
 
-  private async reserveVibanFromYapeal(): Promise<{ iban: string; bban?: string; accountUid?: string }> {
+  private async reserveVibanFromYapeal(
+    accountIban: string,
+  ): Promise<{ iban: string; bban?: string; accountUid?: string }> {
     if (!this.yapealService.isAvailable()) {
       this.logger.info('YAPEAL not configured, using placeholder IBAN');
-      return { iban: this.generatePlaceholderIban() };
+      return this.generatePlaceholderIban();
     }
 
-    const result = await this.yapealService.createViban();
+    const result = await this.yapealService.createViban(accountIban);
 
     return {
       iban: result.iban,
@@ -74,13 +76,15 @@ export class VirtualIbanService {
     };
   }
 
-  private generatePlaceholderIban(): string {
+  private generatePlaceholderIban(): { iban: string; bban: string } {
     const bankCode = '89144';
     const accountNumber = Util.createHash(Date.now().toString() + Math.random().toString())
       .substring(0, 12)
       .toUpperCase()
       .replace(/[^0-9]/g, '0');
 
-    return IbanTools.composeIBAN({ countryCode: 'CH', bban: bankCode + accountNumber });
+    const bban = bankCode + accountNumber;
+
+    return { bban, iban: IbanTools.composeIBAN({ countryCode: 'CH', bban }) };
   }
 }
