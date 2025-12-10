@@ -43,6 +43,7 @@ export class XtService extends ExchangeService {
     Checkout: undefined,
     Kaleido: undefined,
     Sumixx: undefined,
+    Yapeal: undefined,
   };
 
   constructor() {
