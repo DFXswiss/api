@@ -203,12 +203,15 @@ export class FiatOutputJobService {
     )
       return;
 
-    const entities = await this.fiatOutputRepo.findBy({
+    const allEntities = await this.fiatOutputRepo.findBy({
       amount: Not(IsNull()),
       isReadyDate: Not(IsNull()),
       batchId: IsNull(),
       isComplete: false,
     });
+
+    // Exclude YAPEAL transactions - they are transmitted individually, not batched
+    const entities = allEntities.filter((e) => !BankService.isYapealIban(e.accountIban));
 
     let currentBatch: FiatOutput[] = [];
     let currentBatchId = (await this.getLastBatchId()) + 1;
