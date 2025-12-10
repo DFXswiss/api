@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
 import * as https from 'https';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
+import { BankTx, BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import {
   VibanListResponse,
   VibanProposalResponse,
@@ -16,7 +18,7 @@ import {
   YapealSubscriptionFormat,
   YapealSubscriptionRequest,
 } from '../dto/yapeal.dto';
-import { Iso20022Service, Pain001Payment } from './iso20022.service';
+import { CamtTransaction, Pain001Payment, Iso20022Service } from './iso20022.service';
 
 export interface YapealBalanceInfo {
   iban: string;
@@ -27,6 +29,8 @@ export interface YapealBalanceInfo {
 
 @Injectable()
 export class YapealService {
+  private readonly logger = new DfxLogger(YapealService);
+
   constructor(private readonly http: HttpService) {}
 
   isAvailable(): boolean {
@@ -68,6 +72,64 @@ export class YapealService {
     );
   }
 
+  // --- TRANSACTION POLLING --- //
+
+  async getYapealTransactions(lastModificationTime: string, accountIban: string): Promise<Partial<BankTx>[]> {
+    if (!this.isAvailable()) return [];
+
+    try {
+      const fromDate = new Date(lastModificationTime);
+      const toDate = new Date();
+
+      const response = await this.getAccountStatement(accountIban, fromDate, toDate);
+      if (!response) return [];
+
+      // Yapeal CAMT-053 API returns JSON (not XML!) with BkToCstmrStmt structure
+      const transactions = Iso20022Service.parseCamtJson(response, accountIban);
+      return transactions.map((t) => this.parseTransaction(t, accountIban));
+    } catch (e) {
+      this.logger.error(`Failed to get Yapeal transactions for ${accountIban}:`, e);
+      return [];
+    }
+  }
+
+  private parseTransaction(tx: CamtTransaction, accountIban: string): Partial<BankTx> {
+    // Use YAPEAL- prefix to match webhook format (YAPEAL-{transactionUid})
+    // NOTE: This assumes CAMT-053 AcctSvcrRef equals Webhook transactionUid
+    // If they differ, duplicates may occur when webhooks start working
+    // TODO: Verify after first live test and adjust if needed
+    const accountServiceRef = tx.accountServiceRef.startsWith('YAPEAL-')
+      ? tx.accountServiceRef
+      : `YAPEAL-${tx.accountServiceRef}`;
+
+    // Use Math.abs to match webhook behavior (CAMT may have negative amounts for DBIT)
+    const amount = Math.abs(tx.amount);
+
+    return {
+      accountServiceRef,
+      bookingDate: tx.bookingDate,
+      valueDate: tx.valueDate,
+      txCount: 1,
+      amount,
+      instructedAmount: amount,
+      txAmount: amount,
+      chargeAmount: 0,
+      currency: tx.currency,
+      instructedCurrency: tx.currency,
+      txCurrency: tx.currency,
+      chargeCurrency: tx.currency,
+      creditDebitIndicator: tx.creditDebitIndicator === 'CRDT' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+      iban: tx.iban,
+      name: tx.name,
+      bic: tx.bic,
+      remittanceInfo: tx.remittanceInfo,
+      endToEndId: tx.endToEndId,
+      accountIban: accountIban,
+      txRaw: JSON.stringify(tx),
+      bankReleaseDate: new Date(),
+    };
+  }
+
   // --- ACCOUNT/BALANCE METHODS --- //
 
   async getBalances(): Promise<YapealBalanceInfo[]> {
@@ -83,7 +145,7 @@ export class YapealService {
       }));
   }
 
-  async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<any> {
+  private async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<any> {
     const params = new URLSearchParams({
       fromDate: Util.isoDate(fromDate),
       toDate: Util.isoDate(toDate),

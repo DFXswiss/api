@@ -10,6 +10,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Observable, Subject } from 'rxjs';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -88,6 +89,7 @@ export class BankTxService implements OnModuleInit {
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
+    private readonly yapealService: YapealService,
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,
@@ -106,6 +108,40 @@ export class BankTxService implements OnModuleInit {
     await this.checkTransactions();
     await this.assignTransactions();
     await this.fillBankTx();
+  }
+
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { timeout: 3600, process: Process.BANK_TX })
+  async checkYapealTransactions(): Promise<void> {
+    if (!this.yapealService.isAvailable()) return;
+
+    const settingKey = 'lastBankYapealDate';
+    const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
+    const newModificationTime = new Date().toISOString();
+
+    const yapealChfBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'CHF');
+    const yapealEurBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'EUR');
+
+    const chfTransactions = yapealChfBank
+      ? await this.yapealService.getYapealTransactions(lastModificationTime, yapealChfBank.iban)
+      : [];
+    const eurTransactions = yapealEurBank
+      ? await this.yapealService.getYapealTransactions(lastModificationTime, yapealEurBank.iban)
+      : [];
+    const allTransactions = chfTransactions.concat(eurTransactions);
+
+    // Always update setting after successful API calls to avoid querying the same period repeatedly
+    await this.settingService.set(settingKey, newModificationTime);
+
+    if (allTransactions.length === 0) return;
+
+    const multiAccounts = await this.specialAccountService.getMultiAccounts();
+    for (const transaction of allTransactions) {
+      try {
+        await this.create(transaction, multiAccounts);
+      } catch (e) {
+        if (!(e instanceof ConflictException)) this.logger.error(`Failed to import Yapeal transaction:`, e);
+      }
+    }
   }
 
   async checkTransactions(): Promise<void> {

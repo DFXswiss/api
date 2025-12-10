@@ -34,6 +34,69 @@ export interface Pain001Payment {
 
 export class Iso20022Service {
   // --- CAMT PARSING --- //
+
+  static parseCamtJson(response: any, accountIban: string): CamtTransaction[] {
+    const transactions: CamtTransaction[] = [];
+
+    const stmt = response?.BkToCstmrStmt?.Stmt;
+    if (!stmt) return [];
+
+    const statements = Array.isArray(stmt) ? stmt : [stmt];
+
+    for (const statement of statements) {
+      const entries = statement?.Ntry;
+      if (!entries) continue;
+
+      const entryList = Array.isArray(entries) ? entries : [entries];
+
+      for (const entry of entryList) {
+        const tx = Iso20022Service.parseCamtJsonEntry(entry, accountIban);
+        if (tx) transactions.push(tx);
+      }
+    }
+
+    return transactions;
+  }
+
+  private static parseCamtJsonEntry(entry: any, accountIban: string): CamtTransaction | null {
+    const creditDebitIndicator = entry?.CdtDbtInd as 'CRDT' | 'DBIT';
+    if (!creditDebitIndicator) return null;
+
+    const amt = entry?.Amt;
+    const amount = amt ? parseFloat(amt['#text'] ?? amt.value ?? amt) : 0;
+    const currency = amt?.Ccy ?? 'CHF';
+
+    const bookingDate = entry?.BookgDt?.Dt ? new Date(entry.BookgDt.Dt) : new Date();
+    const valueDate = entry?.ValDt?.Dt ? new Date(entry.ValDt.Dt) : bookingDate;
+    const accountServiceRef = entry?.AcctSvcrRef || Util.createUniqueId(accountIban);
+
+    const txDtls = entry?.NtryDtls?.TxDtls;
+    const txDetail = Array.isArray(txDtls) ? txDtls[0] : txDtls;
+
+    const relatedParties = txDetail?.RltdPties;
+    const name = relatedParties?.Dbtr?.Nm ?? relatedParties?.Cdtr?.Nm ?? txDetail?.Nm;
+    const iban = relatedParties?.DbtrAcct?.Id?.IBAN ?? relatedParties?.CdtrAcct?.Id?.IBAN;
+    const bic = txDetail?.RltdAgts?.DbtrAgt?.FinInstnId?.BIC ?? txDetail?.RltdAgts?.DbtrAgt?.FinInstnId?.BICFI;
+
+    const rmtInf = txDetail?.RmtInf;
+    const remittanceInfo = rmtInf?.Ustrd ?? rmtInf?.Strd;
+    const endToEndId = txDetail?.Refs?.EndToEndId;
+
+    return {
+      accountServiceRef,
+      bookingDate,
+      valueDate,
+      amount,
+      currency,
+      creditDebitIndicator,
+      name,
+      iban,
+      bic,
+      remittanceInfo,
+      endToEndId,
+    };
+  }
+
   static parseCamtXml(xmlData: string, accountIban: string): CamtTransaction[] {
     const entryMatches = xmlData.match(/<Ntry>[\s\S]*?<\/Ntry>/g) || [];
 
