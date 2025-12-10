@@ -290,10 +290,11 @@ export class FiatOutputJobService {
     for (const entity of entities) {
       try {
         const msgId = `YAPEAL-${entity.id}-${Date.now()}`;
+        const endToEndId = `E2E-${entity.id}`;
 
         const payment: Pain001Payment = {
           messageId: msgId,
-          endToEndId: entity.endToEndId ?? `E2E-${entity.id}`,
+          endToEndId,
           amount: entity.amount,
           currency: entity.currency as 'CHF' | 'EUR',
           debtor: {
@@ -314,7 +315,7 @@ export class FiatOutputJobService {
         };
 
         await this.yapealService.sendPayment(payment);
-        await this.fiatOutputRepo.update(entity.id, { yapealMsgId: msgId, isTransmittedDate: new Date() });
+        await this.fiatOutputRepo.update(entity.id, { yapealMsgId: msgId, endToEndId, isTransmittedDate: new Date() });
       } catch (e) {
         this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
       }

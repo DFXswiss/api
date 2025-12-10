@@ -49,8 +49,7 @@ export class YapealWebhookService {
           valueDate: transaction.valueDate,
           amount: transaction.amount,
           currency: transaction.currency,
-          creditDebitIndicator:
-            transaction.creditDebitIndicator === 'CRDT' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+          creditDebitIndicator: transaction.creditDebitIndicator,
           name: transaction.name,
           iban: transaction.iban,
           accountIban: transaction.accountIban,

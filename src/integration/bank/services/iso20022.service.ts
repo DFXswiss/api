@@ -1,4 +1,5 @@
 import { Util } from 'src/shared/utils/util';
+import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 
 export enum CamtStatus {
   BOOKED = 'BOOK',
@@ -13,7 +14,7 @@ export interface CamtTransaction {
   valueDate: Date;
   amount: number;
   currency: string;
-  creditDebitIndicator: 'CRDT' | 'DBIT';
+  creditDebitIndicator: BankTxIndicator;
   name?: string;
   iban?: string;
   bic?: string;
@@ -51,9 +52,6 @@ export class Iso20022Service {
     const notification = camt054.BkToCstmrDbtCdtNtfctn?.Ntfctn;
     if (!notification) throw new Error('Invalid camt.054 format: missing Ntfctn');
 
-    const accountIban = notification.Acct?.Id?.IBAN;
-    if (!accountIban) throw new Error('Invalid camt.054 format: missing account IBAN');
-
     const entry = notification.Ntry;
     const entryDetails = camt054.BkToCstmrDbtCdtNtfctn?.NtryDtls;
 
@@ -70,10 +68,17 @@ export class Iso20022Service {
     const valueDate = entry.ValDt?.Dt ? this.parseDate(entry.ValDt.Dt) : bookingDate;
 
     // party information
-    const isCredit = entry.CdtDbtInd === 'CRDT';
+    const isCredit = entry.CdtDbtInd === 'CDTN'; // CDTN / DBTN
+
+    // credit: our account is creditor, counterparty is debtor
+    // debit: our account is debtor, counterparty is creditor
+    const ourAccount = isCredit ? txDetail?.RltdPties?.CdtrAcct : txDetail?.RltdPties?.DbtrAcct;
     const counterparty = isCredit ? txDetail?.RltdPties?.Dbtr : txDetail?.RltdPties?.Cdtr;
     const counterpartyAcct = isCredit ? txDetail?.RltdPties?.DbtrAcct : txDetail?.RltdPties?.CdtrAcct;
     const counterpartyAgent = isCredit ? txDetail?.RltdAgts?.DbtrAgt : txDetail?.RltdAgts?.CdtrAgt;
+
+    const accountIban = ourAccount?.Id?.IBAN || notification.Acct?.Id?.IBAN;
+    if (!accountIban) throw new Error('Invalid camt.054 format: missing account IBAN');
 
     const name = counterparty?.Nm;
     const iban = counterpartyAcct?.Id?.IBAN;
@@ -98,7 +103,7 @@ export class Iso20022Service {
       valueDate,
       amount,
       currency,
-      creditDebitIndicator: entry.CdtDbtInd === 'CRDT' ? 'CRDT' : 'DBIT',
+      creditDebitIndicator: entry.CdtDbtInd === 'CDTN' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       name,
       iban,
       bic,
@@ -128,8 +133,9 @@ export class Iso20022Service {
     const currency = amtMatch ? amtMatch[1] : 'CHF';
 
     // credit/debit indicator
-    const creditDebitIndicator = Iso20022Service.extractTag(entryXml, 'CdtDbtInd') as 'CRDT' | 'DBIT';
-    if (!creditDebitIndicator) throw new Error(`Missing CdtDbtInd in CAMT entry`);
+    const cdtDbtInd = Iso20022Service.extractTag(entryXml, 'CdtDbtInd');
+    if (!cdtDbtInd) throw new Error(`Missing CdtDbtInd in CAMT entry`);
+    const creditDebitIndicator = cdtDbtInd === 'CRDT' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT;
 
     // dates
     const bookingDateStr = Iso20022Service.extractTag(entryXml, 'BookgDt');
