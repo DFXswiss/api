@@ -54,6 +54,28 @@ export class VirtualIbanService {
     return this.virtualIbanRepo.save(virtualIban);
   }
 
+  async getVirtualIbansForAccount(userData: UserData): Promise<VirtualIban[]> {
+    return this.virtualIbanRepo.findBy({ userData: { id: userData.id } });
+  }
+
+  async getVirtualIbanByKey(key: string, value: any): Promise<VirtualIban> {
+    return this.virtualIbanRepo
+      .createQueryBuilder('virtualIban')
+      .select('virtualIban')
+      .leftJoinAndSelect('virtualIban.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
+      .leftJoinAndSelect('userData.language', 'language')
+      .leftJoinAndSelect('virtualIban.currency', 'currency')
+      .leftJoinAndSelect('virtualIban.bank', 'bank')
+      .where(`${key.includes('.') ? key : `virtualIban.${key}`} = :param`, { param: value })
+      .getOne();
+  }
+
   private async reserveVibanFromYapeal(
     accountIban: string,
   ): Promise<{ iban: string; bban?: string; accountUid?: string }> {
