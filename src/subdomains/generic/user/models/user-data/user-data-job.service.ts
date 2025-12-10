@@ -22,6 +22,11 @@ export class UserDataJobService {
     await this.setAccountOpener();
   }
 
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.USER_DATA_WALLET_SYNC, timeout: 1800 })
+  async syncWallets() {
+    await this.walletSync();
+  }
+
   private async walletSync(): Promise<void> {
     const entities = await this.userDataRepo.find({
       where: {
