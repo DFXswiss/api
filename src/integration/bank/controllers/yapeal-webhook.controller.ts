@@ -30,11 +30,14 @@ export class YapealWebhookController {
       return;
     }
 
+    this.logger.verbose(`Request headers: ${JSON.stringify(Object.keys(req.headers))}`);
+
     // Try to get certificate from Azure Front Door header
     const certHeader = req.headers['x-arr-clientcert'] as string | undefined;
     let actualFingerprint: string | undefined;
 
     if (certHeader) {
+      this.logger.verbose('Found x-arr-clientcert header');
       try {
         // X-ARR-ClientCert is base64 encoded PEM certificate
         const certPem = Buffer.from(certHeader, 'base64').toString('utf-8');
@@ -45,9 +48,13 @@ export class YapealWebhookController {
         return;
       }
     } else {
+      this.logger.verbose('No x-arr-clientcert header found, checking direct TLS socket');
       // Fallback to direct TLS socket certificate (local development)
       const socket = req.socket as TLSSocket;
+      this.logger.verbose(`Socket type: ${socket.constructor.name}`);
+
       const directCert = socket.getPeerCertificate?.(true);
+      this.logger.verbose(`Peer certificate: ${directCert ? JSON.stringify(Object.keys(directCert)) : 'undefined'}`);
 
       if (directCert && Object.keys(directCert).length > 0) {
         actualFingerprint = directCert.fingerprint;
