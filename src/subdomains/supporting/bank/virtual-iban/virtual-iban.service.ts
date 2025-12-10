@@ -1,9 +1,6 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import * as IbanTools from 'ibantools';
+import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
@@ -12,8 +9,6 @@ import { VirtualIbanRepository } from './virtual-iban.repository';
 
 @Injectable()
 export class VirtualIbanService {
-  private readonly logger = new DfxLogger(VirtualIbanService);
-
   constructor(
     private readonly virtualIbanRepo: VirtualIbanRepository,
     private readonly bankService: BankService,
@@ -63,8 +58,7 @@ export class VirtualIbanService {
     accountIban: string,
   ): Promise<{ iban: string; bban?: string; accountUid?: string }> {
     if (!this.yapealService.isAvailable()) {
-      this.logger.info('YAPEAL not configured, using placeholder IBAN');
-      return this.generatePlaceholderIban();
+      throw new ServiceUnavailableException('Yapeal service is not available');
     }
 
     const result = await this.yapealService.createViban(accountIban);
@@ -74,17 +68,5 @@ export class VirtualIbanService {
       bban: result.bban,
       accountUid: result.accountUid,
     };
-  }
-
-  private generatePlaceholderIban(): { iban: string; bban: string } {
-    const bankCode = '89144';
-    const accountNumber = Util.createHash(Date.now().toString() + Math.random().toString())
-      .substring(0, 12)
-      .toUpperCase()
-      .replace(/[^0-9]/g, '0');
-
-    const bban = bankCode + accountNumber;
-
-    return { bban, iban: IbanTools.composeIBAN({ countryCode: 'CH', bban }) };
   }
 }
