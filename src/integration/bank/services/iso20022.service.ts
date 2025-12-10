@@ -19,6 +19,9 @@ export interface Party {
   iban: string;
   bic?: string;
   country?: string;
+  address?: string;
+  zip?: string;
+  city?: string;
 }
 
 export interface Pain001Payment {
@@ -147,6 +150,9 @@ export class Iso20022Service {
                 Cdtr: {
                   Nm: payment.creditor.name,
                   PstlAdr: {
+                    ...(payment.creditor.address && { StrtNm: payment.creditor.address }),
+                    ...(payment.creditor.zip && { PstCd: payment.creditor.zip }),
+                    ...(payment.creditor.city && { TwnNm: payment.creditor.city }),
                     Ctry: payment.creditor.country,
                   },
                 },
