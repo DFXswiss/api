@@ -17,7 +17,7 @@ export interface CamtTransaction {
 export interface Party {
   name: string;
   iban: string;
-  bic: string;
+  bic?: string;
   country?: string;
 }
 

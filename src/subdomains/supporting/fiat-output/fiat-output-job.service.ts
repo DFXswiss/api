@@ -1,6 +1,9 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { YapealPaymentStatus } from 'src/integration/bank/dto/yapeal.dto';
+import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -35,6 +38,7 @@ export class FiatOutputJobService {
     private readonly logService: LogService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
+    private readonly yapealService: YapealService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -43,6 +47,8 @@ export class FiatOutputJobService {
     await this.setReadyDate();
     await this.createBatches();
     await this.checkTransmission();
+    await this.transmitYapealPayments();
+    await this.checkYapealPaymentStatus();
     await this.searchOutgoingBankTx();
   }
 
@@ -257,6 +263,84 @@ export class FiatOutputJobService {
           isConfirmedDate: new Date(),
           isApprovedDate: new Date(),
         });
+      }
+    }
+  }
+
+  private async transmitYapealPayments(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_YAPEAL_TRANSMISSION)) return;
+    if (!this.yapealService.isAvailable()) return;
+
+    const entities = await this.fiatOutputRepo.find({
+      where: {
+        isReadyDate: Not(IsNull()),
+        isTransmittedDate: IsNull(),
+        yapealMsgId: IsNull(),
+        isComplete: false,
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        if (!BankService.isYapealIban(entity.accountIban)) continue;
+
+        const msgId = `YAPEAL-${entity.id}-${Date.now()}`;
+
+        const payment: Pain001Payment = {
+          messageId: msgId,
+          endToEndId: entity.endToEndId ?? `E2E-${entity.id}`,
+          amount: entity.amount,
+          currency: entity.currency as 'CHF' | 'EUR',
+          debtor: {
+            name: Config.bank.dfxAddress.name,
+            iban: entity.accountIban,
+            country: 'CH',
+          },
+          creditor: {
+            name: entity.name,
+            iban: entity.iban,
+            bic: entity.bic,
+            country: entity.country,
+          },
+          remittanceInfo: entity.remittanceInfo,
+        };
+
+        await this.yapealService.sendPayment(payment);
+        await this.fiatOutputRepo.update(entity.id, { yapealMsgId: msgId });
+
+        this.logger.info(`YAPEAL payment sent for FiatOutput ${entity.id}, msgId: ${msgId}`);
+      } catch (e) {
+        this.logger.error(`Failed to transmit YAPEAL payment for FiatOutput ${entity.id}:`, e);
+      }
+    }
+  }
+
+  private async checkYapealPaymentStatus(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_YAPEAL_STATUS_CHECK)) return;
+    if (!this.yapealService.isAvailable()) return;
+
+    const entities = await this.fiatOutputRepo.find({
+      where: {
+        yapealMsgId: Not(IsNull()),
+        isTransmittedDate: IsNull(),
+        isComplete: false,
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        const status = await this.yapealService.getPaymentStatus(entity.yapealMsgId);
+
+        if (status.status === YapealPaymentStatus.SUCCESS) {
+          await this.fiatOutputRepo.update(entity.id, {
+            isTransmittedDate: new Date(),
+            isConfirmedDate: new Date(),
+            isApprovedDate: new Date(),
+          });
+          this.logger.info(`YAPEAL payment confirmed for FiatOutput ${entity.id}`);
+        }
+      } catch (e) {
+        this.logger.error(`Failed to check YAPEAL status for FiatOutput ${entity.id}:`, e);
       }
     }
   }

@@ -88,6 +88,13 @@ export class BankService implements OnModuleInit {
     return expectedIban === accountIban;
   }
 
+  static isYapealIban(accountIban: string): boolean {
+    if (!accountIban) return false;
+
+    const currencies = ['CHF', 'EUR'];
+    return currencies.some((currency) => this.ibanCache.get(`${IbanBankName.YAPEAL}-${currency}`) === accountIban);
+  }
+
   // --- HELPER METHODS --- //
   private async loadIbanCache(): Promise<void> {
     const banks = await this.bankRepo.find();
