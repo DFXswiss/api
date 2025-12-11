@@ -10,6 +10,7 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -39,6 +40,7 @@ export enum SupportTable {
   FIAT_OUTPUT = 'fiatOutput',
   TRANSACTION = 'transaction',
   BANK_DATA = 'bankData',
+  VIRTUAL_IBAN = 'virtualIban',
 }
 
 @Injectable()
@@ -66,6 +68,7 @@ export class GsService {
     private readonly limitRequestService: LimitRequestService,
     private readonly supportIssueService: SupportIssueService,
     private readonly swapService: SwapService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
@@ -180,6 +183,7 @@ export class GsService {
       buy: await this.buyService.getAllUserBuys(userIds),
       sell: await this.sellService.getAllUserSells(userIds),
       swap: await this.swapService.getAllUserSwaps(userIds),
+      virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData),
     };
   }
 
@@ -356,6 +360,8 @@ export class GsService {
           .then((transaction) => transaction?.userData);
       case SupportTable.BANK_DATA:
         return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD?.userData);
+      case SupportTable.VIRTUAL_IBAN:
+        return this.virtualIbanService.getVirtualIbanByKey(query.key, query.value).then((vI) => vI?.userData);
     }
   }
 
