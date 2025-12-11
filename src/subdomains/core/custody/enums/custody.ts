@@ -38,3 +38,15 @@ export enum CustodyOrderStepCommand {
   CHARGE_ROUTE = 'ChargeRoute',
   SEND_TO_ROUTE = 'SendToRoute',
 }
+
+// SafeAccount Enums
+export enum SafeAccountStatus {
+  ACTIVE = 'Active',
+  BLOCKED = 'Blocked',
+  CLOSED = 'Closed',
+}
+
+export enum SafeAccessLevel {
+  READ = 'Read',
+  WRITE = 'Write',
+}
