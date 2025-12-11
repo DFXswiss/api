@@ -159,9 +159,8 @@ export class BuyCryptoPreparationService {
               )
             : undefined;
 
-        // Get virtual IBAN for user mismatch check
         const virtualIban = entity.bankTx?.virtualIban
-          ? await this.virtualIbanService.getVirtualIbanByKey('iban', entity.bankTx.virtualIban)
+          ? await this.virtualIbanService.getByIban(entity.bankTx.virtualIban)
           : undefined;
 
         // check if amlCheck changed (e.g. reset or refund)
