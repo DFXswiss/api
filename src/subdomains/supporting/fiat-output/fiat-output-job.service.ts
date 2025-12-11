@@ -1,7 +1,6 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { YapealPaymentStatus } from 'src/integration/bank/dto/yapeal.dto';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
@@ -49,7 +48,6 @@ export class FiatOutputJobService {
     await this.createBatches();
     await this.checkTransmission();
     await this.transmitYapealPayments();
-    await this.checkYapealPaymentStatus();
     await this.searchOutgoingBankTx();
   }
 
@@ -315,37 +313,14 @@ export class FiatOutputJobService {
         };
 
         await this.yapealService.sendPayment(payment);
-        await this.fiatOutputRepo.update(entity.id, { yapealMsgId: msgId, endToEndId, isTransmittedDate: new Date() });
+        await this.fiatOutputRepo.update(entity.id, {
+          yapealMsgId: msgId,
+          endToEndId,
+          isTransmittedDate: new Date(),
+          isApprovedDate: new Date(),
+        });
       } catch (e) {
         this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
-      }
-    }
-  }
-
-  private async checkYapealPaymentStatus(): Promise<void> {
-    if (DisabledProcess(Process.FIAT_OUTPUT_YAPEAL_STATUS_CHECK)) return;
-    if (!this.yapealService.isAvailable()) return;
-
-    const entities = await this.fiatOutputRepo.find({
-      where: {
-        yapealMsgId: Not(IsNull()),
-        isConfirmedDate: IsNull(),
-        isComplete: false,
-      },
-    });
-
-    for (const entity of entities) {
-      try {
-        const status = await this.yapealService.getPaymentStatus(entity.yapealMsgId);
-
-        if (status.status === YapealPaymentStatus.SUCCESS) {
-          await this.fiatOutputRepo.update(entity.id, {
-            isConfirmedDate: new Date(),
-            isApprovedDate: new Date(),
-          });
-        }
-      } catch (e) {
-        this.logger.error(`Failed to check YAPEAL status for fiat output ${entity.id}:`, e);
       }
     }
   }
@@ -368,7 +343,17 @@ export class FiatOutputJobService {
         const bankTx = await this.getMatchingBankTx(entity);
         if (!bankTx || entity.isReadyDate > bankTx.created) continue;
 
-        await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created, isComplete: true });
+        const updateData: Partial<FiatOutput> = {
+          bankTx,
+          outputDate: bankTx.created,
+          isComplete: true,
+        };
+
+        if (entity.yapealMsgId && !entity.isConfirmedDate) {
+          updateData.isConfirmedDate = bankTx.created;
+        }
+
+        await this.fiatOutputRepo.update(entity.id, updateData);
 
         if (entity.type === FiatOutputType.BANK_TX_RETURN)
           await this.bankTxReturnService.updateInternal(entity.bankTxReturn, { chargebackBankTx: bankTx });
