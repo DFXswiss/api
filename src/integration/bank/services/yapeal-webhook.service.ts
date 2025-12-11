@@ -44,6 +44,9 @@ export class YapealWebhookService {
           bic: transaction.bic,
           remittanceInfo: transaction.remittanceInfo,
           endToEndId: transaction.endToEndId,
+          txDomainCode: transaction.txDomainCode,
+          txFamilyCode: transaction.txFamilyCode,
+          txSubFamilyCode: transaction.txSubFamilyCode,
           txRaw: JSON.stringify(payload),
         },
       });

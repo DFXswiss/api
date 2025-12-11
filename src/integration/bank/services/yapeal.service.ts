@@ -91,11 +91,18 @@ export class YapealService {
     return this.callApi<string>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
   }
 
-  async getTransactionAddressDetails(
+  async getTransactionEnrichmentData(
     accountIban: string,
     accountServiceRef: string,
     bookingDate: Date,
-  ): Promise<{ addressLine1?: string; addressLine2?: string; country?: string } | undefined> {
+  ): Promise<{
+    addressLine1?: string;
+    addressLine2?: string;
+    country?: string;
+    txDomainCode?: string;
+    txFamilyCode?: string;
+    txSubFamilyCode?: string;
+  } | undefined> {
     try {
       const statement = await this.getAccountStatement(accountIban, bookingDate, bookingDate);
       const transactions = Iso20022Service.parseCamt053Xml(statement, accountIban);
@@ -107,6 +114,9 @@ export class YapealService {
         addressLine1: matchingTx.addressLine1,
         addressLine2: matchingTx.addressLine2,
         country: matchingTx.country,
+        txDomainCode: matchingTx.txDomainCode,
+        txFamilyCode: matchingTx.txFamilyCode,
+        txSubFamilyCode: matchingTx.txSubFamilyCode,
       };
     } catch {
       return undefined;

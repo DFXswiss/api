@@ -207,6 +207,16 @@ export class BankTx extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   txRaw?: string;
 
+  // ISO 20022 Bank Transaction Code (BkTxCd)
+  @Column({ length: 256, nullable: true })
+  txDomainCode?: string; // e.g. PMNT (Payment)
+
+  @Column({ length: 256, nullable: true })
+  txFamilyCode?: string; // e.g. RCDT (Received Credit), ICDT (Issued Credit), DMCT (Domestic Credit)
+
+  @Column({ length: 256, nullable: true })
+  txSubFamilyCode?: string; // e.g. AUTT (Automated), STDO (Standing Order), SALA (Salary)
+
   // routing id for american banks
   @Column({ length: 256, nullable: true })
   aba?: string;

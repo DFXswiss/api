@@ -26,6 +26,10 @@ export interface CamtTransaction {
   status: CamtStatus;
   accountIban: string;
   virtualIban?: string;
+  // ISO 20022 Bank Transaction Code (BkTxCd)
+  txDomainCode?: string; // e.g. PMNT (Payment)
+  txFamilyCode?: string; // e.g. RCDT (Received Credit), ICDT (Issued Credit), DMCT, STDO, SALA, FEES
+  txSubFamilyCode?: string; // e.g. AUTT (Automated), ESCT, DMCT
 }
 
 export interface Party {
@@ -107,6 +111,12 @@ export class Iso20022Service {
     const accountServiceRef = txDetail?.Refs?.AcctSvcrRef || txDetail?.Refs?.TxId || notification.Id;
     const endToEndId = txDetail?.Refs?.EndToEndId;
 
+    // Bank Transaction Code (BkTxCd)
+    const bkTxCd = txDetail?.BkTxCd?.Domn;
+    const txDomainCode = bkTxCd?.Cd;
+    const txFamilyCode = bkTxCd?.Fmly?.Cd;
+    const txSubFamilyCode = bkTxCd?.Fmly?.SubFmlyCd;
+
     return {
       accountServiceRef,
       bookingDate,
@@ -122,6 +132,9 @@ export class Iso20022Service {
       bic,
       remittanceInfo,
       endToEndId,
+      txDomainCode,
+      txFamilyCode,
+      txSubFamilyCode,
       status: entry.Sts as CamtStatus,
       accountIban,
       virtualIban,
@@ -216,6 +229,9 @@ export class Iso20022Service {
     // end-to-end ID
     const endToEndId = Iso20022Service.extractTag(txDtls, 'EndToEndId');
 
+    // Bank Transaction Code (BkTxCd)
+    const { txDomainCode, txFamilyCode, txSubFamilyCode } = Iso20022Service.extractBkTxCdFromXml(txDtls);
+
     return {
       accountServiceRef,
       bookingDate,
@@ -231,6 +247,9 @@ export class Iso20022Service {
       bic,
       remittanceInfo,
       endToEndId,
+      txDomainCode,
+      txFamilyCode,
+      txSubFamilyCode,
       status: CamtStatus.BOOKED, // camt.053 contains only booked transactions
       accountIban,
       virtualIban: undefined, // not available in camt.053 format
@@ -282,6 +301,22 @@ export class Iso20022Service {
     }
 
     return { country };
+  }
+
+  private static extractBkTxCdFromXml(xml: string): {
+    txDomainCode?: string;
+    txFamilyCode?: string;
+    txSubFamilyCode?: string;
+  } {
+    const bkTxCdMatch = xml.match(/<BkTxCd>[\s\S]*?<\/BkTxCd>/);
+    if (!bkTxCdMatch) return {};
+
+    const bkTxCd = bkTxCdMatch[0];
+    const txDomainCode = Iso20022Service.extractNestedTag(bkTxCd, 'Domn', 'Cd');
+    const txFamilyCode = Iso20022Service.extractNestedTag(bkTxCd, 'Domn', 'Fmly', 'Cd');
+    const txSubFamilyCode = Iso20022Service.extractNestedTag(bkTxCd, 'Domn', 'Fmly', 'SubFmlyCd');
+
+    return { txDomainCode, txFamilyCode, txSubFamilyCode };
   }
 
   // --- PAIN.001 GENERATION --- //

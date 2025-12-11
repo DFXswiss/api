@@ -28,18 +28,26 @@ export class BankTransactionHandler implements OnModuleInit {
 
   private async handleTransaction(event: BankTransactionEvent): Promise<void> {
     try {
-      // Enrich with address data from camt.053 if missing in webhook
-      if (!event.bankTxData.addressLine1 && event.bankTxData.accountServiceRef && event.bankTxData.bookingDate) {
-        const addressDetails = await this.yapealService.getTransactionAddressDetails(
+      // Enrich with data from camt.053 if missing in webhook (address, BkTxCd)
+      const needsEnrichment =
+        !event.bankTxData.addressLine1 || !event.bankTxData.txFamilyCode;
+
+      if (needsEnrichment && event.bankTxData.accountServiceRef && event.bankTxData.bookingDate) {
+        const enrichmentData = await this.yapealService.getTransactionEnrichmentData(
           event.accountIban,
           event.bankTxData.accountServiceRef,
           event.bankTxData.bookingDate,
         );
 
-        if (addressDetails) {
-          event.bankTxData.addressLine1 = addressDetails.addressLine1;
-          event.bankTxData.addressLine2 = addressDetails.addressLine2;
-          event.bankTxData.country = addressDetails.country;
+        if (enrichmentData) {
+          // Address data
+          event.bankTxData.addressLine1 ??= enrichmentData.addressLine1;
+          event.bankTxData.addressLine2 ??= enrichmentData.addressLine2;
+          event.bankTxData.country ??= enrichmentData.country;
+          // Bank Transaction Code (use camt.053 values as they are more reliable)
+          event.bankTxData.txDomainCode = enrichmentData.txDomainCode ?? event.bankTxData.txDomainCode;
+          event.bankTxData.txFamilyCode = enrichmentData.txFamilyCode ?? event.bankTxData.txFamilyCode;
+          event.bankTxData.txSubFamilyCode = enrichmentData.txSubFamilyCode ?? event.bankTxData.txSubFamilyCode;
         }
       }
 
