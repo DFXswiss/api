@@ -11,6 +11,7 @@ import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/m
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import {
@@ -39,6 +40,7 @@ export class AmlHelperService {
     ibanCountry?: Country,
     refUser?: User,
     ipLogCountries?: string[],
+    virtualIban?: VirtualIban,
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -160,6 +162,11 @@ export class AmlHelperService {
       } else if (entity.userData.id !== bankData.userData.id) {
         errors.push(AmlError.BANK_DATA_USER_MISMATCH);
       }
+    }
+
+    // Virtual IBAN user check
+    if (virtualIban && virtualIban.userData.id !== entity.userData.id) {
+      errors.push(AmlError.VIRTUAL_IBAN_USER_MISMATCH);
     }
 
     if (entity.cryptoInput) {
@@ -486,6 +493,7 @@ export class AmlHelperService {
     refUser?: User,
     banks?: Bank[],
     ipLogCountries?: string[],
+    virtualIban?: VirtualIban,
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -508,6 +516,7 @@ export class AmlHelperService {
       ibanCountry,
       refUser,
       ipLogCountries,
+      virtualIban,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');
