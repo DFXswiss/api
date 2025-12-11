@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BankTransactionEvent } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-transaction-handler.service';
 import { CamtStatus, Iso20022Service } from './iso20022.service';
+import { YapealService } from './yapeal.service';
 
 @Injectable()
 export class YapealWebhookService {
@@ -10,7 +11,9 @@ export class YapealWebhookService {
 
   private readonly transactionSubject = new Subject<BankTransactionEvent>();
 
-  processWebhook(payload: any): void {
+  constructor(private readonly yapealService: YapealService) {}
+
+  async processWebhook(payload: any): Promise<void> {
     try {
       const transaction = Iso20022Service.parseCamt054Json(payload);
 
@@ -19,6 +22,17 @@ export class YapealWebhookService {
           `Skipping non-booked transaction ${transaction.accountServiceRef} in state ${transaction.status}`,
         );
         return;
+      }
+
+      // enrich address data from camt.053 if missing
+      if (!transaction.addressLine1 && transaction.accountServiceRef && transaction.bookingDate) {
+        const addressDetails = await this.yapealService.getTransactionAddressDetails(
+          transaction.accountIban,
+          transaction.accountServiceRef,
+          transaction.bookingDate,
+        );
+
+        if (addressDetails) Object.assign(transaction, addressDetails);
       }
 
       this.transactionSubject.next({
@@ -48,7 +62,8 @@ export class YapealWebhookService {
         },
       });
     } catch (e) {
-      this.logger.error('Failed to process YAPEAL webhook:', e);
+      this.logger.error(`Failed to process YAPEAL webhook with payload: ${JSON.stringify(payload)}:`, e);
+      throw new InternalServerErrorException(`Failed to process webhook: ${e.message}`);
     }
   }
 

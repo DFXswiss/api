@@ -89,7 +89,7 @@ export class Iso20022Service {
     const iban = counterpartyAcct?.Id?.IBAN;
     const bic = counterpartyAgent?.FinInstnId?.BIC || counterpartyAgent?.FinInstnId?.BICFI;
 
-    // address info from PstlAdr
+    // address info
     const postalAddress = counterparty?.PstlAdr;
     const { addressLine1, addressLine2 } = this.parsePostalAddress(postalAddress);
     const country = postalAddress?.Ctry;
@@ -140,7 +140,7 @@ export class Iso20022Service {
       };
     }
 
-    // Structured format (StrtNm, BldgNb, PstCd, TwnNm)
+    // structured format (StrtNm, BldgNb, PstCd, TwnNm)
     if (postalAddress.StrtNm || postalAddress.TwnNm) {
       const streetPart = [postalAddress.StrtNm, postalAddress.BldgNb].filter(Boolean).join(' ');
       const cityPart = [postalAddress.PstCd, postalAddress.TwnNm].filter(Boolean).join(' ');
@@ -241,7 +241,6 @@ export class Iso20022Service {
     xml: string,
     partyTag: string,
   ): { addressLine1?: string; addressLine2?: string; country?: string } {
-    // Try to extract PstlAdr block from RltdPties > Dbtr/Cdtr > PstlAdr
     const partyMatch = xml.match(new RegExp(`<${partyTag}>[\\s\\S]*?</${partyTag}>`));
     if (!partyMatch) return {};
 
@@ -251,10 +250,9 @@ export class Iso20022Service {
 
     const pstlAdr = pstlAdrMatch[0];
 
-    // Extract country
     const country = Iso20022Service.extractTag(pstlAdr, 'Ctry');
 
-    // Try AdrLine format first
+    // AdrLine format
     const adrLines = pstlAdr.match(/<AdrLine>([^<]*)<\/AdrLine>/g);
     if (adrLines && adrLines.length > 0) {
       const extractedLines = adrLines.map((line) => line.replace(/<\/?AdrLine>/g, '').trim());
@@ -265,7 +263,7 @@ export class Iso20022Service {
       };
     }
 
-    // Try structured format (StrtNm, BldgNb, PstCd, TwnNm)
+    // structured format (StrtNm, BldgNb, PstCd, TwnNm)
     const strtNm = Iso20022Service.extractTag(pstlAdr, 'StrtNm');
     const bldgNb = Iso20022Service.extractTag(pstlAdr, 'BldgNb');
     const pstCd = Iso20022Service.extractTag(pstlAdr, 'PstCd');
