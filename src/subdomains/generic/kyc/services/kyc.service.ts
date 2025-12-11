@@ -1232,7 +1232,7 @@ export class KycService {
     stepName: KycStepName,
     status: ReviewStatus,
     result?: unknown,
-  ): Promise<void> {
+  ): Promise<KycStep> {
     const nextSequenceNumber = userData.getNextSequenceNumber(stepName);
 
     const kycStep = this.kycStepRepo.create({
@@ -1244,6 +1244,16 @@ export class KycService {
     });
 
     await this.kycStepRepo.save(kycStep);
+
+    return kycStep;
+  }
+
+  async getKycStepById(id: number): Promise<KycStep | null> {
+    return this.kycStepRepo.findOne({ where: { id }, relations: { userData: true } });
+  }
+
+  async saveKycStepUpdate(updateResult: UpdateResult<KycStep>): Promise<void> {
+    await this.kycStepRepo.update(...updateResult);
   }
 
   async completeIdent(

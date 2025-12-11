@@ -9,15 +9,27 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from 'src/subdomains/generic/user/models/user-data/is-dfx-phone.validator';
 
 export enum RealUnitUserType {
   HUMAN = 'HUMAN',
   CORPORATION = 'CORPORATION',
+}
+
+export enum RealUnitRegistrationStatus {
+  COMPLETED = 'completed',
+  PENDING_REVIEW = 'pending_review',
+}
+
+export class RealUnitRegistrationResponseDto {
+  @ApiProperty({ enum: RealUnitRegistrationStatus })
+  status: RealUnitRegistrationStatus;
 }
 
 export enum RealUnitLanguage {
@@ -50,6 +62,7 @@ export class RealUnitRegistrationDto {
   @ApiProperty({ description: 'Full name' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   name: string;
 
@@ -81,18 +94,21 @@ export class RealUnitRegistrationDto {
   @ApiProperty({ description: 'Street address including house number' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   addressStreet: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   addressPostalCode: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   addressCity: string;
 
@@ -125,10 +141,43 @@ export class RealUnitRegistrationDto {
   @IsString()
   signature: string;
 
-  @ApiPropertyOptional({ enum: RealUnitLanguage })
-  @IsOptional()
+  @ApiProperty({ enum: RealUnitLanguage })
+  @IsNotEmpty()
   @IsEnum(RealUnitLanguage)
-  lang?: RealUnitLanguage;
+  lang: RealUnitLanguage;
+
+  @ApiProperty({ description: 'First name (not signed, must combine with surname to match signed name)' })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  firstname: string;
+
+  @ApiProperty({ description: 'Surname (not signed, must combine with firstname to match signed name)' })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  surname: string;
+
+  @ApiProperty({ description: 'Street name (not signed, must combine with houseNumber to match signed addressStreet)' })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  street: string;
+
+  @ApiPropertyOptional({ description: 'House number (not signed, must combine with street to match signed addressStreet). Can be empty.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  houseNumber?: string;
+
+  @ApiProperty({ enum: AccountType, description: 'Account type (not signed). HUMAN requires Personal/SoleProprietorship, CORPORATION requires Organization.' })
+  @IsNotEmpty()
+  @IsEnum(AccountType)
+  accountType: AccountType;
 
   @ApiPropertyOptional({ type: [CountryAndTin], description: 'Required if swissTaxResidence is false' })
   @ValidateIf((o: RealUnitRegistrationDto) => !o.swissTaxResidence)
@@ -137,4 +186,53 @@ export class RealUnitRegistrationDto {
   @ValidateNested({ each: true })
   @Type(() => CountryAndTin)
   countryAndTINs?: CountryAndTin[];
+
+  // --- Organization fields (required if accountType is ORGANIZATION) ---
+
+  @ApiPropertyOptional({ description: 'Organization name. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationName is required for ORGANIZATION accounts' })
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationName?: string;
+
+  @ApiPropertyOptional({ description: 'Organization street. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationStreet is required for ORGANIZATION accounts' })
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationStreet?: string;
+
+  @ApiPropertyOptional({ description: 'Organization house number. Can be empty.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationHouseNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Organization city/location. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationLocation is required for ORGANIZATION accounts' })
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationLocation?: string;
+
+  @ApiPropertyOptional({ description: 'Organization postal code. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationZip is required for ORGANIZATION accounts' })
+  @IsString()
+  @MaxLength(256)
+  @Transform(Util.sanitize)
+  organizationZip?: string;
+
+  @ApiPropertyOptional({ description: '2-letter country code for organization. Required if accountType is ORGANIZATION.' })
+  @ValidateIf((o: RealUnitRegistrationDto) => o.accountType === AccountType.ORGANIZATION)
+  @IsNotEmpty({ message: 'organizationCountry is required for ORGANIZATION accounts' })
+  @IsString()
+  @Matches(/^[A-Z]{2}$/, { message: 'organizationCountry must be a 2-letter country code' })
+  @Transform(Util.trim)
+  organizationCountry?: string;
 }
