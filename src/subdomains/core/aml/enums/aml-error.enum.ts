@@ -40,6 +40,7 @@ export enum AmlError {
   BANK_DATA_MISSING = 'BankDataMissing',
   BANK_DATA_NOT_ACTIVE = 'BankDataNotActive',
   BANK_DATA_USER_MISMATCH = 'BankDataUserMismatch',
+  VIRTUAL_IBAN_USER_MISMATCH = 'VirtualIbanUserMismatch',
   BANK_DATA_MANUAL_REVIEW = 'BankDataManualReview',
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
@@ -199,6 +200,11 @@ export const AmlErrorResult: {
     amlReason: null,
   },
   [AmlError.BANK_DATA_USER_MISMATCH]: null,
+  [AmlError.VIRTUAL_IBAN_USER_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: AmlReason.VIRTUAL_IBAN_USER_MISMATCH,
+  },
   [AmlError.BANK_DATA_MANUAL_REVIEW]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,

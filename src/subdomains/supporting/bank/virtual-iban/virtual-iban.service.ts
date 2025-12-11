@@ -55,7 +55,14 @@ export class VirtualIbanService {
   }
 
   async getVirtualIbansForAccount(userData: UserData): Promise<VirtualIban[]> {
-    return this.virtualIbanRepo.findBy({ userData: { id: userData.id } });
+    return this.virtualIbanRepo.findCachedBy(`user-${userData.id}`, { userData: { id: userData.id } });
+  }
+
+  async getByIban(iban: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOneCached(iban, {
+      where: { iban },
+      relations: { userData: true },
+    });
   }
 
   async getVirtualIbanByKey(key: string, value: any): Promise<VirtualIban> {
