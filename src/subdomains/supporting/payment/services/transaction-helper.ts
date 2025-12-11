@@ -721,7 +721,7 @@ export class TransactionHelper implements OnModuleInit {
       fee: {
         min: this.convertFee(fee.min, price, from),
         fixed: this.convertFee(fee.fixed, price, from),
-        bankFixed: this.convertFee(fee.bankFixed, price, from),
+        bankFixed: fee.bankFixed, // no conversion - 1 CHF/EUR/USD = 1 unit
         network: this.convertFee(fee.network, price, from),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, from) : undefined,
       },
@@ -739,7 +739,7 @@ export class TransactionHelper implements OnModuleInit {
       fee: {
         min: this.convertFee(fee.min, price, to),
         fixed: this.convertFee(fee.fixed, price, to),
-        bankFixed: this.convertFee(fee.bankFixed, price, to),
+        bankFixed: fee.bankFixed, // no conversion - 1 CHF/EUR/USD = 1 unit
         network: this.convertFee(fee.network, price, to),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, to) : undefined,
       },
