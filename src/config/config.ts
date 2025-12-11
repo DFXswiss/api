@@ -985,6 +985,7 @@ export class Configuration {
       key: process.env.YAPEAL_KEY?.split('<br>').join('\n'),
       rootCa: process.env.YAPEAL_ROOT_CA?.split('<br>').join('\n'),
       webhookApiKey: process.env.YAPEAL_WEBHOOK_API_KEY,
+      accountIdentifier: process.env.YAPEAL_ACCOUNT_IDENTIFIER,
     },
     forexFee: 0.02,
   };

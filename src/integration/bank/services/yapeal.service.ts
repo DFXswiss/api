@@ -9,6 +9,7 @@ import {
   VibanProposalResponse,
   VibanReserveRequest,
   VibanReserveResponse,
+  YapealAccount,
   YapealAccountsResponse,
   YapealAccountStatus,
   YapealPaymentStatusResponse,
@@ -73,14 +74,12 @@ export class YapealService {
   async getBalances(): Promise<YapealBalanceInfo[]> {
     const response = await this.getAccounts();
 
-    return response.accounts
-      .filter((account) => account.status === YapealAccountStatus.ACTIVE)
-      .map((account) => ({
-        iban: account.iban,
-        currency: account.currency,
-        availableBalance: this.convertYapealAmount(account.balances.available.amount),
-        totalBalance: this.convertYapealAmount(account.balances.total.amount),
-      }));
+    return response.map((a) => ({
+      iban: a.iban,
+      currency: a.currency,
+      availableBalance: this.convertYapealAmount(a.balances.available.amount),
+      totalBalance: this.convertYapealAmount(a.balances.total.amount),
+    }));
   }
 
   async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<any> {
@@ -100,9 +99,14 @@ export class YapealService {
     );
   }
 
-  private async getAccounts(): Promise<YapealAccountsResponse> {
-    const { partnershipUid } = Config.bank.yapeal;
-    return this.callApi<YapealAccountsResponse>(`b2b/v2/agent/${partnershipUid}/accounts`, 'GET');
+  private async getAccounts(): Promise<YapealAccount[]> {
+    const { partnershipUid, accountIdentifier } = Config.bank.yapeal;
+
+    return this.callApi<YapealAccountsResponse>(`b2b/v2/agent/${partnershipUid}/accounts`, 'GET').then((r) =>
+      r.accounts.filter(
+        (account) => account.status === YapealAccountStatus.ACTIVE && account.iban.includes(accountIdentifier),
+      ),
+    );
   }
 
   // --- PAYMENT METHODS --- //
