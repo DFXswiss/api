@@ -184,3 +184,12 @@ export interface YapealSubscription {
     callbackPath?: string;
   };
 }
+
+export interface YapealTransactionEnrichmentData {
+  addressLine1?: string;
+  addressLine2?: string;
+  country?: string;
+  domainCode?: string;
+  familyCode?: string;
+  subFamilyCode?: string;
+}

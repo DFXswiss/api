@@ -26,6 +26,9 @@ export interface CamtTransaction {
   status: CamtStatus;
   accountIban: string;
   virtualIban?: string;
+  domainCode?: string;
+  familyCode?: string;
+  subFamilyCode?: string;
 }
 
 export interface Party {
@@ -107,6 +110,12 @@ export class Iso20022Service {
     const accountServiceRef = txDetail?.Refs?.AcctSvcrRef || txDetail?.Refs?.TxId || notification.Id;
     const endToEndId = txDetail?.Refs?.EndToEndId;
 
+    // bank transaction codes
+    const bkTxCd = txDetail?.BkTxCd?.Domn;
+    const domainCode = bkTxCd?.Cd;
+    const familyCode = bkTxCd?.Fmly?.Cd;
+    const subFamilyCode = bkTxCd?.Fmly?.SubFmlyCd;
+
     return {
       accountServiceRef,
       bookingDate,
@@ -125,6 +134,9 @@ export class Iso20022Service {
       status: entry.Sts as CamtStatus,
       accountIban,
       virtualIban,
+      domainCode,
+      familyCode,
+      subFamilyCode,
     };
   }
 
@@ -216,6 +228,9 @@ export class Iso20022Service {
     // end-to-end ID
     const endToEndId = Iso20022Service.extractTag(txDtls, 'EndToEndId');
 
+    // bank transaction codes
+    const { domainCode, familyCode, subFamilyCode } = Iso20022Service.extractBkTxCdFromXml(txDtls);
+
     return {
       accountServiceRef,
       bookingDate,
@@ -234,6 +249,9 @@ export class Iso20022Service {
       status: CamtStatus.BOOKED, // camt.053 contains only booked transactions
       accountIban,
       virtualIban: undefined, // not available in camt.053 format
+      domainCode,
+      familyCode,
+      subFamilyCode,
     };
   }
 
@@ -418,6 +436,22 @@ export class Iso20022Service {
   }
 
   // --- XML HELPER METHODS --- //
+
+  private static extractBkTxCdFromXml(xml: string): {
+    domainCode?: string;
+    familyCode?: string;
+    subFamilyCode?: string;
+  } {
+    const domainCode = Iso20022Service.extractNestedTag(xml, 'BkTxCd', 'Domn', 'Cd');
+    const familyCode = Iso20022Service.extractNestedTag(xml, 'BkTxCd', 'Domn', 'Fmly', 'Cd');
+    const subFamilyCode = Iso20022Service.extractNestedTag(xml, 'BkTxCd', 'Domn', 'Fmly', 'SubFmlyCd');
+
+    return {
+      domainCode,
+      familyCode,
+      subFamilyCode,
+    };
+  }
 
   private static extractTag(xml: string, tag: string): string | undefined {
     const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`));

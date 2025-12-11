@@ -214,6 +214,16 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   type?: BankTxType;
 
+  // ISO 20022 bank transaction codes
+  @Column({ length: 256, nullable: true })
+  domainCode?: string;
+
+  @Column({ length: 256, nullable: true })
+  familyCode?: string;
+
+  @Column({ length: 256, nullable: true })
+  subFamilyCode?: string;
+
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: true })
   batch?: BankTxBatch;
 

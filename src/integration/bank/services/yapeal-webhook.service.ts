@@ -24,15 +24,22 @@ export class YapealWebhookService {
         return;
       }
 
-      // enrich address data from camt.053 if missing
-      if (!transaction.addressLine1 && transaction.accountServiceRef && transaction.bookingDate) {
-        const addressDetails = await this.yapealService.getTransactionAddressDetails(
+      // enrich with data from camt.053
+      if (transaction.accountServiceRef && transaction.bookingDate) {
+        const enrichmentData = await this.yapealService.getTransactionEnrichmentData(
           transaction.accountIban,
           transaction.accountServiceRef,
           transaction.bookingDate,
         );
 
-        if (addressDetails) Object.assign(transaction, addressDetails);
+        if (enrichmentData) {
+          transaction.addressLine1 ??= enrichmentData.addressLine1;
+          transaction.addressLine2 ??= enrichmentData.addressLine2;
+          transaction.country ??= enrichmentData.country;
+          transaction.domainCode ??= enrichmentData.domainCode;
+          transaction.familyCode ??= enrichmentData.familyCode;
+          transaction.subFamilyCode ??= enrichmentData.subFamilyCode;
+        }
       }
 
       this.transactionSubject.next({
@@ -58,6 +65,9 @@ export class YapealWebhookService {
           bic: transaction.bic,
           remittanceInfo: transaction.remittanceInfo,
           endToEndId: transaction.endToEndId,
+          domainCode: transaction.domainCode,
+          familyCode: transaction.familyCode,
+          subFamilyCode: transaction.subFamilyCode,
           txRaw: JSON.stringify(payload),
         },
       });
