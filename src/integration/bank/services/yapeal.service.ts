@@ -157,13 +157,17 @@ export class YapealService {
   ): Promise<T> {
     if (!this.isAvailable()) throw new Error('YAPEAL is not configured');
 
-    const { baseUrl, apiKey, adminUid, partnershipUid, cert, key } = Config.bank.yapeal;
+    const { baseUrl, apiKey, adminUid, partnershipUid, cert, key, rootCa } = Config.bank.yapeal;
 
     return this.http.request<T>({
       url: `${baseUrl}/${url}`,
       method,
       data,
-      httpsAgent: new https.Agent({ cert, key }),
+      httpsAgent: new https.Agent({
+        cert,
+        key,
+        ...(rootCa && { ca: rootCa }),
+      }),
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
