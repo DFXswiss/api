@@ -37,6 +37,7 @@ export class YapealWebhookService {
           name: transaction.name,
           iban: transaction.iban,
           accountIban: transaction.accountIban,
+          virtualIban: transaction.virtualIban,
           bic: transaction.bic,
           remittanceInfo: transaction.remittanceInfo,
           endToEndId: transaction.endToEndId,

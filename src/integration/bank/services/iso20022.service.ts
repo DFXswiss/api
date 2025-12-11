@@ -22,6 +22,7 @@ export interface CamtTransaction {
   endToEndId?: string;
   status: CamtStatus;
   accountIban: string;
+  virtualIban?: string;
 }
 
 export interface Party {
@@ -59,26 +60,27 @@ export class Iso20022Service {
     const txDetails = entryDetails?.TxDtls;
     const txDetail = Array.isArray(txDetails) ? txDetails[0] : txDetails;
 
-    // amount and currency
-    const amount = entry.Amt?.Value ?? 0;
-    const currency = entry.Amt?.Ccy ?? 'CHF';
-
     // dates
     const bookingDate = entry.BookgDt?.Dt ? this.parseDate(entry.BookgDt.Dt) : new Date();
     const valueDate = entry.ValDt?.Dt ? this.parseDate(entry.ValDt.Dt) : bookingDate;
 
-    // party information
+    // amount and currency
+    const amount = entry.Amt?.Value;
+    const currency = entry.Amt?.Ccy;
+
     const isCredit = entry.CdtDbtInd === 'CDTN'; // CDTN / DBTN
 
-    // credit: our account is creditor, counterparty is debtor
-    // debit: our account is debtor, counterparty is creditor
-    const ourAccount = isCredit ? txDetail?.RltdPties?.CdtrAcct : txDetail?.RltdPties?.DbtrAcct;
+    // receiving account
+    const accountIban = notification.Acct?.Id?.IBAN;
+    if (!accountIban) throw new Error('Invalid camt.054 format: missing account IBAN');
+
+    const creditorIban = txDetail?.RltdPties?.CdtrAcct?.Id?.IBAN;
+    const virtualIban = isCredit && creditorIban !== accountIban ? creditorIban : undefined;
+
+    // counterparty info
     const counterparty = isCredit ? txDetail?.RltdPties?.Dbtr : txDetail?.RltdPties?.Cdtr;
     const counterpartyAcct = isCredit ? txDetail?.RltdPties?.DbtrAcct : txDetail?.RltdPties?.CdtrAcct;
     const counterpartyAgent = isCredit ? txDetail?.RltdAgts?.DbtrAgt : txDetail?.RltdAgts?.CdtrAgt;
-
-    const accountIban = ourAccount?.Id?.IBAN || notification.Acct?.Id?.IBAN;
-    if (!accountIban) throw new Error('Invalid camt.054 format: missing account IBAN');
 
     const name = counterparty?.Nm;
     const iban = counterpartyAcct?.Id?.IBAN;
@@ -111,6 +113,7 @@ export class Iso20022Service {
       endToEndId,
       status: entry.Sts as CamtStatus,
       accountIban,
+      virtualIban,
     };
   }
 
@@ -187,6 +190,7 @@ export class Iso20022Service {
       endToEndId,
       status: CamtStatus.BOOKED, // camt.053 contains only booked transactions
       accountIban,
+      virtualIban: undefined, // not available in camt.053 format
     };
   }
 

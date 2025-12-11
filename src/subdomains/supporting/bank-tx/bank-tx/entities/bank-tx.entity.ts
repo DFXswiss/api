@@ -173,6 +173,9 @@ export class BankTx extends IEntity {
   accountIban?: string;
 
   @Column({ length: 256, nullable: true })
+  virtualIban?: string;
+
+  @Column({ length: 256, nullable: true })
   senderAccount?: string;
 
   // related bank info
