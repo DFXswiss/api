@@ -16,6 +16,9 @@ export interface CamtTransaction {
   currency: string;
   creditDebitIndicator: BankTxIndicator;
   name?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  country?: string;
   iban?: string;
   bic?: string;
   remittanceInfo?: string;
@@ -86,6 +89,11 @@ export class Iso20022Service {
     const iban = counterpartyAcct?.Id?.IBAN;
     const bic = counterpartyAgent?.FinInstnId?.BIC || counterpartyAgent?.FinInstnId?.BICFI;
 
+    // address info from PstlAdr
+    const postalAddress = counterparty?.PstlAdr;
+    const { addressLine1, addressLine2 } = this.parsePostalAddress(postalAddress);
+    const country = postalAddress?.Ctry;
+
     // remittance info
     let remittanceInfo: string | undefined;
     if (txDetail?.RmtInf?.Ustrd) {
@@ -107,6 +115,9 @@ export class Iso20022Service {
       currency,
       creditDebitIndicator: entry.CdtDbtInd === 'CDTN' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       name,
+      addressLine1,
+      addressLine2,
+      country,
       iban,
       bic,
       remittanceInfo,
@@ -115,6 +126,31 @@ export class Iso20022Service {
       accountIban,
       virtualIban,
     };
+  }
+
+  private static parsePostalAddress(postalAddress: any): { addressLine1?: string; addressLine2?: string } {
+    if (!postalAddress) return {};
+
+    // AdrLine format (array of address lines)
+    if (postalAddress.AdrLine) {
+      const lines = Array.isArray(postalAddress.AdrLine) ? postalAddress.AdrLine : [postalAddress.AdrLine];
+      return {
+        addressLine1: lines[0],
+        addressLine2: lines[1],
+      };
+    }
+
+    // Structured format (StrtNm, BldgNb, PstCd, TwnNm)
+    if (postalAddress.StrtNm || postalAddress.TwnNm) {
+      const streetPart = [postalAddress.StrtNm, postalAddress.BldgNb].filter(Boolean).join(' ');
+      const cityPart = [postalAddress.PstCd, postalAddress.TwnNm].filter(Boolean).join(' ');
+      return {
+        addressLine1: streetPart || undefined,
+        addressLine2: cityPart || undefined,
+      };
+    }
+
+    return {};
   }
 
   // --- CAMT.053 PARSING --- //
@@ -152,21 +188,25 @@ export class Iso20022Service {
     // transaction details (inside TxDtls)
     const txDtls = entryXml.match(/<TxDtls>[\s\S]*?<\/TxDtls>/)?.[0] || entryXml;
 
-    // party information
+    // party information - determine counterparty based on credit/debit
+    const isCredit = creditDebitIndicator === BankTxIndicator.CREDIT;
+    const counterpartyTag = isCredit ? 'Dbtr' : 'Cdtr';
+
     const name =
-      Iso20022Service.extractTag(txDtls, 'Nm') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', 'Dbtr', 'Nm') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', 'Cdtr', 'Nm');
+      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', counterpartyTag, 'Nm') ||
+      Iso20022Service.extractTag(txDtls, 'Nm');
 
     const iban =
-      Iso20022Service.extractTag(txDtls, 'IBAN') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', 'DbtrAcct', 'IBAN') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', 'CdtrAcct', 'IBAN');
+      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', `${counterpartyTag}Acct`, 'IBAN') ||
+      Iso20022Service.extractTag(txDtls, 'IBAN');
 
     const bic =
       Iso20022Service.extractTag(txDtls, 'BIC') ||
       Iso20022Service.extractTag(txDtls, 'BICFI') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdAgts', 'DbtrAgt', 'BIC');
+      Iso20022Service.extractNestedTag(txDtls, 'RltdAgts', `${counterpartyTag}Agt`, 'BIC');
+
+    // address information from PstlAdr
+    const { addressLine1, addressLine2, country } = Iso20022Service.extractAddressFromXml(txDtls, counterpartyTag);
 
     // remittance information
     const ustrd = Iso20022Service.extractTag(txDtls, 'Ustrd');
@@ -184,6 +224,9 @@ export class Iso20022Service {
       currency,
       creditDebitIndicator,
       name,
+      addressLine1,
+      addressLine2,
+      country,
       iban,
       bic,
       remittanceInfo,
@@ -192,6 +235,53 @@ export class Iso20022Service {
       accountIban,
       virtualIban: undefined, // not available in camt.053 format
     };
+  }
+
+  private static extractAddressFromXml(
+    xml: string,
+    partyTag: string,
+  ): { addressLine1?: string; addressLine2?: string; country?: string } {
+    // Try to extract PstlAdr block from RltdPties > Dbtr/Cdtr > PstlAdr
+    const partyMatch = xml.match(new RegExp(`<${partyTag}>[\\s\\S]*?</${partyTag}>`));
+    if (!partyMatch) return {};
+
+    const partyXml = partyMatch[0];
+    const pstlAdrMatch = partyXml.match(/<PstlAdr>[\s\S]*?<\/PstlAdr>/);
+    if (!pstlAdrMatch) return {};
+
+    const pstlAdr = pstlAdrMatch[0];
+
+    // Extract country
+    const country = Iso20022Service.extractTag(pstlAdr, 'Ctry');
+
+    // Try AdrLine format first
+    const adrLines = pstlAdr.match(/<AdrLine>([^<]*)<\/AdrLine>/g);
+    if (adrLines && adrLines.length > 0) {
+      const extractedLines = adrLines.map((line) => line.replace(/<\/?AdrLine>/g, '').trim());
+      return {
+        addressLine1: extractedLines[0],
+        addressLine2: extractedLines[1],
+        country,
+      };
+    }
+
+    // Try structured format (StrtNm, BldgNb, PstCd, TwnNm)
+    const strtNm = Iso20022Service.extractTag(pstlAdr, 'StrtNm');
+    const bldgNb = Iso20022Service.extractTag(pstlAdr, 'BldgNb');
+    const pstCd = Iso20022Service.extractTag(pstlAdr, 'PstCd');
+    const twnNm = Iso20022Service.extractTag(pstlAdr, 'TwnNm');
+
+    if (strtNm || twnNm) {
+      const streetPart = [strtNm, bldgNb].filter(Boolean).join(' ');
+      const cityPart = [pstCd, twnNm].filter(Boolean).join(' ');
+      return {
+        addressLine1: streetPart || undefined,
+        addressLine2: cityPart || undefined,
+        country,
+      };
+    }
+
+    return { country };
   }
 
   // --- PAIN.001 GENERATION --- //
