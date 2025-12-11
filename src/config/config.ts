@@ -983,7 +983,7 @@ export class Configuration {
       apiKey: process.env.YAPEAL_API_KEY,
       cert: process.env.YAPEAL_CERT?.split('<br>').join('\n'),
       key: process.env.YAPEAL_KEY?.split('<br>').join('\n'),
-      webhookCertFingerprint: process.env.YAPEAL_WEBHOOK_CERT_FINGERPRINT,
+      webhookApiKey: process.env.YAPEAL_WEBHOOK_API_KEY,
     },
     forexFee: 0.02,
   };
