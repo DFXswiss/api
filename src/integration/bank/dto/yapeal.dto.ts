@@ -62,6 +62,40 @@ export interface YapealAccountsResponse {
   accounts: YapealAccount[];
 }
 
+export interface YapealAccountOwner {
+  name: string;
+  legalForm: string;
+  status: string;
+  uid: string;
+}
+
+export interface YapealEntitlement {
+  entitlementUid: string;
+  action: string;
+}
+
+export interface YapealEntitledAccount {
+  accountName: string;
+  accountUid: string;
+  accountContractUid: string;
+  subAccountUIDs: string[];
+  accountIBAN: string;
+  accountQRIBAN: string;
+  closeOrderUid: string | null;
+  createdAt: string;
+  status: YapealAccountStatus;
+  currency: string;
+  openingDate: string;
+  closingDate: string;
+  bic: string;
+  availableBalance: YapealBalance;
+  balance: YapealBalance;
+  isOwnedByYapini: boolean;
+  accountOwner: YapealAccountOwner;
+  myEntitlements: YapealEntitlement[];
+  internationalPaymentsAvailable: boolean;
+}
+
 // --- Instant Payment DTOs (Pain.001 JSON Format) --- //
 
 export interface YapealInstdAmt {

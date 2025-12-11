@@ -12,6 +12,7 @@ import {
   YapealAccount,
   YapealAccountsResponse,
   YapealAccountStatus,
+  YapealEntitledAccount,
   YapealPaymentStatusResponse,
   YapealSubscription,
   YapealSubscriptionFormat,
@@ -91,9 +92,9 @@ export class YapealService {
     return this.callApi<any>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
   }
 
-  async getEntitledAccounts(): Promise<YapealAccountsResponse> {
+  async getEntitledAccounts(): Promise<YapealEntitledAccount[]> {
     const { partnershipUid, adminUid } = Config.bank.yapeal;
-    return this.callApi<YapealAccountsResponse>(
+    return this.callApi<YapealEntitledAccount[]>(
       `b2b/v2/agent/${partnershipUid}/accounts/entitled?executingAgentUID=${adminUid}`,
       'GET',
     );
