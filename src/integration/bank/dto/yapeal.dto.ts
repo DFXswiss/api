@@ -218,3 +218,22 @@ export interface YapealSubscription {
     callbackPath?: string;
   };
 }
+
+// --- Transaction Enrichment DTOs --- //
+
+export interface YapealTransactionDetails {
+  uid: string;
+  counterpartName?: string;
+  counterpartMyPicture?: string;
+  ultimateCreditorName?: string;
+  ultimateCreditorAddress?: string;
+  ultimateCreditorAddressLines?: string[];
+  ultimateDebitorName?: string;
+  ultimateDebitorAddress?: string;
+  ultimateDebitorAddressLines?: string[];
+  creditor?: {
+    name?: string;
+    iban?: string;
+    bic?: string;
+  };
+}

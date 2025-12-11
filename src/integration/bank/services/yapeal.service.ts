@@ -17,6 +17,7 @@ import {
   YapealSubscription,
   YapealSubscriptionFormat,
   YapealSubscriptionRequest,
+  YapealTransactionDetails,
 } from '../dto/yapeal.dto';
 import { Iso20022Service, Pain001Payment } from './iso20022.service';
 
@@ -144,6 +145,17 @@ export class YapealService {
 
   async deleteTransactionSubscription(iban: string): Promise<void> {
     await this.callApi<void>(`b2b/v2/account/subscription?iban=${iban}`, 'DELETE', undefined, true);
+  }
+
+  // --- TRANSACTION ENRICHMENT METHODS --- //
+
+  async getTransactionDetails(transactionUid: string): Promise<YapealTransactionDetails | undefined> {
+    try {
+      return await this.callApi<YapealTransactionDetails>(`b2b/v2/transactions/${transactionUid}`, 'GET', undefined, true);
+    } catch (e) {
+      // Transaction not found or enrichment not available
+      return undefined;
+    }
   }
 
   // --- HELPER METHODS --- //
