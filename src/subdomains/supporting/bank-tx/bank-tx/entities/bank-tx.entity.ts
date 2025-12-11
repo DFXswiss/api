@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
@@ -170,6 +171,9 @@ export class BankTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   accountIban?: string;
+
+  @Column({ length: 256, nullable: true })
+  virtualIban?: string;
 
   @Column({ length: 256, nullable: true })
   senderAccount?: string;
@@ -353,9 +357,10 @@ export class BankTx extends IEntity {
   pendingInputAmount(asset: Asset): number {
     if (this.type && ![BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
 
-    switch (asset.blockchain as string) {
-      case 'MaerkiBaumann':
-      case 'Olkypay':
+    switch (asset.blockchain) {
+      case Blockchain.MAERKI_BAUMANN:
+      case Blockchain.OLKYPAY:
+      case Blockchain.YAPEAL:
         return BankService.isBankMatching(asset, this.accountIban) ? this.amount : 0;
 
       default:

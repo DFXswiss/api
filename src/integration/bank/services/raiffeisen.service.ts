@@ -107,7 +107,7 @@ export class RaiffeisenService {
 
       if (!result.orderData) return [];
 
-      const transactions = Iso20022Service.parseCamtXml(result.orderData.toString(), accountIban);
+      const transactions = Iso20022Service.parseCamt053Xml(result.orderData.toString(), accountIban);
       return transactions.map((t) => this.parseTransaction(t, accountIban));
     } catch (e) {
       this.logger.error(`Failed to get Raiffeisen ${orderType} transactions:`, e);

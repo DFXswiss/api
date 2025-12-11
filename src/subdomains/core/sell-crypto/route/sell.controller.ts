@@ -27,7 +27,6 @@ import { RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/u
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
-import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -255,7 +254,7 @@ export class SellController {
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
       undefined,
-      IbanBankName.MAERKI,
+      TransactionHelper.getDefaultBankByPaymentMethod(FiatPaymentMethod.BANK),
       await this.assetService.getNativeAsset(defaultBlockchain),
       sell.fiat,
     );

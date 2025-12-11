@@ -1,4 +1,12 @@
 import { Util } from 'src/shared/utils/util';
+import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+
+export enum CamtStatus {
+  BOOKED = 'BOOK',
+  PENDING = 'PDNG',
+  INFO = 'INFO',
+  REJECTED = 'RJCT',
+}
 
 export interface CamtTransaction {
   accountServiceRef: string;
@@ -6,19 +14,26 @@ export interface CamtTransaction {
   valueDate: Date;
   amount: number;
   currency: string;
-  creditDebitIndicator: 'CRDT' | 'DBIT';
+  creditDebitIndicator: BankTxIndicator;
   name?: string;
   iban?: string;
   bic?: string;
   remittanceInfo?: string;
   endToEndId?: string;
+  status: CamtStatus;
+  accountIban: string;
+  virtualIban?: string;
 }
 
 export interface Party {
   name: string;
+  address?: string;
+  zip?: string;
+  city?: string;
+  country: string;
+
   iban: string;
-  bic: string;
-  country?: string;
+  bic?: string;
 }
 
 export interface Pain001Payment {
@@ -33,8 +48,77 @@ export interface Pain001Payment {
 }
 
 export class Iso20022Service {
-  // --- CAMT PARSING --- //
-  static parseCamtXml(xmlData: string, accountIban: string): CamtTransaction[] {
+  // --- CAMT.054 PARSING --- //
+  static parseCamt054Json(camt054: any): CamtTransaction {
+    const notification = camt054.BkToCstmrDbtCdtNtfctn?.Ntfctn;
+    if (!notification) throw new Error('Invalid camt.054 format: missing Ntfctn');
+
+    const entry = notification.Ntry;
+    const entryDetails = camt054.BkToCstmrDbtCdtNtfctn?.NtryDtls;
+
+    // transaction details
+    const txDetails = entryDetails?.TxDtls;
+    const txDetail = Array.isArray(txDetails) ? txDetails[0] : txDetails;
+
+    // dates
+    const bookingDate = entry.BookgDt?.Dt ? this.parseDate(entry.BookgDt.Dt) : new Date();
+    const valueDate = entry.ValDt?.Dt ? this.parseDate(entry.ValDt.Dt) : bookingDate;
+
+    // amount and currency
+    const amount = entry.Amt?.Value;
+    const currency = entry.Amt?.Ccy;
+
+    const isCredit = entry.CdtDbtInd === 'CDTN'; // CDTN / DBTN
+
+    // receiving account
+    const accountIban = notification.Acct?.Id?.IBAN;
+    if (!accountIban) throw new Error('Invalid camt.054 format: missing account IBAN');
+
+    const creditorIban = txDetail?.RltdPties?.CdtrAcct?.Id?.IBAN;
+    const virtualIban = isCredit && creditorIban !== accountIban ? creditorIban : undefined;
+
+    // counterparty info
+    const counterparty = isCredit ? txDetail?.RltdPties?.Dbtr : txDetail?.RltdPties?.Cdtr;
+    const counterpartyAcct = isCredit ? txDetail?.RltdPties?.DbtrAcct : txDetail?.RltdPties?.CdtrAcct;
+    const counterpartyAgent = isCredit ? txDetail?.RltdAgts?.DbtrAgt : txDetail?.RltdAgts?.CdtrAgt;
+
+    const name = counterparty?.Nm;
+    const iban = counterpartyAcct?.Id?.IBAN;
+    const bic = counterpartyAgent?.FinInstnId?.BIC || counterpartyAgent?.FinInstnId?.BICFI;
+
+    // remittance info
+    let remittanceInfo: string | undefined;
+    if (txDetail?.RmtInf?.Ustrd) {
+      const ustrd = txDetail.RmtInf.Ustrd;
+      remittanceInfo = Array.isArray(ustrd) ? ustrd.join(' ') : ustrd;
+    } else if (txDetail?.RmtInf?.Strd) {
+      remittanceInfo = txDetail.RmtInf.Strd;
+    }
+
+    // references
+    const accountServiceRef = txDetail?.Refs?.AcctSvcrRef || txDetail?.Refs?.TxId || notification.Id;
+    const endToEndId = txDetail?.Refs?.EndToEndId;
+
+    return {
+      accountServiceRef,
+      bookingDate,
+      valueDate,
+      amount,
+      currency,
+      creditDebitIndicator: entry.CdtDbtInd === 'CDTN' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+      name,
+      iban,
+      bic,
+      remittanceInfo,
+      endToEndId,
+      status: entry.Sts as CamtStatus,
+      accountIban,
+      virtualIban,
+    };
+  }
+
+  // --- CAMT.053 PARSING --- //
+  static parseCamt053Xml(xmlData: string, accountIban: string): CamtTransaction[] {
     const entryMatches = xmlData.match(/<Ntry>[\s\S]*?<\/Ntry>/g) || [];
 
     return entryMatches
@@ -42,18 +126,19 @@ export class Iso20022Service {
         const entryIban = Iso20022Service.extractTag(entry, 'IBAN');
         return !entryIban || entryIban === accountIban;
       })
-      .map((entry) => Iso20022Service.parseCamtElement(entry, accountIban));
+      .map((entry) => Iso20022Service.parseCamt053Element(entry, accountIban));
   }
 
-  private static parseCamtElement(entryXml: string, accountIban: string): CamtTransaction {
+  private static parseCamt053Element(entryXml: string, accountIban: string): CamtTransaction {
     // amount and currency
     const amtMatch = entryXml.match(/<Amt\s+Ccy="([^"]+)">([^<]+)<\/Amt>/);
     const amount = amtMatch ? parseFloat(amtMatch[2]) : 0;
     const currency = amtMatch ? amtMatch[1] : 'CHF';
 
     // credit/debit indicator
-    const creditDebitIndicator = Iso20022Service.extractTag(entryXml, 'CdtDbtInd') as 'CRDT' | 'DBIT';
-    if (!creditDebitIndicator) throw new Error(`Missing CdtDbtInd in CAMT entry`);
+    const cdtDbtInd = Iso20022Service.extractTag(entryXml, 'CdtDbtInd');
+    if (!cdtDbtInd) throw new Error(`Missing CdtDbtInd in CAMT entry`);
+    const creditDebitIndicator = cdtDbtInd === 'CRDT' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT;
 
     // dates
     const bookingDateStr = Iso20022Service.extractTag(entryXml, 'BookgDt');
@@ -103,6 +188,9 @@ export class Iso20022Service {
       bic,
       remittanceInfo,
       endToEndId,
+      status: CamtStatus.BOOKED, // camt.053 contains only booked transactions
+      accountIban,
+      virtualIban: undefined, // not available in camt.053 format
     };
   }
 
@@ -147,6 +235,9 @@ export class Iso20022Service {
                 Cdtr: {
                   Nm: payment.creditor.name,
                   PstlAdr: {
+                    ...(payment.creditor.address && { StrtNm: payment.creditor.address }),
+                    ...(payment.creditor.zip && { PstCd: payment.creditor.zip }),
+                    ...(payment.creditor.city && { TwnNm: payment.creditor.city }),
                     Ctry: payment.creditor.country,
                   },
                 },

@@ -462,7 +462,7 @@ export class BankTxService implements OnModuleInit {
       where: {
         type: In(BankTxUnassignedTypes),
         senderAccount: In(accounts),
-        creditDebitIndicator: 'CRDT',
+        creditDebitIndicator: BankTxIndicator.CREDIT,
       },
       relations,
     });

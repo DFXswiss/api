@@ -1,65 +1,55 @@
 import { Injectable } from '@nestjs/common';
-import { Subject } from 'rxjs';
-import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
-import {
-  YapealTransactionStatus,
-  YapealTransactionType,
-  YapealWebhookPayloadDto,
-  YapealWebhookTransactionDto,
-} from '../dto/yapeal-webhook.dto';
-
-export interface YapealTransactionEvent {
-  accountIban: string;
-  bankTxData: {
-    accountServiceRef: string;
-    bookingDate?: Date;
-    valueDate?: Date;
-    amount: number;
-    currency: string;
-    creditDebitIndicator: BankTxIndicator;
-    name?: string;
-    iban?: string;
-    accountIban: string;
-    bic?: string;
-    remittanceInfo?: string;
-    endToEndId?: string;
-    txRaw: string;
-  };
-}
+import { Observable, Subject } from 'rxjs';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { BankTransactionEvent } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-transaction-handler.service';
+import { CamtStatus, Iso20022Service } from './iso20022.service';
 
 @Injectable()
 export class YapealWebhookService {
-  private readonly transactionSubject = new Subject<YapealTransactionEvent>();
-  public readonly transaction$ = this.transactionSubject.asObservable();
+  private readonly logger = new DfxLogger(YapealWebhookService);
 
-  processWebhook(payload: YapealWebhookPayloadDto): void {
-    const { data } = payload;
+  private readonly transactionSubject = new Subject<BankTransactionEvent>();
 
-    if (data.status !== YapealTransactionStatus.BOOKED) {
-      return;
+  processWebhook(payload: any): void {
+    try {
+      const transaction = Iso20022Service.parseCamt054Json(payload);
+
+      if (transaction.status !== CamtStatus.BOOKED) {
+        this.logger.verbose(
+          `Skipping non-booked transaction ${transaction.accountServiceRef} in state ${transaction.status}`,
+        );
+        return;
+      }
+
+      this.transactionSubject.next({
+        accountIban: transaction.accountIban,
+        bankTxData: {
+          accountServiceRef: transaction.accountServiceRef,
+          bookingDate: transaction.bookingDate,
+          valueDate: transaction.valueDate,
+          amount: transaction.amount,
+          currency: transaction.currency,
+          instructedAmount: transaction.amount,
+          instructedCurrency: transaction.currency,
+          txAmount: transaction.amount,
+          txCurrency: transaction.currency,
+          creditDebitIndicator: transaction.creditDebitIndicator,
+          name: transaction.name,
+          iban: transaction.iban,
+          accountIban: transaction.accountIban,
+          virtualIban: transaction.virtualIban,
+          bic: transaction.bic,
+          remittanceInfo: transaction.remittanceInfo,
+          endToEndId: transaction.endToEndId,
+          txRaw: JSON.stringify(payload),
+        },
+      });
+    } catch (e) {
+      this.logger.error('Failed to process YAPEAL webhook:', e);
     }
-
-    this.transactionSubject.next({
-      accountIban: data.iban,
-      bankTxData: this.mapToBankTx(data),
-    });
   }
 
-  private mapToBankTx(data: YapealWebhookTransactionDto) {
-    return {
-      accountServiceRef: `YAPEAL-${data.transactionUid}`,
-      bookingDate: data.bookingDate ? new Date(data.bookingDate) : undefined,
-      valueDate: data.valueDate ? new Date(data.valueDate) : undefined,
-      amount: Math.abs(data.amount),
-      currency: data.currency,
-      creditDebitIndicator: data.type === YapealTransactionType.CREDIT ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
-      name: data.counterpartyName,
-      iban: data.counterpartyIban,
-      accountIban: data.iban,
-      bic: data.counterpartyBic,
-      remittanceInfo: data.remittanceInfo,
-      endToEndId: data.endToEndId,
-      txRaw: JSON.stringify(data.rawData ?? data),
-    };
+  getTransactionObservable(): Observable<BankTransactionEvent> {
+    return this.transactionSubject.asObservable();
   }
 }

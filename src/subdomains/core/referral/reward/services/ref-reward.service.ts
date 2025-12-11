@@ -56,6 +56,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.CHECKOUT]: undefined,
   [Blockchain.KALEIDO]: undefined,
   [Blockchain.SUMIXX]: undefined,
+  [Blockchain.YAPEAL]: undefined,
 };
 
 @Injectable()

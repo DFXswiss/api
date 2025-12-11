@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
+import * as https from 'https';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import {
   VibanListResponse,
   VibanProposalResponse,
@@ -9,8 +11,10 @@ import {
   VibanReserveResponse,
   YapealAccountsResponse,
   YapealAccountStatus,
-  YapealPaymentStatus,
   YapealPaymentStatusResponse,
+  YapealSubscription,
+  YapealSubscriptionFormat,
+  YapealSubscriptionRequest,
 } from '../dto/yapeal.dto';
 import { Iso20022Service, Pain001Payment } from './iso20022.service';
 
@@ -32,13 +36,16 @@ export class YapealService {
 
   // --- VIBAN METHODS --- //
 
-  async createViban(): Promise<VibanReserveResponse> {
+  async createViban(baseAccountIban: string): Promise<VibanReserveResponse> {
     const proposal = await this.getVibanProposal();
-    return this.reserveViban(proposal.bban);
+    return this.reserveViban(proposal.bban, baseAccountIban);
   }
 
-  async listVibans(accountUid: string): Promise<VibanListResponse> {
-    return this.callApi<VibanListResponse>(`b2b/v2/cash-accounts/${accountUid}/vibans`, 'GET');
+  async listVibans(accountUid: string, count = 100, offset = 0): Promise<VibanListResponse> {
+    return this.callApi<VibanListResponse>(
+      `b2b/v2/cash-accounts/${accountUid}/vibans?count=${count}&offset=${offset}`,
+      'GET',
+    );
   }
 
   private async getVibanProposal(): Promise<VibanProposalResponse> {
@@ -46,8 +53,8 @@ export class YapealService {
     return this.callApi<VibanProposalResponse>(`b2b/v2/partnerships/${partnershipUid}/viban/proposal`, 'GET');
   }
 
-  private async reserveViban(bban: string): Promise<VibanReserveResponse> {
-    const { partnershipUid, baseAccountIban } = Config.bank.yapeal;
+  private async reserveViban(bban: string, baseAccountIban: string): Promise<VibanReserveResponse> {
+    const { partnershipUid } = Config.bank.yapeal;
 
     const request: VibanReserveRequest = {
       baseAccountIBAN: baseAccountIban,
@@ -76,6 +83,23 @@ export class YapealService {
       }));
   }
 
+  async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<any> {
+    const params = new URLSearchParams({
+      fromDate: Util.isoDate(fromDate),
+      toDate: Util.isoDate(toDate),
+    });
+
+    return this.callApi<any>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
+  }
+
+  async getEntitledAccounts(): Promise<YapealAccountsResponse> {
+    const { partnershipUid, adminUid } = Config.bank.yapeal;
+    return this.callApi<YapealAccountsResponse>(
+      `b2b/v2/agent/${partnershipUid}/accounts/entitled?executingAgentUID=${adminUid}`,
+      'GET',
+    );
+  }
+
   private async getAccounts(): Promise<YapealAccountsResponse> {
     const { partnershipUid } = Config.bank.yapeal;
     return this.callApi<YapealAccountsResponse>(`b2b/v2/agent/${partnershipUid}/accounts`, 'GET');
@@ -83,18 +107,38 @@ export class YapealService {
 
   // --- PAYMENT METHODS --- //
 
-  async sendPayment(payment: Pain001Payment): Promise<{ msgId: string; status: YapealPaymentStatus }> {
+  async sendPayment(payment: Pain001Payment): Promise<void> {
     const request = Iso20022Service.createPain001Json(payment);
 
     await this.callApi<unknown>('b2b/instant-payment-orders/by-pain', 'POST', request, true);
-
-    const { status } = await this.getPaymentStatus(payment.messageId);
-
-    return { msgId: payment.messageId, status };
   }
 
   async getPaymentStatus(msgId: string): Promise<YapealPaymentStatusResponse> {
     return this.callApi<YapealPaymentStatusResponse>(`b2b/instant-payment-order/${msgId}/state`, 'GET');
+  }
+
+  // --- SUBSCRIPTION METHODS --- //
+
+  async createTransactionSubscription(
+    iban: string,
+    callbackPath?: string,
+    format: YapealSubscriptionFormat = YapealSubscriptionFormat.JSON,
+  ): Promise<YapealSubscription> {
+    const request: YapealSubscriptionRequest = {
+      iban,
+      format,
+    };
+    if (callbackPath) request.callbackPath = callbackPath;
+
+    return this.callApi<YapealSubscription>('b2b/v2/account/subscribe', 'POST', request, true);
+  }
+
+  async getTransactionSubscriptions(): Promise<YapealSubscription[]> {
+    return this.callApi<YapealSubscription[]>('b2b/v2/accounts/subscription', 'GET', undefined, true);
+  }
+
+  async deleteTransactionSubscription(iban: string): Promise<void> {
+    await this.callApi<void>(`b2b/v2/account/subscription?iban=${iban}`, 'DELETE', undefined, true);
   }
 
   // --- HELPER METHODS --- //
@@ -109,22 +153,25 @@ export class YapealService {
     url: string,
     method: Method = 'GET',
     data?: unknown,
-    includePartnershipHeader = false,
+    includePartnerHeaders = false,
   ): Promise<T> {
     if (!this.isAvailable()) throw new Error('YAPEAL is not configured');
 
-    const { baseUrl, apiKey, partnershipUid } = Config.bank.yapeal;
+    const { baseUrl, apiKey, adminUid, partnershipUid, cert, key } = Config.bank.yapeal;
 
     return this.http.request<T>({
       url: `${baseUrl}/${url}`,
       method,
       data,
+      httpsAgent: new https.Agent({ cert, key }),
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'x-requestor-role': 'client',
-        ...(includePartnershipHeader && { 'x-partnership-uid': partnershipUid }),
+        'x-api-key': apiKey,
+        ...(includePartnerHeaders && {
+          'x-partnership-uid': partnershipUid,
+          'x-partner-uid': adminUid,
+        }),
       },
     });
   }

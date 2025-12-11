@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
@@ -14,11 +15,25 @@ export interface BankSelectorInput {
 }
 
 @Injectable()
-export class BankService {
+export class BankService implements OnModuleInit {
+  private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
+
   constructor(private bankRepo: BankRepository) {}
+
+  onModuleInit() {
+    void this.loadIbanCache();
+  }
 
   async getAllBanks(): Promise<Bank[]> {
     return this.bankRepo.findCached(`all`);
+  }
+
+  async getBanksByName(bankName: IbanBankName): Promise<Bank[]> {
+    return this.bankRepo.findCachedBy(bankName, { name: bankName });
+  }
+
+  async getIbansByName(bankName: IbanBankName): Promise<string[]> {
+    return this.getBanksByName(bankName).then((banks) => banks.map((b) => b.iban));
   }
 
   async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
@@ -37,7 +52,7 @@ export class BankService {
     return this.bankRepo.findOneCachedBy(currency, { currency, send: true });
   }
 
-  // --- BankSelector --- //
+  // --- BANK SELECTOR --- //
   async getBank({ amount, currency, paymentMethod, userData }: BankSelectorInput): Promise<Bank> {
     const frickAmountLimit = 9000;
     const fallBackCurrency = 'EUR';
@@ -74,25 +89,22 @@ export class BankService {
   }
 
   static isBankMatching(asset: Asset, accountIban: string): boolean {
-    switch (asset.blockchain as string) {
-      case 'MaerkiBaumann':
-        return (
-          (asset.dexName === 'EUR' && accountIban === 'CH6808573177975201814') ||
-          (asset.dexName === 'CHF' && accountIban === 'CH3408573177975200001')
-        );
+    const bankName = this.blockchainToBankName(asset.blockchain);
+    if (!bankName) return false;
 
-      case 'Olkypay':
-        return accountIban === 'LU116060002000005040';
-
-      case 'Yapeal':
-        return (
-          (asset.dexName === 'CHF' && accountIban === 'CH7489144562527626887') ||
-          (asset.dexName === 'EUR' && accountIban === 'CH1489144171823255648')
-        );
-    }
+    const expectedIban = this.ibanCache.get(`${bankName}-${asset.dexName}`);
+    return expectedIban === accountIban;
   }
 
   // --- HELPER METHODS --- //
+  private async loadIbanCache(): Promise<void> {
+    const banks = await this.bankRepo.find();
+
+    for (const bank of banks) {
+      BankService.ibanCache.set(`${bank.name}-${bank.currency}`, bank.iban);
+    }
+  }
+
   private getMatchingBank(
     banks: Bank[],
     bankName: string | undefined,
@@ -103,5 +115,18 @@ export class BankService {
       banks.find((b) => (!bankName || b.name === bankName) && b.currency === currencyName && b.receive) ??
       banks.find((b) => (!bankName || b.name === bankName) && b.currency === fallBackCurrencyName && b.receive)
     );
+  }
+
+  private static blockchainToBankName(blockchain: Blockchain): IbanBankName | undefined {
+    switch (blockchain) {
+      case Blockchain.MAERKI_BAUMANN:
+        return IbanBankName.MAERKI;
+      case Blockchain.OLKYPAY:
+        return IbanBankName.OLKY;
+      case Blockchain.YAPEAL:
+        return IbanBankName.YAPEAL;
+      default:
+        return undefined;
+    }
   }
 }

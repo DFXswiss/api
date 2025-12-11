@@ -1,9 +1,6 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import * as IbanTools from 'ibantools';
+import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
@@ -12,8 +9,6 @@ import { VirtualIbanRepository } from './virtual-iban.repository';
 
 @Injectable()
 export class VirtualIbanService {
-  private readonly logger = new DfxLogger(VirtualIbanService);
-
   constructor(
     private readonly virtualIbanRepo: VirtualIbanRepository,
     private readonly bankService: BankService,
@@ -42,7 +37,7 @@ export class VirtualIbanService {
     const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
     if (!bank) throw new BadRequestException('No bank available for this currency');
 
-    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal();
+    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal(bank.iban);
 
     const virtualIban = this.virtualIbanRepo.create({
       userData,
@@ -59,28 +54,19 @@ export class VirtualIbanService {
     return this.virtualIbanRepo.save(virtualIban);
   }
 
-  private async reserveVibanFromYapeal(): Promise<{ iban: string; bban?: string; accountUid?: string }> {
+  private async reserveVibanFromYapeal(
+    accountIban: string,
+  ): Promise<{ iban: string; bban?: string; accountUid?: string }> {
     if (!this.yapealService.isAvailable()) {
-      this.logger.info('YAPEAL not configured, using placeholder IBAN');
-      return { iban: this.generatePlaceholderIban() };
+      throw new ServiceUnavailableException('Yapeal service is not available');
     }
 
-    const result = await this.yapealService.createViban();
+    const result = await this.yapealService.createViban(accountIban);
 
     return {
       iban: result.iban,
       bban: result.bban,
       accountUid: result.accountUid,
     };
-  }
-
-  private generatePlaceholderIban(): string {
-    const bankCode = '89144';
-    const accountNumber = Util.createHash(Date.now().toString() + Math.random().toString())
-      .substring(0, 12)
-      .toUpperCase()
-      .replace(/[^0-9]/g, '0');
-
-    return IbanTools.composeIBAN({ countryCode: 'CH', bban: bankCode + accountNumber });
   }
 }

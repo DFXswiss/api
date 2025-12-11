@@ -5,6 +5,11 @@ import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment
 import { BankTx } from '../entities/bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 
+export interface BankTransactionEvent {
+  accountIban: string;
+  bankTxData: Partial<BankTx>;
+}
+
 @Injectable()
 export class BankTransactionHandler implements OnModuleInit {
   private readonly logger = new DfxLogger(BankTransactionHandler);
@@ -16,10 +21,10 @@ export class BankTransactionHandler implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.yapealWebhookService.transaction$.subscribe((event) => this.handleTransaction(event));
+    this.yapealWebhookService.getTransactionObservable().subscribe((event) => this.handleTransaction(event));
   }
 
-  private async handleTransaction(event: { accountIban: string; bankTxData: Partial<BankTx> }): Promise<void> {
+  private async handleTransaction(event: BankTransactionEvent): Promise<void> {
     try {
       const multiAccounts = await this.specialAccountService.getMultiAccounts();
       await this.bankTxService.create(event.bankTxData, multiAccounts);
