@@ -19,14 +19,6 @@ export class UserAddressInfoDto {
   country?: CountryDto;
 }
 
-export class UserOrganizationDto {
-  @ApiPropertyOptional()
-  name?: string;
-
-  @ApiPropertyOptional({ type: UserAddressInfoDto })
-  address?: UserAddressInfoDto;
-}
-
 export class UserProfileDto {
   @ApiPropertyOptional({ enum: AccountType })
   accountType?: AccountType;
@@ -46,6 +38,6 @@ export class UserProfileDto {
   @ApiPropertyOptional({ type: UserAddressInfoDto, description: 'Primary address based on account type' })
   address?: UserAddressInfoDto;
 
-  @ApiPropertyOptional({ type: UserOrganizationDto, description: 'Organization data (only for business accounts)' })
-  organization?: UserOrganizationDto;
+  @ApiPropertyOptional({ description: 'Organization name (only for business accounts)' })
+  organizationName?: string;
 }
