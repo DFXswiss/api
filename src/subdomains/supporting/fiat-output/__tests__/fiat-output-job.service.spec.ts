@@ -18,6 +18,7 @@ import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return
 import { createDefaultBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createCustomBank, maerkiEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from '../../bank/bank/bank.service';
+import { VirtualIbanService } from '../../bank/virtual-iban/virtual-iban.service';
 import { createCustomLog } from '../../log/__mocks__/log.entity.mock';
 import { LogService } from '../../log/log.service';
 import { createCustomCryptoInput } from '../../payin/entities/__mocks__/crypto-input.entity.mock';
@@ -41,6 +42,7 @@ describe('FiatOutputJobService', () => {
   let bankTxReturnService: BankTxReturnService;
   let bankTxRepeatService: BankTxRepeatService;
   let yapealService: YapealService;
+  let virtualIbanService: VirtualIbanService;
 
   beforeEach(async () => {
     fiatOutputRepo = createMock<FiatOutputRepository>();
@@ -53,7 +55,13 @@ describe('FiatOutputJobService', () => {
     bankTxReturnService = createMock<BankTxReturnService>();
     bankTxRepeatService = createMock<BankTxRepeatService>();
     yapealService = createMock<YapealService>();
+    virtualIbanService = createMock<VirtualIbanService>();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
+
+    // Default mock: no virtual IBANs
+    jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+    jest.spyOn(virtualIbanService, 'getAllActiveVirtualIbans').mockResolvedValue([]);
+    jest.spyOn(virtualIbanService, 'getParentBankIban').mockResolvedValue(null);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -69,6 +77,7 @@ describe('FiatOutputJobService', () => {
         { provide: BankTxReturnService, useValue: bankTxReturnService },
         { provide: BankTxRepeatService, useValue: bankTxRepeatService },
         { provide: YapealService, useValue: yapealService },
+        { provide: VirtualIbanService, useValue: virtualIbanService },
 
         TestUtil.provideConfig(),
       ],
@@ -121,6 +130,62 @@ describe('FiatOutputJobService', () => {
 
       expect(updateCalls[1][0]).toBe(3);
       expect(updateCalls[1][1]).toMatchObject({ originEntityId: 102, accountIban: maerkiEUR.iban });
+    });
+
+    it('should use virtual IBAN when user has one for BuyFiat', async () => {
+      const virtualIban = 'CH1234567890VIBAN';
+
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          type: FiatOutputType.BUY_FIAT,
+          isComplete: false,
+          buyFiats: [createCustomBuyFiat({ id: 100, sell: createCustomSell({ iban: 'DE123456789' }) })],
+        }),
+      ]);
+
+      jest
+        .spyOn(countryService, 'getCountryWithSymbol')
+        .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: true }));
+
+      jest.spyOn(bankService, 'getSenderBank').mockResolvedValue(maerkiEUR);
+
+      // Mock virtual IBAN for user
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue({ iban: virtualIban } as any);
+
+      await service['assignBankAccount']();
+
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: virtualIban });
+    });
+
+    it('should use virtual IBAN for BuyCrypto refund when user has one', async () => {
+      const virtualIban = 'CH1234567890VIBAN';
+
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 1,
+          type: FiatOutputType.BUY_CRYPTO_FAIL,
+          isComplete: false,
+          buyCrypto: createCustomBuyCrypto({ id: 100 }),
+        }),
+      ]);
+
+      jest
+        .spyOn(countryService, 'getCountryWithSymbol')
+        .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: true }));
+
+      jest.spyOn(bankService, 'getSenderBank').mockResolvedValue(maerkiEUR);
+
+      // Mock virtual IBAN for user
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue({ iban: virtualIban } as any);
+
+      await service['assignBankAccount']();
+
+      const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
+      expect(updateCalls[0][0]).toBe(1);
+      expect(updateCalls[0][1]).toMatchObject({ originEntityId: 100, accountIban: virtualIban });
     });
   });
 
