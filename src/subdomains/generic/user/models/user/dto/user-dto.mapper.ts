@@ -8,7 +8,7 @@ import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
-import { UserAddressInfoDto, UserProfileDto } from './user-profile.dto';
+import { UserAddressInfoDto, UserOrganizationDto, UserProfileDto } from './user-profile.dto';
 import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
 
 export class UserDtoMapper {
@@ -86,32 +86,31 @@ export class UserDtoMapper {
   }
 
   static mapProfile(userData: UserData): UserProfileDto {
+    const address = userData.address;
+
     const dto: UserProfileDto = {
       accountType: userData.accountType,
       firstName: userData.firstname,
       lastName: userData.surname,
       mail: userData.mail,
       phone: userData.phone,
-      address: this.mapAddressInfo(
-        userData.street,
-        userData.houseNumber,
-        userData.location,
-        userData.zip,
-        userData.country,
-      ),
-      organizationName: userData.organizationName,
-      organizationAddress: userData.organizationName
-        ? this.mapAddressInfo(
-            userData.organizationStreet,
-            userData.organizationHouseNumber,
-            userData.organizationLocation,
-            userData.organizationZip,
-            userData.organizationCountry,
-          )
-        : undefined,
+      address: this.mapAddressInfo(address.street, address.houseNumber, address.city, address.zip, address.country),
+      organization: this.mapOrganization(userData),
     };
 
     return Object.assign(new UserProfileDto(), dto);
+  }
+
+  private static mapOrganization(userData: UserData): UserOrganizationDto | undefined {
+    const org = userData.organization;
+    if (!org) return undefined;
+
+    const dto: UserOrganizationDto = {
+      name: org.name,
+      address: this.mapAddressInfo(org.street, org.houseNumber, org.location, org.zip, org.country),
+    };
+
+    return Object.assign(new UserOrganizationDto(), dto);
   }
 
   private static mapAddressInfo(

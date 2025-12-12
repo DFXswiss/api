@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { AccountType } from '../../user-data/account-type.enum';
 
@@ -19,6 +19,14 @@ export class UserAddressInfoDto {
   country?: CountryDto;
 }
 
+export class UserOrganizationDto {
+  @ApiPropertyOptional()
+  name?: string;
+
+  @ApiPropertyOptional({ type: UserAddressInfoDto })
+  address?: UserAddressInfoDto;
+}
+
 export class UserProfileDto {
   @ApiPropertyOptional({ enum: AccountType })
   accountType?: AccountType;
@@ -35,12 +43,9 @@ export class UserProfileDto {
   @ApiPropertyOptional()
   phone?: string;
 
-  @ApiPropertyOptional({ type: UserAddressInfoDto })
+  @ApiPropertyOptional({ type: UserAddressInfoDto, description: 'Primary address based on account type' })
   address?: UserAddressInfoDto;
 
-  @ApiPropertyOptional()
-  organizationName?: string;
-
-  @ApiPropertyOptional({ type: UserAddressInfoDto })
-  organizationAddress?: UserAddressInfoDto;
+  @ApiPropertyOptional({ type: UserOrganizationDto, description: 'Organization data (only for business accounts)' })
+  organization?: UserOrganizationDto;
 }
