@@ -20,7 +20,7 @@ import { FiatOutputJobService } from './fiat-output-job.service';
     TypeOrmModule.forFeature([FiatOutput]),
     SharedModule,
     forwardRef(() => BankTxModule),
-    BankModule, // VirtualIbanService is exported from BankModule
+    BankModule,
     BankIntegrationModule,
     forwardRef(() => LiquidityManagementModule),
     LogModule,

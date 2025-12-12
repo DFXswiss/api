@@ -115,7 +115,6 @@ export class FiatOutputJobService {
 
         const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
 
-        // Try to get user's virtual IBAN for BuyFiat and BuyCrypto refunds
         const accountIban = await this.getAccountIbanForEntity(entity, country);
 
         await this.fiatOutputRepo.update(entity.id, {
@@ -129,26 +128,24 @@ export class FiatOutputJobService {
   }
 
   private async getAccountIbanForEntity(entity: FiatOutput, country: any): Promise<string | undefined> {
-    // For BuyFiat and BuyCrypto refunds, try to use user's virtual IBAN
-    if (entity.type === FiatOutputType.BUY_FIAT || entity.type === FiatOutputType.BUY_CRYPTO_FAIL) {
-      const userData = entity.buyFiats?.[0]?.transaction?.userData ?? entity.buyCrypto?.transaction?.userData;
+    // use virtual IBAN if existing
+    if (entity.userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(entity.type)) {
+      const virtualIban = await this.virtualIbanService
+        .getActiveForUserAndCurrency(entity.userData, entity.bankAccountCurrency)
+        .then((virtualIban) => virtualIban?.iban);
 
-      if (userData) {
-        const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(
-          userData,
-          entity.bankAccountCurrency,
-        );
-
-        if (virtualIban) {
-          this.logger.info(`Using virtual IBAN ${virtualIban.iban} for fiat output ${entity.id}`);
-          return virtualIban.iban;
-        }
-      }
+      if (virtualIban) return virtualIban;
     }
 
-    // Fallback to standard bank account selection
+    // fallback to standard bank account selection
     const bank = await this.bankService.getSenderBank(entity.bankAccountCurrency);
     return bank?.isCountryEnabled(country) ? bank.iban : undefined;
+  }
+
+  private async getAllYapealIbans(): Promise<string[]> {
+    const yapealIbans = await this.bankService.getIbansByName(IbanBankName.YAPEAL);
+    const virtualIbans = await this.virtualIbanService.getAllActiveVirtualIbans();
+    return [...yapealIbans, ...virtualIbans];
   }
 
   private async setReadyDate(): Promise<void> {
@@ -166,18 +163,19 @@ export class FiatOutputJobService {
 
     if (entities.every((f) => f.isReadyDate)) return;
 
-    // Build a map of accountIban -> effective bank IBAN (parent bank for vIBANs, otherwise accountIban)
-    // This ensures vIBANs and their parent bank are grouped together for balance calculation
-    const effectiveBankIbanMap = new Map<string, string>();
-    for (const entity of entities) {
-      if (entity.accountIban && !effectiveBankIbanMap.has(entity.accountIban)) {
-        const parentBankIban = await this.virtualIbanService.getParentBankIban(entity.accountIban);
-        effectiveBankIbanMap.set(entity.accountIban, parentBankIban ?? entity.accountIban);
-      }
-    }
+    // group entities by effective bank IBAN
+    const groupedEntities = new Map<string, FiatOutput[]>();
 
-    // Group entities by effective bank IBAN (vIBANs grouped with their parent bank)
-    const groupedEntities = Util.groupByAccessor(entities, (e) => effectiveBankIbanMap.get(e.accountIban));
+    for (const entity of entities) {
+      const baseAccountIban = entity.accountIban
+        ? (await this.virtualIbanService.getBaseAccountIban(entity.accountIban)) ?? entity.accountIban
+        : entity.accountIban;
+
+      if (!groupedEntities.has(baseAccountIban)) {
+        groupedEntities.set(baseAccountIban, []);
+      }
+      groupedEntities.get(baseAccountIban).push(entity);
+    }
 
     const assets = await this.assetService
       .getAssetsWith({ bank: true, balance: true })
@@ -244,10 +242,7 @@ export class FiatOutputJobService {
     )
       return;
 
-    // Exclude all YAPEAL IBANs (main + virtual) from batching - they are transmitted directly
-    const yapealIbans = await this.bankService.getIbansByName(IbanBankName.YAPEAL);
-    const virtualIbans = await this.virtualIbanService.getAllActiveVirtualIbans();
-    const allYapealIbans = [...yapealIbans, ...virtualIbans];
+    const allYapealIbans = await this.getAllYapealIbans();
 
     const entities = await this.fiatOutputRepo.findBy({
       amount: Not(IsNull()),
@@ -318,10 +313,7 @@ export class FiatOutputJobService {
     if (DisabledProcess(Process.FIAT_OUTPUT_YAPEAL_TRANSMISSION)) return;
     if (!this.yapealService.isAvailable()) return;
 
-    // Get both main YAPEAL IBANs and virtual IBANs
-    const yapealIbans = await this.bankService.getIbansByName(IbanBankName.YAPEAL);
-    const virtualIbans = await this.virtualIbanService.getAllActiveVirtualIbans();
-    const allYapealIbans = [...yapealIbans, ...virtualIbans];
+    const allYapealIbans = await this.getAllYapealIbans();
 
     const entities = await this.fiatOutputRepo.find({
       where: {
