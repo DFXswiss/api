@@ -41,6 +41,7 @@ import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
+import { UserProfileDto } from './dto/user-profile.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
@@ -181,6 +182,16 @@ export class UserService {
     const { refCount, refCountActive } = await this.getRefUserCounts(user);
 
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
+  }
+
+  async getUserProfile(userDataId: number): Promise<UserProfileDto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
+
+    return UserDtoMapper.mapProfile(userData);
   }
 
   async createUser(data: Partial<User>, specialCode: string, moderator?: Moderator): Promise<User> {

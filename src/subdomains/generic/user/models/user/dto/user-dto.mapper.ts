@@ -1,11 +1,14 @@
 import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Country } from 'src/shared/models/country/country.entity';
+import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
+import { UserAddressInfoDto, UserProfileDto } from './user-profile.dto';
 import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
 
 export class UserDtoMapper {
@@ -80,5 +83,54 @@ export class UserDtoMapper {
     };
 
     return Object.assign(new ReferralDto(), dto);
+  }
+
+  static mapProfile(userData: UserData): UserProfileDto {
+    const dto: UserProfileDto = {
+      accountType: userData.accountType,
+      firstName: userData.firstname,
+      lastName: userData.surname,
+      mail: userData.mail,
+      phone: userData.phone,
+      address: this.mapAddressInfo(
+        userData.street,
+        userData.houseNumber,
+        userData.location,
+        userData.zip,
+        userData.country,
+      ),
+      organizationName: userData.organizationName,
+      organizationAddress: userData.organizationName
+        ? this.mapAddressInfo(
+            userData.organizationStreet,
+            userData.organizationHouseNumber,
+            userData.organizationLocation,
+            userData.organizationZip,
+            userData.organizationCountry,
+          )
+        : undefined,
+    };
+
+    return Object.assign(new UserProfileDto(), dto);
+  }
+
+  private static mapAddressInfo(
+    street?: string,
+    houseNumber?: string,
+    city?: string,
+    zip?: string,
+    country?: Country,
+  ): UserAddressInfoDto | undefined {
+    if (!street && !city && !zip && !country) return undefined;
+
+    const dto: UserAddressInfoDto = {
+      street,
+      houseNumber,
+      city,
+      zip,
+      country: country ? CountryDtoMapper.entityToDto(country) : undefined,
+    };
+
+    return Object.assign(new UserAddressInfoDto(), dto);
   }
 }
