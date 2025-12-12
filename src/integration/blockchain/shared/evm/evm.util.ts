@@ -106,4 +106,25 @@ export class EvmUtil {
       ? Math.min(+feeInfo.maxFeePerGas, +gasPrice.add(feeInfo.maxPriorityFeePerGas))
       : +feeInfo.gasPrice;
   }
+
+  // --- ERC20 Transfer Utilities --- //
+
+  static readonly ERC20_TRANSFER_SELECTOR = '0xa9059cbb';
+
+  private static readonly ERC20_TRANSFER_INTERFACE = new ethers.utils.Interface([
+    'function transfer(address to, uint256 amount)',
+  ]);
+
+  static encodeErc20Transfer(to: string, amount: EthersNumber): string {
+    return this.ERC20_TRANSFER_INTERFACE.encodeFunctionData('transfer', [to, amount]);
+  }
+
+  static decodeErc20Transfer(data: string): { to: string; amount: EthersNumber } {
+    const decoded = this.ERC20_TRANSFER_INTERFACE.decodeFunctionData('transfer', data);
+    return { to: decoded.to.toLowerCase(), amount: EthersNumber.from(decoded.amount) };
+  }
+
+  static isErc20Transfer(data: string | undefined): boolean {
+    return data?.startsWith(this.ERC20_TRANSFER_SELECTOR) ?? false;
+  }
 }
