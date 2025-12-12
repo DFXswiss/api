@@ -61,7 +61,7 @@ describe('FiatOutputJobService', () => {
     // Default mock: no virtual IBANs
     jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
     jest.spyOn(virtualIbanService, 'getAllActiveVirtualIbans').mockResolvedValue([]);
-    jest.spyOn(virtualIbanService, 'getParentBankIban').mockResolvedValue(null);
+    jest.spyOn(virtualIbanService, 'getBaseAccountIban').mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],

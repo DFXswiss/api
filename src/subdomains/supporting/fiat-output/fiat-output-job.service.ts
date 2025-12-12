@@ -141,13 +141,6 @@ export class FiatOutputJobService {
     const bank = await this.bankService.getSenderBank(entity.bankAccountCurrency);
     return bank?.isCountryEnabled(country) ? bank.iban : undefined;
   }
-
-  private async getAllYapealIbans(): Promise<string[]> {
-    const yapealIbans = await this.bankService.getIbansByName(IbanBankName.YAPEAL);
-    const virtualIbans = await this.virtualIbanService.getAllActiveVirtualIbans();
-    return [...yapealIbans, ...virtualIbans];
-  }
-
   private async setReadyDate(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_READY_DATE)) return;
 
@@ -363,6 +356,12 @@ export class FiatOutputJobService {
         this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
       }
     }
+  }
+
+  private async getAllYapealIbans(): Promise<string[]> {
+    const yapealIbans = await this.bankService.getIbansByName(IbanBankName.YAPEAL);
+    const virtualIbans = await this.virtualIbanService.getAllActiveVirtualIbans();
+    return [...yapealIbans, ...virtualIbans];
   }
 
   private async searchOutgoingBankTx(): Promise<void> {
