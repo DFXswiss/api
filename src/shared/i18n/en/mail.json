@@ -273,7 +273,6 @@
             "title": "Confirm DFX recommendation",
             "salutation": "You have a pending DFX recommendation",
             "message": "Can you confirm {name} ({mail}) for the use of DFX and vouch for him?",
-            "warning": "Only confirm people you really know personally and for whom you can vouch. If the person is involved in a case of fraud, you could also have your account blocked if you confirmed and vouched for this person.",
             "button": "You can simply click on the button below to accept or decline the invitation:<br>[url:Click here]",
             "link": "Or you can use the following link:<br>[url:{urlText}]"
         }

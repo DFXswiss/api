@@ -273,7 +273,6 @@
             "title": "Confirmar recomendación DFX",
             "salutation": "Tienes una recomendación DFX pendiente",
             "message": "¿Puede confirmar {name} ({mail}) para el uso de DFX y responder por él?",
-            "warning": "Solo confirma a personas que conozcas personalmente y por las que puedas responder. Si la persona está involucrada en un caso de fraude, también podrían bloquear tu cuenta si la has confirmado y respondido por ella.",
             "button": "Solo tienes que hacer clic en el botón de abajo para aceptar o rechazar la invitación:<br>[url:haga clic aquí]",
             "link": "O puede utilizar el siguiente enlace:<br>[url:{urlText}]"
         }
