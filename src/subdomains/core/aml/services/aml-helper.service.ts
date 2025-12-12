@@ -164,11 +164,6 @@ export class AmlHelperService {
       }
     }
 
-    // Virtual IBAN user check
-    if (virtualIban && virtualIban.userData.id !== entity.userData.id) {
-      errors.push(AmlError.VIRTUAL_IBAN_USER_MISMATCH);
-    }
-
     if (entity.cryptoInput) {
       // crypto input
       if (!inputAsset.sellable && !entity.cryptoInput.asset.paymentEnabled) errors.push(AmlError.ASSET_NOT_SELLABLE);
@@ -217,6 +212,11 @@ export class AmlHelperService {
         if (nationality && !nationality.bankEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (!DisabledProcess(Process.BANK_RELEASE_CHECK) && !entity.bankTx.bankReleaseDate)
           errors.push(AmlError.BANK_RELEASE_DATE_MISSING);
+
+        // virtual IBAN user check
+        if (virtualIban && virtualIban.userData.id !== entity.userData.id) {
+          errors.push(AmlError.VIRTUAL_IBAN_USER_MISMATCH);
+        }
 
         if (
           blacklist.some((b) =>
