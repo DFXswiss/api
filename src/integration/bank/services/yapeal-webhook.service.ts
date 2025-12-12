@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BankTransactionEvent } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-transaction-handler.service';
 import { CamtStatus, Iso20022Service } from './iso20022.service';
+import { YapealService } from './yapeal.service';
 
 @Injectable()
 export class YapealWebhookService {
@@ -10,7 +11,9 @@ export class YapealWebhookService {
 
   private readonly transactionSubject = new Subject<BankTransactionEvent>();
 
-  processWebhook(payload: any): void {
+  constructor(private readonly yapealService: YapealService) {}
+
+  async processWebhook(payload: any): Promise<void> {
     try {
       const transaction = Iso20022Service.parseCamt054Json(payload);
 
@@ -19,6 +22,24 @@ export class YapealWebhookService {
           `Skipping non-booked transaction ${transaction.accountServiceRef} in state ${transaction.status}`,
         );
         return;
+      }
+
+      // enrich with data from camt.053
+      if (transaction.accountServiceRef && transaction.bookingDate) {
+        const enrichmentData = await this.yapealService.getTransactionEnrichmentData(
+          transaction.accountIban,
+          transaction.accountServiceRef,
+          transaction.bookingDate,
+        );
+
+        if (enrichmentData) {
+          transaction.addressLine1 ??= enrichmentData.addressLine1;
+          transaction.addressLine2 ??= enrichmentData.addressLine2;
+          transaction.country ??= enrichmentData.country;
+          transaction.domainCode ??= enrichmentData.domainCode;
+          transaction.familyCode ??= enrichmentData.familyCode;
+          transaction.subFamilyCode ??= enrichmentData.subFamilyCode;
+        }
       }
 
       this.transactionSubject.next({
@@ -35,17 +56,24 @@ export class YapealWebhookService {
           txCurrency: transaction.currency,
           creditDebitIndicator: transaction.creditDebitIndicator,
           name: transaction.name,
+          addressLine1: transaction.addressLine1,
+          addressLine2: transaction.addressLine2,
+          country: transaction.country,
           iban: transaction.iban,
           accountIban: transaction.accountIban,
           virtualIban: transaction.virtualIban,
           bic: transaction.bic,
           remittanceInfo: transaction.remittanceInfo,
           endToEndId: transaction.endToEndId,
+          domainCode: transaction.domainCode,
+          familyCode: transaction.familyCode,
+          subFamilyCode: transaction.subFamilyCode,
           txRaw: JSON.stringify(payload),
         },
       });
     } catch (e) {
-      this.logger.error('Failed to process YAPEAL webhook:', e);
+      this.logger.error(`Failed to process YAPEAL webhook with payload: ${JSON.stringify(payload)}:`, e);
+      throw new InternalServerErrorException(`Failed to process webhook: ${e.message}`);
     }
   }
 
