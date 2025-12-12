@@ -147,7 +147,7 @@ export class BalancePdfService {
 
     // Fallback to CoinGecko for historical price
     const currencyLower = currency.toLowerCase() as 'usd' | 'eur' | 'chf';
-    // For native coins, pass undefined to use NATIVE_COIN_IDS mapping instead of contract address
+    // For native coins = pass else undefined to use NATIVE_COIN_IDS mapping instead of contract address
     const chainIdForPrice = asset.type === AssetType.COIN ? undefined : asset.chainId;
     return this.coinGeckoService.getHistoricalPriceForAsset(blockchain, chainIdForPrice, date, currencyLower);
   }
