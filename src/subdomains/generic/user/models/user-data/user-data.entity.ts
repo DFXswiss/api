@@ -591,11 +591,11 @@ export class UserData extends IEntity {
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
-          street: this.organizationStreet,
-          houseNumber: this.organizationHouseNumber,
-          city: this.organizationLocation,
-          zip: this.organizationZip,
-          country: this.organizationCountry,
+          street: this.organization.street,
+          houseNumber: this.organization.houseNumber,
+          city: this.organization.location,
+          zip: this.organization.zip,
+          country: this.organization.country,
         }
       : {
           street: this.street,
