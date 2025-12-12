@@ -275,7 +275,6 @@ export class BuyService {
       currency: dto.currency.name,
       paymentMethod: dto.paymentMethod,
       userData: user.userData,
-      user,
     });
 
     const buyDto: BuyPaymentInfoDto = {

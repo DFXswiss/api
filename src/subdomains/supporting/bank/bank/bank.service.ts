@@ -1,9 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank } from './bank.entity';
 import { BankRepository } from './bank.repository';
@@ -13,8 +11,7 @@ export interface BankSelectorInput {
   amount: number;
   currency: string;
   paymentMethod: FiatPaymentMethod;
-  userData: UserData;
-  user?: User;
+  userData?: UserData;
 }
 
 @Injectable()
@@ -51,49 +48,48 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findOneCachedBy(iban, { iban });
   }
 
+  async getReceiveBanks(): Promise<Bank[]> {
+    return this.bankRepo.findCachedBy(`receive`, { receive: true });
+  }
+
   async getSenderBank(currency: string): Promise<Bank> {
-    return this.bankRepo.findOneCachedBy(currency, { currency, send: true });
+    return this.bankRepo.findOneCachedBy(`send-${currency}`, { currency, send: true });
   }
 
   // --- BANK SELECTOR --- //
-  async getBank({ amount, currency, paymentMethod, userData, user }: BankSelectorInput): Promise<Bank> {
-    const frickAmountLimit = 9000;
+  async getBank({ currency, paymentMethod }: BankSelectorInput): Promise<Bank> {
     const fallBackCurrency = 'EUR';
 
-    const banks = await this.getAllBanks();
+    const banks = await this.getReceiveBanks();
 
     // select the matching bank account
     let account: Bank;
 
-    // VIP users get Yapeal (without receive check)
-    if (user?.role === UserRole.VIP) {
-      account = this.getVipBank(banks, IbanBankName.YAPEAL, currency);
+    // instant bank
+    if (!account && paymentMethod === FiatPaymentMethod.INSTANT) {
+      account = this.getMatchingBank(banks, currency, fallBackCurrency, (b) => b.sctInst);
     }
 
-    if (!account && paymentMethod === FiatPaymentMethod.INSTANT) {
-      // instant + bank tx => Revolut
-      if (userData.hasBankTxVerification) {
-        account = this.getMatchingBank(banks, IbanBankName.REVOLUT, currency, fallBackCurrency);
-      }
-      if (!account) {
-        // instant => Olkypay / EUR
-        account = this.getMatchingBank(banks, IbanBankName.OLKY, currency, fallBackCurrency);
-      }
-    }
-    if (!account && (amount > frickAmountLimit || currency === 'USD')) {
-      // amount > 9k => Frick || USD => Frick
-      account = this.getMatchingBank(banks, IbanBankName.FRICK, currency, fallBackCurrency);
-    }
+    // fallback => any active bank
     if (!account) {
-      // default => MB
-      account = this.getMatchingBank(banks, IbanBankName.MAERKI, currency, fallBackCurrency);
-    }
-    if (!account) {
-      // fallback => any active bank
-      account = this.getMatchingBank(banks, undefined, currency);
+      account = this.getMatchingBank(banks, currency, fallBackCurrency);
     }
 
     return account;
+  }
+
+  private getMatchingBank(
+    banks: Bank[],
+    currencyName: string,
+    fallBackCurrencyName: string,
+    selector?: (bank: Bank) => boolean,
+  ): Bank {
+    const matchingBanks = selector ? banks.filter(selector) : banks;
+
+    return (
+      matchingBanks.find((b) => b.currency === currencyName) ??
+      matchingBanks.find((b) => b.currency === fallBackCurrencyName)
+    );
   }
 
   static isBankMatching(asset: Asset, accountIban: string): boolean {
@@ -111,22 +107,6 @@ export class BankService implements OnModuleInit {
     for (const bank of banks) {
       BankService.ibanCache.set(`${bank.name}-${bank.currency}`, bank.iban);
     }
-  }
-
-  private getMatchingBank(
-    banks: Bank[],
-    bankName: string | undefined,
-    currencyName: string,
-    fallBackCurrencyName?: string,
-  ): Bank {
-    return (
-      banks.find((b) => (!bankName || b.name === bankName) && b.currency === currencyName && b.receive) ??
-      banks.find((b) => (!bankName || b.name === bankName) && b.currency === fallBackCurrencyName && b.receive)
-    );
-  }
-
-  private getVipBank(banks: Bank[], bankName: IbanBankName, currencyName: string): Bank | undefined {
-    return banks.find((b) => b.name === bankName && b.currency === currencyName);
   }
 
   private static blockchainToBankName(blockchain: Blockchain): IbanBankName | undefined {

@@ -213,7 +213,7 @@ export class AmlHelperService {
         if (!DisabledProcess(Process.BANK_RELEASE_CHECK) && !entity.bankTx.bankReleaseDate)
           errors.push(AmlError.BANK_RELEASE_DATE_MISSING);
 
-        // Virtual IBAN user check
+        // virtual IBAN user check
         if (virtualIban && virtualIban.userData.id !== entity.userData.id) {
           errors.push(AmlError.VIRTUAL_IBAN_USER_MISMATCH);
         }
