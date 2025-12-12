@@ -1,8 +1,8 @@
 import { Country } from 'src/shared/models/country/country.entity';
+import { Organization } from '../../../organization/organization.entity';
 import { AccountType } from '../../../user-data/account-type.enum';
 import { UserData } from '../../../user-data/user-data.entity';
 import { UserDataStatus } from '../../../user-data/user-data.enum';
-import { Organization } from '../../../organization/organization.entity';
 import { UserDtoMapper } from '../user-dto.mapper';
 
 describe('UserDtoMapper', () => {
@@ -44,7 +44,7 @@ describe('UserDtoMapper', () => {
       expect(result.address).toBeDefined();
       expect(result.address.street).toBe('Teststrasse');
       expect(result.address.city).toBe('Zurich');
-      expect(result.organization).toBeUndefined();
+      expect(result.organizationName).toBeUndefined();
     });
 
     it('should map organization account profile with organization data', () => {
@@ -58,11 +58,6 @@ describe('UserDtoMapper', () => {
 
       const userData = createUserData({
         accountType: AccountType.ORGANIZATION,
-        organizationStreet: 'Firmenstrasse',
-        organizationHouseNumber: '99',
-        organizationLocation: 'Bern',
-        organizationZip: '3000',
-        organizationCountry: createCountry('CH'),
         organization: org,
       });
 
@@ -73,9 +68,8 @@ describe('UserDtoMapper', () => {
       expect(result.address.street).toBe('Firmenstrasse');
       expect(result.address.city).toBe('Bern');
       // Organization data should come from organization entity
-      expect(result.organization).toBeDefined();
-      expect(result.organization.name).toBe('Test AG');
-      expect(result.organization.address.street).toBe('Firmenstrasse');
+      expect(result.organizationName).toBeDefined();
+      expect(result.organizationName).toBe('Test AG');
     });
 
     it('should return undefined organization when not set', () => {
@@ -83,7 +77,7 @@ describe('UserDtoMapper', () => {
 
       const result = UserDtoMapper.mapProfile(userData);
 
-      expect(result.organization).toBeUndefined();
+      expect(result.organizationName).toBeUndefined();
     });
 
     it('should handle empty address fields', () => {
