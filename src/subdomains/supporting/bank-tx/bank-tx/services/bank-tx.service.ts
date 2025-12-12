@@ -28,6 +28,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { DeepPartial, FindOptionsRelations, In, IsNull, LessThan, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
+import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
 import { TransactionService } from '../../../payment/services/transaction.service';
@@ -92,6 +93,7 @@ export class BankTxService implements OnModuleInit {
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,
     private readonly bankDataService: BankDataService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   onModuleInit() {
@@ -492,5 +494,43 @@ export class BankTxService implements OnModuleInit {
 
   get bankBalanceObservable(): Observable<BankBalanceUpdate> {
     return this.bankBalanceSubject.asObservable();
+  }
+
+  async getUserDataForBankTx(bankTx: BankTx, relations?: FindOptionsRelations<UserData>): Promise<UserData | undefined> {
+    // Priority 1: VirtualIban (mandatory if set)
+    if (bankTx.virtualIban) {
+      const virtualIban = await this.virtualIbanService.getByIban(bankTx.virtualIban);
+      return virtualIban?.userData;
+    }
+
+    // Priority 2: BankData via senderAccount (fallback)
+    if (bankTx.senderAccount) {
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+        bankTx.senderAccount,
+        undefined,
+        undefined,
+        { userData: relations ?? true },
+        true,
+      );
+      return bankData?.userData;
+    }
+
+    return undefined;
+  }
+
+  async isBankTxOwnedByUserData(bankTx: BankTx, userDataId: number): Promise<boolean> {
+    // Priority 1: VirtualIban (mandatory if set)
+    if (bankTx.virtualIban) {
+      const virtualIban = await this.virtualIbanService.getByIban(bankTx.virtualIban);
+      return virtualIban?.userData?.id === userDataId;
+    }
+
+    // Priority 2: BankData via senderAccount (fallback)
+    if (bankTx.senderAccount) {
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(bankTx.senderAccount, userDataId);
+      return !!bankData;
+    }
+
+    return false;
   }
 }

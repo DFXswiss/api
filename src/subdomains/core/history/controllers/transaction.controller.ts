@@ -285,9 +285,8 @@ export class TransactionController {
     const buy = await this.buyService.get(jwt.account, +buyId);
     if (!buy) throw new NotFoundException('Buy not found');
 
-    const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
-    if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
-      throw new ForbiddenException('You can only assign your own transaction');
+    const isOwner = await this.bankTxService.isBankTxOwnedByUserData(transaction.bankTx, jwt.account);
+    if (!isOwner) throw new ForbiddenException('You can only assign your own transaction');
 
     await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
   }
@@ -319,11 +318,10 @@ export class TransactionController {
     if (transaction.refundTargetEntity instanceof BankTx) {
       // Unassigned transaction
       if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new NotFoundException('Transaction not found');
-      const bankData = await this.bankDataService
-        .getValidBankDatasForUser(jwt.account)
-        .then((b) => b.find((b) => b.iban === transaction.bankTx.senderAccount));
-      if (jwt.account !== transaction.userData?.id && !bankData)
-        throw new ForbiddenException('You can only refund your own transaction');
+      const isOwner =
+        jwt.account === transaction.userData?.id ||
+        (await this.bankTxService.isBankTxOwnedByUserData(transaction.bankTx, jwt.account));
+      if (!isOwner) throw new ForbiddenException('You can only refund your own transaction');
       if (transaction.refundTargetEntity.bankTxReturn)
         throw new BadRequestException('You can only refund a transaction once');
 
@@ -409,9 +407,8 @@ export class TransactionController {
     if (transaction.userData && jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
     if (!transaction.targetEntity && !transaction.userData) {
-      const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
-      if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
-        throw new ForbiddenException('You can only refund your own transaction');
+      const isOwner = await this.bankTxService.isBankTxOwnedByUserData(transaction.bankTx, jwt.account);
+      if (!isOwner) throw new ForbiddenException('You can only refund your own transaction');
     }
 
     const refundData = this.refundList.get(transaction.id);
