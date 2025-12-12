@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { BankTransactionEvent } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-transaction-handler.service';
 import { CamtStatus, Iso20022Service } from './iso20022.service';
 import { YapealService } from './yapeal.service';
@@ -32,14 +33,7 @@ export class YapealWebhookService {
           transaction.bookingDate,
         );
 
-        if (enrichmentData) {
-          transaction.addressLine1 ??= enrichmentData.addressLine1;
-          transaction.addressLine2 ??= enrichmentData.addressLine2;
-          transaction.country ??= enrichmentData.country;
-          transaction.domainCode ??= enrichmentData.domainCode;
-          transaction.familyCode ??= enrichmentData.familyCode;
-          transaction.subFamilyCode ??= enrichmentData.subFamilyCode;
-        }
+        if (enrichmentData) Object.assign(transaction, Util.removeNullFields(enrichmentData));
       }
 
       this.transactionSubject.next({
@@ -50,10 +44,13 @@ export class YapealWebhookService {
           valueDate: transaction.valueDate,
           amount: transaction.amount,
           currency: transaction.currency,
-          instructedAmount: transaction.amount,
-          instructedCurrency: transaction.currency,
-          txAmount: transaction.amount,
-          txCurrency: transaction.currency,
+          instructedAmount: transaction.instructedAmount,
+          instructedCurrency: transaction.instructedCurrency,
+          txAmount: transaction.txAmount,
+          txCurrency: transaction.txCurrency,
+          exchangeSourceCurrency: transaction.exchangeSourceCurrency,
+          exchangeTargetCurrency: transaction.exchangeTargetCurrency,
+          exchangeRate: transaction.exchangeRate,
           creditDebitIndicator: transaction.creditDebitIndicator,
           name: transaction.name,
           addressLine1: transaction.addressLine1,

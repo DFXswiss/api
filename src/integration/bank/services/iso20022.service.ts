@@ -12,20 +12,31 @@ export interface CamtTransaction {
   accountServiceRef: string;
   bookingDate: Date;
   valueDate: Date;
+
+  creditDebitIndicator: BankTxIndicator;
   amount: number;
   currency: string;
-  creditDebitIndicator: BankTxIndicator;
+  instructedAmount?: number;
+  instructedCurrency?: string;
+  txAmount?: number;
+  txCurrency?: string;
+  exchangeSourceCurrency?: string;
+  exchangeTargetCurrency?: string;
+  exchangeRate?: number;
+
   name?: string;
   addressLine1?: string;
   addressLine2?: string;
   country?: string;
+
   iban?: string;
   bic?: string;
+  accountIban: string;
+  virtualIban?: string;
+
   remittanceInfo?: string;
   endToEndId?: string;
   status: CamtStatus;
-  accountIban: string;
-  virtualIban?: string;
   domainCode?: string;
   familyCode?: string;
   subFamilyCode?: string;
@@ -116,13 +127,30 @@ export class Iso20022Service {
     const familyCode = bkTxCd?.Fmly?.Cd;
     const subFamilyCode = bkTxCd?.Fmly?.SubFmlyCd;
 
+    // currency exchange information
+    const amtDtls = txDetail?.AmtDtls;
+    const instructedAmount = amtDtls?.InstdAmt?.Amt?.Value;
+    const instructedCurrency = amtDtls?.InstdAmt?.Amt?.Ccy;
+    const txAmount = amtDtls?.TxAmt?.Amt?.Value;
+    const txCurrency = amtDtls?.TxAmt?.Amt?.Ccy;
+    const exchangeSourceCurrency = amtDtls?.InstdAmt?.CcyXchg?.SrcCcy;
+    const exchangeTargetCurrency = amtDtls?.InstdAmt?.CcyXchg?.TrgtCcy;
+    const exchangeRate = amtDtls?.InstdAmt?.CcyXchg?.XchgRate;
+
     return {
       accountServiceRef,
       bookingDate,
       valueDate,
+      creditDebitIndicator: entry.CdtDbtInd === 'CDTN' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       amount,
       currency,
-      creditDebitIndicator: entry.CdtDbtInd === 'CDTN' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+      instructedAmount,
+      instructedCurrency,
+      txAmount,
+      txCurrency,
+      exchangeSourceCurrency,
+      exchangeTargetCurrency,
+      exchangeRate,
       name,
       addressLine1,
       addressLine2,
