@@ -273,7 +273,6 @@
             "title": "DFX-Empfehlung bestätigen",
             "salutation": "Du hast eine ausstehende DFX-Empfehlung",
             "message": "Kannst du {name} ({mail}) für die Nutzug von DFX bestätigen und für ihn bürgen?",
-            "warning": "Bestätige nur Personen die du wirklich persönlich kennst und für die du bürgen kannst. Wenn die Person in einen Betrugsfall involviert ist kannst auch du eine Kontosperrung bekommen, wenn du diese Person bestätigt und für sie gebürgt hast.",
             "button": "Du kannst ganz einfach den nachfolgenden Button anklicken, um die Einladung zu bestätigen oder abzulehnen:<br>[url:Klick hier]",
             "link": "Oder du benutzt den nachfolgenden Link:<br>[url:{urlText}]"
         }

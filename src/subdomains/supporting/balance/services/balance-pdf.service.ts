@@ -72,9 +72,9 @@ export class BalancePdfService {
 
     // Get native coin balance at historical block
     const nativeCoinBalance = await this.alchemyService.getNativeCoinBalance(chainId, address, blockNumber);
-    const nativeCoin = assets.find((a) => !a.chainId);
+    const nativeCoin = assets.find((a) => a.type === AssetType.COIN);
     if (nativeCoin && nativeCoinBalance) {
-      const balance = EvmUtil.fromWeiAmount(nativeCoinBalance, 18);
+      const balance = EvmUtil.fromWeiAmount(nativeCoinBalance, nativeCoin.decimals ?? 18);
       if (balance > 0) {
         const price = await this.getHistoricalPrice(nativeCoin, blockchain, date, currency);
         balances.push({
@@ -87,7 +87,7 @@ export class BalancePdfService {
     }
 
     // Get token balances at historical block (parallelized in batches)
-    const tokenAssets = assets.filter((a) => a.chainId != null);
+    const tokenAssets = assets.filter((a) => a.type === AssetType.TOKEN && a.chainId != null);
     const BATCH_SIZE = 10;
 
     for (let i = 0; i < tokenAssets.length; i += BATCH_SIZE) {
@@ -147,7 +147,9 @@ export class BalancePdfService {
 
     // Fallback to CoinGecko for historical price
     const currencyLower = currency.toLowerCase() as 'usd' | 'eur' | 'chf';
-    return this.coinGeckoService.getHistoricalPriceForAsset(blockchain, asset.chainId, date, currencyLower);
+    // For native coins, pass undefined to use NATIVE_COIN_IDS mapping instead of contract address
+    const chainIdForPrice = asset.type === AssetType.COIN ? undefined : asset.chainId;
+    return this.coinGeckoService.getHistoricalPriceForAsset(blockchain, chainIdForPrice, date, currencyLower);
   }
 
   private createPdf(

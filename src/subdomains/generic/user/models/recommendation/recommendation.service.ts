@@ -304,8 +304,6 @@ export class RecommendationService {
                 key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.message`,
                 params: { name: entity.recommended.completeName, mail: entity.recommended.mail },
               },
-              { key: MailKey.SPACE, params: { value: '5' } },
-              { key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.warning` },
               { key: MailKey.SPACE, params: { value: '4' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.button`,
