@@ -155,12 +155,13 @@ export class SwissQRService {
         pdf.path(dfxLogoText).fill('#072440');
         pdf.restore();
 
-        // Creditor address
+        // Sender address (always DFX AG)
+        const sender = this.dfxCreditor();
         pdf.fontSize(12);
         pdf.fillColor('black');
         pdf.font('Helvetica');
         pdf.text(
-          `${billData.creditor.name}\n${billData.creditor.address} ${billData.creditor.buildingNumber}\n${billData.creditor.zip} ${billData.creditor.city}`,
+          `${sender.name}\n${sender.address} ${sender.buildingNumber}\n${sender.zip} ${sender.city}`,
           mm2pt(20),
           mm2pt(35),
           {

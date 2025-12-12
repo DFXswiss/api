@@ -10,10 +10,10 @@ export class YapealWebhookController {
 
   @Post('webhook')
   @ApiExcludeEndpoint()
-  handleYapealWebhook(@Headers('x-api-key') apiKey: string, @Body() payload: any): { received: boolean } {
+  async handleYapealWebhook(@Headers('x-api-key') apiKey: string, @Body() payload: any): Promise<{ received: boolean }> {
     this.validateApiKey(apiKey);
 
-    this.yapealWebhookService.processWebhook(payload);
+    await this.yapealWebhookService.processWebhook(payload);
 
     return { received: true };
   }

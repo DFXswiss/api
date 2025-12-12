@@ -17,6 +17,7 @@ import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/b
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import {
@@ -50,6 +51,7 @@ export class BuyCryptoPreparationService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly bankTxService: BankTxService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -157,6 +159,10 @@ export class BuyCryptoPreparationService {
               )
             : undefined;
 
+        const virtualIban = entity.bankTx?.virtualIban
+          ? await this.virtualIbanService.getByIban(entity.bankTx.virtualIban)
+          : undefined;
+
         // check if amlCheck changed (e.g. reset or refund)
         if (
           entity.amlCheck === CheckStatus.PENDING &&
@@ -179,6 +185,7 @@ export class BuyCryptoPreparationService {
             ibanCountry,
             refUser,
             ipLogCountries,
+            virtualIban,
           ),
         );
 

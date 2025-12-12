@@ -18,6 +18,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -522,6 +523,7 @@ export class BuyCrypto extends IEntity {
     ibanCountry: Country,
     refUser?: User,
     ipLogCountries?: string[],
+    virtualIban?: VirtualIban,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...AmlHelperService.getAmlResult(
@@ -538,6 +540,7 @@ export class BuyCrypto extends IEntity {
         refUser,
         banks,
         ipLogCountries,
+        virtualIban,
       ),
       amountInChf,
       amountInEur,

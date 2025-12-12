@@ -37,6 +37,7 @@ export enum AmlReason {
   MANUAL_CHECK_IP_PHONE = 'ManualCheckIpPhone',
   MANUAL_CHECK_IP_COUNTRY_PHONE = 'ManualCheckIpCountryPhone',
   BANK_RELEASE_PENDING = 'BankReleasePending',
+  VIRTUAL_IBAN_USER_MISMATCH = 'VirtualIbanUserMismatch',
 }
 
 export const KycAmlReasons = [
