@@ -61,8 +61,12 @@ export class VirtualIbanService {
   async getByIban(iban: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOneCached(iban, {
       where: { iban },
-      relations: { userData: true },
+      relations: { userData: true, bank: true },
     });
+  }
+
+  async getBaseAccountIban(iban: string): Promise<string | undefined> {
+    return this.getByIban(iban).then((viban) => viban?.bank.iban);
   }
 
   async getVirtualIbanByKey(key: string, value: any): Promise<VirtualIban> {
@@ -81,6 +85,14 @@ export class VirtualIbanService {
       .leftJoinAndSelect('virtualIban.bank', 'bank')
       .where(`${key.includes('.') ? key : `virtualIban.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getAllActiveVirtualIbans(): Promise<string[]> {
+    const virtualIbans = await this.virtualIbanRepo.find({
+      where: { active: true, status: VirtualIbanStatus.ACTIVE },
+      select: { iban: true },
+    });
+    return virtualIbans.map((v) => v.iban);
   }
 
   private async reserveVibanFromYapeal(

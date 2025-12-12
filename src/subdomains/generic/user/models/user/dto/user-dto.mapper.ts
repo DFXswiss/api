@@ -1,11 +1,13 @@
 import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
+import { UserProfileDto } from './user-profile.dto';
 import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
 
 export class UserDtoMapper {
@@ -80,5 +82,21 @@ export class UserDtoMapper {
     };
 
     return Object.assign(new ReferralDto(), dto);
+  }
+
+  static mapProfile(userData: UserData): UserProfileDto {
+    const dto: UserProfileDto = {
+      accountType: userData.accountType,
+      firstName: userData.firstname,
+      lastName: userData.surname,
+      mail: userData.mail,
+      phone: userData.phone,
+      address: userData.address.country
+        ? { ...userData.address, country: CountryDtoMapper.entityToDto(userData.address.country) }
+        : undefined,
+      organizationName: userData.organization?.name,
+    };
+
+    return Object.assign(new UserProfileDto(), dto);
   }
 }

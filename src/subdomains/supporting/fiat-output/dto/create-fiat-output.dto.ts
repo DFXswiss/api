@@ -67,4 +67,12 @@ export class CreateFiatOutputDto {
   @IsOptional()
   @IsString()
   bic?: string;
+
+  @IsOptional()
+  @IsString()
+  zip?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
 }
