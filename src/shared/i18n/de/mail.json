@@ -272,7 +272,7 @@
         "confirmation": {
             "title": "DFX-Empfehlung bestätigen",
             "salutation": "Du hast eine ausstehende DFX-Empfehlung",
-            "message": "Kannst du {name} ({mail}) für die Nutzug von DFX bestätigen?",
+            "message": "Kannst du {name} ({mail}) für die Nutzung von DFX bestätigen?",
             "button": "Du kannst ganz einfach den nachfolgenden Button anklicken, um die Einladung zu bestätigen oder abzulehnen:<br>[url:Klick hier]",
             "link": "Oder du benutzt den nachfolgenden Link:<br>[url:{urlText}]"
         }
