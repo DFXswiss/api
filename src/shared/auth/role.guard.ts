@@ -16,7 +16,7 @@ class RoleGuardClass implements CanActivate {
   constructor(private readonly entryRole: UserRole) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const userRole = context.switchToHttp().getRequest().user.role;
+    const userRole = context.switchToHttp().getRequest().user?.role;
     return this.entryRole === userRole || this.additionalRoles[this.entryRole]?.includes(userRole);
   }
 }

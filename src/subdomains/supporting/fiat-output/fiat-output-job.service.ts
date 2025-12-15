@@ -352,8 +352,12 @@ export class FiatOutputJobService {
           isTransmittedDate: new Date(),
           isApprovedDate: new Date(),
         });
-      } catch (e) {
-        this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
+      } catch (e: any) {
+        const errorDetails = e?.response?.data || e?.message || e;
+        this.logger.error(
+          `Failed to transmit YAPEAL payment for fiat output ${entity.id}. Status: ${e?.response?.status}. Error:`,
+          errorDetails,
+        );
       }
     }
   }
