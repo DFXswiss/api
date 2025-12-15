@@ -232,7 +232,10 @@ export class BuyFiatPreparationService {
       },
       relations: {
         sell: true,
-        cryptoInput: { paymentLinkPayment: { link: { route: { user: { userData: true } } } }, paymentQuote: true },
+        cryptoInput: {
+          paymentLinkPayment: { link: { route: { user: { userData: { organization: true } } } } },
+          paymentQuote: true,
+        },
       },
     });
 
