@@ -23,9 +23,12 @@ export class OrganizationService {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.ORGANIZATION_SYNC, timeout: 1800 })
   async syncOrganization() {
-    const entities = await this.userDataRepo.findBy({
-      organization: { id: IsNull() },
-      accountType: In([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP]),
+    const entities = await this.userDataRepo.find({
+      where: {
+        organization: { id: IsNull() },
+        accountType: In([AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP]),
+      },
+      relations: { organizationCountry: true },
     });
 
     for (const entity of entities) {
