@@ -37,11 +37,7 @@ export class DEuroAdapter extends FrankencoinBasedAdapter {
       const txHash = order.correlationId;
 
       try {
-        const receipt = await client.getTxReceipt(txHash);
-        if (receipt && receipt.status === 1) {
-          return true;
-        }
-        return false;
+        return await client.isTxComplete(txHash);
       } catch {
         return false;
       }
@@ -56,7 +52,7 @@ export class DEuroAdapter extends FrankencoinBasedAdapter {
         return this.validateBridgeInParams(params);
 
       case DEuroAdapterCommands.BRIDGE_OUT:
-        return false; // Not yet implemented
+        return false; // not yet implemented
 
       default:
         throw new Error(`Command ${command} not supported by DEuroAdapter`);
