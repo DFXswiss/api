@@ -90,7 +90,7 @@ export class CustodyPdfService {
 
     // Fallback to CoinGecko for historical price
     const currencyLower = currency.toLowerCase() as 'usd' | 'eur' | 'chf';
-    return this.coinGeckoService.getHistoricalPriceForAsset(asset.blockchain, asset.chainId, date, currencyLower);
+    return this.coinGeckoService.getHistoricalPriceForAsset(asset, date, currencyLower);
   }
 
   private mapLanguage(symbol?: string): PdfLanguage {

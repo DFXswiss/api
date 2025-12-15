@@ -85,7 +85,6 @@ export enum Process {
   AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
   ZANO_ASSET_WHITELIST = 'ZanoAssetWhitelist',
   TRADE_APPROVAL_DATE = 'TradeApprovalDate',
-  USER_DATA_WALLET_SYNC = 'UserDataWalletSync'
 }
 
 const safetyProcesses: Process[] = [

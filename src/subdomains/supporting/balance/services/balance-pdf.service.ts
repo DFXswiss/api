@@ -76,7 +76,7 @@ export class BalancePdfService {
     if (nativeCoin && nativeCoinBalance) {
       const balance = EvmUtil.fromWeiAmount(nativeCoinBalance, nativeCoin.decimals ?? 18);
       if (balance > 0) {
-        const price = await this.getHistoricalPrice(nativeCoin, blockchain, date, currency);
+        const price = await this.getHistoricalPrice(nativeCoin, date, currency);
         balances.push({
           asset: nativeCoin,
           balance,
@@ -104,7 +104,7 @@ export class BalancePdfService {
             );
             const balance = EvmUtil.fromWeiAmount(rawBalance, asset.decimals ?? 18);
             if (balance > 0) {
-              const price = await this.getHistoricalPrice(asset, blockchain, date, currency);
+              const price = await this.getHistoricalPrice(asset, date, currency);
               return {
                 asset,
                 balance,
@@ -126,12 +126,7 @@ export class BalancePdfService {
     return PdfUtil.sortBalancesByValue(balances);
   }
 
-  private async getHistoricalPrice(
-    asset: Asset,
-    blockchain: Blockchain,
-    date: Date,
-    currency: PriceCurrency,
-  ): Promise<number | undefined> {
+  private async getHistoricalPrice(asset: Asset, date: Date, currency: PriceCurrency): Promise<number | undefined> {
     // First, check local database for historical price
     const localPrice = await this.assetPricesService.getAssetPriceForDate(asset.id, date);
     if (localPrice) {
@@ -147,9 +142,7 @@ export class BalancePdfService {
 
     // Fallback to CoinGecko for historical price
     const currencyLower = currency.toLowerCase() as 'usd' | 'eur' | 'chf';
-    // For native coins, pass undefined to use NATIVE_COIN_IDS mapping instead of contract address
-    const chainIdForPrice = asset.type === AssetType.COIN ? undefined : asset.chainId;
-    return this.coinGeckoService.getHistoricalPriceForAsset(blockchain, chainIdForPrice, date, currencyLower);
+    return this.coinGeckoService.getHistoricalPriceForAsset(asset, date, currencyLower);
   }
 
   private createPdf(
