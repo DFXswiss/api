@@ -321,7 +321,7 @@ export class FiatOutputJobService {
     for (const entity of entities) {
       try {
         const msgId = `YAPEAL-${entity.id}-${Date.now()}`;
-        const endToEndId = `E2E-${entity.id}`;
+        const endToEndId = entity.endToEndId ?? `E2E-${entity.id}`;
 
         const payment: Pain001Payment = {
           messageId: msgId,
