@@ -455,7 +455,7 @@ export class TransactionHelper implements OnModuleInit {
     statementType: TxStatementType,
   ): Promise<TxStatementDetails> {
     const transaction = await this.transactionService.getTransactionById(txId, {
-      userData: true,
+      userData: { organization: true },
       buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
