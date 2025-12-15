@@ -1118,9 +1118,15 @@ export class KycService {
         };
 
       case KycStepName.DFX_APPROVAL:
-        return lastTry && !lastTry.isFailed && !lastTry.isCanceled
-          ? { nextStep: undefined }
-          : { nextStep: { name: nextStep, preventDirectEvaluation } };
+        const approvalSteps = user.getStepsWith(KycStepName.DFX_APPROVAL);
+        if (
+          (approvalSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) &&
+            !approvalSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED))) ||
+          (lastTry && !lastTry.isFailed && !lastTry.isCanceled)
+        )
+          return { nextStep: undefined };
+
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       default:
         return { nextStep: undefined };
