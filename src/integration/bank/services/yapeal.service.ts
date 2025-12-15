@@ -190,24 +190,30 @@ export class YapealService {
 
     const { baseUrl, apiKey, adminUid, partnershipUid, cert, key, rootCa } = Config.bank.yapeal;
 
-    return this.http.request<T>({
-      url: `${baseUrl}/${url}`,
-      method,
-      data,
-      httpsAgent: new https.Agent({
-        cert,
-        key,
-        ...(rootCa && { ca: rootCa }),
-      }),
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        ...(includePartnerHeaders && {
-          'x-partnership-uid': partnershipUid,
-          'x-partner-uid': adminUid,
+    try {
+      return await this.http.request<T>({
+        url: `${baseUrl}/${url}`,
+        method,
+        data,
+        httpsAgent: new https.Agent({
+          cert,
+          key,
+          ...(rootCa && { ca: rootCa }),
         }),
-      },
-    });
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          ...(includePartnerHeaders && {
+            'x-partnership-uid': partnershipUid,
+            'x-partner-uid': adminUid,
+          }),
+        },
+      });
+    } catch (error) {
+      const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
+
+      throw new Error(`YAPEAL API error (${method} ${url}): ${message}`);
+    }
   }
 }
