@@ -272,7 +272,7 @@
         "confirmation": {
             "title": "Confirm DFX recommendation",
             "salutation": "You have a pending DFX recommendation",
-            "message": "Can you confirm {name} ({mail}) for the use of DFX and vouch for him?",
+            "message": "Can you confirm {name} ({mail}) for the use of DFX?",
             "button": "You can simply click on the button below to accept or decline the invitation:<br>[url:Click here]",
             "link": "Or you can use the following link:<br>[url:{urlText}]"
         }

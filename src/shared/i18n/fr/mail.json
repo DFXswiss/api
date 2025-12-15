@@ -272,7 +272,7 @@
         "confirmation": {
             "title": "Confirmer la recommandation DFX",
             "salutation": "Vous avez une recommandation DFX en attente",
-            "message": "Pouvez-vous confirmer {name} ({mail}) pour l'utilisation de DFX et vous porter garant pour lui ?",
+            "message": "Pouvez-vous confirmer {name} ({mail}) pour l'utilisation de DFX ?",
             "button": "Il vous suffit de cliquer sur le bouton ci-dessous pour accepter ou refuser l'invitation:<br>[url:cliquez ici]",
             "link": "Ou vous pouvez utiliser le lien suivant:<br>[url:{urlText}]"
         }
