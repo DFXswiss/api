@@ -3,12 +3,11 @@ import { TronWalletProvider } from '@tatumio/tron-wallet-provider';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
-import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
-import { BlockchainClient, BlockchainToken } from '../shared/util/blockchain-client';
+import { BlockchainClient } from '../shared/util/blockchain-client';
 import { TronTransactionMapper } from './dto/tron-transaction.mapper';
 import { TronChainParameterDto, TronTransactionDto, TronTransactionResponse } from './dto/tron.dto';
 import { TronWallet } from './tron-wallet';
@@ -16,8 +15,6 @@ import { TronUtil } from './tron.util';
 
 export class TronClient extends BlockchainClient {
   private readonly wallet: TronWallet;
-
-  private readonly tokens = new AsyncCache<BlockchainToken>();
 
   private tatumSdk: Tron;
 
@@ -98,35 +95,6 @@ export class TronClient extends BlockchainClient {
     }
 
     return false;
-  }
-
-  async getToken(asset: Asset): Promise<BlockchainToken> {
-    return this.getTokenByAddress(asset.chainId);
-  }
-
-  private async getTokenByAddress(address: string): Promise<BlockchainToken> {
-    return this.tokens.get(address, async () => {
-      const decimals = await this.http
-        .post<any>(
-          Config.blockchain.tron.tronRpcUrl,
-          {
-            jsonrpc: '2.0',
-            method: 'eth_call',
-            params: [
-              {
-                to: TronUtil.convertToEvmAddress(address),
-                data: '0x313ce567', // keccak256 of "decimals()"
-              },
-              'latest',
-            ],
-            id: 1,
-          },
-          this.httpConfig(),
-        )
-        .then((r) => r.result);
-
-      return new BlockchainToken(address, Number(decimals));
-    });
   }
 
   async getCreateAccountFee(): Promise<number> {

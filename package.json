@@ -31,6 +31,7 @@
     "@defichain/whale-api-client": "^3.39.1",
     "@deuro/eurocoin": "^1.0.16",
     "@dhedge/v2-sdk": "^1.11.1",
+    "@emurgo/cardano-serialization-lib-nodejs": "^15.0.3",
     "@eth-optimism/sdk": "^3.3.3",
     "@frankencoin/zchf": "^0.2.36",
     "@maticnetwork/maticjs": "^3.9.6",

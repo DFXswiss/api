@@ -19,6 +19,5 @@ export abstract class BlockchainClient {
   abstract getTokenBalance(asset: Asset, address?: string): Promise<number>;
   abstract getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]>;
   abstract isTxComplete(txHash: string, confirmations?: number): Promise<boolean>;
-  abstract getToken(asset: Asset): Promise<BlockchainCurrency>;
   abstract sendSignedTransaction(tx: string): Promise<SignedTransactionResponse>;
 }

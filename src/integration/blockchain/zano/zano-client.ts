@@ -66,10 +66,6 @@ export class ZanoClient extends BlockchainClient {
     return Config.blockchain.zano.fee;
   }
 
-  async getToken(asset: Asset): Promise<BlockchainToken> {
-    return this.getTokenByAssetId(asset.chainId);
-  }
-
   private async getTokenByAssetId(assetId: string): Promise<BlockchainToken> {
     return this.tokens.get(assetId, async () => {
       const params = this.httpParams('get_asset_info', {

@@ -24,6 +24,7 @@ import { CryptoService } from './shared/services/crypto.service';
 import { SolanaModule } from './solana/solana.module';
 import { SparkModule } from './spark/spark.module';
 import { TronModule } from './tron/tron.module';
+import { CardanoModule } from './cardano/cardano.module';
 import { ZanoModule } from './zano/zano.module';
 
 @Module({
@@ -50,6 +51,7 @@ import { ZanoModule } from './zano/zano.module';
     RailgunModule,
     SolanaModule,
     TronModule,
+    CardanoModule,
     CitreaTestnetModule,
     RealUnitBlockchainModule,
   ],
@@ -73,6 +75,7 @@ import { ZanoModule } from './zano/zano.module';
     RailgunModule,
     SolanaModule,
     TronModule,
+    CardanoModule,
     CitreaTestnetModule,
     CryptoService,
     BlockchainRegistryService,

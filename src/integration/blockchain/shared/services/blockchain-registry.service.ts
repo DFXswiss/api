@@ -15,6 +15,8 @@ import { SolanaService } from '../../solana/services/solana.service';
 import { SolanaClient } from '../../solana/solana-client';
 import { TronService } from '../../tron/services/tron.service';
 import { TronClient } from '../../tron/tron-client';
+import { CardanoService } from '../../cardano/services/cardano.service';
+import { CardanoClient } from '../../cardano/cardano-client';
 import { CitreaTestnetService } from '../../citrea-testnet/citrea-testnet.service';
 import { ZanoService } from '../../zano/services/zano.service';
 import { ZanoClient } from '../../zano/zano-client';
@@ -23,8 +25,8 @@ import { EvmClient } from '../evm/evm-client';
 import { EvmService } from '../evm/evm.service';
 import { L2BridgeEvmClient } from '../evm/interfaces';
 
-type BlockchainClientType = EvmClient | BitcoinClient | MoneroClient | ZanoClient | SolanaClient | TronClient;
-type BlockchainServiceType = EvmService | BitcoinService | MoneroService | ZanoService | SolanaService | TronService;
+type BlockchainClientType = EvmClient | BitcoinClient | MoneroClient | ZanoClient | SolanaClient | TronClient | CardanoClient;
+type BlockchainServiceType = EvmService | BitcoinService | MoneroService | ZanoService | SolanaService | TronService | CardanoService;
 
 @Injectable()
 export class BlockchainRegistryService {
@@ -42,6 +44,7 @@ export class BlockchainRegistryService {
     private readonly zanoService: ZanoService,
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
+    private readonly cardanoService: CardanoService,
     private readonly citreaTestnetService: CitreaTestnetService,
   ) {}
 
@@ -90,6 +93,8 @@ export class BlockchainRegistryService {
         return this.solanaService;
       case Blockchain.TRON:
         return this.tronService;
+      case Blockchain.CARDANO:
+        return this.cardanoService;
       case Blockchain.CITREA_TESTNET:
         return this.citreaTestnetService;
 
