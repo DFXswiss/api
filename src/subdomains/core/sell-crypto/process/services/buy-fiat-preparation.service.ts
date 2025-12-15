@@ -429,6 +429,56 @@ export class BuyFiatPreparationService {
         );
       }
     }
+
+    // weekly payouts (first business day of the week)
+    if (this.isWeeklyPayoutDay()) {
+      const startOfWeek = this.getStartOfWeek();
+
+      const weeklyOutputs = buyFiatsToPayout.filter(
+        (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.WEEKLY && bf.created < startOfWeek,
+      );
+      const sellGroups = Util.groupByAccessor(
+        weeklyOutputs,
+        (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
+      );
+
+      for (const buyFiats of sellGroups.values()) {
+        await this.fiatOutputService.createInternal(
+          FiatOutputType.BUY_FIAT,
+          { buyFiats },
+          buyFiats[0].id,
+          buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+        );
+      }
+    }
+  }
+
+  private isWeeklyPayoutDay(): boolean {
+    const today = new Date();
+    if (isBankHoliday(today)) return false;
+
+    // check if all days from Monday until yesterday were bank holidays
+    const monday = this.getStartOfWeek();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    for (let date = new Date(monday); date <= yesterday; date.setDate(date.getDate() + 1)) {
+      if (!isBankHoliday(date)) return false;
+    }
+
+    return true;
+  }
+
+  private getStartOfWeek(): Date {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+    const monday = new Date(today);
+    monday.setDate(monday.getDate() - daysFromMonday);
+    monday.setHours(0, 0, 0, 0);
+
+    return monday;
   }
 
   async chargebackTx(): Promise<void> {
