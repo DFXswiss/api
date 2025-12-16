@@ -877,7 +877,7 @@ export class Configuration {
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
       api: {
-        url: process.env.REALUNIT_API_URL ?? 'https://ext.aktionariat.com/realunit',
+        url: process.env.REALUNIT_API_URL,
         key: process.env.REALUNIT_API_KEY,
       },
       bank: {
