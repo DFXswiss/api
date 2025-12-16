@@ -45,6 +45,7 @@ export interface CamtTransaction {
 export interface Party {
   name: string;
   address?: string;
+  houseNumber?: string;
   zip?: string;
   city?: string;
   country: string;
@@ -370,6 +371,7 @@ export class Iso20022Service {
                   Nm: payment.creditor.name,
                   PstlAdr: {
                     ...(payment.creditor.address && { StrtNm: payment.creditor.address }),
+                    ...(payment.creditor.houseNumber && { BldgNb: payment.creditor.houseNumber }),
                     ...(payment.creditor.zip && { PstCd: payment.creditor.zip }),
                     ...(payment.creditor.city && { TwnNm: payment.creditor.city }),
                     Ctry: payment.creditor.country,

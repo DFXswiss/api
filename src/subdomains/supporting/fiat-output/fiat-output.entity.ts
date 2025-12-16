@@ -85,6 +85,9 @@ export class FiatOutput extends IEntity {
   address?: string;
 
   @Column({ length: 256, nullable: true })
+  houseNumber?: string;
+
+  @Column({ length: 256, nullable: true })
   zip?: string;
 
   @Column({ length: 256, nullable: true })
