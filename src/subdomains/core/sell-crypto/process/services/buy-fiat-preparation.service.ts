@@ -26,6 +26,7 @@ import {
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
+import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 import { BuyFiatService } from './buy-fiat.service';
@@ -407,78 +408,40 @@ export class BuyFiatPreparationService {
       await this.fiatOutputService.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat] }, buyFiat.id);
     }
 
-    // daily payouts
+    // batched payouts (business days only)
     if (!isBankHoliday()) {
+      // daily
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
-      const dailyOutputs = buyFiatsToPayout.filter(
-        (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
-      );
-      const sellGroups = Util.groupByAccessor(
-        dailyOutputs,
-        (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
-      );
+      await this.processBatchedPayout(buyFiatsToPayout, PayoutFrequency.DAILY, startOfDay);
 
-      for (const buyFiats of sellGroups.values()) {
-        await this.fiatOutputService.createInternal(
-          FiatOutputType.BUY_FIAT,
-          { buyFiats },
-          buyFiats[0].id,
-          buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
-        );
-      }
-    }
+      // weekly
+      const startOfWeek = new Date();
+      startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+      startOfWeek.setHours(0, 0, 0, 0);
 
-    // weekly payouts (first business day of the week)
-    if (this.isWeeklyPayoutDay()) {
-      const startOfWeek = this.getStartOfWeek();
-
-      const weeklyOutputs = buyFiatsToPayout.filter(
-        (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.WEEKLY && bf.created < startOfWeek,
-      );
-      const sellGroups = Util.groupByAccessor(
-        weeklyOutputs,
-        (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
-      );
-
-      for (const buyFiats of sellGroups.values()) {
-        await this.fiatOutputService.createInternal(
-          FiatOutputType.BUY_FIAT,
-          { buyFiats },
-          buyFiats[0].id,
-          buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
-        );
-      }
+      await this.processBatchedPayout(buyFiatsToPayout, PayoutFrequency.WEEKLY, startOfWeek);
     }
   }
 
-  private isWeeklyPayoutDay(): boolean {
-    const today = new Date();
-    if (isBankHoliday(today)) return false;
+  private async processBatchedPayout(buyFiats: BuyFiat[], frequency: PayoutFrequency, cutoffDate: Date): Promise<void> {
+    const outputs = buyFiats.filter(
+      (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === frequency && bf.created < cutoffDate,
+    );
+    const sellGroups = Util.groupByAccessor(
+      outputs,
+      (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
+    );
 
-    // check if all days from Monday until yesterday were bank holidays
-    const monday = this.getStartOfWeek();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    for (let date = new Date(monday); date <= yesterday; date.setDate(date.getDate() + 1)) {
-      if (!isBankHoliday(date)) return false;
+    for (const buyFiats of sellGroups.values()) {
+      await this.fiatOutputService.createInternal(
+        FiatOutputType.BUY_FIAT,
+        { buyFiats },
+        buyFiats[0].id,
+        buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+      );
     }
-
-    return true;
-  }
-
-  private getStartOfWeek(): Date {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-
-    const monday = new Date(today);
-    monday.setDate(monday.getDate() - daysFromMonday);
-    monday.setHours(0, 0, 0, 0);
-
-    return monday;
   }
 
   async chargebackTx(): Promise<void> {
