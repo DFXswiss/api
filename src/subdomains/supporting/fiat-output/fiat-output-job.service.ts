@@ -16,6 +16,7 @@ import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.se
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
+import { Bank } from '../bank/bank/bank.entity';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { VirtualIbanService } from '../bank/virtual-iban/virtual-iban.service';
@@ -115,11 +116,12 @@ export class FiatOutputJobService {
 
         const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
 
-        const accountIban = await this.getAccountIbanForEntity(entity, country);
+        const { accountIban, bank } = await this.getAccountIbanForEntity(entity, country);
 
         await this.fiatOutputRepo.update(entity.id, {
           originEntityId: entity.originEntity?.id,
           accountIban,
+          bank,
         });
       } catch (e) {
         this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
@@ -127,19 +129,25 @@ export class FiatOutputJobService {
     }
   }
 
-  private async getAccountIbanForEntity(entity: FiatOutput, country: any): Promise<string | undefined> {
+  private async getAccountIbanForEntity(
+    entity: FiatOutput,
+    country: any,
+  ): Promise<{ accountIban: string; bank: Bank }> {
     // use virtual IBAN if existing
     if (entity.userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(entity.type)) {
-      const virtualIban = await this.virtualIbanService
-        .getActiveForUserAndCurrency(entity.userData, entity.bankAccountCurrency)
-        .then((virtualIban) => virtualIban?.iban);
+      const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(
+        entity.userData,
+        entity.bankAccountCurrency,
+      );
 
-      if (virtualIban) return virtualIban;
+      if (virtualIban) return { accountIban: virtualIban.iban, bank: virtualIban.bank };
     }
 
     // fallback to standard bank account selection
     const bank = await this.bankService.getSenderBank(entity.bankAccountCurrency);
-    return bank?.isCountryEnabled(country) ? bank.iban : undefined;
+    return bank?.isCountryEnabled(country)
+      ? { accountIban: bank.iban, bank }
+      : { accountIban: undefined, bank: undefined };
   }
   private async setReadyDate(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_READY_DATE)) return;
@@ -235,14 +243,12 @@ export class FiatOutputJobService {
     )
       return;
 
-    const allYapealIbans = await this.getAllYapealIbans();
-
     const entities = await this.fiatOutputRepo.findBy({
       amount: Not(IsNull()),
       isReadyDate: Not(IsNull()),
       batchId: IsNull(),
       isComplete: false,
-      accountIban: Not(In(allYapealIbans)),
+      bank: { name: Not(IbanBankName.YAPEAL) },
     });
 
     let currentBatch: FiatOutput[] = [];
@@ -306,15 +312,13 @@ export class FiatOutputJobService {
     if (DisabledProcess(Process.FIAT_OUTPUT_YAPEAL_TRANSMISSION)) return;
     if (!this.yapealService.isAvailable()) return;
 
-    const allYapealIbans = await this.getAllYapealIbans();
-
     const entities = await this.fiatOutputRepo.find({
       where: {
         isReadyDate: Not(IsNull()),
         isTransmittedDate: IsNull(),
         yapealMsgId: IsNull(),
         isComplete: false,
-        accountIban: In(allYapealIbans),
+        bank: { name: IbanBankName.YAPEAL },
       },
     });
 
