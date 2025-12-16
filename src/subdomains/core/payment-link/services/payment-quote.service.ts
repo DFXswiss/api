@@ -135,7 +135,7 @@ export class PaymentQuoteService {
   async getConfirmingQuotes(): Promise<PaymentQuote[]> {
     return this.paymentQuoteRepo.find({
       where: { status: PaymentQuoteStatus.TX_BLOCKCHAIN },
-      relations: { payment: { link: { route: { user: { userData: true } } } } },
+      relations: { payment: { link: { route: { user: { userData: { organization: true } } } } } },
     });
   }
 

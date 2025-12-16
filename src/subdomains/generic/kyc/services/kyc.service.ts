@@ -384,13 +384,19 @@ export class KycService {
     );
 
     if (
-      (missingCompletedSteps.length === 2 && missingCompletedSteps.some((s) => s === kycStep.name)) ||
+      (missingCompletedSteps.length === 2 &&
+        missingCompletedSteps.every((s) => s === kycStep.name || s === KycStepName.DFX_APPROVAL)) ||
       (missingCompletedSteps.length === 1 &&
         missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
         kycStep.name !== KycStepName.DFX_APPROVAL)
     ) {
-      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isOnHold);
-      if (approvalStep) await this.kycStepRepo.update(...approvalStep.manualReview());
+      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
+      if (approvalStep?.isOnHold) {
+        await this.kycStepRepo.update(...approvalStep.manualReview());
+      } else if (!approvalStep) {
+        const newStep = await this.initiateStep(kycStep.userData, KycStepName.DFX_APPROVAL);
+        await this.kycStepRepo.update(...newStep.manualReview());
+      }
     }
   }
 
@@ -1118,9 +1124,15 @@ export class KycService {
         };
 
       case KycStepName.DFX_APPROVAL:
-        return lastTry && !lastTry.isFailed && !lastTry.isCanceled
-          ? { nextStep: undefined }
-          : { nextStep: { name: nextStep, preventDirectEvaluation } };
+        const approvalSteps = user.getStepsWith(KycStepName.DFX_APPROVAL);
+        if (
+          (approvalSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) &&
+            !approvalSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED))) ||
+          (lastTry && !lastTry.isFailed && !lastTry.isCanceled)
+        )
+          return { nextStep: undefined };
+
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
       default:
         return { nextStep: undefined };

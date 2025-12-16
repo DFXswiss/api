@@ -561,7 +561,10 @@ export class UserDataService {
   // --- MAIL UPDATE --- //
 
   async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<void> {
-    if (userData.mail == null) await this.trySetUserMail(userData, dto.mail);
+    if (userData.mail == null) {
+      await this.trySetUserMail(userData, dto.mail);
+      return;
+    }
 
     await this.checkMail(userData, dto.mail);
 

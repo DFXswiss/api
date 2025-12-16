@@ -74,21 +74,21 @@ export class SellService {
   async get(userId: number, id: number): Promise<Sell> {
     const sell = await this.sellRepo.findOne({
       where: { id, user: { id: userId } },
-      relations: { user: { userData: true } },
+      relations: { user: { userData: { organization: true } } },
     });
     if (!sell) throw new NotFoundException('Sell not found');
     return sell;
   }
 
   async getById(id: number, options?: FindOneOptions<Sell>): Promise<Sell> {
-    const defaultOptions = { where: { id }, relations: { user: { userData: true } } };
+    const defaultOptions = { where: { id }, relations: { user: { userData: { organization: true } } } };
     return this.sellRepo.findOne(merge(defaultOptions, options));
   }
 
   async getLatest(userId: number): Promise<Sell | null> {
     return this.sellRepo.findOne({
       where: { user: { id: userId } },
-      relations: { user: { userData: true } },
+      relations: { user: { userData: { organization: true } } },
       order: { created: 'DESC' },
     });
   }
@@ -96,7 +96,7 @@ export class SellService {
   async getByLabel(userId: number, label: string, options?: FindOneOptions<Sell>): Promise<Sell> {
     const defaultOptions = {
       where: { route: { label }, user: { id: userId } },
-      relations: { user: { userData: true } },
+      relations: { user: { userData: { organization: true } } },
     };
     return this.sellRepo.findOne(merge(defaultOptions, options));
   }
