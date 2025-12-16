@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -27,7 +28,6 @@ import { Ep2ReportService } from '../ep2-report.service';
 import { FiatOutputJobService } from '../fiat-output-job.service';
 import { FiatOutputType } from '../fiat-output.entity';
 import { FiatOutputRepository } from '../fiat-output.repository';
-import { YapealService } from 'src/integration/bank/services/yapeal.service';
 
 describe('FiatOutputJobService', () => {
   let service: FiatOutputJobService;
@@ -60,7 +60,6 @@ describe('FiatOutputJobService', () => {
 
     // Default mock: no virtual IBANs
     jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
-    jest.spyOn(virtualIbanService, 'getAllActiveVirtualIbans').mockResolvedValue([]);
     jest.spyOn(virtualIbanService, 'getBaseAccountIban').mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
