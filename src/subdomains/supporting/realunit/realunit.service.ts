@@ -17,11 +17,12 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { KycStep } from 'src/subdomains/generic/kyc/models/kyc-step.entity';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -230,24 +231,8 @@ export class RealUnitService {
     });
 
     // forward to Aktionariat
-    try {
-      await this.forwardRegistration(dto);
-
-      await this.kycService.saveKycStepUpdate(kycStep.complete());
-
-      return false;
-    } catch (e) {
-      this.logger.error(`Failed to forward RealUnit registration to Aktionariat for userData ${userData.id}:`, e);
-
-      const errorMessage = (e as Error).message;
-      const httpError = e as HttpError;
-      const errorDetails = httpError.response
-        ? `${errorMessage} | Status: ${httpError.response.status} | Response: ${JSON.stringify(httpError.response.data)}`
-        : errorMessage;
-
-      await this.kycService.saveKycStepUpdate(kycStep.manualReview(errorDetails));
-      return true;
-    }
+    const success = await this.forwardRegistration(kycStep, dto);
+    return !success;
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
@@ -366,29 +351,31 @@ export class RealUnitService {
     const dto = kycStep.getResult<RealUnitRegistrationDto>();
     if (!dto) throw new BadRequestException('No registration data found');
 
-    try {
-      await this.forwardRegistration(dto);
-      await this.kycService.saveKycStepUpdate(kycStep.complete());
-    } catch (e) {
-      const errorMessage = (e as Error).message;
-      const httpError = e as HttpError;
-      const errorDetails = httpError.response
-        ? `${errorMessage} | Status: ${httpError.response.status} | Response: ${JSON.stringify(httpError.response.data)}`
-        : errorMessage;
-
-      await this.kycService.saveKycStepUpdate(kycStep.manualReview(errorDetails));
-      throw e;
-    }
+    const success = await this.forwardRegistration(kycStep, dto);
+    if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
-  private async forwardRegistration(dto: RealUnitRegistrationDto) {
+  private async forwardRegistration(kycStep: KycStep, dto: RealUnitRegistrationDto): Promise<boolean> {
     const { api } = Config.blockchain.realunit;
 
-    // forward Aktionariat fields
-    const payload = plainToInstance(AktionariatRegistrationDto, dto);
+    try {
+      // forward Aktionariat fields
+      const payload = plainToInstance(AktionariatRegistrationDto, dto);
 
-    await this.http.post(`${api.url}/registerUser`, payload, {
-      headers: { 'x-api-key': api.key },
-    });
+      await this.http.post(`${api.url}/registerUser`, payload, {
+        headers: { 'x-api-key': api.key },
+      });
+
+      await this.kycService.saveKycStepUpdate(kycStep.complete());
+      return true;
+    } catch (error) {
+      const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
+
+      this.logger.error(
+        `Failed to forward RealUnit registration to Aktionariat for KYC step ${kycStep.id}: ${message}`,
+      );
+      await this.kycService.saveKycStepUpdate(kycStep.manualReview(message));
+      return false;
+    }
   }
 }
