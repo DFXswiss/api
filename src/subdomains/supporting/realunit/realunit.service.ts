@@ -322,7 +322,7 @@ export class RealUnitService {
     };
 
     const types = {
-      RealUnitUserRegistration: [
+      RealUnitUser: [
         { name: 'email', type: 'string' },
         { name: 'name', type: 'string' },
         { name: 'type', type: 'string' },
