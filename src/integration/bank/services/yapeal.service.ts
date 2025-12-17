@@ -39,8 +39,14 @@ export class YapealService {
   // --- VIBAN METHODS --- //
 
   async createViban(baseAccountIban: string): Promise<VibanReserveResponse> {
-    const proposal = await this.getVibanProposal();
-    return this.reserveViban(proposal.bban, baseAccountIban);
+    for (let attempt = 0; attempt < 1000; attempt++) {
+      const bban = Util.randomIdString(12);
+
+      const isAvailable = await this.isVibanAvailable(bban);
+      if (isAvailable) return this.reserveViban(bban, baseAccountIban);
+    }
+
+    throw new Error(`No numeric BBAN available`);
   }
 
   async listVibans(accountUid: string, count = 100, offset = 0): Promise<VibanListResponse> {
@@ -50,7 +56,16 @@ export class YapealService {
     );
   }
 
-  private async getVibanProposal(): Promise<VibanProposalResponse> {
+  private async isVibanAvailable(bban: string): Promise<boolean> {
+    return this.callApi<VibanProposalResponse>(
+      `b2b/v2/partnerships/viban/availability?bban=${encodeURIComponent(bban)}`,
+      'GET',
+    )
+      .then((r) => Boolean(r.bban && r.iban))
+      .catch(() => false);
+  }
+
+  private async _getVibanProposal(): Promise<VibanProposalResponse> {
     const { partnershipUid } = Config.bank.yapeal;
     return this.callApi<VibanProposalResponse>(`b2b/v2/partnerships/${partnershipUid}/viban/proposal`, 'GET');
   }
