@@ -17,9 +17,8 @@ import {
   YapealSubscription,
   YapealSubscriptionFormat,
   YapealSubscriptionRequest,
-  YapealTransactionEnrichmentData,
 } from '../dto/yapeal.dto';
-import { Iso20022Service, Pain001Payment } from './iso20022.service';
+import { CamtTransaction, Iso20022Service, Pain001Payment } from './iso20022.service';
 
 export interface YapealBalanceInfo {
   iban: string;
@@ -84,40 +83,6 @@ export class YapealService {
     }));
   }
 
-  async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<string> {
-    const params = new URLSearchParams({
-      fromDate: Util.isoDate(fromDate),
-      toDate: Util.isoDate(toDate),
-    });
-
-    return this.callApi<string>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
-  }
-
-  async getTransactionEnrichmentData(
-    accountIban: string,
-    accountServiceRef: string,
-    bookingDate: Date,
-  ): Promise<YapealTransactionEnrichmentData | undefined> {
-    try {
-      const statement = await this.getAccountStatement(accountIban, bookingDate, bookingDate);
-      const transactions = Iso20022Service.parseCamt053Xml(statement, accountIban);
-
-      const matchingTx = transactions.find((tx) => tx.accountServiceRef === accountServiceRef);
-      if (!matchingTx) return undefined;
-
-      return {
-        addressLine1: matchingTx.addressLine1,
-        addressLine2: matchingTx.addressLine2,
-        country: matchingTx.country,
-        domainCode: matchingTx.domainCode,
-        familyCode: matchingTx.familyCode,
-        subFamilyCode: matchingTx.subFamilyCode,
-      };
-    } catch {
-      return undefined;
-    }
-  }
-
   async getEntitledAccounts(): Promise<YapealEntitledAccount[]> {
     const { partnershipUid, adminUid } = Config.bank.yapeal;
     return this.callApi<YapealEntitledAccount[]>(
@@ -136,7 +101,21 @@ export class YapealService {
     );
   }
 
-  // --- PAYMENT METHODS --- //
+  // --- TRANSACTION METHODS --- //
+
+  async getTransactions(accountIban: string, fromDate: Date, toDate: Date): Promise<CamtTransaction[]> {
+    const statement = await this.getAccountStatement(accountIban, fromDate, toDate);
+    return Iso20022Service.parseCamt053Xml(statement, accountIban);
+  }
+
+  private async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<string> {
+    const params = new URLSearchParams({
+      fromDate: Util.isoDate(fromDate),
+      toDate: Util.isoDate(toDate),
+    });
+
+    return this.callApi<string>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
+  }
 
   async sendPayment(payment: Pain001Payment): Promise<void> {
     const request = Iso20022Service.createPain001Json(payment);
