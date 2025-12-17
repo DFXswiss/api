@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, GetConfig } from 'src/config/config';
@@ -398,8 +397,25 @@ export class RealUnitService {
     const { api } = Config.blockchain.realunit;
 
     try {
-      // forward Aktionariat fields
-      const payload = plainToInstance(AktionariatRegistrationDto, dto);
+      // forward only Aktionariat fields (exclude kycData to avoid signature verification issues)
+      const payload: AktionariatRegistrationDto = {
+        email: dto.email,
+        name: dto.name,
+        type: dto.type,
+        phoneNumber: dto.phoneNumber,
+        birthday: dto.birthday,
+        nationality: dto.nationality,
+        addressStreet: dto.addressStreet,
+        addressPostalCode: dto.addressPostalCode,
+        addressCity: dto.addressCity,
+        addressCountry: dto.addressCountry,
+        swissTaxResidence: dto.swissTaxResidence,
+        registrationDate: dto.registrationDate,
+        walletAddress: dto.walletAddress,
+        signature: dto.signature,
+        lang: dto.lang,
+        countryAndTINs: dto.countryAndTINs,
+      };
 
       await this.http.post(`${api.url}/registerUser`, payload, {
         headers: { 'x-api-key': api.key },
