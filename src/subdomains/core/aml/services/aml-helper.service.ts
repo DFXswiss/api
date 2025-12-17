@@ -41,6 +41,7 @@ export class AmlHelperService {
     refUser?: User,
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
+    multiAccountBankNames?: string[],
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -214,6 +215,10 @@ export class AmlHelperService {
       if (entity.bankTx) {
         // bank
         if (nationality && !nationality.bankEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+
+        // Check for intermediary banks without sender name
+        if (multiAccountBankNames?.some((bank) => entity.bankTx.name === bank) && !entity.bankTx.ultimateName)
+          errors.push(AmlError.BANK_TX_CUSTOMER_NAME_MISSING);
         if (!DisabledProcess(Process.BANK_RELEASE_CHECK) && !entity.bankTx.bankReleaseDate)
           errors.push(AmlError.BANK_RELEASE_DATE_MISSING);
 
@@ -498,6 +503,7 @@ export class AmlHelperService {
     banks?: Bank[],
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
+    multiAccountBankNames?: string[],
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -521,6 +527,7 @@ export class AmlHelperService {
       refUser,
       ipLogCountries,
       virtualIban,
+      multiAccountBankNames,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');
