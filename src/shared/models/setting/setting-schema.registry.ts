@@ -1,5 +1,4 @@
 import { Type } from '@nestjs/common';
-import { Process } from 'src/shared/services/process.service';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { ManualLogPositionDto } from './dto/manual-log-position.dto';
 
