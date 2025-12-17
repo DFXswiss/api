@@ -32,6 +32,12 @@ export class SpecialExternalAccountService {
     );
   }
 
+  async getMultiAccountBankNames(): Promise<string[]> {
+    return this.getMultiAccounts().then((list) =>
+      list.filter((a) => a.type === SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME).map((a) => a.name),
+    );
+  }
+
   async getBlacklist(types?: SpecialExternalAccountType[]): Promise<SpecialExternalAccount[]> {
     return this.specialExternalAccountRepo.findCachedBy(`Blacklist-${types?.toString()}`, {
       type: In(
