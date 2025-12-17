@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
-import { GetConfig } from 'src/config/config';
+import { Config, GetConfig } from 'src/config/config';
 import {
   AllowlistStatusDto,
   BrokerbotBuyPriceDto,
@@ -13,11 +14,17 @@ import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/r
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { LanguageService } from 'src/shared/models/language/language.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -28,7 +35,7 @@ import {
   TokenInfoClientResponse,
 } from './dto/client.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
-import { RealUnitRegistrationDto } from './dto/realunit-registration.dto';
+import { AktionariatRegistrationDto, RealUnitRegistrationDto, RealUnitUserType } from './dto/realunit-registration.dto';
 import {
   AccountHistoryDto,
   AccountSummaryDto,
@@ -43,6 +50,8 @@ import { TimeseriesUtils } from './utils/timeseries-utils';
 
 @Injectable()
 export class RealUnitService {
+  private readonly logger = new DfxLogger(RealUnitService);
+
   private readonly ponderUrl: string;
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
@@ -53,8 +62,12 @@ export class RealUnitService {
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly blockchainService: RealUnitBlockchainService,
+    private readonly userDataService: UserDataService,
     private readonly userService: UserService,
     private readonly kycService: KycService,
+    private readonly countryService: CountryService,
+    private readonly languageService: LanguageService,
+    private readonly http: HttpService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -170,7 +183,12 @@ export class RealUnitService {
 
   // --- Registration Methods ---
 
-  async register(userDataId: number, dto: RealUnitRegistrationDto): Promise<void> {
+  // returns true if registration needs manual review, false if completed
+  async register(userDataId: number, dto: RealUnitRegistrationDto): Promise<boolean> {
+    // validate DTO
+    await this.validateRegistrationDto(dto);
+
+    // get and validate user
     const userData = await this.userService
       .getUserByAddress(dto.walletAddress, { userData: { kycSteps: true } })
       .then((u) => u?.userData);
@@ -178,21 +196,124 @@ export class RealUnitService {
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
 
-    // verify EIP-712 signature
-    const isValidSignature = this.verifyRealUnitRegistrationSignature(dto);
-    if (!isValidSignature) throw new BadRequestException('Invalid signature');
+    if (!userData.mail) throw new BadRequestException('User email not verified');
+    if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+      throw new BadRequestException('Email does not match verified email');
+    }
 
-    // check for existing registration
-    const existingStep = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (existingStep) throw new BadRequestException('RealUnit registration already exists');
+    // duplicate check
+    if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
+      throw new BadRequestException('RealUnit registration already exists');
+    }
 
-    // store data
-    await this.kycService.createCustomKycStep(
+    // store data with internal review
+    const kycStep = await this.kycService.createCustomKycStep(
       userData,
       KycStepName.REALUNIT_REGISTRATION,
       ReviewStatus.INTERNAL_REVIEW,
       dto,
     );
+
+    const hasExistingData = userData.firstname != null;
+    if (hasExistingData) {
+      await this.kycService.saveKycStepUpdate(kycStep.manualReview('User has existing KYC data'));
+      return true;
+    }
+
+    // store personal data to userData
+    await this.userDataService.updatePersonalData(userData, dto.kycData);
+    await this.userDataService.updateUserDataInternal(userData, {
+      nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
+      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
+      birthday: new Date(dto.birthday),
+      tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
+    });
+
+    // forward to Aktionariat
+    try {
+      await this.forwardRegistration(dto);
+
+      await this.kycService.saveKycStepUpdate(kycStep.complete());
+
+      return false;
+    } catch (e) {
+      this.logger.error(`Failed to forward RealUnit registration to Aktionariat for userData ${userData.id}:`, e);
+      await this.kycService.saveKycStepUpdate(kycStep.manualReview(e.message));
+      return true;
+    }
+  }
+
+  private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
+    // signature validation
+    if (!this.verifyRealUnitRegistrationSignature(dto)) {
+      throw new BadRequestException('Invalid signature');
+    }
+
+    // registration date validation - must be today
+    const now = new Date();
+    if (dto.registrationDate !== Util.isoDate(now)) {
+      throw new BadRequestException('Registration date must be today');
+    }
+
+    // birthday validation - must be valid date, not in future, not older than 140 years
+    const birthday = new Date(dto.birthday);
+    if (isNaN(birthday.getTime())) throw new BadRequestException('Invalid birthday date');
+    if (birthday > now) throw new BadRequestException('Birthday cannot be in the future');
+
+    const maxAge = new Date(now);
+    maxAge.setFullYear(maxAge.getFullYear() - 140);
+    if (birthday < maxAge) throw new BadRequestException('Birthday cannot be more than 140 years ago');
+
+    // data validation
+    if (dto.kycData.accountType === AccountType.ORGANIZATION) {
+      if (dto.type !== RealUnitUserType.CORPORATION) {
+        throw new BadRequestException('ORGANIZATION accountType requires CORPORATION type');
+      }
+
+      // organization name
+      if (dto.kycData.organizationName !== dto.name) {
+        throw new BadRequestException('organizationName must match signed name');
+      }
+
+      // organization address
+      const combinedOrgAddress = dto.kycData.organizationAddress.houseNumber
+        ? `${dto.kycData.organizationAddress.street} ${dto.kycData.organizationAddress.houseNumber}`
+        : dto.kycData.organizationAddress.street;
+      if (combinedOrgAddress !== dto.addressStreet) {
+        throw new BadRequestException('organizationAddress street + houseNumber must match signed addressStreet');
+      }
+
+      if (dto.kycData.organizationAddress.zip !== dto.addressPostalCode) {
+        throw new BadRequestException('organizationAddress zip must match signed addressPostalCode');
+      }
+
+      if (dto.kycData.organizationAddress.city !== dto.addressCity) {
+        throw new BadRequestException('organizationAddress city must match signed addressCity');
+      }
+
+      const orgCountry = await this.countryService.getCountry(dto.kycData.organizationAddress.country.id);
+      if (orgCountry.symbol !== dto.addressCountry) {
+        throw new BadRequestException('organizationAddress country must match signed addressCountry');
+      }
+    } else {
+      if (dto.type !== RealUnitUserType.HUMAN) {
+        throw new BadRequestException('Personal/SoleProprietorship accountType requires HUMAN type');
+      }
+
+      // personal name
+      const combinedName = `${dto.kycData.firstName} ${dto.kycData.lastName}`;
+      if (combinedName !== dto.name) {
+        throw new BadRequestException('firstName + lastName does not match signed name');
+      }
+
+      // personal address
+      const combinedAddress = dto.kycData.address.houseNumber
+        ? `${dto.kycData.address.street} ${dto.kycData.address.houseNumber}`
+        : dto.kycData.address.street;
+      if (combinedAddress !== dto.addressStreet) {
+        throw new BadRequestException('street + houseNumber does not match signed addressStreet');
+      }
+    }
   }
 
   private verifyRealUnitRegistrationSignature(data: RealUnitRegistrationDto): boolean {
@@ -223,5 +344,33 @@ export class RealUnitService {
     const recoveredAddress = verifyTypedData(domain, types, data, signatureToUse);
 
     return Util.equalsIgnoreCase(recoveredAddress, data.walletAddress);
+  }
+
+  async forwardRegistrationToAktionariat(kycStepId: number): Promise<void> {
+    const kycStep = await this.kycService.getKycStepById(kycStepId);
+    if (!kycStep) throw new NotFoundException('KYC step not found');
+    if (kycStep.name !== KycStepName.REALUNIT_REGISTRATION) {
+      throw new BadRequestException('KYC step is not a RealUnit registration');
+    }
+    if (kycStep.status !== ReviewStatus.MANUAL_REVIEW) {
+      throw new BadRequestException('KYC step is not in MANUAL_REVIEW status');
+    }
+
+    const dto = kycStep.getResult<RealUnitRegistrationDto>();
+    if (!dto) throw new BadRequestException('No registration data found');
+
+    await this.forwardRegistration(dto);
+    await this.kycService.saveKycStepUpdate(kycStep.complete());
+  }
+
+  private async forwardRegistration(dto: RealUnitRegistrationDto) {
+    const { api } = Config.blockchain.realunit;
+
+    // forward Aktionariat fields
+    const payload = plainToInstance(AktionariatRegistrationDto, dto);
+
+    await this.http.post(`${api.url}/registerUser`, payload, {
+      headers: { 'x-api-key': api.key },
+    });
   }
 }
