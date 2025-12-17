@@ -91,11 +91,6 @@ export class AmlHelperService {
       if (entity.userData.accountType !== AccountType.ORGANIZATION && !entity.userData.letterSentDate)
         errors.push(AmlError.NO_LETTER);
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
-      if (
-        entity.userData.accountType === AccountType.ORGANIZATION &&
-        entity.userData.identificationType === KycIdentificationType.ONLINE_ID
-      )
-        errors.push(AmlError.VIDEO_IDENT_MISSING);
     }
 
     // AmlRule asset/fiat check
