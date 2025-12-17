@@ -94,7 +94,8 @@
                 "manual_check_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
                 "manual_check_ip_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
                 "manual_check_ip_country_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
-                "merge_incomplete": "El correo electrónico de confirmación no fue aceptado"
+                "merge_incomplete": "El correo electrónico de confirmación no fue aceptado",
+                "intermediary_without_sender": "El banco emisor (Wise/Revolut) solo transmitió el nombre del banco, no el nombre del titular de la cuenta. Por lo tanto, DFX no puede verificar el remitente real y no puede procesar la transacción."
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },

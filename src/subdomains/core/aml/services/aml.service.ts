@@ -94,6 +94,7 @@ export class AmlService {
     blacklist: SpecialExternalAccount[];
     banks?: Bank[];
     ipLogCountries?: string[];
+    multiAccountBankNames?: string[];
   }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);
@@ -173,8 +174,9 @@ export class AmlService {
         ipLogCountries,
       };
 
+    const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountBankNames();
     const banks = await this.bankService.getAllBanks();
-    return { users: entity.userData.users, refUser, bankData, blacklist, banks, ipLogCountries };
+    return { users: entity.userData.users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames };
   }
 
   //*** HELPER METHODS ***//

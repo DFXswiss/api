@@ -94,7 +94,8 @@
                 "manual_check_phone": "Non siamo riusciti a contattarti al numero di telefono che ci hai fornito",
                 "manual_check_ip_phone": "Non siamo riusciti a contattarti al numero di telefono che ci hai fornito",
                 "manual_check_ip_country_phone": "Non siamo riusciti a contattarti al numero di telefono che ci hai fornito",
-                "merge_incomplete": "L'e-mail di conferma non è stata accettata"
+                "merge_incomplete": "L'e-mail di conferma non è stata accettata",
+                "intermediary_without_sender": "La banca mittente (Wise/Revolut) ha trasmesso solo il nome della banca, non il nome del titolare del conto. DFX non può quindi verificare il mittente effettivo e non può elaborare la transazione."
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },

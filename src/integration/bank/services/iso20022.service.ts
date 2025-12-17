@@ -29,6 +29,11 @@ export interface CamtTransaction {
   addressLine2?: string;
   country?: string;
 
+  ultimateName?: string;
+  ultimateAddressLine1?: string;
+  ultimateAddressLine2?: string;
+  ultimateCountry?: string;
+
   iban?: string;
   bic?: string;
   accountIban: string;
@@ -45,6 +50,7 @@ export interface CamtTransaction {
 export interface Party {
   name: string;
   address?: string;
+  houseNumber?: string;
   zip?: string;
   city?: string;
   country: string;
@@ -108,6 +114,14 @@ export class Iso20022Service {
     const { addressLine1, addressLine2 } = this.parsePostalAddress(postalAddress);
     const country = postalAddress?.Ctry;
 
+    // ultimate party info (actual sender/receiver behind intermediary banks like Wise/Revolut)
+    const ultimateParty = isCredit ? txDetail?.RltdPties?.UltmtDbtr : txDetail?.RltdPties?.UltmtCdtr;
+    const ultimateName = ultimateParty?.Nm;
+    const ultimatePostalAddress = ultimateParty?.PstlAdr;
+    const { addressLine1: ultimateAddressLine1, addressLine2: ultimateAddressLine2 } =
+      this.parsePostalAddress(ultimatePostalAddress);
+    const ultimateCountry = ultimatePostalAddress?.Ctry;
+
     // remittance info
     let remittanceInfo: string | undefined;
     if (txDetail?.RmtInf?.Ustrd) {
@@ -155,6 +169,10 @@ export class Iso20022Service {
       addressLine1,
       addressLine2,
       country,
+      ultimateName,
+      ultimateAddressLine1,
+      ultimateAddressLine2,
+      ultimateCountry,
       iban,
       bic,
       remittanceInfo,
@@ -248,6 +266,15 @@ export class Iso20022Service {
     // address information from PstlAdr
     const { addressLine1, addressLine2, country } = Iso20022Service.extractAddressFromXml(txDtls, counterpartyTag);
 
+    // ultimate party info (actual sender/receiver behind intermediary banks like Wise/Revolut)
+    const ultimatePartyTag = isCredit ? 'UltmtDbtr' : 'UltmtCdtr';
+    const ultimateName = Iso20022Service.extractNestedTag(txDtls, 'RltdPties', ultimatePartyTag, 'Nm');
+    const {
+      addressLine1: ultimateAddressLine1,
+      addressLine2: ultimateAddressLine2,
+      country: ultimateCountry,
+    } = Iso20022Service.extractAddressFromXml(txDtls, ultimatePartyTag);
+
     // remittance information
     const ustrd = Iso20022Service.extractTag(txDtls, 'Ustrd');
     const strd = Iso20022Service.extractTag(txDtls, 'Strd');
@@ -270,6 +297,10 @@ export class Iso20022Service {
       addressLine1,
       addressLine2,
       country,
+      ultimateName,
+      ultimateAddressLine1,
+      ultimateAddressLine2,
+      ultimateCountry,
       iban,
       bic,
       remittanceInfo,
@@ -370,6 +401,7 @@ export class Iso20022Service {
                   Nm: payment.creditor.name,
                   PstlAdr: {
                     ...(payment.creditor.address && { StrtNm: payment.creditor.address }),
+                    ...(payment.creditor.houseNumber && { BldgNb: payment.creditor.houseNumber }),
                     ...(payment.creditor.zip && { PstCd: payment.creditor.zip }),
                     ...(payment.creditor.city && { TwnNm: payment.creditor.city }),
                     Ctry: payment.creditor.country,
