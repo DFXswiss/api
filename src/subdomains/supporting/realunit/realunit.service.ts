@@ -190,7 +190,7 @@ export class RealUnitService {
 
     // get and validate user
     const userData = await this.userService
-      .getUserByAddress(dto.walletAddress, { userData: { kycSteps: true } })
+      .getUserByAddress(dto.walletAddress, { userData: { kycSteps: true, users: true } })
       .then((u) => u?.userData);
 
     if (!userData) throw new NotFoundException('User not found');
