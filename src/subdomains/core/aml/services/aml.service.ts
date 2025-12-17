@@ -97,7 +97,6 @@ export class AmlService {
     multiAccountBankNames?: string[];
   }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
-    const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountBankNames();
     entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);
     let bankData = await this.getBankData(entity);
     const refUser =
@@ -161,7 +160,7 @@ export class AmlService {
       verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
     }
 
-    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist, multiAccountBankNames };
+    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist };
 
     const ipLogCountries = await this.ipLogService.getLoginCountries(entity.userData.id, Util.daysBefore(3));
 
@@ -173,9 +172,9 @@ export class AmlService {
         blacklist,
         banks: undefined,
         ipLogCountries,
-        multiAccountBankNames,
       };
 
+    const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountBankNames();
     const banks = await this.bankService.getAllBanks();
     return { users: entity.userData.users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames };
   }

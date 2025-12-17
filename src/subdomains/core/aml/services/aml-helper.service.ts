@@ -218,7 +218,7 @@ export class AmlHelperService {
 
         // Check for intermediary banks without sender name
         if (multiAccountBankNames?.some((bank) => entity.bankTx.name === bank) && !entity.bankTx.ultimateName)
-          errors.push(AmlError.INTERMEDIARY_WITHOUT_SENDER);
+          errors.push(AmlError.BANK_TX_CUSTOMER_NAME_MISSING);
         if (!DisabledProcess(Process.BANK_RELEASE_CHECK) && !entity.bankTx.bankReleaseDate)
           errors.push(AmlError.BANK_RELEASE_DATE_MISSING);
 

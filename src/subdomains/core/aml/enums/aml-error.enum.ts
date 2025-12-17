@@ -62,7 +62,7 @@ export enum AmlError {
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
-  INTERMEDIARY_WITHOUT_SENDER = 'IntermediaryWithoutSender',
+  BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
 }
 
 export const DelayResultError = [
@@ -295,7 +295,7 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK_PHONE,
   },
-  [AmlError.INTERMEDIARY_WITHOUT_SENDER]: {
+  [AmlError.BANK_TX_CUSTOMER_NAME_MISSING]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.INTERMEDIARY_WITHOUT_SENDER,
