@@ -26,6 +26,7 @@ import {
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
+import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 import { BuyFiatService } from './buy-fiat.service';
@@ -407,27 +408,39 @@ export class BuyFiatPreparationService {
       await this.fiatOutputService.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat] }, buyFiat.id);
     }
 
-    // daily payouts
+    // batched payouts (business days only)
     if (!isBankHoliday()) {
+      // daily
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
-      const dailyOutputs = buyFiatsToPayout.filter(
-        (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
-      );
-      const sellGroups = Util.groupByAccessor(
-        dailyOutputs,
-        (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
-      );
+      await this.processBatchedPayout(buyFiatsToPayout, PayoutFrequency.DAILY, startOfDay);
 
-      for (const buyFiats of sellGroups.values()) {
-        await this.fiatOutputService.createInternal(
-          FiatOutputType.BUY_FIAT,
-          { buyFiats },
-          buyFiats[0].id,
-          buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
-        );
-      }
+      // weekly
+      const startOfWeek = new Date();
+      startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      await this.processBatchedPayout(buyFiatsToPayout, PayoutFrequency.WEEKLY, startOfWeek);
+    }
+  }
+
+  private async processBatchedPayout(buyFiats: BuyFiat[], frequency: PayoutFrequency, cutoffDate: Date): Promise<void> {
+    const outputs = buyFiats.filter(
+      (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === frequency && bf.created < cutoffDate,
+    );
+    const sellGroups = Util.groupByAccessor(
+      outputs,
+      (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
+    );
+
+    for (const buyFiats of sellGroups.values()) {
+      await this.fiatOutputService.createInternal(
+        FiatOutputType.BUY_FIAT,
+        { buyFiats },
+        buyFiats[0].id,
+        buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+      );
     }
   }
 
