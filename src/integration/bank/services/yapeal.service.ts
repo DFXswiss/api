@@ -5,6 +5,7 @@ import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import {
+  VibanAvailabilityResponse,
   VibanListResponse,
   VibanProposalResponse,
   VibanReserveRequest,
@@ -49,6 +50,56 @@ export class YapealService {
       `b2b/v2/cash-accounts/${accountUid}/vibans?count=${count}&offset=${offset}`,
       'GET',
     );
+  }
+
+  // --- VIBAN TEST METHODS (for testing numeric BBans) --- //
+
+  /**
+   * Check if a specific BBAN is available for vIBAN creation.
+   * Use this to test if numeric-only BBans are accepted.
+   * @param bban The BBAN to check (max 12 characters)
+   */
+  async checkVibanAvailability(bban: string): Promise<VibanAvailabilityResponse> {
+    return this.callApi<VibanAvailabilityResponse>(
+      `b2b/v2/partnerships/viban/availability?bban=${encodeURIComponent(bban)}`,
+      'GET',
+    );
+  }
+
+  /**
+   * Create a vIBAN with a custom BBAN (instead of using Yapeal's proposal).
+   * Use this to test if numeric-only BBans are accepted.
+   * @param customBban The custom BBAN to use (max 12 characters, e.g. "000000000001")
+   * @param baseAccountIban The base account IBAN to attach the vIBAN to
+   */
+  async createVibanWithCustomBban(customBban: string, baseAccountIban: string): Promise<VibanReserveResponse> {
+    return this.reserveViban(customBban, baseAccountIban);
+  }
+
+  /**
+   * Test numeric BBAN support:
+   * 1. Gets Yapeal's default proposal (to see what format they suggest)
+   * 2. Checks availability of a numeric BBAN
+   * 3. Returns both results for comparison
+   */
+  async testNumericBbanSupport(): Promise<{
+    yapealProposal: VibanProposalResponse;
+    numericAvailability: { bban: string; available: boolean; result?: VibanAvailabilityResponse; error?: string };
+  }> {
+    const yapealProposal = await this.getVibanProposal();
+
+    // Generate a random 12-digit numeric BBAN
+    const numericBban = String(Math.floor(Math.random() * 1e12)).padStart(12, '0');
+
+    let numericAvailability: { bban: string; available: boolean; result?: VibanAvailabilityResponse; error?: string };
+    try {
+      const result = await this.checkVibanAvailability(numericBban);
+      numericAvailability = { bban: numericBban, available: true, result };
+    } catch (error) {
+      numericAvailability = { bban: numericBban, available: false, error: error?.message || String(error) };
+    }
+
+    return { yapealProposal, numericAvailability };
   }
 
   private async getVibanProposal(): Promise<VibanProposalResponse> {

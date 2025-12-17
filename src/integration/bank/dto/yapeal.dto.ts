@@ -24,6 +24,11 @@ export interface VibanListResponse {
   }>;
 }
 
+export interface VibanAvailabilityResponse {
+  bban: string;
+  iban: string;
+}
+
 // --- Account/Balance DTOs --- //
 
 export enum YapealAccountStatus {
