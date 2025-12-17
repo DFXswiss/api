@@ -17,9 +17,8 @@ import {
   YapealSubscription,
   YapealSubscriptionFormat,
   YapealSubscriptionRequest,
-  YapealTransactionEnrichmentData,
 } from '../dto/yapeal.dto';
-import { Iso20022Service, Pain001Payment } from './iso20022.service';
+import { CamtTransaction, Iso20022Service, Pain001Payment } from './iso20022.service';
 
 export interface YapealBalanceInfo {
   iban: string;
@@ -40,8 +39,14 @@ export class YapealService {
   // --- VIBAN METHODS --- //
 
   async createViban(baseAccountIban: string): Promise<VibanReserveResponse> {
-    const proposal = await this.getVibanProposal();
-    return this.reserveViban(proposal.bban, baseAccountIban);
+    for (let attempt = 0; attempt < 1000; attempt++) {
+      const bban = Util.randomIdString(12);
+
+      const isAvailable = await this.isVibanAvailable(bban);
+      if (isAvailable) return this.reserveViban(bban, baseAccountIban);
+    }
+
+    throw new Error(`No numeric BBAN available`);
   }
 
   async listVibans(accountUid: string, count = 100, offset = 0): Promise<VibanListResponse> {
@@ -51,7 +56,16 @@ export class YapealService {
     );
   }
 
-  private async getVibanProposal(): Promise<VibanProposalResponse> {
+  private async isVibanAvailable(bban: string): Promise<boolean> {
+    return this.callApi<VibanProposalResponse>(
+      `b2b/v2/partnerships/viban/availability?bban=${encodeURIComponent(bban)}`,
+      'GET',
+    )
+      .then((r) => Boolean(r.bban && r.iban))
+      .catch(() => false);
+  }
+
+  private async _getVibanProposal(): Promise<VibanProposalResponse> {
     const { partnershipUid } = Config.bank.yapeal;
     return this.callApi<VibanProposalResponse>(`b2b/v2/partnerships/${partnershipUid}/viban/proposal`, 'GET');
   }
@@ -84,40 +98,6 @@ export class YapealService {
     }));
   }
 
-  async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<string> {
-    const params = new URLSearchParams({
-      fromDate: Util.isoDate(fromDate),
-      toDate: Util.isoDate(toDate),
-    });
-
-    return this.callApi<string>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
-  }
-
-  async getTransactionEnrichmentData(
-    accountIban: string,
-    accountServiceRef: string,
-    bookingDate: Date,
-  ): Promise<YapealTransactionEnrichmentData | undefined> {
-    try {
-      const statement = await this.getAccountStatement(accountIban, bookingDate, bookingDate);
-      const transactions = Iso20022Service.parseCamt053Xml(statement, accountIban);
-
-      const matchingTx = transactions.find((tx) => tx.accountServiceRef === accountServiceRef);
-      if (!matchingTx) return undefined;
-
-      return {
-        addressLine1: matchingTx.addressLine1,
-        addressLine2: matchingTx.addressLine2,
-        country: matchingTx.country,
-        domainCode: matchingTx.domainCode,
-        familyCode: matchingTx.familyCode,
-        subFamilyCode: matchingTx.subFamilyCode,
-      };
-    } catch {
-      return undefined;
-    }
-  }
-
   async getEntitledAccounts(): Promise<YapealEntitledAccount[]> {
     const { partnershipUid, adminUid } = Config.bank.yapeal;
     return this.callApi<YapealEntitledAccount[]>(
@@ -136,7 +116,21 @@ export class YapealService {
     );
   }
 
-  // --- PAYMENT METHODS --- //
+  // --- TRANSACTION METHODS --- //
+
+  async getTransactions(accountIban: string, fromDate: Date, toDate: Date): Promise<CamtTransaction[]> {
+    const statement = await this.getAccountStatement(accountIban, fromDate, toDate);
+    return Iso20022Service.parseCamt053Xml(statement, accountIban);
+  }
+
+  private async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<string> {
+    const params = new URLSearchParams({
+      fromDate: Util.isoDate(fromDate),
+      toDate: Util.isoDate(toDate),
+    });
+
+    return this.callApi<string>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
+  }
 
   async sendPayment(payment: Pain001Payment): Promise<void> {
     const request = Iso20022Service.createPain001Json(payment);
