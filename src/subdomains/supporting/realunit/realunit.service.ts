@@ -17,7 +17,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { HttpService } from 'src/shared/services/http.service';
+import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -238,7 +238,14 @@ export class RealUnitService {
       return false;
     } catch (e) {
       this.logger.error(`Failed to forward RealUnit registration to Aktionariat for userData ${userData.id}:`, e);
-      await this.kycService.saveKycStepUpdate(kycStep.manualReview(e.message));
+
+      const errorMessage = (e as Error).message;
+      const httpError = e as HttpError;
+      const errorDetails = httpError.response
+        ? `${errorMessage} | Status: ${httpError.response.status} | Response: ${JSON.stringify(httpError.response.data)}`
+        : errorMessage;
+
+      await this.kycService.saveKycStepUpdate(kycStep.manualReview(errorDetails));
       return true;
     }
   }
@@ -359,8 +366,19 @@ export class RealUnitService {
     const dto = kycStep.getResult<RealUnitRegistrationDto>();
     if (!dto) throw new BadRequestException('No registration data found');
 
-    await this.forwardRegistration(dto);
-    await this.kycService.saveKycStepUpdate(kycStep.complete());
+    try {
+      await this.forwardRegistration(dto);
+      await this.kycService.saveKycStepUpdate(kycStep.complete());
+    } catch (e) {
+      const errorMessage = (e as Error).message;
+      const httpError = e as HttpError;
+      const errorDetails = httpError.response
+        ? `${errorMessage} | Status: ${httpError.response.status} | Response: ${JSON.stringify(httpError.response.data)}`
+        : errorMessage;
+
+      await this.kycService.saveKycStepUpdate(kycStep.manualReview(errorDetails));
+      throw e;
+    }
   }
 
   private async forwardRegistration(dto: RealUnitRegistrationDto) {
