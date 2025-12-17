@@ -20,12 +20,15 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
@@ -190,7 +193,9 @@ export class RealUnitService {
 
     // get and validate user
     const userData = await this.userService
-      .getUserByAddress(dto.walletAddress, { userData: { kycSteps: true, users: true } })
+      .getUserByAddress(dto.walletAddress, {
+        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
+      })
       .then((u) => u?.userData);
 
     if (!userData) throw new NotFoundException('User not found');
@@ -216,31 +221,26 @@ export class RealUnitService {
 
     const hasExistingData = userData.firstname != null;
     if (hasExistingData) {
-      await this.kycService.saveKycStepUpdate(kycStep.manualReview('User has existing KYC data'));
-      return true;
+      const dataMatches = this.isPersonalDataMatching(userData, dto);
+      if (!dataMatches) {
+        await this.kycService.saveKycStepUpdate(kycStep.manualReview('Existing KYC data does not match'));
+        return true;
+      }
+    } else {
+      await this.userDataService.updatePersonalData(userData, dto.kycData);
     }
 
-    // store personal data to userData
-    await this.userDataService.updatePersonalData(userData, dto.kycData);
+    // update always
     await this.userDataService.updateUserDataInternal(userData, {
       nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
-      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
       birthday: new Date(dto.birthday),
+      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
       tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
     });
 
     // forward to Aktionariat
-    try {
-      await this.forwardRegistration(dto);
-
-      await this.kycService.saveKycStepUpdate(kycStep.complete());
-
-      return false;
-    } catch (e) {
-      this.logger.error(`Failed to forward RealUnit registration to Aktionariat for userData ${userData.id}:`, e);
-      await this.kycService.saveKycStepUpdate(kycStep.manualReview(e.message));
-      return true;
-    }
+    const success = await this.forwardRegistration(kycStep, dto);
+    return !success;
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
@@ -359,18 +359,62 @@ export class RealUnitService {
     const dto = kycStep.getResult<RealUnitRegistrationDto>();
     if (!dto) throw new BadRequestException('No registration data found');
 
-    await this.forwardRegistration(dto);
-    await this.kycService.saveKycStepUpdate(kycStep.complete());
+    const success = await this.forwardRegistration(kycStep, dto);
+    if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
-  private async forwardRegistration(dto: RealUnitRegistrationDto) {
+  private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
+    const kycData = dto.kycData;
+
+    if (transliterate(kycData.firstName) !== userData.firstname) return false;
+    if (transliterate(kycData.lastName) !== userData.surname) return false;
+    if (kycData.phone !== userData.phone) return false;
+    if (kycData.accountType !== userData.accountType) return false;
+
+    if (transliterate(kycData.address.street) !== userData.street) return false;
+    if (transliterate(kycData.address.houseNumber ?? '') !== (userData.houseNumber ?? '')) return false;
+    if (transliterate(kycData.address.city) !== userData.location) return false;
+    if (transliterate(kycData.address.zip) !== userData.zip) return false;
+    if (kycData.address.country?.id !== userData.country?.id) return false;
+
+    if (kycData.accountType !== AccountType.PERSONAL) {
+      if ((kycData.organizationName ?? null) !== (userData.organizationName ?? null)) return false;
+      if ((kycData.organizationAddress?.street ?? null) !== (userData.organizationStreet ?? null)) return false;
+      if ((kycData.organizationAddress?.houseNumber ?? null) !== (userData.organizationHouseNumber ?? null))
+        return false;
+      if ((kycData.organizationAddress?.city ?? null) !== (userData.organizationLocation ?? null)) return false;
+      if ((kycData.organizationAddress?.zip ?? null) !== (userData.organizationZip ?? null)) return false;
+      if ((kycData.organizationAddress?.country?.id ?? null) !== (userData.organizationCountry?.id ?? null))
+        return false;
+    }
+
+    if (dto.nationality !== userData.nationality?.symbol) return false;
+    if (dto.birthday !== Util.isoDate(userData.birthday)) return false;
+
+    return true;
+  }
+
+  private async forwardRegistration(kycStep: KycStep, dto: RealUnitRegistrationDto): Promise<boolean> {
     const { api } = Config.blockchain.realunit;
 
-    // forward Aktionariat fields
-    const payload = plainToInstance(AktionariatRegistrationDto, dto);
+    try {
+      // forward Aktionariat fields
+      const payload = plainToInstance(AktionariatRegistrationDto, dto);
 
-    await this.http.post(`${api.url}/registerUser`, payload, {
-      headers: { 'x-api-key': api.key },
-    });
+      await this.http.post(`${api.url}/registerUser`, payload, {
+        headers: { 'x-api-key': api.key },
+      });
+
+      await this.kycService.saveKycStepUpdate(kycStep.complete());
+      return true;
+    } catch (error) {
+      const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
+
+      this.logger.error(
+        `Failed to forward RealUnit registration to Aktionariat for KYC step ${kycStep.id}: ${message}`,
+      );
+      await this.kycService.saveKycStepUpdate(kycStep.manualReview(message));
+      return false;
+    }
   }
 }
