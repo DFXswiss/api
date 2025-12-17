@@ -6,18 +6,30 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
-  IsOptional,
+  IsNotEmptyObject,
   IsString,
   Matches,
+  MaxLength,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
+import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { DfxPhoneTransform, IsDfxPhone } from 'src/subdomains/generic/user/models/user-data/is-dfx-phone.validator';
 
 export enum RealUnitUserType {
   HUMAN = 'HUMAN',
   CORPORATION = 'CORPORATION',
+}
+
+export enum RealUnitRegistrationStatus {
+  COMPLETED = 'completed',
+  PENDING_REVIEW = 'pending_review',
+}
+
+export class RealUnitRegistrationResponseDto {
+  @ApiProperty({ enum: RealUnitRegistrationStatus })
+  status: RealUnitRegistrationStatus;
 }
 
 export enum RealUnitLanguage {
@@ -40,7 +52,7 @@ export class CountryAndTin {
   tin: string;
 }
 
-export class RealUnitRegistrationDto {
+export class AktionariatRegistrationDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
@@ -50,6 +62,7 @@ export class RealUnitRegistrationDto {
   @ApiProperty({ description: 'Full name' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   name: string;
 
@@ -81,18 +94,21 @@ export class RealUnitRegistrationDto {
   @ApiProperty({ description: 'Street address including house number' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   addressStreet: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   addressPostalCode: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @MaxLength(256)
   @Transform(Util.sanitize)
   addressCity: string;
 
@@ -125,16 +141,27 @@ export class RealUnitRegistrationDto {
   @IsString()
   signature: string;
 
-  @ApiPropertyOptional({ enum: RealUnitLanguage })
-  @IsOptional()
+  @ApiProperty({ enum: RealUnitLanguage })
+  @IsNotEmpty()
   @IsEnum(RealUnitLanguage)
-  lang?: RealUnitLanguage;
+  lang: RealUnitLanguage;
 
   @ApiPropertyOptional({ type: [CountryAndTin], description: 'Required if swissTaxResidence is false' })
-  @ValidateIf((o: RealUnitRegistrationDto) => !o.swissTaxResidence)
+  @ValidateIf((o: AktionariatRegistrationDto) => !o.swissTaxResidence)
   @IsNotEmpty({ message: 'countryAndTINs is required when swissTaxResidence is false' })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CountryAndTin)
   countryAndTINs?: CountryAndTin[];
+}
+
+export class RealUnitRegistrationDto extends AktionariatRegistrationDto {
+  @ApiProperty({
+    type: KycPersonalData,
+    description: 'Personal data fields. Must match signed fields (name, address).',
+  })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => KycPersonalData)
+  kycData: KycPersonalData;
 }
