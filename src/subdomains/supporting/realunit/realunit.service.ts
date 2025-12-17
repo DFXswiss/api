@@ -2,7 +2,6 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { plainToInstance } from 'class-transformer';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
-import { transliterate } from 'transliteration';
 import { Config, GetConfig } from 'src/config/config';
 import {
   AllowlistStatusDto,
@@ -24,11 +23,11 @@ import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
-import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
@@ -193,7 +192,9 @@ export class RealUnitService {
 
     // get and validate user
     const userData = await this.userService
-      .getUserByAddress(dto.walletAddress, { userData: { kycSteps: true, users: true, country: true, organizationCountry: true } })
+      .getUserByAddress(dto.walletAddress, {
+        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
+      })
       .then((u) => u?.userData);
 
     if (!userData) throw new NotFoundException('User not found');
@@ -219,21 +220,20 @@ export class RealUnitService {
 
     const hasExistingData = userData.firstname != null;
     if (hasExistingData) {
-      // check if new data matches existing data
-      const dataMatches = this.isPersonalDataMatching(userData, dto.kycData);
+      const dataMatches = this.isPersonalDataMatching(userData, dto);
       if (!dataMatches) {
-        await this.kycService.saveKycStepUpdate(kycStep.manualReview('User has existing KYC data'));
+        await this.kycService.saveKycStepUpdate(kycStep.manualReview('Existing KYC data does not match'));
         return true;
       }
-      // data matches - skip updatePersonalData but continue with registration
     } else {
-      // store personal data to userData
       await this.userDataService.updatePersonalData(userData, dto.kycData);
     }
+
+    // update always
     await this.userDataService.updateUserDataInternal(userData, {
       nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
-      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
       birthday: new Date(dto.birthday),
+      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
       tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
     });
 
@@ -371,29 +371,33 @@ export class RealUnitService {
     await this.kycService.saveKycStepUpdate(kycStep.complete());
   }
 
-  private isPersonalDataMatching(userData: UserData, kycData: KycPersonalData): boolean {
-    // compare basic fields (transliterated as stored in DB)
+  private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
+    const kycData = dto.kycData;
+
     if (transliterate(kycData.firstName) !== userData.firstname) return false;
     if (transliterate(kycData.lastName) !== userData.surname) return false;
     if (kycData.phone !== userData.phone) return false;
     if (kycData.accountType !== userData.accountType) return false;
 
-    // compare address
     if (transliterate(kycData.address.street) !== userData.street) return false;
     if (transliterate(kycData.address.houseNumber ?? '') !== (userData.houseNumber ?? '')) return false;
     if (transliterate(kycData.address.city) !== userData.location) return false;
     if (transliterate(kycData.address.zip) !== userData.zip) return false;
     if (kycData.address.country?.id !== userData.country?.id) return false;
 
-    // compare organization data for non-personal accounts (ORGANIZATION and SOLE_PROPRIETORSHIP)
     if (kycData.accountType !== AccountType.PERSONAL) {
       if ((kycData.organizationName ?? null) !== (userData.organizationName ?? null)) return false;
       if ((kycData.organizationAddress?.street ?? null) !== (userData.organizationStreet ?? null)) return false;
-      if ((kycData.organizationAddress?.houseNumber ?? null) !== (userData.organizationHouseNumber ?? null)) return false;
+      if ((kycData.organizationAddress?.houseNumber ?? null) !== (userData.organizationHouseNumber ?? null))
+        return false;
       if ((kycData.organizationAddress?.city ?? null) !== (userData.organizationLocation ?? null)) return false;
       if ((kycData.organizationAddress?.zip ?? null) !== (userData.organizationZip ?? null)) return false;
-      if ((kycData.organizationAddress?.country?.id ?? null) !== (userData.organizationCountry?.id ?? null)) return false;
+      if ((kycData.organizationAddress?.country?.id ?? null) !== (userData.organizationCountry?.id ?? null))
+        return false;
     }
+
+    if (dto.nationality !== userData.nationality?.symbol) return false;
+    if (dto.birthday !== Util.isoDate(userData.birthday)) return false;
 
     return true;
   }
