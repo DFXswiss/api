@@ -183,8 +183,7 @@ export class SellController {
   @ApiOperation({
     summary: 'Confirm sell transaction',
     description:
-      'Confirms a sell transaction either by permit signature (backend executes transfer) or by signed transaction (user broadcasts). ' +
-      'Exactly one of permit or signedTx must be provided.',
+      'Confirms a sell transaction either by permit signature (backend executes transfer) or by signed transaction (user broadcasts).',
   })
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(

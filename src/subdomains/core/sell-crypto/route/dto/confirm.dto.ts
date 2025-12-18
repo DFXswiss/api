@@ -44,13 +44,6 @@ export class PermitDto {
   deadline: string;
 }
 
-export class SignedTxDto {
-  @ApiProperty({ description: 'Signed transaction hex' })
-  @IsNotEmpty()
-  @IsString()
-  hex: string;
-}
-
 export class ConfirmDto {
   @ApiPropertyOptional({ type: PermitDto, description: 'Permit signature for backend-executed transfer' })
   @IsOptional()
@@ -58,9 +51,8 @@ export class ConfirmDto {
   @Type(() => PermitDto)
   permit?: PermitDto;
 
-  @ApiPropertyOptional({ type: SignedTxDto, description: 'User-signed transaction for broadcast' })
+  @ApiPropertyOptional({ description: 'User-signed transaction hex for broadcast' })
   @IsOptional()
-  @ValidateNested()
-  @Type(() => SignedTxDto)
-  signedTx?: SignedTxDto;
+  @IsString()
+  signedTxHex?: string;
 }

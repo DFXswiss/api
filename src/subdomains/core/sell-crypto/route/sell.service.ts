@@ -41,7 +41,7 @@ import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
-import { ConfirmDto, PermitDto, SignedTxDto } from './dto/confirm.dto';
+import { ConfirmDto, PermitDto } from './dto/confirm.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { UnsignedTxDto } from './dto/unsigned-tx.dto';
@@ -71,7 +71,6 @@ export class SellService {
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
-    private readonly txValidationService: TxValidationService,
   ) {}
 
   // --- SELLS --- //
@@ -324,10 +323,10 @@ export class SellService {
     let payIn: CryptoInput;
     if (dto.permit) {
       payIn = await this.confirmSellWithPermit(route, request, dto.permit);
-    } else if (dto.signedTx) {
-      payIn = await this.confirmSellWithSignedTx(route, request, dto.signedTx);
+    } else if (dto.signedTxHex) {
+      payIn = await this.confirmSellWithSignedTx(route, request, dto.signedTxHex);
     } else {
-      throw new BadRequestException('Either permit or signedTx must be provided');
+      throw new BadRequestException('Either permit or signedTxHex must be provided');
     }
 
     const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
@@ -344,9 +343,9 @@ export class SellService {
     }
   }
 
-  private async confirmSellWithSignedTx(route: Sell, request: TransactionRequest, dto: SignedTxDto) {
+  private async confirmSellWithSignedTx(route: Sell, request: TransactionRequest, signedTxHex: string) {
     try {
-      return await this.transactionUtilService.handleSignedTxInput(route, request, dto.hex);
+      return await this.transactionUtilService.handleSignedTxInput(route, request, signedTxHex);
     } catch (e) {
       this.logger.warn(`Failed to broadcast sell transaction for request ${request.id}:`, e);
       throw new BadRequestException(`Failed to broadcast sell transaction: ${e.message}`);

@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
-import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
@@ -175,23 +174,23 @@ export class TransactionUtilService {
     const asset = await this.assetService.getAssetById(request.sourceId);
     if (!asset) throw new BadRequestException('Asset not found');
 
-    const expectedAmountWei = EvmUtil.toWeiAmount(request.amount, asset.decimals);
+    const parsedTx = this.txValidationService.validateEvmTransaction(
+      signedTxHex,
+      route.deposit.address,
+      request.amount,
+      asset,
+    );
 
-    this.txValidationService.assertValidEvmTransaction(signedTxHex, route.deposit.address, expectedAmountWei, asset);
+    if (!parsedTx.isValid) {
+      throw new BadRequestException(parsedTx.error || 'Invalid transaction');
+    }
 
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
 
     const txResponse = await client.sendSignedTransaction(signedTxHex);
-
-    if (txResponse.error) {
-      throw new BadRequestException(`Transaction broadcast failed: ${txResponse.error.message}`);
-    }
+    if (txResponse.error) throw new BadRequestException(`Transaction broadcast failed: ${txResponse.error.message}`);
 
     const txId = txResponse.response.hash;
-
-    const parsedTx = this.txValidationService.parseEvmTransaction(signedTxHex, asset);
-    if (!parsedTx) throw new BadRequestException('Failed to parse signed transaction');
-
     const blockHeight = await client.getCurrentBlock();
 
     return this.createPayIn(

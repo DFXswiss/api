@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UnsignedTxDto {
+  @ApiProperty({ description: 'Chain ID' })
+  chainId: number;
+
   @ApiProperty({ description: 'Sender address (user wallet)' })
   from: string;
 
@@ -16,12 +19,9 @@ export class UnsignedTxDto {
   @ApiProperty({ description: 'Transaction nonce' })
   nonce: number;
 
-  @ApiProperty({ description: 'Gas price in wei' })
+  @ApiProperty({ description: 'Recommended gas price in wei' })
   gasPrice: string;
 
   @ApiProperty({ description: 'Recommended gas limit' })
   gasLimit: string;
-
-  @ApiProperty({ description: 'Chain ID' })
-  chainId: number;
 }
