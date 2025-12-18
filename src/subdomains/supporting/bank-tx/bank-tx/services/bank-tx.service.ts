@@ -110,14 +110,14 @@ export class BankTxService implements OnModuleInit {
     await this.fillBankTx();
   }
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.BANK_TX })
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX })
   async enrichYapealTransactions(): Promise<void> {
-    const fiveMinutesAgo = Util.minutesBefore(5);
+    const where = { created: MoreThan(Util.minutesBefore(30)) };
 
-    const transactions = await this.bankTxRepo.findBy({
-      created: MoreThan(fiveMinutesAgo),
-      creditDebitIndicator: BankTxIndicator.CREDIT,
-    });
+    const transactions = await this.bankTxRepo.findBy([
+      { ...where, familyCode: 'CCRD' }, // credit card => wrong data
+      { ...where, addressLine1: IsNull() },
+    ]);
 
     if (transactions.length === 0) return;
 
