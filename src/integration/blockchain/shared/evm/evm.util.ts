@@ -5,6 +5,7 @@ import { defaultPath } from 'ethers/lib/utils';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from '../enums/blockchain.enum';
+import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
 
 enum FeeType {
@@ -111,16 +112,14 @@ export class EvmUtil {
 
   static readonly ERC20_TRANSFER_SELECTOR = '0xa9059cbb';
 
-  private static readonly ERC20_TRANSFER_INTERFACE = new ethers.utils.Interface([
-    'function transfer(address to, uint256 amount)',
-  ]);
+  private static readonly ERC20_INTERFACE = new ethers.utils.Interface(ERC20_ABI);
 
   static encodeErc20Transfer(to: string, amount: EthersNumber): string {
-    return this.ERC20_TRANSFER_INTERFACE.encodeFunctionData('transfer', [to, amount]);
+    return this.ERC20_INTERFACE.encodeFunctionData('transfer', [to, amount]);
   }
 
   static decodeErc20Transfer(data: string): { to: string; amount: EthersNumber } {
-    const decoded = this.ERC20_TRANSFER_INTERFACE.decodeFunctionData('transfer', data);
+    const decoded = this.ERC20_INTERFACE.decodeFunctionData('transfer', data);
     return { to: decoded.to.toLowerCase(), amount: EthersNumber.from(decoded.amount) };
   }
 

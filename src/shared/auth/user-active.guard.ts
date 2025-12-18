@@ -33,6 +33,22 @@ export function UserActiveGuard(
   return new UserActiveGuardClass(blockedUserStatus, blockedUserDataStatus, blockedUserDataRiskStatus);
 }
 
+export function BuyActiveGuard(): UserActiveGuardClass {
+  return new UserActiveGuardClass(
+    [UserStatus.BLOCKED, UserStatus.DELETED],
+    [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+    [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
+  );
+}
+
+export function SwapActiveGuard(): UserActiveGuardClass {
+  return new UserActiveGuardClass(
+    [UserStatus.BLOCKED, UserStatus.DELETED],
+    [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+    [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
+  );
+}
+
 export function SellActiveGuard(): UserActiveGuardClass {
   return new UserActiveGuardClass(
     [UserStatus.BLOCKED, UserStatus.DELETED],

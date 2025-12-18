@@ -16,7 +16,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
+import { BuyActiveGuard, UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -65,30 +65,14 @@ export class BuyController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
   async getAllBuy(@GetJwt() jwt: JwtPayload): Promise<BuyDto[]> {
     return this.buyService.getUserBuys(jwt.user).then((l) => this.toDtoList(jwt.user, l));
   }
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
   @ApiOkResponse({ type: BuyDto })
   async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
     return this.buyService.get(jwt.account, +id).then((l) => this.toDto(jwt.user, l));
@@ -96,15 +80,7 @@ export class BuyController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
   @ApiExcludeEndpoint()
   async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
@@ -170,16 +146,7 @@ export class BuyController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    IpGuard,
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, BuyActiveGuard())
   @ApiOkResponse({ type: BuyPaymentInfoDto })
   async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -190,16 +157,7 @@ export class BuyController {
 
   @Put('/paymentInfos/:id/invoice')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    IpGuard,
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, BuyActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
@@ -280,15 +238,7 @@ export class BuyController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
   @ApiExcludeEndpoint()
   async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateBuyDto): Promise<BuyDto> {
     return this.buyService.updateBuy(jwt.user, +id, dto).then((b) => this.toDto(jwt.user, b));
