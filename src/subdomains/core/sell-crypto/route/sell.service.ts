@@ -41,7 +41,7 @@ import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
-import { ConfirmDto, PermitDto } from './dto/confirm.dto';
+import { ConfirmDto } from './dto/confirm.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { UnsignedTxDto } from './dto/unsigned-tx.dto';
@@ -193,7 +193,7 @@ export class SellService {
   async createSellPaymentInfo(
     userId: number,
     dto: GetSellPaymentInfoDto,
-    includeTx = false,
+    includeTx: boolean,
   ): Promise<SellPaymentInfoDto> {
     const sell = await Util.retry(
       () => this.createSell(userId, { ...dto, blockchain: dto.asset.blockchain }, true),
@@ -320,35 +320,26 @@ export class SellService {
     });
     if (!route) throw new NotFoundException('Sell route not found');
 
+    let type: string;
     let payIn: CryptoInput;
-    if (dto.permit) {
-      payIn = await this.confirmSellWithPermit(route, request, dto.permit);
-    } else if (dto.signedTxHex) {
-      payIn = await this.confirmSellWithSignedTx(route, request, dto.signedTxHex);
-    } else {
-      throw new BadRequestException('Either permit or signedTxHex must be provided');
-    }
 
-    const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
-    await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);
-    return this.buyFiatService.extendBuyFiat(buyFiat);
-  }
-
-  private async confirmSellWithPermit(route: Sell, request: TransactionRequest, dto: PermitDto) {
     try {
-      return await this.transactionUtilService.handlePermitInput(route, request, dto);
-    } catch (e) {
-      this.logger.warn(`Failed to execute permit transfer for sell request ${request.id}:`, e);
-      throw new BadRequestException(`Failed to execute permit transfer: ${e.message}`);
-    }
-  }
+      if (dto.permit) {
+        type = 'permit';
+        payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
+      } else if (dto.signedTxHex) {
+        type = 'signed transaction';
+        payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
+      } else {
+        throw new BadRequestException('Either permit or signedTxHex must be provided');
+      }
 
-  private async confirmSellWithSignedTx(route: Sell, request: TransactionRequest, signedTxHex: string) {
-    try {
-      return await this.transactionUtilService.handleSignedTxInput(route, request, signedTxHex);
+      const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
+      await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);
+      return await this.buyFiatService.extendBuyFiat(buyFiat);
     } catch (e) {
-      this.logger.warn(`Failed to broadcast sell transaction for request ${request.id}:`, e);
-      throw new BadRequestException(`Failed to broadcast sell transaction: ${e.message}`);
+      this.logger.warn(`Failed to execute ${type} transfer for sell request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to confirm request: ${e.message}`);
     }
   }
 

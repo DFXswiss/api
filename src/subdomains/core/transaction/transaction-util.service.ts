@@ -11,9 +11,7 @@ import * as IbanTools from 'ibantools';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
@@ -155,7 +153,7 @@ export class TransactionUtilService {
 
     const blockHeight = await client.getCurrentBlock();
 
-    return this.createPayIn(
+    return this.payInService.createPayIn(
       dto.address,
       route.deposit.address,
       asset,
@@ -180,10 +178,7 @@ export class TransactionUtilService {
       request.amount,
       asset,
     );
-
-    if (!parsedTx.isValid) {
-      throw new BadRequestException(parsedTx.error || 'Invalid transaction');
-    }
+    if (!parsedTx.isValid) throw new BadRequestException(parsedTx.error || 'Invalid transaction');
 
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
 
@@ -193,7 +188,7 @@ export class TransactionUtilService {
     const txId = txResponse.response.hash;
     const blockHeight = await client.getCurrentBlock();
 
-    return this.createPayIn(
+    return this.payInService.createPayIn(
       parsedTx.sender,
       route.deposit.address,
       asset,
@@ -202,29 +197,5 @@ export class TransactionUtilService {
       blockHeight,
       request.amount,
     );
-  }
-
-  private async createPayIn(
-    senderAddress: string,
-    depositAddress: string,
-    asset: Asset,
-    txId: string,
-    txType: PayInType,
-    blockHeight: number,
-    amount: number,
-  ): Promise<CryptoInput> {
-    const [payIn] = await this.payInService.createPayIns([
-      {
-        senderAddresses: senderAddress,
-        receiverAddress: BlockchainAddress.create(depositAddress, asset.blockchain),
-        txId,
-        txType,
-        blockHeight,
-        amount,
-        asset,
-      },
-    ]);
-
-    return payIn;
   }
 }
