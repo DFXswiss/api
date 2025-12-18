@@ -1,11 +1,32 @@
 import { Test } from '@nestjs/testing';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from '../buy-crypto.entity';
 
 function createPrice(source: string, target: string, price?: number): Price {
   return Object.assign(new Price(), { source, target, price, steps: [] });
+}
+
+function createPipelineMock(status: LiquidityManagementPipelineStatus, orders?: any[]): any {
+  return {
+    status,
+    orders: orders ?? [],
+  };
+}
+
+function createPipelineOrderMock(inputAmount: number, outputAmount: number): any {
+  return {
+    inputAmount,
+    outputAmount,
+    inputAsset: 'USDT',
+    outputAsset: 'BTC',
+    get exchangePrice(): Price {
+      const price = inputAmount / outputAmount;
+      return Price.create('USDT', 'BTC', price);
+    },
+  };
 }
 
 beforeEach(async () => {
@@ -69,6 +90,241 @@ describe('BuyCrypto', () => {
       const updatedEntity = entity.calculateOutputReferenceAmount(price);
 
       expect(updatedEntity).toBeInstanceOf(BuyCrypto);
+    });
+
+    describe('with liquidityPipeline', () => {
+      it('uses pipeline price when pipeline is COMPLETE with orders', () => {
+        // Pipeline bought 1 BTC for 50000 USDT (price = 50000)
+        const pipelineOrder = createPipelineOrderMock(50000, 1);
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [pipelineOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        // Market price is 60000 (different from pipeline price)
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use pipeline price (50000), not market price (60000)
+        // 50000 USDT / 50000 price = 1 BTC
+        expect(entity.outputReferenceAmount).toBe(1);
+      });
+
+      it('uses market price when no pipeline exists', () => {
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: undefined,
+        });
+
+        // Market price is 60000
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use market price: 50000 / 60000 = 0.83333333
+        expect(entity.outputReferenceAmount).toBe(0.83333333);
+      });
+
+      it('uses market price when pipeline status is FAILED', () => {
+        const pipelineOrder = createPipelineOrderMock(50000, 1);
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.FAILED, [pipelineOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use market price because pipeline FAILED
+        expect(entity.outputReferenceAmount).toBe(0.83333333);
+      });
+
+      it('uses market price when pipeline status is STOPPED', () => {
+        const pipelineOrder = createPipelineOrderMock(50000, 1);
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.STOPPED, [pipelineOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use market price because pipeline STOPPED
+        expect(entity.outputReferenceAmount).toBe(0.83333333);
+      });
+
+      it('throws error when pipeline is IN_PROGRESS', () => {
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.IN_PROGRESS, []);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        expect(() => entity.calculateOutputReferenceAmount(marketPrice)).toThrow('LiquidityPipeline not completed');
+      });
+
+      it('throws error when pipeline is CREATED', () => {
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.CREATED, []);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        expect(() => entity.calculateOutputReferenceAmount(marketPrice)).toThrow('LiquidityPipeline not completed');
+      });
+
+      it('throws error when pipeline is COMPLETE but has no orders', () => {
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, []);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        expect(() => entity.calculateOutputReferenceAmount(marketPrice)).toThrow('LiquidityPipeline not completed');
+      });
+
+      it('protects against price drop during transfer - customer gets correct amount based on purchase price', () => {
+        // Scenario: DFX buys BTC at 50000, price drops to 40000 during transfer
+        // Customer paid 50000 USDT, should get 1 BTC (not 1.25 BTC at new price)
+        const pipelineOrder = createPipelineOrderMock(50000, 1);
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [pipelineOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        // Market price dropped to 40000 during transfer
+        const marketPrice = Price.create('USDT', 'BTC', 40000);
+
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use pipeline price (50000), customer gets 1 BTC
+        // NOT 1.25 BTC (which would be 50000/40000 at market price)
+        expect(entity.outputReferenceAmount).toBe(1);
+      });
+
+      it('protects against price rise during transfer - customer gets correct amount based on purchase price', () => {
+        // Scenario: DFX buys BTC at 50000, price rises to 60000 during transfer
+        // Customer paid 50000 USDT, should get 1 BTC (not 0.833 BTC at new price)
+        const pipelineOrder = createPipelineOrderMock(50000, 1);
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [pipelineOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        // Market price rose to 60000 during transfer
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use pipeline price (50000), customer gets 1 BTC
+        // NOT 0.83333333 BTC (which would be 50000/60000 at market price)
+        expect(entity.outputReferenceAmount).toBe(1);
+      });
+
+      it('uses only first order when pipeline has multiple orders', () => {
+        // Pipeline has multiple orders - only first should be used
+        const pipelineOrder1 = createPipelineOrderMock(50000, 1); // price = 50000
+        const pipelineOrder2 = createPipelineOrderMock(60000, 1); // price = 60000
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [
+          pipelineOrder1,
+          pipelineOrder2,
+        ]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        const marketPrice = Price.create('USDT', 'BTC', 55000);
+
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use first order's price (50000)
+        expect(entity.outputReferenceAmount).toBe(1);
+      });
+
+      it('handles small amounts correctly with pipeline price', () => {
+        // Customer buying small amount: 100 USDT worth of BTC
+        const pipelineOrder = createPipelineOrderMock(100000, 2); // DFX bought 2 BTC for 100000 USDT (price = 50000)
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [pipelineOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 100,
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use pipeline price (50000): 100 / 50000 = 0.002 BTC
+        expect(entity.outputReferenceAmount).toBe(0.002);
+      });
+
+      it('handles partial fill scenario - customer amount less than pipeline purchase', () => {
+        // DFX bought 2 BTC for 100000 USDT (for multiple customers)
+        // This customer only wants 0.5 BTC worth
+        const pipelineOrder = createPipelineOrderMock(100000, 2); // price = 50000
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [pipelineOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 25000, // Customer wants 0.5 BTC worth
+          inputReferenceAsset: 'USDT',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        const marketPrice = Price.create('USDT', 'BTC', 60000);
+
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use pipeline price (50000): 25000 / 50000 = 0.5 BTC
+        expect(entity.outputReferenceAmount).toBe(0.5);
+      });
     });
   });
 
