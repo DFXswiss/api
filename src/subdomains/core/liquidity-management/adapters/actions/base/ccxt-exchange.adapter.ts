@@ -1,4 +1,4 @@
-import { InsufficientFunds } from 'ccxt';
+import { InsufficientFunds, Order } from 'ccxt';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
@@ -299,10 +299,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const isComplete = await this.checkTradeCompletion(order, tradeAsset, token);
     if (isComplete) {
-      const trade = await this.exchangeService.getTrade(order.correlationId, tradeAsset, token);
+      const { inputAmount, outputAmount } = await this.aggregateTradeAmounts(order, tradeAsset, token);
 
-      order.inputAmount = trade.cost;
-      order.outputAmount = trade.amount;
+      order.inputAmount = inputAmount;
+      order.outputAmount = outputAmount;
     }
 
     return isComplete;
@@ -315,13 +315,62 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const isComplete = await this.checkTradeCompletion(order, asset, tradeAsset);
     if (isComplete) {
-      const trade = await this.exchangeService.getTrade(order.correlationId, asset, tradeAsset);
+      const { inputAmount, outputAmount } = await this.aggregateTradeAmounts(order, asset, tradeAsset);
 
-      order.inputAmount = trade.amount;
-      order.outputAmount = trade.cost;
+      // For sell: input is the base asset (amount), output is the quote asset (cost)
+      order.inputAmount = outputAmount;
+      order.outputAmount = inputAmount;
     }
 
     return isComplete;
+  }
+
+  private async aggregateTradeAmounts(
+    order: LiquidityManagementOrder,
+    from: string,
+    to: string,
+  ): Promise<{ inputAmount: number; outputAmount: number }> {
+    const correlationIds = order.allCorrelationIds;
+
+    if (correlationIds.length > 1) {
+      this.logger.verbose(
+        `Order ${order.id}: Aggregating fills from ${correlationIds.length} exchange orders: ${correlationIds.join(', ')}`,
+      );
+    }
+
+    // Fetch all trades, handling individual failures gracefully
+    const tradeResults = await Promise.allSettled(
+      correlationIds.map((id) => this.exchangeService.getTrade(id, from, to)),
+    );
+
+    const trades = tradeResults
+      .filter((result): result is PromiseFulfilledResult<Order> => result.status === 'fulfilled')
+      .map((result) => result.value);
+
+    // Log any failures
+    const failures = tradeResults.filter((result) => result.status === 'rejected');
+    if (failures.length > 0) {
+      this.logger.warn(
+        `Order ${order.id}: Failed to fetch ${failures.length} of ${correlationIds.length} trades. ` +
+          `Proceeding with ${trades.length} successful fetches.`,
+      );
+    }
+
+    if (trades.length === 0) {
+      throw new OrderFailedException(`Failed to fetch any trades for order ${order.id}`);
+    }
+
+    // Use 'filled' for the actual filled amount (not 'amount' which is the order size)
+    const inputAmount = trades.reduce((sum, trade) => sum + trade.cost, 0);
+    const outputAmount = trades.reduce((sum, trade) => sum + (trade.filled ?? trade.amount), 0);
+
+    if (correlationIds.length > 1) {
+      this.logger.verbose(
+        `Order ${order.id}: Aggregated totals - input: ${inputAmount} ${from}, output: ${outputAmount} ${to}`,
+      );
+    }
+
+    return { inputAmount, outputAmount };
   }
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
@@ -329,7 +378,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       return await this.exchangeService.checkTrade(order.correlationId, from, to);
     } catch (e) {
       if (e instanceof TradeChangedException) {
-        order.correlationId = e.id;
+        order.updateCorrelationId(e.id);
         await this.orderRepo.save(order);
 
         return false;

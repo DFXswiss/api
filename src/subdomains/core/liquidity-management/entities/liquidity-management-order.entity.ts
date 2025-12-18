@@ -49,6 +49,9 @@ export class LiquidityManagementOrder extends IEntity {
   correlationId?: string;
 
   @Column({ length: 'MAX', nullable: true })
+  previousCorrelationIds?: string;
+
+  @Column({ length: 'MAX', nullable: true })
   errorMessage?: string;
 
   //*** FACTORY ***//
@@ -91,9 +94,36 @@ export class LiquidityManagementOrder extends IEntity {
 
   //*** PUBLIC API ***//
 
+  get allCorrelationIds(): string[] {
+    const ids: string[] = [];
+
+    if (this.previousCorrelationIds) {
+      ids.push(...this.previousCorrelationIds.split(','));
+    }
+
+    if (this.correlationId) {
+      ids.push(this.correlationId);
+    }
+
+    // Remove duplicates and empty strings
+    return [...new Set(ids)].filter((id) => id.length > 0);
+  }
+
   inProgress(correlationId: string): this {
     this.correlationId = correlationId;
     this.status = LiquidityManagementOrderStatus.IN_PROGRESS;
+
+    return this;
+  }
+
+  updateCorrelationId(newCorrelationId: string): this {
+    if (this.correlationId) {
+      this.previousCorrelationIds = this.previousCorrelationIds
+        ? `${this.previousCorrelationIds},${this.correlationId}`
+        : this.correlationId;
+    }
+
+    this.correlationId = newCorrelationId;
 
     return this;
   }
