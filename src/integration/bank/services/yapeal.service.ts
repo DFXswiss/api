@@ -120,16 +120,16 @@ export class YapealService {
 
   async getTransactions(accountIban: string, fromDate: Date, toDate: Date): Promise<CamtTransaction[]> {
     const statement = await this.getAccountStatement(accountIban, fromDate, toDate);
-    return Iso20022Service.parseCamt053Xml(statement, accountIban);
+    return Iso20022Service.parseCamt053Json(statement, accountIban);
   }
 
-  private async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<string> {
+  private async getAccountStatement(iban: string, fromDate: Date, toDate: Date): Promise<any> {
     const params = new URLSearchParams({
       fromDate: Util.isoDate(fromDate),
       toDate: Util.isoDate(toDate),
     });
 
-    return this.callApi<string>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
+    return this.callApi<any>(`b2b/accounts/${iban}/camt-053-statement?${params.toString()}`, 'GET', undefined, true);
   }
 
   async sendPayment(payment: Pain001Payment): Promise<void> {
