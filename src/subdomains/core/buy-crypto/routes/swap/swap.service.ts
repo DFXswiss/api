@@ -235,7 +235,8 @@ export class SwapService {
         relations: { deposit: true, user: { wallet: true, userData: true } },
       });
 
-      const payIn = await this.transactionUtilService.handlePermitInput(route, request, dto);
+      const payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
+
       const buyCrypto = await this.buyCryptoService.createFromCryptoInput(payIn, route, request);
 
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, route);
