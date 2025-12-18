@@ -8,8 +8,11 @@ import {
 } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -24,7 +27,7 @@ import { CheckStatus } from '../aml/enums/check-status.enum';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { Swap } from '../buy-crypto/routes/swap/swap.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { ConfirmDto } from '../sell-crypto/route/dto/confirm.dto';
+import { PermitDto } from '../sell-crypto/route/dto/confirm.dto';
 import { Sell } from '../sell-crypto/route/sell.entity';
 
 export type RefundValidation = {
@@ -38,6 +41,7 @@ export class TransactionUtilService {
   constructor(
     private readonly assetService: AssetService,
     private readonly blockchainRegistry: BlockchainRegistryService,
+    private readonly txValidationService: TxValidationService,
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly bankAccountService: BankAccountService,
@@ -127,39 +131,97 @@ export class TransactionUtilService {
     );
   }
 
-  async handlePermitInput(route: Swap | Sell, request: TransactionRequest, dto: ConfirmDto): Promise<CryptoInput> {
+  async handlePermitInput(route: Swap | Sell, request: TransactionRequest, dto: PermitDto): Promise<CryptoInput> {
     const asset = await this.assetService.getAssetById(request.sourceId);
 
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
 
-    if (dto.permit.executorAddress.toLowerCase() !== client.walletAddress.toLowerCase())
+    if (dto.executorAddress.toLowerCase() !== client.walletAddress.toLowerCase())
       throw new BadRequestException('Invalid executor address');
 
-    const contractValid = await client.isPermitContract(dto.permit.signatureTransferContract);
+    const contractValid = await client.isPermitContract(dto.signatureTransferContract);
     if (!contractValid) throw new BadRequestException('Invalid signature transfer contract');
 
     const txId = await client.permitTransfer(
-      dto.permit.address,
-      dto.permit.signature,
-      dto.permit.signatureTransferContract,
+      dto.address,
+      dto.signature,
+      dto.signatureTransferContract,
       asset,
       request.amount,
-      dto.permit.permittedAmount,
+      dto.permittedAmount,
       route.deposit.address,
-      dto.permit.nonce,
-      BigNumber.from(dto.permit.deadline),
+      dto.nonce,
+      BigNumber.from(dto.deadline),
     );
 
     const blockHeight = await client.getCurrentBlock();
 
+    return this.createPayIn(
+      dto.address,
+      route.deposit.address,
+      asset,
+      txId,
+      PayInType.PERMIT_TRANSFER,
+      blockHeight,
+      request.amount,
+    );
+  }
+
+  async handleSignedTxInput(
+    route: Swap | Sell,
+    request: TransactionRequest,
+    signedTxHex: string,
+  ): Promise<CryptoInput> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    const expectedAmountWei = EvmUtil.toWeiAmount(request.amount, asset.decimals);
+
+    this.txValidationService.assertValidEvmTransaction(signedTxHex, route.deposit.address, expectedAmountWei, asset);
+
+    const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
+
+    const txResponse = await client.sendSignedTransaction(signedTxHex);
+
+    if (txResponse.error) {
+      throw new BadRequestException(`Transaction broadcast failed: ${txResponse.error.message}`);
+    }
+
+    const txId = txResponse.response.hash;
+
+    const parsedTx = this.txValidationService.parseEvmTransaction(signedTxHex, asset);
+    if (!parsedTx) throw new BadRequestException('Failed to parse signed transaction');
+
+    const blockHeight = await client.getCurrentBlock();
+
+    return this.createPayIn(
+      parsedTx.sender,
+      route.deposit.address,
+      asset,
+      txId,
+      PayInType.SIGNED_TRANSFER,
+      blockHeight,
+      request.amount,
+    );
+  }
+
+  private async createPayIn(
+    senderAddress: string,
+    depositAddress: string,
+    asset: Asset,
+    txId: string,
+    txType: PayInType,
+    blockHeight: number,
+    amount: number,
+  ): Promise<CryptoInput> {
     const [payIn] = await this.payInService.createPayIns([
       {
-        senderAddresses: dto.permit.address,
-        receiverAddress: BlockchainAddress.create(route.deposit.address, asset.blockchain),
+        senderAddresses: senderAddress,
+        receiverAddress: BlockchainAddress.create(depositAddress, asset.blockchain),
         txId,
-        txType: PayInType.PERMIT_TRANSFER,
+        txType,
         blockHeight,
-        amount: request.amount,
+        amount,
         asset,
       },
     ]);

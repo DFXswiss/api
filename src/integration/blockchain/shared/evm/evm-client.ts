@@ -16,6 +16,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { UnsignedTxDto } from 'src/subdomains/core/sell-crypto/route/dto/unsigned-tx.dto';
 import { BlockchainTokenBalance } from '../dto/blockchain-token-balance.dto';
 import { EvmSignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
 import { BlockchainClient } from '../util/blockchain-client';
@@ -160,7 +161,7 @@ export abstract class EvmClient extends BlockchainClient {
     return this.provider.getTransactionCount(address);
   }
 
-  async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {
+  protected async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
     return this.getTokenGasLimitForContact(contract, this.randomReceiverAddress);
@@ -168,6 +169,60 @@ export abstract class EvmClient extends BlockchainClient {
 
   async getTokenGasLimitForContact(contract: Contract, to: string): Promise<EthersNumber> {
     return contract.estimateGas.transfer(to, 1).then((l) => l.mul(12).div(10));
+  }
+
+  async prepareTransaction(
+    asset: Asset,
+    fromAddress: string,
+    toAddress: string,
+    amount: number,
+  ): Promise<UnsignedTxDto> {
+    const amountWei = EvmUtil.toWeiAmount(amount, asset.decimals);
+
+    const [{ to, data, value, gasLimit }, nonce, gasPrice] = await Promise.all([
+      this.prepareTxData(asset, fromAddress, toAddress, amountWei),
+      this.getTransactionCount(fromAddress),
+      this.getRecommendedGasPrice(),
+    ]);
+
+    return {
+      chainId: this.chainId,
+      from: fromAddress,
+      to,
+      data,
+      value,
+      nonce,
+      gasPrice: gasPrice.toString(),
+      gasLimit: gasLimit.toString(),
+    };
+  }
+
+  private async prepareTxData(
+    asset: Asset,
+    fromAddress: string,
+    toAddress: string,
+    amountWei: EthersNumber,
+  ): Promise<{ to: string; data: string; value: string; gasLimit: EthersNumber }> {
+    if (asset.type === AssetType.COIN) {
+      return {
+        to: toAddress,
+        data: '0x',
+        value: amountWei.toString(),
+        gasLimit: await this.getCurrentGasForCoinTransaction(
+          fromAddress,
+          toAddress,
+          +EvmUtil.fromWeiAmount(amountWei, asset.decimals),
+        ),
+      };
+    } else {
+      const contract = this.getERC20ContractForDex(asset.chainId);
+      return {
+        to: asset.chainId,
+        data: EvmUtil.encodeErc20Transfer(toAddress, amountWei),
+        value: '0',
+        gasLimit: await this.getTokenGasLimitForContact(contract, toAddress),
+      };
+    }
   }
 
   // --- PUBLIC API - WRITE TRANSACTIONS --- //

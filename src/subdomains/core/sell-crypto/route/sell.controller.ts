@@ -4,13 +4,15 @@ import {
   ConflictException,
   Controller,
   Get,
+  NotFoundException,
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -32,17 +34,15 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionDtoMapper } from '../../history/mappers/transaction-dto.mapper';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
-import { BroadcastSellDto } from './dto/broadcast-sell.dto';
 import { ConfirmDto } from './dto/confirm.dto';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
-import { PreparedTxDto } from './dto/prepared-tx.dto';
 import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
 import { SellHistoryDto } from './dto/sell-history.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
-import { SellPaymentInfoWithTxDto } from './dto/sell-payment-info-with-tx.dto';
 import { SellQuoteDto } from './dto/sell-quote.dto';
 import { SellDto } from './dto/sell.dto';
+import { UnsignedTxDto } from './dto/unsigned-tx.dto';
 import { UpdateSellDto } from './dto/update-sell.dto';
 import { Sell } from './sell.entity';
 import { SellService } from './sell.service';
@@ -146,54 +146,46 @@ export class SellController {
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
+  @ApiQuery({
+    name: 'includeTx',
+    required: false,
+    type: Boolean,
+    description: 'If true, includes depositTx field with unsigned transaction data in the response',
+  })
   @ApiOkResponse({ type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSellPaymentInfoDto,
+    @Query('includeTx') includeTx?: string,
   ): Promise<SellPaymentInfoDto> {
     dto = await this.paymentInfoService.sellCheck(dto, jwt);
-    return this.sellService.createSellPaymentInfo(jwt.user, dto);
+    return this.sellService.createSellPaymentInfo(jwt.user, dto, includeTx === 'true');
   }
 
-  @Put('/paymentInfos/withTx')
+  @Get('/paymentInfos/:id/tx')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
-  @ApiOperation({
-    summary: 'Create sell order with unsigned transaction',
-    description:
-      'Creates a sell order and returns payment info together with unsigned transaction data. ' +
-      'Combines PUT /sell/paymentInfos and GET /sell/paymentInfos/:id/prepareTx in one call.',
-  })
-  @ApiOkResponse({ type: SellPaymentInfoWithTxDto })
-  async createSellWithPaymentInfoAndTx(
-    @GetJwt() jwt: JwtPayload,
-    @Body() dto: GetSellPaymentInfoDto,
-  ): Promise<SellPaymentInfoWithTxDto> {
-    dto = await this.paymentInfoService.sellCheck(dto, jwt);
-    return this.sellService.createSellPaymentInfoWithTx(jwt.user, dto);
-  }
-
-  @Get('/paymentInfos/:id/prepareTx')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
-  @ApiOperation({
-    summary: 'Get unsigned transaction data',
-    description:
-      'Returns unsigned transaction data that the user can sign locally. ' +
-      'After signing, submit via PUT /sell/paymentInfos/:id/broadcast.',
-  })
-  @ApiOkResponse({ type: PreparedTxDto })
-  async prepareTx(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PreparedTxDto> {
+  @ApiOkResponse({ type: UnsignedTxDto })
+  async prepareTx(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<UnsignedTxDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
-    return this.sellService.prepareTx(request);
+    const route = await this.sellService.getById(request.routeId);
+    if (!route) throw new NotFoundException('Sell route not found');
+
+    return this.sellService.createDepositTx(request, route);
   }
 
   @Put('/paymentInfos/:id/confirm')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
+  @ApiOperation({
+    summary: 'Confirm sell transaction',
+    description:
+      'Confirms a sell transaction either by permit signature (backend executes transfer) or by signed transaction (user broadcasts). ' +
+      'Exactly one of permit or signedTx must be provided.',
+  })
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
     @GetJwt() jwt: JwtPayload,
@@ -205,28 +197,6 @@ export class SellController {
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
     return this.sellService.confirmSell(request, dto).then((tx) => TransactionDtoMapper.mapBuyFiatTransaction(tx));
-  }
-
-  @Put('/paymentInfos/:id/broadcast')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
-  @ApiOperation({
-    summary: 'Broadcast signed transaction',
-    description:
-      'Validates and broadcasts a user-signed transaction. ' +
-      'The transaction must transfer the correct amount to the deposit address.',
-  })
-  @ApiOkResponse({ type: TransactionDto })
-  async broadcastSell(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: BroadcastSellDto,
-  ): Promise<TransactionDto> {
-    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
-    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
-    if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
-
-    return this.sellService.broadcastSell(request, dto).then((tx) => TransactionDtoMapper.mapBuyFiatTransaction(tx));
   }
 
   @Put(':id')
