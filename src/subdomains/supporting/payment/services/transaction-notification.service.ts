@@ -115,7 +115,7 @@ export class TransactionNotificationService {
 
     for (const entity of entities) {
       try {
-        const userData = await this.bankTxService.getUserDataForBankTx(entity.bankTx, { wallet: true });
+        const userData = await this.bankTxService.getUserDataForBankTx(entity.bankTx);
         if (!userData) continue;
 
         if (userData.mail) {

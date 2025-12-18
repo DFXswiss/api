@@ -496,41 +496,27 @@ export class BankTxService implements OnModuleInit {
     return this.bankBalanceSubject.asObservable();
   }
 
-  async getUserDataForBankTx(bankTx: BankTx, relations?: FindOptionsRelations<UserData>): Promise<UserData | undefined> {
+  async getUserDataForBankTx(bankTx: BankTx, userDataId?: number, ibansOnly = true): Promise<UserData | undefined> {
     // Priority 1: VirtualIban (mandatory if set)
-    if (bankTx.virtualIban) {
-      const virtualIban = await this.virtualIbanService.getByIban(bankTx.virtualIban);
-      return virtualIban?.userData;
-    }
+    if (bankTx.virtualIban) return this.virtualIbanService.getByIban(bankTx.virtualIban).then((vI) => vI?.userData);
 
     // Priority 2: BankData via senderAccount (fallback)
     if (bankTx.senderAccount) {
-      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
-        bankTx.senderAccount,
-        undefined,
-        undefined,
-        { userData: relations ?? true },
-        true,
-      );
-      return bankData?.userData;
+      return userDataId
+        ? this.bankDataService
+            .getValidBankDatasForUser(userDataId, ibansOnly, bankTx.senderAccount)
+            .then((b) => b?.[0]?.userData)
+        : this.bankDataService
+            .getVerifiedBankDataWithIban(
+              bankTx.senderAccount,
+              undefined,
+              undefined,
+              { userData: { wallet: true } },
+              true,
+            )
+            .then((b) => b?.userData);
     }
 
     return undefined;
-  }
-
-  async isBankTxOwnedByUserData(bankTx: BankTx, userDataId: number): Promise<boolean> {
-    // Priority 1: VirtualIban (mandatory if set)
-    if (bankTx.virtualIban) {
-      const virtualIban = await this.virtualIbanService.getByIban(bankTx.virtualIban);
-      return virtualIban?.userData?.id === userDataId;
-    }
-
-    // Priority 2: BankData via senderAccount (fallback)
-    if (bankTx.senderAccount) {
-      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(bankTx.senderAccount, userDataId);
-      return !!bankData;
-    }
-
-    return false;
   }
 }
