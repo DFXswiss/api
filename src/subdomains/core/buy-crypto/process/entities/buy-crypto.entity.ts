@@ -267,7 +267,6 @@ export class BuyCrypto extends IEntity {
 
   calculateOutputReferenceAmount(price: Price): this {
     if (
-      Config.exchangeRateFromLiquidityOrder.includes(this.outputAsset.name) &&
       this.liquidityPipeline &&
       ![LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
         this.liquidityPipeline.status,
