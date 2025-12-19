@@ -315,36 +315,6 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  private buildAggregatedPriceSteps(orders: LiquidityManagementOrder[]): PriceStep[] {
-    // Group orders by asset pair and aggregate amounts
-    const pairMap = new Map<
-      string,
-      { inputAmount: number; outputAmount: number; system: string; from: string; to: string }
-    >();
-
-    for (const order of orders) {
-      const key = `${order.inputAsset}->${order.outputAsset}`;
-      const existing = pairMap.get(key);
-      if (existing) {
-        existing.inputAmount += order.inputAmount;
-        existing.outputAmount += order.outputAmount;
-      } else {
-        pairMap.set(key, {
-          inputAmount: order.inputAmount,
-          outputAmount: order.outputAmount,
-          system: order.action.system,
-          from: order.inputAsset,
-          to: order.outputAsset,
-        });
-      }
-    }
-
-    // Create price steps from aggregated pairs
-    return Array.from(pairMap.values()).map((value) =>
-      PriceStep.create(value.system, value.from, value.to, value.inputAmount / value.outputAmount),
-    );
-  }
-
   assignCandidateBatch(batch: BuyCryptoBatch): this {
     this.batch = batch;
 
@@ -817,6 +787,34 @@ export class BuyCrypto extends IEntity {
   }
 
   // --- HELPER METHODS --- //
+
+  private buildAggregatedPriceSteps(orders: LiquidityManagementOrder[]): PriceStep[] {
+    const pairMap = new Map<
+      string,
+      { inputAmount: number; outputAmount: number; system: string; from: string; to: string }
+    >();
+
+    for (const order of orders) {
+      const key = `${order.inputAsset}->${order.outputAsset}`;
+      const existing = pairMap.get(key);
+      if (existing) {
+        existing.inputAmount += order.inputAmount;
+        existing.outputAmount += order.outputAmount;
+      } else {
+        pairMap.set(key, {
+          inputAmount: order.inputAmount,
+          outputAmount: order.outputAmount,
+          system: order.action.system,
+          from: order.inputAsset,
+          to: order.outputAsset,
+        });
+      }
+    }
+
+    return Array.from(pairMap.values()).map((value) =>
+      PriceStep.create(value.system, value.from, value.to, value.inputAmount / value.outputAmount),
+    );
+  }
 
   private resetTransaction(): Partial<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
