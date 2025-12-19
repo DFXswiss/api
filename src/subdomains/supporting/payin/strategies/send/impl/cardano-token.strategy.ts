@@ -8,8 +8,8 @@ import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInCardanoService } from '../../../services/payin-cardano.service';
-import { SendType } from './base/send.strategy';
 import { CardanoStrategy } from './base/cardano.strategy';
+import { SendType } from './base/send.strategy';
 
 @Injectable()
 export class CardanoTokenStrategy extends CardanoStrategy {
@@ -57,6 +57,11 @@ export class CardanoTokenStrategy extends CardanoStrategy {
   protected async sendTransfer(payIn: CryptoInput, _type: SendType): Promise<string> {
     const account = Config.blockchain.cardano.walletAccount(payIn.route.deposit.accountIndex);
 
-    return this.payInCardanoService.sendToken(account, payIn.destinationAddress.address, payIn.asset, payIn.sendingAmount);
+    return this.payInCardanoService.sendToken(
+      account,
+      payIn.destinationAddress.address,
+      payIn.asset,
+      payIn.sendingAmount,
+    );
   }
 }

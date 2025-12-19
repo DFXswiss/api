@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { CardanoTransactionDto } from 'src/integration/blockchain/cardano/dto/cardano.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { Util } from 'src/shared/utils/util';
 import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
 import { DexCardanoService } from '../../../services/dex-cardano.service';
 import { SupplementaryStrategy } from './base/supplementary.strategy';
@@ -32,7 +31,7 @@ export class CardanoStrategy extends SupplementaryStrategy {
   async findTransaction(query: TransactionQuery): Promise<TransactionResult> {
     const { amount, since } = query;
 
-    const allHistory = await this.dexCardanoService.getRecentHistory(100);
+    const allHistory = await this.dexCardanoService.getRecentHistory(50);
     const relevantHistory = this.filterRelevantHistory(allHistory, since);
     const targetEntry = relevantHistory.find((rh) => rh.amount === amount);
 
@@ -48,6 +47,6 @@ export class CardanoStrategy extends SupplementaryStrategy {
   //*** HELPER METHODS ***//
 
   private filterRelevantHistory(allHistory: CardanoTransactionDto[], since: Date): CardanoTransactionDto[] {
-    return allHistory.filter((h) => Util.round(h.timestamp * 1000, 0) > since.getTime());
+    return allHistory.filter((h) => h.blocktimeMillis > since.getTime());
   }
 }

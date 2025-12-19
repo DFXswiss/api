@@ -8,8 +8,8 @@ import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/
 import { CryptoInput, PayInStatus } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInCardanoService } from '../../../services/payin-cardano.service';
-import { SendType } from './base/send.strategy';
 import { CardanoStrategy } from './base/cardano.strategy';
+import { SendType } from './base/send.strategy';
 
 @Injectable()
 export class CardanoCoinStrategy extends CardanoStrategy {

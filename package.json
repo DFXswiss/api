@@ -24,6 +24,7 @@
   "dependencies": {
     "@arbitrum/sdk": "^3.7.3",
     "@azure/storage-blob": "^12.29.1",
+    "@blockfrost/blockfrost-js": "^6.1.0",
     "@cardano-foundation/cardano-verify-datasignature": "^1.0.11",
     "@defichain/jellyfish-api-core": "^3.30.1",
     "@defichain/jellyfish-api-jsonrpc": "^3.30.1",
@@ -75,8 +76,10 @@
     "bignumber.js": "^9.3.1",
     "bip322-js": "^3.0.0",
     "bitcoinjs-message": "^2.2.0",
+    "blakejs": "^1.2.1",
     "bolt11": "^1.4.1",
     "bs58check": "^4.0.0",
+    "cardano-crypto.js": "^6.1.2",
     "ccxt": "^4.5.14",
     "checkout-sdk-node": "^2.8.1",
     "class-transformer": "^0.5.1",

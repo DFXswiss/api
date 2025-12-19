@@ -30,7 +30,7 @@ export class CardanoService extends BlockchainService {
   verifySignature(message: string, address: string, signature: string, key?: string): boolean {
     try {
       return verifyCardanoSignature(signature, key, message, address);
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -59,8 +59,8 @@ export class CardanoService extends BlockchainService {
     return this.client.getCurrentGasCostForCoinTransaction();
   }
 
-  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
-    return this.client.getCurrentGasCostForTokenTransaction(token);
+  async getCurrentGasCostForTokenTransaction(_token: Asset): Promise<number> {
+    return this.client.getCurrentGasCostForTokenTransaction(_token);
   }
 
   async sendNativeCoinFromAccount(account: WalletAccount, toAddress: string, amount: number) {

@@ -1,7 +1,28 @@
+import { BlockFrostAPI } from '@blockfrost/blockfrost-js';
+import {
+  Address,
+  BigNum,
+  LinearFee,
+  make_vkey_witness,
+  Transaction,
+  TransactionBody,
+  TransactionBuilder,
+  TransactionBuilderConfigBuilder,
+  TransactionHash,
+  TransactionInput,
+  TransactionOutput,
+  TransactionUnspentOutput,
+  TransactionWitnessSet,
+  TxInputsBuilder,
+  Value,
+  Vkeywitnesses,
+} from '@emurgo/cardano-serialization-lib-nodejs';
 import { ApiVersion, CardanoRosetta, Network as TatumNetwork, TatumSDK } from '@tatumio/tatum';
+import blake from 'blakejs';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
@@ -10,12 +31,12 @@ import { BlockchainClient } from '../shared/util/blockchain-client';
 import { CardanoWallet } from './cardano-wallet';
 import { CardanoUtil } from './cardano.util';
 import { CardanoTransactionMapper } from './dto/cardano-transaction.mapper';
-import {
-  CardanoChainParameterDto,
-  CardanoTransactionDto,
-  CardanoTransactionResponse,
-  CardanoTransactionUtxosResponse,
-} from './dto/cardano.dto';
+import { CardanoBlockResponse, CardanoTransactionDto, CardanoTransactionResponse } from './dto/cardano.dto';
+
+interface NetworkParameterStaticInfo {
+  min_fee_a: number;
+  min_fee_b: number;
+}
 
 export class CardanoClient extends BlockchainClient {
   private readonly wallet: CardanoWallet;
@@ -23,6 +44,11 @@ export class CardanoClient extends BlockchainClient {
   private readonly networkIdentifier = { blockchain: 'cardano', network: 'mainnet' };
 
   private tatumSdk: CardanoRosetta;
+  private blockfrostApi: BlockFrostAPI;
+
+  private readonly networkParameterCache = new AsyncCache<NetworkParameterStaticInfo>(
+    CacheItemResetPeriod.EVERY_24_HOURS,
+  );
 
   constructor(private readonly http: HttpService) {
     super();
@@ -97,45 +123,34 @@ export class CardanoClient extends BlockchainClient {
     const currentConfirmations = (await this.getBlockHeight()) - (transaction?.blockNumber ?? Number.MAX_VALUE);
 
     if (currentConfirmations > confirmations) {
-      if (Util.equalsIgnoreCase(transaction.status, 'SUCCESS')) return true;
-
-      throw new Error(`Transaction ${txHash} has failed`);
+      return true;
     }
 
     return false;
   }
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const chainParameter = await this.getChainParameter();
-
-    // Upper limit transaction size for a simple ADA transfer
     const maxTxSize = 400;
-    const gasCost = chainParameter.minFeeA * maxTxSize + chainParameter.minFeeB;
+
+    const staticParameters = await this.networkParameterCache.get('static', () => this.getNetworkStaticParameters());
+    const feePerByte = staticParameters.min_fee_a;
+    const fixFee = staticParameters.min_fee_b;
+
+    const gasCost = maxTxSize * feePerByte + fixFee;
 
     return Util.round(CardanoUtil.fromLovelaceAmount(gasCost), 6);
   }
 
   async getCurrentGasCostForTokenTransaction(_token: Asset): Promise<number> {
-    const chainParameter = await this.getChainParameter();
-
-    // Upper limit transaction size for token transfers
     const maxTxSize = 600;
-    const gasCost = chainParameter.minFeeA * maxTxSize + chainParameter.minFeeB;
+
+    const staticParameters = await this.networkParameterCache.get('static', () => this.getNetworkStaticParameters());
+    const feePerByte = staticParameters.min_fee_a;
+    const fixFee = staticParameters.min_fee_b;
+
+    const gasCost = maxTxSize * feePerByte + fixFee;
 
     return Util.round(CardanoUtil.fromLovelaceAmount(gasCost), 6);
-  }
-
-  private async getChainParameter(): Promise<CardanoChainParameterDto> {
-    const url = Config.blockchain.cardano.cardanoApiUrl;
-
-    const epochParams = await this.http.get<any>(`${url}/epochs/latest/parameters`, this.httpConfig());
-
-    return {
-      minFeeA: epochParams.min_fee_a,
-      minFeeB: epochParams.min_fee_b,
-      minPoolCost: epochParams.min_pool_cost,
-      utxoCostPerByte: epochParams.price_mem,
-    };
   }
 
   async sendNativeCoinFromAccount(account: WalletAccount, toAddress: string, amount: number): Promise<string> {
@@ -148,19 +163,107 @@ export class CardanoClient extends BlockchainClient {
   }
 
   private async sendNativeCoin(wallet: CardanoWallet, toAddress: string, amount: number): Promise<string> {
-    const url = Config.blockchain.cardano.cardanoApiUrl;
+    const coinBalance = await this.getNativeCoinBalanceForAddress(wallet.address);
+    const fee = await this.getCurrentGasCostForCoinTransaction();
+    const totalAmount = amount + fee;
 
-    return this.http
-      .post<any>(
-        `${url}/transaction`,
-        {
-          fromPrivateKey: wallet.privateKey,
-          to: toAddress,
-          amount: amount.toString(),
-        },
-        this.httpConfig(),
-      )
-      .then((r) => r.txId);
+    if (coinBalance < totalAmount) throw new Error(`Coin balance ${coinBalance} less than amount + fee ${totalAmount}`);
+
+    const signedTransactionHex = await this.createSignedTransactionBlockfrost(wallet, toAddress, amount);
+
+    const blockfrostApi = this.getBlockfrostAPI();
+    return blockfrostApi.txSubmit(signedTransactionHex);
+  }
+
+  private async createSignedTransactionBlockfrost(
+    wallet: CardanoWallet,
+    toAddress: string,
+    amount: number,
+  ): Promise<string> {
+    const transactionBuilder = await this.createTransactionBuilder();
+    const inputsBuilder = await this.createInputsBuilder(wallet);
+
+    transactionBuilder.set_inputs(inputsBuilder);
+
+    transactionBuilder.add_output(
+      TransactionOutput.new(
+        Address.from_bech32(toAddress),
+        Value.new(BigNum.from_str(`${CardanoUtil.toLovelaceAmount(amount)}`)),
+      ),
+    );
+
+    transactionBuilder.add_change_if_needed(Address.from_bech32(wallet.address));
+
+    const transactionBody = transactionBuilder.build();
+
+    const witnessSet = this.createWitnessSet(transactionBody, wallet);
+
+    const signedTransaction = Transaction.new(transactionBody, witnessSet, null);
+    return signedTransaction.to_hex();
+  }
+
+  private async createTransactionBuilder(): Promise<TransactionBuilder> {
+    const blockfrostApi = this.getBlockfrostAPI();
+    const parameters = await blockfrostApi.epochsLatestParameters();
+
+    return TransactionBuilder.new(
+      TransactionBuilderConfigBuilder.new()
+        .fee_algo(
+          LinearFee.new(
+            BigNum.from_str(parameters.min_fee_a.toString()),
+            BigNum.from_str(parameters.min_fee_b.toString()),
+          ),
+        )
+        .coins_per_utxo_byte(BigNum.from_str(parameters.coins_per_utxo_size))
+        .key_deposit(BigNum.from_str(parameters.key_deposit))
+        .pool_deposit(BigNum.from_str(parameters.pool_deposit))
+        .max_tx_size(parameters.max_tx_size)
+        .max_value_size(Number(parameters.max_val_size))
+        .build(),
+    );
+  }
+
+  private async getNetworkStaticParameters(): Promise<NetworkParameterStaticInfo> {
+    const blockfrostApi = this.getBlockfrostAPI();
+    return blockfrostApi.epochsLatestParameters();
+  }
+
+  private async createInputsBuilder(wallet: CardanoWallet): Promise<TxInputsBuilder> {
+    const inputsBuilder = TxInputsBuilder.new();
+
+    const blockfrostApi = this.getBlockfrostAPI();
+    const utxos = await blockfrostApi.addressesUtxos(wallet.address);
+
+    utxos.forEach((utxo) => {
+      const input = TransactionInput.new(
+        TransactionHash.from_bytes(Buffer.from(utxo.tx_hash, 'hex')),
+        utxo.output_index,
+      );
+
+      const output = TransactionOutput.new(
+        Address.from_bech32(wallet.address),
+        Value.new(BigNum.from_str(utxo.amount[0].quantity)),
+      );
+
+      inputsBuilder.add_regular_utxo(TransactionUnspentOutput.new(input, output));
+    });
+
+    return inputsBuilder;
+  }
+
+  private createWitnessSet(txBody: TransactionBody, wallet: CardanoWallet): TransactionWitnessSet {
+    const witnessSet = TransactionWitnessSet.new();
+
+    const txBodyBytes = txBody.to_bytes();
+    const hashBuffer = blake.blake2b(txBodyBytes, null, 32);
+    const txHash = TransactionHash.from_bytes(Buffer.from(hashBuffer));
+
+    const vkeyWitnesses = Vkeywitnesses.new();
+    vkeyWitnesses.add(make_vkey_witness(txHash, wallet.paymentKey.to_raw_key()));
+
+    witnessSet.set_vkeys(vkeyWitnesses);
+
+    return witnessSet;
   }
 
   async sendTokenFromAccount(account: WalletAccount, toAddress: string, token: Asset, amount: number): Promise<string> {
@@ -174,33 +277,16 @@ export class CardanoClient extends BlockchainClient {
 
   private async sendToken(wallet: CardanoWallet, toAddress: string, token: Asset, amount: number): Promise<string> {
     if (!token.decimals) throw new Error(`No decimals found in token ${token.uniqueName}`);
-
-    const url = Config.blockchain.cardano.cardanoApiUrl;
-
-    return this.http
-      .post<any>(
-        `${url}/native-token/transaction`,
-        {
-          fromPrivateKey: wallet.privateKey,
-          to: toAddress,
-          tokenAddress: token.chainId,
-          amount: Util.floor(amount, token.decimals).toString(),
-        },
-        this.httpConfig(),
-      )
-      .then((r) => r.txId);
+    throw new Error('not implemented yet');
   }
 
   async sendSignedTransaction(tx: string): Promise<BlockchainSignedTransactionResponse> {
     try {
-      const tatumSdk = await this.getTatumSdk();
-      const response = await tatumSdk.rpc.submitTransaction({
-        networkIdentifier: this.networkIdentifier,
-        signedTransaction: tx,
-      });
+      const blockfrostApi = this.getBlockfrostAPI();
+      const txHash = await blockfrostApi.txSubmit(tx);
 
       return {
-        hash: response.transaction_identifier.hash,
+        hash: txHash,
       };
     } catch (error) {
       return {
@@ -210,37 +296,61 @@ export class CardanoClient extends BlockchainClient {
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
-    return this.getTransaction(txHash).then((t) => t.fee);
-  }
-
-  async getTransaction(txHash: string): Promise<CardanoTransactionDto | undefined> {
     const url = Config.blockchain.cardano.cardanoApiUrl;
 
     return this.http
-      .get<CardanoTransactionResponse>(`${url}/txs/${txHash}`, this.httpConfig())
-      .then((tr) => CardanoTransactionMapper.toTransactionDto(tr, (hash) => this.getTransactionUtxos(hash)));
+      .get<CardanoTransactionResponse>(`${url}/transaction/${txHash}`, this.httpConfig())
+      .then((t) => CardanoUtil.fromLovelaceAmount(t.fee));
   }
 
-  async getTransactionUtxos(txHash: string): Promise<CardanoTransactionUtxosResponse> {
+  async getTransaction(txHash: string): Promise<CardanoTransactionDto> {
     const url = Config.blockchain.cardano.cardanoApiUrl;
 
-    return this.http.get<CardanoTransactionUtxosResponse>(`${url}/txs/${txHash}/utxos`, this.httpConfig());
+    const xxx = await this.http.get<CardanoTransactionResponse>(`${url}/transaction/${txHash}`, this.httpConfig());
+    await this.getBlockInfo(xxx.block.hash);
+
+    return this.http
+      .get<CardanoTransactionResponse>(`${url}/transaction/${txHash}`, this.httpConfig())
+      .then((tr) => this.mapTransactionResponse(tr));
   }
 
-  async getHistory(_limit: number): Promise<CardanoTransactionDto[]> {
-    return this.getHistoryForAddress(this.wallet.address, _limit);
-  }
+  async getHistory(limit: number): Promise<CardanoTransactionDto[]> {
+    if (limit > 50) throw new Error('Max. Limit of 50 allowed');
 
-  async getHistoryForAddress(address: string, _limit: number): Promise<CardanoTransactionDto[]> {
     const url = Config.blockchain.cardano.cardanoApiUrl;
 
-    const transactions = await this.http
-      .get<CardanoTransactionResponse[]>(`${url}/addresses/${address}/transactions`, this.httpConfig())
-      .then((txs) => CardanoTransactionMapper.toTransactionDtos(txs, (hash) => this.getTransactionUtxos(hash)));
+    return this.http
+      .get<CardanoTransactionResponse[]>(
+        `${url}/transaction/address/${this.wallet.address}?pageSize=${limit}&offset=0`,
+        this.httpConfig(),
+      )
+      .then((trs) => this.mapTransactionResponses(trs));
+  }
 
-    transactions.sort((t1, t2) => t2.timestamp - t1.timestamp);
+  private async mapTransactionResponses(
+    transactionResponses: CardanoTransactionResponse[],
+  ): Promise<CardanoTransactionDto[]> {
+    const result: CardanoTransactionDto[] = [];
 
-    return transactions;
+    for (const transactionResponse of transactionResponses) {
+      result.push(await this.mapTransactionResponse(transactionResponse));
+    }
+
+    return result;
+  }
+
+  private async mapTransactionResponse(
+    transactionResponse: CardanoTransactionResponse,
+  ): Promise<CardanoTransactionDto> {
+    const blockInfo = await this.getBlockInfo(transactionResponse.block.hash);
+    transactionResponse.block.blocktimeMillis = new Date(blockInfo.forgedAt).getTime();
+
+    return CardanoTransactionMapper.toTransactionDto(transactionResponse, this.wallet.address);
+  }
+
+  private async getBlockInfo(blockHash: string): Promise<CardanoBlockResponse> {
+    const url = Config.blockchain.cardano.cardanoApiUrl;
+    return this.http.get<CardanoBlockResponse>(`${url}/block/${blockHash}`, this.httpConfig());
   }
 
   // --- HELPER METHODS --- //
@@ -249,17 +359,28 @@ export class CardanoClient extends BlockchainClient {
       this.tatumSdk = await TatumSDK.init<CardanoRosetta>({
         version: ApiVersion.V3,
         network: TatumNetwork.CARDANO_ROSETTA,
-        apiKey: Config.blockchain.cardano.cardanoApiKey,
+        apiKey: Config.blockchain.cardano.cardanoTatumApiKey,
       });
     }
 
     return this.tatumSdk;
   }
 
+  private getBlockfrostAPI(): BlockFrostAPI {
+    if (!this.blockfrostApi) {
+      this.blockfrostApi = new BlockFrostAPI({
+        projectId: Config.blockchain.cardano.cardanoBlockfrostApiKey,
+        network: 'mainnet',
+      });
+    }
+
+    return this.blockfrostApi;
+  }
+
   private httpConfig(): HttpRequestConfig {
     return {
       headers: {
-        'x-api-key': Config.blockchain.cardano.cardanoApiKey,
+        'x-api-key': Config.blockchain.cardano.cardanoTatumApiKey,
         'Content-Type': 'application/json',
       },
     };
