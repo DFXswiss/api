@@ -177,7 +177,11 @@ export class AmlHelperService {
       if (
         entity.userData.country &&
         !entity.userData.phoneCallIpCountryCheckDate &&
-        ipLogCountries.some((l) => l !== entity.userData.country.symbol)
+        ipLogCountries.some(
+          (l) =>
+            l !== entity.userData.country.symbol &&
+            ![l, entity.userData.country.symbol].every((c) => Config.kyc.allowedBorderRegions.includes(c)),
+        )
       )
         errors.push(AmlError.IP_COUNTRY_MISMATCH);
 
