@@ -292,4 +292,18 @@ export class UpdateUserDataDto {
   @IsOptionalButNotNull()
   @IsBoolean()
   hasIpRisk?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  recallAgreementAccepted?: boolean;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  tradeApprovalDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  phoneCallIpCountryCheckDate?: Date;
 }

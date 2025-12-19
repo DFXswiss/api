@@ -21,7 +21,7 @@ import { TatumWebhookService } from 'src/integration/tatum/services/tatum-webhoo
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Util } from 'src/shared/utils/util';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
-import { Like } from 'typeorm';
+import { IsNull, Like, Not } from 'typeorm';
 import { Deposit } from './deposit.entity';
 import { CreateDepositDto } from './dto/create-deposit.dto';
 
@@ -62,6 +62,10 @@ export class DepositService {
 
   async getDepositByBlockchainAndIndex(blockchain: Blockchain, accountIndex: number): Promise<Deposit | undefined> {
     return this.depositRepo.findOneBy({ blockchains: Like(`%${blockchain}%`), accountIndex });
+  }
+
+  async getUsedDepositsByBlockchain(blockchain: Blockchain) {
+    return this.depositRepo.findBy({ blockchains: Like(`%${blockchain}%`), route: { id: Not(IsNull()) } });
   }
 
   async getNextDeposit(blockchain: Blockchain): Promise<Deposit> {
@@ -169,7 +173,7 @@ export class DepositService {
     for (const depositLink of depositLinks) {
       const linkId = depositLink.id;
 
-      const uniqueId = Util.createUniqueId('deposit');
+      const uniqueId = Util.createUniqueId('deposit', 6);
       const uniqueIdSignature = Util.createSign(uniqueId, Config.blockchain.lightning.lnbits.signingPrivKey);
 
       const lnurlpLinkUpdate: LnurlpLinkUpdateDto = {

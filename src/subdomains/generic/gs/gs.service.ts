@@ -10,6 +10,7 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -18,11 +19,9 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
-import { KycFileBlob } from '../kyc/dto/kyc-file.dto';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
-import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
@@ -41,6 +40,7 @@ export enum SupportTable {
   FIAT_OUTPUT = 'fiatOutput',
   TRANSACTION = 'transaction',
   BANK_DATA = 'bankData',
+  VIRTUAL_IBAN = 'virtualIban',
 }
 
 @Injectable()
@@ -68,6 +68,7 @@ export class GsService {
     private readonly limitRequestService: LimitRequestService,
     private readonly supportIssueService: SupportIssueService,
     private readonly swapService: SwapService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
@@ -160,7 +161,7 @@ export class GsService {
       kycSteps: await this.kycAdminService.getKycSteps(userData.id, { userData: true }),
       bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
-      documents: await this.getAllUserDocuments(userData.id, userData.accountType),
+      documents: await this.kycDocumentService.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
@@ -182,6 +183,7 @@ export class GsService {
       buy: await this.buyService.getAllUserBuys(userIds),
       sell: await this.sellService.getAllUserSells(userIds),
       swap: await this.swapService.getAllUserSwaps(userIds),
+      virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData),
     };
   }
 
@@ -278,7 +280,7 @@ export class GsService {
       const docs = Util.sort(
         commonPathPrefix
           ? await this.kycDocumentService.listFilesByPrefix(commonPathPrefix)
-          : await this.getAllUserDocuments(userDataId, userData.accountType),
+          : await this.kycDocumentService.getAllUserDocuments(userDataId, userData.accountType),
         'created',
         sorting,
       );
@@ -288,14 +290,6 @@ export class GsService {
         userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.url.includes(docPath));
       }
     }
-  }
-
-  private async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFileBlob[]> {
-    return [
-      ...(await this.kycDocumentService.listUserFiles(userDataId)),
-      ...(await this.kycDocumentService.listSpiderFiles(userDataId, false)),
-      ...(accountType !== AccountType.PERSONAL ? await this.kycDocumentService.listSpiderFiles(userDataId, true) : []),
-    ];
   }
 
   private getBiggestCommonPrefix(selects: string[]): string | undefined {
@@ -366,6 +360,8 @@ export class GsService {
           .then((transaction) => transaction?.userData);
       case SupportTable.BANK_DATA:
         return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD?.userData);
+      case SupportTable.VIRTUAL_IBAN:
+        return this.virtualIbanService.getVirtualIbanByKey(query.key, query.value).then((vI) => vI?.userData);
     }
   }
 

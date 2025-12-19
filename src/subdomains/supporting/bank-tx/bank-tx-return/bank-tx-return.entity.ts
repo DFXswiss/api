@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -5,7 +6,9 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { FiatOutput } from '../../fiat-output/fiat-output.entity';
+import { PaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Transaction } from '../../payment/entities/transaction.entity';
+import { Price } from '../../pricing/domain/entities/price';
 import { BankTx } from '../bank-tx/entities/bank-tx.entity';
 
 @Entity()
@@ -24,7 +27,7 @@ export class BankTxReturn extends IEntity {
 
   @OneToOne(() => FiatOutput, { nullable: true })
   @JoinColumn()
-  chargebackOutput: FiatOutput;
+  chargebackOutput?: FiatOutput;
 
   @Column({ length: 256, nullable: true })
   info?: string;
@@ -39,25 +42,25 @@ export class BankTxReturn extends IEntity {
   amountInUsd?: number;
 
   @Column({ type: 'datetime2', nullable: true })
-  chargebackDate: Date;
+  chargebackDate?: Date;
 
   @Column({ length: 256, nullable: true })
-  chargebackRemittanceInfo: string;
+  chargebackRemittanceInfo?: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  chargebackAllowedDate: Date;
+  chargebackAllowedDate?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  chargebackAllowedDateUser: Date;
+  chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
-  chargebackAmount: number;
+  chargebackAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  chargebackAllowedBy: string;
+  chargebackAllowedBy?: string;
 
   @Column({ length: 256, nullable: true })
-  chargebackIban: string;
+  chargebackIban?: string;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -67,7 +70,7 @@ export class BankTxReturn extends IEntity {
   mailSendDate?: Date;
 
   @ManyToOne(() => UserData, (userData) => userData.bankTxReturns, { nullable: true, eager: true })
-  userData: UserData;
+  userData?: UserData;
 
   //*** METHODS ***//
 
@@ -77,6 +80,22 @@ export class BankTxReturn extends IEntity {
 
   get chargebackBankRemittanceInfo(): string {
     return `Chargeback ${this.bankTx.id} Zahlung kann keinem Kundenauftrag zugeordnet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
+  get paymentMethodIn(): PaymentMethod {
+    return this.bankTx.paymentMethodIn;
+  }
+
+  get chargebackBankFee(): number {
+    return this.bankTx.chargebackBankFee;
+  }
+
+  get refundAmount(): number {
+    return this.bankTx.refundAmount;
+  }
+
+  get manualChfPrice(): Price {
+    return undefined;
   }
 
   confirmSentMail(): UpdateResult<BankTxReturn> {
@@ -104,9 +123,10 @@ export class BankTxReturn extends IEntity {
   }
 
   pendingInputAmount(asset: Asset): number {
-    switch (asset.blockchain as string) {
-      case 'MaerkiBaumann':
-      case 'Olkypay':
+    switch (asset.blockchain) {
+      case Blockchain.MAERKI_BAUMANN:
+      case Blockchain.OLKYPAY:
+      case Blockchain.YAPEAL:
         return BankService.isBankMatching(asset, this.bankTx.accountIban) ? this.bankTx.amount : 0;
 
       default:

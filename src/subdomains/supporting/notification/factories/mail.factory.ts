@@ -29,6 +29,7 @@ export enum MailTranslationKey {
   KYC_STEP_NAMES = 'mail.kyc.step_names',
   KYC_SUCCESS = 'mail.kyc.success',
   KYC_FAILED = 'mail.kyc.failed',
+  KYC_MISSING_DATA = 'mail.kyc.missing_data',
   KYC_FAILED_REASONS = 'mail.kyc.failed.reasons',
   KYC_REMINDER = 'mail.kyc.reminder',
   KYC_PAYMENT_DATA = 'mail.kyc.payment_data',
@@ -44,6 +45,8 @@ export enum MailTranslationKey {
   VERIFICATION_CODE = 'mail.verification_code',
   CHARGEBACK_UNCONFIRMED = 'mail.payment.chargeback.unconfirmed',
   PROCESSING = 'mail.payment.processing',
+  RECOMMENDATION_MAIL = 'mail.recommendation.recommended',
+  RECOMMENDATION_CONFIRMATION = 'mail.recommendation.confirmation',
 }
 
 export enum MailKey {

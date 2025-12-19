@@ -3,7 +3,9 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
+import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { PayInStatus } from '../payin/entities/crypto-input.entity';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
@@ -19,16 +21,21 @@ export class FiatOutputService {
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly buyCryptoRepo: BuyCryptoRepository,
+    @Inject(forwardRef(() => BankTxReturnService))
+    private readonly bankTxReturnService: BankTxReturnService,
+    private readonly bankTxRepeatService: BankTxRepeatService,
   ) {}
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
-    if (dto.buyCryptoId || dto.buyFiatId || dto.bankTxReturnId) {
+    if (dto.buyCryptoId || dto.buyFiatId || dto.bankTxReturnId || dto.bankTxRepeatId) {
       const existing = await this.fiatOutputRepo.exists({
         where: dto.buyCryptoId
           ? { buyCrypto: { id: dto.buyCryptoId }, type: dto.type }
           : dto.buyFiatId
           ? { buyFiats: { id: dto.buyFiatId }, type: dto.type }
-          : { bankTxReturn: { id: dto.bankTxReturnId }, type: dto.type },
+          : dto.bankTxReturnId
+          ? { bankTxReturn: { id: dto.bankTxReturnId }, type: dto.type }
+          : { bankTxRepeat: { id: dto.bankTxRepeatId }, type: dto.type },
       });
       if (existing) throw new BadRequestException('FiatOutput already exists');
     }
@@ -48,6 +55,16 @@ export class FiatOutputService {
     if (dto.buyCryptoId) {
       entity.buyCrypto = await this.buyCryptoRepo.findOneBy({ id: dto.buyCryptoId });
       if (!entity.buyCrypto) throw new NotFoundException('BuyCrypto not found');
+    }
+
+    if (dto.bankTxReturnId) {
+      entity.bankTxReturn = await this.bankTxReturnService.getBankTxReturn(dto.bankTxReturnId);
+      if (!entity.bankTxReturn) throw new NotFoundException('BankTxReturn not found');
+    }
+
+    if (dto.bankTxRepeatId) {
+      entity.bankTxRepeat = await this.bankTxRepeatService.getBankTxRepeat(dto.bankTxRepeatId);
+      if (!entity.bankTxRepeat) throw new NotFoundException('BankTxRepeat not found');
     }
 
     return this.fiatOutputRepo.save(entity);
@@ -98,6 +115,7 @@ export class FiatOutputService {
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.nationality', 'nationality')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `fiatOutput.${key}`} = :param`, { param: value })

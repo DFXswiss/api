@@ -21,6 +21,7 @@ import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
+import { LoggerOptions } from 'typeorm';
 
 export enum Environment {
   LOC = 'loc',
@@ -49,6 +50,7 @@ export class Configuration {
   txRequestWaitingExpiryDays = 7;
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
   financeLogTotalBalanceChangeLimit = 5000;
+  faucetAmount = 20; //CHF
 
   defaults = {
     currency: 'EUR',
@@ -140,7 +142,7 @@ export class Configuration {
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
   arweaveAddressFormat = '[\\w\\-]{43}';
-  cardanoAddressFormat = 'stake[a-z0-9]{54}';
+  cardanoAddressFormat = '^(stake[a-z0-9]+|addr1[a-z0-9]+)$';
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
   railgunAddressFormat = '0zk[a-z0-9]{1,124}';
@@ -152,13 +154,13 @@ export class Configuration {
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
-  bitcoinSignatureFormat = '.{87}=';
+  bitcoinSignatureFormat = '(.{87}=|[A-Za-z0-9+/]+={0,2})';
   lightningSignatureFormat = '[a-z0-9]{104}';
   lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
   moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
   arweaveSignatureFormat = '[\\w\\-]{683}';
-  cardanoSignatureFormat = '[a-f0-9]{582}';
+  cardanoSignatureFormat = '[a-f0-9]+';
   railgunSignatureFormat = '[a-f0-9]{128}';
   solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
   tronSignatureFormat = '(0x)?[a-f0-9]{130}';
@@ -167,7 +169,7 @@ export class Configuration {
   allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
-  cardanoKeyFormat = '[a-f0-9]{84}';
+  cardanoKeyFormat = '.*';
 
   allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}`;
 
@@ -177,8 +179,11 @@ export class Configuration {
     key: new RegExp(`^(${this.allKeyFormat})$`),
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
+    recommendationCode: /[0-9A-Z]{2}-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{2}/,
     kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
     phone: /^\+\d+$/,
+    accountServiceRef: /^[A-Z]{2}\d{8}\/\d+\/\d+$/,
+    number: /^\d+$/,
   };
 
   database: TypeOrmModuleOptions = {
@@ -200,6 +205,7 @@ export class Configuration {
       max: +(process.env.SQL_POOL_MAX ?? 10),
       idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
     },
+    logging: process.env.SQL_LOGGING as LoggerOptions,
   };
 
   i18n: I18nOptions = {
@@ -233,6 +239,12 @@ export class Configuration {
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_',
   };
 
+  recommendation = {
+    recommenderExpiration: 30, // days
+    confirmationExpiration: 30, // days
+    maxRecommendationPerMail: 3,
+  };
+
   kyc = {
     gatewayHost: process.env.KYC_GATEWAY_HOST,
     auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
@@ -245,7 +257,9 @@ export class Configuration {
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
+    allowedBorderRegions: ['CH', 'DE'],
     maxIdentTries: 7,
+    maxRecommendationTries: 3,
   };
 
   fileDownloadConfig: {
@@ -513,6 +527,14 @@ export class Configuration {
     allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
     services: (process.env.SERVICES_URL ?? '').split(';')[0],
     payment: process.env.PAYMENT_URL,
+
+    isRedirectUrlAllowed: (url: string): boolean => {
+      try {
+        return this.frontend.allowedUrls.includes(new URL(url).origin);
+      } catch {
+        return false;
+      }
+    },
   };
 
   fixer = {
@@ -854,6 +876,20 @@ export class Configuration {
       graphUrl: process.env.DEURO_GRAPH_URL,
       apiUrl: process.env.DEURO_API_URL,
     },
+    realunit: {
+      graphUrl: process.env.REALUNIT_GRAPH_URL,
+      api: {
+        url: process.env.REALUNIT_API_URL,
+        key: process.env.REALUNIT_API_KEY,
+      },
+      bank: {
+        recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
+        address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',
+        iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
+        bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
+        name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
+      },
+    },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
     },
@@ -933,6 +969,27 @@ export class Configuration {
     revolut: {
       refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
       clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
+    },
+    raiffeisen: {
+      credentials: {
+        url: process.env.RAIFFEISEN_EBICS_URL,
+        hostId: process.env.RAIFFEISEN_HOST_ID,
+        partnerId: process.env.RAIFFEISEN_PARTNER_ID,
+        userId: process.env.RAIFFEISEN_USER_ID,
+        passphrase: process.env.RAIFFEISEN_PASSPHRASE,
+        iv: process.env.RAIFFEISEN_IV,
+      },
+    },
+    yapeal: {
+      baseUrl: process.env.YAPEAL_BASE_URL,
+      partnershipUid: process.env.YAPEAL_PARTNERSHIP_UID,
+      adminUid: process.env.YAPEAL_ADMIN_UID,
+      apiKey: process.env.YAPEAL_API_KEY,
+      cert: process.env.YAPEAL_CERT?.split('<br>').join('\n'),
+      key: process.env.YAPEAL_KEY?.split('<br>').join('\n'),
+      rootCa: process.env.YAPEAL_ROOT_CA?.split('<br>').join('\n'),
+      webhookApiKey: process.env.YAPEAL_WEBHOOK_API_KEY,
+      accountIdentifier: process.env.YAPEAL_ACCOUNT_IDENTIFIER,
     },
     forexFee: 0.02,
   };
@@ -1045,6 +1102,12 @@ export class Configuration {
       timeout: 30_000,
     };
   }
+
+  scrypt = {
+    wsUrl: process.env.SCRYPT_WS_URL,
+    apiKey: process.env.SCRYPT_API_KEY,
+    apiSecret: process.env.SCRYPT_API_SECRET,
+  };
 
   get evmWallets(): Map<string, string> {
     return splitWithdrawKeys(process.env.EVM_WALLETS);

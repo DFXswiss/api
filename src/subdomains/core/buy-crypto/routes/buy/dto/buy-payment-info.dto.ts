@@ -118,4 +118,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
 
   @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
   error?: QuoteError;
+
+  @ApiPropertyOptional({ description: 'Whether this uses a personal IBAN' })
+  isPersonalIban?: boolean;
 }

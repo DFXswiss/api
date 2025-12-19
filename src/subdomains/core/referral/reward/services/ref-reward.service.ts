@@ -15,9 +15,8 @@ import {
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, Not } from 'typeorm';
-import { RefRewardExtended } from '../../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
-import { CreateRefRewardDto } from '../dto/create-ref-reward.dto';
+import { CreateManualRefRewardDto } from '../dto/create-ref-reward.dto';
 import { UpdateRefRewardDto } from '../dto/update-ref-reward.dto';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
@@ -57,6 +56,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.CHECKOUT]: undefined,
   [Blockchain.KALEIDO]: undefined,
   [Blockchain.SUMIXX]: undefined,
+  [Blockchain.YAPEAL]: undefined,
 };
 
 @Injectable()
@@ -69,12 +69,17 @@ export class RefRewardService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  async createManualRefReward(dto: CreateRefRewardDto) {
+  async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
     const user = await this.userService.getUser(dto.user.id, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
     const asset = await this.assetService.getAssetById(dto.asset.id);
     if (!asset) throw new NotFoundException('Asset not found');
+
+    const sourceTransaction = await this.transactionService.getTransactionById(dto.sourceTransaction.id);
+    if (!sourceTransaction) throw new NotFoundException('Source Transaction not found');
+    if (await this.rewardRepo.existsBy({ sourceTransaction: { id: sourceTransaction.id } }))
+      throw new BadRequestException('Source transaction already used');
 
     const eurChfPrice = await this.pricingService.getPrice(
       PriceCurrency.EUR,
@@ -85,7 +90,8 @@ export class RefRewardService {
     const entity = this.rewardRepo.create({
       user,
       targetAddress: user.address,
-      outputAsset: asset.dexName,
+      outputAsset: asset,
+      sourceTransaction,
       status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
       targetBlockchain: asset.blockchain,
       amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
@@ -108,7 +114,7 @@ export class RefRewardService {
     await this.rewardRepo.save(entity);
   }
 
-  async createPendingRefRewards() {
+  async createPendingRefRewards(): Promise<void> {
     const openCreditUser = await this.userService.getOpenRefCreditUser();
     if (openCreditUser.length == 0) return;
 
@@ -147,7 +153,7 @@ export class RefRewardService {
         if (!(refCreditEur >= minCredit)) continue;
 
         const entity = this.rewardRepo.create({
-          outputAsset: payoutAsset.dexName,
+          outputAsset: payoutAsset,
           user,
           status: refCreditEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
           targetAddress: user.address,
@@ -191,12 +197,6 @@ export class RefRewardService {
     });
   }
 
-  async extendReward(reward: RefReward): Promise<RefRewardExtended> {
-    const outputAssetEntity = await this.assetService.getNativeAsset(reward.targetBlockchain);
-
-    return Object.assign(reward, { outputAssetEntity });
-  }
-
   async getRefRewardVolume(from: Date): Promise<number> {
     const { volume } = await this.rewardRepo
       .createQueryBuilder('refReward')
@@ -237,7 +237,7 @@ export class RefRewardService {
       fiatCurrency: 'EUR',
       date: v.outputDate,
       cryptoAmount: v.outputAmount,
-      cryptoCurrency: v.outputAsset,
+      cryptoCurrency: v.outputAsset.dexName,
     }));
   }
 }

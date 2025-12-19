@@ -93,7 +93,9 @@
                 "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich",
                 "manual_check_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "manual_check_ip_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
-                "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert"
+                "manual_check_ip_country_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
+                "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert",
+                "intermediary_without_sender": "Die Absenderbank (Wise/Revolut) hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. DFX kann daher den tatsächlichen Absender nicht verifizieren und die Transaktion nicht verarbeiten."
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
@@ -241,6 +243,15 @@
                 "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
                 "line4": "",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
+            },
+            "manual_check_ip_country_phone": {
+                "title": "Telefongespräch benötigt",
+                "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
+                "line1": "Wir haben deine Einzahlung erhalten.",
+                "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
+                "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
+                "line4": "",
+                "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]"
@@ -250,6 +261,22 @@
         "salutation": "Deine RefCode Rewards wurden ausgezahlt",
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deinem Referral Reward:<br>[url:Klick hier]",
         "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
+    },
+    "recommendation": {
+        "recommended": {
+            "title": "DFX-Einladung",
+            "salutation": "Du wurdest zu DFX eingeladen!",
+            "message": "{name} ({mail}) hat dich eingeladen DFX zu nutzen",
+            "registration_button": "Du kannst ganz einfach den nachfolgenden Button anklicken und dir einen Account mit dieser Email Adresse einrichten:<br>[url:Klick hier]",
+            "registration_link": "Oder du benutzt den nachfolgenden Link:<br>[url:{urlText}]"
+        },
+        "confirmation": {
+            "title": "DFX-Empfehlung bestätigen",
+            "salutation": "Du hast eine ausstehende DFX-Empfehlung",
+            "message": "Kannst du {name} ({mail}) für die Nutzung von DFX bestätigen?",
+            "button": "Du kannst ganz einfach den nachfolgenden Button anklicken, um die Einladung zu bestätigen oder abzulehnen:<br>[url:Klick hier]",
+            "link": "Oder du benutzt den nachfolgenden Link:<br>[url:{urlText}]"
+        }
     },
     "kyc": {
         "success": {
@@ -283,8 +310,16 @@
                 "blocked": "Unbekannter Fehler",
                 "personal_data_not_matching": "Unstimmigkeit bei deinen persönlichen Daten",
                 "ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
-                "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt"
+                "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+                "missing_response": "Es fehlen Daten",
+                "risky_business": "Deine Firma ist in riskante Geschäfte verwickelt",
+                "bank_recall_fee_not_paid": "Die Recall Gebühr wurde noch nicht bezahlt"
             }
+        },
+        "missing_data": {
+            "title": "Fehlende Daten bei Verifizierung",
+            "salutation": "Es fehlen noch Daten bei deiner Verifizierung",
+            "message": "Bei dem Schritt '{stepName}' fehlen noch Daten, die du noch ergänzen musst, um deine Verifizierung abzuschließen"
         },
         "reminder": {
             "title": "Vervollständige Verifizierung",

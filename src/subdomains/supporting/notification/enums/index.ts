@@ -38,6 +38,7 @@ export enum MailContext {
   LIMIT_REQUEST = 'LimitRequest',
   KYC_CHANGED = 'KycChanged',
   KYC_FAILED = 'KycFailed',
+  KYC_MISSING_DATA = 'KycMissingData',
   KYC_REMINDER = 'KycReminder',
   KYC_PAYMENT_DATA = 'KycPaymentData',
   CUSTOM = 'Custom',
@@ -51,6 +52,8 @@ export enum MailContext {
   SUPPORT_MESSAGE = 'SupportMessage',
   VERIFICATION_MAIL = 'VerificationMail',
   EMAIL_VERIFICATION = 'EmailVerification',
+  RECOMMENDATION_MAIL = 'RecommendationMail',
+  RECOMMENDATION_CONFIRMATION = 'RecommendationConfirmation',
 }
 
 export enum MailContextType {
@@ -89,6 +92,8 @@ export const MailContextTypeMapper: {
   [MailContext.SUPPORT_MESSAGE]: MailContextType.INFO,
   [MailContext.UNASSIGNED_TX]: MailContextType.INFO,
   [MailContext.ACCOUNT_DEACTIVATION]: MailContextType.INFO,
+  [MailContext.RECOMMENDATION_CONFIRMATION]: MailContextType.INFO,
+  [MailContext.RECOMMENDATION_MAIL]: MailContextType.INFO,
   [MailContext.LOGIN]: MailContextType.AUTH,
   [MailContext.VERIFICATION_MAIL]: MailContextType.AUTH,
   [MailContext.EMAIL_VERIFICATION]: MailContextType.AUTH,
@@ -96,6 +101,7 @@ export const MailContextTypeMapper: {
   [MailContext.KYC_FAILED]: MailContextType.KYC,
   [MailContext.KYC_REMINDER]: MailContextType.KYC,
   [MailContext.KYC_PAYMENT_DATA]: MailContextType.KYC,
+  [MailContext.KYC_MISSING_DATA]: MailContextType.KYC,
   [MailContext.REF_REWARD]: MailContextType.REF_REWARD,
   [MailContext.MONITORING]: null,
   [MailContext.WEBHOOK]: null,

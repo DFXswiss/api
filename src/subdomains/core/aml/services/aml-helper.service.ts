@@ -6,11 +6,11 @@ import { Util } from 'src/shared/utils/util';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { BankData, BankDataVerificationError } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import {
@@ -38,6 +38,9 @@ export class AmlHelperService {
     banks?: Bank[],
     ibanCountry?: Country,
     refUser?: User,
+    ipLogCountries?: string[],
+    virtualIban?: VirtualIban,
+    multiAccountBankNames?: string[],
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -48,10 +51,16 @@ export class AmlHelperService {
     )
       return errors;
 
+    if (
+      !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
+      !entity.userData.tradeApprovalDate &&
+      !entity.wallet.autoTradeApproval
+    )
+      errors.push(AmlError.TRADE_APPROVAL_DATE_MISSING);
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
     if (entity.user.isDeleted) errors.push(AmlError.USER_DELETED);
-    if (entity.userData.isBlocked || entity.userData.isRisky) errors.push(AmlError.USER_DATA_BLOCKED);
+    if (entity.userData.isBlocked || entity.userData.isRiskBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
     if (entity.userData.isDeactivated) errors.push(AmlError.USER_DATA_DEACTIVATED);
     if (!entity.userData.isPaymentStatusEnabled) errors.push(AmlError.INVALID_USER_DATA_STATUS);
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
@@ -81,11 +90,6 @@ export class AmlHelperService {
       if (entity.userData.accountType !== AccountType.ORGANIZATION && !entity.userData.letterSentDate)
         errors.push(AmlError.NO_LETTER);
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
-      if (
-        entity.userData.accountType === AccountType.ORGANIZATION &&
-        entity.userData.identificationType === KycIdentificationType.ONLINE_ID
-      )
-        errors.push(AmlError.VIDEO_IDENT_MISSING);
     }
 
     // AmlRule asset/fiat check
@@ -169,6 +173,14 @@ export class AmlHelperService {
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
+      if (entity.userData.isRiskBuyCryptoBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
+      if (
+        entity.userData.country &&
+        !entity.userData.phoneCallIpCountryCheckDate &&
+        ipLogCountries.some((l) => l !== entity.userData.country.symbol)
+      )
+        errors.push(AmlError.IP_COUNTRY_MISMATCH);
+
       if (
         entity.userData.hasSuspiciousMail &&
         !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_5) &&
@@ -197,8 +209,17 @@ export class AmlHelperService {
       if (entity.bankTx) {
         // bank
         if (nationality && !nationality.bankEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
+
+        // Check for intermediary banks without sender name
+        if (multiAccountBankNames?.some((bank) => entity.bankTx.name === bank) && !entity.bankTx.ultimateName)
+          errors.push(AmlError.BANK_TX_CUSTOMER_NAME_MISSING);
         if (!DisabledProcess(Process.BANK_RELEASE_CHECK) && !entity.bankTx.bankReleaseDate)
           errors.push(AmlError.BANK_RELEASE_DATE_MISSING);
+
+        // virtual IBAN user check
+        if (virtualIban && virtualIban.userData.id !== entity.userData.id) {
+          errors.push(AmlError.VIRTUAL_IBAN_USER_MISMATCH);
+        }
 
         if (
           blacklist.some((b) =>
@@ -271,6 +292,7 @@ export class AmlHelperService {
       }
     } else {
       // buyFiat
+      if (entity.userData.isRiskBuyFiatBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
       if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
         errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
@@ -473,6 +495,9 @@ export class AmlHelperService {
     ibanCountry?: Country,
     refUser?: User,
     banks?: Bank[],
+    ipLogCountries?: string[],
+    virtualIban?: VirtualIban,
+    multiAccountBankNames?: string[],
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -494,6 +519,9 @@ export class AmlHelperService {
       banks,
       ibanCountry,
       refUser,
+      ipLogCountries,
+      virtualIban,
+      multiAccountBankNames,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');

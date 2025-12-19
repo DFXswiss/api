@@ -81,9 +81,9 @@ export class TransactionRequestService {
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
     userId: number,
-  ): Promise<void> {
+  ): Promise<TransactionRequest | undefined> {
     try {
-      const uid = `${Config.prefixes.quoteUidPrefix}${Util.randomString(16)}`;
+      const uid = Util.createUid(Config.prefixes.quoteUidPrefix);
 
       // create the entity
       const transactionRequest = this.transactionRequestRepo.create({
@@ -164,6 +164,8 @@ export class TransactionRequestService {
           targetCurrencyName,
           blockchain,
         );
+
+      return transactionRequest;
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
@@ -171,13 +173,14 @@ export class TransactionRequestService {
         )}, response was ${JSON.stringify(response)}:`,
         e,
       );
+      throw e;
     }
   }
 
   async getOrThrow(id: number, userId: number): Promise<TransactionRequest | undefined> {
     const request = await this.transactionRequestRepo.findOne({
       where: { id },
-      relations: { user: { userData: true }, custodyOrder: true },
+      relations: { user: { userData: { organization: true } }, custodyOrder: true },
     });
     if (!request) throw new NotFoundException('Transaction request not found');
     if (request.user.id !== userId) throw new ForbiddenException('Not your transaction request');
@@ -206,7 +209,6 @@ export class TransactionRequestService {
         user: { userData: { id: userDataId } },
         created: Between(from, to),
       },
-      relations: { user: { userData: true } },
     });
   }
 

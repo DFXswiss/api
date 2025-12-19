@@ -183,12 +183,26 @@ export class KycOperationalData {
   websiteUrl: string;
 }
 
+export class KycRecommendationData {
+  @ApiProperty({ description: 'Recommendation data: ref-code or recommendation-code or mail of existing user' })
+  @IsNotEmpty()
+  @IsString()
+  key: string;
+}
+
 export class KycNationalityData {
   @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   nationality: Country;
+}
+
+export class RecallAgreementData {
+  @ApiProperty({ description: 'Is the recall condition accepted?' })
+  @IsNotEmpty()
+  @IsBoolean()
+  accepted: boolean;
 }
 
 export class KycFileData {

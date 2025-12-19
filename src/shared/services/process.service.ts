@@ -25,6 +25,8 @@ export enum Process {
   KYC = 'Kyc',
   KYC_IDENT_REVIEW = 'KycIdentReview',
   KYC_NATIONALITY_REVIEW = 'KycNationalityReview',
+  KYC_FINANCIAL_REVIEW = 'KycFinancialReview',
+  KYC_RECOMMENDATION_REVIEW = 'KycRecommendationReview',
   KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
@@ -63,6 +65,8 @@ export enum Process {
   FIAT_OUTPUT_BATCH_ID_UPDATE_JOB = 'FiatOutputBatchIdUpdateJob',
   FIAT_OUTPUT_TRANSMISSION_CHECK = 'FiatOutputTransmissionCheck',
   FIAT_OUTPUT_BANK_TX_SEARCH = 'FiatOutputBankTxSearch',
+  FIAT_OUTPUT_YAPEAL_TRANSMISSION = 'FiatOutputYapealTransmission',
+  FIAT_OUTPUT_YAPEAL_STATUS_CHECK = 'FiatOutputYapealStatusCheck',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TX_REQUEST_STATUS_SYNC = 'TxRequestStatusSync',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
@@ -80,6 +84,7 @@ export enum Process {
   BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
   AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
   ZANO_ASSET_WHITELIST = 'ZanoAssetWhitelist',
+  TRADE_APPROVAL_DATE = 'TradeApprovalDate',
 }
 
 const safetyProcesses: Process[] = [

@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -39,6 +41,7 @@ import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
+import { UserProfileDto } from './dto/user-profile.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
@@ -53,6 +56,7 @@ export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
+    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
     private readonly geoLocationService: GeoLocationService,
@@ -91,6 +95,7 @@ export class UserService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }
@@ -179,6 +184,17 @@ export class UserService {
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
+  async getUserProfile(userDataId: number): Promise<UserProfileDto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { organization: true },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
+
+    return UserDtoMapper.mapProfile(userData);
+  }
+
   async createUser(data: Partial<User>, specialCode: string, moderator?: Moderator): Promise<User> {
     let user = this.userRepo.create({
       address: data.address,
@@ -209,6 +225,7 @@ export class UserService {
         language,
         currency,
         wallet: user.wallet,
+        tradeApprovalDate: user.wallet?.autoTradeApproval ? new Date() : undefined,
       }));
 
     if (user.userData.status === UserDataStatus.KYC_ONLY)
@@ -217,7 +234,7 @@ export class UserService {
     if (moderator) await this.updateUserInternal(user, { moderator });
 
     user = await this.userRepo.save(user);
-    userIsActive && (await this.userRepo.setUserRef(user, data.userData?.kycLevel));
+    if (data.userData?.kycLevel >= KycLevel.LEVEL_50) await this.userRepo.setUserRef(user, data.userData.kycLevel);
 
     this.siftService.createAccount(user);
 
@@ -307,8 +324,7 @@ export class UserService {
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user, user.userData);
 
-    if (update.status && update.status === UserStatus.BLOCKED)
-      await this.siftService.sendUserBlocked(user, update.comment);
+    if (update.status && update.status === UserStatus.BLOCKED) this.siftService.sendUserBlocked(user, update.comment);
 
     if (update.setRef) await this.userRepo.setUserRef(user, KycLevel.LEVEL_50);
 
@@ -520,7 +536,7 @@ export class UserService {
   }
 
   async activateUser(user: User, userData: UserData): Promise<void> {
-    await this.userRepo.update(...user.activateUser());
+    if (!user.isBlockedOrDeleted) await this.userRepo.update(...user.activateUser());
     await this.userDataRepo.activateUserData(userData);
   }
 

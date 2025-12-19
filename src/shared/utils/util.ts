@@ -1,11 +1,12 @@
 import BigNumber from 'bignumber.js';
 import { TransformFnParams } from 'class-transformer';
 import * as crypto from 'crypto';
-import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike, randomBytes } from 'crypto';
+import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike, randomBytes, randomInt } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 import { isEqual } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
+import { FindOperator, Like } from 'typeorm';
 import { IEntity, UpdateResult } from '../models/entity';
 
 export type KeyType<T, U> = {
@@ -256,6 +257,11 @@ export class Util {
     return randomBytes(4).readUInt32BE();
   }
 
+  static randomIdString(digits: number): string {
+    const num = randomInt(0, 10 ** digits);
+    return num.toString().padStart(digits, '0');
+  }
+
   static randomString(length = 16): string {
     return randomBytes(length / 2)
       .toString('hex')
@@ -266,9 +272,13 @@ export class Util {
     return Util.toBase32(randomBytes(32));
   }
 
-  static createUniqueId(prefix: string, length = 6): string {
+  static createUniqueId(prefix: string, length = 16): string {
     const hash = this.randomString(length).toLowerCase();
     return `${prefix}_${hash}`;
+  }
+
+  static createUid(prefix: string, length = 16): string {
+    return `${prefix}${Util.randomString(length)}`;
   }
 
   // --- DATES --- //
@@ -455,6 +465,12 @@ export class Util {
   static fromBase64(file: string): { contentType: string; buffer: Buffer } {
     const [contentType, content] = file.split(';base64,');
     return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
+  }
+
+  // --- DB --- //
+
+  static contains(search: string): FindOperator<string> {
+    return Like(`%${search}%`);
   }
 
   // --- MISC --- //

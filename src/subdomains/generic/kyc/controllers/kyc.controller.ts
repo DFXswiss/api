@@ -51,8 +51,10 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  KycRecommendationData,
   KycSignatoryPowerData,
   PaymentDataDto,
+  RecallAgreementData,
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { Start2faDto } from '../dto/input/start-2fa.dto';
@@ -153,7 +155,7 @@ export class KycController {
   @Get('file/:id')
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
-  async getFile(@Param('id') id: string, @GetJwt() jwt?: JwtPayload): Promise<KycFileDataDto> {
+  async getFile(@GetJwt() jwt: JwtPayload | undefined, @Param('id') id: string): Promise<KycFileDataDto> {
     return this.kycService.getFileByUid(id, jwt?.account, jwt?.role);
   }
 
@@ -215,6 +217,17 @@ export class KycController {
     return this.kycService.updateKycStep(code, +id, data, ReviewStatus.INTERNAL_REVIEW);
   }
 
+  @Put('data/recommendation/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateRecommendationData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycRecommendationData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateRecommendationData(code, +id, data);
+  }
+
   @Put('data/legal/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
@@ -273,6 +286,22 @@ export class KycController {
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('additional-documents', data.fileName);
     return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
+  }
+
+  @Put('data/recall/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateRecallAgreement(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: RecallAgreementData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateKycStep(
+      code,
+      +id,
+      { recallAgreementAccepted: data.accepted },
+      data.accepted ? ReviewStatus.COMPLETED : ReviewStatus.FAILED,
+    );
   }
 
   @Put('data/signatory/:id')

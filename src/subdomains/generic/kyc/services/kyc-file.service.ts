@@ -13,7 +13,7 @@ export class KycFileService {
   async createKycFile(dto: CreateKycFileDto): Promise<KycFile> {
     const entity = this.kycFileRepository.create(dto);
 
-    entity.uid = `${Config.prefixes.kycFileUidPrefix}${Util.randomString(16)}`;
+    entity.uid = Util.createUid(Config.prefixes.kycFileUidPrefix);
 
     return this.kycFileRepository.save(entity);
   }
@@ -22,6 +22,13 @@ export class KycFileService {
     return this.kycFileRepository.findOne({
       where: { uid },
       relations,
+    });
+  }
+
+  async getUserDataKycFiles(userDataId: number): Promise<KycFile[]> {
+    return this.kycFileRepository.findCached(`userData-${userDataId}`, {
+      where: { userData: { id: userDataId } },
+      loadEagerRelations: false,
     });
   }
 }

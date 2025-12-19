@@ -1,13 +1,16 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import {
   SpecialExternalAccount,
@@ -170,6 +173,9 @@ export class BankTx extends IEntity {
   accountIban?: string;
 
   @Column({ length: 256, nullable: true })
+  virtualIban?: string;
+
+  @Column({ length: 256, nullable: true })
   senderAccount?: string;
 
   // related bank info
@@ -208,6 +214,16 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   type?: BankTxType;
 
+  // ISO 20022 bank transaction codes
+  @Column({ length: 256, nullable: true })
+  domainCode?: string;
+
+  @Column({ length: 256, nullable: true })
+  familyCode?: string;
+
+  @Column({ length: 256, nullable: true })
+  subFamilyCode?: string;
+
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: true })
   batch?: BankTxBatch;
 
@@ -239,6 +255,10 @@ export class BankTx extends IEntity {
     return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
   }
 
+  get userData(): UserData {
+    return this.user?.userData;
+  }
+
   get paymentMethodIn(): PaymentMethod {
     return FiatPaymentMethod.BANK;
   }
@@ -249,6 +269,10 @@ export class BankTx extends IEntity {
 
   get refundAmount(): number {
     return this.amount + this.chargebackBankFee;
+  }
+
+  get manualChfPrice(): Price {
+    return undefined;
   }
 
   get feeAmountChf(): number {
@@ -343,9 +367,10 @@ export class BankTx extends IEntity {
   pendingInputAmount(asset: Asset): number {
     if (this.type && ![BankTxType.PENDING, BankTxType.GSHEET, BankTxType.UNKNOWN].includes(this.type)) return 0;
 
-    switch (asset.blockchain as string) {
-      case 'MaerkiBaumann':
-      case 'Olkypay':
+    switch (asset.blockchain) {
+      case Blockchain.MAERKI_BAUMANN:
+      case Blockchain.OLKYPAY:
+      case Blockchain.YAPEAL:
         return BankService.isBankMatching(asset, this.accountIban) ? this.amount : 0;
 
       default:

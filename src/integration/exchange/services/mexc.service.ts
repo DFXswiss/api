@@ -14,19 +14,19 @@ export class MexcService extends ExchangeService {
   protected readonly logger = new DfxLogger(MexcService);
 
   protected networks: { [b in Blockchain]: string } = {
-    Arbitrum: undefined,
-    BinanceSmartChain: undefined,
-    Bitcoin: undefined,
+    Arbitrum: 'ARB',
+    BinanceSmartChain: 'BSC',
+    Bitcoin: 'BTC',
     Lightning: undefined,
     Spark: undefined,
     Monero: 'XMR',
     Zano: 'ZANO',
     Cardano: undefined,
     DeFiChain: undefined,
-    Ethereum: undefined,
+    Ethereum: 'ETH',
     Sepolia: undefined,
-    Optimism: undefined,
-    Polygon: undefined,
+    Optimism: 'OP',
+    Polygon: 'MATIC',
     Base: undefined,
     Gnosis: undefined,
     Haqq: undefined,
@@ -35,8 +35,8 @@ export class MexcService extends ExchangeService {
     Railgun: undefined,
     BinancePay: undefined,
     KucoinPay: undefined,
-    Solana: undefined,
-    Tron: undefined,
+    Solana: 'SOL',
+    Tron: 'TRX',
     CitreaTestnet: undefined,
     Kraken: undefined,
     Binance: undefined,
@@ -47,6 +47,7 @@ export class MexcService extends ExchangeService {
     Checkout: undefined,
     Kaleido: undefined,
     Sumixx: undefined,
+    Yapeal: undefined,
   };
 
   constructor(private readonly http: HttpService) {
