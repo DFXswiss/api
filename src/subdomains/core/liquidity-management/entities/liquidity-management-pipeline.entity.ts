@@ -68,24 +68,28 @@ export class LiquidityManagementPipeline extends IEntity {
 
   //*** GETTERS ***//
 
-  get exchangeOrder(): LiquidityManagementOrder | undefined {
-    return this.orders?.find(
-      (order) =>
-        LiquidityManagementExchanges.includes(order.action?.system as LiquidityManagementSystem) &&
-        order.inputAsset &&
-        order.outputAsset &&
-        order.inputAsset !== order.outputAsset &&
-        order.inputAmount > 0 &&
-        order.outputAmount > 0,
+  get exchangeOrders(): LiquidityManagementOrder[] {
+    return (
+      this.orders?.filter(
+        (order) =>
+          LiquidityManagementExchanges.includes(order.action?.system as LiquidityManagementSystem) &&
+          order.inputAsset &&
+          order.outputAsset &&
+          order.inputAsset !== order.outputAsset &&
+          order.inputAmount > 0 &&
+          order.outputAmount > 0,
+      ) ?? []
     );
   }
 
-  get subPipelineOrder(): LiquidityManagementOrder | undefined {
-    return this.orders?.find(
-      (order) =>
-        order.action?.system === LiquidityManagementSystem.LIQUIDITY_PIPELINE &&
-        order.correlationId &&
-        order.status === LiquidityManagementOrderStatus.COMPLETE,
+  get subPipelineOrders(): LiquidityManagementOrder[] {
+    return (
+      this.orders?.filter(
+        (order) =>
+          order.action?.system === LiquidityManagementSystem.LIQUIDITY_PIPELINE &&
+          order.correlationId &&
+          order.status === LiquidityManagementOrderStatus.COMPLETE,
+      ) ?? []
     );
   }
 

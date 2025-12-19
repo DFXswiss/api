@@ -16,12 +16,13 @@ function createPipelineMock(status: LiquidityManagementPipelineStatus, orders?: 
   };
 }
 
-function createPipelineOrderMock(inputAmount: number, outputAmount: number): any {
+function createPipelineOrderMock(inputAmount: number, outputAmount: number, system = 'Binance'): any {
   return {
     inputAmount,
     outputAmount,
     inputAsset: 'USDT',
     outputAsset: 'BTC',
+    action: { system },
     get exchangePrice(): Price {
       const price = inputAmount / outputAmount;
       return Price.create('USDT', 'BTC', price);
@@ -93,7 +94,7 @@ describe('BuyCrypto', () => {
     });
 
     describe('with liquidityPipeline', () => {
-      it('uses pipeline price when pipeline is COMPLETE with exchange order', () => {
+      it('uses pipeline price when pipeline is COMPLETE with exchange orders', () => {
         // Pipeline bought 1 BTC for 50000 USDT (price = 50000)
         const pipelineOrder = createPipelineOrderMock(50000, 1);
         const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [pipelineOrder]);
@@ -108,7 +109,7 @@ describe('BuyCrypto', () => {
         // Market price is 60000 (different from pipeline price)
         const marketPrice = Price.create('USDT', 'BTC', 60000);
 
-        entity.calculateOutputReferenceAmount(marketPrice, pipelineOrder);
+        entity.calculateOutputReferenceAmount(marketPrice, [pipelineOrder]);
 
         // Should use pipeline price (50000), not market price (60000)
         // 50000 USDT / 50000 price = 1 BTC
@@ -236,7 +237,7 @@ describe('BuyCrypto', () => {
         // Market price dropped to 40000 during transfer
         const marketPrice = Price.create('USDT', 'BTC', 40000);
 
-        entity.calculateOutputReferenceAmount(marketPrice, pipelineOrder);
+        entity.calculateOutputReferenceAmount(marketPrice, [pipelineOrder]);
 
         // Should use pipeline price (50000), customer gets 1 BTC
         // NOT 1.25 BTC (which would be 50000/40000 at market price)
@@ -259,35 +260,36 @@ describe('BuyCrypto', () => {
         // Market price rose to 60000 during transfer
         const marketPrice = Price.create('USDT', 'BTC', 60000);
 
-        entity.calculateOutputReferenceAmount(marketPrice, pipelineOrder);
+        entity.calculateOutputReferenceAmount(marketPrice, [pipelineOrder]);
 
         // Should use pipeline price (50000), customer gets 1 BTC
         // NOT 0.83333333 BTC (which would be 50000/60000 at market price)
         expect(entity.outputReferenceAmount).toBe(1);
       });
 
-      it('uses the provided exchange order', () => {
-        // The exchange order is passed explicitly - uses that order's price
-        const pipelineOrder1 = createPipelineOrderMock(50000, 1); // price = 50000
-        const pipelineOrder2 = createPipelineOrderMock(60000, 1); // price = 60000
+      it('aggregates multiple orders with same asset pair', () => {
+        // Two orders for the same asset pair - should aggregate amounts
+        const pipelineOrder1 = createPipelineOrderMock(50000, 1); // 50000 USDT -> 1 BTC
+        const pipelineOrder2 = createPipelineOrderMock(60000, 1); // 60000 USDT -> 1 BTC
+        // Combined: 110000 USDT -> 2 BTC, price = 55000
+
         const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [
           pipelineOrder1,
           pipelineOrder2,
         ]);
 
         const entity = createCustomBuyCrypto({
-          inputReferenceAmountMinusFee: 50000,
+          inputReferenceAmountMinusFee: 55000,
           inputReferenceAsset: 'USDT',
           outputReferenceAmount: undefined,
           liquidityPipeline: pipeline,
         });
 
-        const marketPrice = Price.create('USDT', 'BTC', 55000);
+        const marketPrice = Price.create('USDT', 'BTC', 70000);
 
-        // Explicitly pass pipelineOrder1 as the exchange order
-        entity.calculateOutputReferenceAmount(marketPrice, pipelineOrder1);
+        entity.calculateOutputReferenceAmount(marketPrice, [pipelineOrder1, pipelineOrder2]);
 
-        // Should use the provided exchange order's price (50000)
+        // Should use aggregated pipeline price (55000): 55000 / 55000 = 1 BTC
         expect(entity.outputReferenceAmount).toBe(1);
       });
 
@@ -305,7 +307,7 @@ describe('BuyCrypto', () => {
 
         const marketPrice = Price.create('USDT', 'BTC', 60000);
 
-        entity.calculateOutputReferenceAmount(marketPrice, pipelineOrder);
+        entity.calculateOutputReferenceAmount(marketPrice, [pipelineOrder]);
 
         // Should use pipeline price (50000): 100 / 50000 = 0.002 BTC
         expect(entity.outputReferenceAmount).toBe(0.002);
@@ -326,7 +328,7 @@ describe('BuyCrypto', () => {
 
         const marketPrice = Price.create('USDT', 'BTC', 60000);
 
-        entity.calculateOutputReferenceAmount(marketPrice, pipelineOrder);
+        entity.calculateOutputReferenceAmount(marketPrice, [pipelineOrder]);
 
         // Should use pipeline price (50000): 25000 / 50000 = 0.5 BTC
         expect(entity.outputReferenceAmount).toBe(0.5);
