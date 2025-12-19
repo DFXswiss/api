@@ -200,7 +200,9 @@ describe('BuyCrypto', () => {
         expect(() => entity.calculateOutputReferenceAmount(marketPrice)).toThrow('LiquidityPipeline not completed');
       });
 
-      it('throws error when pipeline is COMPLETE but no exchange order provided', () => {
+      it('uses market price when pipeline is COMPLETE but no exchange order (no trade happened)', () => {
+        // Scenario: Pipeline completed but no trade was needed (enough liquidity available)
+        // In this case, use market price since no actual exchange happened
         const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, []);
 
         const entity = createCustomBuyCrypto({
@@ -212,9 +214,10 @@ describe('BuyCrypto', () => {
 
         const marketPrice = Price.create('USDT', 'BTC', 60000);
 
-        expect(() => entity.calculateOutputReferenceAmount(marketPrice)).toThrow(
-          'Exchange order not found for completed pipeline',
-        );
+        entity.calculateOutputReferenceAmount(marketPrice);
+
+        // Should use market price: 50000 / 60000 = 0.83333333
+        expect(entity.outputReferenceAmount).toBe(0.83333333);
       });
 
       it('protects against price drop during transfer - customer gets correct amount based on purchase price', () => {
