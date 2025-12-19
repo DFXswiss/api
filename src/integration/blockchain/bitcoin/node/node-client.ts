@@ -79,8 +79,9 @@ export abstract class NodeClient extends BlockchainClient {
   }
 
   // UTXO
-  async getUtxo(): Promise<UTXO[]> {
-    return this.callNode((c) => c.wallet.listUnspent());
+  async getUtxo(includeUnconfirmed = false): Promise<UTXO[]> {
+    const minConf = includeUnconfirmed ? 0 : 1;
+    return this.callNode((c) => c.wallet.listUnspent(minConf));
   }
 
   async getBalance(): Promise<BigNumber> {

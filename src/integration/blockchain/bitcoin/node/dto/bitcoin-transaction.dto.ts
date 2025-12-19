@@ -2,6 +2,9 @@ import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 
 export interface BitcoinUTXO extends UTXO {
   prevoutAddresses: string[];
+  isUnconfirmed?: boolean;
+  feeRate?: number;
+  isNextBlockCandidate?: boolean;
 }
 
 export interface BitcoinTransactionVin {
