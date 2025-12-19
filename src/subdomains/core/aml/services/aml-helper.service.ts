@@ -180,7 +180,7 @@ export class AmlHelperService {
         ipLogCountries.some(
           (l) =>
             l !== entity.userData.country.symbol &&
-            ![l, entity.userData.country.symbol].every((c) => Config.kyc.allowedBorderRegions.includes(c)),
+            ![l, entity.userData.country.symbol].every((c) => Config.allowedBorderRegions.includes(c)),
         )
       )
         errors.push(AmlError.IP_COUNTRY_MISMATCH);
