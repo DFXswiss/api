@@ -267,17 +267,15 @@ export class BuyCrypto extends IEntity {
   // --- ENTITY METHODS --- //
 
   calculateOutputReferenceAmount(price: Price, exchangeOrder?: LiquidityManagementOrder): this {
+    // Use pipeline price only if:
+    // 1. Pipeline exists and is COMPLETE
+    // 2. Exchange order was found (actual trade happened)
+    // If no exchange order exists, liquidity was available without trading -> use market price
     if (
       this.liquidityPipeline &&
-      ![LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
-        this.liquidityPipeline.status,
-      )
+      this.liquidityPipeline.status === LiquidityManagementPipelineStatus.COMPLETE &&
+      exchangeOrder
     ) {
-      if (this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.COMPLETE)
-        throw new Error('LiquidityPipeline not completed');
-
-      if (!exchangeOrder) throw new Error('Exchange order not found for completed pipeline');
-
       const pipelinePrice = exchangeOrder.exchangePrice;
       const filteredPriceSteps = price.steps.slice(0, -1);
 
@@ -288,6 +286,18 @@ export class BuyCrypto extends IEntity {
       this.priceStepsObject = [...this.inputPriceStep, ...filteredPriceSteps, ...pipelinePrice.steps];
 
       return this;
+    }
+
+    // Pipeline not complete, failed, stopped, or no trade happened -> use market price
+    if (
+      this.liquidityPipeline &&
+      ![
+        LiquidityManagementPipelineStatus.FAILED,
+        LiquidityManagementPipelineStatus.STOPPED,
+        LiquidityManagementPipelineStatus.COMPLETE,
+      ].includes(this.liquidityPipeline.status)
+    ) {
+      throw new Error('LiquidityPipeline not completed');
     }
 
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
