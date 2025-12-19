@@ -9,6 +9,7 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -265,20 +266,19 @@ export class BuyCrypto extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  calculateOutputReferenceAmount(price: Price): this {
+  calculateOutputReferenceAmount(price: Price, exchangeOrder?: LiquidityManagementOrder): this {
     if (
       this.liquidityPipeline &&
       ![LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
         this.liquidityPipeline.status,
       )
     ) {
-      if (
-        this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.COMPLETE ||
-        !this.liquidityPipeline.orders?.length
-      )
+      if (this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.COMPLETE)
         throw new Error('LiquidityPipeline not completed');
 
-      const pipelinePrice = this.liquidityPipeline.orders[0].exchangePrice;
+      if (!exchangeOrder) throw new Error('Exchange order not found for completed pipeline');
+
+      const pipelinePrice = exchangeOrder.exchangePrice;
       const filteredPriceSteps = price.steps.slice(0, -1);
 
       const totalPriceValue = [...filteredPriceSteps, pipelinePrice].reduce((prev, curr) => prev * curr.price, 1);

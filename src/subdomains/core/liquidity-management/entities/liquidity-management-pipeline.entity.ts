@@ -1,7 +1,13 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, Index, JoinTable, ManyToOne, OneToMany } from 'typeorm';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus, LiquidityOptimizationType } from '../enums';
+import {
+  LiquidityManagementExchanges,
+  LiquidityManagementOrderStatus,
+  LiquidityManagementPipelineStatus,
+  LiquidityManagementSystem,
+  LiquidityOptimizationType,
+} from '../enums';
 import { LiquidityState } from '../interfaces';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementOrder } from './liquidity-management-order.entity';
@@ -58,6 +64,29 @@ export class LiquidityManagementPipeline extends IEntity {
     pipeline.maxAmount = verificationResult.maxAmount;
 
     return pipeline;
+  }
+
+  //*** GETTERS ***//
+
+  get exchangeOrder(): LiquidityManagementOrder | undefined {
+    return this.orders?.find(
+      (order) =>
+        LiquidityManagementExchanges.includes(order.action?.system as LiquidityManagementSystem) &&
+        order.inputAsset &&
+        order.outputAsset &&
+        order.inputAsset !== order.outputAsset &&
+        order.inputAmount > 0 &&
+        order.outputAmount > 0,
+    );
+  }
+
+  get subPipelineOrder(): LiquidityManagementOrder | undefined {
+    return this.orders?.find(
+      (order) =>
+        order.action?.system === LiquidityManagementSystem.LIQUIDITY_PIPELINE &&
+        order.correlationId &&
+        order.status === LiquidityManagementOrderStatus.COMPLETE,
+    );
   }
 
   //*** PUBLIC API ***//

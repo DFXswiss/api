@@ -4,6 +4,8 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
+import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import {
   LiquidityManagementPipelineStatus,
   LiquidityManagementRuleStatus,
@@ -143,7 +145,11 @@ export class BuyCryptoBatchService {
             PriceValidity.VALID_ONLY,
           );
 
-          tx.calculateOutputReferenceAmount(price);
+          const exchangeOrder = tx.liquidityPipeline
+            ? await this.findExchangeOrder(tx.liquidityPipeline)
+            : undefined;
+
+          tx.calculateOutputReferenceAmount(price, exchangeOrder);
         }
       } catch (e) {
         if (e instanceof PriceInvalidException) {
@@ -429,6 +435,28 @@ export class BuyCryptoBatchService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async findExchangeOrder(
+    pipeline: LiquidityManagementPipeline,
+    maxDepth = 3,
+  ): Promise<LiquidityManagementOrder | undefined> {
+    if (maxDepth <= 0) return undefined;
+
+    const exchangeOrder = pipeline.exchangeOrder;
+    if (exchangeOrder) return exchangeOrder;
+
+    const subPipelineOrder = pipeline.subPipelineOrder;
+    if (!subPipelineOrder) return undefined;
+
+    const subPipelineId = parseInt(subPipelineOrder.correlationId, 10);
+    if (isNaN(subPipelineId)) return undefined;
+
+    const subPipeline = await this.liquidityService.getPipelineWithOrders(subPipelineId);
+    if (!subPipeline) return undefined;
+
+    return this.findExchangeOrder(subPipeline, maxDepth - 1);
+  }
+
   private async setWaitingForLowerFeeStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
       await this.buyCryptoRepo.update(...tx.waitingForLowerFee());
