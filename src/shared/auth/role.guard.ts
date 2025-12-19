@@ -4,13 +4,14 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 class RoleGuardClass implements CanActivate {
   // additional allowed roles
   private readonly additionalRoles = {
-    [UserRole.ACCOUNT]: [UserRole.USER, UserRole.CUSTODY, UserRole.VIP, UserRole.BETA, UserRole.ADMIN],
-    [UserRole.USER]: [UserRole.VIP, UserRole.BETA, UserRole.ADMIN, UserRole.CUSTODY],
-    [UserRole.VIP]: [UserRole.ADMIN],
-    [UserRole.BETA]: [UserRole.ADMIN],
-    [UserRole.SUPPORT]: [UserRole.COMPLIANCE, UserRole.ADMIN],
-    [UserRole.COMPLIANCE]: [UserRole.ADMIN],
-    [UserRole.BANKING_BOT]: [UserRole.ADMIN],
+    [UserRole.ACCOUNT]: [UserRole.USER, UserRole.CUSTODY, UserRole.VIP, UserRole.BETA, UserRole.ADMIN, UserRole.CADMIN],
+    [UserRole.USER]: [UserRole.VIP, UserRole.BETA, UserRole.ADMIN, UserRole.CADMIN, UserRole.CUSTODY],
+    [UserRole.VIP]: [UserRole.ADMIN, UserRole.CADMIN],
+    [UserRole.BETA]: [UserRole.ADMIN, UserRole.CADMIN],
+    [UserRole.SUPPORT]: [UserRole.COMPLIANCE, UserRole.ADMIN, UserRole.CADMIN],
+    [UserRole.COMPLIANCE]: [UserRole.ADMIN, UserRole.CADMIN],
+    [UserRole.BANKING_BOT]: [UserRole.ADMIN, UserRole.CADMIN],
+    [UserRole.ADMIN]: [UserRole.CADMIN],
   };
 
   constructor(private readonly entryRole: UserRole) {}

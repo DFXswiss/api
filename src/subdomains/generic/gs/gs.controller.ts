@@ -1,6 +1,8 @@
 import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -19,9 +21,9 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async getDbData(@Body() query: DbQueryDto): Promise<DbReturnData> {
+  async getDbData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryDto): Promise<DbReturnData> {
     try {
-      return await this.gsService.getDbData(query);
+      return await this.gsService.getDbData(query, jwt.role);
     } catch (e) {
       this.logger.verbose(`DB data call for ${query.table} in ${query.identifier} failed:`, e);
       throw new BadRequestException(e.message);
@@ -32,8 +34,8 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async getExtendedData(@Body() query: DbQueryBaseDto): Promise<DbReturnData> {
-    return this.gsService.getExtendedDbData(query);
+  async getExtendedData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryBaseDto): Promise<DbReturnData> {
+    return this.gsService.getExtendedDbData(query, jwt.role);
   }
 
   @Get('support')

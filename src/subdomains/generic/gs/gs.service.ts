@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -27,6 +28,7 @@ import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
+import { GsExcludedColumns, GsRestrictedMarker } from './gs-column-exclusion.config';
 
 export enum SupportTable {
   USER_DATA = 'userData',
@@ -71,7 +73,7 @@ export class GsService {
     private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
-  async getDbData(query: DbQueryDto): Promise<DbReturnData> {
+  async getDbData(query: DbQueryDto, role: UserRole): Promise<DbReturnData> {
     const additionalSelect = Array.from(
       new Set([
         ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
@@ -133,14 +135,20 @@ export class GsService {
       if (!query.select?.includes(key)) data.forEach((entry) => delete entry[key]);
     });
 
+    // mask excluded columns for non-CADMIN roles
+    this.maskExcludedColumns(data, query.table, role);
+
     // transform to array
     return this.transformResultArray(data, query.table);
   }
 
-  async getExtendedDbData(query: DbQueryBaseDto): Promise<DbReturnData> {
+  async getExtendedDbData(query: DbQueryBaseDto, role: UserRole): Promise<DbReturnData> {
     switch (query.table) {
-      case 'bank_tx':
-        return this.transformResultArray(await this.getExtendedBankTxData(query), query.table);
+      case 'bank_tx': {
+        const data = await this.getExtendedBankTxData(query);
+        this.maskExcludedColumns(data, query.table, role);
+        return this.transformResultArray(data, query.table);
+      }
     }
   }
 
@@ -465,5 +473,23 @@ export class GsService {
 
   private toDotSeparation(str: string): string {
     return str.charAt(0).toLowerCase() + str.slice(1).split('_').join('.');
+  }
+
+  private maskExcludedColumns(data: Record<string, unknown>[], table: string, role: UserRole): void {
+    if (role === UserRole.CADMIN) return;
+
+    const excludedColumns = GsExcludedColumns[table];
+    if (!excludedColumns?.length) return;
+
+    for (const entry of data) {
+      for (const column of excludedColumns) {
+        const prefixedKey = `${table}_${column}`;
+        if (prefixedKey in entry) {
+          entry[prefixedKey] = GsRestrictedMarker;
+        } else if (column in entry) {
+          entry[column] = GsRestrictedMarker;
+        }
+      }
+    }
   }
 }
