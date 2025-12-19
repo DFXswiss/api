@@ -5,7 +5,7 @@ export enum UserRole {
   VIP = 'VIP',
   BETA = 'Beta',
   ADMIN = 'Admin',
-  CADMIN = 'Cadmin',
+  SUPER_ADMIN = 'SuperAdmin',
   SUPPORT = 'Support',
   COMPLIANCE = 'Compliance',
   CUSTODY = 'Custody',

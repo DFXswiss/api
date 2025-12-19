@@ -28,7 +28,6 @@ import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
-import { GsExcludedColumns, GsRestrictedMarker } from './gs-column-exclusion.config';
 
 export enum SupportTable {
   USER_DATA = 'userData',
@@ -48,6 +47,12 @@ export enum SupportTable {
 @Injectable()
 export class GsService {
   private readonly logger = new DfxLogger(GsService);
+
+  // columns only visible to SUPER_ADMIN
+  private readonly RestrictedColumns: Record<string, string[]> = {
+    asset: ['ikna'],
+  };
+  private readonly RestrictedMarker = '[RESTRICTED]';
 
   constructor(
     private readonly userDataService: UserDataService,
@@ -135,19 +140,15 @@ export class GsService {
       if (!query.select?.includes(key)) data.forEach((entry) => delete entry[key]);
     });
 
-    // mask excluded columns for non-CADMIN roles
-    this.maskExcludedColumns(data, query.table, role);
-
     // transform to array
-    return this.transformResultArray(data, query.table);
+    return this.transformResultArray(data, query.table, role);
   }
 
   async getExtendedDbData(query: DbQueryBaseDto, role: UserRole): Promise<DbReturnData> {
     switch (query.table) {
       case 'bank_tx': {
         const data = await this.getExtendedBankTxData(query);
-        this.maskExcludedColumns(data, query.table, role);
-        return this.transformResultArray(data, query.table);
+        return this.transformResultArray(data, query.table, role);
       }
     }
   }
@@ -453,8 +454,11 @@ export class GsService {
     return selectPath.split('-')[1]?.split('.').join('/').split('{userData}').join(`${userDataId}`);
   }
 
-  private transformResultArray(data: any[], table: string): DbReturnData {
+  private transformResultArray(data: any[], table: string, role: UserRole): DbReturnData {
     if (data.length === 0) return undefined;
+
+    if (role !== UserRole.SUPER_ADMIN) this.maskRestrictedColumns(data, table);
+
     const keys = Object.keys(data[0]);
     const uniqueData = Util.toUniqueList(data, keys[0]);
 
@@ -475,19 +479,17 @@ export class GsService {
     return str.charAt(0).toLowerCase() + str.slice(1).split('_').join('.');
   }
 
-  private maskExcludedColumns(data: Record<string, unknown>[], table: string, role: UserRole): void {
-    if (role === UserRole.CADMIN) return;
-
-    const excludedColumns = GsExcludedColumns[table];
-    if (!excludedColumns?.length) return;
+  private maskRestrictedColumns(data: Record<string, unknown>[], table: string): void {
+    const restrictedColumns = this.RestrictedColumns[table];
+    if (!restrictedColumns?.length) return;
 
     for (const entry of data) {
-      for (const column of excludedColumns) {
+      for (const column of restrictedColumns) {
         const prefixedKey = `${table}_${column}`;
         if (prefixedKey in entry) {
-          entry[prefixedKey] = GsRestrictedMarker;
+          entry[prefixedKey] = this.RestrictedMarker;
         } else if (column in entry) {
-          entry[column] = GsRestrictedMarker;
+          entry[column] = this.RestrictedMarker;
         }
       }
     }
