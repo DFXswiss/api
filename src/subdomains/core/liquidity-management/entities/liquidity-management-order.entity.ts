@@ -95,18 +95,8 @@ export class LiquidityManagementOrder extends IEntity {
   //*** PUBLIC API ***//
 
   get allCorrelationIds(): string[] {
-    const ids: string[] = [];
-
-    if (this.previousCorrelationIds) {
-      ids.push(...this.previousCorrelationIds.split(','));
-    }
-
-    if (this.correlationId) {
-      ids.push(this.correlationId);
-    }
-
-    // Remove duplicates and empty strings
-    return [...new Set(ids)].filter((id) => id.length > 0);
+    const ids = [this.correlationId, this.previousCorrelationIds?.split(',')].flat();
+    return [...new Set(ids)].filter((id) => id);
   }
 
   inProgress(correlationId: string): this {
@@ -117,12 +107,7 @@ export class LiquidityManagementOrder extends IEntity {
   }
 
   updateCorrelationId(newCorrelationId: string): this {
-    if (this.correlationId) {
-      this.previousCorrelationIds = this.previousCorrelationIds
-        ? `${this.previousCorrelationIds},${this.correlationId}`
-        : this.correlationId;
-    }
-
+    this.previousCorrelationIds = this.allCorrelationIds.join(',');
     this.correlationId = newCorrelationId;
 
     return this;

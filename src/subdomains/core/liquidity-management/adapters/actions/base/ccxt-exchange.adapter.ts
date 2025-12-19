@@ -299,10 +299,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const isComplete = await this.checkTradeCompletion(order, tradeAsset, token);
     if (isComplete) {
-      const { inputAmount, outputAmount } = await this.aggregateTradeAmounts(order, tradeAsset, token);
+      const { cost, amount } = await this.aggregateTradeAmounts(order, tradeAsset, token);
 
-      order.inputAmount = inputAmount;
-      order.outputAmount = outputAmount;
+      order.inputAmount = cost;
+      order.outputAmount = amount;
     }
 
     return isComplete;
@@ -315,11 +315,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const isComplete = await this.checkTradeCompletion(order, asset, tradeAsset);
     if (isComplete) {
-      const { inputAmount, outputAmount } = await this.aggregateTradeAmounts(order, asset, tradeAsset);
+      const { cost, amount } = await this.aggregateTradeAmounts(order, asset, tradeAsset);
 
-      // For sell: input is the base asset (amount), output is the quote asset (cost)
-      order.inputAmount = outputAmount;
-      order.outputAmount = inputAmount;
+      order.inputAmount = amount;
+      order.outputAmount = cost;
     }
 
     return isComplete;
@@ -329,16 +328,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     order: LiquidityManagementOrder,
     from: string,
     to: string,
-  ): Promise<{ inputAmount: number; outputAmount: number }> {
+  ): Promise<{ cost: number; amount: number }> {
     const correlationIds = order.allCorrelationIds;
 
-    if (correlationIds.length > 1) {
-      this.logger.verbose(
-        `Order ${order.id}: Aggregating fills from ${correlationIds.length} exchange orders: ${correlationIds.join(', ')}`,
-      );
-    }
-
-    // Fetch all trades, handling individual failures gracefully
     const tradeResults = await Promise.allSettled(
       correlationIds.map((id) => this.exchangeService.getTrade(id, from, to)),
     );
@@ -347,7 +339,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       .filter((result): result is PromiseFulfilledResult<Order> => result.status === 'fulfilled')
       .map((result) => result.value);
 
-    // Log any failures
+    // log failures
     const failures = tradeResults.filter((result) => result.status === 'rejected');
     if (failures.length > 0) {
       this.logger.warn(
@@ -360,17 +352,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       throw new OrderFailedException(`Failed to fetch any trades for order ${order.id}`);
     }
 
-    // Use 'filled' for the actual filled amount (not 'amount' which is the order size)
-    const inputAmount = trades.reduce((sum, trade) => sum + trade.cost, 0);
-    const outputAmount = trades.reduce((sum, trade) => sum + (trade.filled ?? trade.amount), 0);
+    const cost = Util.sumObjValue(trades, 'cost');
+    const amount = trades.reduce((sum, trade) => sum + (trade.filled ?? trade.amount), 0);
 
-    if (correlationIds.length > 1) {
-      this.logger.verbose(
-        `Order ${order.id}: Aggregated totals - input: ${inputAmount} ${from}, output: ${outputAmount} ${to}`,
-      );
-    }
-
-    return { inputAmount, outputAmount };
+    return { cost, amount };
   }
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
