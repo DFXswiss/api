@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Subscription } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -17,10 +18,13 @@ import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
+import { OrderCompletionEvent, OrderCompletionService } from './order-completion.service';
 
 @Injectable()
-export class LiquidityManagementPipelineService {
+export class LiquidityManagementPipelineService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new DfxLogger(LiquidityManagementPipelineService);
+
+  private orderCompletionSubscription: Subscription;
 
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
@@ -28,13 +32,30 @@ export class LiquidityManagementPipelineService {
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
     private readonly notificationService: NotificationService,
+    private readonly orderCompletionService: OrderCompletionService,
   ) {}
+
+  // Subscribe to order completion events for immediate pipeline continuation
+  onModuleInit(): void {
+    this.orderCompletionSubscription = this.orderCompletionService.orderCompleted$.subscribe((event) =>
+      this.onOrderCompleted(event),
+    );
+  }
+
+  // Cleanup subscription to prevent memory leaks
+  onModuleDestroy(): void {
+    this.orderCompletionSubscription?.unsubscribe();
+  }
 
   //*** JOBS ***//
 
+  /**
+   * Main cron job - now serves as fallback since order completion is event-driven.
+   * The primary flow is: OrderCompletionService detects completion → emits event → onOrderCompleted() continues pipeline
+   */
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
-  async processPipelines() {
-    await this.checkRunningOrders();
+  async processPipelines(): Promise<void> {
+    // Note: checkRunningOrders is now handled by OrderCompletionService
     await this.startNewPipelines();
 
     let hasWaitingOrders = true;
@@ -42,6 +63,85 @@ export class LiquidityManagementPipelineService {
       await this.checkRunningPipelines();
 
       hasWaitingOrders = await this.startNewOrders();
+    }
+  }
+
+  /**
+   * Event handler for order completion - immediately continues the pipeline.
+   * Uses atomic transaction with pessimistic lock to prevent race conditions with cron.
+   */
+  private async onOrderCompleted(event: OrderCompletionEvent): Promise<void> {
+    try {
+      this.logger.verbose(`Order ${event.orderId} completed, continuing pipeline ${event.pipelineId}`);
+
+      // Atomically continue the pipeline (uses transaction + pessimistic lock)
+      const pipeline = await this.pipelineRepo.tryContinuePipeline(event.pipelineId, event.status);
+
+      if (!pipeline) {
+        // Pipeline was already handled by cron or another event
+        this.logger.verbose(`Pipeline ${event.pipelineId} not found or already processed`);
+        return;
+      }
+
+      // Get the last order for completion/failure handling
+      const lastOrder = await this.orderRepo.findOne({
+        where: { pipeline: { id: pipeline.id } },
+        order: { id: 'DESC' },
+      });
+
+      if (pipeline.status === LiquidityManagementPipelineStatus.COMPLETE) {
+        await this.handlePipelineCompletion(pipeline);
+        return;
+      }
+
+      if (
+        [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(pipeline.status)
+      ) {
+        if (!lastOrder) {
+          this.logger.error(`Pipeline ${pipeline.id} failed but no order found - data inconsistency`);
+        }
+        await this.handlePipelineFail(pipeline, lastOrder ?? null);
+        return;
+      }
+
+      // Place and execute next order immediately
+      this.logger.verbose(`Immediately continuing pipeline ${pipeline.id} with action ${pipeline.currentAction?.id}`);
+      await this.placeLiquidityOrder(pipeline, lastOrder);
+
+      // Find and execute the newly created order
+      const newOrder = await this.orderRepo.findOne({
+        where: { pipeline: { id: pipeline.id }, status: LiquidityManagementOrderStatus.CREATED },
+        order: { id: 'DESC' },
+      });
+
+      if (newOrder) {
+        try {
+          await this.executeOrder(newOrder);
+        } catch (e) {
+          // Handle execution errors same as in startNewOrders
+          // Important: Emit completion event to continue pipeline immediately
+          if (e instanceof OrderNotNecessaryException) {
+            newOrder.complete();
+            await this.orderRepo.save(newOrder);
+            this.orderCompletionService.emitOrderCompletion(newOrder, LiquidityManagementOrderStatus.COMPLETE);
+          } else if (e instanceof OrderNotProcessableException) {
+            newOrder.notProcessable(e);
+            await this.orderRepo.save(newOrder);
+            this.orderCompletionService.emitOrderCompletion(newOrder, LiquidityManagementOrderStatus.NOT_PROCESSABLE);
+          } else if (e instanceof OrderFailedException) {
+            newOrder.fail(e);
+            await this.orderRepo.save(newOrder);
+            this.orderCompletionService.emitOrderCompletion(newOrder, LiquidityManagementOrderStatus.FAILED);
+          } else {
+            // Unexpected error - log and don't emit event (will be retried by cron)
+            this.logger.error(`Unexpected error executing order ${newOrder.id}:`, e);
+            return;
+          }
+          this.logger.info(`Order ${newOrder.id} completed immediately with: ${e.message}`);
+        }
+      }
+    } catch (e) {
+      this.logger.error(`Error handling order completion for pipeline ${event.pipelineId}:`, e);
     }
   }
 
@@ -99,55 +199,64 @@ export class LiquidityManagementPipelineService {
   }
 
   private async checkRunningPipelines(): Promise<void> {
-    const runningPipelines = await this.pipelineRepo.find({
-      where: { status: LiquidityManagementPipelineStatus.IN_PROGRESS },
-      relations: { currentAction: { onSuccess: true, onFail: true } },
+    // Get list of running pipelines (without lock - just for iteration)
+    const runningPipelines = await this.pipelineRepo.findBy({
+      status: LiquidityManagementPipelineStatus.IN_PROGRESS,
     });
 
-    for (const pipeline of runningPipelines) {
+    for (const pipelineRef of runningPipelines) {
       try {
         const lastOrder = await this.orderRepo.findOne({
-          where: { pipeline: { id: pipeline.id } },
+          where: { pipeline: { id: pipelineRef.id } },
           order: { id: 'DESC' },
         });
 
-        // check running order
-        if (lastOrder) {
-          if (
-            lastOrder.status === LiquidityManagementOrderStatus.COMPLETE ||
-            lastOrder.status === LiquidityManagementOrderStatus.FAILED ||
-            lastOrder.status === LiquidityManagementOrderStatus.NOT_PROCESSABLE
-          ) {
-            pipeline.continue(lastOrder.status);
-            await this.pipelineRepo.save(pipeline);
-
-            if (pipeline.status === LiquidityManagementPipelineStatus.COMPLETE) {
-              await this.handlePipelineCompletion(pipeline);
-              continue;
-            }
-
-            if (
-              [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
-                pipeline.status,
-              )
-            ) {
-              await this.handlePipelineFail(pipeline, lastOrder);
-              continue;
-            }
-          } else {
-            // order still running
-            continue;
-          }
+        // Check if order is in terminal state
+        if (!lastOrder) {
+          continue;
         }
 
-        // start new order
+        if (
+          ![
+            LiquidityManagementOrderStatus.COMPLETE,
+            LiquidityManagementOrderStatus.FAILED,
+            LiquidityManagementOrderStatus.NOT_PROCESSABLE,
+          ].includes(lastOrder.status)
+        ) {
+          // Order still running
+          continue;
+        }
+
+        // Use atomic method to continue pipeline (prevents race with event handler)
+        const pipeline = await this.pipelineRepo.tryContinuePipeline(pipelineRef.id, lastOrder.status);
+
+        if (!pipeline) {
+          // Pipeline was already handled by event handler
+          continue;
+        }
+
+        if (pipeline.status === LiquidityManagementPipelineStatus.COMPLETE) {
+          await this.handlePipelineCompletion(pipeline);
+          continue;
+        }
+
+        if (
+          [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
+            pipeline.status,
+          )
+        ) {
+          await this.handlePipelineFail(pipeline, lastOrder);
+          continue;
+        }
+
+        // Start new order
         this.logger.verbose(
-          `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
+          `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction?.id}`,
         );
 
         await this.placeLiquidityOrder(pipeline, lastOrder);
       } catch (e) {
-        this.logger.error(`Error in checking running liquidity pipeline ${pipeline.id}:`, e);
+        this.logger.error(`Error in checking running liquidity pipeline ${pipelineRef.id}:`, e);
         continue;
       }
     }
@@ -175,12 +284,10 @@ export class LiquidityManagementPipelineService {
         if (e instanceof OrderNotNecessaryException) {
           order.complete();
           await this.orderRepo.save(order);
-        }
-        if (e instanceof OrderNotProcessableException) {
+        } else if (e instanceof OrderNotProcessableException) {
           order.notProcessable(e);
           await this.orderRepo.save(order);
-        }
-        if (e instanceof OrderFailedException) {
+        } else if (e instanceof OrderFailedException) {
           order.fail(e);
           await this.orderRepo.save(order);
         }
@@ -195,48 +302,45 @@ export class LiquidityManagementPipelineService {
   }
 
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
-    const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
+    // Atomically claim this order - only one caller can succeed
+    const gotLock = await this.orderRepo.tryClaimForExecution(order.id);
+    if (!gotLock) {
+      this.logger.verbose(`Order ${order.id} already being executed by another process`);
+      return;
+    }
 
-    const correlationId = await actionIntegration.executeOrder(order);
-    order.inProgress(correlationId);
+    // We have the lock, proceed with execution
+    try {
+      const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
+      const correlationId = await actionIntegration.executeOrder(order);
 
-    await this.orderRepo.save(order);
-  }
+      // Save all execution result fields (correlationId, inputAsset, outputAsset, inputAmount)
+      // These are set on the order entity during executeOrder() and needed for WebSocket symbol construction
+      await this.orderRepo.saveExecutionResult(
+        order.id,
+        correlationId,
+        order.inputAsset,
+        order.outputAsset,
+        order.inputAmount,
+      );
 
-  private async checkRunningOrders(): Promise<void> {
-    const runningOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.IN_PROGRESS });
-
-    for (const order of runningOrders) {
-      try {
-        await this.checkOrder(order);
-      } catch (e) {
-        if (e instanceof OrderNotProcessableException) {
-          order.notProcessable(e);
-          await this.orderRepo.save(order);
-          continue;
-        }
-        if (e instanceof OrderFailedException) {
-          order.fail(e);
-          await this.orderRepo.save(order);
-          continue;
-        }
-
-        this.logger.error(`Error in checking running liquidity order ${order.id}:`, e);
+      // Start active polling to quickly detect order completion
+      this.orderCompletionService.startActivePolling(order.id);
+    } catch (e) {
+      // If execution fails unexpectedly, revert to CREATED so it can be retried
+      if (
+        !(e instanceof OrderNotNecessaryException) &&
+        !(e instanceof OrderNotProcessableException) &&
+        !(e instanceof OrderFailedException)
+      ) {
+        this.logger.error(`Unexpected error executing order ${order.id}, reverting to CREATED:`, e);
+        await this.orderRepo.revertToCREATED(order.id);
       }
+      throw e;
     }
   }
 
-  private async checkOrder(order: LiquidityManagementOrder): Promise<void> {
-    const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
-    const isComplete = await actionIntegration.checkCompletion(order);
-
-    if (isComplete) {
-      order.complete();
-      await this.orderRepo.save(order);
-
-      this.logger.verbose(`Liquidity management order ${order.id} complete`);
-    }
-  }
+  // Note: checkRunningOrders and checkOrder have been moved to OrderCompletionService
 
   private async handlePipelineCompletion(pipeline: LiquidityManagementPipeline): Promise<void> {
     const rule = pipeline.rule.reactivate();
@@ -252,7 +356,7 @@ export class LiquidityManagementPipelineService {
 
   private async handlePipelineFail(
     pipeline: LiquidityManagementPipeline,
-    order: LiquidityManagementOrder,
+    order: LiquidityManagementOrder | null,
   ): Promise<void> {
     const rule = pipeline.rule.pause();
 
@@ -283,7 +387,7 @@ export class LiquidityManagementPipelineService {
 
   private generateFailMessage(
     pipeline: LiquidityManagementPipeline,
-    order: LiquidityManagementOrder,
+    order: LiquidityManagementOrder | null,
   ): [string, MailRequest] {
     const { id, type, maxAmount, rule } = pipeline;
     const errorMessage = `${type} pipeline for max. ${maxAmount} ${rule.targetName} (rule ${
@@ -298,7 +402,7 @@ export class LiquidityManagementPipelineService {
         errors: [
           errorMessage,
           pipeline.status === LiquidityManagementPipelineStatus.FAILED
-            ? `Error: ${order.errorMessage}`
+            ? `Error: ${order?.errorMessage ?? 'Unknown error (order not found)'}`
             : 'Maximum order count reached',
         ],
       },
