@@ -266,24 +266,34 @@ export class BuyCrypto extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  calculateOutputReferenceAmount(price: Price, exchangeOrder?: LiquidityManagementOrder): this {
-    // Use pipeline price only if:
+  calculateOutputReferenceAmount(price: Price, exchangeOrders?: LiquidityManagementOrder[]): this {
+    // Use pipeline prices only if:
     // 1. Pipeline exists and is COMPLETE
-    // 2. Exchange order was found (actual trade happened)
-    // If no exchange order exists, liquidity was available without trading -> use market price
+    // 2. Exchange orders were found (actual trades happened)
+    // If no exchange orders exist, liquidity was available without trading -> use market price
     if (
       this.liquidityPipeline &&
       this.liquidityPipeline.status === LiquidityManagementPipelineStatus.COMPLETE &&
-      exchangeOrder
+      exchangeOrders?.length
     ) {
-      const pipelinePrice = exchangeOrder.exchangePrice;
-      const filteredPriceSteps = price.steps.slice(0, -1);
+      // Build aggregated price steps from all exchange orders
+      const pipelinePriceSteps = this.buildAggregatedPriceSteps(exchangeOrders);
 
-      const totalPriceValue = [...filteredPriceSteps, pipelinePrice].reduce((prev, curr) => prev * curr.price, 1);
+      // Replace CoinGecko steps with pipeline steps where available
+      // If price.steps is empty (direct conversion), use pipeline steps directly
+      const finalPriceSteps =
+        price.steps.length > 0
+          ? price.steps.map((step) => {
+              const pipelineStep = pipelinePriceSteps.find((ps) => ps.from === step.from && ps.to === step.to);
+              return pipelineStep ?? step;
+            })
+          : pipelinePriceSteps;
+
+      const totalPriceValue = finalPriceSteps.reduce((prev, curr) => prev * curr.price, 1);
       const totalPrice = Price.create(this.inputReferenceAsset, this.outputAsset.name, totalPriceValue);
 
       this.outputReferenceAmount = totalPrice.convert(this.inputReferenceAmountMinusFee, 8);
-      this.priceStepsObject = [...this.inputPriceStep, ...filteredPriceSteps, ...pipelinePrice.steps];
+      this.priceStepsObject = [...this.inputPriceStep, ...finalPriceSteps];
 
       return this;
     }
@@ -303,6 +313,36 @@ export class BuyCrypto extends IEntity {
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
     this.priceStepsObject = [...this.priceStepsObject, ...this.inputPriceStep, ...price.steps];
     return this;
+  }
+
+  private buildAggregatedPriceSteps(orders: LiquidityManagementOrder[]): PriceStep[] {
+    // Group orders by asset pair and aggregate amounts
+    const pairMap = new Map<
+      string,
+      { inputAmount: number; outputAmount: number; system: string; from: string; to: string }
+    >();
+
+    for (const order of orders) {
+      const key = `${order.inputAsset}->${order.outputAsset}`;
+      const existing = pairMap.get(key);
+      if (existing) {
+        existing.inputAmount += order.inputAmount;
+        existing.outputAmount += order.outputAmount;
+      } else {
+        pairMap.set(key, {
+          inputAmount: order.inputAmount,
+          outputAmount: order.outputAmount,
+          system: order.action.system,
+          from: order.inputAsset,
+          to: order.outputAsset,
+        });
+      }
+    }
+
+    // Create price steps from aggregated pairs
+    return Array.from(pairMap.values()).map((value) =>
+      PriceStep.create(value.system, value.from, value.to, value.inputAmount / value.outputAmount),
+    );
   }
 
   assignCandidateBatch(batch: BuyCryptoBatch): this {

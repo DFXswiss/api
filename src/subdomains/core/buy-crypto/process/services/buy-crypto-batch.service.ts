@@ -145,11 +145,11 @@ export class BuyCryptoBatchService {
             PriceValidity.VALID_ONLY,
           );
 
-          const exchangeOrder = tx.liquidityPipeline
-            ? await this.findExchangeOrder(tx.liquidityPipeline)
+          const exchangeOrders = tx.liquidityPipeline
+            ? await this.findAllExchangeOrders(tx.liquidityPipeline)
             : undefined;
 
-          tx.calculateOutputReferenceAmount(price, exchangeOrder);
+          tx.calculateOutputReferenceAmount(price, exchangeOrders);
         }
       } catch (e) {
         if (e instanceof PriceInvalidException) {
@@ -436,25 +436,32 @@ export class BuyCryptoBatchService {
 
   // --- HELPER METHODS --- //
 
-  private async findExchangeOrder(
+  private async findAllExchangeOrders(
     pipeline: LiquidityManagementPipeline,
-    maxDepth = 3,
-  ): Promise<LiquidityManagementOrder | undefined> {
-    if (maxDepth <= 0) return undefined;
+    maxDepth = 5,
+  ): Promise<LiquidityManagementOrder[]> {
+    if (maxDepth <= 0) return [];
 
-    const exchangeOrder = pipeline.exchangeOrder;
-    if (exchangeOrder) return exchangeOrder;
+    const orders: LiquidityManagementOrder[] = [];
 
-    const subPipelineOrder = pipeline.subPipelineOrder;
-    if (!subPipelineOrder) return undefined;
+    // Collect exchange orders from this pipeline
+    const exchangeOrders = pipeline.exchangeOrders;
+    orders.push(...exchangeOrders);
 
-    const subPipelineId = parseInt(subPipelineOrder.correlationId, 10);
-    if (isNaN(subPipelineId)) return undefined;
+    // Recursively collect from sub-pipelines
+    const subPipelineOrders = pipeline.subPipelineOrders;
+    for (const subPipelineOrder of subPipelineOrders) {
+      const subPipelineId = parseInt(subPipelineOrder.correlationId, 10);
+      if (isNaN(subPipelineId)) continue;
 
-    const subPipeline = await this.liquidityService.getPipelineWithOrders(subPipelineId);
-    if (!subPipeline) return undefined;
+      const subPipeline = await this.liquidityService.getPipelineWithOrders(subPipelineId);
+      if (!subPipeline) continue;
 
-    return this.findExchangeOrder(subPipeline, maxDepth - 1);
+      const subOrders = await this.findAllExchangeOrders(subPipeline, maxDepth - 1);
+      orders.push(...subOrders);
+    }
+
+    return orders;
   }
 
   private async setWaitingForLowerFeeStatus(transactions: BuyCrypto[]): Promise<void> {
