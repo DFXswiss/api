@@ -324,8 +324,8 @@ export class LiquidityManagementPipelineService implements OnModuleInit, OnModul
         order.inputAmount,
       );
 
-      // Start active polling to quickly detect order completion
-      this.orderCompletionService.startActivePolling(order.id);
+      // Start active polling to quickly detect order completion (fire-and-forget)
+      void this.orderCompletionService.startActivePolling(order.id);
     } catch (e) {
       // If execution fails unexpectedly, revert to CREATED so it can be retried
       if (

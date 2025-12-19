@@ -59,7 +59,7 @@ export class ExchangeWebSocketService implements OnModuleInit, OnModuleDestroy {
     const connection = this.connections.get(exchangeName);
     if (!connection) {
       this.logger.warn(`Exchange ${exchangeName} not supported for WebSocket watching`);
-      return () => {};
+      return () => undefined;
     }
 
     const watchKey = `${orderId}:${symbol}`;
