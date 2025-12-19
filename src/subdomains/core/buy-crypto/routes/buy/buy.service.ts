@@ -7,18 +7,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -139,10 +142,12 @@ export class BuyService {
         deposit: IsNull(),
         user: { id: userId },
       },
-      relations: { deposit: true, user: { userData: true } },
+      relations: { deposit: true, user: { userData: true, wallet: true } },
     });
 
     if (existing) {
+      this.checkTradeApproval(existing.user.userData, existing.user.wallet);
+
       if (existing.active && !ignoreExisting) throw new ConflictException('Buy route already exists');
 
       if (!existing.active) {
@@ -154,7 +159,9 @@ export class BuyService {
       return existing;
     }
 
-    const user = await this.userService.getUser(userId, { userData: true });
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+
+    this.checkTradeApproval(user.userData, user.wallet);
 
     // create the entity
     const buy = this.buyRepo.create(dto);
@@ -386,5 +393,20 @@ ${Config.giroCode.char}
 ${Config.giroCode.ref}
 ${buy.bankUsage}
 `.trim();
+  }
+
+  private checkTradeApproval(userData: UserData, wallet: Wallet): void {
+    if (
+      wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) &&
+      [Environment.LOC, Environment.DEV].includes(Config.environment)
+    )
+      return;
+
+    if (
+      !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
+      !userData.tradeApprovalDate &&
+      !wallet.autoTradeApproval
+    )
+      throw new BadRequestException('Trading not allowed');
   }
 }
