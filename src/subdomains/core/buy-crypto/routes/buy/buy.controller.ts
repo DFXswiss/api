@@ -82,8 +82,9 @@ export class BuyController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
   @ApiExcludeEndpoint()
   async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
-    dto = await this.paymentInfoService.buyCheck(dto, jwt);
-    return this.buyService.createBuy(jwt.user, jwt.address, dto).then((b) => this.toDto(jwt.user, b));
+    const user = await this.userService.getUser(jwt.user, { userData: { wallet: true } });
+    dto = await this.paymentInfoService.buyCheck(dto, jwt, user);
+    return this.buyService.createBuy(user, jwt.address, dto).then((b) => this.toDto(jwt.user, b));
   }
 
   @Put('/quote')
