@@ -164,34 +164,23 @@ export class FiatOutputJobService {
 
     if (entities.every((f) => f.isReadyDate)) return;
 
-    // group entities by effective bank IBAN
-    const groupedEntities = new Map<string, FiatOutput[]>();
-
-    for (const entity of entities) {
-      const baseAccountIban = entity.accountIban
-        ? (await this.virtualIbanService.getBaseAccountIban(entity.accountIban)) ?? entity.accountIban
-        : entity.accountIban;
-
-      if (!groupedEntities.has(baseAccountIban)) {
-        groupedEntities.set(baseAccountIban, []);
-      }
-      groupedEntities.get(baseAccountIban).push(entity);
-    }
+    const groupedEntities = Util.groupByAccessor(entities, (f) => f.sourceIban);
 
     const assets = await this.assetService
       .getAssetsWith({ bank: true, balance: true })
       .then((assets) => assets.filter((a) => a.type === AssetType.CUSTODY && a.bank));
 
-    for (const [effectiveBankIban, bankIbanGroup] of groupedEntities.entries()) {
+    for (const accountIbanGroup of groupedEntities.values()) {
       let updatedFiatOutputAmount = 0;
 
-      const sortedEntities: FiatOutput[] = bankIbanGroup.sort((a, b) => {
+      const sortedEntities: FiatOutput[] = accountIbanGroup.sort((a, b) => {
         if (a.type !== b.type) return a.type.localeCompare(b.type);
         return a.bankAmount - b.bankAmount;
       });
 
-      const pendingFiatOutputs = bankIbanGroup.filter(
-        (tx) => tx.isReadyDate && !tx.bankTx && (tx.bank?.name !== IbanBankName.YAPEAL || !tx.isTransmittedDate),
+      const pendingFiatOutputs = accountIbanGroup.filter(
+        (tx) =>
+          tx.isReadyDate && !tx.bankTx && (!tx.bank || tx.bank.name !== IbanBankName.YAPEAL || !tx.isTransmittedDate),
       );
       const pendingBalance = Util.sumObjValue(pendingFiatOutputs, 'bankAmount');
 
@@ -204,7 +193,7 @@ export class FiatOutputJobService {
             throw new Error('Payout stopped for blocked user');
           if (entity.originEntity && (!entity.originEntity.amountInChf || !entity.originEntity.amountInEur)) continue;
 
-          const asset = assets.find((a) => a.bank.iban === effectiveBankIban);
+          const asset = assets.find((a) => a.bank.iban === entity.sourceIban);
 
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;

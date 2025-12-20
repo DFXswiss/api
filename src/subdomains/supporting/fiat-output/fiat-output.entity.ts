@@ -155,6 +155,10 @@ export class FiatOutput extends IEntity {
     return [this.id, update];
   }
 
+  get sourceIban(): string {
+    return this.bank?.iban ?? this.accountIban;
+  }
+
   get ibanCountry(): string {
     return (
       this.buyCrypto?.chargebackIban ??
