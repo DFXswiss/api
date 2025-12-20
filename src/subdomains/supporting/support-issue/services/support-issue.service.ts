@@ -13,6 +13,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
+import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
 import { TransactionRequestService } from '../../payment/services/transaction-request.service';
 import { TransactionService } from '../../payment/services/transaction.service';
@@ -127,7 +128,11 @@ export class SupportIssueService {
         newIssue.additionalInformation = dto.transaction;
 
         // Create user bankData
-        if (dto.transaction.senderIban && newIssue.transaction.sourceType === TransactionSourceType.BANK_TX) {
+        if (
+          dto.transaction.senderIban &&
+          (newIssue.transaction?.sourceType === TransactionSourceType.BANK_TX ||
+            newIssue.transactionRequest?.type === TransactionRequestType.BUY)
+        ) {
           try {
             await this.bankDataService.createIbanForUserInternal(userData, { iban: dto.transaction.senderIban }, false);
           } catch (_) {
