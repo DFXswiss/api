@@ -53,11 +53,11 @@ export class PaymentInfoService {
 
     if (
       user &&
-      (!user.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) ||
+      (!user.wallet?.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) ||
         ![Environment.LOC, Environment.DEV].includes(Config.environment)) &&
       !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
       !user.userData.tradeApprovalDate &&
-      !user.wallet.autoTradeApproval
+      !user.wallet?.autoTradeApproval
     )
       throw new BadRequestException('Trading not allowed');
 
