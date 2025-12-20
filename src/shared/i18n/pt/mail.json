@@ -94,7 +94,8 @@
                 "manual_check_phone": "We were unable to reach you at the phone number you provided",
                 "manual_check_ip_phone": "We were unable to reach you at the phone number you provided",
                 "manual_check_ip_country_phone": "We were unable to reach you at the phone number you provided",
-                "merge_incomplete": "The email confirmation was not accepted"
+                "merge_incomplete": "The email confirmation was not accepted",
+                "intermediary_without_sender": "O banco remetente (Wise/Revolut) transmitiu apenas o nome do banco, não o nome do titular da conta. Portanto, a DFX não pode verificar o remetente real e não pode processar a transação."
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -272,8 +273,7 @@
         "confirmation": {
             "title": "Confirm DFX recommendation",
             "salutation": "You have a pending DFX recommendation",
-            "message": "Can you confirm {name} ({mail}) for the use of DFX and vouch for him?",
-            "warning": "Only confirm people you really know personally and for whom you can vouch. If the person is involved in a case of fraud, you could also have your account blocked if you confirmed and vouched for this person.",
+            "message": "Can you confirm {name} ({mail}) for the use of DFX?",
             "button": "You can simply click on the button below to accept or decline the invitation:<br>[url:Click here]",
             "link": "Or you can use the following link:<br>[url:{urlText}]"
         }

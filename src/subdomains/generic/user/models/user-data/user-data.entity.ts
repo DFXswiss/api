@@ -17,6 +17,7 @@ import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
@@ -101,6 +102,9 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   birthday?: Date;
+
+  @Column({ length: 256, nullable: true })
+  tin?: string;
 
   // --- ORGANIZATION DATA --- //
   // TODO remove after sync
@@ -345,6 +349,9 @@ export class UserData extends IEntity {
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas?: BankData[];
 
+  @OneToMany(() => VirtualIban, (virtualIban) => virtualIban.userData)
+  virtualIbans?: VirtualIban[];
+
   @OneToMany(() => BankTxReturn, (bankTxReturn) => bankTxReturn.userData)
   bankTxReturns?: BankTxReturn[];
 
@@ -584,11 +591,11 @@ export class UserData extends IEntity {
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
-          street: this.organizationStreet,
-          houseNumber: this.organizationHouseNumber,
-          city: this.organizationLocation,
-          zip: this.organizationZip,
-          country: this.organizationCountry,
+          street: this.organization.street,
+          houseNumber: this.organization.houseNumber,
+          city: this.organization.location,
+          zip: this.organization.zip,
+          country: this.organization.country,
         }
       : {
           street: this.street,
@@ -635,6 +642,10 @@ export class UserData extends IEntity {
 
   getCompletedStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
     return this.getStepsWith(name, type, sequenceNumber).find((s) => s.isCompleted);
+  }
+
+  getNonFailedStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
+    return this.getStepsWith(name, type, sequenceNumber).find((s) => !(s.isFailed || s.isCanceled));
   }
 
   getPendingStepOrThrow(stepId: number): KycStep {

@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -20,7 +21,8 @@ import {
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
@@ -168,7 +170,7 @@ export class BuyFiat extends IEntity {
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
-  priceDefinitionAllowedDate?: Date;
+  priceDefinitionAllowedDate?: Date; // is set for tx with amlCheck = true or for manualPrice calculation for refunds with missingPrice error
 
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount?: number;
@@ -481,7 +483,7 @@ export class BuyFiat extends IEntity {
   pendingOutputAmount(asset: Asset): number {
     return this.outputAmount &&
       asset.dexName === this.sell.fiat.name &&
-      (asset.blockchain as string) === 'MaerkiBaumann'
+      [Blockchain.MAERKI_BAUMANN, Blockchain.YAPEAL].includes(asset.blockchain)
       ? this.outputAmount
       : 0;
   }
@@ -496,6 +498,12 @@ export class BuyFiat extends IEntity {
 
   get refundAmount(): number {
     return this.inputAmount;
+  }
+
+  get manualChfPrice(): Price {
+    return this.amountInChf && this.priceDefinitionAllowedDate
+      ? Price.create(PriceCurrency.CHF, this.inputAsset, this.amountInChf / this.inputAmount)
+      : undefined;
   }
 
   get wallet(): Wallet {

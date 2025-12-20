@@ -21,6 +21,7 @@ import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
+import { LoggerOptions } from 'typeorm';
 
 export enum Environment {
   LOC = 'loc',
@@ -105,6 +106,7 @@ export class Configuration {
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
+  allowedBorderRegions = ['CH', 'DE']; // aml & kyc
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
   networkStartFee = 0.5; // CHF
@@ -153,7 +155,7 @@ export class Configuration {
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
-  bitcoinSignatureFormat = '.{87}=';
+  bitcoinSignatureFormat = '(.{87}=|[A-Za-z0-9+/]+={0,2})';
   lightningSignatureFormat = '[a-z0-9]{104}';
   lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
   moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
@@ -204,6 +206,7 @@ export class Configuration {
       max: +(process.env.SQL_POOL_MAX ?? 10),
       idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
     },
+    logging: process.env.SQL_LOGGING as LoggerOptions,
   };
 
   i18n: I18nOptions = {
@@ -524,6 +527,14 @@ export class Configuration {
     allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
     services: (process.env.SERVICES_URL ?? '').split(';')[0],
     payment: process.env.PAYMENT_URL,
+
+    isRedirectUrlAllowed: (url: string): boolean => {
+      try {
+        return this.frontend.allowedUrls.includes(new URL(url).origin);
+      } catch {
+        return false;
+      }
+    },
   };
 
   fixer = {
@@ -867,6 +878,17 @@ export class Configuration {
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
+      api: {
+        url: process.env.REALUNIT_API_URL,
+        key: process.env.REALUNIT_API_KEY,
+      },
+      bank: {
+        recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
+        address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',
+        iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
+        bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
+        name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
+      },
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
@@ -947,6 +969,27 @@ export class Configuration {
     revolut: {
       refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
       clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
+    },
+    raiffeisen: {
+      credentials: {
+        url: process.env.RAIFFEISEN_EBICS_URL,
+        hostId: process.env.RAIFFEISEN_HOST_ID,
+        partnerId: process.env.RAIFFEISEN_PARTNER_ID,
+        userId: process.env.RAIFFEISEN_USER_ID,
+        passphrase: process.env.RAIFFEISEN_PASSPHRASE,
+        iv: process.env.RAIFFEISEN_IV,
+      },
+    },
+    yapeal: {
+      baseUrl: process.env.YAPEAL_BASE_URL,
+      partnershipUid: process.env.YAPEAL_PARTNERSHIP_UID,
+      adminUid: process.env.YAPEAL_ADMIN_UID,
+      apiKey: process.env.YAPEAL_API_KEY,
+      cert: process.env.YAPEAL_CERT?.split('<br>').join('\n'),
+      key: process.env.YAPEAL_KEY?.split('<br>').join('\n'),
+      rootCa: process.env.YAPEAL_ROOT_CA?.split('<br>').join('\n'),
+      webhookApiKey: process.env.YAPEAL_WEBHOOK_API_KEY,
+      accountIdentifier: process.env.YAPEAL_ACCOUNT_IDENTIFIER,
     },
     forexFee: 0.02,
   };
@@ -1059,6 +1102,12 @@ export class Configuration {
       timeout: 30_000,
     };
   }
+
+  scrypt = {
+    wsUrl: process.env.SCRYPT_WS_URL,
+    apiKey: process.env.SCRYPT_API_KEY,
+    apiSecret: process.env.SCRYPT_API_SECRET,
+  };
 
   get evmWallets(): Map<string, string> {
     return splitWithdrawKeys(process.env.EVM_WALLETS);

@@ -58,14 +58,16 @@ export class RecommendationService {
 
     const recommended = mailUser
       ? await this.userDataService.updateUserDataInternal(mailUser, { tradeApprovalDate: new Date() })
-      : await this.userDataService.createUserData({
+      : dto.recommendedMail
+      ? await this.userDataService.createUserData({
           mail: dto.recommendedMail,
           status: UserDataStatus.KYC_ONLY,
           kycType: KycType.DFX,
           language: userData.language,
           currency: userData.currency,
           tradeApprovalDate: new Date(),
-        });
+        })
+      : undefined;
 
     const entity = await this.createRecommendationInternal(
       RecommendationType.INVITATION,
@@ -173,6 +175,7 @@ export class RecommendationService {
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
     if (entity.isConfirmed !== null) throw new BadRequestException('Recommendation is already confirmed');
     if (entity.isExpired) throw new BadRequestException('Recommendation is expired');
+    if (!entity.isUsed) throw new BadRequestException('Recommendation is not used');
 
     if (entity.recommended.isBlocked || entity.recommended.hasAnyRiskStatus) {
       await this.updateRecommendationInternal(entity, { isConfirmed: false });
@@ -188,8 +191,10 @@ export class RecommendationService {
   async updateRecommendationInternal(entity: Recommendation, update: Partial<Recommendation>): Promise<Recommendation> {
     Object.assign(entity, update);
 
-    if (update.isConfirmed)
-      await this.userDataService.updateUserDataInternal(entity.recommended, { tradeApprovalDate: new Date() });
+    if (update.isConfirmed && entity.recommended)
+      await this.userDataService.updateUserDataInternal(update.recommended ?? entity.recommended, {
+        tradeApprovalDate: new Date(),
+      });
 
     return this.recommendationRepo.save(entity);
   }
@@ -262,7 +267,7 @@ export class RecommendationService {
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_MAIL}.registration_link`,
-                params: { url: entity.loginUrl, urlText: Config.frontend.services },
+                params: { url: entity.loginUrl, urlText: entity.loginUrl },
               },
               { key: MailKey.SPACE, params: { value: '4' } },
               { key: MailKey.DFX_TEAM_CLOSING },
@@ -299,8 +304,6 @@ export class RecommendationService {
                 key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.message`,
                 params: { name: entity.recommended.completeName, mail: entity.recommended.mail },
               },
-              { key: MailKey.SPACE, params: { value: '5' } },
-              { key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.warning` },
               { key: MailKey.SPACE, params: { value: '4' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.button`,

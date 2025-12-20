@@ -61,6 +61,8 @@ export class SupportService {
     const searchResult = await this.getUserDatasByKey(query.key);
     const bankTx =
       searchResult.type === ComplianceSearchType.IBAN ? await this.bankTxService.getUnassignedBankTx([query.key]) : [];
+    if (!searchResult.userDatas.length && (!bankTx.length || searchResult.type !== ComplianceSearchType.IBAN))
+      throw new NotFoundException('No user or bankTx found');
 
     return {
       type: searchResult.type,

@@ -41,6 +41,7 @@ import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
+import { UserProfileDto } from './dto/user-profile.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
@@ -94,6 +95,7 @@ export class UserService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }
@@ -182,6 +184,17 @@ export class UserService {
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
+  async getUserProfile(userDataId: number): Promise<UserProfileDto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { organization: true },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
+
+    return UserDtoMapper.mapProfile(userData);
+  }
+
   async createUser(data: Partial<User>, specialCode: string, moderator?: Moderator): Promise<User> {
     let user = this.userRepo.create({
       address: data.address,
@@ -212,7 +225,7 @@ export class UserService {
         language,
         currency,
         wallet: user.wallet,
-        tradeApprovalDate: user.wallet.autoTradeApproval ? new Date() : undefined,
+        tradeApprovalDate: user.wallet?.autoTradeApproval ? new Date() : undefined,
       }));
 
     if (user.userData.status === UserDataStatus.KYC_ONLY)

@@ -58,6 +58,10 @@ export class UpdateFiatOutputDto {
 
   @IsOptional()
   @IsString()
+  houseNumber?: string;
+
+  @IsOptional()
+  @IsString()
   zip?: string;
 
   @IsOptional()

@@ -10,6 +10,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { merge } from 'lodash';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
@@ -24,7 +25,7 @@ import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
@@ -43,6 +44,7 @@ import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
+import { UnsignedTxDto } from './dto/unsigned-tx.dto';
 import { Sell } from './sell.entity';
 
 @Injectable()
@@ -68,27 +70,28 @@ export class SellService {
     private readonly cryptoService: CryptoService,
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
   ) {}
 
   // --- SELLS --- //
   async get(userId: number, id: number): Promise<Sell> {
     const sell = await this.sellRepo.findOne({
       where: { id, user: { id: userId } },
-      relations: { user: { userData: true } },
+      relations: { user: { userData: { organization: true } } },
     });
     if (!sell) throw new NotFoundException('Sell not found');
     return sell;
   }
 
   async getById(id: number, options?: FindOneOptions<Sell>): Promise<Sell> {
-    const defaultOptions = { where: { id }, relations: { user: { userData: true } } };
+    const defaultOptions = { where: { id }, relations: { user: { userData: { organization: true } } } };
     return this.sellRepo.findOne(merge(defaultOptions, options));
   }
 
   async getLatest(userId: number): Promise<Sell | null> {
     return this.sellRepo.findOne({
       where: { user: { id: userId } },
-      relations: { user: { userData: true } },
+      relations: { user: { userData: { organization: true } } },
       order: { created: 'DESC' },
     });
   }
@@ -96,7 +99,7 @@ export class SellService {
   async getByLabel(userId: number, label: string, options?: FindOneOptions<Sell>): Promise<Sell> {
     const defaultOptions = {
       where: { route: { label }, user: { id: userId } },
-      relations: { user: { userData: true } },
+      relations: { user: { userData: { organization: true } } },
     };
     return this.sellRepo.findOne(merge(defaultOptions, options));
   }
@@ -156,6 +159,7 @@ export class SellService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }
@@ -186,7 +190,11 @@ export class SellService {
     return this.sellRepo.findBy({ route: { id: IsNull() } });
   }
 
-  async createSellPaymentInfo(userId: number, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
+  async createSellPaymentInfo(
+    userId: number,
+    dto: GetSellPaymentInfoDto,
+    includeTx: boolean,
+  ): Promise<SellPaymentInfoDto> {
     const sell = await Util.retry(
       () => this.createSell(userId, { ...dto, blockchain: dto.asset.blockchain }, true),
       2,
@@ -194,7 +202,7 @@ export class SellService {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
-    return this.toPaymentInfoDto(userId, sell, dto);
+    return this.toPaymentInfoDto(userId, sell, dto, includeTx);
   }
 
   async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
@@ -306,25 +314,54 @@ export class SellService {
 
   // --- CONFIRMATION --- //
   async confirmSell(request: TransactionRequest, dto: ConfirmDto): Promise<BuyFiatExtended> {
+    const route = await this.sellRepo.findOne({
+      where: { id: request.routeId },
+      relations: { deposit: true, user: { wallet: true, userData: true } },
+    });
+    if (!route) throw new NotFoundException('Sell route not found');
+
+    let type: string;
+    let payIn: CryptoInput;
+
     try {
-      const route = await this.sellRepo.findOne({
-        where: { id: request.routeId },
-        relations: { deposit: true, user: { wallet: true, userData: true } },
-      });
+      if (dto.permit) {
+        type = 'permit';
+        payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
+      } else if (dto.signedTxHex) {
+        type = 'signed transaction';
+        payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
+      } else {
+        throw new BadRequestException('Either permit or signedTxHex must be provided');
+      }
 
-      const payIn = await this.transactionUtilService.handlePermitInput(route, request, dto);
       const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
-
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);
-
       return await this.buyFiatService.extendBuyFiat(buyFiat);
     } catch (e) {
-      this.logger.warn(`Failed to execute permit transfer for sell request ${request.id}:`, e);
-      throw new BadRequestException(`Failed to execute permit transfer: ${e.message}`);
+      this.logger.warn(`Failed to execute ${type} transfer for sell request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to confirm request: ${e.message}`);
     }
   }
 
-  private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
+  async createDepositTx(request: TransactionRequest, route: Sell): Promise<UnsignedTxDto> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    const client = this.blockchainRegistryService.getEvmClient(asset.blockchain);
+    if (!client) throw new BadRequestException(`Unsupported blockchain`);
+
+    const userAddress = request.user.address;
+    const depositAddress = route.deposit.address;
+
+    return client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
+  }
+
+  private async toPaymentInfoDto(
+    userId: number,
+    sell: Sell,
+    dto: GetSellPaymentInfoDto,
+    includeTx: boolean,
+  ): Promise<SellPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
@@ -389,7 +426,16 @@ export class SellService {
       error,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.SELL, dto, sellDto, user.id);
+    const transactionRequest = await this.transactionRequestService.create(
+      TransactionRequestType.SELL,
+      dto,
+      sellDto,
+      user.id,
+    );
+
+    if (includeTx && isValid) {
+      sellDto.depositTx = await this.createDepositTx(transactionRequest, sell);
+    }
 
     return sellDto;
   }

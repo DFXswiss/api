@@ -1,6 +1,8 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -10,10 +12,13 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
+import { IbanBankName } from '../bank/bank/dto/bank.dto';
+import { VirtualIbanService } from '../bank/virtual-iban/virtual-iban.service';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutput, FiatOutputType } from './fiat-output.entity';
@@ -33,6 +38,9 @@ export class FiatOutputJobService {
     private readonly assetService: AssetService,
     private readonly logService: LogService,
     private readonly bankTxReturnService: BankTxReturnService,
+    private readonly bankTxRepeatService: BankTxRepeatService,
+    private readonly yapealService: YapealService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -41,6 +49,7 @@ export class FiatOutputJobService {
     await this.setReadyDate();
     await this.createBatches();
     await this.checkTransmission();
+    await this.transmitYapealPayments();
     await this.searchOutgoingBankTx();
   }
 
@@ -93,7 +102,11 @@ export class FiatOutputJobService {
         { ...request, originEntityId: IsNull() },
         { ...request, accountIban: IsNull() },
       ],
-      relations: { buyCrypto: { bankTx: true }, buyFiats: { sell: true }, bankTxReturn: { bankTx: true } },
+      relations: {
+        buyCrypto: { bankTx: true, transaction: { userData: true } },
+        buyFiats: { sell: true, transaction: { userData: true } },
+        bankTxReturn: { bankTx: true },
+      },
     });
 
     for (const entity of entities) {
@@ -101,11 +114,12 @@ export class FiatOutputJobService {
         if (!entity.buyFiats?.length && !entity.buyCrypto && !entity.bankTxReturn) continue;
 
         const country = await this.countryService.getCountryWithSymbol(entity.ibanCountry);
-        const bank = await this.bankService.getSenderBank(entity.bankAccountCurrency);
+
+        const accountIban = await this.getAccountIbanForEntity(entity, country);
 
         await this.fiatOutputRepo.update(entity.id, {
           originEntityId: entity.originEntity?.id,
-          accountIban: country.maerkiBaumannEnable ? bank?.iban : undefined,
+          accountIban,
         });
       } catch (e) {
         this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
@@ -113,6 +127,20 @@ export class FiatOutputJobService {
     }
   }
 
+  private async getAccountIbanForEntity(entity: FiatOutput, country: any): Promise<string | undefined> {
+    // use virtual IBAN if existing
+    if (entity.userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(entity.type)) {
+      const virtualIban = await this.virtualIbanService
+        .getActiveForUserAndCurrency(entity.userData, entity.bankAccountCurrency)
+        .then((virtualIban) => virtualIban?.iban);
+
+      if (virtualIban) return virtualIban;
+    }
+
+    // fallback to standard bank account selection
+    const bank = await this.bankService.getSenderBank(entity.bankAccountCurrency);
+    return bank?.isCountryEnabled(country) ? bank.iban : undefined;
+  }
   private async setReadyDate(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_READY_DATE)) return;
 
@@ -128,21 +156,33 @@ export class FiatOutputJobService {
 
     if (entities.every((f) => f.isReadyDate)) return;
 
-    const groupedEntities = Util.groupBy(entities, 'accountIban');
+    // group entities by effective bank IBAN
+    const groupedEntities = new Map<string, FiatOutput[]>();
+
+    for (const entity of entities) {
+      const baseAccountIban = entity.accountIban
+        ? (await this.virtualIbanService.getBaseAccountIban(entity.accountIban)) ?? entity.accountIban
+        : entity.accountIban;
+
+      if (!groupedEntities.has(baseAccountIban)) {
+        groupedEntities.set(baseAccountIban, []);
+      }
+      groupedEntities.get(baseAccountIban).push(entity);
+    }
 
     const assets = await this.assetService
       .getAssetsWith({ bank: true, balance: true })
       .then((assets) => assets.filter((a) => a.type === AssetType.CUSTODY && a.bank));
 
-    for (const accountIbanGroup of groupedEntities.values()) {
+    for (const [effectiveBankIban, bankIbanGroup] of groupedEntities.entries()) {
       let updatedFiatOutputAmount = 0;
 
-      const sortedEntities: FiatOutput[] = accountIbanGroup.sort((a, b) => {
+      const sortedEntities: FiatOutput[] = bankIbanGroup.sort((a, b) => {
         if (a.type !== b.type) return a.type.localeCompare(b.type);
         return a.bankAmount - b.bankAmount;
       });
 
-      const pendingFiatOutputs = accountIbanGroup.filter((tx) => tx.isReadyDate && !tx.bankTx);
+      const pendingFiatOutputs = bankIbanGroup.filter((tx) => tx.isReadyDate && !tx.bankTx);
       const pendingBalance = Util.sumObjValue(pendingFiatOutputs, 'bankAmount');
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
@@ -154,7 +194,7 @@ export class FiatOutputJobService {
             throw new Error('Payout stopped for blocked user');
           if (entity.originEntity && (!entity.originEntity.amountInChf || !entity.originEntity.amountInEur)) continue;
 
-          const asset = assets.find((a) => a.bank.iban === entity.accountIban);
+          const asset = assets.find((a) => a.bank.iban === effectiveBankIban);
 
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
@@ -195,11 +235,14 @@ export class FiatOutputJobService {
     )
       return;
 
+    const allYapealIbans = await this.getAllYapealIbans();
+
     const entities = await this.fiatOutputRepo.findBy({
       amount: Not(IsNull()),
       isReadyDate: Not(IsNull()),
       batchId: IsNull(),
       isComplete: false,
+      accountIban: Not(In(allYapealIbans)),
     });
 
     let currentBatch: FiatOutput[] = [];
@@ -259,6 +302,69 @@ export class FiatOutputJobService {
     }
   }
 
+  private async transmitYapealPayments(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_YAPEAL_TRANSMISSION)) return;
+    if (!this.yapealService.isAvailable()) return;
+
+    const allYapealIbans = await this.getAllYapealIbans();
+
+    const entities = await this.fiatOutputRepo.find({
+      where: {
+        isReadyDate: Not(IsNull()),
+        isTransmittedDate: IsNull(),
+        yapealMsgId: IsNull(),
+        isComplete: false,
+        accountIban: In(allYapealIbans),
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        const msgId = `YAPEAL-${entity.id}-${Date.now()}`;
+        const endToEndId = entity.endToEndId ?? `E2E-${entity.id}`;
+
+        const payment: Pain001Payment = {
+          messageId: msgId,
+          endToEndId,
+          amount: entity.amount,
+          currency: entity.currency as 'CHF' | 'EUR',
+          debtor: {
+            name: Config.bank.dfxAddress.name,
+            country: 'CH',
+            iban: entity.accountIban,
+          },
+          creditor: {
+            name: entity.name,
+            address: entity.address,
+            houseNumber: entity.houseNumber,
+            zip: entity.zip,
+            city: entity.city,
+            country: entity.country,
+            iban: entity.iban,
+            bic: entity.bic,
+          },
+          remittanceInfo: entity.remittanceInfo,
+        };
+
+        await this.yapealService.sendPayment(payment);
+        await this.fiatOutputRepo.update(entity.id, {
+          yapealMsgId: msgId,
+          endToEndId,
+          isTransmittedDate: new Date(),
+          isApprovedDate: new Date(),
+        });
+      } catch (e) {
+        this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
+      }
+    }
+  }
+
+  private async getAllYapealIbans(): Promise<string[]> {
+    const yapealIbans = await this.bankService.getIbansByName(IbanBankName.YAPEAL);
+    const virtualIbans = await this.virtualIbanService.getAllActiveVirtualIbans();
+    return [...yapealIbans, ...virtualIbans];
+  }
+
   private async searchOutgoingBankTx(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_BANK_TX_SEARCH)) return;
 
@@ -269,7 +375,7 @@ export class FiatOutputJobService {
         bankTx: { id: IsNull() },
         isReadyDate: Not(IsNull()),
       },
-      relations: { bankTx: { transaction: true }, bankTxReturn: true },
+      relations: { bankTx: { transaction: true }, bankTxReturn: true, bankTxRepeat: true },
     });
 
     for (const entity of entities) {
@@ -277,10 +383,23 @@ export class FiatOutputJobService {
         const bankTx = await this.getMatchingBankTx(entity);
         if (!bankTx || entity.isReadyDate > bankTx.created) continue;
 
-        await this.fiatOutputRepo.update(entity.id, { bankTx, outputDate: bankTx.created, isComplete: true });
+        const updateData: Partial<FiatOutput> = {
+          bankTx,
+          outputDate: bankTx.created,
+          isComplete: true,
+        };
+
+        if (entity.yapealMsgId && !entity.isConfirmedDate) {
+          updateData.isConfirmedDate = bankTx.created;
+        }
+
+        await this.fiatOutputRepo.update(entity.id, updateData);
 
         if (entity.type === FiatOutputType.BANK_TX_RETURN)
           await this.bankTxReturnService.updateInternal(entity.bankTxReturn, { chargebackBankTx: bankTx });
+
+        if (entity.type === FiatOutputType.BANK_TX_REPEAT)
+          await this.bankTxRepeatService.updateInternal(entity.bankTxRepeat, { chargebackBankTx: bankTx });
 
         if (!bankTx.type || BankTxTypeUnassigned(bankTx.type)) await this.setBankTxType(entity.type, bankTx);
       } catch (e) {

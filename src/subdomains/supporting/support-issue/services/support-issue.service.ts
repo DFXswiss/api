@@ -96,7 +96,7 @@ export class SupportIssueService {
 
     if (!existingIssue) {
       // create UID
-      newIssue.uid = `${Config.prefixes.issueUidPrefix}${Util.randomString(16)}`;
+      newIssue.uid = Util.createUid(Config.prefixes.issueUidPrefix);
 
       // map transaction
       if (dto.transaction) {

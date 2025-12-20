@@ -40,6 +40,7 @@ export const olkyEUR = createCustomBank({
   iban: 'LU116060002000005040',
   bic: 'OLKILUL1',
   receive: true,
+  sctInst: true,
 });
 
 export const maerkiEUR = createCustomBank({

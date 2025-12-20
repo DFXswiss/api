@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
@@ -44,8 +44,11 @@ export class AuthAlbyService {
   ) {}
 
   getOauthUrl(dto: AlbySignupDto): string {
+    if (!Config.frontend.isRedirectUrlAllowed(dto.redirectUri))
+      throw new BadRequestException('Redirect URL not allowed');
+
     // store the sign up data
-    const id = Util.randomId().toString(36);
+    const id = Util.randomString(16);
     this.signUpData.set(id, dto);
 
     return `${this.albyUrl}/oauth?client_id=${Config.alby.clientId}&response_type=code&redirect_uri=${this.redirectUri(

@@ -210,6 +210,13 @@ export class FeeService {
     if (cachedFee.maxUserTxUsages) await this.feeRepo.update(...cachedFee.increaseUserTxUsage(userData.id));
     if (cachedFee.maxAnnualUserTxVolume)
       await this.feeRepo.update(...cachedFee.increaseAnnualUserTxVolume(userData.id, txVolume));
+
+    if (
+      (cachedFee.maxUserTxUsages || cachedFee.maxAnnualUserTxVolume) &&
+      userData.individualFeeList?.includes(cachedFee.id) &&
+      cachedFee.isExpired
+    )
+      await this.userDataService.removeFee(userData, cachedFee.id);
   }
 
   async getFeeBySpecialCode(specialCode: string): Promise<Fee> {
