@@ -1,11 +1,10 @@
+import { createDefaultBank } from '../../bank/__mocks__/bank.entity.mock';
 import { VirtualIban } from '../virtual-iban.entity';
 
-const defaultVirtualIban: Partial<VirtualIban> = {};
+const defaultVirtualIban: Partial<VirtualIban> = { iban: 'DE123456', bank: createDefaultBank() };
 
 export function createDefaultVirtualIban(): VirtualIban {
-  return createCustomVirtualIban({
-    iban: 'DE 123456',
-  });
+  return createCustomVirtualIban({});
 }
 
 export function createCustomVirtualIban(customValues: Partial<VirtualIban>): VirtualIban {

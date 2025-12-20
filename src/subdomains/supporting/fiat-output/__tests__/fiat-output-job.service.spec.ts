@@ -19,6 +19,7 @@ import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return
 import { createDefaultBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createCustomBank, maerkiEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from '../../bank/bank/bank.service';
+import { IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { createCustomVirtualIban } from '../../bank/virtual-iban/__mocks__/virtual-iban.entity.mock';
 import { VirtualIbanService } from '../../bank/virtual-iban/virtual-iban.service';
 import { createCustomLog } from '../../log/__mocks__/log.entity.mock';
@@ -148,12 +149,10 @@ describe('FiatOutputJobService', () => {
         .spyOn(countryService, 'getCountryWithSymbol')
         .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: true }));
 
-      jest.spyOn(bankService, 'getSenderBank').mockResolvedValue(maerkiEUR);
-
       // Mock virtual IBAN for user
       jest
         .spyOn(virtualIbanService, 'getActiveForUserAndCurrency')
-        .mockResolvedValue(createCustomVirtualIban({ iban: virtualIban }));
+        .mockResolvedValue(createCustomVirtualIban({ iban: virtualIban, bank: maerkiEUR }));
 
       await service['assignBankAccount']();
 
@@ -178,12 +177,10 @@ describe('FiatOutputJobService', () => {
         .spyOn(countryService, 'getCountryWithSymbol')
         .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: true }));
 
-      jest.spyOn(bankService, 'getSenderBank').mockResolvedValue(maerkiEUR);
-
       // Mock virtual IBAN for user
       jest
         .spyOn(virtualIbanService, 'getActiveForUserAndCurrency')
-        .mockResolvedValue(createCustomVirtualIban({ iban: virtualIban }));
+        .mockResolvedValue(createCustomVirtualIban({ iban: virtualIban, bank: maerkiEUR }));
 
       await service['assignBankAccount']();
 

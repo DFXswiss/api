@@ -6,6 +6,7 @@ import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -89,7 +90,7 @@ export class FiatOutputJobService {
     return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
   }
 
-  private async getPayoutAccount(entity: FiatOutput, country: any): Promise<{ accountIban: string; bank: Bank }> {
+  private async getPayoutAccount(entity: FiatOutput, country: Country): Promise<{ accountIban: string; bank: Bank }> {
     // use virtual IBAN if existing
     if (entity.userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(entity.type)) {
       const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(
@@ -190,7 +191,7 @@ export class FiatOutputJobService {
       });
 
       const pendingFiatOutputs = bankIbanGroup.filter(
-        (tx) => tx.isReadyDate && !tx.bankTx && (tx.bank.name !== IbanBankName.YAPEAL || !tx.isTransmittedDate),
+        (tx) => tx.isReadyDate && !tx.bankTx && (tx.bank?.name !== IbanBankName.YAPEAL || !tx.isTransmittedDate),
       );
       const pendingBalance = Util.sumObjValue(pendingFiatOutputs, 'bankAmount');
 

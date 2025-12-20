@@ -43,7 +43,7 @@ export class FiatOutput extends IEntity {
   @JoinColumn()
   bankTx?: BankTx;
 
-  @ManyToOne(() => Bank, { nullable: false, eager: true })
+  @ManyToOne(() => Bank, { nullable: true, eager: true })
   bank: Bank;
 
   @Column({ length: 256 })
