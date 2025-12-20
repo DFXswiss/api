@@ -480,12 +480,16 @@ export class BuyFiat extends IEntity {
     return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
   }
 
-  pendingOutputAmount(asset: Asset): number {
-    return this.outputAmount &&
-      asset.dexName === this.sell.fiat.name &&
-      [Blockchain.MAERKI_BAUMANN, Blockchain.YAPEAL].includes(asset.blockchain)
-      ? this.outputAmount
-      : 0;
+  pendingOutputAmount(asset: Asset, yapealIbans?: string[]): number {
+    if (!this.outputAmount || asset.dexName !== this.sell.fiat.name) return 0;
+
+    // Compare bank clearing number (positions 4-8 in Swiss IBAN, e.g. "83019" for Yapeal)
+    const isYapeal = yapealIbans?.some(
+      (iban) => this.fiatOutput?.accountIban?.substring(4, 9) === iban.substring(4, 9),
+    );
+    if (!isYapeal) return 0;
+
+    return asset.blockchain === Blockchain.YAPEAL ? this.outputAmount : 0;
   }
 
   get feeAmountChf(): number {

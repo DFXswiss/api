@@ -134,7 +134,7 @@ export class BankTxReturn extends IEntity {
     }
   }
 
-  pendingOutputAmount(_: Asset): number {
+  pendingOutputAmount(_asset: Asset, _yapealIbans?: string[]): number {
     return 0;
   }
 

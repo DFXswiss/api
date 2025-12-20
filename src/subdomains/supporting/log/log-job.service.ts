@@ -237,6 +237,7 @@ export class LogJobService {
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
     const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
+    const yapealIbans = await this.bankService.getIbansByName(IbanBankName.YAPEAL);
 
     // pending balances
     const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
@@ -542,7 +543,7 @@ export class LogJobService {
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
-      const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat);
+      const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat, yapealIbans);
       const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], pendingBuyCrypto);
 
       const bankTxNull = this.getPendingAmounts(
@@ -779,6 +780,7 @@ export class LogJobService {
   private getPendingAmounts(
     assets: Asset[],
     pendingTx: (BuyCrypto | BuyFiat | BankTx | BankTxReturn | BankTxRepeat)[],
+    yapealIbans?: string[],
   ): { input: number; output: number } {
     return {
       input: assets.reduce(
@@ -786,7 +788,7 @@ export class LogJobService {
         0,
       ),
       output: assets.reduce(
-        (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr), 0),
+        (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingOutputAmount(curr, yapealIbans), 0),
         0,
       ),
     };

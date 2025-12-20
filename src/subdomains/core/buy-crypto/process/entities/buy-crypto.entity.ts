@@ -642,7 +642,7 @@ export class BuyCrypto extends IEntity {
     }
   }
 
-  pendingOutputAmount(asset: Asset): number {
+  pendingOutputAmount(asset: Asset, _yapealIbans?: string[]): number {
     return this.outputAmount && this.outputAsset.id === asset.id ? this.outputAmount : 0;
   }
 
