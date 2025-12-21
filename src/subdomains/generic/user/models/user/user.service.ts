@@ -505,12 +505,20 @@ export class UserService {
     };
   }
 
-  async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
+  async updateRefVolume(
+    ref: string,
+    volume: number,
+    credit: number,
+    partnerVolume?: number,
+    partnerCredit?: number,
+  ): Promise<void> {
     await this.userRepo.update(
       { ref },
       {
         refVolume: Util.round(volume, Config.defaultVolumeDecimal),
         refCredit: Util.round(credit, Config.defaultVolumeDecimal),
+        partnerRefVolume: Util.round(partnerVolume, Config.defaultVolumeDecimal),
+        partnerRefCredit: Util.round(partnerCredit, Config.defaultVolumeDecimal),
       },
     );
   }
@@ -609,8 +617,8 @@ export class UserService {
     return {
       ref: user.ref,
       refFeePercent: user.refFeePercent,
-      refVolume: user.refVolume,
-      refCredit: user.refCredit,
+      refVolume: user.completeRefVolume,
+      refCredit: user.completeRefCredit,
       paidRefCredit: user.paidRefCredit,
       ...(await this.getRefUserCounts(user)),
     };

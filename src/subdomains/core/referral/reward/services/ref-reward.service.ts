@@ -146,7 +146,7 @@ export class RefRewardService {
           : await this.assetService.getNativeAsset(blockchain);
 
       for (const user of users) {
-        const refCreditEur = user.refCredit - user.paidRefCredit;
+        const refCreditEur = user.completeRefCredit - user.paidRefCredit;
         const minCredit = PayoutLimits[blockchain];
 
         if (!(refCreditEur >= minCredit)) continue;

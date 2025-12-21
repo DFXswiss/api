@@ -72,8 +72,8 @@ export class UserDtoMapper {
     const dto: ReferralDto = {
       code: user.ref,
       commission: Util.round(user.refFeePercent / 100, 4),
-      volume: user.refVolume,
-      credit: user.refCredit,
+      volume: user.completeRefVolume,
+      credit: user.completeRefCredit,
       paidCredit: user.paidRefCredit,
       userCount: userCount,
       activeUserCount: activeUserCount,

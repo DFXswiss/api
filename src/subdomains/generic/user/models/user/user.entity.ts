@@ -123,6 +123,12 @@ export class User extends IEntity {
   refCredit: number; // EUR
 
   @Column({ type: 'float', default: 0 })
+  partnerRefVolume: number; // EUR
+
+  @Column({ type: 'float', default: 0 })
+  partnerRefCredit: number; // EUR
+
+  @Column({ type: 'float', default: 0 })
   paidRefCredit: number; // EUR
 
   @OneToMany(() => RefReward, (reward) => reward.user)
@@ -209,6 +215,14 @@ export class User extends IEntity {
 
   get isDeleted(): boolean {
     return this.status === UserStatus.DELETED;
+  }
+
+  get completeRefVolume(): number {
+    return this.refVolume + this.partnerRefVolume;
+  }
+
+  get completeRefCredit(): number {
+    return this.refCredit + this.partnerRefCredit;
   }
 }
 

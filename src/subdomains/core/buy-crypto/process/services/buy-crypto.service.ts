@@ -881,8 +881,10 @@ export class BuyCryptoService {
 
       await this.userService.updateRefVolume(
         ref,
-        buyCryptoVolume + buyCryptoPartnerVolume + buyFiatVolume + buyFiatPartnerVolume + manualVolume,
-        buyCryptoCredit + buyCryptoPartnerCredit + buyFiatCredit + buyFiatPartnerCredit + manualCredit,
+        buyCryptoVolume + buyFiatVolume + manualVolume,
+        buyCryptoCredit + buyFiatCredit + manualCredit,
+        buyCryptoPartnerVolume + buyFiatPartnerVolume,
+        buyCryptoPartnerCredit + buyFiatPartnerCredit,
       );
     }
   }
@@ -902,7 +904,7 @@ export class BuyCryptoService {
   async getPartnerFeeRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
     const { volume, credit } = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('SUM((partnerFeeAmount * (amountInEur/amountInChf )) / (refProvision * 0.01))', 'volume')
+      .select('SUM(amountInEur)', 'volume')
       .addSelect('SUM(partnerFeeAmount * (amountInEur/amountInChf ))', 'credit')
       .where('usedPartnerFeeRef = :ref', { ref })
       .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
