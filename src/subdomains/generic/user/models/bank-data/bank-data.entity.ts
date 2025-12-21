@@ -24,6 +24,7 @@ export enum BankDataVerificationError {
   NEW_BANK_IN_ACTIVE = 'NewBankInActive',
   MERGE_PENDING = 'MergePending',
   MERGE_EXPIRED = 'MergeExpired',
+  REPLACED = 'Replaced',
 }
 
 @Entity()

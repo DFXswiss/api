@@ -173,7 +173,7 @@ export class DepositService {
     for (const depositLink of depositLinks) {
       const linkId = depositLink.id;
 
-      const uniqueId = Util.createUniqueId('deposit');
+      const uniqueId = Util.createUniqueId('deposit', 6);
       const uniqueIdSignature = Util.createSign(uniqueId, Config.blockchain.lightning.lnbits.signingPrivKey);
 
       const lnurlpLinkUpdate: LnurlpLinkUpdateDto = {

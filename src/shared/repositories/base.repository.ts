@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { Util } from '../utils/util';
 
 export abstract class BaseRepository<T> extends Repository<T> {
@@ -10,5 +10,9 @@ export abstract class BaseRepository<T> extends Repository<T> {
     return this.manager.transaction(async (manager) => {
       return Util.doInBatchesAndJoin(entities, (batch) => manager.save(batch), batchSize);
     });
+  }
+
+  async countBy(where: FindOptionsWhere<T> | FindOptionsWhere<T>[]): Promise<number> {
+    return this.count({ where, loadEagerRelations: false });
   }
 }

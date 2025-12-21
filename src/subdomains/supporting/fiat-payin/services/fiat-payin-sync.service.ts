@@ -43,7 +43,7 @@ export class FiatPayInSyncService {
           await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);
         } else if (checkoutTx.authStatusReason) {
           const buy = await this.buyService.getByBankUsage(checkoutTx.reference);
-          if (buy) await this.siftService.checkoutTransaction(checkoutTx, TransactionStatus.FAILURE, buy);
+          if (buy) this.siftService.checkoutTransaction(checkoutTx, TransactionStatus.FAILURE, buy);
         }
       } catch (e) {
         this.logger.error(`Failed to import checkout transaction:`, e);

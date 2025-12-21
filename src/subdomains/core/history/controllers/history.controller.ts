@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Headers,
   NotFoundException,
+  Param,
   Post,
   Query,
   Res,
@@ -31,6 +33,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto';
 import { ExportFormat, HistoryQuery, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
 import { TypedHistoryDto } from '../dto/history.dto';
+import { ChainReportApiHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingApiHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { ExportType, HistoryService } from '../services/history.service';
 import { TransactionController } from './transaction.controller';
@@ -39,7 +42,7 @@ import { TransactionController } from './transaction.controller';
 @Controller('history')
 @ApiExcludeController()
 export class HistoryController {
-  private files: { [key: number]: StreamableFile } = {};
+  private files: { [key: string]: StreamableFile } = {};
 
   constructor(
     private readonly historyService: HistoryService,
@@ -62,29 +65,34 @@ export class HistoryController {
     return this.transactionController.getHistoryData(query, ExportType.COMPACT, res);
   }
 
-  @Get('CT')
+  @Get(':exportType')
   @ApiOkResponse({ type: CoinTrackingApiHistoryDto, isArray: true })
+  @ApiOkResponse({ type: ChainReportApiHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
   @ParallelQueue(5)
-  async getCoinTrackingApiHistory(
+  async getApiHistory(
     @Query() query: HistoryQuery,
     @Headers('DFX-ACCESS-KEY') key: string,
     @Headers('DFX-ACCESS-SIGN') sign: string,
     @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
-  ): Promise<CoinTrackingApiHistoryDto[]> {
+    @Param('exportType') exportType: string,
+  ): Promise<CoinTrackingApiHistoryDto[] | ChainReportApiHistoryDto[]> {
+    if (!key || !sign || !timestamp) throw new BadRequestException('Missing header');
+
     const user = key.endsWith('0')
       ? await this.userService.checkApiKey(key, sign, timestamp)
       : await this.userDataService.checkApiKey(key, sign, timestamp);
     query = Object.assign(query, ApiKeyService.getFilter(user.apiFilterCT));
 
-    return this.historyService
-      .getJsonHistory(user, { format: ExportFormat.JSON, ...query }, ExportType.COIN_TRACKING)
-      .then((h) =>
-        h.map((tx) => ({
-          ...tx,
-          date: tx.date?.getTime() / 1000,
-        })),
-      );
+    const exportTypeMap = {
+      CT: ExportType.COIN_TRACKING,
+      CR: ExportType.CHAIN_REPORT,
+    };
+
+    const type = exportTypeMap[exportType];
+    if (!type) throw new BadRequestException('ExportType not supported');
+
+    return this.historyService.getApiHistory(user, { format: ExportFormat.JSON, ...query }, type);
   }
 
   @Post('csv')
@@ -92,12 +100,12 @@ export class HistoryController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   @ApiCreatedResponse()
-  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<number> {
+  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<string> {
     const csvFile = await this.historyService.getCsvHistory(
       { ...query, userAddress: jwt.address, format: ExportFormat.CSV },
       query.type,
     );
-    const fileKey = Util.randomId();
+    const fileKey = Util.randomString(16);
     this.files[fileKey] = csvFile;
 
     return fileKey;
@@ -108,9 +116,9 @@ export class HistoryController {
   @ApiOkResponse({ type: StreamableFile })
   @ApiExcludeEndpoint()
   async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res): Promise<StreamableFile> {
-    const csvFile = this.files[+key];
+    const csvFile = this.files[key];
     if (!csvFile) throw new NotFoundException('File not found');
-    delete this.files[+key];
+    delete this.files[key];
 
     res.set({
       'Content-Type': 'text/csv',

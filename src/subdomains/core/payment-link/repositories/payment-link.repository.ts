@@ -13,14 +13,14 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
   async getAllPaymentLinks(userId: number): Promise<PaymentLink[]> {
     return this.find({
       where: { route: { user: { id: Equal(userId) }, active: true } },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
   }
 
   async getAllPaymentLinksByExternalLinkId(externalLinkId: string): Promise<PaymentLink[]> {
     return this.find({
       where: { externalId: Equal(externalLinkId) },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
   }
 
@@ -37,7 +37,7 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
         externalId: externalLinkId ? Equal(externalLinkId) : undefined,
         payments: { status: In(paymentStatus), created: Between(from, to) },
       },
-      relations: { route: { user: { userData: true } }, payments: true },
+      relations: { route: { user: { userData: { organization: true } } }, payments: true },
     });
   }
 
@@ -57,14 +57,14 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
   private async getPaymentLinkByLinkId(userId: number, linkId: number): Promise<PaymentLink | null> {
     return this.findOne({
       where: { id: Equal(linkId), route: { user: { id: Equal(userId) }, active: true } },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
   }
 
   private async getPaymentLinkByExternalId(userId: number, externalLinkId: string): Promise<PaymentLink | null> {
     return this.findOne({
       where: { externalId: Equal(externalLinkId), route: { user: { id: Equal(userId) }, active: true } },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
   }
 
@@ -77,7 +77,7 @@ export class PaymentLinkRepository extends BaseRepository<PaymentLink> {
         payments: { externalId: Equal(externalPaymentId) },
         route: { user: { id: Equal(userId) }, active: true },
       },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
   }
 }

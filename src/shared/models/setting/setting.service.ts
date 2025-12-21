@@ -1,9 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { Process } from 'src/shared/services/process.service';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
 import { SettingRepository } from './setting.repository';
+import { isArraySchema, isPrimitiveSchema, SettingSchema, SettingSchemaRegistry } from './setting-schema.registry';
 
 @Injectable()
 export class SettingService {
@@ -18,10 +21,83 @@ export class SettingService {
   }
 
   async set(key: string, value: string): Promise<void> {
+    await this.validateSettingValue(key, value);
+
     const entity = (await this.settingRepo.findOneBy({ key })) ?? this.settingRepo.create({ key });
     entity.value = value;
 
     await this.settingRepo.save(entity);
+  }
+
+  private async validateSettingValue(key: string, value: string): Promise<void> {
+    const schema = SettingSchemaRegistry[key];
+    if (!schema) return;
+
+    if (isPrimitiveSchema(schema)) {
+      this.validatePrimitive(key, value, schema);
+      return;
+    }
+
+    if (isArraySchema(schema)) {
+      await this.validateArray(key, value, schema.items);
+    }
+  }
+
+  private validatePrimitive(key: string, value: string, schema: SettingSchema): void {
+    switch (schema) {
+      case 'number':
+        if (isNaN(Number(value))) {
+          throw new BadRequestException(`Setting '${key}' must be a valid number`);
+        }
+        break;
+      case 'boolean':
+        if (value !== 'true' && value !== 'false') {
+          throw new BadRequestException(`Setting '${key}' must be 'true' or 'false'`);
+        }
+        break;
+      case 'string[]':
+        this.validateStringArray(key, value);
+        break;
+    }
+  }
+
+  private validateStringArray(key: string, value: string): void {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      throw new BadRequestException(`Setting '${key}' must be valid JSON`);
+    }
+
+    if (!Array.isArray(parsed)) {
+      throw new BadRequestException(`Setting '${key}' must be an array`);
+    }
+
+    if (!parsed.every((item) => typeof item === 'string')) {
+      throw new BadRequestException(`Setting '${key}' must be an array of strings`);
+    }
+  }
+
+  private async validateArray<T extends object>(key: string, value: string, dtoClass: new () => T): Promise<void> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      throw new BadRequestException(`Setting '${key}' must be valid JSON`);
+    }
+
+    if (!Array.isArray(parsed)) {
+      throw new BadRequestException(`Setting '${key}' must be an array`);
+    }
+
+    const instances = plainToInstance(dtoClass, parsed);
+    for (let i = 0; i < instances.length; i++) {
+      const errors = await validate(instances[i]);
+      if (errors.length > 0) {
+        const messages = errors.flatMap((e) => Object.values(e.constraints ?? {}));
+        throw new BadRequestException(`Setting '${key}' validation failed at index ${i}: ${messages.join(', ')}`);
+      }
+    }
   }
 
   async getIpBlacklist(): Promise<string[]> {

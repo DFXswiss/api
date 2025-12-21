@@ -7,6 +7,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -27,6 +28,7 @@ describe('BuyController', () => {
   let transactionRequestService: TransactionRequestService;
   let fiatService: FiatService;
   let swissQrService: SwissQRService;
+  let virtualIbanService: VirtualIbanService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -39,6 +41,7 @@ describe('BuyController', () => {
     transactionRequestService = createMock<TransactionRequestService>();
     fiatService = createMock<FiatService>();
     swissQrService = createMock<SwissQRService>();
+    virtualIbanService = createMock<VirtualIbanService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -54,6 +57,7 @@ describe('BuyController', () => {
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: FiatService, useValue: fiatService },
         { provide: SwissQRService, useValue: swissQrService },
+        { provide: VirtualIbanService, useValue: virtualIbanService },
 
         TestUtil.provideConfig(),
       ],

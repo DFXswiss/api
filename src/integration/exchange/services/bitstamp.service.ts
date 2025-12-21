@@ -43,6 +43,7 @@ export class BitstampService extends ExchangeService {
     Checkout: undefined,
     Kaleido: undefined,
     Sumixx: undefined,
+    Yapeal: undefined,
   };
 
   constructor() {

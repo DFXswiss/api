@@ -36,6 +36,10 @@ import { KycService } from './models/kyc/kyc.service';
 import { Organization } from './models/organization/organization.entity';
 import { OrganizationRepository } from './models/organization/organization.repository';
 import { OrganizationService } from './models/organization/organization.service';
+import { RecommendationController } from './models/recommendation/recommendation.controller';
+import { Recommendation } from './models/recommendation/recommendation.entity';
+import { RecommendationRepository } from './models/recommendation/recommendation.repository';
+import { RecommendationService } from './models/recommendation/recommendation.service';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
@@ -56,7 +60,17 @@ import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook, CustodyProvider, Organization]),
+    TypeOrmModule.forFeature([
+      User,
+      UserData,
+      Wallet,
+      BankData,
+      AccountMerge,
+      Webhook,
+      CustodyProvider,
+      Organization,
+      Recommendation,
+    ]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -80,6 +94,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataRelationController,
     WalletController,
     CustodyProviderController,
+    RecommendationController,
   ],
   providers: [
     UserRepository,
@@ -108,6 +123,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     OrganizationRepository,
     UserDataJobService,
     UserJobService,
+    RecommendationRepository,
+    RecommendationService,
   ],
   exports: [
     UserService,
@@ -119,6 +136,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     CustodyProviderService,
     UserDataRelationService,
     AuthService,
+    RecommendationService,
   ],
 })
 export class UserModule {}

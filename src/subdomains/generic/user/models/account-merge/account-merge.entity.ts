@@ -1,6 +1,7 @@
+import { randomUUID } from 'crypto';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
-import { Column, Entity, Generated, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 
 export enum MergeReason {
@@ -18,7 +19,6 @@ export class AccountMerge extends IEntity {
   slave: UserData;
 
   @Column()
-  @Generated('uuid')
   @Index({ unique: true })
   code: string;
 
@@ -36,6 +36,7 @@ export class AccountMerge extends IEntity {
     entity.master = master;
     entity.slave = slave;
     entity.reason = reason;
+    entity.code = randomUUID();
 
     entity.expiration = [MergeReason.IBAN, MergeReason.IDENT_DOCUMENT].includes(reason)
       ? Util.daysAfter(30)

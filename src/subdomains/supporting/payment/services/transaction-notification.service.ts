@@ -54,7 +54,8 @@ export class TransactionNotificationService {
       try {
         if (
           !entity.targetEntity ||
-          (!(entity.targetEntity instanceof BuyCrypto) && !(entity.targetEntity instanceof BuyFiat))
+          (!(entity.targetEntity instanceof BuyCrypto) && !(entity.targetEntity instanceof BuyFiat)) ||
+          (!entity.targetEntity.comment && !entity.targetEntity.amlCheck)
         )
           continue;
 
@@ -117,8 +118,9 @@ export class TransactionNotificationService {
         const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
           entity.bankTx.senderAccount,
           undefined,
+          undefined,
           { userData: { wallet: true } },
-          false,
+          true,
         );
         if (!bankData) continue;
 
@@ -147,6 +149,8 @@ export class TransactionNotificationService {
           });
 
           await this.repo.update(...entity.mailSent(bankData.userData));
+        } else {
+          await this.repo.update(entity.id, { userData: bankData.userData });
         }
       } catch (e) {
         this.logger.error(`Failed to send tx unassigned mail for ${entity.id}:`, e);

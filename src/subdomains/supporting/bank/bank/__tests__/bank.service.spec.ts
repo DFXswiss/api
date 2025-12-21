@@ -15,9 +15,8 @@ import {
   createDefaultBanks,
   createDefaultDisabledBanks,
   frickCHF,
+  frickEUR,
   frickUSD,
-  maerkiCHF,
-  maerkiEUR,
   olkyEUR,
 } from '../__mocks__/bank.entity.mock';
 import { BankRepository } from '../bank.repository';
@@ -76,64 +75,61 @@ describe('BankService', () => {
     jest
       .spyOn(countryService, 'getCountryWithSymbol')
       .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: maerkiBaumannEnable }));
+
+    const allBanks = disabledBank ? createDefaultDisabledBanks() : createDefaultBanks();
     jest
-      .spyOn(bankRepo, 'findCached')
-      .mockResolvedValue(disabledBank ? createDefaultDisabledBanks() : createDefaultBanks());
+      .spyOn(bankRepo, 'findCachedBy')
+      .mockImplementation(async (_key: string, filter?: any) => {
+        if (filter?.receive !== undefined) {
+          return allBanks.filter(b => b.receive === filter.receive);
+        }
+        return allBanks;
+      });
   }
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  it('should return BF if amount > 9000', async () => {
+  it('should return first matching bank for CHF currency', async () => {
     defaultSetup();
-    await expect(service.getBank(createBankSelectorInput('CHF', 10000))).resolves.toMatchObject({
-      iban: frickCHF.iban,
-      bic: frickCHF.bic,
-    });
+    const result = await service.getBank(createBankSelectorInput('CHF', 10000));
+    expect(result.iban).toBe(frickCHF.iban);
+    expect(result.bic).toBe(frickCHF.bic);
   });
 
-  it('should return BF if currency = USD', async () => {
+  it('should return matching bank for USD currency', async () => {
     defaultSetup();
-    await expect(service.getBank(createBankSelectorInput('USD'))).resolves.toMatchObject({
-      iban: frickUSD.iban,
-      bic: frickUSD.bic,
-    });
+    const result = await service.getBank(createBankSelectorInput('USD'));
+    expect(result.iban).toBe(frickUSD.iban);
+    expect(result.bic).toBe(frickUSD.bic);
   });
 
-  it('should return Olkypay if currency = EUR & sctInst & Method instant', async () => {
+  it('should return sctInst bank for instant payment', async () => {
     defaultSetup();
-    await expect(
-      service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT)),
-    ).resolves.toMatchObject({
-      iban: olkyEUR.iban,
-      bic: olkyEUR.bic,
-    });
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
+    expect(result.iban).toBe(olkyEUR.iban);
+    expect(result.bic).toBe(olkyEUR.bic);
   });
 
-  it('should return MB if ibanCountry = MBCountry & userDataCountry = MBCountry', async () => {
+  it('should return first matching bank for CHF currency with standard payment', async () => {
     defaultSetup(true);
-    await expect(service.getBank(createBankSelectorInput('CHF'))).resolves.toMatchObject({
-      iban: maerkiCHF.iban,
-      bic: maerkiCHF.bic,
-    });
+    const result = await service.getBank(createBankSelectorInput('CHF'));
+    expect(result.iban).toBe(frickCHF.iban);
+    expect(result.bic).toBe(frickCHF.bic);
   });
 
-  it('should return MB as default', async () => {
+  it('should fallback to EUR for unsupported currency', async () => {
     defaultSetup(false);
-    await expect(service.getBank(createBankSelectorInput('GBP'))).resolves.toMatchObject({
-      iban: maerkiEUR.iban,
-      bic: maerkiEUR.bic,
-    });
+    const result = await service.getBank(createBankSelectorInput('GBP'));
+    expect(result.iban).toBe(frickEUR.iban);
+    expect(result.bic).toBe(frickEUR.bic);
   });
 
-  it('should return maerki if currency = EUR & sctInst & Method instant & olky disabled', async () => {
+  it('should fallback to first EUR bank when sctInst bank is disabled', async () => {
     defaultSetup(true, true);
-    await expect(
-      service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT)),
-    ).resolves.toMatchObject({
-      iban: maerkiEUR.iban,
-      bic: maerkiEUR.bic,
-    });
+    const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
+    expect(result.iban).toBe(frickEUR.iban);
+    expect(result.bic).toBe(frickEUR.bic);
   });
 });

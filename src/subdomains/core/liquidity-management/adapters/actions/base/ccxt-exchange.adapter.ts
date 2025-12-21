@@ -351,7 +351,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       correlationId,
     } = order;
 
-    const { target, network } = this.parseTransferParams(paramMap);
+    const { target } = this.parseTransferParams(paramMap);
 
     const withdrawal = await this.exchangeService.getWithdraw(correlationId, targetAsset.dexName);
     if (!withdrawal?.txid) {
@@ -366,6 +366,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     order.outputAmount = withdrawal.amount;
 
     const targetExchange = this.exchangeRegistry.get(target);
+
+    const blockchain = paramMap.destinationBlockchain as Blockchain;
+    const network = targetExchange.mapNetwork(blockchain);
+    if (!network) throw new Error(`Target exchange ${target} does not support transfer network ${blockchain}`);
 
     const deposit = await targetExchange
       .getDeposits(targetAsset.dexName, order.created, network)

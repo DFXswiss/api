@@ -454,7 +454,7 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-GET {{url}}/v1/pricing/price?fromType=Fiat&fromId=1&toType=Asset&toId=264&allowExpired=false
+GET {{url}}/v1/pricing/price?fromType=Fiat&fromId=1&toType=Asset&toId=264&validity=ValidOnly
 Authorization: Bearer {{authToken}}
 
 

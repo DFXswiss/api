@@ -1,4 +1,5 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Country } from 'src/shared/models/country/country.entity';
 import { Column, Entity, Index, JoinColumn, OneToOne } from 'typeorm';
 import { IEntity } from '../../../../shared/models/entity';
 import { IbanBankName } from './dto/bank.dto';
@@ -33,4 +34,13 @@ export class Bank extends IEntity {
   @OneToOne(() => Asset, (asset) => asset.bank, { nullable: true })
   @JoinColumn()
   asset: Asset;
+
+  // --- ENTITY METHODS --- //
+
+  isCountryEnabled(country: Country): boolean {
+    return (
+      (this.name === IbanBankName.YAPEAL && country.yapealEnable) ||
+      (this.name === IbanBankName.MAERKI && country.maerkiBaumannEnable)
+    );
+  }
 }

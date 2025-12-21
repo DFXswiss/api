@@ -263,8 +263,8 @@ export class TransactionHelper implements OnModuleInit {
     const chfPrice = await this.pricingService.getPrice(txAsset, PriceCurrency.CHF, PriceValidity.ANY);
     const txAmountChf = chfPrice.convert(txAmount);
 
-    const bankIn = this.getDefaultBankByPaymentMethod(paymentMethodIn);
-    const bankOut = this.getDefaultBankByPaymentMethod(paymentMethodOut);
+    const bankIn = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn);
+    const bankOut = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodOut);
 
     const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
 
@@ -386,7 +386,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getRefundData(
-    refundEntity: BankTx | BuyCrypto | BuyFiat,
+    refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn,
     userData: UserData,
     bankIn: CardBankName | IbanBankName,
     refundTarget: string,
@@ -395,7 +395,9 @@ export class TransactionHelper implements OnModuleInit {
     const inputCurrency = await this.getRefundActive(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
-    const price = await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.VALID_ONLY);
+    const price =
+      refundEntity.manualChfPrice ??
+      (await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.PREFER_VALID));
 
     const amountType = !isFiat ? AmountType.ASSET : AmountType.FIAT;
     const feeAmountType = !isFiat ? AmountType.ASSET_FEE : AmountType.FIAT_FEE;
@@ -448,7 +450,7 @@ export class TransactionHelper implements OnModuleInit {
     statementType: TxStatementType,
   ): Promise<TxStatementDetails> {
     const transaction = await this.transactionService.getTransactionById(txId, {
-      userData: true,
+      userData: { organization: true },
       buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
@@ -508,7 +510,8 @@ export class TransactionHelper implements OnModuleInit {
     throw new BadRequestException('Transaction type not supported for invoice generation');
   }
 
-  async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat): Promise<Active> {
+  async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
+    if (refundEntity instanceof BankTxReturn) return this.fiatService.getFiatByName(refundEntity.bankTx.currency);
     if (refundEntity instanceof BankTx) return this.fiatService.getFiatByName(refundEntity.currency);
     if (refundEntity instanceof BuyCrypto && refundEntity.bankTx)
       return this.fiatService.getFiatByName(refundEntity.bankTx.currency);
@@ -684,7 +687,7 @@ export class TransactionHelper implements OnModuleInit {
 
   // --- HELPER METHODS --- //
 
-  private getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
+  static getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
     switch (paymentMethod) {
       case FiatPaymentMethod.BANK:
         return IbanBankName.MAERKI;
@@ -703,9 +706,8 @@ export class TransactionHelper implements OnModuleInit {
     return {
       fee: {
         min: this.convertFee(fee.min, price, from),
-        dfx: this.convertFeeSpec(fee.dfx, price, from),
-        bank: this.convertFeeSpec(fee.bank, price, from),
-        partner: this.convertFeeSpec(fee.partner, price, from),
+        fixed: this.convertFee(fee.fixed, price, from),
+        bankFixed: fee.bankFixed, // no conversion - 1 CHF/EUR/USD = 1 unit
         network: this.convertFee(fee.network, price, from),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, from) : undefined,
       },
@@ -722,9 +724,8 @@ export class TransactionHelper implements OnModuleInit {
     return {
       fee: {
         min: this.convertFee(fee.min, price, to),
-        dfx: this.convertFeeSpec(fee.dfx, price, to),
-        bank: this.convertFeeSpec(fee.bank, price, to),
-        partner: this.convertFeeSpec(fee.partner, price, to),
+        fixed: this.convertFee(fee.fixed, price, to),
+        bankFixed: fee.bankFixed, // no conversion - 1 CHF/EUR/USD = 1 unit
         network: this.convertFee(fee.network, price, to),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, to) : undefined,
       },
@@ -817,6 +818,14 @@ export class TransactionHelper implements OnModuleInit {
       [Environment.LOC, Environment.DEV].includes(Config.environment)
     )
       return;
+
+    if (
+      !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
+      user?.userData &&
+      !user.userData.tradeApprovalDate &&
+      !user.wallet.autoTradeApproval
+    )
+      return QuoteError.TRADING_NOT_ALLOWED;
 
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 

@@ -5,6 +5,6 @@ import { AuthGuard } from '@nestjs/passport';
 export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
   // Override handleRequest so it never throws an error
   handleRequest(_err: any, user: any, _info: any, _context: any) {
-    return user;
+    return user || undefined;
   }
 }

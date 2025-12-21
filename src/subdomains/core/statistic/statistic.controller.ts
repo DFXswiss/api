@@ -34,7 +34,7 @@ export class StatisticController {
 
   @Get('transactions')
   @UseGuards(RateLimitGuard)
-  @Throttle(24, 864000)
+  @Throttle(24, 86400)
   @ApiOkResponse({ type: TransactionStatisticDto })
   async getTransactions(
     @Query('dateFrom') dateFrom: Date,

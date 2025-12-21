@@ -82,6 +82,12 @@ export class OptionalSignUpDto {
   @IsOptional()
   @IsEnum(Moderator)
   moderator?: Moderator;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(GetConfig().formats.recommendationCode)
+  recommendationCode?: string;
 }
 
 export class SignUpDto extends SignInDto {
@@ -99,4 +105,10 @@ export class SignUpDto extends SignInDto {
   @IsOptional()
   @IsString()
   wallet?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(GetConfig().formats.recommendationCode)
+  recommendationCode?: string;
 }

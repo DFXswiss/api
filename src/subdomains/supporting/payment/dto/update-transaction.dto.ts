@@ -1,30 +1,38 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDate, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsNumber, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { EntityDto } from 'src/shared/dto/entity.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CheckStatus } from '../../../core/aml/enums/check-status.enum';
 
 export class UpdateTransactionDto {
   @IsOptional()
   @IsString()
-  assets: string;
+  assets?: string;
 
   @IsOptional()
   @IsEnum(CheckStatus)
-  amlCheck: CheckStatus;
+  amlCheck?: CheckStatus;
 
   @IsOptional()
   @IsBoolean()
-  highRisk: boolean;
+  highRisk?: boolean;
 
   @IsOptional()
   @IsNumber()
-  amountInChf: number;
+  amountInChf?: number;
 
   @IsOptional()
   @IsString()
-  amlType: string;
+  amlType?: string;
 
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  eventDate: Date;
+  eventDate?: Date;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  userData?: UserData;
 }

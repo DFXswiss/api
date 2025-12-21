@@ -6,6 +6,7 @@ import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { UnsignedTxDto } from './unsigned-tx.dto';
 
 export class BeneficiaryDto {
   @ApiProperty()
@@ -99,4 +100,10 @@ export class SellPaymentInfoDto {
 
   @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
   error?: QuoteError;
+
+  @ApiPropertyOptional({
+    type: UnsignedTxDto,
+    description: 'Unsigned deposit transaction data (only if quote is valid and includeTx=true)',
+  })
+  depositTx?: UnsignedTxDto;
 }

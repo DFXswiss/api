@@ -49,6 +49,7 @@ export enum PayInStatus {
 
 export enum PayInType {
   PERMIT_TRANSFER = 'PermitTransfer',
+  SIGNED_TRANSFER = 'SignedTransfer',
   DEPOSIT = 'Deposit',
   PAYMENT = 'Payment',
 }

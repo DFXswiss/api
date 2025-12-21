@@ -57,12 +57,26 @@ export class PayoutService {
   async checkOrderCompletion(
     context: PayoutOrderContext,
     correlationId: string,
-  ): Promise<{ isComplete: boolean; payoutTxId: string; payoutFee: FeeResult }> {
+  ): Promise<{
+    isComplete: boolean;
+    payoutTxId: string;
+    payoutFee: FeeResult;
+    payoutAmount: number;
+    payoutAsset: Asset;
+  }> {
     const order = await this.payoutOrderRepo.findOneBy({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
     const payoutFee = order && order.payoutFee;
+    const payoutAmount = order && order.amount;
+    const payoutAsset = order && order.asset;
 
-    return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId, payoutFee };
+    return {
+      isComplete: order && order.status === PayoutOrderStatus.COMPLETE,
+      payoutTxId,
+      payoutFee,
+      payoutAmount,
+      payoutAsset,
+    };
   }
 
   async estimateFee(targetAsset: Asset, address: string, amount: number, asset: Asset): Promise<FeeResult> {

@@ -20,6 +20,7 @@ import { PricingDeuroService } from './services/integration/pricing-deuro.servic
 import { PricingDexService } from './services/integration/pricing-dex.service';
 import { PricingEbel2xService } from './services/integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './services/integration/pricing-frankencoin.service';
+import { PricingRealUnitService } from './services/integration/pricing-realunit.service';
 import { PricingService } from './services/pricing.service';
 
 @Module({
@@ -45,8 +46,9 @@ import { PricingService } from './services/pricing.service';
     PricingFrankencoinService,
     PricingDeuroService,
     PricingEbel2xService,
+    PricingRealUnitService,
     PricingConstantService,
   ],
-  exports: [PricingService, AssetPricesService],
+  exports: [PricingService, AssetPricesService, CoinGeckoService],
 })
 export class PricingModule {}

@@ -3,6 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -32,6 +33,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
     private readonly bankService: BankService,
     private readonly repos: RepositoryFactory,
     private readonly revolutService: RevolutService,
+    private readonly yapealService: YapealService,
   ) {
     super(monitoringService, 'bank', 'balance');
   }
@@ -42,6 +44,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
 
     if (Config.bank.olkypay.credentials.clientId) data = data.concat(await this.getOlkypay());
     if (Config.bank.revolut.clientAssertion) data = data.concat(await this.getRevolut());
+    if (this.yapealService.isAvailable()) data = data.concat(await this.getYapeal());
     this.emit(data);
 
     return data;
@@ -80,6 +83,25 @@ export class BankObserver extends MetricObserver<BankData[]> {
       });
     }
     return revolutBankData;
+  }
+
+  private async getYapeal(): Promise<BankData[]> {
+    const yapealBalances = await this.yapealService.getBalances();
+
+    const yapealBankData = [];
+    for (const balance of yapealBalances) {
+      const dbBalance = await this.getDbBalance(balance.iban, balance.currency);
+
+      yapealBankData.push({
+        name: 'Yapeal',
+        currency: balance.currency,
+        balance: balance.availableBalance,
+        dbBalance: Util.round(dbBalance, 2),
+        difference: balance.availableBalance - Util.round(dbBalance, 2),
+      });
+    }
+
+    return yapealBankData;
   }
 
   private async getDbBalance(iban: string, currency: string): Promise<number> {

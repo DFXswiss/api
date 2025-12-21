@@ -36,14 +36,19 @@ export class AuthController {
   @Post()
   @UseGuards(IpCountryGuard, OptionalJwtAuthGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
-  authenticate(@GetJwt() jwt: JwtPayload, @Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
+  authenticate(
+    @GetJwt() jwt: JwtPayload | undefined,
+    @Body() dto: SignUpDto,
+    @RealIP() ip: string,
+  ): Promise<AuthResponseDto> {
     return this.authService.authenticate(dto, ip, jwt?.account, jwt?.user);
   }
 
   @Post('signUp')
   @UseGuards(RateLimitGuard, IpCountryGuard)
-  @Throttle(20, 864000)
+  @Throttle(100, 86400)
   @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiExcludeEndpoint()
   signUp(@Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signUp(dto, ip);
   }
@@ -51,11 +56,14 @@ export class AuthController {
   @Post('signIn')
   @UseGuards(IpCountryGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiExcludeEndpoint()
   signIn(@Body() credentials: SignInDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signIn(credentials, ip);
   }
 
   @Post('mail')
+  @UseGuards(RateLimitGuard)
+  @Throttle(10, 60)
   @ApiCreatedResponse()
   signInByMail(@Body() dto: AuthMailDto, @Req() req: Request, @RealIP() ip: string): Promise<void> {
     return this.authService.signInByMail(dto, req.url, ip);
@@ -73,7 +81,7 @@ export class AuthController {
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: MergeResponseDto })
   async executeMerge(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query('code') code: string,
     @RealIP() ip: string,
   ): Promise<MergeResponseDto> {

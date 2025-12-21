@@ -27,7 +27,6 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -87,7 +86,6 @@ import { ExportType, HistoryService } from '../services/history.service';
 export class TransactionController {
   private files: { [key: string]: StreamableFile } = {};
   private readonly refundList = new Map<number, RefundDataDto>();
-  private readonly logger = new DfxLogger(TransactionController);
 
   constructor(
     private readonly historyService: HistoryService,
@@ -307,7 +305,7 @@ export class TransactionController {
       bankTx: { bankTxReturn: true },
       cryptoInput: true,
       checkoutTx: true,
-      bankTxReturn: true,
+      bankTxReturn: { bankTx: true },
       userData: true,
       buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
       buyFiat: { cryptoInput: true },
@@ -318,30 +316,34 @@ export class TransactionController {
 
     let userData: UserData;
 
-    // Unassigned transaction
     if (transaction.refundTargetEntity instanceof BankTx) {
+      // Unassigned transaction
       if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new NotFoundException('Transaction not found');
       const bankData = await this.bankDataService
         .getValidBankDatasForUser(jwt.account)
         .then((b) => b.find((b) => b.iban === transaction.bankTx.senderAccount));
-      if (!bankData) throw new ForbiddenException('You can only refund your own transaction');
+      if (jwt.account !== transaction.userData?.id && !bankData)
+        throw new ForbiddenException('You can only refund your own transaction');
       if (transaction.refundTargetEntity.bankTxReturn)
         throw new BadRequestException('You can only refund a transaction once');
 
       userData = await this.userDataService.getUserData(jwt.account);
-      await this.transactionService.updateInternal(transaction, { userData });
+      if (!transaction.userData) await this.transactionService.updateInternal(transaction, { userData });
     } else {
       // Assigned transaction
       if (jwt.account !== transaction.userData.id)
         throw new ForbiddenException('You can only refund your own transaction');
-      if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.refundTargetEntity.amlCheck))
-        throw new BadRequestException('You can only refund failed or pending transactions');
       if (transaction.refundTargetEntity.chargebackAmount)
         throw new BadRequestException('You can only refund a transaction once');
-      if (transaction.refundTargetEntity.cryptoInput?.txType === PayInType.PAYMENT)
-        throw new BadRequestException('You cannot refund payment transactions');
-      if (NotRefundableAmlReasons.includes(transaction.refundTargetEntity.amlReason))
-        throw new BadRequestException('You cannot refund with this reason');
+
+      if (!(transaction.refundTargetEntity instanceof BankTxReturn)) {
+        if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(transaction.refundTargetEntity.amlCheck))
+          throw new BadRequestException('You can only refund failed or pending transactions');
+        if (transaction.refundTargetEntity.cryptoInput?.txType === PayInType.PAYMENT)
+          throw new BadRequestException('You cannot refund payment transactions');
+        if (NotRefundableAmlReasons.includes(transaction.refundTargetEntity.amlReason))
+          throw new BadRequestException('You cannot refund with this reason');
+      }
 
       userData = transaction.userData;
     }
@@ -380,8 +382,6 @@ export class TransactionController {
     @Param('id') id: string,
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
-    const timeArray = [Date.now()];
-
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
@@ -404,13 +404,11 @@ export class TransactionController {
       transaction: { userData: true },
     });
 
-    timeArray.push(Date.now());
-
     if (!transaction || transaction.targetEntity instanceof RefReward)
       throw new NotFoundException('Transaction not found');
-    if (transaction.targetEntity && jwt.account !== transaction.userData.id)
+    if (transaction.userData && jwt.account !== transaction.userData.id)
       throw new ForbiddenException('You can only refund your own transaction');
-    if (!transaction.targetEntity) {
+    if (!transaction.targetEntity && !transaction.userData) {
       const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account);
       if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
         throw new ForbiddenException('You can only refund your own transaction');
@@ -423,8 +421,6 @@ export class TransactionController {
 
     const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
-
-    timeArray.push(Date.now());
 
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
@@ -459,14 +455,10 @@ export class TransactionController {
     if (transaction.targetEntity.checkoutTx)
       return this.buyCryptoService.refundCheckoutTx(transaction.targetEntity, { ...refundDto });
 
-    await this.buyCryptoService.refundBankTx(transaction.targetEntity, {
+    return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
       ...refundDto,
     });
-
-    timeArray.push(Date.now());
-
-    this.logger.info(`Refund transaction time log: ${Util.createTimeString(timeArray)}`);
   }
 
   @Put(':id/invoice')
@@ -555,7 +547,7 @@ export class TransactionController {
   }
 
   private cacheCsv(csvFile: StreamableFile): string {
-    const fileKey = Util.randomId().toString();
+    const fileKey = Util.randomString(16);
     this.files[fileKey] = csvFile;
 
     return fileKey;
@@ -671,10 +663,9 @@ export class TransactionController {
           : TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
 
       case RefReward:
-        const refRewardExtended = await this.refRewardService.extendReward(transaction.refReward);
         return detailed
-          ? TransactionDtoMapper.mapReferralRewardDetail(refRewardExtended)
-          : TransactionDtoMapper.mapReferralReward(refRewardExtended);
+          ? TransactionDtoMapper.mapReferralRewardDetail(transaction.refReward)
+          : TransactionDtoMapper.mapReferralReward(transaction.refReward);
 
       case BankTxReturn:
         const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);

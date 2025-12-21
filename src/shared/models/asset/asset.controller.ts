@@ -27,8 +27,8 @@ export class AssetController {
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: AssetDetailDto, isArray: true })
   async getAllAsset(
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query() { blockchains, includePrivate }: AssetQueryDto,
-    @GetJwt() jwt?: JwtPayload,
   ): Promise<AssetDetailDto[]> {
     const queryBlockchains = blockchains?.split(',').map((value) => value as Blockchain);
 

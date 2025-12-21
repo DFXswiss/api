@@ -3,4 +3,5 @@ export enum ExchangeName {
   KRAKEN = 'Kraken',
   XT = 'XT',
   MEXC = 'MEXC',
+  SCRYPT = 'Scrypt',
 }

@@ -8,6 +8,7 @@ const defaultCountry: Partial<Country> = {
   lockEnable: true,
   ipEnable: true,
   maerkiBaumannEnable: true,
+  yapealEnable: true,
   updated: undefined,
   created: undefined,
 };

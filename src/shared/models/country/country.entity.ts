@@ -33,6 +33,9 @@ export class Country extends IEntity {
   @Column({ default: false })
   maerkiBaumannEnable: boolean;
 
+  @Column({ default: false })
+  yapealEnable: boolean;
+
   @Column({ default: true })
   fatfEnable: boolean;
 

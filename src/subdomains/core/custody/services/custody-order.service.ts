@@ -92,6 +92,7 @@ export class CustodyOrderService {
         const sellPaymentInfo = await this.sellService.createSellPaymentInfo(
           jwt.user,
           GetCustodyOrderDtoMapper.getSellPaymentInfo(dto, sourceAsset, targetCurrency),
+          false,
         );
 
         orderDto.sell = await this.sellService.getById(sellPaymentInfo.routeId);
@@ -262,6 +263,7 @@ export class CustodyOrderService {
 
   private checkBalance(asset: Asset, amount: number, custodyBalances: CustodyBalance[]): void {
     const assetBalance = custodyBalances.find((a) => a.asset.id === asset.id);
-    if (!assetBalance || assetBalance.balance < amount) throw new BadRequestException('Not enough balance');
+    if (!assetBalance || assetBalance.balance < amount)
+      throw new BadRequestException('This transaction can only be created manually by support');
   }
 }

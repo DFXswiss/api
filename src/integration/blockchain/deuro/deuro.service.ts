@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -271,6 +272,10 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     } else if (collateral.symbol === 'DEPS') {
       return this.getCoinGeckoPrice(this.deuroClient.getEquityContract().address);
     }
+  }
+
+  async bridgeToDeuro(asset: Asset, amount: number): Promise<string> {
+    return this.deuroClient.bridgeToDeuro(asset, amount);
   }
 
   async getDEuroInfo(): Promise<DEuroInfoDto> {

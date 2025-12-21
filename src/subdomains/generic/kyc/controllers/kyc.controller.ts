@@ -51,6 +51,7 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  KycRecommendationData,
   KycSignatoryPowerData,
   PaymentDataDto,
   RecallAgreementData,
@@ -154,7 +155,7 @@ export class KycController {
   @Get('file/:id')
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
-  async getFile(@Param('id') id: string, @GetJwt() jwt?: JwtPayload): Promise<KycFileDataDto> {
+  async getFile(@GetJwt() jwt: JwtPayload | undefined, @Param('id') id: string): Promise<KycFileDataDto> {
     return this.kycService.getFileByUid(id, jwt?.account, jwt?.role);
   }
 
@@ -214,6 +215,17 @@ export class KycController {
     @Body() data: KycNationalityData,
   ): Promise<KycStepBase> {
     return this.kycService.updateKycStep(code, +id, data, ReviewStatus.INTERNAL_REVIEW);
+  }
+
+  @Put('data/recommendation/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateRecommendationData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycRecommendationData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateRecommendationData(code, +id, data);
   }
 
   @Put('data/legal/:id')

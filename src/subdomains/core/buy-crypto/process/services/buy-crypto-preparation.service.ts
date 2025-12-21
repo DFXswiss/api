@@ -8,7 +8,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -17,6 +17,7 @@ import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/b
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import {
@@ -50,6 +51,7 @@ export class BuyCryptoPreparationService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly bankTxService: BankTxService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -67,7 +69,7 @@ export class BuyCryptoPreparationService {
           amlReason: IsNull(),
           ...request,
         },
-        { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
+        { amlCheck: CheckStatus.PENDING, amlReason: Not(In(BlockAmlReasons)), ...request },
       ],
       relations: {
         bankTx: true,
@@ -104,8 +106,10 @@ export class BuyCryptoPreparationService {
           isPayment,
         );
 
-        const { users, refUser, bankData, blacklist, banks } = await this.amlService.getAmlCheckInput(entity);
-        if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
+        const { users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames } = await this.amlService.getAmlCheckInput(
+          entity,
+        );
+        if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(
           inputReferenceCurrency,
@@ -148,16 +152,16 @@ export class BuyCryptoPreparationService {
           referenceChfPrice,
         );
 
-        this.logger.verbose(
-          `User data ${entity.userData.id} volumes are: 7d checkout: ${last7dCheckoutVolume} CHF, 30d: ${last30dVolume} CHF, 365d: ${last365dVolume} CHF`,
-        );
-
         const ibanCountry =
           entity.bankTx?.iban || entity.checkoutTx?.cardIssuerCountry
             ? await this.countryService.getCountryWithSymbol(
                 entity.bankTx?.iban.substring(0, 2) ?? entity.checkoutTx.cardIssuerCountry,
               )
             : undefined;
+
+        const virtualIban = entity.bankTx?.virtualIban
+          ? await this.virtualIbanService.getByIban(entity.bankTx.virtualIban)
+          : undefined;
 
         // check if amlCheck changed (e.g. reset or refund)
         if (
@@ -180,6 +184,9 @@ export class BuyCryptoPreparationService {
             banks,
             ibanCountry,
             refUser,
+            ipLogCountries,
+            virtualIban,
+            multiAccountBankNames,
           ),
         );
 
@@ -190,9 +197,9 @@ export class BuyCryptoPreparationService {
         if (entity.amlCheck === CheckStatus.PASS && amlCheckBefore === CheckStatus.PENDING)
           await this.buyCryptoNotificationService.paymentProcessing(entity);
 
-        // create sift transaction
+        // create sift transaction (non-blocking)
         if (entity.amlCheck === CheckStatus.FAIL)
-          await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
+          void this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} AML check:`, e);
       }
@@ -290,8 +297,8 @@ export class BuyCryptoPreparationService {
         );
 
         if (entity.amlCheck === CheckStatus.FAIL) {
-          // create sift transaction
-          await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
+          // create sift transaction (non-blocking)
+          void this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
           return;
         }
 
