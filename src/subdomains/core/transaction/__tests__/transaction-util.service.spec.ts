@@ -355,5 +355,92 @@ describe('TransactionUtilService', () => {
       // Should not throw, transfer should be executed
       expect(eip7702RelayerService.executeGaslessTransfer).toHaveBeenCalled();
     });
+
+    describe('amount edge cases', () => {
+      it('should handle zero amount in dto (validation at contract level)', async () => {
+        const zeroAmountDto: GaslessDto = {
+          ...validGaslessDto,
+          amount: '0',
+        };
+
+        // Zero amount passes validation at service level
+        // Smart contract should reject, but we test the service doesn't throw
+        await service.handleGaslessInput(
+          mockSell as any,
+          mockTransactionRequest as TransactionRequest,
+          zeroAmountDto,
+        );
+
+        expect(eip7702RelayerService.executeGaslessTransfer).toHaveBeenCalledWith(
+          expect.objectContaining({ amount: '0' }),
+        );
+      });
+
+      it('should handle very large amount (18 decimals max supply)', async () => {
+        // 1 billion tokens with 18 decimals
+        const largeAmount = '1000000000000000000000000000';
+        const largeAmountDto: GaslessDto = {
+          ...validGaslessDto,
+          amount: largeAmount,
+        };
+
+        await service.handleGaslessInput(
+          mockSell as any,
+          mockTransactionRequest as TransactionRequest,
+          largeAmountDto,
+        );
+
+        expect(eip7702RelayerService.executeGaslessTransfer).toHaveBeenCalledWith(
+          expect.objectContaining({ amount: largeAmount }),
+        );
+      });
+
+      it('should handle amount with trailing zeros correctly', async () => {
+        const amountWithZeros = '100000000000000000000'; // 100 * 10^18
+        const dto: GaslessDto = {
+          ...validGaslessDto,
+          amount: amountWithZeros,
+        };
+
+        await service.handleGaslessInput(
+          mockSell as any,
+          mockTransactionRequest as TransactionRequest,
+          dto,
+        );
+
+        expect(eip7702RelayerService.executeGaslessTransfer).toHaveBeenCalledWith(
+          expect.objectContaining({ amount: amountWithZeros }),
+        );
+      });
+
+      it('should use request.amount for PayIn creation, not dto.amount', async () => {
+        // dto.amount is in wei, request.amount is in token units
+        const weiAmount = '5000000000000000000'; // 5 tokens in wei
+        const requestAmount = 5; // 5 tokens
+
+        const dto: GaslessDto = {
+          ...validGaslessDto,
+          amount: weiAmount,
+        };
+
+        const request = {
+          ...mockTransactionRequest,
+          amount: requestAmount,
+        };
+
+        await service.handleGaslessInput(mockSell as any, request as TransactionRequest, dto);
+
+        // PayIn should use request.amount (token units), not dto.amount (wei)
+        expect(payInService.createPayIn).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.any(String),
+          expect.any(Object),
+          expect.any(String),
+          expect.any(String),
+          expect.any(Number),
+          requestAmount, // Not weiAmount
+        );
+      });
+    });
   });
 });

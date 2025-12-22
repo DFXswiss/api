@@ -381,4 +381,130 @@ describe('SellService - Gasless Integration', () => {
       expect(result.isValid).toBe(false);
     });
   });
+
+  describe('confirmSell - gasless flow', () => {
+    const mockSell = createCustomSell({
+      id: 123,
+      iban: 'DE89370400440532013000',
+      active: true,
+      deposit: createCustomDeposit({
+        address: mockDepositAddress,
+        blockchains: Blockchain.ETHEREUM,
+      }),
+    });
+
+    const mockTransactionRequest = {
+      id: 456,
+      routeId: 123,
+      sourceId: 1,
+      amount: 100,
+      isValid: true,
+      isComplete: false,
+      user: createCustomUser({ id: 1, address: mockUserAddress }),
+    };
+
+    const mockPayIn = {
+      id: 789,
+      inTxId: '0xTxHash123',
+    };
+
+    const mockBuyFiat = {
+      id: 101,
+      inputAmount: 100,
+    };
+
+    const validGaslessDto = {
+      userAddress: mockUserAddress,
+      tokenAddress: '0xTokenAddress123456789012345678901234567',
+      amount: '100000000000000000000',
+      recipient: mockDepositAddress,
+      deadline: Math.floor(Date.now() / 1000) + 3600,
+      signature: {
+        v: 27,
+        r: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        s: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      },
+    };
+
+    beforeEach(() => {
+      jest.spyOn(sellRepo, 'findOne').mockResolvedValue(mockSell as any);
+      jest.spyOn(transactionUtilService, 'handleGaslessInput').mockResolvedValue(mockPayIn as any);
+      jest.spyOn(buyFiatService, 'createFromCryptoInput').mockResolvedValue(mockBuyFiat as any);
+      jest.spyOn(payInService, 'acknowledgePayIn').mockResolvedValue(undefined);
+      jest.spyOn(buyFiatService, 'extendBuyFiat').mockResolvedValue({ ...mockBuyFiat, extended: true } as any);
+    });
+
+    it('should execute gasless flow successfully', async () => {
+      const result = await service.confirmSell(mockTransactionRequest as any, { gasless: validGaslessDto });
+
+      expect(result).toBeDefined();
+      expect(transactionUtilService.handleGaslessInput).toHaveBeenCalledWith(
+        mockSell,
+        mockTransactionRequest,
+        validGaslessDto,
+      );
+      expect(buyFiatService.createFromCryptoInput).toHaveBeenCalledWith(mockPayIn, mockSell, mockTransactionRequest);
+      expect(payInService.acknowledgePayIn).toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when neither permit, gasless, nor signedTxHex provided', async () => {
+      await expect(service.confirmSell(mockTransactionRequest as any, {})).rejects.toThrow(
+        'Either permit, gasless, or signedTxHex must be provided',
+      );
+    });
+
+    it('should throw NotFoundException when sell route not found', async () => {
+      jest.spyOn(sellRepo, 'findOne').mockResolvedValue(null);
+
+      await expect(service.confirmSell(mockTransactionRequest as any, { gasless: validGaslessDto })).rejects.toThrow(
+        'Sell route not found',
+      );
+    });
+
+    it('should wrap handleGaslessInput errors in BadRequestException', async () => {
+      jest.spyOn(transactionUtilService, 'handleGaslessInput').mockRejectedValue(new Error('Token mismatch'));
+
+      await expect(service.confirmSell(mockTransactionRequest as any, { gasless: validGaslessDto })).rejects.toThrow(
+        'Failed to confirm request: Token mismatch',
+      );
+    });
+
+    it('should call handleGaslessInput with correct route and request', async () => {
+      await service.confirmSell(mockTransactionRequest as any, { gasless: validGaslessDto });
+
+      expect(transactionUtilService.handleGaslessInput).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 123, deposit: expect.objectContaining({ address: mockDepositAddress }) }),
+        expect.objectContaining({ id: 456, routeId: 123 }),
+        validGaslessDto,
+      );
+    });
+
+    it('should acknowledge payIn after creating buyFiat', async () => {
+      const callOrder: string[] = [];
+
+      jest.spyOn(buyFiatService, 'createFromCryptoInput').mockImplementation(async () => {
+        callOrder.push('createFromCryptoInput');
+        return mockBuyFiat as any;
+      });
+
+      jest.spyOn(payInService, 'acknowledgePayIn').mockImplementation(async () => {
+        callOrder.push('acknowledgePayIn');
+        return undefined;
+      });
+
+      await service.confirmSell(mockTransactionRequest as any, { gasless: validGaslessDto });
+
+      expect(callOrder).toEqual(['createFromCryptoInput', 'acknowledgePayIn']);
+    });
+
+    it('should return extended buyFiat', async () => {
+      const extendedBuyFiat = { ...mockBuyFiat, extended: true, userData: {} };
+      jest.spyOn(buyFiatService, 'extendBuyFiat').mockResolvedValue(extendedBuyFiat as any);
+
+      const result = await service.confirmSell(mockTransactionRequest as any, { gasless: validGaslessDto });
+
+      expect(result).toEqual(extendedBuyFiat);
+      expect(buyFiatService.extendBuyFiat).toHaveBeenCalledWith(mockBuyFiat);
+    });
+  });
 });
