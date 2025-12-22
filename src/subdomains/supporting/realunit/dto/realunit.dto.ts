@@ -288,20 +288,8 @@ export class RealUnitPaymentInfoDto {
   @ApiProperty({ description: 'Recipient name' })
   name: string;
 
-  @ApiProperty({ description: 'Recipient street' })
-  street: string;
-
-  @ApiPropertyOptional({ description: 'Recipient house number' })
-  number?: string;
-
-  @ApiProperty({ description: 'Recipient zip code' })
-  zip: string;
-
-  @ApiProperty({ description: 'Recipient city' })
-  city: string;
-
-  @ApiProperty({ description: 'Recipient country' })
-  country: string;
+  @ApiProperty({ description: 'Recipient address' })
+  address: string;
 
   @ApiProperty({ description: 'Amount to transfer' })
   amount: number;
