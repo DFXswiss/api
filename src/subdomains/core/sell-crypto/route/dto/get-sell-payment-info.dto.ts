@@ -64,4 +64,9 @@ export class GetSellPaymentInfoDto {
   @IsNotEmpty()
   @IsBoolean()
   exactPrice: boolean = false;
+
+  @ApiPropertyOptional({ description: 'Request gasless transaction via EIP-7702 (user signs, DFX pays gas)' })
+  @IsOptional()
+  @IsBoolean()
+  gasless?: boolean;
 }

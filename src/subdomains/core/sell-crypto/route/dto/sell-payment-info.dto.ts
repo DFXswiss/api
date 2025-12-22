@@ -8,6 +8,65 @@ import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-he
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { UnsignedTxDto } from './unsigned-tx.dto';
 
+export class Eip712DomainDto {
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  version: string;
+
+  @ApiProperty()
+  chainId: number;
+
+  @ApiProperty()
+  verifyingContract: string;
+}
+
+export class Eip712MessageDto {
+  @ApiProperty()
+  token: string;
+
+  @ApiProperty()
+  amount: string;
+
+  @ApiProperty()
+  recipient: string;
+
+  @ApiProperty()
+  nonce: number;
+
+  @ApiProperty()
+  deadline: number;
+}
+
+export class Eip712TypedDataDto {
+  @ApiProperty()
+  types: Record<string, Array<{ name: string; type: string }>>;
+
+  @ApiProperty()
+  primaryType: string;
+
+  @ApiProperty({ type: Eip712DomainDto })
+  domain: Eip712DomainDto;
+
+  @ApiProperty({ type: Eip712MessageDto })
+  message: Eip712MessageDto;
+}
+
+export class GaslessDataDto {
+  @ApiProperty({ description: 'Current nonce for the user' })
+  nonce: number;
+
+  @ApiProperty({ description: 'Signature deadline (unix timestamp)' })
+  deadline: number;
+
+  @ApiProperty({ description: 'DFX delegation contract address' })
+  delegationContract: string;
+
+  @ApiProperty({ type: Eip712TypedDataDto, description: 'EIP-712 typed data for wallet to sign' })
+  eip712Data: Eip712TypedDataDto;
+}
+
 export class BeneficiaryDto {
   @ApiProperty()
   iban: string;
@@ -106,4 +165,10 @@ export class SellPaymentInfoDto {
     description: 'Unsigned deposit transaction data (only if quote is valid and includeTx=true)',
   })
   depositTx?: UnsignedTxDto;
+
+  @ApiPropertyOptional({
+    type: GaslessDataDto,
+    description: 'EIP-7702 gasless transfer data (only if gasless=true and supported for the asset)',
+  })
+  gaslessData?: GaslessDataDto;
 }
