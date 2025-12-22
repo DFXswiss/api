@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, GetConfig } from 'src/config/config';
@@ -14,19 +14,25 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -44,6 +50,8 @@ import {
   BankDetailsDto,
   HistoricalPriceDto,
   HoldersDto,
+  RealUnitBuyDto,
+  RealUnitPaymentInfoDto,
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
@@ -70,6 +78,11 @@ export class RealUnitService {
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly http: HttpService,
+    private readonly virtualIbanService: VirtualIbanService,
+    private readonly fiatService: FiatService,
+    private readonly swissQrService: SwissQRService,
+    @Inject(forwardRef(() => BuyService))
+    private readonly buyService: BuyService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -181,6 +194,99 @@ export class RealUnitService {
       bankName: bank.name,
       currency: 'CHF',
     };
+  }
+
+  // --- Buy Payment Info Methods ---
+
+  async getPaymentInfo(user: User, dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
+    const userData = user.userData;
+    const currency = dto.currency ?? 'CHF';
+
+    // 1. KYC Level 50 required for RealUnit
+    if (userData.kycLevel < KycLevel.LEVEL_50) {
+      throw new BadRequestException('KYC Level 50 required for RealUnit');
+    }
+
+    // 2. Registration required
+    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
+    if (!hasRegistration) {
+      throw new BadRequestException('RealUnit registration required');
+    }
+
+    // 3. Allowlist check
+    const allowlistStatus = await this.blockchainService.getAllowlistStatus(user.address);
+    if (!allowlistStatus.canReceive) {
+      throw new BadRequestException('Address not on RealUnit allowlist');
+    }
+
+    // 4. Get or create Buy route for REALU
+    const realuAsset = await this.getRealuAsset();
+    const buy = await this.buyService.createBuy(user, user.address, { asset: realuAsset }, true);
+
+    // 5. Get or create vIBAN for this buy
+    let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, currency);
+    if (!virtualIban) {
+      virtualIban = await this.virtualIbanService.createForBuy(userData, buy, currency);
+    }
+
+    // 6. Calculate estimated shares
+    const sharesInfo = await this.getBrokerbotShares(dto.amount.toString());
+
+    // 7. Generate QR code
+    const bankInfo = {
+      name: userData.completeName,
+      street: userData.address.street,
+      number: userData.address.houseNumber,
+      zip: userData.address.zip,
+      city: userData.address.city,
+      country: userData.address.country?.name,
+      iban: virtualIban.iban,
+      bic: virtualIban.bank.bic,
+    };
+
+    let paymentRequest: string | undefined;
+    if (currency === 'CHF') {
+      paymentRequest = this.swissQrService.createQrCode(dto.amount, currency, undefined, bankInfo, userData);
+    } else {
+      paymentRequest = this.generateGiroCode(bankInfo, dto.amount, currency);
+    }
+
+    return {
+      iban: virtualIban.iban,
+      bic: virtualIban.bank.bic,
+      bank: virtualIban.bank.name,
+      name: bankInfo.name,
+      street: bankInfo.street,
+      number: bankInfo.number,
+      zip: bankInfo.zip,
+      city: bankInfo.city,
+      country: bankInfo.country,
+      amount: dto.amount,
+      currency,
+      estimatedShares: sharesInfo.shares,
+      pricePerShare: sharesInfo.pricePerShare,
+      paymentRequest,
+      sepaInstant: virtualIban.bank.sctInst,
+    };
+  }
+
+  private generateGiroCode(
+    bankInfo: { name: string; street: string; number?: string; zip: string; city: string; country?: string; iban: string; bic: string },
+    amount: number,
+    currency: string,
+  ): string {
+    return `
+${Config.giroCode.service}
+${Config.giroCode.version}
+${Config.giroCode.encoding}
+${Config.giroCode.transfer}
+${bankInfo.bic}
+${bankInfo.name}, ${bankInfo.street} ${bankInfo.number ?? ''}, ${bankInfo.zip} ${bankInfo.city}, ${bankInfo.country ?? ''}
+${bankInfo.iban}
+${currency}${amount}
+${Config.giroCode.char}
+${Config.giroCode.ref}
+`.trim();
   }
 
   // --- Registration Methods ---

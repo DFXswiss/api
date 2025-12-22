@@ -258,3 +258,64 @@ export class BankDetailsDto {
   @ApiProperty({ description: 'Currency (always CHF)' })
   currency: string;
 }
+
+// --- Buy Payment Info DTOs ---
+
+export class RealUnitBuyDto {
+  @ApiProperty({ description: 'Amount in fiat currency' })
+  @IsNumber()
+  @Type(() => Number)
+  amount: number;
+
+  @ApiPropertyOptional({ description: 'Currency (CHF or EUR, default: CHF)', default: 'CHF' })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+}
+
+export class RealUnitPaymentInfoDto {
+  @ApiProperty({ description: 'Personal IBAN for this asset' })
+  iban: string;
+
+  @ApiProperty({ description: 'BIC/SWIFT code' })
+  bic: string;
+
+  @ApiProperty({ description: 'Bank name' })
+  bank: string;
+
+  @ApiProperty({ description: 'Recipient name' })
+  name: string;
+
+  @ApiProperty({ description: 'Recipient street' })
+  street: string;
+
+  @ApiPropertyOptional({ description: 'Recipient house number' })
+  number?: string;
+
+  @ApiProperty({ description: 'Recipient zip code' })
+  zip: string;
+
+  @ApiProperty({ description: 'Recipient city' })
+  city: string;
+
+  @ApiProperty({ description: 'Recipient country' })
+  country: string;
+
+  @ApiProperty({ description: 'Amount to transfer' })
+  amount: number;
+
+  @ApiProperty({ description: 'Currency' })
+  currency: string;
+
+  @ApiProperty({ description: 'Estimated REALU shares to receive' })
+  estimatedShares: number;
+
+  @ApiProperty({ description: 'Current price per share in CHF' })
+  pricePerShare: string;
+
+  @ApiPropertyOptional({ description: 'QR code for payment (Swiss QR-bill or GiroCode)' })
+  paymentRequest?: string;
+
+  @ApiProperty({ description: 'Whether SEPA Instant is supported' })
+  sepaInstant: boolean;
+}
