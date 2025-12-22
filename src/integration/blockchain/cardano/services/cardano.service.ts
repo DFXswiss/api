@@ -98,4 +98,8 @@ export class CardanoService extends BlockchainService {
   async getHistory(limit: number): Promise<CardanoTransactionDto[]> {
     return this.client.getHistory(limit);
   }
+
+  async getHistoryForAddress(address: string, limit: number): Promise<CardanoTransactionDto[]> {
+    return this.client.getHistoryForAddress(address, limit);
+  }
 }

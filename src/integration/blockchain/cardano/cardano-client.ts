@@ -315,13 +315,17 @@ export class CardanoClient extends BlockchainClient {
   }
 
   async getHistory(limit: number): Promise<CardanoTransactionDto[]> {
+    return this.getHistoryForAddress(this.wallet.address, limit);
+  }
+
+  async getHistoryForAddress(address: string, limit: number): Promise<CardanoTransactionDto[]> {
     if (limit > 50) throw new Error('Max. Limit of 50 allowed');
 
     const url = Config.blockchain.cardano.cardanoApiUrl;
 
     return this.http
       .get<CardanoTransactionResponse[]>(
-        `${url}/transaction/address/${this.wallet.address}?pageSize=${limit}&offset=0`,
+        `${url}/transaction/address/${address}?pageSize=${limit}&offset=0`,
         this.httpConfig(),
       )
       .then((trs) => this.mapTransactionResponses(trs));
