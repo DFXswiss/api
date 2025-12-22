@@ -422,7 +422,13 @@ export class TransactionHelper implements OnModuleInit {
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
     const networkFeeAmount = price.convert(chargebackFee.network);
     const bankFeeAmount =
-      refundEntity.paymentMethodIn === FiatPaymentMethod.BANK ? price.convert(2 * chargebackFee.bankFixed) : 0;
+      refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
+        ? price.convert(
+            chargebackFee.bankRate * inputAmount +
+              2 * chargebackFee.bankFixed +
+              refundEntity.chargebackBankFee * 1.01,
+          )
+        : 0;
 
     const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
     if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');

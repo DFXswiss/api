@@ -111,8 +111,8 @@ describe('TransactionHelper', () => {
         !transaction.cryptoInput,
       ),
     ).resolves.toMatchObject({
-      fee: { network: 0, bank: 1.01 },
-      refundAmount: 99.99,
+      fee: { network: 0, bank: 3.01 },
+      refundAmount: 97.99,
       refundTarget: 'DE12500105170648489890',
     });
   });
@@ -140,8 +140,8 @@ describe('TransactionHelper', () => {
         !transaction.cryptoInput,
       ),
     ).resolves.toMatchObject({
-      fee: { network: 0, bank: 1.13 },
-      refundAmount: 99.87,
+      fee: { network: 0, bank: 3.01 },
+      refundAmount: 97.99,
       refundTarget: 'DE12500105170648489890',
     });
   });
