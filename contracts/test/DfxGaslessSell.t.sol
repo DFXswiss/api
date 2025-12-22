@@ -60,6 +60,24 @@ contract DfxGaslessSellTest is Test {
         return DfxGaslessSell(userEOA);
     }
 
+    // EIP-712 constants (must match contract)
+    bytes32 constant DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 constant TRANSFER_TYPEHASH =
+        keccak256("Transfer(address token,uint256 amount,address recipient,uint256 nonce,uint256 deadline)");
+    bytes32 constant NAME_HASH = keccak256("DfxGaslessSell");
+    bytes32 constant VERSION_HASH = keccak256("1");
+
+    function _domainSeparator(address verifyingContract) internal view returns (bytes32) {
+        return keccak256(abi.encode(
+            DOMAIN_TYPEHASH,
+            NAME_HASH,
+            VERSION_HASH,
+            block.chainid,
+            verifyingContract
+        ));
+    }
+
     function _signTransfer(
         address signer,
         uint256 signerKey,
@@ -69,20 +87,22 @@ contract DfxGaslessSellTest is Test {
         uint256 currentNonce,
         uint256 deadline
     ) internal view returns (uint8 v, bytes32 r, bytes32 s) {
-        bytes32 innerHash = keccak256(abi.encode(
-            signer,
+        bytes32 structHash = keccak256(abi.encode(
+            TRANSFER_TYPEHASH,
             tokenAddr,
             amount,
             recipientAddr,
             currentNonce,
-            deadline,
-            block.chainid
+            deadline
         ));
-        bytes32 hash = keccak256(abi.encodePacked(
-            "\x19Ethereum Signed Message:\n32",
-            innerHash
+
+        bytes32 digest = keccak256(abi.encodePacked(
+            "\x19\x01",
+            _domainSeparator(signer),
+            structHash
         ));
-        (v, r, s) = vm.sign(signerKey, hash);
+
+        (v, r, s) = vm.sign(signerKey, digest);
     }
 
     // =============================================================
@@ -279,20 +299,35 @@ contract DfxGaslessSellTest is Test {
     //                      VIEW FUNCTIONS
     // =============================================================
 
+    function test_DomainSeparator() public {
+        DfxGaslessSell userContract = _setupEIP7702(user);
+
+        bytes32 domainSeparator = userContract.DOMAIN_SEPARATOR();
+        bytes32 expectedDomainSeparator = _domainSeparator(user);
+
+        assertEq(domainSeparator, expectedDomainSeparator);
+    }
+
     function test_GetTransferHash() public {
         DfxGaslessSell userContract = _setupEIP7702(user);
 
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 hash = userContract.getTransferHash(address(token), 100, recipient, deadline);
 
-        bytes32 expectedHash = keccak256(abi.encode(
-            user,
+        // Build expected EIP-712 digest
+        bytes32 structHash = keccak256(abi.encode(
+            TRANSFER_TYPEHASH,
             address(token),
             100,
             recipient,
-            0,
-            deadline,
-            block.chainid
+            0,  // nonce
+            deadline
+        ));
+
+        bytes32 expectedHash = keccak256(abi.encodePacked(
+            "\x19\x01",
+            _domainSeparator(user),
+            structHash
         ));
 
         assertEq(hash, expectedHash);

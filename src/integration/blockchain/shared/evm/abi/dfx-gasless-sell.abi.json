@@ -1,6 +1,13 @@
 [
   {
     "type": "function",
+    "name": "DOMAIN_SEPARATOR",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bytes32" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "nonce",
     "inputs": [],
     "outputs": [{ "name": "", "type": "uint256" }],
