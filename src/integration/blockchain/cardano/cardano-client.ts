@@ -19,7 +19,7 @@ import {
 } from '@emurgo/cardano-serialization-lib-nodejs';
 import { ApiVersion, CardanoRosetta, Network as TatumNetwork, TatumSDK } from '@tatumio/tatum';
 import blake from 'blakejs';
-import { Config } from 'src/config/config';
+import { Config, GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
@@ -53,9 +53,11 @@ export class CardanoClient extends BlockchainClient {
   constructor(private readonly http: HttpService) {
     super();
 
-    this.wallet = CardanoWallet.createFromMnemonic(Config.blockchain.cardano.cardanoWalletSeed);
+    const config = GetConfig().blockchain.cardano;
+
+    this.wallet = CardanoWallet.createFromMnemonic(config.cardanoWalletSeed);
     this.blockFrostApi = new BlockFrostAPI({
-      projectId: Config.blockchain.cardano.cardanoBlockFrostApiKey,
+      projectId: config.cardanoBlockFrostApiKey,
       network: 'mainnet',
     });
   }
