@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
+import { Eip7702RelayerService } from 'src/integration/blockchain/shared/evm/eip7702/eip7702-relayer.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
@@ -24,7 +25,7 @@ import { CheckStatus } from '../aml/enums/check-status.enum';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { Swap } from '../buy-crypto/routes/swap/swap.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { PermitDto } from '../sell-crypto/route/dto/confirm.dto';
+import { GaslessDto, PermitDto } from '../sell-crypto/route/dto/confirm.dto';
 import { Sell } from '../sell-crypto/route/sell.entity';
 
 export type RefundValidation = {
@@ -43,6 +44,7 @@ export class TransactionUtilService {
     private readonly payInService: PayInService,
     private readonly bankAccountService: BankAccountService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
+    private readonly eip7702RelayerService: Eip7702RelayerService,
   ) {}
 
   static validateRefund(entity: BuyCrypto | BuyFiat | BankTxReturn, dto: RefundValidation): void {
@@ -194,6 +196,48 @@ export class TransactionUtilService {
       asset,
       txId,
       PayInType.SIGNED_TRANSFER,
+      blockHeight,
+      request.amount,
+    );
+  }
+
+  async handleGaslessInput(route: Sell, request: TransactionRequest, dto: GaslessDto): Promise<CryptoInput> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    // Validate recipient is a DFX-controlled address
+    if (!this.eip7702RelayerService.isRecipientAllowed(dto.recipient)) {
+      throw new BadRequestException('Invalid recipient address');
+    }
+
+    // Validate deadline hasn't passed
+    if (Math.floor(Date.now() / 1000) > dto.deadline) {
+      throw new BadRequestException('Signature deadline has passed');
+    }
+
+    // Execute gasless transfer via EIP-7702 relayer
+    const result = await this.eip7702RelayerService.executeGaslessTransfer({
+      userAddress: dto.userAddress,
+      tokenAddress: dto.tokenAddress,
+      amount: dto.amount,
+      recipient: dto.recipient,
+      deadline: dto.deadline,
+      signature: dto.signature,
+    });
+
+    if (!result.success) {
+      throw new BadRequestException(`Gasless transfer failed: ${result.error}`);
+    }
+
+    const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
+    const blockHeight = await client.getCurrentBlock();
+
+    return this.payInService.createPayIn(
+      dto.userAddress,
+      dto.recipient,
+      asset,
+      result.txHash,
+      PayInType.GASLESS_TRANSFER,
       blockHeight,
       request.amount,
     );

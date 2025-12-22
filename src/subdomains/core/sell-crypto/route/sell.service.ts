@@ -10,6 +10,8 @@ import { CronExpression } from '@nestjs/schedule';
 import { merge } from 'lodash';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Eip7702RelayerService } from 'src/integration/blockchain/shared/evm/eip7702/eip7702-relayer.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -71,6 +73,7 @@ export class SellService {
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly eip7702RelayerService: Eip7702RelayerService,
   ) {}
 
   // --- SELLS --- //
@@ -327,11 +330,14 @@ export class SellService {
       if (dto.permit) {
         type = 'permit';
         payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
+      } else if (dto.gasless) {
+        type = 'gasless';
+        payIn = await this.transactionUtilService.handleGaslessInput(route, request, dto.gasless);
       } else if (dto.signedTxHex) {
         type = 'signed transaction';
         payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
       } else {
-        throw new BadRequestException('Either permit or signedTxHex must be provided');
+        throw new BadRequestException('Either permit, gasless, or signedTxHex must be provided');
       }
 
       const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
@@ -442,7 +448,48 @@ export class SellService {
       sellDto.depositTx = await this.createDepositTx(transactionRequest, sell);
     }
 
+    // Add gasless data if requested and supported
+    if (dto.gasless && isValid && this.isGaslessSupported(dto.asset.blockchain)) {
+      sellDto.gaslessData = await this.prepareGaslessData(user.address, dto, amount);
+    }
+
     return sellDto;
+  }
+
+  private isGaslessSupported(blockchain: Blockchain): boolean {
+    // EIP-7702 is only supported on EVM chains
+    const evmChains = [
+      Blockchain.ETHEREUM,
+      Blockchain.ARBITRUM,
+      Blockchain.OPTIMISM,
+      Blockchain.POLYGON,
+      Blockchain.BASE,
+    ];
+    return evmChains.includes(blockchain);
+  }
+
+  private async prepareGaslessData(
+    userAddress: string,
+    dto: GetSellPaymentInfoDto,
+    amount: number,
+  ): Promise<SellPaymentInfoDto['gaslessData']> {
+    const amountWei = EvmUtil.toWeiAmount(amount, dto.asset.decimals).toString();
+    const recipient = this.eip7702RelayerService.getDelegationContractAddress();
+
+    const prepareResponse = await this.eip7702RelayerService.prepareGaslessTransfer({
+      userAddress,
+      tokenAddress: dto.asset.chainId,
+      amount: amountWei,
+      recipient,
+      deadlineMinutes: 60,
+    });
+
+    return {
+      nonce: prepareResponse.nonce,
+      deadline: prepareResponse.deadline,
+      delegationContract: prepareResponse.delegationContract,
+      eip712Data: prepareResponse.eip712Data,
+    };
   }
 
   async getPaymentRoutesForPublicName(publicName: string): Promise<Sell[]> {
