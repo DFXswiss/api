@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 /**
  * @title DfxGaslessSell
  * @author DFX AG
@@ -16,12 +19,9 @@ pragma solidity ^0.8.24;
  * 4. Contract verifies user signature and executes transfer
  */
 
-interface IERC20 {
-    function balanceOf(address account) external view returns (uint256);
-    function transfer(address to, uint256 amount) external returns (bool);
-}
-
 contract DfxGaslessSell {
+    using SafeERC20 for IERC20;
+
     // =============================================================
     //                           STORAGE
     // =============================================================
@@ -51,7 +51,6 @@ contract DfxGaslessSell {
     error InvalidSignature();
     error ExpiredDeadline();
     error InsufficientBalance();
-    error TransferFailed();
 
     // =============================================================
     //                      EXTERNAL FUNCTIONS
@@ -106,8 +105,7 @@ contract DfxGaslessSell {
         uint256 balance = tokenContract.balanceOf(address(this));
         if (balance < amount) revert InsufficientBalance();
 
-        bool success = tokenContract.transfer(recipient, amount);
-        if (!success) revert TransferFailed();
+        tokenContract.safeTransfer(recipient, amount);
 
         emit TokenTransferred(token, address(this), recipient, amount, currentNonce);
     }

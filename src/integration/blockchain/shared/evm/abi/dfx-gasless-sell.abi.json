@@ -57,6 +57,5 @@
   { "type": "error", "name": "InvalidAmount", "inputs": [] },
   { "type": "error", "name": "InvalidSignature", "inputs": [] },
   { "type": "error", "name": "ExpiredDeadline", "inputs": [] },
-  { "type": "error", "name": "InsufficientBalance", "inputs": [] },
-  { "type": "error", "name": "TransferFailed", "inputs": [] }
+  { "type": "error", "name": "InsufficientBalance", "inputs": [] }
 ]

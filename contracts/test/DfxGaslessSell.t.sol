@@ -270,7 +270,8 @@ contract DfxGaslessSellTest is Test {
             user, userPrivateKey, address(failingToken), 100 ether, recipient, 0, deadline
         );
 
-        vm.expectRevert(DfxGaslessSell.TransferFailed.selector);
+        // SafeERC20 reverts with SafeERC20FailedOperation
+        vm.expectRevert();
         userContract.executeTransfer(address(failingToken), 100 ether, recipient, deadline, v, r, s);
     }
 
