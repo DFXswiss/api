@@ -213,26 +213,20 @@ export class RealUnitService {
       throw new BadRequestException('RealUnit registration required');
     }
 
-    // 3. Allowlist check
-    const allowlistStatus = await this.blockchainService.getAllowlistStatus(user.address);
-    if (!allowlistStatus.canReceive) {
-      throw new BadRequestException('Address not on RealUnit allowlist');
-    }
-
-    // 4. Get or create Buy route for REALU
+    // 3. Get or create Buy route for REALU
     const realuAsset = await this.getRealuAsset();
     const buy = await this.buyService.createBuy(user, user.address, { asset: realuAsset }, true);
 
-    // 5. Get or create vIBAN for this buy
+    // 4. Get or create vIBAN for this buy
     let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, currency);
     if (!virtualIban) {
       virtualIban = await this.virtualIbanService.createForBuy(userData, buy, currency);
     }
 
-    // 6. Calculate estimated shares
+    // 5. Calculate estimated shares
     const sharesInfo = await this.getBrokerbotShares(dto.amount.toString());
 
-    // 7. Recipient info (RealUnit company address)
+    // 6. Recipient info (RealUnit company address)
     const { bank: realunitBank } = GetConfig().blockchain.realunit;
     const recipientInfo = {
       name: realunitBank.recipient,
