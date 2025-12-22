@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config, Environment } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -52,7 +52,7 @@ export class FaucetRequestService {
   }
 
   async createFaucetRequest(userId: number): Promise<FaucetRequestDto> {
-    if (Config.environment !== Environment.PRD) throw new BadRequestException('Faucet ony available on PRD');
+    if (!Config.faucetEnabled) throw new BadRequestException('Faucet is currently disabled');
 
     const user = await this.userService.getUser(userId, { userData: true, wallet: true });
     if (!user) throw new NotFoundException('User not found');
