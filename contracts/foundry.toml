@@ -1,0 +1,12 @@
+[profile.default]
+src = "."
+out = "out"
+libs = ["lib"]
+solc = "0.8.24"
+remappings = ["forge-std/=lib/forge-std/src/"]
+
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 256

@@ -1,0 +1,62 @@
+[
+  {
+    "type": "function",
+    "name": "nonce",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "executeTransfer",
+    "inputs": [
+      { "name": "token", "type": "address" },
+      { "name": "amount", "type": "uint256" },
+      { "name": "recipient", "type": "address" },
+      { "name": "deadline", "type": "uint256" },
+      { "name": "v", "type": "uint8" },
+      { "name": "r", "type": "bytes32" },
+      { "name": "s", "type": "bytes32" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getTransferHash",
+    "inputs": [
+      { "name": "token", "type": "address" },
+      { "name": "amount", "type": "uint256" },
+      { "name": "recipient", "type": "address" },
+      { "name": "deadline", "type": "uint256" }
+    ],
+    "outputs": [{ "name": "", "type": "bytes32" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "version",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "string" }],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "event",
+    "name": "TokenTransferred",
+    "inputs": [
+      { "name": "token", "type": "address", "indexed": true },
+      { "name": "from", "type": "address", "indexed": true },
+      { "name": "recipient", "type": "address", "indexed": true },
+      { "name": "amount", "type": "uint256", "indexed": false },
+      { "name": "nonce", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  { "type": "error", "name": "InvalidToken", "inputs": [] },
+  { "type": "error", "name": "InvalidRecipient", "inputs": [] },
+  { "type": "error", "name": "InvalidAmount", "inputs": [] },
+  { "type": "error", "name": "InvalidSignature", "inputs": [] },
+  { "type": "error", "name": "ExpiredDeadline", "inputs": [] },
+  { "type": "error", "name": "InsufficientBalance", "inputs": [] },
+  { "type": "error", "name": "TransferFailed", "inputs": [] }
+]
