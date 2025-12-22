@@ -51,6 +51,7 @@ export class Configuration {
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
   financeLogTotalBalanceChangeLimit = 5000;
   faucetAmount = 20; //CHF
+  faucetEnabled = process.env.FAUCET_ENABLED === 'true';
 
   defaults = {
     currency: 'EUR',
