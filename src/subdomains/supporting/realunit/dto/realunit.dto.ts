@@ -282,6 +282,12 @@ export class RealUnitBuyDto {
 }
 
 export class RealUnitPaymentInfoDto {
+  @ApiProperty({ description: 'Transaction request ID' })
+  id: number;
+
+  @ApiProperty({ description: 'Route ID' })
+  routeId: number;
+
   // Bank info
   @ApiProperty({ description: 'Personal IBAN for this asset' })
   iban: string;

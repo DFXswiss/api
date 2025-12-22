@@ -13,6 +13,8 @@ import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/r
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
@@ -33,8 +35,10 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -87,6 +91,8 @@ export class RealUnitService {
     private readonly buyService: BuyService,
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
+    @Inject(forwardRef(() => TransactionRequestService))
+    private readonly transactionRequestService: TransactionRequestService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -266,6 +272,8 @@ export class RealUnitService {
       ...recipientInfo,
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,
+      bank: virtualIban.bank.name,
+      sepaInstant: false,
     };
 
     const paymentRequest = isValid
@@ -274,7 +282,9 @@ export class RealUnitService {
         : this.generateGiroCode(bankInfo, amount, currencyName)
       : undefined;
 
-    return {
+    const response: RealUnitPaymentInfoDto = {
+      id: 0,
+      routeId: buy.id,
       // Bank info
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,
@@ -301,6 +311,43 @@ export class RealUnitService {
       isValid,
       error,
     };
+
+    // Create TransactionRequest for tracking
+    const request = {
+      currency,
+      asset: realuAsset,
+      amount: dto.amount,
+      paymentMethod: FiatPaymentMethod.BANK,
+      exactPrice: false,
+    };
+
+    const buyResponse = {
+      routeId: buy.id,
+      amount,
+      estimatedAmount,
+      exchangeRate,
+      rate,
+      paymentRequest,
+      isValid,
+      error,
+      exactPrice: false,
+      fees: feeSource,
+      currency: FiatDtoMapper.toDto(currency),
+      asset: AssetDtoMapper.toDto(realuAsset),
+    };
+
+    const transactionRequest = await this.transactionRequestService.create(
+      TransactionRequestType.BUY,
+      request as any,
+      buyResponse as any,
+      user.id,
+    );
+
+    if (transactionRequest) {
+      response.id = transactionRequest.id;
+    }
+
+    return response;
   }
 
   private generateGiroCode(
