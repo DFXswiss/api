@@ -330,6 +330,12 @@ export class RealUnitPaymentInfoDto {
   @ApiProperty({ description: 'Maximum volume in source currency' })
   maxVolume: number;
 
+  @ApiProperty({ description: 'Minimum volume in target asset' })
+  minVolumeTarget: number;
+
+  @ApiProperty({ description: 'Maximum volume in target asset' })
+  maxVolumeTarget: number;
+
   // Rate info
   @ApiProperty({ description: 'Exchange rate in source/target' })
   exchangeRate: number;

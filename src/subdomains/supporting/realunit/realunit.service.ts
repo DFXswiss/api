@@ -232,6 +232,8 @@ export class RealUnitService {
     const {
       minVolume,
       maxVolume,
+      minVolumeTarget,
+      maxVolumeTarget,
       exchangeRate,
       rate,
       estimatedAmount,
@@ -301,6 +303,8 @@ export class RealUnitService {
       fees: feeSource,
       minVolume,
       maxVolume,
+      minVolumeTarget,
+      maxVolumeTarget,
       // Rate info
       exchangeRate,
       rate,
