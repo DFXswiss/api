@@ -19,7 +19,7 @@ import {
 } from '@emurgo/cardano-serialization-lib-nodejs';
 import { ApiVersion, CardanoRosetta, Network as TatumNetwork, TatumSDK } from '@tatumio/tatum';
 import blake from 'blakejs';
-import { Config, GetConfig } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
@@ -44,7 +44,7 @@ export class CardanoClient extends BlockchainClient {
   private readonly networkIdentifier = { blockchain: 'cardano', network: 'mainnet' };
 
   private tatumSdk: CardanoRosetta;
-  private readonly blockFrostApi: BlockFrostAPI;
+  private blockFrostApi: BlockFrostAPI;
 
   private readonly networkParameterCache = new AsyncCache<NetworkParameterStaticInfo>(
     CacheItemResetPeriod.EVERY_24_HOURS,
@@ -53,13 +53,7 @@ export class CardanoClient extends BlockchainClient {
   constructor(private readonly http: HttpService) {
     super();
 
-    const config = GetConfig().blockchain.cardano;
-
-    this.wallet = CardanoWallet.createFromMnemonic(config.cardanoWalletSeed);
-    this.blockFrostApi = new BlockFrostAPI({
-      projectId: config.cardanoBlockFrostApiKey,
-      network: 'mainnet',
-    });
+    this.wallet = CardanoWallet.createFromMnemonic(Config.blockchain.cardano.cardanoWalletSeed);
   }
 
   get walletAddress(): string {
@@ -144,9 +138,8 @@ export class CardanoClient extends BlockchainClient {
   }
 
   private async estimateGasCost(maxTxSize: number): Promise<number> {
-    const staticParameters = await this.networkParameterCache.get('static', () =>
-      this.blockFrostApi.epochsLatestParameters(),
-    );
+    const blockFrostApi = this.getBlockFrostAPI();
+    const staticParameters = await this.networkParameterCache.get('static', () => blockFrostApi.epochsLatestParameters());
     const gasCost = maxTxSize * staticParameters.min_fee_a + staticParameters.min_fee_b;
     return Util.round(CardanoUtil.fromLovelaceAmount(gasCost), 6);
   }
@@ -169,7 +162,8 @@ export class CardanoClient extends BlockchainClient {
 
     const signedTransactionHex = await this.createSignedTransactionBlockfrost(wallet, toAddress, amount);
 
-    return this.blockFrostApi.txSubmit(signedTransactionHex);
+    const blockFrostApi = this.getBlockFrostAPI();
+    return blockFrostApi.txSubmit(signedTransactionHex);
   }
 
   private async createSignedTransactionBlockfrost(
@@ -200,7 +194,8 @@ export class CardanoClient extends BlockchainClient {
   }
 
   private async createTransactionBuilder(): Promise<TransactionBuilder> {
-    const parameters = await this.blockFrostApi.epochsLatestParameters();
+    const blockFrostApi = this.getBlockFrostAPI();
+    const parameters = await blockFrostApi.epochsLatestParameters();
 
     return TransactionBuilder.new(
       TransactionBuilderConfigBuilder.new()
@@ -222,7 +217,8 @@ export class CardanoClient extends BlockchainClient {
   private async createInputsBuilder(wallet: CardanoWallet): Promise<TxInputsBuilder> {
     const inputsBuilder = TxInputsBuilder.new();
 
-    const utxos = await this.blockFrostApi.addressesUtxos(wallet.address);
+    const blockFrostApi = this.getBlockFrostAPI();
+    const utxos = await blockFrostApi.addressesUtxos(wallet.address);
 
     utxos.forEach((utxo) => {
       const input = TransactionInput.new(
@@ -272,7 +268,8 @@ export class CardanoClient extends BlockchainClient {
 
   async sendSignedTransaction(tx: string): Promise<BlockchainSignedTransactionResponse> {
     try {
-      const txHash = await this.blockFrostApi.txSubmit(tx);
+      const blockFrostApi = this.getBlockFrostAPI();
+      const txHash = await blockFrostApi.txSubmit(tx);
 
       return {
         hash: txHash,
@@ -348,6 +345,17 @@ export class CardanoClient extends BlockchainClient {
     }
 
     return this.tatumSdk;
+  }
+
+  private getBlockFrostAPI(): BlockFrostAPI {
+    if (!this.blockFrostApi) {
+      this.blockFrostApi = new BlockFrostAPI({
+        projectId: Config.blockchain.cardano.cardanoBlockFrostApiKey,
+        network: 'mainnet',
+      });
+    }
+
+    return this.blockFrostApi;
   }
 
   private httpConfig(): HttpRequestConfig {
