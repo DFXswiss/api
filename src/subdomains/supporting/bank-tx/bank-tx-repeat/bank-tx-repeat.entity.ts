@@ -80,7 +80,7 @@ export class BankTxRepeat extends IEntity {
     }
   }
 
-  pendingOutputAmount(_asset: Asset, _yapealIbans?: string[]): number {
+  pendingOutputAmount(_: Asset): number {
     return 0;
   }
 }

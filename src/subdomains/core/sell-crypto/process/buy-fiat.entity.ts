@@ -1,5 +1,4 @@
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -12,6 +11,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -480,16 +480,11 @@ export class BuyFiat extends IEntity {
     return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
   }
 
-  pendingOutputAmount(asset: Asset, yapealIbans?: string[]): number {
+  pendingOutputAmount(asset: Asset): number {
     if (!this.outputAmount || asset.dexName !== this.sell.fiat.name) return 0;
 
-    // Compare bank clearing number (positions 4-8 in Swiss IBAN, e.g. "83019" for Yapeal)
-    const isYapeal = yapealIbans?.some(
-      (iban) => this.fiatOutput?.accountIban?.substring(4, 9) === iban.substring(4, 9),
-    );
-    if (!isYapeal) return 0;
-
-    return asset.blockchain === Blockchain.YAPEAL ? this.outputAmount : 0;
+    const isYapeal = this.fiatOutput?.bank?.name === IbanBankName.YAPEAL;
+    return isYapeal ? 0 : this.outputAmount;
   }
 
   get feeAmountChf(): number {
