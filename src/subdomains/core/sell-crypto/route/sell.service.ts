@@ -357,7 +357,7 @@ export class SellService {
       return await client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
     } catch (e) {
       this.logger.warn(`Failed to create deposit TX for sell request ${request.id}:`, e);
-      throw new BadRequestException(`Failed to create deposit transaction: ${e.message}`);
+      throw new BadRequestException(`Failed to create deposit transaction: ${e.reason ?? e.message}`);
     }
   }
 
