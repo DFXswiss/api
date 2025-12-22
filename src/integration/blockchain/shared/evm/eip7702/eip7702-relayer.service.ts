@@ -27,17 +27,19 @@ export class Eip7702RelayerService {
     private readonly http: HttpService,
     private readonly alchemyService: AlchemyService,
   ) {
-    const config = GetConfig().blockchain.ethereum;
-    const url = `${config.ethGatewayUrl}/${config.ethApiKey ?? ''}`;
+    const { ethereum, gasless } = GetConfig().blockchain;
+    const url = `${ethereum.ethGatewayUrl}/${ethereum.ethApiKey ?? ''}`;
 
     this.provider = new ethers.providers.JsonRpcProvider(url);
-    this.relayerWallet = new ethers.Wallet(config.ethWalletPrivateKey, this.provider);
-    this.chainId = config.ethChainId;
+    this.chainId = ethereum.ethChainId;
 
-    // TODO: Add to config
-    this.delegationContractAddress = process.env.EIP7702_DELEGATION_CONTRACT ?? '';
+    // Use dedicated relayer key if configured, otherwise fall back to ETH wallet
+    const relayerKey = gasless.relayerPrivateKey || ethereum.ethWalletPrivateKey;
+    this.relayerWallet = new ethers.Wallet(relayerKey, this.provider);
+
+    this.delegationContractAddress = gasless.delegationContractAddress ?? '';
     this.allowedRecipients = new Set(
-      (process.env.EIP7702_ALLOWED_RECIPIENTS ?? '').toLowerCase().split(',').filter(Boolean),
+      gasless.allowedRecipients.map((r) => r.toLowerCase()),
     );
   }
 

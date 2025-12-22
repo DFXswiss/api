@@ -905,6 +905,11 @@ export class Configuration {
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
     },
+    gasless: {
+      delegationContractAddress: process.env.EIP7702_DELEGATION_CONTRACT,
+      allowedRecipients: process.env.EIP7702_ALLOWED_RECIPIENTS?.split(',').filter(Boolean) ?? [],
+      relayerPrivateKey: process.env.EIP7702_RELAYER_PRIVATE_KEY,
+    },
   };
 
   payIn = {
