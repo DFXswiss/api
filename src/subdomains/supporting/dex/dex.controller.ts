@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
@@ -26,7 +27,7 @@ export class DexController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async checkLiquidity(@Query() dto: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
-    if (process.env.ENVIRONMENT === 'test') {
+    if (Config.environment !== Environment.PRD) {
       return this.dexService.checkLiquidity(dto);
     }
   }
@@ -36,7 +37,7 @@ export class DexController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async reserveLiquidity(@Body() dto: ReserveLiquidityRequest): Promise<number> {
-    if (process.env.ENVIRONMENT === 'test') {
+    if (Config.environment !== Environment.PRD) {
       return this.dexService.reserveLiquidity(dto);
     }
   }
@@ -46,7 +47,7 @@ export class DexController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async purchaseLiquidity(@Body() dto: PurchaseLiquidityRequest): Promise<void> {
-    if (process.env.ENVIRONMENT === 'test') {
+    if (Config.environment !== Environment.PRD) {
       return this.dexService.purchaseLiquidity(dto);
     }
   }
@@ -56,7 +57,7 @@ export class DexController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async transferLiquidity(@Body() dto: TransferRequest): Promise<string> {
-    if (process.env.ENVIRONMENT === 'test') {
+    if (Config.environment !== Environment.PRD) {
       return this.dexService.transferLiquidity(dto);
     }
   }
@@ -69,7 +70,7 @@ export class DexController {
     @Query('context') context: LiquidityOrderContext,
     @Query('correlationId') correlationId: string,
   ): Promise<LiquidityTransactionResult> {
-    if (process.env.ENVIRONMENT === 'test') {
+    if (Config.environment !== Environment.PRD) {
       return this.dexService.fetchLiquidityTransactionResult(context, correlationId);
     }
   }
@@ -82,7 +83,7 @@ export class DexController {
     @Query('transferTxId') transferTxId: string,
     @Query('blockchain') blockchain: Blockchain,
   ): Promise<boolean> {
-    if (process.env.ENVIRONMENT === 'test') {
+    if (Config.environment !== Environment.PRD) {
       return this.dexService.checkTransferCompletion(transferTxId, blockchain);
     }
   }
@@ -95,7 +96,7 @@ export class DexController {
     @Query('context') context: LiquidityOrderContext,
     @Query('correlationId') correlationId: string,
   ): Promise<void> {
-    if (process.env.ENVIRONMENT === 'test') {
+    if (Config.environment !== Environment.PRD) {
       return this.dexService.completeOrders(context, correlationId);
     }
   }
