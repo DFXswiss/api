@@ -481,10 +481,12 @@ export class BuyFiat extends IEntity {
   }
 
   pendingOutputAmount(asset: Asset): number {
-    if (!this.outputAmount || asset.dexName !== this.sell.fiat.name) return 0;
-
-    const isYapeal = this.fiatOutput?.bank?.name === IbanBankName.YAPEAL;
-    return isYapeal ? 0 : this.outputAmount;
+    return this.outputAmount &&
+      asset.dexName === this.sell.fiat.name &&
+      asset.bank?.id === this.fiatOutput?.bank?.id &&
+      this.fiatOutput?.bank?.name !== IbanBankName.YAPEAL
+      ? this.outputAmount
+      : 0;
   }
 
   get feeAmountChf(): number {
