@@ -234,12 +234,12 @@ export class RealUnitService {
 
     // 7. Generate QR code
     const bankInfo = {
-      name: userData.completeName,
-      street: userData.address.street,
-      number: userData.address.houseNumber,
-      zip: userData.address.zip,
-      city: userData.address.city,
-      country: userData.address.country?.name,
+      name: 'RealUnit Schweiz AG',
+      street: 'Schochenmühlestrasse',
+      number: '6',
+      zip: '6340',
+      city: 'Baar',
+      country: 'Switzerland',
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,
     };
