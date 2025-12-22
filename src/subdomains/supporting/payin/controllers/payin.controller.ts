@@ -6,14 +6,13 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { CryptoInput } from '../entities/crypto-input.entity';
-import { PayInEntry, PollAddress } from '../interfaces';
-import { PayInCardanoService } from '../services/payin-cardano.service';
+import { DepositAddress, PayInEntry } from '../interfaces';
 import { PayInService } from '../services/payin.service';
 
 @ApiTags('Pay-In')
 @Controller('payIn')
 export class PayInController {
-  constructor(private readonly payInService: PayInService, private readonly payInCardanoService: PayInCardanoService) {}
+  constructor(private readonly payInService: PayInService) {}
 
   @Post()
   @ApiBearerAuth()
@@ -23,11 +22,11 @@ export class PayInController {
     return this.payInService.createPayIns([payIn]);
   }
 
-  @Post('pollAddress')
+  @Post('poll')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async pollAddress(@Body() pollAddress: PollAddress): Promise<void> {
-    return this.payInCardanoService.pollAddress(BlockchainAddress.create(pollAddress.address, pollAddress.blockchain));
+  async pollAddress(@Body() pollAddress: DepositAddress): Promise<void> {
+    return this.payInService.pollAddress(BlockchainAddress.create(pollAddress.address, pollAddress.blockchain));
   }
 }

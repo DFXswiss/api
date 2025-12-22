@@ -3,16 +3,10 @@ import { CardanoTransactionDto } from 'src/integration/blockchain/cardano/dto/ca
 import { CardanoService } from 'src/integration/blockchain/cardano/services/cardano.service';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
-import { CardanoStrategy } from '../strategies/register/impl/cardano.strategy';
 
 @Injectable()
 export class PayInCardanoService {
-  constructor(
-    private readonly cardanoService: CardanoService,
-    private readonly registerStrategyRegistry: RegisterStrategyRegistry,
-  ) {}
+  constructor(private readonly cardanoService: CardanoService) {}
 
   getWalletAddress() {
     return this.cardanoService.getWalletAddress();
@@ -48,10 +42,5 @@ export class PayInCardanoService {
 
   async getHistoryForAddress(address: string, limit: number): Promise<CardanoTransactionDto[]> {
     return this.cardanoService.getHistoryForAddress(address, limit);
-  }
-
-  async pollAddress(address: BlockchainAddress): Promise<void> {
-    const registerStrategy = this.registerStrategyRegistry.get(address.blockchain) as CardanoStrategy;
-    return registerStrategy.pollAddress(address);
   }
 }
