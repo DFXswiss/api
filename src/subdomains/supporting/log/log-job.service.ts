@@ -90,7 +90,7 @@ export class LogJobService {
 
       // assets
       const assets = await this.assetService
-        .getAssetsWith({ balance: true })
+        .getAssetsWith({ balance: true, bank: true })
         .then((l) => l.filter((a) => ![AssetType.CUSTOM, AssetType.PRESALE].includes(a.type)));
 
       // asset log
