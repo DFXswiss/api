@@ -371,7 +371,7 @@ export class KycStep extends IEntity {
         kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
         ipCountry: identResultData.data.ipCountry,
-        country: identResultData.data.fixedInfo?.country ?? identResultData.data.fixedInfo?.addresses?.[0]?.country,
+        country: identResultData.data.fixedInfo?.country,
       };
     } else if (this.isManual) {
       const identResultData = this.getResult<ManualIdentResult>();

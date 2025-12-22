@@ -65,7 +65,6 @@ export interface SumSubDataResult {
     lastName?: string;
     lastNameEn?: string;
     country?: string;
-    addresses?: { country?: string }[];
   };
   email?: string;
   phone?: string;
