@@ -230,6 +230,7 @@ export class RealUnitService {
     // 4. Get currency and calculate fees/rates
     const currency = await this.fiatService.getFiatByName(currencyName);
     const {
+      timestamp,
       minVolume,
       maxVolume,
       minVolumeTarget,
@@ -287,6 +288,7 @@ export class RealUnitService {
     const response: RealUnitPaymentInfoDto = {
       id: 0,
       routeId: buy.id,
+      timestamp,
       // Bank info
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,

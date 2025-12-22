@@ -288,6 +288,9 @@ export class RealUnitPaymentInfoDto {
   @ApiProperty({ description: 'Route ID' })
   routeId: number;
 
+  @ApiProperty({ description: 'Price timestamp' })
+  timestamp: Date;
+
   // Bank info
   @ApiProperty({ description: 'Personal IBAN for this asset' })
   iban: string;
