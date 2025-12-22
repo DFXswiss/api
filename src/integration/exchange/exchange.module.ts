@@ -9,6 +9,7 @@ import { BinanceService } from './services/binance.service';
 import { BitstampService } from './services/bitstamp.service';
 import { ExchangeRegistryService } from './services/exchange-registry.service';
 import { ExchangeTxService } from './services/exchange-tx.service';
+import { ExchangeWebSocketService } from './services/exchange-websocket.service';
 import { KrakenService } from './services/kraken.service';
 import { KucoinService } from './services/kucoin.service';
 import { MexcService } from './services/mexc.service';
@@ -30,6 +31,7 @@ import { XtService } from './services/xt.service';
     XtService,
     MexcService,
     ScryptService,
+    ExchangeWebSocketService,
     // P2BService,
   ],
   exports: [
@@ -42,6 +44,7 @@ import { XtService } from './services/xt.service';
     XtService,
     MexcService,
     ScryptService,
+    ExchangeWebSocketService,
   ],
 })
 export class ExchangeModule {}
