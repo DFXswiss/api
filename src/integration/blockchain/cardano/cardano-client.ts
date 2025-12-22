@@ -44,7 +44,7 @@ export class CardanoClient extends BlockchainClient {
   private readonly networkIdentifier = { blockchain: 'cardano', network: 'mainnet' };
 
   private tatumSdk: CardanoRosetta;
-  private blockfrostApi: BlockFrostAPI;
+  private readonly blockFrostApi: BlockFrostAPI;
 
   private readonly networkParameterCache = new AsyncCache<NetworkParameterStaticInfo>(
     CacheItemResetPeriod.EVERY_24_HOURS,
@@ -54,6 +54,10 @@ export class CardanoClient extends BlockchainClient {
     super();
 
     this.wallet = CardanoWallet.createFromMnemonic(Config.blockchain.cardano.cardanoWalletSeed);
+    this.blockFrostApi = new BlockFrostAPI({
+      projectId: Config.blockchain.cardano.cardanoBlockFrostApiKey,
+      network: 'mainnet',
+    });
   }
 
   get walletAddress(): string {
@@ -130,26 +134,18 @@ export class CardanoClient extends BlockchainClient {
   }
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const maxTxSize = 400;
-
-    const staticParameters = await this.networkParameterCache.get('static', () => this.getNetworkStaticParameters());
-    const feePerByte = staticParameters.min_fee_a;
-    const fixFee = staticParameters.min_fee_b;
-
-    const gasCost = maxTxSize * feePerByte + fixFee;
-
-    return Util.round(CardanoUtil.fromLovelaceAmount(gasCost), 6);
+    return this.estimateGasCost(400);
   }
 
   async getCurrentGasCostForTokenTransaction(_token: Asset): Promise<number> {
-    const maxTxSize = 600;
+    return this.estimateGasCost(600);
+  }
 
-    const staticParameters = await this.networkParameterCache.get('static', () => this.getNetworkStaticParameters());
-    const feePerByte = staticParameters.min_fee_a;
-    const fixFee = staticParameters.min_fee_b;
-
-    const gasCost = maxTxSize * feePerByte + fixFee;
-
+  private async estimateGasCost(maxTxSize: number): Promise<number> {
+    const staticParameters = await this.networkParameterCache.get('static', () =>
+      this.blockFrostApi.epochsLatestParameters(),
+    );
+    const gasCost = maxTxSize * staticParameters.min_fee_a + staticParameters.min_fee_b;
     return Util.round(CardanoUtil.fromLovelaceAmount(gasCost), 6);
   }
 
@@ -171,8 +167,7 @@ export class CardanoClient extends BlockchainClient {
 
     const signedTransactionHex = await this.createSignedTransactionBlockfrost(wallet, toAddress, amount);
 
-    const blockfrostApi = this.getBlockfrostAPI();
-    return blockfrostApi.txSubmit(signedTransactionHex);
+    return this.blockFrostApi.txSubmit(signedTransactionHex);
   }
 
   private async createSignedTransactionBlockfrost(
@@ -203,8 +198,7 @@ export class CardanoClient extends BlockchainClient {
   }
 
   private async createTransactionBuilder(): Promise<TransactionBuilder> {
-    const blockfrostApi = this.getBlockfrostAPI();
-    const parameters = await blockfrostApi.epochsLatestParameters();
+    const parameters = await this.blockFrostApi.epochsLatestParameters();
 
     return TransactionBuilder.new(
       TransactionBuilderConfigBuilder.new()
@@ -223,16 +217,10 @@ export class CardanoClient extends BlockchainClient {
     );
   }
 
-  private async getNetworkStaticParameters(): Promise<NetworkParameterStaticInfo> {
-    const blockfrostApi = this.getBlockfrostAPI();
-    return blockfrostApi.epochsLatestParameters();
-  }
-
   private async createInputsBuilder(wallet: CardanoWallet): Promise<TxInputsBuilder> {
     const inputsBuilder = TxInputsBuilder.new();
 
-    const blockfrostApi = this.getBlockfrostAPI();
-    const utxos = await blockfrostApi.addressesUtxos(wallet.address);
+    const utxos = await this.blockFrostApi.addressesUtxos(wallet.address);
 
     utxos.forEach((utxo) => {
       const input = TransactionInput.new(
@@ -282,8 +270,7 @@ export class CardanoClient extends BlockchainClient {
 
   async sendSignedTransaction(tx: string): Promise<BlockchainSignedTransactionResponse> {
     try {
-      const blockfrostApi = this.getBlockfrostAPI();
-      const txHash = await blockfrostApi.txSubmit(tx);
+      const txHash = await this.blockFrostApi.txSubmit(tx);
 
       return {
         hash: txHash,
@@ -306,12 +293,10 @@ export class CardanoClient extends BlockchainClient {
   async getTransaction(txHash: string): Promise<CardanoTransactionDto> {
     const url = Config.blockchain.cardano.cardanoApiUrl;
 
-    const xxx = await this.http.get<CardanoTransactionResponse>(`${url}/transaction/${txHash}`, this.httpConfig());
-    await this.getBlockInfo(xxx.block.hash);
-
     return this.http
       .get<CardanoTransactionResponse>(`${url}/transaction/${txHash}`, this.httpConfig())
-      .then((tr) => this.mapTransactionResponse(tr));
+      .then((r) => this.mapTransactionResponses([r]))
+      .then((l) => l[0]);
   }
 
   async getHistory(limit: number): Promise<CardanoTransactionDto[]> {
@@ -334,22 +319,15 @@ export class CardanoClient extends BlockchainClient {
   private async mapTransactionResponses(
     transactionResponses: CardanoTransactionResponse[],
   ): Promise<CardanoTransactionDto[]> {
-    const result: CardanoTransactionDto[] = [];
+    // fetch all block timestamps
+    const blockHashes = [...new Set(transactionResponses.map((tr) => tr.block.hash))];
+    const blockInfos = await Promise.all(blockHashes.map((hash) => this.getBlockInfo(hash)));
+    const blockTimestampMap = new Map(blockInfos.map((block) => [block.hash, new Date(block.forgedAt).getTime()]));
 
-    for (const transactionResponse of transactionResponses) {
-      result.push(await this.mapTransactionResponse(transactionResponse));
-    }
-
-    return result;
-  }
-
-  private async mapTransactionResponse(
-    transactionResponse: CardanoTransactionResponse,
-  ): Promise<CardanoTransactionDto> {
-    const blockInfo = await this.getBlockInfo(transactionResponse.block.hash);
-    transactionResponse.block.blocktimeMillis = new Date(blockInfo.forgedAt).getTime();
-
-    return CardanoTransactionMapper.toTransactionDto(transactionResponse, this.wallet.address);
+    return transactionResponses.map((tr) => {
+      tr.block.blocktimeMillis = blockTimestampMap.get(tr.block.hash);
+      return CardanoTransactionMapper.toTransactionDto(tr, this.wallet.address);
+    });
   }
 
   private async getBlockInfo(blockHash: string): Promise<CardanoBlockResponse> {
@@ -368,17 +346,6 @@ export class CardanoClient extends BlockchainClient {
     }
 
     return this.tatumSdk;
-  }
-
-  private getBlockfrostAPI(): BlockFrostAPI {
-    if (!this.blockfrostApi) {
-      this.blockfrostApi = new BlockFrostAPI({
-        projectId: Config.blockchain.cardano.cardanoBlockfrostApiKey,
-        network: 'mainnet',
-      });
-    }
-
-    return this.blockfrostApi;
   }
 
   private httpConfig(): HttpRequestConfig {

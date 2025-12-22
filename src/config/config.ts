@@ -856,7 +856,7 @@ export class Configuration {
       cardanoWalletSeed: process.env.CARDANO_WALLET_SEED,
       cardanoApiUrl: process.env.CARDANO_API_URL,
       cardanoTatumApiKey: process.env.TATUM_API_KEY,
-      cardanoBlockfrostApiKey: process.env.BLOCKFROST_API_KEY,
+      cardanoBlockFrostApiKey: process.env.BLOCKFROST_API_KEY,
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.cardano.cardanoWalletSeed,
