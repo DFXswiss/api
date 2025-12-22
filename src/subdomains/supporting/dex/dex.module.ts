@@ -21,6 +21,7 @@ import { DexPolygonService } from './services/dex-polygon.service';
 import { DexSepoliaService } from './services/dex-sepolia.service';
 import { DexSolanaService } from './services/dex-solana.service';
 import { DexTronService } from './services/dex-tron.service';
+import { DexCardanoService } from './services/dex-cardano.service';
 import { DexZanoService } from './services/dex-zano.service';
 import { DexService } from './services/dex.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyCL } from './strategies/check-liquidity/impl/arbitrum-coin.strategy';
@@ -119,6 +120,7 @@ import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/
 import { SepoliaStrategy as SepoliaStrategyS } from './strategies/supplementary/impl/sepolia.strategy';
 import { SolanaStrategy as SolanaStrategyS } from './strategies/supplementary/impl/solana.strategy';
 import { TronStrategy as TronStrategyS } from './strategies/supplementary/impl/tron.strategy';
+import { CardanoStrategy as CardanoStrategyS } from './strategies/supplementary/impl/cardano.strategy';
 import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/zano.strategy';
 
 @Module({
@@ -143,6 +145,7 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     DexZanoService,
     DexSolanaService,
     DexTronService,
+    DexCardanoService,
     CheckLiquidityStrategyRegistry,
     PurchaseLiquidityStrategyRegistry,
     SellLiquidityStrategyRegistry,
@@ -240,6 +243,7 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     SolanaStrategyS,
     GnosisStrategyS,
     TronStrategyS,
+    CardanoStrategyS,
   ],
   exports: [DexService],
 })

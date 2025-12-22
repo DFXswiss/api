@@ -114,10 +114,6 @@ export class SolanaClient extends BlockchainClient {
     return false;
   }
 
-  async getToken(asset: Asset): Promise<BlockchainToken> {
-    return this.getTokenByAddress(asset.chainId);
-  }
-
   private async getTokenByAddress(address: string): Promise<BlockchainToken> {
     return this.tokens.get(address, async () => {
       const mintAccount = await SolanaToken.getMint(this.connection, new Solana.PublicKey(address));

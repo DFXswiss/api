@@ -18,6 +18,7 @@ import { PayoutPolygonService } from '../../../services/payout-polygon.service';
 import { PayoutSolanaService } from '../../../services/payout-solana.service';
 import { PayoutTronService } from '../../../services/payout-tron.service';
 import { PayoutZanoService } from '../../../services/payout-zano.service';
+import { PayoutCardanoService } from '../../../services/payout-cardano.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -42,6 +43,8 @@ import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
 import { ZanoCoinStrategy } from '../impl/zano-coin.strategy';
 import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
+import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
+import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
 
 describe('PayoutStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
@@ -67,6 +70,8 @@ describe('PayoutStrategyRegistry', () => {
   let solanaToken: SolanaTokenStrategy;
   let tronCoin: TronCoinStrategy;
   let tronToken: TronTokenStrategy;
+  let cardanoCoin: CardanoCoinStrategy;
+  let cardanoToken: CardanoTokenStrategy;
 
   let registry: PayoutStrategyRegistryWrapper;
 
@@ -167,6 +172,16 @@ describe('PayoutStrategyRegistry', () => {
     );
     tronCoin = new TronCoinStrategy(mock<PayoutTronService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
     tronToken = new TronTokenStrategy(mock<PayoutTronService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
+    cardanoCoin = new CardanoCoinStrategy(
+      mock<PayoutCardanoService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    cardanoToken = new CardanoTokenStrategy(
+      mock<PayoutCardanoService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
 
     registry = new PayoutStrategyRegistryWrapper(
       bitcoin,
@@ -192,6 +207,8 @@ describe('PayoutStrategyRegistry', () => {
       solanaToken,
       tronCoin,
       tronToken,
+      cardanoCoin,
+      cardanoToken,
     );
   });
 
@@ -381,6 +398,22 @@ describe('PayoutStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(TronTokenStrategy);
       });
 
+      it('gets CARDANO_COIN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.CARDANO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(CardanoCoinStrategy);
+      });
+
+      it('gets CARDANO_TOKEN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.CARDANO, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(CardanoTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPayoutStrategy(
@@ -419,6 +452,8 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     solanaToken: SolanaTokenStrategy,
     tronCoin: TronCoinStrategy,
     tronToken: TronTokenStrategy,
+    cardanoCoin: CardanoCoinStrategy,
+    cardanoToken: CardanoTokenStrategy,
   ) {
     super();
 
@@ -446,5 +481,7 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     this.add({ blockchain: Blockchain.SOLANA, assetType: AssetType.TOKEN }, solanaToken);
     this.add({ blockchain: Blockchain.TRON, assetType: AssetType.COIN }, tronCoin);
     this.add({ blockchain: Blockchain.TRON, assetType: AssetType.TOKEN }, tronToken);
+    this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.COIN }, cardanoCoin);
+    this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.TOKEN }, cardanoToken);
   }
 }

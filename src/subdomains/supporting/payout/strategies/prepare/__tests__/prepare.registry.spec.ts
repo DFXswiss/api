@@ -8,6 +8,7 @@ import { BaseStrategy } from '../impl/base.strategy';
 import { PrepareStrategyRegistry } from '../impl/base/prepare.strategy-registry';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscStrategy } from '../impl/bsc.strategy';
+import { CardanoStrategy } from '../impl/cardano.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
 import { GnosisStrategy } from '../impl/gnosis.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
@@ -32,6 +33,7 @@ describe('PrepareStrategyRegistry', () => {
   let gnosisStrategy: GnosisStrategy;
   let solanaStrategy: SolanaStrategy;
   let tronStrategy: TronStrategy;
+  let cardanoStrategy: CardanoStrategy;
 
   let registry: PrepareStrategyRegistryWrapper;
 
@@ -50,6 +52,7 @@ describe('PrepareStrategyRegistry', () => {
     gnosisStrategy = new GnosisStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     solanaStrategy = new SolanaStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     tronStrategy = new TronStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    cardanoStrategy = new CardanoStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
 
     registry = new PrepareStrategyRegistryWrapper(
       bitcoinStrategy,
@@ -65,6 +68,7 @@ describe('PrepareStrategyRegistry', () => {
       gnosisStrategy,
       solanaStrategy,
       tronStrategy,
+      cardanoStrategy,
     );
   });
 
@@ -148,6 +152,12 @@ describe('PrepareStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(TronStrategy);
       });
 
+      it('gets CARDANO strategy for CARDANO', () => {
+        const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.CARDANO }));
+
+        expect(strategy).toBeInstanceOf(CardanoStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPrepareStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -174,6 +184,7 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     gnosisStrategy: GnosisStrategy,
     solanaStrategy: SolanaStrategy,
     tronStrategy: TronStrategy,
+    cardanoStrategy: CardanoStrategy,
   ) {
     super();
 
@@ -191,5 +202,6 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     this.add(Blockchain.GNOSIS, gnosisStrategy);
     this.add(Blockchain.SOLANA, solanaStrategy);
     this.add(Blockchain.TRON, tronStrategy);
+    this.add(Blockchain.CARDANO, cardanoStrategy);
   }
 }

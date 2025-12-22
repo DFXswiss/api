@@ -242,4 +242,12 @@ export class AssetService {
       type: AssetType.COIN,
     });
   }
+
+  async getCardanoCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ADA',
+      blockchain: Blockchain.CARDANO,
+      type: AssetType.COIN,
+    });
+  }
 }

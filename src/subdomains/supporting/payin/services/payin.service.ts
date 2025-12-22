@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -25,6 +26,8 @@ import {
 } from '../entities/crypto-input.entity';
 import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
+import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
+import { CardanoStrategy } from '../strategies/register/impl/cardano.strategy';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { SendStrategyRegistry } from '../strategies/send/impl/base/send.strategy-registry';
 
@@ -34,6 +37,7 @@ export class PayInService {
 
   constructor(
     private readonly payInRepository: PayInRepository,
+    private readonly registerStrategyRegistry: RegisterStrategyRegistry,
     private readonly sendStrategyRegistry: SendStrategyRegistry,
     private readonly transactionService: TransactionService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
@@ -62,6 +66,14 @@ export class PayInService {
     ]);
 
     return payIn;
+  }
+
+  async pollAddress(address: BlockchainAddress): Promise<void> {
+    if (address.blockchain !== Blockchain.CARDANO)
+      throw new BadRequestException(`Address poll not supported for ${address.blockchain}`);
+
+    const registerStrategy = this.registerStrategyRegistry.get(address.blockchain) as CardanoStrategy;
+    return registerStrategy.pollAddress(address);
   }
 
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
