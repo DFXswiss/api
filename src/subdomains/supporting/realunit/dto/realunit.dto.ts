@@ -317,7 +317,4 @@ export class RealUnitPaymentInfoDto {
 
   @ApiPropertyOptional({ description: 'QR code for payment (Swiss QR-bill or GiroCode)' })
   paymentRequest?: string;
-
-  @ApiProperty({ description: 'Whether SEPA Instant is supported' })
-  sepaInstant: boolean;
 }

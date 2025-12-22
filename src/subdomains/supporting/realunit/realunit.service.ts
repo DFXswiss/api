@@ -270,7 +270,6 @@ export class RealUnitService {
       estimatedShares: sharesInfo.shares,
       pricePerShare: sharesInfo.pricePerShare,
       paymentRequest,
-      sepaInstant: virtualIban.bank.sctInst,
     };
   }
 
