@@ -232,11 +232,19 @@ export class RealUnitService {
     // 6. Calculate estimated shares
     const sharesInfo = await this.getBrokerbotShares(dto.amount.toString());
 
-    // 7. Generate QR code
+    // 7. Recipient info (RealUnit company address)
     const { bank: realunitBank } = GetConfig().blockchain.realunit;
-    const bankInfo = {
+    const recipientInfo = {
       name: realunitBank.recipient,
-      address: realunitBank.address,
+      street: 'Schochenmühlestrasse',
+      number: '6',
+      zip: '6340',
+      city: 'Baar',
+      country: 'Switzerland',
+    };
+
+    const bankInfo = {
+      ...recipientInfo,
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,
     };
@@ -251,8 +259,12 @@ export class RealUnitService {
     return {
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,
-      name: bankInfo.name,
-      address: bankInfo.address,
+      name: recipientInfo.name,
+      street: recipientInfo.street,
+      number: recipientInfo.number,
+      zip: recipientInfo.zip,
+      city: recipientInfo.city,
+      country: recipientInfo.country,
       amount: dto.amount,
       currency,
       estimatedShares: sharesInfo.shares,
@@ -263,7 +275,7 @@ export class RealUnitService {
   }
 
   private generateGiroCode(
-    bankInfo: { name: string; address: string; iban: string; bic: string },
+    bankInfo: { name: string; street: string; number: string; zip: string; city: string; country: string; iban: string; bic: string },
     amount: number,
     currency: string,
   ): string {
@@ -273,7 +285,7 @@ ${Config.giroCode.version}
 ${Config.giroCode.encoding}
 ${Config.giroCode.transfer}
 ${bankInfo.bic}
-${bankInfo.name}, ${bankInfo.address}
+${bankInfo.name}, ${bankInfo.street} ${bankInfo.number}, ${bankInfo.zip} ${bankInfo.city}, ${bankInfo.country}
 ${bankInfo.iban}
 ${currency}${amount}
 ${Config.giroCode.char}
