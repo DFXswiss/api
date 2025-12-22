@@ -87,14 +87,6 @@ export class VirtualIbanService {
       .getOne();
   }
 
-  async getAllActiveVirtualIbans(): Promise<string[]> {
-    const virtualIbans = await this.virtualIbanRepo.find({
-      where: { active: true, status: VirtualIbanStatus.ACTIVE },
-      select: { iban: true },
-    });
-    return virtualIbans.map((v) => v.iban);
-  }
-
   private async reserveVibanFromYapeal(
     accountIban: string,
   ): Promise<{ iban: string; bban?: string; accountUid?: string }> {

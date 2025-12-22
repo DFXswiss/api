@@ -32,10 +32,6 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findCachedBy(bankName, { name: bankName });
   }
 
-  async getIbansByName(bankName: IbanBankName): Promise<string[]> {
-    return this.getBanksByName(bankName).then((banks) => banks.map((b) => b.iban));
-  }
-
   async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
     return this.bankRepo.findOneCachedBy(`${name}-${currency}`, { name, currency });
   }
