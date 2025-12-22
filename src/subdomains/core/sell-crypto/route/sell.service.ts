@@ -353,7 +353,12 @@ export class SellService {
     const userAddress = request.user.address;
     const depositAddress = route.deposit.address;
 
-    return client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
+    try {
+      return await client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
+    } catch (e) {
+      this.logger.warn(`Failed to create deposit TX for sell request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to create deposit transaction: ${e.message}`);
+    }
   }
 
   private async toPaymentInfoDto(
