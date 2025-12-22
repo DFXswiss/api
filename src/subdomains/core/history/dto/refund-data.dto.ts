@@ -34,5 +34,29 @@ export class RefundDataDto {
   refundAsset: ActiveDto;
 
   @ApiPropertyOptional({ description: 'IBAN for bank tx or blockchain address for crypto tx' })
-  refundTarget: string;
+  refundTarget?: string;
+
+  @ApiPropertyOptional({ description: 'Account holder name' })
+  name?: string;
+
+  @ApiPropertyOptional({ description: 'Street address' })
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'House number' })
+  houseNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Postal code' })
+  zip?: string;
+
+  @ApiPropertyOptional({ description: 'City' })
+  city?: string;
+
+  @ApiPropertyOptional({ description: 'Country code' })
+  country?: string;
+
+  @ApiPropertyOptional({ description: 'IBAN' })
+  iban?: string;
+
+  @ApiPropertyOptional({ description: 'BIC/SWIFT code' })
+  bic?: string;
 }
