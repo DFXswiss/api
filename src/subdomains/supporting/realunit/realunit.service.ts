@@ -254,7 +254,6 @@ export class RealUnitService {
     return {
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,
-      bank: virtualIban.bank.name,
       name: bankInfo.name,
       street: bankInfo.street,
       number: bankInfo.number,

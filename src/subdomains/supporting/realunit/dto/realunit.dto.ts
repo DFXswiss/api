@@ -285,9 +285,6 @@ export class RealUnitPaymentInfoDto {
   @ApiProperty({ description: 'BIC/SWIFT code' })
   bic: string;
 
-  @ApiProperty({ description: 'Bank name' })
-  bank: string;
-
   @ApiProperty({ description: 'Recipient name' })
   name: string;
 
