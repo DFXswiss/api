@@ -11,9 +11,6 @@ export class CardanoTransactionMapper {
   }
 
   static toTransactionDto(transactionResponse: CardanoTransactionResponse, address: string): CardanoTransactionDto {
-    console.log(JSON.stringify(transactionResponse));
-    console.log('-'.repeat(80));
-
     const fromAddresses = [...new Set(transactionResponse.inputs.map((input) => input.address))];
     const toAddresses = [...new Set(transactionResponse.outputs.map((output) => output.address))];
     const totalAmount = transactionResponse.outputs.reduce((sum, output) => {

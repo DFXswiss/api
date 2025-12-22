@@ -275,7 +275,7 @@ export class CardanoClient extends BlockchainClient {
     return this.sendToken(this.wallet, toAddress, token, amount);
   }
 
-  private async sendToken(wallet: CardanoWallet, toAddress: string, token: Asset, amount: number): Promise<string> {
+  private async sendToken(_wallet: CardanoWallet, _toAddress: string, token: Asset, _amount: number): Promise<string> {
     if (!token.decimals) throw new Error(`No decimals found in token ${token.uniqueName}`);
     throw new Error('not implemented yet');
   }
