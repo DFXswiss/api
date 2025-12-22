@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -27,6 +29,7 @@ import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { SendStrategyRegistry } from '../strategies/send/impl/base/send.strategy-registry';
+import { PayInBitcoinService } from './payin-bitcoin.service';
 
 @Injectable()
 export class PayInService {
@@ -37,6 +40,7 @@ export class PayInService {
     private readonly sendStrategyRegistry: SendStrategyRegistry,
     private readonly transactionService: TransactionService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly payInBitcoinService: PayInBitcoinService,
   ) {}
 
   // --- PUBLIC API --- //
@@ -265,7 +269,8 @@ export class PayInService {
   // --- HELPER METHODS --- //
 
   private async forwardPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.find({
+    // 1. Get confirmed PayIns (existing behavior)
+    const confirmedPayIns = await this.payInRepository.find({
       where: {
         status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
         action: PayInAction.FORWARD,
@@ -276,9 +281,14 @@ export class PayInService {
       relations: { buyCrypto: true, buyFiat: true },
     });
 
-    if (payIns.length === 0) return;
+    // 2. Get unconfirmed next-block candidates (new behavior)
+    const unconfirmedPayIns = await this.getUnconfirmedNextBlockPayIns();
 
-    const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
+    const allPayIns = [...confirmedPayIns, ...unconfirmedPayIns];
+
+    if (allPayIns.length === 0) return;
+
+    const groups = this.groupByStrategies(allPayIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
     for (const [strategy, payIns] of groups.entries()) {
       try {
@@ -287,6 +297,43 @@ export class PayInService {
         this.logger.info(`Failed to forward ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`, e);
         continue;
       }
+    }
+  }
+
+  private async getUnconfirmedNextBlockPayIns(): Promise<CryptoInput[]> {
+    if (!Config.blockchain.default.allowUnconfirmedUtxos) return [];
+
+    // Only Bitcoin supports unconfirmed UTXO forwarding
+    const candidates = await this.payInRepository.find({
+      where: {
+        status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+        action: PayInAction.FORWARD,
+        outTxId: IsNull(),
+        asset: Not(IsNull()),
+        isConfirmed: false,
+      },
+      relations: { buyCrypto: true, buyFiat: true, asset: true },
+    });
+
+    // Filter to Bitcoin only
+    const bitcoinCandidates = candidates.filter((p) => p.asset?.blockchain === Blockchain.BITCOIN);
+
+    if (bitcoinCandidates.length === 0) return [];
+
+    // Delegate to Bitcoin service for fee-rate filtering
+    try {
+      const { nextBlockCandidates, failedPayIns } =
+        await this.payInBitcoinService.filterUnconfirmedPayInsForForward(bitcoinCandidates);
+
+      // Persist failed PayIns
+      if (failedPayIns.length > 0) {
+        await this.payInRepository.save(failedPayIns);
+      }
+
+      return nextBlockCandidates;
+    } catch (e) {
+      this.logger.error('Failed to filter unconfirmed PayIns:', e);
+      return [];
     }
   }
 
