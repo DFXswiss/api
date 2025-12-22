@@ -46,18 +46,10 @@ export class TransactionRequestService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async txRequestStatusSync() {
-    if (DisabledProcess(Process.TX_REQUEST_STATUS_SYNC)) return;
+    if (DisabledProcess(Process.TX_REQUEST)) return;
 
-    const entities = await this.transactionRequestRepo.find({
-      where: { status: IsNull() },
-      take: 5000,
-    });
-
-    const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
-
-    for (const entity of entities) {
-      await this.transactionRequestRepo.update(entity.id, { status: this.currentStatus(entity, expiryDate) });
-    }
+    await this.syncStatus();
+    await this.deleteOldTxRequests();
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
@@ -73,6 +65,37 @@ export class TransactionRequestService {
 
     for (const entity of entities) {
       await this.transactionRequestRepo.update(entity.id, { status: TransactionRequestStatus.CREATED });
+    }
+  }
+
+  async deleteOldTxRequests(): Promise<void> {
+    const entities = await this.transactionRequestRepo.find({
+      where: {
+        isComplete: false,
+        created: LessThan(Util.daysBefore(90)),
+        transaction: { id: IsNull() },
+        custodyOrder: { id: IsNull() },
+        supportIssues: { id: IsNull() },
+      },
+      relations: { transaction: true, custodyOrder: true, supportIssues: true },
+      take: 5000,
+    });
+
+    for (const entity of entities) {
+      await this.transactionRequestRepo.delete(entity.id);
+    }
+  }
+
+  async syncStatus(): Promise<void> {
+    const entities = await this.transactionRequestRepo.find({
+      where: { status: IsNull() },
+      take: 5000,
+    });
+
+    const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
+
+    for (const entity of entities) {
+      await this.transactionRequestRepo.update(entity.id, { status: this.currentStatus(entity, expiryDate) });
     }
   }
 
