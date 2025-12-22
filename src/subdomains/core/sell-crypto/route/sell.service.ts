@@ -450,37 +450,31 @@ export class SellService {
 
     // Add gasless data if requested and supported
     if (dto.gasless && isValid && this.isGaslessSupported(dto.asset.blockchain)) {
-      sellDto.gaslessData = await this.prepareGaslessData(user.address, dto, amount);
+      sellDto.gaslessData = await this.prepareGaslessData(user.address, sell.deposit.address, dto, amount);
     }
 
     return sellDto;
   }
 
   private isGaslessSupported(blockchain: Blockchain): boolean {
-    // EIP-7702 is only supported on EVM chains
-    const evmChains = [
-      Blockchain.ETHEREUM,
-      Blockchain.ARBITRUM,
-      Blockchain.OPTIMISM,
-      Blockchain.POLYGON,
-      Blockchain.BASE,
-    ];
-    return evmChains.includes(blockchain);
+    // EIP-7702 gasless transfers currently only supported on Ethereum mainnet
+    // (relayer service is configured for single chain)
+    return blockchain === Blockchain.ETHEREUM;
   }
 
   private async prepareGaslessData(
     userAddress: string,
+    depositAddress: string,
     dto: GetSellPaymentInfoDto,
     amount: number,
   ): Promise<SellPaymentInfoDto['gaslessData']> {
     const amountWei = EvmUtil.toWeiAmount(amount, dto.asset.decimals).toString();
-    const recipient = this.eip7702RelayerService.getDelegationContractAddress();
 
     const prepareResponse = await this.eip7702RelayerService.prepareGaslessTransfer({
       userAddress,
       tokenAddress: dto.asset.chainId,
       amount: amountWei,
-      recipient,
+      recipient: depositAddress,
       deadlineMinutes: 60,
     });
 

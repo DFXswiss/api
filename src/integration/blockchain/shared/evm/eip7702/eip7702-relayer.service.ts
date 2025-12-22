@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
-import { HttpService } from 'src/shared/services/http.service';
-import { EvmUtil } from '../evm.util';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import DFX_GASLESS_SELL_ABI from '../abi/dfx-gasless-sell.abi.json';
 import {
   Eip712TypedData,
@@ -17,16 +15,15 @@ const DEFAULT_DEADLINE_MINUTES = 60;
 
 @Injectable()
 export class Eip7702RelayerService {
+  private readonly logger = new DfxLogger(Eip7702RelayerService);
+
   private readonly provider: ethers.providers.JsonRpcProvider;
   private readonly relayerWallet: ethers.Wallet;
   private readonly chainId: number;
   private readonly delegationContractAddress: string;
   private readonly allowedRecipients: Set<string>;
 
-  constructor(
-    private readonly http: HttpService,
-    private readonly alchemyService: AlchemyService,
-  ) {
+  constructor() {
     const { ethereum, gasless } = GetConfig().blockchain;
     const url = `${ethereum.ethGatewayUrl}/${ethereum.ethApiKey ?? ''}`;
 
@@ -79,6 +76,7 @@ export class Eip7702RelayerService {
 
       // Validate deadline hasn't passed
       if (Math.floor(Date.now() / 1000) > deadline) {
+        this.logger.warn(`Gasless transfer deadline passed for user ${userAddress}`);
         return { success: false, error: 'Deadline has passed' };
       }
 
@@ -87,6 +85,8 @@ export class Eip7702RelayerService {
 
       // Get gas price
       const gasPrice = await this.provider.getGasPrice();
+
+      this.logger.verbose(`Executing gasless transfer: ${amount} of ${tokenAddress} from ${userAddress} to ${recipient}`);
 
       // Execute the transfer
       const tx = await userContract.executeTransfer(
@@ -105,12 +105,19 @@ export class Eip7702RelayerService {
       // Wait for transaction confirmation
       const receipt = await tx.wait(1);
 
+      if (receipt.status === 1) {
+        this.logger.info(`Gasless transfer successful: ${receipt.transactionHash}`);
+      } else {
+        this.logger.warn(`Gasless transfer failed on-chain: ${receipt.transactionHash}`);
+      }
+
       return {
         success: receipt.status === 1,
         txHash: receipt.transactionHash,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Gasless transfer failed for user ${userAddress}:`, error);
       return { success: false, error: errorMessage };
     }
   }
