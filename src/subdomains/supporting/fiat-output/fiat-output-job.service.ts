@@ -48,6 +48,7 @@ export class FiatOutputJobService {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
   async fillFiatOutput() {
     await this.assignBankAccount();
+    await this.assignMissingBank();
     await this.setReadyDate();
     await this.createBatches();
     await this.checkTransmission();
@@ -145,6 +146,25 @@ export class FiatOutputJobService {
         });
       } catch (e) {
         this.logger.error(`Error in fillPreValutaDate fiatOutput: ${entity.id}:`, e);
+      }
+    }
+  }
+
+  private async assignMissingBank(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_ASSIGN_BANK_ACCOUNT)) return;
+
+    const entities = await this.fiatOutputRepo.find({
+      where: { accountIban: Not(IsNull()), bank: IsNull(), isComplete: false },
+    });
+
+    for (const entity of entities) {
+      try {
+        const bank = await this.bankService.getBankByIban(entity.accountIban);
+        if (bank) {
+          await this.fiatOutputRepo.update(entity.id, { bank });
+        }
+      } catch (e) {
+        this.logger.error(`Error in assignMissingBank fiatOutput: ${entity.id}:`, e);
       }
     }
   }
