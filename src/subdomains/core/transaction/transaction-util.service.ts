@@ -205,9 +205,21 @@ export class TransactionUtilService {
     const asset = await this.assetService.getAssetById(request.sourceId);
     if (!asset) throw new BadRequestException('Asset not found');
 
+    const depositAddress = route.deposit.address;
+
+    // Validate token address matches the asset
+    if (dto.tokenAddress.toLowerCase() !== asset.chainId.toLowerCase()) {
+      throw new BadRequestException('Token address does not match asset');
+    }
+
+    // Validate recipient matches the route deposit address
+    if (dto.recipient.toLowerCase() !== depositAddress.toLowerCase()) {
+      throw new BadRequestException('Recipient does not match deposit address');
+    }
+
     // Validate recipient is a DFX-controlled address
-    if (!this.eip7702RelayerService.isRecipientAllowed(dto.recipient)) {
-      throw new BadRequestException('Invalid recipient address');
+    if (!this.eip7702RelayerService.isRecipientAllowed(depositAddress)) {
+      throw new BadRequestException('Deposit address not in allowed recipients');
     }
 
     // Validate deadline hasn't passed
@@ -218,9 +230,9 @@ export class TransactionUtilService {
     // Execute gasless transfer via EIP-7702 relayer
     const result = await this.eip7702RelayerService.executeGaslessTransfer({
       userAddress: dto.userAddress,
-      tokenAddress: dto.tokenAddress,
+      tokenAddress: asset.chainId,
       amount: dto.amount,
-      recipient: dto.recipient,
+      recipient: depositAddress,
       deadline: dto.deadline,
       signature: dto.signature,
     });
@@ -234,7 +246,7 @@ export class TransactionUtilService {
 
     return this.payInService.createPayIn(
       dto.userAddress,
-      dto.recipient,
+      depositAddress,
       asset,
       result.txHash,
       PayInType.GASLESS_TRANSFER,

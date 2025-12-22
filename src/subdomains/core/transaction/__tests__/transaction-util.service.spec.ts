@@ -141,11 +141,12 @@ describe('TransactionUtilService', () => {
         validGaslessDto,
       );
 
+      // Uses asset.chainId and route.deposit.address instead of dto values
       expect(eip7702RelayerService.executeGaslessTransfer).toHaveBeenCalledWith({
         userAddress: validGaslessDto.userAddress,
-        tokenAddress: validGaslessDto.tokenAddress,
+        tokenAddress: mockAsset.chainId,
         amount: validGaslessDto.amount,
-        recipient: validGaslessDto.recipient,
+        recipient: mockRecipientAddress,
         deadline: validGaslessDto.deadline,
         signature: validGaslessDto.signature,
       });
@@ -158,9 +159,10 @@ describe('TransactionUtilService', () => {
         validGaslessDto,
       );
 
+      // Uses route.deposit.address instead of dto.recipient for consistency
       expect(payInService.createPayIn).toHaveBeenCalledWith(
         validGaslessDto.userAddress,
-        validGaslessDto.recipient,
+        mockRecipientAddress, // route.deposit.address
         mockAsset,
         mockTxHash,
         PayInType.GASLESS_TRANSFER,
@@ -189,7 +191,53 @@ describe('TransactionUtilService', () => {
       ).rejects.toThrow('Asset not found');
     });
 
-    it('should throw BadRequestException if recipient is not allowed', async () => {
+    it('should throw BadRequestException if token address does not match asset', async () => {
+      const wrongTokenDto: GaslessDto = {
+        ...validGaslessDto,
+        tokenAddress: '0xWrongToken12345678901234567890123456789',
+      };
+
+      await expect(
+        service.handleGaslessInput(
+          mockSell as any,
+          mockTransactionRequest as TransactionRequest,
+          wrongTokenDto,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.handleGaslessInput(
+          mockSell as any,
+          mockTransactionRequest as TransactionRequest,
+          wrongTokenDto,
+        ),
+      ).rejects.toThrow('Token address does not match asset');
+    });
+
+    it('should throw BadRequestException if recipient does not match deposit address', async () => {
+      const wrongRecipientDto: GaslessDto = {
+        ...validGaslessDto,
+        recipient: '0xWrongRecipient1234567890123456789012345',
+      };
+
+      await expect(
+        service.handleGaslessInput(
+          mockSell as any,
+          mockTransactionRequest as TransactionRequest,
+          wrongRecipientDto,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.handleGaslessInput(
+          mockSell as any,
+          mockTransactionRequest as TransactionRequest,
+          wrongRecipientDto,
+        ),
+      ).rejects.toThrow('Recipient does not match deposit address');
+    });
+
+    it('should throw BadRequestException if deposit address is not in allowed recipients', async () => {
       jest.spyOn(eip7702RelayerService, 'isRecipientAllowed').mockReturnValue(false);
 
       await expect(
@@ -206,7 +254,7 @@ describe('TransactionUtilService', () => {
           mockTransactionRequest as TransactionRequest,
           validGaslessDto,
         ),
-      ).rejects.toThrow('Invalid recipient address');
+      ).rejects.toThrow('Deposit address not in allowed recipients');
     });
 
     it('should throw BadRequestException if deadline has passed', async () => {
@@ -281,14 +329,15 @@ describe('TransactionUtilService', () => {
       expect(mockEvmClient.getCurrentBlock).toHaveBeenCalled();
     });
 
-    it('should validate recipient before executing transfer', async () => {
+    it('should validate deposit address is in allowed recipients', async () => {
       await service.handleGaslessInput(
         mockSell as any,
         mockTransactionRequest as TransactionRequest,
         validGaslessDto,
       );
 
-      expect(eip7702RelayerService.isRecipientAllowed).toHaveBeenCalledWith(validGaslessDto.recipient);
+      // Uses route.deposit.address instead of dto.recipient
+      expect(eip7702RelayerService.isRecipientAllowed).toHaveBeenCalledWith(mockRecipientAddress);
     });
 
     it('should check deadline before executing transfer', async () => {
