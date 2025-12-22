@@ -92,6 +92,7 @@ export class CustodyOrderService {
         const sellPaymentInfo = await this.sellService.createSellPaymentInfo(
           jwt.user,
           GetCustodyOrderDtoMapper.getSellPaymentInfo(dto, sourceAsset, targetCurrency),
+          false,
         );
 
         orderDto.sell = await this.sellService.getById(sellPaymentInfo.routeId);

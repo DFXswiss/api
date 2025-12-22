@@ -685,12 +685,11 @@ export class UserDataService {
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
     const defaultIdent =
       userData.accountType === AccountType.ORGANIZATION
-        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_VIDEO)
+        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_AUTO)
         : await this.settingService.get('defaultIdentMethod', KycStepType.SUMSUB_AUTO);
     const customIdent = await this.customIdentMethod(userData.id);
-    const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
-    return isVipUser ? KycStepType.SUMSUB_VIDEO : customIdent ?? (defaultIdent as KycStepType);
+    return customIdent ?? (defaultIdent as KycStepType);
   }
 
   private async customIdentMethod(userDataId: number): Promise<KycStepType | undefined> {

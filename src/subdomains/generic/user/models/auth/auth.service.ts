@@ -172,6 +172,8 @@ export class AuthService {
 
     if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, user.userData);
 
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, wallet);
+
     await this.checkIpBlacklistFor(user.userData, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
@@ -207,7 +209,7 @@ export class AuthService {
       }
     }
 
-    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData);
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, user.wallet);
 
     try {
       if (dto.specialCode || dto.discountCode)
@@ -345,6 +347,9 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new BadRequestException('User is deactivated or blocked');
+
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, user.wallet);
+
     return { accessToken: this.generateUserToken(user, ip) };
   }
 
@@ -376,8 +381,8 @@ export class AuthService {
 
   // --- HELPER METHODS --- //
 
-  private async checkPendingRecommendation(userData: UserData): Promise<void> {
-    if (userData.wallet?.autoTradeApproval)
+  private async checkPendingRecommendation(userData: UserData, userWallet?: Wallet): Promise<void> {
+    if (userData.wallet?.autoTradeApproval || userWallet?.autoTradeApproval)
       await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
 
     await this.recommendationService.checkAndConfirmRecommendInvitation(userData.id);

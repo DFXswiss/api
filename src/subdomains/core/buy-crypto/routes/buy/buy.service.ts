@@ -17,6 +17,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -119,9 +120,10 @@ export class BuyService {
   }
 
   async createBuyPaymentInfo(jwt: JwtPayload, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    dto = await this.paymentInfoService.buyCheck(dto, jwt);
+    const user = await this.userService.getUser(jwt.user, { userData: { wallet: true } });
+    dto = await this.paymentInfoService.buyCheck(dto, jwt, user);
     const buy = await Util.retry(
-      () => this.createBuy(jwt.user, jwt.address, dto, true),
+      () => this.createBuy(user, jwt.address, dto, true),
       2,
       0,
       undefined,
@@ -131,13 +133,13 @@ export class BuyService {
     return this.toPaymentInfoDto(jwt.user, buy, dto);
   }
 
-  async createBuy(userId: number, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
+  async createBuy(user: User, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {
         asset: { id: dto.asset.id },
         deposit: IsNull(),
-        user: { id: userId },
+        user: { id: user.id },
       },
       relations: { deposit: true, user: { userData: true } },
     });
@@ -153,8 +155,6 @@ export class BuyService {
 
       return existing;
     }
-
-    const user = await this.userService.getUser(userId, { userData: true });
 
     // create the entity
     const buy = this.buyRepo.create(dto);

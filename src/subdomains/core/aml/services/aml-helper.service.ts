@@ -6,7 +6,6 @@ import { Util } from 'src/shared/utils/util';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { BankData, BankDataVerificationError } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
@@ -91,11 +90,6 @@ export class AmlHelperService {
       if (entity.userData.accountType !== AccountType.ORGANIZATION && !entity.userData.letterSentDate)
         errors.push(AmlError.NO_LETTER);
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
-      if (
-        entity.userData.accountType === AccountType.ORGANIZATION &&
-        entity.userData.identificationType === KycIdentificationType.ONLINE_ID
-      )
-        errors.push(AmlError.VIDEO_IDENT_MISSING);
     }
 
     // AmlRule asset/fiat check
@@ -183,7 +177,11 @@ export class AmlHelperService {
       if (
         entity.userData.country &&
         !entity.userData.phoneCallIpCountryCheckDate &&
-        ipLogCountries.some((l) => l !== entity.userData.country.symbol)
+        ipLogCountries.some(
+          (l) =>
+            l !== entity.userData.country.symbol &&
+            ![l, entity.userData.country.symbol].every((c) => Config.allowedBorderRegions.includes(c)),
+        )
       )
         errors.push(AmlError.IP_COUNTRY_MISMATCH);
 

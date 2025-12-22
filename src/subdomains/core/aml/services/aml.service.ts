@@ -174,7 +174,7 @@ export class AmlService {
         ipLogCountries,
       };
 
-    const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountBankNames();
+    const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountNames();
     const banks = await this.bankService.getAllBanks();
     return { users: entity.userData.users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames };
   }

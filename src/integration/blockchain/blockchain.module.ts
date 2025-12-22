@@ -21,13 +21,14 @@ import { SepoliaModule } from './sepolia/sepolia.module';
 import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
+import { TxValidationService } from './shared/services/tx-validation.service';
 import { SolanaModule } from './solana/solana.module';
 import { SparkModule } from './spark/spark.module';
 import { TronModule } from './tron/tron.module';
 import { ZanoModule } from './zano/zano.module';
 
 @Module({
-  providers: [EvmDecimalsService, CryptoService, BlockchainRegistryService],
+  providers: [EvmDecimalsService, CryptoService, BlockchainRegistryService, TxValidationService],
   imports: [
     SharedModule,
     BitcoinModule,
@@ -76,6 +77,7 @@ import { ZanoModule } from './zano/zano.module';
     CitreaTestnetModule,
     CryptoService,
     BlockchainRegistryService,
+    TxValidationService,
     RealUnitBlockchainModule,
   ],
 })
