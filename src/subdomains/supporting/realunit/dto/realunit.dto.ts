@@ -261,16 +261,21 @@ export class BankDetailsDto {
 
 // --- Buy Payment Info DTOs ---
 
+export enum RealUnitBuyCurrency {
+  CHF = 'CHF',
+  EUR = 'EUR',
+}
+
 export class RealUnitBuyDto {
   @ApiProperty({ description: 'Amount in fiat currency' })
   @IsNumber()
   @Type(() => Number)
   amount: number;
 
-  @ApiPropertyOptional({ description: 'Currency (CHF or EUR, default: CHF)', default: 'CHF' })
+  @ApiPropertyOptional({ enum: RealUnitBuyCurrency, description: 'Currency (CHF or EUR)', default: RealUnitBuyCurrency.CHF })
   @IsOptional()
-  @IsString()
-  currency?: string;
+  @IsEnum(RealUnitBuyCurrency)
+  currency?: RealUnitBuyCurrency;
 }
 
 export class RealUnitPaymentInfoDto {
