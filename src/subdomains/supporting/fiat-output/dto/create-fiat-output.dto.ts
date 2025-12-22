@@ -45,6 +45,10 @@ export class CreateFiatOutputDto {
 
   @IsOptional()
   @IsString()
+  houseNumber?: string;
+
+  @IsOptional()
+  @IsString()
   city?: string;
 
   @IsOptional()

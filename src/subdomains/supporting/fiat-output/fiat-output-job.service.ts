@@ -331,6 +331,7 @@ export class FiatOutputJobService {
           creditor: {
             name: entity.name,
             address: entity.address,
+            houseNumber: entity.houseNumber,
             zip: entity.zip,
             city: entity.city,
             country: entity.country,

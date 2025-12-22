@@ -56,9 +56,6 @@ export class LiquidityManagementRuleService {
     const existingRule = await this.ruleRepo.findOneBy({ id });
 
     if (!existingRule) throw new NotFoundException(`Rule ${id} was not found.`);
-    if (existingRule.status === LiquidityManagementRuleStatus.PROCESSING) {
-      throw new BadRequestException('Rule is currently processing and cannot be updated');
-    }
 
     await this.ruleRepo.update(existingRule.id, dto);
   }

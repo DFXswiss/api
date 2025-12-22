@@ -17,7 +17,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
+import { SwapActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
@@ -27,8 +27,6 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dto';
 import { TransactionDtoMapper } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { ConfirmDto } from 'src/subdomains/core/sell-crypto/route/dto/confirm.dto';
-import { RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -60,15 +58,7 @@ export class SwapController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SwapActiveGuard())
   @ApiExcludeEndpoint()
   async getAllSwap(@GetJwt() jwt: JwtPayload): Promise<SwapDto[]> {
     return this.swapService.getUserSwaps(jwt.user).then((l) => this.toDtoList(jwt.user, l));
@@ -76,15 +66,7 @@ export class SwapController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SwapActiveGuard())
   @ApiOkResponse({ type: SwapDto })
   async getSwap(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SwapDto> {
     return this.swapService.get(jwt.user, +id).then((l) => this.toDto(jwt.user, l));
@@ -92,15 +74,7 @@ export class SwapController {
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SwapActiveGuard())
   @ApiExcludeEndpoint()
   async createSwap(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSwapDto): Promise<SwapDto> {
     dto.targetAsset ??= dto.asset;
@@ -165,16 +139,7 @@ export class SwapController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    IpGuard,
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SwapActiveGuard())
   @ApiOkResponse({ type: SwapPaymentInfoDto })
   async createSwapWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -186,16 +151,7 @@ export class SwapController {
 
   @Put('/paymentInfos/:id/confirm')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    IpGuard,
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SwapActiveGuard())
   @ApiOkResponse({ type: TransactionDto })
   async confirmSwap(
     @GetJwt() jwt: JwtPayload,
@@ -211,15 +167,7 @@ export class SwapController {
 
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.USER),
-    UserActiveGuard(
-      [UserStatus.BLOCKED, UserStatus.DELETED],
-      [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
-      [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
-    ),
-  )
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SwapActiveGuard())
   @ApiExcludeEndpoint()
   async updateSwapRoute(
     @GetJwt() jwt: JwtPayload,

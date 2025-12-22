@@ -106,6 +106,7 @@ export class Configuration {
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
+  allowedBorderRegions = ['CH', 'DE']; // aml & kyc
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
   networkStartFee = 0.5; // CHF
@@ -257,7 +258,6 @@ export class Configuration {
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
-    allowedBorderRegions: ['CH', 'DE'],
     maxIdentTries: 7,
     maxRecommendationTries: 3,
   };
@@ -878,6 +878,10 @@ export class Configuration {
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
+      api: {
+        url: process.env.REALUNIT_API_URL,
+        key: process.env.REALUNIT_API_KEY,
+      },
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
         address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',

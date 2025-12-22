@@ -10,6 +10,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Observable, Subject } from 'rxjs';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -88,6 +89,7 @@ export class BankTxService implements OnModuleInit {
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
+    private readonly yapealService: YapealService,
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,
@@ -108,7 +110,45 @@ export class BankTxService implements OnModuleInit {
     await this.fillBankTx();
   }
 
-  async checkTransactions(): Promise<void> {
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX })
+  async enrichYapealTransactions(): Promise<void> {
+    const where = { created: MoreThan(Util.minutesBefore(30)) };
+
+    const transactions = await this.bankTxRepo.findBy([
+      { ...where, familyCode: 'CCRD' }, // credit card => wrong data
+      { ...where, addressLine1: IsNull() },
+    ]);
+
+    if (transactions.length === 0) return;
+
+    const today = new Date();
+    const ibanGroups = Util.groupBy<BankTx, string>(transactions, 'accountIban');
+
+    for (const [accountIban, groupTransactions] of ibanGroups) {
+      try {
+        const yapealTransactions = await this.yapealService.getTransactions(accountIban, today, today);
+
+        for (const transaction of groupTransactions) {
+          const yapealTx = yapealTransactions.find((tx) => tx.accountServiceRef === transaction.accountServiceRef);
+          if (yapealTx) {
+            const enrichmentData = {
+              addressLine1: yapealTx.addressLine1,
+              addressLine2: yapealTx.addressLine2,
+              country: yapealTx.country,
+              domainCode: yapealTx.domainCode,
+              familyCode: yapealTx.familyCode,
+              subFamilyCode: yapealTx.subFamilyCode,
+            };
+            await this.bankTxRepo.update(transaction.id, Util.removeNullFields(enrichmentData));
+          }
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to enrich transactions for ${accountIban}:`, error);
+      }
+    }
+  }
+
+  private async checkTransactions(): Promise<void> {
     // Get settings
     const settingKeyOlky = 'lastBankOlkyDate';
     const settingKeyRevolut = 'lastBankRevolutDate';
@@ -141,7 +181,7 @@ export class BankTxService implements OnModuleInit {
     if (revolutTransactions.length > 0) await this.settingService.set(settingKeyRevolut, newModificationTime);
   }
 
-  async assignTransactions(): Promise<void> {
+  private async assignTransactions(): Promise<void> {
     const unassignedBankTx = await this.bankTxRepo.find({
       where: [
         { type: IsNull(), creditDebitIndicator: BankTxIndicator.CREDIT },
@@ -185,7 +225,7 @@ export class BankTxService implements OnModuleInit {
     }
   }
 
-  async fillBankTx(): Promise<void> {
+  private async fillBankTx(): Promise<void> {
     const entities = await this.bankTxRepo.find({
       where: {
         accountingAmountBeforeFee: IsNull(),

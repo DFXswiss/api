@@ -1241,7 +1241,7 @@ export class KycService {
     stepName: KycStepName,
     status: ReviewStatus,
     result?: unknown,
-  ): Promise<void> {
+  ): Promise<KycStep> {
     const nextSequenceNumber = userData.getNextSequenceNumber(stepName);
 
     const kycStep = this.kycStepRepo.create({
@@ -1253,6 +1253,16 @@ export class KycService {
     });
 
     await this.kycStepRepo.save(kycStep);
+
+    return kycStep;
+  }
+
+  async getKycStepById(id: number): Promise<KycStep | null> {
+    return this.kycStepRepo.findOne({ where: { id }, relations: { userData: true } });
+  }
+
+  async saveKycStepUpdate(updateResult: UpdateResult<KycStep>): Promise<void> {
+    await this.kycStepRepo.update(...updateResult);
   }
 
   async completeIdent(
@@ -1406,7 +1416,7 @@ export class KycService {
       identStep.userData.users?.some(
         (u) =>
           u.ipCountry !== ipCountry.symbol &&
-          ![u.ipCountry, ipCountry.symbol].every((c) => Config.kyc.allowedBorderRegions.includes(c)),
+          ![u.ipCountry, ipCountry.symbol].every((c) => Config.allowedBorderRegions.includes(c)),
       )
     )
       errors.push(KycError.IP_COUNTRY_MISMATCH);
@@ -1415,7 +1425,7 @@ export class KycService {
       identStep.userData.users?.some(
         (u) =>
           u.ipCountry !== country.symbol &&
-          ![u.ipCountry, country.symbol].every((c) => Config.kyc.allowedBorderRegions.includes(c)),
+          ![u.ipCountry, country.symbol].every((c) => Config.allowedBorderRegions.includes(c)),
       )
     )
       errors.push(KycError.COUNTRY_IP_COUNTRY_MISMATCH);

@@ -40,6 +40,29 @@ export class PayInService {
   ) {}
 
   // --- PUBLIC API --- //
+  async createPayIn(
+    senderAddress: string,
+    receiverAddress: string,
+    asset: Asset,
+    txId: string,
+    txType: PayInType,
+    blockHeight: number,
+    amount: number,
+  ): Promise<CryptoInput> {
+    const [payIn] = await this.createPayIns([
+      {
+        senderAddresses: senderAddress,
+        receiverAddress: BlockchainAddress.create(receiverAddress, asset.blockchain),
+        txId,
+        txType,
+        blockHeight,
+        amount,
+        asset,
+      },
+    ]);
+
+    return payIn;
+  }
 
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
     const payIns: CryptoInput[] = [];
@@ -119,7 +142,7 @@ export class PayInService {
     return this.payInRepository.find({
       where: [
         { status: PayInStatus.CREATED, txType: IsNull() },
-        { status: PayInStatus.CREATED, txType: Not(PayInType.PERMIT_TRANSFER) },
+        { status: PayInStatus.CREATED, txType: Not(In([PayInType.PERMIT_TRANSFER, PayInType.SIGNED_TRANSFER])) },
       ],
       relations: { transaction: true, paymentLinkPayment: { link: { route: true } } },
     });

@@ -113,6 +113,7 @@ export const TransactionReasonMapper: {
   [AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
   [AmlReason.BANK_RELEASE_PENDING]: TransactionReason.BANK_RELEASE_PENDING,
   [AmlReason.VIRTUAL_IBAN_USER_MISMATCH]: TransactionReason.UNKNOWN,
+  [AmlReason.INTERMEDIARY_WITHOUT_SENDER]: TransactionReason.BANK_NOT_ALLOWED,
 };
 
 export class UnassignedTransactionDto {

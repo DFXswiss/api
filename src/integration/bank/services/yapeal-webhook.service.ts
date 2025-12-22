@@ -1,18 +1,14 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 import { BankTransactionEvent } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-transaction-handler.service';
 import { CamtStatus, Iso20022Service } from './iso20022.service';
-import { YapealService } from './yapeal.service';
 
 @Injectable()
 export class YapealWebhookService {
   private readonly logger = new DfxLogger(YapealWebhookService);
 
   private readonly transactionSubject = new Subject<BankTransactionEvent>();
-
-  constructor(private readonly yapealService: YapealService) {}
 
   async processWebhook(payload: any): Promise<void> {
     try {
@@ -23,17 +19,6 @@ export class YapealWebhookService {
           `Skipping non-booked transaction ${transaction.accountServiceRef} in state ${transaction.status}`,
         );
         return;
-      }
-
-      // enrich with data from camt.053
-      if (transaction.accountServiceRef && transaction.bookingDate) {
-        const enrichmentData = await this.yapealService.getTransactionEnrichmentData(
-          transaction.accountIban,
-          transaction.accountServiceRef,
-          transaction.bookingDate,
-        );
-
-        if (enrichmentData) Object.assign(transaction, Util.removeNullFields(enrichmentData));
       }
 
       this.transactionSubject.next({
@@ -56,6 +41,10 @@ export class YapealWebhookService {
           addressLine1: transaction.addressLine1,
           addressLine2: transaction.addressLine2,
           country: transaction.country,
+          ultimateName: transaction.ultimateName,
+          ultimateAddressLine1: transaction.ultimateAddressLine1,
+          ultimateAddressLine2: transaction.ultimateAddressLine2,
+          ultimateCountry: transaction.ultimateCountry,
           iban: transaction.iban,
           accountIban: transaction.accountIban,
           virtualIban: transaction.virtualIban,
