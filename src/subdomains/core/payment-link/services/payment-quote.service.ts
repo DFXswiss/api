@@ -43,6 +43,7 @@ export class PaymentQuoteService {
     Blockchain.ZANO,
     Blockchain.SOLANA,
     Blockchain.TRON,
+    Blockchain.CARDANO,
   ];
 
   private readonly transferAmountAssetOrder: string[] = ['dEURO', 'ZCHF', 'USDT', 'USDC', 'DAI'];
@@ -135,7 +136,7 @@ export class PaymentQuoteService {
   async getConfirmingQuotes(): Promise<PaymentQuote[]> {
     return this.paymentQuoteRepo.find({
       where: { status: PaymentQuoteStatus.TX_BLOCKCHAIN },
-      relations: { payment: { link: { route: { user: { userData: true } } } } },
+      relations: { payment: { link: { route: { user: { userData: { organization: true } } } } } },
     });
   }
 
@@ -385,6 +386,7 @@ export class PaymentQuoteService {
         case Blockchain.ZANO:
         case Blockchain.SOLANA:
         case Blockchain.TRON:
+        case Blockchain.CARDANO:
           await this.doTxIdPayment(transferInfo, quote);
           break;
 

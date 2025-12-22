@@ -23,6 +23,7 @@ export class PaymentRequestMapper {
       case Blockchain.ZANO:
       case Blockchain.SOLANA:
       case Blockchain.TRON:
+      case Blockchain.CARDANO:
         return this.toPaymentLinkPayment(paymentActivation.method, paymentActivation);
 
       case Blockchain.KUCOIN_PAY:

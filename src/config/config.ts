@@ -106,6 +106,7 @@ export class Configuration {
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
+  allowedBorderRegions = ['CH', 'DE']; // aml & kyc
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
   networkStartFee = 0.5; // CHF
@@ -257,7 +258,6 @@ export class Configuration {
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
-    allowedBorderRegions: ['CH', 'DE'],
     maxIdentTries: 7,
     maxRecommendationTries: 3,
   };
@@ -587,6 +587,7 @@ export class Configuration {
     evmSeed: process.env.PAYMENT_EVM_SEED,
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
+    cardanoSeed: process.env.PAYMENT_CARDANO_SEED,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
@@ -851,6 +852,17 @@ export class Configuration {
         index: accountIndex,
       }),
     },
+    cardano: {
+      cardanoWalletSeed: process.env.CARDANO_WALLET_SEED,
+      cardanoApiUrl: process.env.CARDANO_API_URL,
+      cardanoTatumApiKey: process.env.TATUM_API_KEY,
+      cardanoBlockFrostApiKey: process.env.BLOCKFROST_API_KEY,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.cardano.cardanoWalletSeed,
+        index: accountIndex,
+      }),
+    },
     zano: {
       node: {
         url: process.env.ZANO_NODE_URL,
@@ -878,6 +890,10 @@ export class Configuration {
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
+      api: {
+        url: process.env.REALUNIT_API_URL,
+        key: process.env.REALUNIT_API_KEY,
+      },
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
         address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',

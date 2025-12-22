@@ -1,3 +1,4 @@
+import { XMLParser } from 'fast-xml-parser';
 import { Util } from 'src/shared/utils/util';
 import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 
@@ -29,6 +30,11 @@ export interface CamtTransaction {
   addressLine2?: string;
   country?: string;
 
+  ultimateName?: string;
+  ultimateAddressLine1?: string;
+  ultimateAddressLine2?: string;
+  ultimateCountry?: string;
+
   iban?: string;
   bic?: string;
   accountIban: string;
@@ -45,6 +51,7 @@ export interface CamtTransaction {
 export interface Party {
   name: string;
   address?: string;
+  houseNumber?: string;
   zip?: string;
   city?: string;
   country: string;
@@ -108,6 +115,14 @@ export class Iso20022Service {
     const { addressLine1, addressLine2 } = this.parsePostalAddress(postalAddress);
     const country = postalAddress?.Ctry;
 
+    // ultimate party info (actual sender/receiver behind intermediary banks like Wise/Revolut)
+    const ultimateParty = isCredit ? txDetail?.RltdPties?.UltmtDbtr : txDetail?.RltdPties?.UltmtCdtr;
+    const ultimateName = ultimateParty?.Nm;
+    const ultimatePostalAddress = ultimateParty?.PstlAdr;
+    const { addressLine1: ultimateAddressLine1, addressLine2: ultimateAddressLine2 } =
+      this.parsePostalAddress(ultimatePostalAddress);
+    const ultimateCountry = ultimatePostalAddress?.Ctry;
+
     // remittance info
     let remittanceInfo: string | undefined;
     if (txDetail?.RmtInf?.Ustrd) {
@@ -155,6 +170,10 @@ export class Iso20022Service {
       addressLine1,
       addressLine2,
       country,
+      ultimateName,
+      ultimateAddressLine1,
+      ultimateAddressLine2,
+      ultimateCountry,
       iban,
       bic,
       remittanceInfo,
@@ -194,70 +213,97 @@ export class Iso20022Service {
   }
 
   // --- CAMT.053 PARSING --- //
-  static parseCamt053Xml(xmlData: string, accountIban: string): CamtTransaction[] {
-    const entryMatches = xmlData.match(/<Ntry>[\s\S]*?<\/Ntry>/g) || [];
+  static parseCamt053Json(camt053: any, accountIban: string): CamtTransaction[] {
+    const statements = camt053?.BkToCstmrStmt?.Stmt;
+    if (!statements || !Array.isArray(statements)) return [];
 
-    return entryMatches
-      .filter((entry) => {
-        const entryIban = Iso20022Service.extractTag(entry, 'IBAN');
-        return !entryIban || entryIban === accountIban;
-      })
-      .map((entry) => Iso20022Service.parseCamt053Element(entry, accountIban));
+    const transactions: CamtTransaction[] = [];
+
+    for (const stmt of statements) {
+      if (!stmt.Ntry || !Array.isArray(stmt.Ntry)) continue;
+
+      for (const entry of stmt.Ntry) {
+        try {
+          transactions.push(Iso20022Service.parseCamt053JsonEntry(entry, accountIban));
+        } catch (error) {
+          continue;
+        }
+      }
+    }
+
+    return transactions;
   }
 
-  private static parseCamt053Element(entryXml: string, accountIban: string): CamtTransaction {
+  private static parseCamt053JsonEntry(entry: any, accountIban: string): CamtTransaction {
     // amount and currency
-    const amtMatch = entryXml.match(/<Amt\s+Ccy="([^"]+)">([^<]+)<\/Amt>/);
-    const amount = amtMatch ? parseFloat(amtMatch[2]) : 0;
-    const currency = amtMatch ? amtMatch[1] : 'CHF';
+    const amtObj = entry.Amt;
+    const amount = parseFloat(amtObj?.Value || amtObj?.['#text'] || amtObj || '0');
+    const currency = amtObj?.Ccy || 'CHF';
 
     // credit/debit indicator
-    const cdtDbtInd = Iso20022Service.extractTag(entryXml, 'CdtDbtInd');
-    if (!cdtDbtInd) throw new Error(`Missing CdtDbtInd in CAMT entry`);
+    const cdtDbtInd = entry.CdtDbtInd;
+    if (!cdtDbtInd) throw new Error('Missing CdtDbtInd in CAMT entry');
     const creditDebitIndicator = cdtDbtInd === 'CRDT' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT;
 
     // dates
-    const bookingDateStr = Iso20022Service.extractTag(entryXml, 'BookgDt');
-    const valueDateStr = Iso20022Service.extractTag(entryXml, 'ValDt');
-    const bookingDate = bookingDateStr ? Iso20022Service.parseDate(bookingDateStr) : new Date();
-    const valueDate = valueDateStr ? Iso20022Service.parseDate(valueDateStr) : bookingDate;
+    const bookingDateStr = entry.BookgDt?.Dt;
+    const valueDateStr = entry.ValDt?.Dt;
+    const bookingDate = bookingDateStr ? this.parseDate(bookingDateStr) : new Date();
+    const valueDate = valueDateStr ? this.parseDate(valueDateStr) : bookingDate;
 
     // reference
-    const accountServiceRef = Iso20022Service.extractTag(entryXml, 'AcctSvcrRef') || Util.createUniqueId(accountIban);
+    const accountServiceRef = entry.NtryRef || entry.AcctSvcrRef || Util.createUniqueId(accountIban);
 
-    // transaction details (inside TxDtls)
-    const txDtls = entryXml.match(/<TxDtls>[\s\S]*?<\/TxDtls>/)?.[0] || entryXml;
+    // transaction details
+    const entryDtls = entry.NtryDtls;
+    const txDtlsArray = Array.isArray(entryDtls) ? entryDtls : entryDtls ? [entryDtls] : [];
+    const firstDetail = txDtlsArray[0];
+    const txDtlsList = firstDetail?.TxDtls;
+    const txDtls = Array.isArray(txDtlsList) ? txDtlsList[0] : txDtlsList || {};
 
     // party information - determine counterparty based on credit/debit
     const isCredit = creditDebitIndicator === BankTxIndicator.CREDIT;
-    const counterpartyTag = isCredit ? 'Dbtr' : 'Cdtr';
+    const parties = txDtls.RltdPties || {};
+    const counterparty = isCredit ? parties.Dbtr : parties.Cdtr;
+    const counterpartyAcct = isCredit ? parties.DbtrAcct : parties.CdtrAcct;
+    const counterpartyAgent = isCredit ? txDtls.RltdAgts?.DbtrAgt : txDtls.RltdAgts?.CdtrAgt;
 
-    const name =
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', counterpartyTag, 'Nm') ||
-      Iso20022Service.extractTag(txDtls, 'Nm');
-
-    const iban =
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', `${counterpartyTag}Acct`, 'IBAN') ||
-      Iso20022Service.extractTag(txDtls, 'IBAN');
-
-    const bic =
-      Iso20022Service.extractTag(txDtls, 'BIC') ||
-      Iso20022Service.extractTag(txDtls, 'BICFI') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdAgts', `${counterpartyTag}Agt`, 'BIC');
+    const name = counterparty?.Nm || '';
+    const iban = counterpartyAcct?.Id?.IBAN || '';
+    const bic = counterpartyAgent?.FinInstnId?.BIC || counterpartyAgent?.FinInstnId?.BICFI;
 
     // address information from PstlAdr
-    const { addressLine1, addressLine2, country } = Iso20022Service.extractAddressFromXml(txDtls, counterpartyTag);
+    const postalAddress = counterparty?.PstlAdr;
+    const { addressLine1, addressLine2 } = this.parsePostalAddress(postalAddress);
+    const country = postalAddress?.Ctry;
+
+    // ultimate party info (actual sender/receiver behind intermediary banks like Wise/Revolut)
+    const ultimateParty = isCredit ? parties.UltmtDbtr : parties.UltmtCdtr;
+    const ultimateName = ultimateParty?.Nm;
+    const ultimatePostalAddress = ultimateParty?.PstlAdr;
+    const { addressLine1: ultimateAddressLine1, addressLine2: ultimateAddressLine2 } =
+      this.parsePostalAddress(ultimatePostalAddress);
+    const ultimateCountry = ultimatePostalAddress?.Ctry;
 
     // remittance information
-    const ustrd = Iso20022Service.extractTag(txDtls, 'Ustrd');
-    const strd = Iso20022Service.extractTag(txDtls, 'Strd');
-    const remittanceInfo = ustrd || strd;
+    let remittanceInfo: string | undefined;
+    if (txDtls.RmtInf?.Ustrd) {
+      const ustrd = txDtls.RmtInf.Ustrd;
+      remittanceInfo = Array.isArray(ustrd) ? ustrd.join(' ') : ustrd;
+    } else if (txDtls.RmtInf?.Strd) {
+      remittanceInfo = txDtls.RmtInf.Strd;
+    } else if (entry.AddtlNtryInf) {
+      remittanceInfo = entry.AddtlNtryInf;
+    }
 
     // end-to-end ID
-    const endToEndId = Iso20022Service.extractTag(txDtls, 'EndToEndId');
+    const endToEndId = txDtls.Refs?.EndToEndId || '';
 
     // bank transaction codes
-    const { domainCode, familyCode, subFamilyCode } = Iso20022Service.extractBkTxCdFromXml(txDtls);
+    const bkTxCd = txDtls.BkTxCd?.Domn;
+    const domainCode = bkTxCd?.Cd;
+    const familyCode = bkTxCd?.Fmly?.Cd;
+    const subFamilyCode = bkTxCd?.Fmly?.SubFmlyCd;
 
     return {
       accountServiceRef,
@@ -270,6 +316,10 @@ export class Iso20022Service {
       addressLine1,
       addressLine2,
       country,
+      ultimateName,
+      ultimateAddressLine1,
+      ultimateAddressLine2,
+      ultimateCountry,
       iban,
       bic,
       remittanceInfo,
@@ -283,49 +333,15 @@ export class Iso20022Service {
     };
   }
 
-  private static extractAddressFromXml(
-    xml: string,
-    partyTag: string,
-  ): { addressLine1?: string; addressLine2?: string; country?: string } {
-    const partyMatch = xml.match(new RegExp(`<${partyTag}>[\\s\\S]*?</${partyTag}>`));
-    if (!partyMatch) return {};
+  static parseCamt053Xml(xmlData: string, accountIban: string): CamtTransaction[] {
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '',
+      parseAttributeValue: true,
+    });
 
-    const partyXml = partyMatch[0];
-    const pstlAdrMatch = partyXml.match(/<PstlAdr>[\s\S]*?<\/PstlAdr>/);
-    if (!pstlAdrMatch) return {};
-
-    const pstlAdr = pstlAdrMatch[0];
-
-    const country = Iso20022Service.extractTag(pstlAdr, 'Ctry');
-
-    // AdrLine format
-    const adrLines = pstlAdr.match(/<AdrLine>([^<]*)<\/AdrLine>/g);
-    if (adrLines && adrLines.length > 0) {
-      const extractedLines = adrLines.map((line) => line.replace(/<\/?AdrLine>/g, '').trim());
-      return {
-        addressLine1: extractedLines[0],
-        addressLine2: extractedLines[1],
-        country,
-      };
-    }
-
-    // structured format (StrtNm, BldgNb, PstCd, TwnNm)
-    const strtNm = Iso20022Service.extractTag(pstlAdr, 'StrtNm');
-    const bldgNb = Iso20022Service.extractTag(pstlAdr, 'BldgNb');
-    const pstCd = Iso20022Service.extractTag(pstlAdr, 'PstCd');
-    const twnNm = Iso20022Service.extractTag(pstlAdr, 'TwnNm');
-
-    if (strtNm || twnNm) {
-      const streetPart = [strtNm, bldgNb].filter(Boolean).join(' ');
-      const cityPart = [pstCd, twnNm].filter(Boolean).join(' ');
-      return {
-        addressLine1: streetPart || undefined,
-        addressLine2: cityPart || undefined,
-        country,
-      };
-    }
-
-    return { country };
+    const jsonData = parser.parse(xmlData);
+    return this.parseCamt053Json(jsonData.Document || jsonData, accountIban);
   }
 
   // --- PAIN.001 GENERATION --- //
@@ -370,6 +386,7 @@ export class Iso20022Service {
                   Nm: payment.creditor.name,
                   PstlAdr: {
                     ...(payment.creditor.address && { StrtNm: payment.creditor.address }),
+                    ...(payment.creditor.houseNumber && { BldgNb: payment.creditor.houseNumber }),
                     ...(payment.creditor.zip && { PstCd: payment.creditor.zip }),
                     ...(payment.creditor.city && { TwnNm: payment.creditor.city }),
                     Ctry: payment.creditor.country,
@@ -464,39 +481,6 @@ export class Iso20022Service {
   }
 
   // --- XML HELPER METHODS --- //
-
-  private static extractBkTxCdFromXml(xml: string): {
-    domainCode?: string;
-    familyCode?: string;
-    subFamilyCode?: string;
-  } {
-    const domainCode = Iso20022Service.extractNestedTag(xml, 'BkTxCd', 'Domn', 'Cd');
-    const familyCode = Iso20022Service.extractNestedTag(xml, 'BkTxCd', 'Domn', 'Fmly', 'Cd');
-    const subFamilyCode = Iso20022Service.extractNestedTag(xml, 'BkTxCd', 'Domn', 'Fmly', 'SubFmlyCd');
-
-    return {
-      domainCode,
-      familyCode,
-      subFamilyCode,
-    };
-  }
-
-  private static extractTag(xml: string, tag: string): string | undefined {
-    const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`));
-    return match?.[1]?.trim();
-  }
-
-  private static extractNestedTag(xml: string, ...tags: string[]): string | undefined {
-    let current = xml;
-    for (const tag of tags) {
-      const match = current.match(new RegExp(`<${tag}>[\\s\\S]*?</${tag}>`));
-      if (!match) return undefined;
-      current = match[0];
-    }
-
-    const textMatch = current.match(/>([^<]+)</);
-    return textMatch?.[1]?.trim();
-  }
 
   private static parseDate(dateStr: string): Date {
     const dateMatch = dateStr.match(/(\d{4}-\d{2}-\d{2})/);

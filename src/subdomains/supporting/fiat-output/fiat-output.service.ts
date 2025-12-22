@@ -7,6 +7,7 @@ import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.se
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
+import { BankService } from '../bank/bank/bank.service';
 import { PayInStatus } from '../payin/entities/crypto-input.entity';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from './dto/update-fiat-output.dto';
@@ -24,6 +25,7 @@ export class FiatOutputService {
     @Inject(forwardRef(() => BankTxReturnService))
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
+    private readonly bankService: BankService,
   ) {}
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
@@ -65,6 +67,11 @@ export class FiatOutputService {
     if (dto.bankTxRepeatId) {
       entity.bankTxRepeat = await this.bankTxRepeatService.getBankTxRepeat(dto.bankTxRepeatId);
       if (!entity.bankTxRepeat) throw new NotFoundException('BankTxRepeat not found');
+    }
+
+    if (entity.accountIban && !entity.bank) {
+      const bank = await this.bankService.getBankByIban(entity.accountIban);
+      if (bank) entity.bank = bank;
     }
 
     return this.fiatOutputRepo.save(entity);

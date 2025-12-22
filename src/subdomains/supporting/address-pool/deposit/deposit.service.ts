@@ -12,6 +12,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
+import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { ZanoHelper } from 'src/integration/blockchain/zano/zano-helper';
 import { LnurlpLinkUpdateDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
@@ -95,6 +96,8 @@ export class DepositService {
       return this.createSolanaDeposits(blockchain, count);
     } else if (blockchain === Blockchain.TRON) {
       return this.createTronDeposits(blockchain, count);
+    } else if (blockchain === Blockchain.CARDANO) {
+      return this.createCardanoDeposits(blockchain, count);
     }
 
     throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
@@ -251,5 +254,17 @@ export class DepositService {
     }
 
     await this.tatumWebhookService.createAddressWebhook({ blockchain: Blockchain.TRON, addresses: addresses });
+  }
+
+  private async createCardanoDeposits(blockchain: Blockchain, count: number): Promise<void> {
+    const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
+
+    for (let i = 0; i < count; i++) {
+      const accountIndex = nextDepositIndex + i;
+
+      const wallet = CardanoUtil.createWallet(Config.blockchain.cardano.walletAccount(accountIndex));
+      const deposit = Deposit.create(wallet.address, [blockchain], accountIndex);
+      await this.depositRepo.save(deposit);
+    }
   }
 }

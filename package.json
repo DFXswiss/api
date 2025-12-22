@@ -24,6 +24,7 @@
   "dependencies": {
     "@arbitrum/sdk": "^3.7.3",
     "@azure/storage-blob": "^12.29.1",
+    "@blockfrost/blockfrost-js": "^6.1.0",
     "@cardano-foundation/cardano-verify-datasignature": "^1.0.11",
     "@defichain/jellyfish-api-core": "^3.30.1",
     "@defichain/jellyfish-api-jsonrpc": "^3.30.1",
@@ -31,6 +32,7 @@
     "@defichain/whale-api-client": "^3.39.1",
     "@deuro/eurocoin": "^1.0.16",
     "@dhedge/v2-sdk": "^1.11.1",
+    "@emurgo/cardano-serialization-lib-nodejs": "^15.0.3",
     "@eth-optimism/sdk": "^3.3.3",
     "@frankencoin/zchf": "^0.2.36",
     "@maticnetwork/maticjs": "^3.9.6",
@@ -74,6 +76,7 @@
     "bignumber.js": "^9.3.1",
     "bip322-js": "^3.0.0",
     "bitcoinjs-message": "^2.2.0",
+    "blakejs": "^1.2.1",
     "bolt11": "^1.4.1",
     "bs58check": "^4.0.0",
     "ccxt": "^4.5.14",

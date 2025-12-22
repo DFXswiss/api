@@ -59,7 +59,13 @@ export interface SumSubDataResult {
     ];
   };
   requiredIdDocs?: string;
-  fixedInfo?: string;
+  fixedInfo?: {
+    firstName?: string;
+    firstNameEn?: string;
+    lastName?: string;
+    lastNameEn?: string;
+    country?: string;
+  };
   email?: string;
   phone?: string;
   applicantPlatform?: string;
