@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { UpdateResult } from 'src/shared/models/entity';
+import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -39,6 +40,9 @@ export class RefReward extends Reward {
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
   sourceTransaction?: Transaction;
+
+  @ManyToOne(() => LiquidityManagementPipeline, { nullable: true })
+  liquidityPipeline?: LiquidityManagementPipeline;
 
   //*** FACTORY METHODS ***//
 
