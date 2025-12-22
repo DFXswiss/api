@@ -32,7 +32,9 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -83,6 +85,8 @@ export class RealUnitService {
     private readonly swissQrService: SwissQRService,
     @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
+    @Inject(forwardRef(() => TransactionHelper))
+    private readonly transactionHelper: TransactionHelper,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -200,7 +204,7 @@ export class RealUnitService {
 
   async getPaymentInfo(user: User, dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
     const userData = user.userData;
-    const currency = dto.currency ?? 'CHF';
+    const currencyName = dto.currency ?? 'CHF';
 
     // 1. KYC Level 50 required for RealUnit
     if (userData.kycLevel < KycLevel.LEVEL_50) {
@@ -217,14 +221,35 @@ export class RealUnitService {
     const realuAsset = await this.getRealuAsset();
     const buy = await this.buyService.createBuy(user, user.address, { asset: realuAsset }, true);
 
-    // 4. Get or create vIBAN for this buy
-    let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, currency);
-    if (!virtualIban) {
-      virtualIban = await this.virtualIbanService.createForBuy(userData, buy, currency);
-    }
+    // 4. Get currency and calculate fees/rates
+    const currency = await this.fiatService.getFiatByName(currencyName);
+    const {
+      minVolume,
+      maxVolume,
+      exchangeRate,
+      rate,
+      estimatedAmount,
+      sourceAmount: amount,
+      isValid,
+      error,
+      feeSource,
+      priceSteps,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      undefined,
+      currency,
+      realuAsset,
+      FiatPaymentMethod.BANK,
+      CryptoPaymentMethod.CRYPTO,
+      false,
+      user,
+    );
 
-    // 5. Calculate estimated shares
-    const sharesInfo = await this.getBrokerbotShares(dto.amount.toString());
+    // 5. Get or create vIBAN for this buy
+    let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, currencyName);
+    if (!virtualIban) {
+      virtualIban = await this.virtualIbanService.createForBuy(userData, buy, currencyName);
+    }
 
     // 6. Recipient info (RealUnit company address)
     const { bank: realunitBank } = GetConfig().blockchain.realunit;
@@ -243,14 +268,14 @@ export class RealUnitService {
       bic: virtualIban.bank.bic,
     };
 
-    let paymentRequest: string | undefined;
-    if (currency === 'CHF') {
-      paymentRequest = this.swissQrService.createQrCode(dto.amount, currency, undefined, bankInfo, userData);
-    } else {
-      paymentRequest = this.generateGiroCode(bankInfo, dto.amount, currency);
-    }
+    const paymentRequest = isValid
+      ? currencyName === 'CHF'
+        ? this.swissQrService.createQrCode(amount, currencyName, undefined, bankInfo, userData)
+        : this.generateGiroCode(bankInfo, amount, currencyName)
+      : undefined;
 
     return {
+      // Bank info
       iban: virtualIban.iban,
       bic: virtualIban.bank.bic,
       name: recipientInfo.name,
@@ -259,11 +284,22 @@ export class RealUnitService {
       zip: recipientInfo.zip,
       city: recipientInfo.city,
       country: recipientInfo.country,
-      amount: dto.amount,
-      currency,
-      estimatedShares: sharesInfo.shares,
-      pricePerShare: sharesInfo.pricePerShare,
+      // Amount info
+      amount,
+      currency: currencyName,
+      // Fee info
+      fees: feeSource,
+      minVolume,
+      maxVolume,
+      // Rate info
+      exchangeRate,
+      rate,
+      priceSteps,
+      // RealUnit specific
+      estimatedAmount,
       paymentRequest,
+      isValid,
+      error,
     };
   }
 

@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { HistoryEventType, HolderClientResponse, PageInfo } from './client.dto';
 
 export class HistoricalBalanceDto {
@@ -279,6 +282,7 @@ export class RealUnitBuyDto {
 }
 
 export class RealUnitPaymentInfoDto {
+  // Bank info
   @ApiProperty({ description: 'Personal IBAN for this asset' })
   iban: string;
 
@@ -303,18 +307,43 @@ export class RealUnitPaymentInfoDto {
   @ApiProperty({ description: 'Recipient country' })
   country: string;
 
+  // Amount info
   @ApiProperty({ description: 'Amount to transfer' })
   amount: number;
 
   @ApiProperty({ description: 'Currency' })
   currency: string;
 
-  @ApiProperty({ description: 'Estimated REALU shares to receive' })
-  estimatedShares: number;
+  // Fee info
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in source currency' })
+  fees: FeeDto;
 
-  @ApiProperty({ description: 'Current price per share in CHF' })
-  pricePerShare: string;
+  @ApiProperty({ description: 'Minimum volume in source currency' })
+  minVolume: number;
+
+  @ApiProperty({ description: 'Maximum volume in source currency' })
+  maxVolume: number;
+
+  // Rate info
+  @ApiProperty({ description: 'Exchange rate in source/target' })
+  exchangeRate: number;
+
+  @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
+  rate: number;
+
+  @ApiProperty({ type: PriceStep, isArray: true })
+  priceSteps: PriceStep[];
+
+  // RealUnit specific
+  @ApiProperty({ description: 'Estimated REALU shares to receive' })
+  estimatedAmount: number;
 
   @ApiPropertyOptional({ description: 'QR code for payment (Swiss QR-bill or GiroCode)' })
   paymentRequest?: string;
+
+  @ApiProperty()
+  isValid: boolean;
+
+  @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
+  error?: QuoteError;
 }
