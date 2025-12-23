@@ -122,7 +122,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { asset, tradeAsset, minTradeAmount, fullTrade } = this.parseBuyParams(order.action.paramMap);
+    const { asset, tradeAsset, minTradeAmount, fullTrade, liquidityLimited } = this.parseBuyParams(order.action.paramMap);
 
     const targetAssetEntity = asset
       ? await this.assetService.getAssetByUniqueName(asset)
@@ -142,7 +142,44 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity);
 
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
-    const maxSellAmount = Util.floor(maxAmount * price, 6);
+    let maxSellAmount = Util.floor(maxAmount * price, 6);
+
+    // For illiquid markets: limit order size to available liquidity at best price
+    if (liquidityLimited) {
+      // Get exchange minimum trade amount (in base currency = targetAsset)
+      const pair = await this.exchangeService.getPair(tradeAsset, targetAssetEntity.name);
+      const exchangeMinAmount = await this.exchangeService.getMinTradeAmount(pair);
+
+      // Get liquidity on the ask side (sellers of targetAsset), skipping orders below minimum
+      const liquidity = await this.exchangeService.getBestBidLiquidity(
+        tradeAsset,
+        targetAssetEntity.name,
+        exchangeMinAmount,
+      );
+
+      if (!liquidity) {
+        throw new OrderNotProcessableException(
+          `${this.exchangeService.name}: no order in orderbook meets exchange minimum (${exchangeMinAmount}) for ${targetAssetEntity.name}`,
+        );
+      }
+
+      const { amount: liquidityAtBestPrice, price: bestPrice } = liquidity;
+
+      // Convert liquidity from targetAsset to tradeAsset
+      const liquidityInTradeAsset = Util.floor(liquidityAtBestPrice * bestPrice, 6);
+
+      this.logger.verbose(
+        `Liquidity-limited buy: requested ${maxSellAmount} ${tradeAsset}, liquidity at valid price ${liquidityAtBestPrice} ${targetAssetEntity.name} (= ${liquidityInTradeAsset} ${tradeAsset}), exchange min ${exchangeMinAmount}, using min of both`,
+      );
+
+      if (liquidityInTradeAsset < minSellAmount) {
+        throw new OrderNotProcessableException(
+          `${this.exchangeService.name}: not enough liquidity for ${targetAssetEntity.name} at best price (liquidity: ${liquidityAtBestPrice}, min. requested in ${tradeAsset}: ${minSellAmount})`,
+        );
+      }
+
+      maxSellAmount = Math.min(maxSellAmount, liquidityInTradeAsset);
+    }
 
     const availableBalance = await this.getAvailableTradeBalance(tradeAsset, targetAssetEntity.name);
     if (minSellAmount > availableBalance)
@@ -174,7 +211,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { tradeAsset } = this.parseSellParams(order.action.paramMap);
+    const { tradeAsset, liquidityLimited } = this.parseSellParams(order.action.paramMap);
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
@@ -187,7 +224,38 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
 
-    const amount = Math.min(order.maxAmount, availableBalance);
+    let amount = Math.min(order.maxAmount, availableBalance);
+
+    // For illiquid markets: limit order size to available liquidity at best price
+    if (liquidityLimited) {
+      // Get exchange minimum trade amount
+      const pair = await this.exchangeService.getPair(asset, tradeAsset);
+      const exchangeMinAmount = await this.exchangeService.getMinTradeAmount(pair);
+
+      // Get liquidity on the bid side, skipping orders below minimum
+      const liquidity = await this.exchangeService.getBestBidLiquidity(asset, tradeAsset, exchangeMinAmount);
+
+      if (!liquidity) {
+        throw new OrderNotProcessableException(
+          `${this.exchangeService.name}: no order in orderbook meets exchange minimum (${exchangeMinAmount}) for ${asset}`,
+        );
+      }
+
+      const { amount: liquidityAtBestPrice } = liquidity;
+      const limitedAmount = Math.min(amount, liquidityAtBestPrice);
+
+      this.logger.verbose(
+        `Liquidity-limited sell: requested ${amount}, liquidity at valid price ${liquidityAtBestPrice}, exchange min ${exchangeMinAmount}, using ${limitedAmount}`,
+      );
+
+      if (limitedAmount < order.minAmount) {
+        throw new OrderNotProcessableException(
+          `${this.exchangeService.name}: not enough liquidity for ${asset} at best price (liquidity: ${liquidityAtBestPrice}, min. requested: ${order.minAmount})`,
+        );
+      }
+
+      amount = limitedAmount;
+    }
 
     order.inputAmount = amount;
     order.inputAsset = asset;
@@ -454,15 +522,17 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     tradeAsset: string;
     minTradeAmount: number;
     fullTrade: boolean;
+    liquidityLimited: boolean;
   } {
     const asset = params.asset as string | undefined;
     const tradeAsset = params.tradeAsset as string | undefined;
     const minTradeAmount = params.minTradeAmount as number | undefined;
     const fullTrade = Boolean(params.fullTrade); // use full trade for directly triggered actions
+    const liquidityLimited = Boolean(params.liquidityLimited);
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.buy(...) command are invalid.`);
 
-    return { asset, tradeAsset, minTradeAmount, fullTrade };
+    return { asset, tradeAsset, minTradeAmount, fullTrade, liquidityLimited };
   }
 
   private validateSellParams(params: Record<string, unknown>): boolean {
@@ -474,12 +544,13 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
   }
 
-  private parseSellParams(params: Record<string, unknown>): { tradeAsset: string } {
+  private parseSellParams(params: Record<string, unknown>): { tradeAsset: string; liquidityLimited: boolean } {
     const tradeAsset = params.tradeAsset as string | undefined;
+    const liquidityLimited = Boolean(params.liquidityLimited);
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.sell(...) command are invalid.`);
 
-    return { tradeAsset };
+    return { tradeAsset, liquidityLimited };
   }
 
   private validateTransferParams(params: Record<string, unknown>): boolean {
