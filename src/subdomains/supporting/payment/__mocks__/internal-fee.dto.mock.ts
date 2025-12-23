@@ -16,7 +16,7 @@ const defaultInternalChargebackFeeDto: Partial<InternalChargebackFeeDto> = {
   fixed: 0,
   network: 0,
   rate: 0,
-  bankFixed: 0,
+  bankFixed: 1,
   bankRate: 0,
 };
 
