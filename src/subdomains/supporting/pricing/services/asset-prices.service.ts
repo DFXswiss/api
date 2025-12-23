@@ -16,13 +16,6 @@ export class AssetPricesService {
     });
   }
 
-  async getAssetPricesAt(date: Date): Promise<AssetPrice[]> {
-    return this.assetPriceRepo
-      .createQueryBuilder('assetPrice')
-      .where('CAST(assetPrice.created AS DATE) = CAST(:date AS DATE)', { date })
-      .getMany();
-  }
-
   async getAssetPriceForDate(assetId: number, date: Date): Promise<AssetPrice | null> {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
