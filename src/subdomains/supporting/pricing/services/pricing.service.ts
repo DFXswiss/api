@@ -148,7 +148,7 @@ export class PricingService implements OnModuleInit {
   }
 
   private async getHistoricalAssetPrice(fiat: Fiat, asset: Asset, date: Date): Promise<Price> {
-    const price = await this.assetPriceService.getAssetPriceAt(asset, date);
+    const price = await this.assetPriceService.getAssetPriceForDate(asset.id, date);
 
     let priceValue: number;
 
