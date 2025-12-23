@@ -20,9 +20,14 @@ export enum SupportIssueReason {
   OTHER = 'Other',
   DATA_REQUEST = 'DataRequest',
 
-  // transaction
+  // transaction issue
   FUNDS_NOT_RECEIVED = 'FundsNotReceived',
   TRANSACTION_MISSING = 'TransactionMissing',
+
+  // notification of changes issue
+  NAME_CHANGED = 'NameChanged',
+  ADDRESS_CHANGED = 'AddressChanged',
+  CIVIL_STATUS_CHANGED = 'CivilStatusChanged',
 }
 
 export enum SupportIssueState {
