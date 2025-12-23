@@ -151,11 +151,22 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
         tradeAsset,
         targetAssetEntity.name,
       );
+
+      // Check against exchange minimum trade amount (in base currency = targetAsset)
+      const pair = await this.exchangeService.getPair(tradeAsset, targetAssetEntity.name);
+      const exchangeMinAmount = await this.exchangeService.getMinTradeAmount(pair);
+
+      if (liquidityAtBestPrice < exchangeMinAmount) {
+        throw new OrderNotProcessableException(
+          `${this.exchangeService.name}: liquidity at best price (${liquidityAtBestPrice}) is below exchange minimum (${exchangeMinAmount}) for ${targetAssetEntity.name}`,
+        );
+      }
+
       // Convert liquidity from targetAsset to tradeAsset
       const liquidityInTradeAsset = Util.floor(liquidityAtBestPrice * bestPrice, 6);
 
       this.logger.verbose(
-        `Liquidity-limited buy: requested ${maxSellAmount} ${tradeAsset}, liquidity at best price ${liquidityAtBestPrice} ${targetAssetEntity.name} (= ${liquidityInTradeAsset} ${tradeAsset}), using min of both`,
+        `Liquidity-limited buy: requested ${maxSellAmount} ${tradeAsset}, liquidity at best price ${liquidityAtBestPrice} ${targetAssetEntity.name} (= ${liquidityInTradeAsset} ${tradeAsset}), exchange min ${exchangeMinAmount}, using min of both`,
       );
 
       if (liquidityInTradeAsset < minSellAmount) {
@@ -215,10 +226,21 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     // For illiquid markets: limit order size to available liquidity at best price
     if (liquidityLimited) {
       const { amount: liquidityAtBestPrice } = await this.exchangeService.getBestBidLiquidity(asset, tradeAsset);
+
+      // Check against exchange minimum trade amount
+      const pair = await this.exchangeService.getPair(asset, tradeAsset);
+      const exchangeMinAmount = await this.exchangeService.getMinTradeAmount(pair);
+
+      if (liquidityAtBestPrice < exchangeMinAmount) {
+        throw new OrderNotProcessableException(
+          `${this.exchangeService.name}: liquidity at best price (${liquidityAtBestPrice}) is below exchange minimum (${exchangeMinAmount}) for ${asset}`,
+        );
+      }
+
       const limitedAmount = Math.min(amount, liquidityAtBestPrice);
 
       this.logger.verbose(
-        `Liquidity-limited sell: requested ${amount}, liquidity at best price ${liquidityAtBestPrice}, using ${limitedAmount}`,
+        `Liquidity-limited sell: requested ${amount}, liquidity at best price ${liquidityAtBestPrice}, exchange min ${exchangeMinAmount}, using ${limitedAmount}`,
       );
 
       if (limitedAmount < order.minAmount) {

@@ -231,7 +231,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.markets;
   }
 
-  private async getMinTradeAmount(pair: string): Promise<number> {
+  async getMinTradeAmount(pair: string): Promise<number> {
     return this.getMarket(pair).then((m) => m.limits.amount.min);
   }
 
