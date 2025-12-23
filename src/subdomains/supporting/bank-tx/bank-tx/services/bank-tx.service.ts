@@ -5,18 +5,22 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Observable, Subject } from 'rxjs';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { BankBalanceUpdate } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -25,6 +29,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { DeepPartial, FindOptionsRelations, In, IsNull, LessThan, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
+import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
 import { TransactionService } from '../../../payment/services/transaction.service';
@@ -68,7 +73,7 @@ export const TransactionBankTxTypeMapper: {
 };
 
 @Injectable()
-export class BankTxService {
+export class BankTxService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankTxService);
   private readonly bankBalanceSubject: Subject<BankBalanceUpdate> = new Subject<BankBalanceUpdate>();
 
@@ -85,10 +90,20 @@ export class BankTxService {
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
+    private readonly yapealService: YapealService,
+    @Inject(forwardRef(() => TransactionService))
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,
+    private readonly bankDataService: BankDataService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
+
+  onModuleInit() {
+    this.bankDataService.bankDataObservable.subscribe((dto) =>
+      this.checkAssignAndNotifyUserData(dto.iban, dto.userData),
+    );
+  }
 
   // --- TRANSACTION HANDLING --- //
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
@@ -98,9 +113,42 @@ export class BankTxService {
     await this.fillBankTx();
   }
 
-  async checkTransactions(): Promise<void> {
-    if (DisabledProcess(Process.BANK_TX)) return;
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX })
+  async enrichYapealTransactions(): Promise<void> {
+    const transactions = await this.bankTxRepo.findBy([
+      { created: MoreThan(Util.minutesBefore(30)), familyCode: 'CCRD' }, // credit card => wrong data
+    ]);
 
+    if (transactions.length === 0) return;
+
+    const today = new Date();
+    const ibanGroups = Util.groupBy<BankTx, string>(transactions, 'accountIban');
+
+    for (const [accountIban, groupTransactions] of ibanGroups) {
+      try {
+        const yapealTransactions = await this.yapealService.getTransactions(accountIban, today, today);
+
+        for (const transaction of groupTransactions) {
+          const yapealTx = yapealTransactions.find((tx) => tx.accountServiceRef === transaction.accountServiceRef);
+          if (yapealTx) {
+            const enrichmentData = {
+              addressLine1: yapealTx.addressLine1,
+              addressLine2: yapealTx.addressLine2,
+              country: yapealTx.country,
+              domainCode: yapealTx.domainCode,
+              familyCode: yapealTx.familyCode,
+              subFamilyCode: yapealTx.subFamilyCode,
+            };
+            await this.bankTxRepo.update(transaction.id, Util.removeNullFields(enrichmentData));
+          }
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to enrich transactions for ${accountIban}:`, error);
+      }
+    }
+  }
+
+  private async checkTransactions(): Promise<void> {
     // Get settings
     const settingKeyOlky = 'lastBankOlkyDate';
     const settingKeyRevolut = 'lastBankRevolutDate';
@@ -133,7 +181,7 @@ export class BankTxService {
     if (revolutTransactions.length > 0) await this.settingService.set(settingKeyRevolut, newModificationTime);
   }
 
-  async assignTransactions(): Promise<void> {
+  private async assignTransactions(): Promise<void> {
     const unassignedBankTx = await this.bankTxRepo.find({
       where: [
         { type: IsNull(), creditDebitIndicator: BankTxIndicator.CREDIT },
@@ -148,32 +196,30 @@ export class BankTxService {
       : [];
 
     for (const tx of unassignedBankTx) {
-      if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
-        const remittanceInfo = (!tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo)
-          ?.replace(/[ -]/g, '')
-          .replace(/O/g, '0');
-        const buy =
-          remittanceInfo &&
-          tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
-          buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
+      try {
+        if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
+          const buy = this.findMatchingBuy(tx, buys);
 
-        if (buy) {
-          await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
+          if (buy) {
+            await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
 
-          continue;
+            continue;
+          }
         }
+
+        if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
+
+        await this.updateInternal(
+          tx,
+          tx.name === 'Payward Trading Ltd.' ? { type: BankTxType.KRAKEN } : { type: BankTxType.GSHEET },
+        );
+      } catch (e) {
+        this.logger.error(`Error during bankTx ${tx.id} assign:`, e);
       }
-
-      if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
-
-      await this.updateInternal(
-        tx,
-        tx.name === 'Payward Trading Ltd.' ? { type: BankTxType.KRAKEN } : { type: BankTxType.GSHEET },
-      );
     }
   }
 
-  async fillBankTx(): Promise<void> {
+  private async fillBankTx(): Promise<void> {
     const entities = await this.bankTxRepo.find({
       where: {
         accountingAmountBeforeFee: IsNull(),
@@ -314,6 +360,7 @@ export class BankTxService {
         .leftJoinAndSelect('userData.country', 'country')
         .leftJoinAndSelect('userData.nationality', 'nationality')
         .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+        .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
         .leftJoinAndSelect('userData.language', 'language');
     }
 
@@ -441,21 +488,47 @@ export class BankTxService {
     return null;
   }
 
-  getUnassignedBankTx(accounts: string[]): Promise<BankTx[]> {
+  async getUnassignedBankTx(
+    accounts: string[],
+    relations: FindOptionsRelations<BankTx> = { transaction: true },
+  ): Promise<BankTx[]> {
     return this.bankTxRepo.find({
       where: {
         type: In(BankTxUnassignedTypes),
         senderAccount: In(accounts),
-        creditDebitIndicator: 'CRDT',
+        creditDebitIndicator: BankTxIndicator.CREDIT,
       },
-      relations: { transaction: true },
+      relations,
     });
+  }
+
+  async checkAssignAndNotifyUserData(iban: string, userData: UserData): Promise<void> {
+    const bankTxs = await this.getUnassignedBankTx([iban], { transaction: { userData: true } });
+
+    for (const bankTx of bankTxs) {
+      if (bankTx.transaction.userData) continue;
+
+      await this.transactionService.updateInternal(bankTx.transaction, { userData });
+    }
   }
 
   private createTx(entity: DeepPartial<BankTx>, multiAccounts: SpecialExternalAccount[]): BankTx {
     const tx = this.bankTxRepo.create(entity);
     tx.senderAccount = tx.getSenderAccount(multiAccounts);
     return tx;
+  }
+
+  private findMatchingBuy(tx: BankTx, buys: { id: number; bankUsage: string }[]): { id: number } | undefined {
+    // Try remittanceInfo first, then endToEndId as fallback
+    const candidates = [tx.remittanceInfo, tx.endToEndId].filter((c) => c && c !== '-');
+
+    for (const candidate of candidates) {
+      const normalized = candidate.replace(/[ -]/g, '').replace(/O/g, '0');
+      const buy = buys.find((b) => normalized.includes(b.bankUsage.replace(/-/g, '')));
+      if (buy) return buy;
+    }
+
+    return undefined;
   }
 
   //*** GETTERS ***//
@@ -466,5 +539,29 @@ export class BankTxService {
 
   get bankBalanceObservable(): Observable<BankBalanceUpdate> {
     return this.bankBalanceSubject.asObservable();
+  }
+
+  async getUserDataForBankTx(bankTx: BankTx, userDataId?: number, ibansOnly = true): Promise<UserData | undefined> {
+    // Priority 1: VirtualIban (mandatory if set)
+    if (bankTx.virtualIban) return this.virtualIbanService.getByIban(bankTx.virtualIban).then((vI) => vI?.userData);
+
+    // Priority 2: BankData via senderAccount (fallback)
+    if (bankTx.senderAccount) {
+      return userDataId
+        ? this.bankDataService
+            .getValidBankDatasForUser(userDataId, ibansOnly, bankTx.senderAccount)
+            .then((b) => b?.[0]?.userData)
+        : this.bankDataService
+            .getVerifiedBankDataWithIban(
+              bankTx.senderAccount,
+              undefined,
+              undefined,
+              { userData: { wallet: true } },
+              true,
+            )
+            .then((b) => b?.userData);
+    }
+
+    return undefined;
   }
 }

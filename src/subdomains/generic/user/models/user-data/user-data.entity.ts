@@ -7,7 +7,11 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlListStatus } from 'src/subdomains/core/aml/enums/aml-list-status.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { DefaultPaymentLinkConfig, PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { FaucetRequest } from 'src/subdomains/core/faucet-request/entities/faucet-request.entity';
+import {
+  DefaultPaymentLinkConfig,
+  PaymentLinkConfig,
+} from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -15,9 +19,10 @@ import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { AccountOpenerAuthorization, Organization } from '../organization/organization.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
@@ -92,13 +97,16 @@ export class UserData extends IEntity {
   zip?: string;
 
   @ManyToOne(() => Country, { eager: true })
-  country: Country;
+  country?: Country;
 
   @ManyToOne(() => Country, { eager: true, nullable: true })
   nationality?: Country;
 
   @Column({ type: 'datetime2', nullable: true })
   birthday?: Date;
+
+  @Column({ length: 256, nullable: true })
+  tin?: string;
 
   // --- ORGANIZATION DATA --- //
   // TODO remove after sync
@@ -123,7 +131,7 @@ export class UserData extends IEntity {
 
   // TODO remove
   @ManyToOne(() => Country, { eager: true })
-  organizationCountry: Country;
+  organizationCountry?: Country;
 
   @Column({ type: 'float', nullable: true })
   totalVolumeChfAuditPeriod?: number;
@@ -147,7 +155,10 @@ export class UserData extends IEntity {
   language: Language;
 
   @ManyToOne(() => Fiat, { eager: true })
-  currency: Fiat;
+  currency?: Fiat;
+
+  @OneToMany(() => FaucetRequest, (faucetRequest) => faucetRequest.userData)
+  faucetRequests?: FaucetRequest[];
 
   // --- KYC --- //
 
@@ -176,7 +187,7 @@ export class UserData extends IEntity {
   kycStatus: KycStatus;
 
   @OneToMany(() => KycFile, (kycFile) => kycFile.userData)
-  kycFiles: KycFile[];
+  kycFiles?: KycFile[];
 
   @Column({ type: 'integer', nullable: true })
   kycFileId?: number;
@@ -185,7 +196,6 @@ export class UserData extends IEntity {
   kycLevel: KycLevel;
 
   @Column()
-  @Generated('uuid')
   @Index({ unique: true })
   kycHash: string;
 
@@ -193,7 +203,7 @@ export class UserData extends IEntity {
   kycType?: KycType;
 
   @OneToMany(() => KycStep, (step) => step.userData)
-  kycSteps: KycStep[];
+  kycSteps?: KycStep[];
 
   @Column({ type: 'float', nullable: true })
   depositLimit?: number;
@@ -227,6 +237,12 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   phoneCallIpCheckDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  phoneCallIpCountryCheckDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  tradeApprovalDate?: Date;
 
   // AML
   @Column({ type: 'datetime2', nullable: true })
@@ -313,10 +329,10 @@ export class UserData extends IEntity {
 
   // References
   @ManyToOne(() => Wallet, { nullable: true })
-  wallet: Wallet;
+  wallet?: Wallet;
 
   @OneToMany(() => Transaction, (tx) => tx.userData)
-  transactions: Transaction[];
+  transactions?: Transaction[];
 
   // TODO remove
   @ManyToOne(() => UserData, { nullable: true })
@@ -324,25 +340,28 @@ export class UserData extends IEntity {
   accountOpener?: UserData;
 
   @ManyToOne(() => Organization, { nullable: true, eager: true })
-  organization: Organization;
+  organization?: Organization;
 
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
-  accountRelations: UserDataRelation[];
+  accountRelations?: UserDataRelation[];
 
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.relatedAccount)
-  relatedAccountRelations: UserDataRelation[];
+  relatedAccountRelations?: UserDataRelation[];
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
-  bankDatas: BankData[];
+  bankDatas?: BankData[];
+
+  @OneToMany(() => VirtualIban, (virtualIban) => virtualIban.userData)
+  virtualIbans?: VirtualIban[];
 
   @OneToMany(() => BankTxReturn, (bankTxReturn) => bankTxReturn.userData)
-  bankTxReturns: BankTxReturn[];
+  bankTxReturns?: BankTxReturn[];
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.userData)
-  supportIssues: SupportIssue[];
+  supportIssues?: SupportIssue[];
 
   @OneToMany(() => User, (user) => user.userData)
-  users: User[];
+  users?: User[];
 
   // --- ENTITY METHODS --- //
   sendMail(): UpdateResult<UserData> {
@@ -526,12 +545,12 @@ export class UserData extends IEntity {
     return Util.floor(this.kycLevel, -1);
   }
 
-  get completeName(): string {
+  get completeName(): string | undefined {
     return this.organizationName ?? this.naturalPersonName;
   }
 
-  get naturalPersonName(): string {
-    return [this.firstname, this.surname].filter((n) => n).join(' ');
+  get naturalPersonName(): string | undefined {
+    return this.firstname || this.surname ? [this.firstname, this.surname].filter((n) => n).join(' ') : undefined;
   }
 
   get isBlocked(): boolean {
@@ -542,8 +561,25 @@ export class UserData extends IEntity {
     return this.status === UserDataStatus.DEACTIVATED;
   }
 
-  get isRisky(): boolean {
+  get hasAnyRiskStatus(): boolean {
+    return [
+      RiskStatus.BLOCKED,
+      RiskStatus.BLOCKED_BUY_CRYPTO,
+      RiskStatus.BLOCKED_BUY_FIAT,
+      RiskStatus.SUSPICIOUS,
+    ].includes(this.riskStatus);
+  }
+
+  get isRiskBlocked(): boolean {
     return this.riskStatus === RiskStatus.BLOCKED;
+  }
+
+  get isRiskBuyCryptoBlocked(): boolean {
+    return this.riskStatus === RiskStatus.BLOCKED_BUY_CRYPTO;
+  }
+
+  get isRiskBuyFiatBlocked(): boolean {
+    return this.riskStatus === RiskStatus.BLOCKED_BUY_FIAT;
   }
 
   get isSuspicious(): boolean {
@@ -557,11 +593,11 @@ export class UserData extends IEntity {
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
-          street: this.organizationStreet,
-          houseNumber: this.organizationHouseNumber,
-          city: this.organizationLocation,
-          zip: this.organizationZip,
-          country: this.organizationCountry,
+          street: this.organization.street,
+          houseNumber: this.organization.houseNumber,
+          city: this.organization.location,
+          zip: this.organization.zip,
+          country: this.organization.country,
         }
       : {
           street: this.street,
@@ -608,6 +644,10 @@ export class UserData extends IEntity {
 
   getCompletedStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
     return this.getStepsWith(name, type, sequenceNumber).find((s) => s.isCompleted);
+  }
+
+  getNonFailedStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
+    return this.getStepsWith(name, type, sequenceNumber).find((s) => !(s.isFailed || s.isCanceled));
   }
 
   getPendingStepOrThrow(stepId: number): KycStep {

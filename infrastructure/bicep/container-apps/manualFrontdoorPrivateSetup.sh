@@ -7,9 +7,8 @@ set -e
 # --- OPTIONS --- #
 environmentOptions=("loc" "dev" "prd")
 
-# "zanod": Zano Node
-# "zanolw" Zano Liquidity Wallet
-appNameOptions=()
+# "rup": RealUnit Ponder
+appNameOptions=("rup")
 
 # --- FUNCTIONS --- #
 selectOption() {
@@ -45,7 +44,7 @@ AFD_ENDPOINT="fde-${COMP_NAME}-priv-${ENV}"
 AFD_ORIGIN_GROUP="fdog-${COMP_NAME}-${APP}-${ENV}"
 AFD_ORIGIN="fdon-${COMP_NAME}-${APP}-${ENV}"
 AFD_ROUTE="fdor-${COMP_NAME}-${APP}-${ENV}"
-URI_PATTERN="/${APP}/*"
+URI_PATTERN="/${APP} /${APP}/*"
 
 echo "Resource Group:        ${RESOURCE_GROUP}"
 echo "Location:              ${LOCATION}"

@@ -18,6 +18,7 @@ import { DexPolygonService } from '../../../services/dex-polygon.service';
 import { DexSolanaService } from '../../../services/dex-solana.service';
 import { DexTronService } from '../../../services/dex-tron.service';
 import { DexZanoService } from '../../../services/dex-zano.service';
+import { DexCardanoService } from '../../../services/dex-cardano.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -42,6 +43,8 @@ import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
 import { ZanoCoinStrategy } from '../impl/zano-coin.strategy';
 import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
+import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
+import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
 
 describe('CheckLiquidityStrategies', () => {
   let bitcoinService: BitcoinService;
@@ -69,6 +72,8 @@ describe('CheckLiquidityStrategies', () => {
   let solanaToken: SolanaTokenStrategy;
   let tronCoin: TronCoinStrategy;
   let tronToken: TronTokenStrategy;
+  let cardanoCoin: CardanoCoinStrategy;
+  let cardanoToken: CardanoTokenStrategy;
 
   let register: CheckLiquidityStrategyRegistryWrapper;
 
@@ -99,6 +104,8 @@ describe('CheckLiquidityStrategies', () => {
     solanaToken = new SolanaTokenStrategy(mock<AssetService>(), mock<DexSolanaService>());
     tronCoin = new TronCoinStrategy(mock<AssetService>(), mock<DexTronService>());
     tronToken = new TronTokenStrategy(mock<AssetService>(), mock<DexTronService>());
+    cardanoCoin = new CardanoCoinStrategy(mock<AssetService>(), mock<DexCardanoService>());
+    cardanoToken = new CardanoTokenStrategy(mock<AssetService>(), mock<DexCardanoService>());
 
     register = new CheckLiquidityStrategyRegistryWrapper(
       bitcoin,
@@ -124,6 +131,8 @@ describe('CheckLiquidityStrategies', () => {
       solanaToken,
       tronCoin,
       tronToken,
+      cardanoCoin,
+      cardanoToken,
     );
   });
 
@@ -307,6 +316,22 @@ describe('CheckLiquidityStrategies', () => {
         expect(strategy).toBeInstanceOf(TronTokenStrategy);
       });
 
+      it('gets CARDANO_COIN strategy', () => {
+        const strategy = register.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.CARDANO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(CardanoCoinStrategy);
+      });
+
+      it('gets CARDANO_TOKEN strategy', () => {
+        const strategy = register.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.CARDANO, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(CardanoTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const strategy = register.getCheckLiquidityStrategy(
           createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }),
@@ -343,6 +368,8 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     solanaToken: SolanaTokenStrategy,
     tronCoin: TronCoinStrategy,
     tronToken: TronTokenStrategy,
+    cardanoCoin: CardanoCoinStrategy,
+    cardanoToken: CardanoTokenStrategy,
   ) {
     super();
 
@@ -370,5 +397,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     this.add({ blockchain: Blockchain.SOLANA, assetType: AssetType.TOKEN }, solanaToken);
     this.add({ blockchain: Blockchain.TRON, assetType: AssetType.COIN }, tronCoin);
     this.add({ blockchain: Blockchain.TRON, assetType: AssetType.TOKEN }, tronToken);
+    this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.COIN }, cardanoCoin);
+    this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.TOKEN }, cardanoToken);
   }
 }

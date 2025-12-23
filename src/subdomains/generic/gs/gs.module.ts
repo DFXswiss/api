@@ -7,6 +7,7 @@ import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
 import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
+import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { FiatOutputModule } from 'src/subdomains/supporting/fiat-output/fiat-output.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
@@ -36,6 +37,7 @@ import { GsService } from './gs.service';
     KycModule,
     TransactionModule,
     SupportIssueModule,
+    BankModule,
   ],
   controllers: [GsController, GsEvmController],
   providers: [GsService, GsEvmService],

@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsNumber, IsString, Matches, ValidateNested } from 'class-validator';
+import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
 import { GetConfig } from 'src/config/config';
 
 export class PermitDto {
@@ -45,9 +45,14 @@ export class PermitDto {
 }
 
 export class ConfirmDto {
-  @ApiProperty({ type: PermitDto })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ type: PermitDto, description: 'Permit signature for backend-executed transfer' })
+  @IsOptional()
   @ValidateNested()
   @Type(() => PermitDto)
-  permit: PermitDto;
+  permit?: PermitDto;
+
+  @ApiPropertyOptional({ description: 'User-signed transaction hex for broadcast' })
+  @IsOptional()
+  @IsString()
+  signedTxHex?: string;
 }

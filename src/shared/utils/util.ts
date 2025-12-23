@@ -1,7 +1,7 @@
 import BigNumber from 'bignumber.js';
 import { TransformFnParams } from 'class-transformer';
 import * as crypto from 'crypto';
-import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike, randomBytes } from 'crypto';
+import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike, randomBytes, randomInt } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 import { isEqual } from 'lodash';
@@ -228,6 +228,10 @@ export class Util {
     return value?.trim();
   }
 
+  static toLowerCaseTrim({ value }: TransformFnParams): string | undefined {
+    return value?.trim().toLowerCase();
+  }
+
   static equalsIgnoreCase(left: string, right: string): boolean {
     return left?.toLowerCase() === right?.toLowerCase();
   }
@@ -257,6 +261,11 @@ export class Util {
     return randomBytes(4).readUInt32BE();
   }
 
+  static randomIdString(digits: number): string {
+    const num = randomInt(0, 10 ** digits);
+    return num.toString().padStart(digits, '0');
+  }
+
   static randomString(length = 16): string {
     return randomBytes(length / 2)
       .toString('hex')
@@ -267,9 +276,13 @@ export class Util {
     return Util.toBase32(randomBytes(32));
   }
 
-  static createUniqueId(prefix: string, length = 6): string {
+  static createUniqueId(prefix: string, length = 16): string {
     const hash = this.randomString(length).toLowerCase();
     return `${prefix}_${hash}`;
+  }
+
+  static createUid(prefix: string, length = 16): string {
+    return `${prefix}${Util.randomString(length)}`;
   }
 
   // --- DATES --- //

@@ -2,6 +2,7 @@ import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
@@ -39,6 +40,7 @@ export class AmlService {
     private readonly payInService: PayInService,
     private readonly userService: UserService,
     private readonly transactionService: TransactionService,
+    private readonly ipLogService: IpLogService,
   ) {}
 
   async postProcessing(
@@ -91,6 +93,8 @@ export class AmlService {
     bankData: BankData;
     blacklist: SpecialExternalAccount[];
     banks?: Bank[];
+    ipLogCountries?: string[];
+    multiAccountBankNames?: string[];
   }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);
@@ -157,11 +161,22 @@ export class AmlService {
     }
 
     if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist };
-    if (entity.cryptoInput)
-      return { users: entity.userData.users, refUser, bankData: undefined, blacklist, banks: undefined };
 
+    const ipLogCountries = await this.ipLogService.getLoginCountries(entity.userData.id, Util.daysBefore(3));
+
+    if (entity.cryptoInput)
+      return {
+        users: entity.userData.users,
+        refUser,
+        bankData: undefined,
+        blacklist,
+        banks: undefined,
+        ipLogCountries,
+      };
+
+    const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountNames();
     const banks = await this.bankService.getAllBanks();
-    return { users: entity.userData.users, refUser, bankData, blacklist, banks };
+    return { users: entity.userData.users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames };
   }
 
   //*** HELPER METHODS ***//
@@ -209,7 +224,9 @@ export class AmlService {
 
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {
     if (entity instanceof BuyFiat)
-      return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban, undefined, { userData: true });
+      return this.bankDataService.getVerifiedBankDataWithIban(entity.sell.iban, undefined, undefined, {
+        userData: true,
+      });
     if (entity.cryptoInput) {
       const bankDatas = await this.bankDataService
         .getValidBankDatasForUser(entity.userData.id)
@@ -219,6 +236,7 @@ export class AmlService {
 
     return this.bankDataService.getVerifiedBankDataWithIban(
       entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint,
+      undefined,
       undefined,
       { userData: true },
     );

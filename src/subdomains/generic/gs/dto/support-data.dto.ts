@@ -6,6 +6,7 @@ import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -37,6 +38,7 @@ export class SupportReturnData {
   buy: Buy[];
   sell: Sell[];
   swap: Swap[];
+  virtualIbans: VirtualIban[];
 }
 
 export class SupportDataQuery {

@@ -10,6 +10,7 @@ import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -89,13 +90,24 @@ export class BuyFiatService {
     });
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(sell.iban, sell.userData.id);
-      if (!bankData && sell.userData.completeName)
-        await this.bankDataService.createVerifyBankData(sell.userData, {
-          name: sell.userData.completeName,
-          iban: sell.iban,
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+        sell.iban,
+        sell.userData.id,
+        BankDataType.BANK_OUT,
+      );
+      if ((!bankData || bankData.type !== BankDataType.BANK_OUT) && sell.userData.completeName) {
+        const createDto: CreateBankDataDto = {
           type: BankDataType.BANK_OUT,
-        });
+          iban: sell.iban,
+          name: sell.userData.completeName,
+        };
+
+        if (bankData) {
+          await this.bankDataService.replaceBankDataWithNewType(bankData, createDto);
+        } else {
+          await this.bankDataService.createVerifyBankData(sell.userData, createDto);
+        }
+      }
     }
 
     entity = await this.buyFiatRepo.save(entity);
@@ -212,6 +224,7 @@ export class BuyFiatService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }
@@ -396,7 +409,7 @@ export class BuyFiatService {
   async getPendingTransactions(): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({
       where: { isComplete: false },
-      relations: { cryptoInput: true, sell: true },
+      relations: { cryptoInput: true, sell: true, fiatOutput: { bank: true } },
     });
   }
 

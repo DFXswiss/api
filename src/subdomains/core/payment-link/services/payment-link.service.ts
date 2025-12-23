@@ -217,7 +217,7 @@ export class PaymentLinkService {
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
       mode: dto.mode,
-      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix),
       webhookUrl: dto.webhookUrl,
       payments: [],
       config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),
@@ -405,7 +405,7 @@ export class PaymentLinkService {
   async updatePaymentLinkAdmin(id: number, dto: UpdatePaymentLinkInternalDto): Promise<PaymentLink> {
     const entity = await this.paymentLinkRepo.findOne({
       where: { id },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
     if (!entity) throw new NotFoundException('Payment link not found');
 
@@ -460,7 +460,7 @@ export class PaymentLinkService {
   private async getActivePaymentLink(uniqueId: string): Promise<PaymentLink> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { uniqueId, status: Not(PaymentLinkStatus.INACTIVE) },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
@@ -474,7 +474,7 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { id, externalId, status: PaymentLinkStatus.UNASSIGNED },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
@@ -490,7 +490,7 @@ export class PaymentLinkService {
     const routes = await this.depositRouteService.getPaymentRoutesForPublicName(publicName);
     const paymentLinks = await this.paymentLinkRepo.find({
       where: { route: { id: In(routes.map((r) => r.id)) } },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
 
     const locations = paymentLinks.map((pl) => pl.configObj.recipient?.address);
@@ -670,7 +670,7 @@ export class PaymentLinkService {
   async createPosLinkAdmin(paymentLinkId: number, scoped?: boolean): Promise<string> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { id: paymentLinkId },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 

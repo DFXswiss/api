@@ -7,6 +7,7 @@ import { PaymentQuoteStatus, PaymentStandard } from '../enums';
 export enum PayoutFrequency {
   IMMEDIATE = 'Immediate',
   DAILY = 'Daily',
+  WEEKLY = 'Weekly',
 }
 
 export interface PaymentLinkConfig {

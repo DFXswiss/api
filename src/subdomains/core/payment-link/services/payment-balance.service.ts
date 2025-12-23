@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
@@ -23,6 +24,7 @@ export class PaymentBalanceService implements OnModuleInit {
     Blockchain.LIGHTNING,
     Blockchain.MONERO,
     Blockchain.ZANO,
+    Blockchain.CARDANO,
     Blockchain.BINANCE_PAY,
     Blockchain.KUCOIN_PAY,
   ];
@@ -30,6 +32,7 @@ export class PaymentBalanceService implements OnModuleInit {
   private evmDepositAddress: string;
   private solanaDepositAddress: string;
   private tronDepositAddress: string;
+  private cardanoDepositAddress: string;
   private moneroDepositAddress: string;
   private bitcoinDepositAddress: string;
   private zanoDepositAddress: string;
@@ -43,6 +46,7 @@ export class PaymentBalanceService implements OnModuleInit {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
     this.solanaDepositAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
     this.tronDepositAddress = TronUtil.createWallet({ seed: Config.payment.tronSeed, index: 0 }).address;
+    this.cardanoDepositAddress = CardanoUtil.createWallet({ seed: Config.payment.cardanoSeed, index: 0 })?.address;
 
     this.moneroDepositAddress = Config.payment.moneroAddress;
     this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
@@ -123,6 +127,9 @@ export class PaymentBalanceService implements OnModuleInit {
 
       case Blockchain.TRON:
         return this.tronDepositAddress;
+
+      case Blockchain.CARDANO:
+        return this.cardanoDepositAddress;
     }
   }
 

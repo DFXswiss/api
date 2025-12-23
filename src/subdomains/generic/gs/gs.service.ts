@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -10,6 +11,7 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -39,11 +41,18 @@ export enum SupportTable {
   FIAT_OUTPUT = 'fiatOutput',
   TRANSACTION = 'transaction',
   BANK_DATA = 'bankData',
+  VIRTUAL_IBAN = 'virtualIban',
 }
 
 @Injectable()
 export class GsService {
   private readonly logger = new DfxLogger(GsService);
+
+  // columns only visible to SUPER_ADMIN
+  private readonly RestrictedColumns: Record<string, string[]> = {
+    asset: ['ikna'],
+  };
+  private readonly RestrictedMarker = '[RESTRICTED]';
 
   constructor(
     private readonly userDataService: UserDataService,
@@ -66,9 +75,10 @@ export class GsService {
     private readonly limitRequestService: LimitRequestService,
     private readonly supportIssueService: SupportIssueService,
     private readonly swapService: SwapService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
-  async getDbData(query: DbQueryDto): Promise<DbReturnData> {
+  async getDbData(query: DbQueryDto, role: UserRole): Promise<DbReturnData> {
     const additionalSelect = Array.from(
       new Set([
         ...(query.select?.filter((s) => s.includes('-') && !s.includes('documents')).map((s) => s.split('-')[0]) || []),
@@ -131,13 +141,15 @@ export class GsService {
     });
 
     // transform to array
-    return this.transformResultArray(data, query.table);
+    return this.transformResultArray(data, query.table, role);
   }
 
-  async getExtendedDbData(query: DbQueryBaseDto): Promise<DbReturnData> {
+  async getExtendedDbData(query: DbQueryBaseDto, role: UserRole): Promise<DbReturnData> {
     switch (query.table) {
-      case 'bank_tx':
-        return this.transformResultArray(await this.getExtendedBankTxData(query), query.table);
+      case 'bank_tx': {
+        const data = await this.getExtendedBankTxData(query);
+        return this.transformResultArray(data, query.table, role);
+      }
     }
   }
 
@@ -180,6 +192,7 @@ export class GsService {
       buy: await this.buyService.getAllUserBuys(userIds),
       sell: await this.sellService.getAllUserSells(userIds),
       swap: await this.swapService.getAllUserSwaps(userIds),
+      virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData),
     };
   }
 
@@ -356,6 +369,8 @@ export class GsService {
           .then((transaction) => transaction?.userData);
       case SupportTable.BANK_DATA:
         return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD?.userData);
+      case SupportTable.VIRTUAL_IBAN:
+        return this.virtualIbanService.getVirtualIbanByKey(query.key, query.value).then((vI) => vI?.userData);
     }
   }
 
@@ -439,8 +454,11 @@ export class GsService {
     return selectPath.split('-')[1]?.split('.').join('/').split('{userData}').join(`${userDataId}`);
   }
 
-  private transformResultArray(data: any[], table: string): DbReturnData {
+  private transformResultArray(data: any[], table: string, role: UserRole): DbReturnData {
     if (data.length === 0) return undefined;
+
+    if (role !== UserRole.SUPER_ADMIN) this.maskRestrictedColumns(data, table);
+
     const keys = Object.keys(data[0]);
     const uniqueData = Util.toUniqueList(data, keys[0]);
 
@@ -459,5 +477,21 @@ export class GsService {
 
   private toDotSeparation(str: string): string {
     return str.charAt(0).toLowerCase() + str.slice(1).split('_').join('.');
+  }
+
+  private maskRestrictedColumns(data: Record<string, unknown>[], table: string): void {
+    const restrictedColumns = this.RestrictedColumns[table];
+    if (!restrictedColumns?.length) return;
+
+    for (const entry of data) {
+      for (const column of restrictedColumns) {
+        const prefixedKey = `${table}_${column}`;
+        if (prefixedKey in entry) {
+          entry[prefixedKey] = this.RestrictedMarker;
+        } else if (column in entry) {
+          entry[column] = this.RestrictedMarker;
+        }
+      }
+    }
   }
 }

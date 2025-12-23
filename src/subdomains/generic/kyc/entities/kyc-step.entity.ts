@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Recommendation } from '../../user/models/recommendation/recommendation.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { IdentDocumentType, IdentResultData, IdentType } from '../dto/ident-result-data.dto';
@@ -54,6 +55,9 @@ export class KycStep extends IEntity {
   @OneToMany(() => KycFile, (f) => f.kycStep)
   files: KycFile[];
 
+  @OneToOne(() => Recommendation, (recommendation) => recommendation.kycStep)
+  recommendation?: Recommendation;
+
   // Mail
   @Column({ type: 'datetime2', nullable: true })
   reminderSentDate?: Date;
@@ -71,6 +75,9 @@ export class KycStep extends IEntity {
 
       case KycStepName.NATIONALITY_DATA:
         return { url: `${apiUrl}/data/nationality/${this.id}`, type: UrlType.API };
+
+      case KycStepName.RECOMMENDATION:
+        return { url: `${apiUrl}/data/recommendation/${this.id}`, type: UrlType.API };
 
       case KycStepName.OWNER_DIRECTORY:
         return { url: `${apiUrl}/data/owner/${this.id}`, type: UrlType.API };
@@ -364,7 +371,7 @@ export class KycStep extends IEntity {
         kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
         ipCountry: identResultData.data.ipCountry,
-        country: identResultData.data.info.country,
+        country: identResultData.data.fixedInfo?.country,
       };
     } else if (this.isManual) {
       const identResultData = this.getResult<ManualIdentResult>();

@@ -1,14 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
 
@@ -25,8 +26,6 @@ export class RefRewardDexService {
   constructor(
     private readonly refRewardRepo: RefRewardRepository,
     private readonly dexService: DexService,
-    private readonly assetService: AssetService,
-    private readonly fiatService: FiatService,
     private readonly priceService: PricingService,
   ) {}
 
@@ -35,22 +34,15 @@ export class RefRewardDexService {
       where: { status: RewardStatus.PREPARED },
     });
 
-    const groupedRewardsByBlockchain = Util.groupBy<RefReward, Blockchain>(newRefRewards, 'targetBlockchain');
+    const groupedRewards = Util.groupByAccessor<RefReward, number>(newRefRewards, (r) => r.outputAsset.id);
 
-    await this.processRefRewards(groupedRewardsByBlockchain);
-  }
-
-  private async processRefRewards(groupedRewards: Map<Blockchain, RefReward[]>): Promise<void> {
-    const eur = await this.fiatService.getFiatByName('EUR');
-
-    for (const blockchain of groupedRewards.keys()) {
+    for (const rewards of groupedRewards.values()) {
       try {
-        const asset = await this.assetService.getNativeAsset(blockchain);
+        // payout asset price
+        const asset = rewards[0].outputAsset;
+        const assetPrice = await this.priceService.getPrice(PriceCurrency.EUR, asset, PriceValidity.VALID_ONLY);
 
-        // payout asset Price
-        const assetPrice = await this.priceService.getPrice(eur, asset, PriceValidity.VALID_ONLY);
-
-        for (const reward of groupedRewards.get(blockchain)) {
+        for (const reward of rewards) {
           const outputAmount = assetPrice.convert(reward.amountInEur, 8);
 
           await this.checkLiquidity({
@@ -60,11 +52,9 @@ export class RefRewardDexService {
           });
 
           await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
-
-          this.logger.verbose(`Secured liquidity for ref reward. Reward ID: ${reward.id}.`);
         }
       } catch (e) {
-        this.logger.error(`Error in processing ref rewards for ${blockchain}:`, e);
+        this.logger.error(`Error in processing ref rewards for ${rewards[0].outputAsset.uniqueName}:`, e);
       }
     }
   }

@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { randomUUID } from 'crypto';
 import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
@@ -54,6 +55,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
+import { UpdateMailStatus } from '../user/dto/verify-mail.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
@@ -133,6 +135,8 @@ export class UserDataService {
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
+    if (!Config.formats.kycHash.test(kycHash)) throw new UnauthorizedException('Invalid KYC hash');
+
     let user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
@@ -217,6 +221,7 @@ export class UserDataService {
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.nationality', 'nationality')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `userData.${key}`} = :param`, { param: value })
@@ -229,6 +234,7 @@ export class UserDataService {
       ...dto,
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
+      kycHash: randomUUID().toUpperCase(),
     });
 
     await this.loadRelationsAndVerify(userData, dto);
@@ -446,6 +452,7 @@ export class UserDataService {
       organizationLocation: data.organizationAddress?.city,
       organizationZip: data.organizationAddress?.zip,
       organizationCountry: data.organizationAddress?.country,
+      tradeApprovalDate: data.accountType === AccountType.ORGANIZATION ? new Date() : undefined,
     };
 
     const isPersonalAccount =
@@ -553,15 +560,18 @@ export class UserDataService {
 
   // --- MAIL UPDATE --- //
 
-  async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<void> {
-    if (userData.mail == null) await this.trySetUserMail(userData, dto.mail);
+  async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<UpdateMailStatus> {
+    if (userData.mail == null) {
+      await this.trySetUserMail(userData, dto.mail);
+      return UpdateMailStatus.Ok;
+    }
 
     await this.checkMail(userData, dto.mail);
 
     await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
     // mail verification
-    const secret = Util.randomId().toString().slice(0, 6);
+    const secret = Util.randomIdString(6);
     const codeExpiryMinutes = 30;
 
     this.secretCache.set(userData.id, {
@@ -571,12 +581,14 @@ export class UserDataService {
     });
 
     // send mail
-    return this.tfaService.sendVerificationMail(
+    await this.tfaService.sendVerificationMail(
       { ...userData, mail: dto.mail } as UserData,
       secret,
       codeExpiryMinutes,
       MailContext.EMAIL_VERIFICATION,
     );
+
+    return UpdateMailStatus.Accepted;
   }
 
   async verifyUserMail(userData: UserData, token: string): Promise<UserData> {
@@ -675,12 +687,11 @@ export class UserDataService {
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
     const defaultIdent =
       userData.accountType === AccountType.ORGANIZATION
-        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_VIDEO)
+        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_AUTO)
         : await this.settingService.get('defaultIdentMethod', KycStepType.SUMSUB_AUTO);
     const customIdent = await this.customIdentMethod(userData.id);
-    const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
-    return isVipUser ? KycStepType.SUMSUB_VIDEO : customIdent ?? (defaultIdent as KycStepType);
+    return customIdent ?? (defaultIdent as KycStepType);
   }
 
   private async customIdentMethod(userDataId: number): Promise<KycStepType | undefined> {
@@ -1053,6 +1064,10 @@ export class UserDataService {
         if (user.isBlockedOrDeleted) continue;
 
         await this.userRepo.update(...user.activateUser());
+        await this.userRepo.setUserRef(user, master.kycLevel);
+      }
+    } else if (master.users?.some((u) => u.ref)) {
+      for (const user of master.users) {
         await this.userRepo.setUserRef(user, master.kycLevel);
       }
     }

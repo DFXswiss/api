@@ -46,8 +46,9 @@ export class AuthController {
 
   @Post('signUp')
   @UseGuards(RateLimitGuard, IpCountryGuard)
-  @Throttle(20, 864000)
+  @Throttle(100, 86400)
   @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiExcludeEndpoint()
   signUp(@Body() dto: SignUpDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signUp(dto, ip);
   }
@@ -55,11 +56,14 @@ export class AuthController {
   @Post('signIn')
   @UseGuards(IpCountryGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiExcludeEndpoint()
   signIn(@Body() credentials: SignInDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signIn(credentials, ip);
   }
 
   @Post('mail')
+  @UseGuards(RateLimitGuard)
+  @Throttle(10, 60)
   @ApiCreatedResponse()
   signInByMail(@Body() dto: AuthMailDto, @Req() req: Request, @RealIP() ip: string): Promise<void> {
     return this.authService.signInByMail(dto, req.url, ip);

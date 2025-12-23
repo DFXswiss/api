@@ -113,7 +113,7 @@ export class PaymentLinkPaymentService {
         },
       ],
       relations: {
-        link: { route: { deposit: true, user: { userData: true } } },
+        link: { route: { deposit: true, user: { userData: { organization: true } } } },
       },
     });
   }
@@ -230,7 +230,7 @@ export class PaymentLinkPaymentService {
       expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.configObj.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
       currency,
-      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkPaymentUidPrefix, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkPaymentUidPrefix),
       status: PaymentLinkPaymentStatus.PENDING,
       link: paymentLink,
     });
@@ -371,7 +371,7 @@ export class PaymentLinkPaymentService {
 
     const payment = await this.paymentLinkPaymentRepo.findOne({
       where: { id: quote.payment.id },
-      relations: { link: { route: { user: { userData: true } } } },
+      relations: { link: { route: { user: { userData: { organization: true } } } } },
     });
 
     await this.handleQuoteChange(payment, quote);
@@ -449,7 +449,7 @@ export class PaymentLinkPaymentService {
     const paymentForWebhook = await this.paymentLinkPaymentRepo.findOne({
       where: { uniqueId: payment.uniqueId },
       relations: {
-        link: { route: { user: { userData: true } } },
+        link: { route: { user: { userData: { organization: true } } } },
       },
     });
 

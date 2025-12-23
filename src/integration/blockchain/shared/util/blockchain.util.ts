@@ -39,6 +39,7 @@ export const PaymentLinkBlockchains = [
   Blockchain.KUCOIN_PAY,
   Blockchain.SOLANA,
   Blockchain.TRON,
+  Blockchain.CARDANO,
 ].filter((b) => !TestBlockchains.includes(b));
 
 // --- EXPLORERS --- //
@@ -95,6 +96,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.CHECKOUT]: undefined,
   [Blockchain.KALEIDO]: undefined,
   [Blockchain.SUMIXX]: undefined,
+  [Blockchain.YAPEAL]: undefined,
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -131,6 +133,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.CHECKOUT]: undefined,
   [Blockchain.KALEIDO]: undefined,
   [Blockchain.SUMIXX]: undefined,
+  [Blockchain.YAPEAL]: undefined,
 };
 
 function assetPaths(asset: Asset): string | undefined {

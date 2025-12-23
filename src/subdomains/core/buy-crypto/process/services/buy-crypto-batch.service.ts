@@ -86,7 +86,7 @@ export class BuyCryptoBatchService {
         )}`,
       );
 
-      const riskyTxs = txWithAssets.filter((t) => t.userData.isRisky);
+      const riskyTxs = txWithAssets.filter((t) => t.userData.isRiskBlocked || t.userData.isRiskBuyCryptoBlocked);
       for (const riskyTx of riskyTxs) {
         await this.buyCryptoRepo.update(...riskyTx.resetAmlCheck());
       }
@@ -94,7 +94,8 @@ export class BuyCryptoBatchService {
       const filteredTx = txWithAssets.filter(
         (t) =>
           !t.userData.isSuspicious &&
-          !t.userData.isRisky &&
+          !t.userData.isRiskBlocked &&
+          !t.userData.isRiskBuyCryptoBlocked &&
           ((!t.liquidityPipeline &&
             !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
             [

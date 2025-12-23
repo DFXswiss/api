@@ -1,6 +1,6 @@
-import verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
 import { MainNet } from '@defichain/jellyfish-network';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Verifier } from 'bip322-js';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
@@ -17,6 +17,7 @@ import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
+import { CardanoService } from '../../cardano/services/cardano.service';
 import { ZanoService } from '../../zano/services/zano.service';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmUtil } from '../evm/evm.util';
@@ -35,6 +36,7 @@ export class CryptoService {
     private readonly zanoService: ZanoService,
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
+    private readonly cardanoService: CardanoService,
     private readonly arweaveService: ArweaveService,
     private readonly railgunService: RailgunService,
   ) {}
@@ -82,6 +84,9 @@ export class CryptoService {
 
       case Blockchain.TRON:
         return this.tronService.getPaymentRequest(address, amount);
+
+      case Blockchain.CARDANO:
+        return this.cardanoService.getPaymentRequest(address, amount);
 
       default:
         return undefined;
@@ -257,11 +262,22 @@ export class CryptoService {
 
   private verifyBitcoinBased(message: string, address: string, signature: string, prefix: string | null): boolean {
     let isValid = false;
+
     try {
-      isValid = verify(message, address, signature, prefix, true);
+      isValid = Verifier.verifySignature(address, message, signature, true);
     } catch {}
 
-    if (!isValid) isValid = verify(message, address, signature, prefix);
+    if (!isValid) {
+      try {
+        isValid = verify(message, address, signature, prefix, true); // ← WICHTIG: electrum=true
+      } catch {}
+    }
+
+    if (!isValid) {
+      try {
+        isValid = verify(message, address, signature, prefix);
+      } catch {}
+    }
 
     return isValid;
   }
@@ -299,7 +315,7 @@ export class CryptoService {
   }
 
   private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {
-    return verifyCardanoSignature(signature, key, message, address);
+    return this.cardanoService.verifySignature(message, address, signature, key);
   }
 
   private async verifyArweave(message: string, signature: string, key: string): Promise<boolean> {
