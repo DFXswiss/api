@@ -292,14 +292,25 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return Util.roundToValue(price, pricePrecision);
   }
 
-  async getBestBidLiquidity(from: string, to: string): Promise<{ price: number; amount: number }> {
+  async getBestBidLiquidity(
+    from: string,
+    to: string,
+    minAmount?: number,
+  ): Promise<{ price: number; amount: number } | undefined> {
     const { pair, direction } = await this.getTradePair(from, to);
     const orderBook = await this.callApi((e) => e.fetchOrderBook(pair));
     const { price: pricePrecision } = await this.getPrecision(pair);
 
     // For selling: we need the best bid (highest buy order)
     // For buying: we need the best ask (lowest sell order)
-    const [price, amount] = direction === OrderSide.SELL ? orderBook.bids[0] : orderBook.asks[0];
+    const orders = direction === OrderSide.SELL ? orderBook.bids : orderBook.asks;
+
+    // Find first order that meets minimum amount requirement
+    const validOrder = minAmount ? orders.find(([, amount]) => amount >= minAmount) : orders[0];
+
+    if (!validOrder) return undefined;
+
+    const [price, amount] = validOrder;
 
     return {
       price: Util.roundToValue(price, pricePrecision),
