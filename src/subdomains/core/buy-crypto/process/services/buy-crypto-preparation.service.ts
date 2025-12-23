@@ -334,12 +334,21 @@ export class BuyCryptoPreparationService {
       },
 
       relations: {
+        transaction: { userData: true },
         cryptoInput: { paymentLinkPayment: { link: { route: { user: { userData: true } } } }, paymentQuote: true },
         cryptoRoute: true,
       },
     });
 
-    for (const entity of entities) {
+    const entitiesToPayout = entities
+      .filter((bc) => !bc.userData.paymentLinksConfigObj.requiresConfirmation || bc.paymentLinkPayment?.isConfirmed)
+      .filter(
+        (bc) =>
+          !bc.userData.paymentLinksConfigObj.requiresExplicitPayoutRoute ||
+          bc.paymentLinkPayment?.link.linkConfigObj.payoutRouteId != null,
+      );
+
+    for (const entity of entitiesToPayout) {
       try {
         const invoiceAmount = entity.cryptoInput.paymentLinkPayment.amount;
         const invoiceCurrency = entity.paymentLinkPayment.currency;
