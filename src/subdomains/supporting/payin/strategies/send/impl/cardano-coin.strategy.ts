@@ -40,8 +40,7 @@ export class CardanoCoinStrategy extends CardanoStrategy {
   }
 
   protected async prepareSend(payIn: CryptoInput, nativeFee: number): Promise<void> {
-    // Minimum sendable: 1 ADA
-    const feeAmount = Math.max(nativeFee, 1);
+    const feeAmount = nativeFee;
     const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
     const feeAmountChf = feeAmount
       ? await this.pricingService
