@@ -341,6 +341,7 @@ export class BuyCryptoPreparationService {
 
     for (const entity of entities) {
       try {
+        const invoiceAmount = entity.cryptoInput.paymentLinkPayment.amount;
         const invoiceCurrency = entity.paymentLinkPayment.currency;
         const inputCurrency = entity.cryptoInput.asset;
         const outputCurrency = entity.outputAsset;
@@ -350,10 +351,7 @@ export class BuyCryptoPreparationService {
           outputCurrency,
           entity.cryptoInput.created,
         );
-        const outputReferenceAmount = Util.roundReadable(
-          outputPrice.convert(entity.cryptoInput.paymentLinkPayment.amount),
-          AmountType.ASSET,
-        );
+        const outputReferenceAmount = Util.roundReadable(outputPrice.convert(invoiceAmount), AmountType.ASSET);
 
         // fees
         const feeRate = Config.payment.forexFee(
@@ -372,14 +370,22 @@ export class BuyCryptoPreparationService {
 
         const conversionPrice = Price.create(
           inputCurrency.name,
-          outputCurrency.name,
-          inputReferenceAmountMinusFee / outputReferenceAmount,
+          invoiceCurrency.name,
+          inputReferenceAmountMinusFee / invoiceAmount,
         );
-        const priceStep = PriceStep.create(
+
+        const conversionStep = PriceStep.create(
           Config.priceSourcePayment,
           conversionPrice.source,
           conversionPrice.target,
           conversionPrice.price,
+        );
+
+        const outputStep = PriceStep.create(
+          Config.priceSourceManual,
+          outputPrice.source,
+          outputPrice.target,
+          outputPrice.price,
         );
 
         await this.buyCryptoRepo.update(
@@ -392,7 +398,7 @@ export class BuyCryptoPreparationService {
             inputReferenceAmountMinusFee,
             outputReferenceAmount,
             paymentLinkFee,
-            [priceStep],
+            [conversionStep, outputStep],
           ),
         );
 
