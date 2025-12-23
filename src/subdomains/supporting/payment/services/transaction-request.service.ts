@@ -37,7 +37,9 @@ export class TransactionRequestService {
     private readonly siftService: SiftService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
+    @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,

@@ -36,7 +36,7 @@ import { SupportIssueController } from './support-issue.controller';
       SupportIssueLog,
       LimitRequestLog,
     ]),
-    TransactionModule,
+    forwardRef(() => TransactionModule),
     forwardRef(() => KycModule),
     forwardRef(() => UserModule),
     forwardRef(() => PaymentModule),

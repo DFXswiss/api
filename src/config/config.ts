@@ -51,6 +51,7 @@ export class Configuration {
   exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
   financeLogTotalBalanceChangeLimit = 5000;
   faucetAmount = 20; //CHF
+  faucetEnabled = process.env.FAUCET_ENABLED === 'true';
 
   defaults = {
     currency: 'EUR',
@@ -587,6 +588,7 @@ export class Configuration {
     evmSeed: process.env.PAYMENT_EVM_SEED,
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
+    cardanoSeed: process.env.PAYMENT_CARDANO_SEED,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
@@ -848,6 +850,17 @@ export class Configuration {
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.tron.tronWalletSeed,
+        index: accountIndex,
+      }),
+    },
+    cardano: {
+      cardanoWalletSeed: process.env.CARDANO_WALLET_SEED,
+      cardanoApiUrl: process.env.CARDANO_API_URL,
+      cardanoTatumApiKey: process.env.TATUM_API_KEY,
+      cardanoBlockFrostApiKey: process.env.BLOCKFROST_API_KEY,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.cardano.cardanoWalletSeed,
         index: accountIndex,
       }),
     },

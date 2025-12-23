@@ -29,6 +29,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { DeepPartial, FindOptionsRelations, In, IsNull, LessThan, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
+import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
 import { TransactionService } from '../../../payment/services/transaction.service';
@@ -90,10 +91,12 @@ export class BankTxService implements OnModuleInit {
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
     private readonly yapealService: YapealService,
+    @Inject(forwardRef(() => TransactionService))
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,
     private readonly bankDataService: BankDataService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   onModuleInit() {
@@ -195,13 +198,7 @@ export class BankTxService implements OnModuleInit {
     for (const tx of unassignedBankTx) {
       try {
         if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
-          const remittanceInfo = (!tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo)
-            ?.replace(/[ -]/g, '')
-            .replace(/O/g, '0');
-          const buy =
-            remittanceInfo &&
-            tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
-            buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
+          const buy = this.findMatchingBuy(tx, buys);
 
           if (buy) {
             await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
@@ -521,6 +518,19 @@ export class BankTxService implements OnModuleInit {
     return tx;
   }
 
+  private findMatchingBuy(tx: BankTx, buys: { id: number; bankUsage: string }[]): { id: number } | undefined {
+    // Try remittanceInfo first, then endToEndId as fallback
+    const candidates = [tx.remittanceInfo, tx.endToEndId].filter((c) => c && c !== '-');
+
+    for (const candidate of candidates) {
+      const normalized = candidate.replace(/[ -]/g, '').replace(/O/g, '0');
+      const buy = buys.find((b) => normalized.includes(b.bankUsage.replace(/-/g, '')));
+      if (buy) return buy;
+    }
+
+    return undefined;
+  }
+
   //*** GETTERS ***//
 
   getBankTxRepo(): BankTxRepository {
@@ -529,5 +539,29 @@ export class BankTxService implements OnModuleInit {
 
   get bankBalanceObservable(): Observable<BankBalanceUpdate> {
     return this.bankBalanceSubject.asObservable();
+  }
+
+  async getUserDataForBankTx(bankTx: BankTx, userDataId?: number, ibansOnly = true): Promise<UserData | undefined> {
+    // Priority 1: VirtualIban (mandatory if set)
+    if (bankTx.virtualIban) return this.virtualIbanService.getByIban(bankTx.virtualIban).then((vI) => vI?.userData);
+
+    // Priority 2: BankData via senderAccount (fallback)
+    if (bankTx.senderAccount) {
+      return userDataId
+        ? this.bankDataService
+            .getValidBankDatasForUser(userDataId, ibansOnly, bankTx.senderAccount)
+            .then((b) => b?.[0]?.userData)
+        : this.bankDataService
+            .getVerifiedBankDataWithIban(
+              bankTx.senderAccount,
+              undefined,
+              undefined,
+              { userData: { wallet: true } },
+              true,
+            )
+            .then((b) => b?.userData);
+    }
+
+    return undefined;
   }
 }

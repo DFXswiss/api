@@ -33,6 +33,8 @@ import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
 import { ZanoCoinStrategy } from '../impl/zano-coin.strategy';
 import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
+import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
+import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
 
 describe('PurchaseLiquidityStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
@@ -58,6 +60,8 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
   let solanaToken: SolanaTokenStrategy;
   let tronCoin: TronCoinStrategy;
   let tronToken: TronTokenStrategy;
+  let cardanoCoin: CardanoCoinStrategy;
+  let cardanoToken: CardanoTokenStrategy;
 
   let registry: PurchaseLiquidityStrategyRegistryWrapper;
 
@@ -96,6 +100,9 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
     tronCoin = new TronCoinStrategy();
     tronToken = new TronTokenStrategy();
 
+    cardanoCoin = new CardanoCoinStrategy();
+    cardanoToken = new CardanoTokenStrategy();
+
     registry = new PurchaseLiquidityStrategyRegistryWrapper(
       bitcoin,
       lightning,
@@ -120,6 +127,8 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       solanaToken,
       tronCoin,
       tronToken,
+      cardanoCoin,
+      cardanoToken,
     );
   });
 
@@ -309,6 +318,22 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(TronTokenStrategy);
       });
 
+      it('gets CARDANO_COIN strategy', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.CARDANO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(CardanoCoinStrategy);
+      });
+
+      it('gets CARDANO_TOKEN strategy', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.CARDANO, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(CardanoTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const strategy = registry.getPurchaseLiquidityStrategy(
           createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }),
@@ -353,6 +378,8 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     solanaToken: SolanaTokenStrategy,
     tronCoin: TronCoinStrategy,
     tronToken: TronTokenStrategy,
+    cardanoCoin: CardanoCoinStrategy,
+    cardanoToken: CardanoTokenStrategy,
   ) {
     super();
 
@@ -380,5 +407,7 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     this.add({ blockchain: Blockchain.SOLANA, assetType: AssetType.TOKEN }, solanaToken);
     this.add({ blockchain: Blockchain.TRON, assetType: AssetType.COIN }, tronCoin);
     this.add({ blockchain: Blockchain.TRON, assetType: AssetType.TOKEN }, tronToken);
+    this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.COIN }, cardanoCoin);
+    this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.TOKEN }, cardanoToken);
   }
 }

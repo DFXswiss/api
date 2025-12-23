@@ -39,6 +39,7 @@ export const PaymentLinkBlockchains = [
   Blockchain.KUCOIN_PAY,
   Blockchain.SOLANA,
   Blockchain.TRON,
+  Blockchain.CARDANO,
 ].filter((b) => !TestBlockchains.includes(b));
 
 // --- EXPLORERS --- //

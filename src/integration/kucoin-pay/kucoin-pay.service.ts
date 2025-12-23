@@ -38,17 +38,18 @@ export class KucoinPayService
 
     this.apiKey = Config.payment.kucoinPayApiKey;
 
-    const secretKey =
-      Config.payment.kucoinPaySigningKey
-        ?.replace('-----BEGIN PRIVATE KEY-----', '')
-        .replace('-----END PRIVATE KEY-----', '')
-        .replace(/\n/g, '') ?? '';
+    const secretKey = Config.payment.kucoinPaySigningKey
+      ?.replace('-----BEGIN PRIVATE KEY-----', '')
+      .replace('-----END PRIVATE KEY-----', '')
+      .replace(/\n/g, '');
 
-    this.privateKey = crypto.createPrivateKey({
-      key: Buffer.from(secretKey, 'base64'),
-      format: 'der',
-      type: 'pkcs8',
-    });
+    this.privateKey =
+      secretKey &&
+      crypto.createPrivateKey({
+        key: Buffer.from(secretKey, 'base64'),
+        format: 'der',
+        type: 'pkcs8',
+      });
 
     this.verificationKey = Config.payment.kucoinPayPublicKey;
   }

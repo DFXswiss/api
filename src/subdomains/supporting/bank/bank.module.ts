@@ -23,7 +23,7 @@ import { VirtualIbanService } from './virtual-iban/virtual-iban.service';
     SharedModule,
     BankIntegrationModule,
     forwardRef(() => UserModule),
-    TransactionModule,
+    forwardRef(() => TransactionModule),
   ],
 
   controllers: [BankController, BankAccountController],
