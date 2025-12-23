@@ -39,24 +39,26 @@ export class CardanoStrategy extends RegisterStrategy {
       this.blockchain,
     );
 
-    for (const activeDepositAddress of activeDepositAddresses) {
-      await this.pollAddress(BlockchainAddress.create(activeDepositAddress, this.blockchain));
-    }
+    await this.processNewPayInEntries(activeDepositAddresses.map((a) => BlockchainAddress.create(a, this.blockchain)));
   }
 
   async pollAddress(depositAddress: BlockchainAddress): Promise<void> {
     if (depositAddress.blockchain !== this.blockchain)
       throw new Error(`Invalid blockchain: ${depositAddress.blockchain}`);
 
-    return this.processNewPayInEntries(depositAddress);
+    return this.processNewPayInEntries([depositAddress]);
   }
 
-  private async processNewPayInEntries(depositAddress: BlockchainAddress): Promise<void> {
+  private async processNewPayInEntries(depositAddresses: BlockchainAddress[]): Promise<void> {
     const log = this.createNewLogObject();
 
-    const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
+    const newEntries: PayInEntry[] = [];
 
-    const newEntries = await this.getNewEntries(depositAddress, lastCheckedBlockHeight);
+    for (const depositAddress of depositAddresses) {
+      const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight(depositAddress);
+
+      newEntries.push(...(await this.getNewEntries(depositAddress, lastCheckedBlockHeight)));
+    }
 
     if (newEntries?.length) {
       await this.createPayInsAndSave(newEntries, log);
@@ -65,11 +67,11 @@ export class CardanoStrategy extends RegisterStrategy {
     this.printInputLog(log, 'omitted', this.blockchain);
   }
 
-  private async getLastCheckedBlockHeight(): Promise<number> {
+  private async getLastCheckedBlockHeight(depositAddress: BlockchainAddress): Promise<number> {
     return this.payInRepository
       .findOne({
         select: ['id', 'blockHeight'],
-        where: { address: { blockchain: this.blockchain } },
+        where: [{ address: { blockchain: this.blockchain } }, { senderAddresses: depositAddress.address }],
         order: { blockHeight: 'DESC' },
         loadEagerRelations: false,
       })
