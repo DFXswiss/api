@@ -118,9 +118,16 @@ export class CardanoClient extends BlockchainClient {
   }
 
   async isTxComplete(txHash: string, confirmations = 0): Promise<boolean> {
-    const transaction = await this.getTransaction(txHash);
+    const blockHeight = await this.getBlockHeight();
 
-    const currentConfirmations = (await this.getBlockHeight()) - (transaction?.blockNumber ?? Number.MAX_VALUE);
+    const url = Config.blockchain.cardano.cardanoApiUrl;
+
+    const transactionResponse = await this.http.get<CardanoTransactionResponse>(
+      `${url}/transaction/${txHash}`,
+      this.httpConfig(),
+    );
+
+    const currentConfirmations = blockHeight - (transactionResponse.block.number ?? Number.MAX_VALUE);
 
     if (currentConfirmations > confirmations) {
       return true;
@@ -289,15 +296,6 @@ export class CardanoClient extends BlockchainClient {
       .then((t) => CardanoUtil.fromLovelaceAmount(t.fee));
   }
 
-  async getTransaction(txHash: string): Promise<CardanoTransactionDto> {
-    const url = Config.blockchain.cardano.cardanoApiUrl;
-
-    return this.http
-      .get<CardanoTransactionResponse>(`${url}/transaction/${txHash}`, this.httpConfig())
-      .then((r) => this.mapTransactionResponses([r]))
-      .then((l) => l[0]);
-  }
-
   async getHistory(limit: number): Promise<CardanoTransactionDto[]> {
     return this.getHistoryForAddress(this.wallet.address, limit);
   }
@@ -312,10 +310,11 @@ export class CardanoClient extends BlockchainClient {
         `${url}/transaction/address/${address}?pageSize=${limit}&offset=0`,
         this.httpConfig(),
       )
-      .then((trs) => this.mapTransactionResponses(trs));
+      .then((trs) => this.mapTransactionResponses(address, trs));
   }
 
   private async mapTransactionResponses(
+    address: string,
     transactionResponses: CardanoTransactionResponse[],
   ): Promise<CardanoTransactionDto[]> {
     // fetch all block timestamps
@@ -325,7 +324,7 @@ export class CardanoClient extends BlockchainClient {
 
     return transactionResponses.map((tr) => {
       tr.block.blocktimeMillis = blockTimestampMap.get(tr.block.hash);
-      return CardanoTransactionMapper.toTransactionDto(tr, this.wallet.address);
+      return CardanoTransactionMapper.toTransactionDto(tr, address);
     });
   }
 

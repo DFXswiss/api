@@ -91,10 +91,6 @@ export class CardanoService extends BlockchainService {
     return this.client.getTxActualFee(txHash);
   }
 
-  async getTransaction(txHash: string): Promise<CardanoTransactionDto> {
-    return this.client.getTransaction(txHash);
-  }
-
   async getHistory(limit: number): Promise<CardanoTransactionDto[]> {
     return this.client.getHistory(limit);
   }
