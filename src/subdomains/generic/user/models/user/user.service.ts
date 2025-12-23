@@ -44,6 +44,7 @@ import { UserNameDto } from './dto/user-name.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
+import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserStatus } from './user.enum';
@@ -270,14 +271,14 @@ export class UserService {
     return UserDtoMapper.mapUser(update, userId);
   }
 
-  async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<void> {
+  async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<UpdateMailStatus> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
 
-    await this.userDataService.updateUserMail(userData, dto, ip);
+    return this.userDataService.updateUserMail(userData, dto, ip);
   }
 
   async verifyMail(userDataId: number, token: string, userId: number): Promise<UserV2Dto> {

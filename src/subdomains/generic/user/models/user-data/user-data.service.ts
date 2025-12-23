@@ -56,6 +56,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
+import { UpdateMailStatus } from '../user/dto/verify-mail.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
@@ -560,10 +561,10 @@ export class UserDataService {
 
   // --- MAIL UPDATE --- //
 
-  async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<void> {
+  async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<UpdateMailStatus> {
     if (userData.mail == null) {
       await this.trySetUserMail(userData, dto.mail);
-      return;
+      return UpdateMailStatus.Ok;
     }
 
     await this.checkMail(userData, dto.mail);
@@ -581,12 +582,14 @@ export class UserDataService {
     });
 
     // send mail
-    return this.tfaService.sendVerificationMail(
+    await this.tfaService.sendVerificationMail(
       { ...userData, mail: dto.mail } as UserData,
       secret,
       codeExpiryMinutes,
       MailContext.EMAIL_VERIFICATION,
     );
+
+    return UpdateMailStatus.Accepted;
   }
 
   async verifyUserMail(userData: UserData, token: string): Promise<UserData> {
