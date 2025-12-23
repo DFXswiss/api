@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { CardanoTransactionDto } from 'src/integration/blockchain/cardano/dto/cardano.dto';
@@ -6,7 +7,10 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInCardanoService } from '../../../services/payin-cardano.service';
@@ -16,12 +20,28 @@ import { RegisterStrategy } from './base/register.strategy';
 export class CardanoStrategy extends RegisterStrategy {
   protected logger: DfxLogger = new DfxLogger(CardanoStrategy);
 
-  constructor(private readonly payInCardanoService: PayInCardanoService) {
+  constructor(
+    private readonly payInCardanoService: PayInCardanoService,
+    private readonly transactionRequestService: TransactionRequestService,
+  ) {
     super();
   }
 
   get blockchain(): Blockchain {
     return Blockchain.CARDANO;
+  }
+
+  //*** JOBS ***//
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
+  async checkPayInEntries(): Promise<void> {
+    const activeDepositAddresses = await this.transactionRequestService.getActiveDepositAddresses(
+      Util.hoursBefore(1),
+      this.blockchain,
+    );
+
+    for (const activeDepositAddress of activeDepositAddresses) {
+      await this.pollAddress(BlockchainAddress.create(activeDepositAddress, this.blockchain));
+    }
   }
 
   async pollAddress(depositAddress: BlockchainAddress): Promise<void> {
