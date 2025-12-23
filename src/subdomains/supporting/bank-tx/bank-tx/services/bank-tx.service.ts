@@ -29,6 +29,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { DeepPartial, FindOptionsRelations, In, IsNull, LessThan, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
+import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from '../../../payment/services/special-external-account.service';
 import { TransactionService } from '../../../payment/services/transaction.service';
@@ -94,6 +95,7 @@ export class BankTxService implements OnModuleInit {
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,
     private readonly bankDataService: BankDataService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   onModuleInit() {
@@ -529,5 +531,29 @@ export class BankTxService implements OnModuleInit {
 
   get bankBalanceObservable(): Observable<BankBalanceUpdate> {
     return this.bankBalanceSubject.asObservable();
+  }
+
+  async getUserDataForBankTx(bankTx: BankTx, userDataId?: number, ibansOnly = true): Promise<UserData | undefined> {
+    // Priority 1: VirtualIban (mandatory if set)
+    if (bankTx.virtualIban) return this.virtualIbanService.getByIban(bankTx.virtualIban).then((vI) => vI?.userData);
+
+    // Priority 2: BankData via senderAccount (fallback)
+    if (bankTx.senderAccount) {
+      return userDataId
+        ? this.bankDataService
+            .getValidBankDatasForUser(userDataId, ibansOnly, bankTx.senderAccount)
+            .then((b) => b?.[0]?.userData)
+        : this.bankDataService
+            .getVerifiedBankDataWithIban(
+              bankTx.senderAccount,
+              undefined,
+              undefined,
+              { userData: { wallet: true } },
+              true,
+            )
+            .then((b) => b?.userData);
+    }
+
+    return undefined;
   }
 }

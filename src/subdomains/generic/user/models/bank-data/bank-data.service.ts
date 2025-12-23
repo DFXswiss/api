@@ -324,12 +324,12 @@ export class BankDataService {
     return this.bankDataRepo.existsBy({ iban, type: BankDataType.USER });
   }
 
-  async getValidBankDatasForUser(userDataId: number, ibansOnly = true): Promise<BankData[]> {
+  async getValidBankDatasForUser(userDataId: number, ibansOnly = true, iban?: string): Promise<BankData[]> {
     return this.bankDataRepo
       .find({
         where: [
-          { userData: { id: userDataId }, approved: true },
-          { userData: { id: userDataId }, approved: IsNull() },
+          { userData: { id: userDataId }, approved: true, iban },
+          { userData: { id: userDataId }, approved: IsNull(), iban },
         ],
         relations: { userData: true },
       })

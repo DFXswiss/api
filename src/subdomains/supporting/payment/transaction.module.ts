@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
+import { BankTxModule } from '../bank-tx/bank-tx.module';
 import { NotificationModule } from '../notification/notification.module';
 import { TransactionAdminController } from './controllers/transaction-admin.controller';
 import { TransactionRiskAssessment } from './entities/transaction-risk-assessment.entity';
@@ -18,6 +19,7 @@ import { TransactionService } from './services/transaction.service';
   imports: [
     NotificationModule,
     forwardRef(() => UserModule),
+    forwardRef(() => BankTxModule),
     SharedModule,
     TypeOrmModule.forFeature([Transaction, TransactionRiskAssessment]),
   ],
