@@ -198,13 +198,7 @@ export class BankTxService implements OnModuleInit {
     for (const tx of unassignedBankTx) {
       try {
         if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
-          const remittanceInfo = (!tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo)
-            ?.replace(/[ -]/g, '')
-            .replace(/O/g, '0');
-          const buy =
-            remittanceInfo &&
-            tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
-            buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
+          const buy = this.findMatchingBuy(tx, buys);
 
           if (buy) {
             await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
@@ -522,6 +516,19 @@ export class BankTxService implements OnModuleInit {
     const tx = this.bankTxRepo.create(entity);
     tx.senderAccount = tx.getSenderAccount(multiAccounts);
     return tx;
+  }
+
+  private findMatchingBuy(tx: BankTx, buys: { id: number; bankUsage: string }[]): { id: number } | undefined {
+    // Try remittanceInfo first, then endToEndId as fallback
+    const candidates = [tx.remittanceInfo, tx.endToEndId].filter((c) => c && c !== '-');
+
+    for (const candidate of candidates) {
+      const normalized = candidate.replace(/[ -]/g, '').replace(/O/g, '0');
+      const buy = buys.find((b) => normalized.includes(b.bankUsage.replace(/-/g, '')));
+      if (buy) return buy;
+    }
+
+    return undefined;
   }
 
   //*** GETTERS ***//
