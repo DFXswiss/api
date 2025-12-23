@@ -1,4 +1,4 @@
-import { Inject, Injectable, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -22,7 +22,7 @@ export class TransactionNotificationService {
   constructor(
     private readonly repo: TransactionRepository,
     private readonly notificationService: NotificationService,
-    @Inject(forwardRef(() => BankTxService)) private readonly bankTxService: BankTxService,
+    private readonly bankTxService: BankTxService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TX_MAIL, timeout: 1800 })
