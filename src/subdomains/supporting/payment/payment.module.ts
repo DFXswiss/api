@@ -36,7 +36,7 @@ import { TransactionModule } from './transaction.module';
     forwardRef(() => UserModule),
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
-    TransactionModule,
+    forwardRef(() => TransactionModule),
     SiftModule,
     BlockchainModule,
     BankModule,

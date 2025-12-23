@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -16,7 +16,9 @@ import { SpecialExternalAccountService } from './special-external-account.servic
 export class TransactionService {
   constructor(
     private readonly repo: TransactionRepository,
+    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
   ) {}

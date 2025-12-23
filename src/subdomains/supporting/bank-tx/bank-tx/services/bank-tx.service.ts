@@ -91,6 +91,7 @@ export class BankTxService implements OnModuleInit {
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
     private readonly yapealService: YapealService,
+    @Inject(forwardRef(() => TransactionService))
     private readonly transactionService: TransactionService,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly sepaParser: SepaParser,

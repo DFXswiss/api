@@ -25,7 +25,7 @@ import { CustodyService } from './services/custody.service';
   imports: [
     TypeOrmModule.forFeature([CustodyOrder, CustodyOrderStep]),
     forwardRef(() => UserModule),
-    ReferralModule,
+    forwardRef(() => ReferralModule),
     SharedModule,
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),

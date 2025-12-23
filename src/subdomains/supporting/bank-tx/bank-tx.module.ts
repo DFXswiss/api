@@ -38,9 +38,9 @@ import { SepaParser } from './bank-tx/services/sepa-parser.service';
     forwardRef(() => UserModule),
     forwardRef(() => BuyCryptoModule),
     BankModule,
-    TransactionModule,
+    forwardRef(() => TransactionModule),
     PricingModule,
-    TransactionUtilModule,
+    forwardRef(() => TransactionUtilModule),
     forwardRef(() => FiatOutputModule),
   ],
 

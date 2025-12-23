@@ -101,7 +101,7 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     NotificationModule,
     AlchemyModule,
     TatumModule,
-    TransactionModule,
+    forwardRef(() => TransactionModule),
     PaymentLinkPaymentModule,
     AddressPoolModule,
   ],

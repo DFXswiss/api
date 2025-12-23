@@ -46,6 +46,7 @@ export class CustodyOrderService {
     private readonly custodyService: CustodyService,
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
