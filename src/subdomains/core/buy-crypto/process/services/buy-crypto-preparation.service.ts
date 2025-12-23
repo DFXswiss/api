@@ -324,12 +324,8 @@ export class BuyCryptoPreparationService {
       },
 
       relations: {
-        bankTx: true,
-        checkoutTx: true,
-        cryptoInput: true,
-        buy: true,
+        cryptoInput: { paymentLinkPayment: { link: { route: { user: { userData: true } } } }, paymentQuote: true },
         cryptoRoute: true,
-        transaction: { user: { wallet: true, userData: true }, userData: true },
       },
     });
 
@@ -392,7 +388,7 @@ export class BuyCryptoPreparationService {
 
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
-        await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);
+        await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute.id]);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} fill paymentLinkPayments:`, e);
       }

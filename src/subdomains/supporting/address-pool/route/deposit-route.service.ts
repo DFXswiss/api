@@ -13,14 +13,13 @@ export class DepositRouteService {
 
   constructor(private readonly depositRouteRepo: DepositRouteRepository) {}
 
-  // --- SELLS --- //
   async get(userId: number, id: number): Promise<DepositRoute> {
-    const sell = await this.depositRouteRepo.findOne({
+    const routes = await this.depositRouteRepo.findOne({
       where: { id, user: { id: userId } },
       relations: { user: { userData: true } },
     });
-    if (!sell) throw new NotFoundException('Sell not found');
-    return sell;
+    if (!routes) throw new NotFoundException('Route not found');
+    return routes;
   }
 
   async getById(id: number, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute> {
@@ -45,24 +44,24 @@ export class DepositRouteService {
   }
 
   validateLightningRoute(route: DepositRoute): void {
-    if (!route) throw new NotFoundException('Sell route not found');
+    if (!route) throw new NotFoundException('Route not found');
     if (route.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
   }
 
   async getPaymentRoute(idOrLabel: string, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute> {
     const isRouteId = !isNaN(+idOrLabel);
-    const sellRoute = isRouteId
+    const route = isRouteId
       ? await this.getById(+idOrLabel, options)
       : await this.getByLabel(undefined, idOrLabel, options);
 
     try {
-      this.validateLightningRoute(sellRoute);
+      this.validateLightningRoute(route);
     } catch (e) {
-      this.logger.verbose(`Failed to validate sell route ${idOrLabel}:`, e);
+      this.logger.verbose(`Failed to validate route ${idOrLabel}:`, e);
       throw new NotFoundException(`Payment route not found`);
     }
-    return sellRoute;
+    return route;
   }
 
   async getPaymentLinksFromRoute(
