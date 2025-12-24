@@ -235,8 +235,8 @@ export class LogJobService {
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
-    const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
-    const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
+    const yapealEurBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'EUR');
+    const yapealChfBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'CHF');
 
     // pending balances
     const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
@@ -282,7 +282,7 @@ export class LogJobService {
 
     // pending internal balances
     // db requests
-    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, maerkiEurBank.iban);
+    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, yapealEurBank.iban);
     const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
     const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
       minExchangeTxId,
@@ -296,44 +296,44 @@ export class LogJobService {
     const chfSenderExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.WITHDRAWAL &&
-        k.method === 'Bank Frick (SIC) International' &&
-        k.address === 'Maerki Baumann',
+        k.method === 'Bank Frick (SIC) International' && // TODO adapt to yapeal
+        k.address === 'Maerki Baumann', // TODO adapt to yapeal
     );
     const chfReceiverBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
     // EUR: Kraken -> Maerki
     const eurSenderExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.WITHDRAWAL &&
-        k.method === 'Bank Frick (SEPA) International' &&
-        k.address === 'Maerki Baumann & Co. AG',
+        k.method === 'Bank Frick (SEPA) International' && // TODO adapt to yapeal
+        k.address === 'Maerki Baumann & Co. AG', // TODO adapt to yapeal
     );
     const eurReceiverBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
     // CHF: Maerki -> Kraken
     const chfSenderBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const chfReceiverExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
         k.method === 'Bank Frick (SIC) International' &&
-        k.address === 'MAEBCHZZXXX',
+        k.address === 'YAPECHZ2XXX',
     );
 
     // EUR: Maerki -> Kraken
     const eurSenderBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const eurReceiverExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
         k.method === 'Bank Frick (SEPA) International' &&
-        k.address === 'MAEBCHZZXXX',
+        k.address === 'YAPECHZ2XXX',
     );
 
     // sender and receiver data
@@ -392,7 +392,7 @@ export class LogJobService {
         recentBankTxFromOlky,
         BankTxType.INTERNAL,
         olkyBank.iban,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
 
       // Kraken to Maerki
@@ -402,13 +402,13 @@ export class LogJobService {
         [curr],
         recentChfKrakenMaerkiTx,
         ExchangeTxType.WITHDRAWAL,
-        maerkiChfBank.iban,
+        yapealChfBank.iban,
       );
       const pendingEurKrakenMaerkiPlusAmount = this.getPendingBankAmount(
         [curr],
         recentEurKrakenMaerkiTx,
         ExchangeTxType.WITHDRAWAL,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
       const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmount(
         [curr],
@@ -421,13 +421,13 @@ export class LogJobService {
         [curr],
         chfSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.exchangeTxId),
         ExchangeTxType.WITHDRAWAL,
-        maerkiChfBank.iban,
+        yapealChfBank.iban,
       );
       const pendingEurKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         eurSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.exchangeTxId),
         ExchangeTxType.WITHDRAWAL,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
       const pendingKrakenMaerkiMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
@@ -450,13 +450,13 @@ export class LogJobService {
         [curr],
         recentChfBankTxKraken,
         ExchangeTxType.DEPOSIT,
-        maerkiChfBank.iban,
+        yapealChfBank.iban,
       );
       const pendingEurMaerkiKrakenMinusAmount = this.getPendingBankAmount(
         [curr],
         recentEurBankTxKraken,
         ExchangeTxType.DEPOSIT,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
 
       // unfiltered lists
@@ -472,13 +472,13 @@ export class LogJobService {
         [curr],
         chfReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.exchangeTxId),
         ExchangeTxType.DEPOSIT,
-        maerkiChfBank.iban,
+        yapealChfBank.iban,
       );
       const pendingEurMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         eurReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.exchangeTxId),
         ExchangeTxType.DEPOSIT,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
 
       const fromKrakenUnfiltered =
