@@ -217,7 +217,7 @@ export class SwapController {
       deposit: swap.active ? DepositDtoMapper.entityToDto(swap.deposit) : undefined,
       asset: AssetDtoMapper.toDto(swap.asset),
       blockchain: swap.deposit.blockchainList[0],
-      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.dfx.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee: { amount: fee.network, asset: 'CHF' },
     };
