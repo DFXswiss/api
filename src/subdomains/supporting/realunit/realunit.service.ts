@@ -14,8 +14,8 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
-import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -531,8 +531,24 @@ ${Config.giroCode.ref}
       ],
     };
 
+    const message = {
+      "email": data.email,
+      "name": data.name,
+      "type": data.type,
+      "phoneNumber": data.phoneNumber,
+      "birthday": data.birthday,
+      "nationality": data.nationality,
+      "addressStreet": data.addressStreet,
+      "addressPostalCode": data.addressPostalCode,
+      "addressCity": data.addressCity,
+      "addressCountry": data.addressCountry,
+      "swissTaxResidence": data.swissTaxResidence,
+      "registrationDate": data.registrationDate,
+      "walletAddress": data.walletAddress
+    }
+
     const signatureToUse = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
-    const recoveredAddress = verifyTypedData(domain, types, data, signatureToUse);
+    const recoveredAddress = verifyTypedData(domain, types, message, signatureToUse);
 
     return Util.equalsIgnoreCase(recoveredAddress, data.walletAddress);
   }
