@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -24,8 +24,11 @@ export class BankTxReturnService {
 
   constructor(
     private readonly bankTxReturnRepo: BankTxReturnRepository,
+    @Inject(forwardRef(() => TransactionService))
     private readonly transactionService: TransactionService,
+    @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
+    @Inject(forwardRef(() => FiatOutputService))
     private readonly fiatOutputService: FiatOutputService,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,

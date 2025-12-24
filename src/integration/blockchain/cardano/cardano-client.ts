@@ -118,9 +118,16 @@ export class CardanoClient extends BlockchainClient {
   }
 
   async isTxComplete(txHash: string, confirmations = 0): Promise<boolean> {
-    const transaction = await this.getTransaction(txHash);
+    const blockHeight = await this.getBlockHeight();
 
-    const currentConfirmations = (await this.getBlockHeight()) - (transaction?.blockNumber ?? Number.MAX_VALUE);
+    const url = Config.blockchain.cardano.cardanoApiUrl;
+
+    const transactionResponse = await this.http.get<CardanoTransactionResponse>(
+      `${url}/transaction/${txHash}`,
+      this.httpConfig(),
+    );
+
+    const currentConfirmations = blockHeight - (transactionResponse.block.number ?? Number.MAX_VALUE);
 
     if (currentConfirmations > confirmations) {
       return true;
@@ -139,7 +146,9 @@ export class CardanoClient extends BlockchainClient {
 
   private async estimateGasCost(maxTxSize: number): Promise<number> {
     const blockFrostApi = this.getBlockFrostAPI();
-    const staticParameters = await this.networkParameterCache.get('static', () => blockFrostApi.epochsLatestParameters());
+    const staticParameters = await this.networkParameterCache.get('static', () =>
+      blockFrostApi.epochsLatestParameters(),
+    );
     const gasCost = maxTxSize * staticParameters.min_fee_a + staticParameters.min_fee_b;
     return Util.round(CardanoUtil.fromLovelaceAmount(gasCost), 6);
   }
@@ -154,43 +163,41 @@ export class CardanoClient extends BlockchainClient {
   }
 
   private async sendNativeCoin(wallet: CardanoWallet, toAddress: string, amount: number): Promise<string> {
-    const coinBalance = await this.getNativeCoinBalanceForAddress(wallet.address);
-    const fee = await this.getCurrentGasCostForCoinTransaction();
-    const totalAmount = amount + fee;
-
-    if (coinBalance < totalAmount) throw new Error(`Coin balance ${coinBalance} less than amount + fee ${totalAmount}`);
-
-    const signedTransactionHex = await this.createSignedTransactionBlockfrost(wallet, toAddress, amount);
+    const signedTransactionHex = await this.createSignedTransactionBlockFrost(wallet, toAddress, amount);
 
     const blockFrostApi = this.getBlockFrostAPI();
     return blockFrostApi.txSubmit(signedTransactionHex);
   }
 
-  private async createSignedTransactionBlockfrost(
+  private async createSignedTransactionBlockFrost(
     wallet: CardanoWallet,
     toAddress: string,
     amount: number,
   ): Promise<string> {
-    const transactionBuilder = await this.createTransactionBuilder();
-    const inputsBuilder = await this.createInputsBuilder(wallet);
+    try {
+      const transactionBuilder = await this.createTransactionBuilder();
+      const inputsBuilder = await this.createInputsBuilder(wallet);
 
-    transactionBuilder.set_inputs(inputsBuilder);
+      transactionBuilder.set_inputs(inputsBuilder);
 
-    transactionBuilder.add_output(
-      TransactionOutput.new(
-        Address.from_bech32(toAddress),
-        Value.new(BigNum.from_str(`${CardanoUtil.toLovelaceAmount(amount)}`)),
-      ),
-    );
+      transactionBuilder.add_output(
+        TransactionOutput.new(
+          Address.from_bech32(toAddress),
+          Value.new(BigNum.from_str(`${CardanoUtil.toLovelaceAmount(amount)}`)),
+        ),
+      );
 
-    transactionBuilder.add_change_if_needed(Address.from_bech32(wallet.address));
+      transactionBuilder.add_change_if_needed(Address.from_bech32(wallet.address));
 
-    const transactionBody = transactionBuilder.build();
+      const transactionBody = transactionBuilder.build();
 
-    const witnessSet = this.createWitnessSet(transactionBody, wallet);
+      const witnessSet = this.createWitnessSet(transactionBody, wallet);
 
-    const signedTransaction = Transaction.new(transactionBody, witnessSet, null);
-    return signedTransaction.to_hex();
+      const signedTransaction = Transaction.new(transactionBody, witnessSet, null);
+      return signedTransaction.to_hex();
+    } catch (e) {
+      throw new Error(e);
+    }
   }
 
   private async createTransactionBuilder(): Promise<TransactionBuilder> {
@@ -289,15 +296,6 @@ export class CardanoClient extends BlockchainClient {
       .then((t) => CardanoUtil.fromLovelaceAmount(t.fee));
   }
 
-  async getTransaction(txHash: string): Promise<CardanoTransactionDto> {
-    const url = Config.blockchain.cardano.cardanoApiUrl;
-
-    return this.http
-      .get<CardanoTransactionResponse>(`${url}/transaction/${txHash}`, this.httpConfig())
-      .then((r) => this.mapTransactionResponses([r]))
-      .then((l) => l[0]);
-  }
-
   async getHistory(limit: number): Promise<CardanoTransactionDto[]> {
     return this.getHistoryForAddress(this.wallet.address, limit);
   }
@@ -312,10 +310,11 @@ export class CardanoClient extends BlockchainClient {
         `${url}/transaction/address/${address}?pageSize=${limit}&offset=0`,
         this.httpConfig(),
       )
-      .then((trs) => this.mapTransactionResponses(trs));
+      .then((trs) => this.mapTransactionResponses(address, trs));
   }
 
   private async mapTransactionResponses(
+    address: string,
     transactionResponses: CardanoTransactionResponse[],
   ): Promise<CardanoTransactionDto[]> {
     // fetch all block timestamps
@@ -325,7 +324,7 @@ export class CardanoClient extends BlockchainClient {
 
     return transactionResponses.map((tr) => {
       tr.block.blocktimeMillis = blockTimestampMap.get(tr.block.hash);
-      return CardanoTransactionMapper.toTransactionDto(tr, this.wallet.address);
+      return CardanoTransactionMapper.toTransactionDto(tr, address);
     });
   }
 

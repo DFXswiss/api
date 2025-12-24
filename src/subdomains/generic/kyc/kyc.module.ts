@@ -57,7 +57,7 @@ import { TfaService } from './services/tfa.service';
     forwardRef(() => UserModule),
     forwardRef(() => BuyCryptoModule),
     forwardRef(() => SellCryptoModule),
-    TransactionModule,
+    forwardRef(() => TransactionModule),
     forwardRef(() => SupportIssueModule),
   ],
   controllers: [KycController, KycAdminController, KycClientController],

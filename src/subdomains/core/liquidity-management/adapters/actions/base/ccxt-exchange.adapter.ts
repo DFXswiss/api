@@ -184,7 +184,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const availableBalance = await this.getAvailableTradeBalance(asset, tradeAsset);
     if (order.minAmount > availableBalance)
       throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance for ${tradeAsset} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+        `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
 
     const amount = Math.min(order.maxAmount, availableBalance);

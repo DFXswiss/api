@@ -5,6 +5,7 @@ import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-ma
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -12,7 +13,6 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
 import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
-import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { ZanoHelper } from 'src/integration/blockchain/zano/zano-helper';
 import { LnurlpLinkUpdateDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
@@ -213,10 +213,13 @@ export class DepositService {
 
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
-      const zanoAddress = ZanoHelper.createDepositAddress(accountIndex);
 
-      const deposit = Deposit.create(zanoAddress, [blockchain], accountIndex);
-      await this.depositRepo.save(deposit);
+      if (accountIndex !== 0) {
+        const zanoAddress = ZanoHelper.createDepositAddress(accountIndex);
+
+        const deposit = Deposit.create(zanoAddress, [blockchain], accountIndex);
+        await this.depositRepo.save(deposit);
+      }
     }
   }
 
@@ -262,9 +265,11 @@ export class DepositService {
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
 
-      const wallet = CardanoUtil.createWallet(Config.blockchain.cardano.walletAccount(accountIndex));
-      const deposit = Deposit.create(wallet.address, [blockchain], accountIndex);
-      await this.depositRepo.save(deposit);
+      if (accountIndex !== 0) {
+        const wallet = CardanoUtil.createWallet(Config.blockchain.cardano.walletAccount(accountIndex));
+        const deposit = Deposit.create(wallet.address, [blockchain], accountIndex);
+        await this.depositRepo.save(deposit);
+      }
     }
   }
 }

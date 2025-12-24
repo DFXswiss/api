@@ -20,6 +20,8 @@ import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { Between, FindOptionsRelations, In, IsNull, LessThan, MoreThan } from 'typeorm';
+import { Deposit } from '../../address-pool/deposit/deposit.entity';
+import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import {
   TransactionRequest,
@@ -37,7 +39,9 @@ export class TransactionRequestService {
     private readonly siftService: SiftService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
+    @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
@@ -295,6 +299,21 @@ export class TransactionRequestService {
 
   async confirmTransactionRequest(txRequest: TransactionRequest): Promise<void> {
     await this.transactionRequestRepo.update(txRequest.id, { status: TransactionRequestStatus.WAITING_FOR_PAYMENT });
+  }
+
+  async getActiveDepositAddresses(created: Date, blockchain: Blockchain): Promise<string[]> {
+    return this.transactionRequestRepo
+      .createQueryBuilder('tr')
+      .select('d.address', 'address')
+      .distinct()
+      .innerJoin(DepositRoute, 'dr', 'tr.routeId = dr.id')
+      .innerJoin(Deposit, 'd', 'dr.depositId = d.id')
+      .where('tr.type IN (:...types)', { types: [TransactionRequestType.SELL, TransactionRequestType.SWAP] })
+      .andWhere('tr.status = :status', { status: TransactionRequestStatus.CREATED })
+      .andWhere('tr.created > :created', { created })
+      .andWhere('d.blockchains = :blockchain', { blockchain })
+      .getRawMany<{ address: string }>()
+      .then((transactionRequests) => transactionRequests.map((deposit) => deposit.address));
   }
 
   // --- HELPER METHODS --- //

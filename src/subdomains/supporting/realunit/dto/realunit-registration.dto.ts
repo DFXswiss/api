@@ -56,7 +56,7 @@ export class AktionariatRegistrationDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
-  @Transform(Util.trim)
+  @Transform(Util.toLowerCaseTrim)
   email: string;
 
   @ApiProperty({ description: 'Full name' })

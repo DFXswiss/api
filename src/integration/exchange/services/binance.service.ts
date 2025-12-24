@@ -17,7 +17,7 @@ export class BinanceService extends ExchangeService {
     Spark: undefined,
     Monero: 'XMR',
     Zano: undefined,
-    Cardano: undefined,
+    Cardano: 'ADA',
     DeFiChain: undefined,
     Ethereum: 'ETH',
     Sepolia: undefined,
