@@ -392,8 +392,10 @@ ${Config.giroCode.ref}
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
 
-    if (!userData.mail) throw new BadRequestException('User email not verified');
-    if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+    if (!userData.mail) {
+      // Email not set yet - try to set it (will fail if email already exists for another user)
+      await this.userDataService.trySetUserMail(userData, dto.email);
+    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
       throw new BadRequestException('Email does not match verified email');
     }
 
