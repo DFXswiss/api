@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { CardanoTransactionDto } from 'src/integration/blockchain/cardano/dto/cardano.dto';
@@ -6,7 +7,10 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInCardanoService } from '../../../services/payin-cardano.service';
@@ -16,7 +20,10 @@ import { RegisterStrategy } from './base/register.strategy';
 export class CardanoStrategy extends RegisterStrategy {
   protected logger: DfxLogger = new DfxLogger(CardanoStrategy);
 
-  constructor(private readonly payInCardanoService: PayInCardanoService) {
+  constructor(
+    private readonly payInCardanoService: PayInCardanoService,
+    private readonly transactionRequestService: TransactionRequestService,
+  ) {
     super();
   }
 
@@ -24,19 +31,34 @@ export class CardanoStrategy extends RegisterStrategy {
     return Blockchain.CARDANO;
   }
 
+  //*** JOBS ***//
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
+  async checkPayInEntries(): Promise<void> {
+    const activeDepositAddresses = await this.transactionRequestService.getActiveDepositAddresses(
+      Util.hoursBefore(1),
+      this.blockchain,
+    );
+
+    await this.processNewPayInEntries(activeDepositAddresses.map((a) => BlockchainAddress.create(a, this.blockchain)));
+  }
+
   async pollAddress(depositAddress: BlockchainAddress): Promise<void> {
     if (depositAddress.blockchain !== this.blockchain)
       throw new Error(`Invalid blockchain: ${depositAddress.blockchain}`);
 
-    return this.processNewPayInEntries(depositAddress);
+    return this.processNewPayInEntries([depositAddress]);
   }
 
-  private async processNewPayInEntries(depositAddress: BlockchainAddress): Promise<void> {
+  private async processNewPayInEntries(depositAddresses: BlockchainAddress[]): Promise<void> {
     const log = this.createNewLogObject();
 
-    const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
+    const newEntries: PayInEntry[] = [];
 
-    const newEntries = await this.getNewEntries(depositAddress, lastCheckedBlockHeight);
+    for (const depositAddress of depositAddresses) {
+      const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight(depositAddress);
+
+      newEntries.push(...(await this.getNewEntries(depositAddress, lastCheckedBlockHeight)));
+    }
 
     if (newEntries?.length) {
       await this.createPayInsAndSave(newEntries, log);
@@ -45,11 +67,11 @@ export class CardanoStrategy extends RegisterStrategy {
     this.printInputLog(log, 'omitted', this.blockchain);
   }
 
-  private async getLastCheckedBlockHeight(): Promise<number> {
+  private async getLastCheckedBlockHeight(depositAddress: BlockchainAddress): Promise<number> {
     return this.payInRepository
       .findOne({
         select: ['id', 'blockHeight'],
-        where: { address: { blockchain: this.blockchain } },
+        where: { address: depositAddress },
         order: { blockHeight: 'DESC' },
         loadEagerRelations: false,
       })
