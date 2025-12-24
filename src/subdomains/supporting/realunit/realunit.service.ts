@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, GetConfig } from 'src/config/config';
@@ -13,20 +13,32 @@ import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/r
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -44,6 +56,8 @@ import {
   BankDetailsDto,
   HistoricalPriceDto,
   HoldersDto,
+  RealUnitBuyDto,
+  RealUnitPaymentInfoDto,
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
@@ -70,6 +84,15 @@ export class RealUnitService {
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly http: HttpService,
+    private readonly virtualIbanService: VirtualIbanService,
+    private readonly fiatService: FiatService,
+    private readonly swissQrService: SwissQRService,
+    @Inject(forwardRef(() => BuyService))
+    private readonly buyService: BuyService,
+    @Inject(forwardRef(() => TransactionHelper))
+    private readonly transactionHelper: TransactionHelper,
+    @Inject(forwardRef(() => TransactionRequestService))
+    private readonly transactionRequestService: TransactionRequestService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -183,6 +206,175 @@ export class RealUnitService {
     };
   }
 
+  // --- Buy Payment Info Methods ---
+
+  async getPaymentInfo(user: User, dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
+    const userData = user.userData;
+    const currencyName = dto.currency ?? 'CHF';
+
+    // 1. KYC Level 50 required for RealUnit
+    if (userData.kycLevel < KycLevel.LEVEL_50) {
+      throw new BadRequestException('KYC Level 50 required for RealUnit');
+    }
+
+    // 2. Registration required
+    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
+    if (!hasRegistration) {
+      throw new BadRequestException('RealUnit registration required');
+    }
+
+    // 3. Get or create Buy route for REALU
+    const realuAsset = await this.getRealuAsset();
+    const buy = await this.buyService.createBuy(user, user.address, { asset: realuAsset }, true);
+
+    // 4. Get currency and calculate fees/rates
+    const currency = await this.fiatService.getFiatByName(currencyName);
+    const {
+      timestamp,
+      minVolume,
+      maxVolume,
+      minVolumeTarget,
+      maxVolumeTarget,
+      exchangeRate,
+      rate,
+      estimatedAmount,
+      sourceAmount: amount,
+      isValid,
+      error,
+      feeSource,
+      priceSteps,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      undefined,
+      currency,
+      realuAsset,
+      FiatPaymentMethod.BANK,
+      CryptoPaymentMethod.CRYPTO,
+      false,
+      user,
+    );
+
+    // 5. Get or create vIBAN for this buy
+    let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, currencyName);
+    if (!virtualIban) {
+      virtualIban = await this.virtualIbanService.createForBuy(userData, buy, currencyName);
+    }
+
+    // 6. Recipient info (RealUnit company address)
+    const { bank: realunitBank } = GetConfig().blockchain.realunit;
+    const recipientInfo = {
+      name: realunitBank.recipient,
+      street: 'Schochenmühlestrasse',
+      number: '6',
+      zip: '6340',
+      city: 'Baar',
+      country: 'Switzerland',
+    };
+
+    const bankInfo = {
+      ...recipientInfo,
+      iban: virtualIban.iban,
+      bic: virtualIban.bank.bic,
+      bank: virtualIban.bank.name,
+      sepaInstant: false,
+    };
+
+    const paymentRequest = isValid
+      ? currencyName === 'CHF'
+        ? this.swissQrService.createQrCode(amount, currencyName, undefined, bankInfo, userData)
+        : this.generateGiroCode(bankInfo, amount, currencyName)
+      : undefined;
+
+    const response: RealUnitPaymentInfoDto = {
+      id: 0,
+      routeId: buy.id,
+      timestamp,
+      // Bank info
+      iban: virtualIban.iban,
+      bic: virtualIban.bank.bic,
+      name: recipientInfo.name,
+      street: recipientInfo.street,
+      number: recipientInfo.number,
+      zip: recipientInfo.zip,
+      city: recipientInfo.city,
+      country: recipientInfo.country,
+      // Amount info
+      amount,
+      currency: currencyName,
+      // Fee info
+      fees: feeSource,
+      minVolume,
+      maxVolume,
+      minVolumeTarget,
+      maxVolumeTarget,
+      // Rate info
+      exchangeRate,
+      rate,
+      priceSteps,
+      // RealUnit specific
+      estimatedAmount,
+      paymentRequest,
+      isValid,
+      error,
+    };
+
+    // Create TransactionRequest for tracking
+    const request = {
+      currency,
+      asset: realuAsset,
+      amount: dto.amount,
+      paymentMethod: FiatPaymentMethod.BANK,
+      exactPrice: false,
+    };
+
+    const buyResponse = {
+      routeId: buy.id,
+      amount,
+      estimatedAmount,
+      exchangeRate,
+      rate,
+      paymentRequest,
+      isValid,
+      error,
+      exactPrice: false,
+      fees: feeSource,
+      currency: FiatDtoMapper.toDto(currency),
+      asset: AssetDtoMapper.toDto(realuAsset),
+    };
+
+    const transactionRequest = await this.transactionRequestService.create(
+      TransactionRequestType.BUY,
+      request as any,
+      buyResponse as any,
+      user.id,
+    );
+
+    if (transactionRequest) {
+      response.id = transactionRequest.id;
+    }
+
+    return response;
+  }
+
+  private generateGiroCode(
+    bankInfo: { name: string; street: string; number: string; zip: string; city: string; country: string; iban: string; bic: string },
+    amount: number,
+    currency: string,
+  ): string {
+    return `
+${Config.giroCode.service}
+${Config.giroCode.version}
+${Config.giroCode.encoding}
+${Config.giroCode.transfer}
+${bankInfo.bic}
+${bankInfo.name}, ${bankInfo.street} ${bankInfo.number}, ${bankInfo.zip} ${bankInfo.city}, ${bankInfo.country}
+${bankInfo.iban}
+${currency}${amount}
+${Config.giroCode.char}
+${Config.giroCode.ref}
+`.trim();
+  }
+
   // --- Registration Methods ---
 
   // returns true if registration needs manual review, false if completed
@@ -200,8 +392,10 @@ export class RealUnitService {
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
 
-    if (!userData.mail) throw new BadRequestException('User email not verified');
-    if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+    if (!userData.mail) {
+      // Email not set yet - try to set it (will fail if email already exists for another user)
+      await this.userDataService.trySetUserMail(userData, dto.email);
+    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
       throw new BadRequestException('Email does not match verified email');
     }
 
@@ -339,8 +533,24 @@ export class RealUnitService {
       ],
     };
 
+    const message = {
+      "email": data.email,
+      "name": data.name,
+      "type": data.type,
+      "phoneNumber": data.phoneNumber,
+      "birthday": data.birthday,
+      "nationality": data.nationality,
+      "addressStreet": data.addressStreet,
+      "addressPostalCode": data.addressPostalCode,
+      "addressCity": data.addressCity,
+      "addressCountry": data.addressCountry,
+      "swissTaxResidence": data.swissTaxResidence,
+      "registrationDate": data.registrationDate,
+      "walletAddress": data.walletAddress
+    }
+
     const signatureToUse = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
-    const recoveredAddress = verifyTypedData(domain, types, data, signatureToUse);
+    const recoveredAddress = verifyTypedData(domain, types, message, signatureToUse);
 
     return Util.equalsIgnoreCase(recoveredAddress, data.walletAddress);
   }

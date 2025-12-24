@@ -228,6 +228,10 @@ export class Util {
     return value?.trim();
   }
 
+  static toLowerCaseTrim({ value }: TransformFnParams): string | undefined {
+    return value?.trim().toLowerCase();
+  }
+
   static equalsIgnoreCase(left: string, right: string): boolean {
     return left?.toLowerCase() === right?.toLowerCase();
   }

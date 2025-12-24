@@ -4,6 +4,7 @@ import { IsEmail, IsNotEmpty, IsObject, IsOptional, IsString, ValidateNested } f
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { Util } from 'src/shared/utils/util';
 import { DfxPhoneTransform, IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
 
 export class UpdateUserDto {
@@ -33,5 +34,6 @@ export class UpdateUserMailDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
+  @Transform(Util.toLowerCaseTrim)
   mail: string;
 }

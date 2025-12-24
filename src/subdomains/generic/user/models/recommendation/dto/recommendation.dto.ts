@@ -16,7 +16,7 @@ export class CreateRecommendationDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsEmail()
-  @Transform(Util.trim)
+  @Transform(Util.toLowerCaseTrim)
   recommendedMail: string;
 
   @ApiProperty()

@@ -33,7 +33,7 @@ export class KycContactData {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
-  @Transform(Util.trim)
+  @Transform(Util.toLowerCaseTrim)
   mail: string;
 }
 
@@ -120,6 +120,7 @@ export class KycInputDataDto extends KycPersonalData {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
+  @Transform(Util.toLowerCaseTrim)
   mail: string;
 }
 
