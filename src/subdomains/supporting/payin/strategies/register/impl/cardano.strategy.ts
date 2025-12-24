@@ -71,7 +71,7 @@ export class CardanoStrategy extends RegisterStrategy {
     return this.payInRepository
       .findOne({
         select: ['id', 'blockHeight'],
-        where: [{ address: { blockchain: this.blockchain } }, { senderAddresses: depositAddress.address }],
+        where: { address: depositAddress },
         order: { blockHeight: 'DESC' },
         loadEagerRelations: false,
       })
