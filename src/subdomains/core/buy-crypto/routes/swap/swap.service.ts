@@ -94,7 +94,14 @@ export class SwapService {
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
-    await this.userService.updateCryptoVolume(user.id, userVolume.volume, userVolume.annualVolume);
+    const monthlyVolume = await this.getMonthlyVolume(user.id);
+
+    await this.userService.updateCryptoVolume(
+      user.id,
+      userVolume.volume,
+      userVolume.annualVolume,
+      monthlyVolume.volume,
+    );
   }
 
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
@@ -104,6 +111,17 @@ export class SwapService {
       .addSelect('SUM(annualVolume)', 'annualVolume')
       .where('userId = :id', { id: userId })
       .getRawOne<{ volume: number; annualVolume: number }>();
+  }
+
+  async getMonthlyVolume(userId: number): Promise<{ volume: number }> {
+    return this.swapRepo
+      .createQueryBuilder('crypto')
+      .select('SUM(volume)', 'volume')
+      .where('userId = :id', { id: userId })
+      .andWhere('crypto.created >= :startOfMonth', {
+        startOfMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      })
+      .getRawOne<{ volume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {

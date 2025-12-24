@@ -73,7 +73,9 @@ export class BuyService {
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
-    await this.userService.updateBuyVolume(user.id, userVolume.volume, userVolume.annualVolume);
+    const monthlyVolume = await this.getMonthlyVolume(user.id);
+
+    await this.userService.updateBuyVolume(user.id, userVolume.volume, userVolume.annualVolume, monthlyVolume.volume);
   }
 
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
@@ -83,6 +85,17 @@ export class BuyService {
       .addSelect('SUM(annualVolume)', 'annualVolume')
       .where('userId = :id', { id: userId })
       .getRawOne<{ volume: number; annualVolume: number }>();
+  }
+
+  async getMonthlyVolume(userId: number): Promise<{ volume: number }> {
+    return this.buyRepo
+      .createQueryBuilder('buy')
+      .select('SUM(volume)', 'volume')
+      .where('userId = :id', { id: userId })
+      .andWhere('buy.created >= :startOfMonth', {
+        startOfMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      })
+      .getRawOne<{ volume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {
