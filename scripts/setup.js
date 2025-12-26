@@ -280,7 +280,7 @@ async function main() {
   if (!alchemyKey) {
     log('');
     log('  Alchemy is required for automatic deposit address monitoring.', colors.yellow);
-    log('  Get your API key from: https://dashboard.alchemy.com/', colors.yellow);
+    log('  You can create a free Alchemy Auth Token at: https://dashboard.alchemy.com/', colors.yellow);
     log('  (Press Enter to skip - deposits will work but webhooks won\'t)', colors.yellow);
     log('');
 

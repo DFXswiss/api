@@ -81,15 +81,13 @@ export class AlchemyWebhookService implements OnModuleInit {
   async createAddressWebhook(dto: CreateWebhookDto): Promise<AddressActivityWebhook[]> {
     const config = GetConfig();
 
-    // Skip webhook creation in local development mode
-    if (config.environment === 'loc') {
-      this.logger.verbose(`Skipping Alchemy webhook creation for ${dto.blockchain} in local development mode`);
-      return [];
-    }
-
     // Skip if Alchemy credentials are not configured
-    if (!config.alchemy.apiKey || !config.alchemy.authToken) {
-      this.logger.warn(`Skipping Alchemy webhook creation for ${dto.blockchain} - credentials not configured`);
+    if (!config.alchemy.authToken) {
+      if (config.environment === 'loc') {
+        this.logger.verbose(`Skipping Alchemy webhook creation for ${dto.blockchain} in local development mode (no token configured)`);
+      } else {
+        this.logger.warn(`Skipping Alchemy webhook creation for ${dto.blockchain} - auth token not configured`);
+      }
       return [];
     }
 
