@@ -5,6 +5,7 @@ import { LightningModule } from '../lightning/lightning.module';
 import { RailgunModule } from '../railgun/railgun.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { ArweaveModule } from './arweave/arweave.module';
+import { BlockchainBalanceModule } from './balance/blockchain-balance.module';
 import { BaseModule } from './base/base.module';
 import { BscModule } from './bsc/bsc.module';
 import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
@@ -55,6 +56,7 @@ import { ZanoModule } from './zano/zano.module';
     CardanoModule,
     CitreaTestnetModule,
     RealUnitBlockchainModule,
+    BlockchainBalanceModule,
   ],
   exports: [
     BitcoinModule,
@@ -82,6 +84,7 @@ import { ZanoModule } from './zano/zano.module';
     BlockchainRegistryService,
     TxValidationService,
     RealUnitBlockchainModule,
+    BlockchainBalanceModule,
   ],
 })
 export class BlockchainModule {}
