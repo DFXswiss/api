@@ -125,6 +125,10 @@ async function main() {
 
   console.log('Seeding database...');
 
+  // Wallet (must be first - other tables depend on it)
+  const walletData = parseCSV(path.join(seedDir, 'wallet.csv'));
+  await seedTable(pool, 'wallet', walletData, ['id', 'address', 'name', 'isKycClient', 'displayName', 'autoTradeApproval', 'usesDummyAddresses', 'displayFraudWarning']);
+
   // Language
   const langData = parseCSV(path.join(seedDir, 'language.csv'));
   await seedTable(pool, 'language', langData, ['id', 'symbol', 'name', 'foreignName', 'enable']);
