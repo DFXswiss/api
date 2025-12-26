@@ -209,6 +209,10 @@ export class Configuration {
       idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
     },
     logging: process.env.SQL_LOGGING as LoggerOptions,
+    options: {
+      encrypt: process.env.SQL_ENCRYPT !== 'false',
+      trustServerCertificate: process.env.SQL_ENCRYPT === 'false',
+    },
   };
 
   i18n: I18nOptions = {

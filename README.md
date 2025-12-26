@@ -177,27 +177,46 @@ The following steps must be carried out at the POS if a customer wants to pay wi
 
 ### Prerequisites
 
-- Node.js (LTS)
-- Docker
+- **Node.js** (LTS version) - [Download](https://nodejs.org)
+- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop)
 
 ### Quick Start
 
 ```bash
+# Automated setup (recommended)
 ./scripts/setup.sh
 npm start
 ```
 
-Or manually:
+That's it! The API will be available at http://localhost:3000
+
+The setup script will:
+- ✅ Check and start Docker Desktop if needed
+- ✅ Install npm dependencies
+- ✅ Create `.env` from template
+- ✅ Start database in Docker
+- ✅ Wait for database initialization
+
+### Manual Setup
+
+If you prefer to run the steps manually:
 
 ```bash
-docker-compose up -d
-docker-compose logs db-init   # wait for "Database 'dfx' ready"
-cp .env.local.example .env
+# 1. Install dependencies
 npm install
+
+# 2. Create environment file
+cp .env.local.example .env
+
+# 3. Start database
+docker-compose up -d
+
+# 4. Wait for database to be ready (check logs)
+docker-compose logs db-init   # wait for "Database 'dfx' ready"
+
+# 5. Start the API
 npm start
 ```
-
-The API will be available at http://localhost:3000
 
 ### Docker Commands
 
@@ -209,21 +228,28 @@ docker-compose down -v        # Stop and delete data
 docker logs dfx-mssql         # View database logs
 ```
 
-### Environment
+### Environment Configuration
 
-The `.env.local.example` contains minimal config for local development:
+The `.env.local.example` template contains minimal config for local development:
 
-- `ENVIRONMENT=loc` enables mock mode for external services
-- `DISABLED_PROCESSES=*` disables all background jobs
-- `SQL_SYNCHRONIZE=true` auto-creates database tables
-- Database credentials match `docker-compose.yml`
+- `ENVIRONMENT=loc` - Enables mock mode for external services
+- `DISABLED_PROCESSES=*` - Disables all background jobs
+- `SQL_SYNCHRONIZE=true` - Auto-creates database tables from entities
+- `SQL_ENCRYPT=false` - Trusts Docker's self-signed SSL certificate
+- Test blockchain credentials - Safe to use locally, **never in production**
 
 ### Mock Mode
 
-When `ENVIRONMENT=loc`, external services are automatically mocked:
+When `ENVIRONMENT=loc`, external services are automatically mocked to simplify local development:
 
-- **HTTP calls**: External API requests (Alchemy, Tatum, Sift, CoinGecko, etc.) return mock responses
+**✅ What's mocked:**
+- **HTTP calls**: External API requests (Alchemy, Tatum, Sift, CoinGecko, SumSub, etc.) return predefined mock responses
 - **Azure Storage**: Uses in-memory storage instead of Azure Blob Storage
+- **Mail service**: Mail sending is logged but not actually sent
+
+**❌ What's NOT mocked:**
+- **Database**: Requires running MSSQL instance (via Docker)
+- **Blockchain services**: Still initialize with test credentials from `.env`
 - **Localhost calls**: Requests to localhost/127.0.0.1 are never mocked
 
-This allows development without API keys or external dependencies. Only the database connection is required.
+**Note:** While HTTP calls are mocked, blockchain services (EVM, Solana, Tron, Cardano) still initialize during startup and require valid test credentials. The `.env.local.example` template includes safe test keys and mnemonics that should work out of the box.

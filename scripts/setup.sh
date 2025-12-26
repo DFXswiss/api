@@ -1,42 +1,90 @@
 #!/bin/bash
 set -e
 
-echo "=== DFX API Local Setup ==="
+echo "🚀 DFX API Local Development Setup"
+echo "===================================="
+echo ""
 
 # Check prerequisites
 if ! command -v docker &> /dev/null; then
-  echo "❌ Docker not installed"
+  echo "❌ Docker not installed. Please install Docker Desktop from https://www.docker.com/products/docker-desktop"
   exit 1
 fi
 
 if ! command -v node &> /dev/null; then
-  echo "❌ Node.js not installed"
+  echo "❌ Node.js not installed. Please install Node.js LTS from https://nodejs.org"
   exit 1
 fi
 
-# Start database
-echo "📦 Starting database..."
-docker-compose up -d
+# Check if Docker is running, start if needed
+if ! docker info &> /dev/null; then
+  echo "📦 Starting Docker Desktop..."
+  open -a Docker
 
-# Wait for db-init
-echo "⏳ Waiting for database initialization..."
-until docker-compose logs db-init 2>&1 | grep -q "Database 'dfx' ready"; do
-  sleep 2
-done
-echo "✅ Database ready"
-
-# Setup environment
-if [ ! -f .env ]; then
-  echo "📝 Creating .env from template..."
-  cp .env.local.example .env
+  # Wait for Docker to start (max 60 seconds)
+  echo "⏳ Waiting for Docker to start..."
+  for i in {1..30}; do
+    if docker info &> /dev/null; then
+      echo "✅ Docker is ready"
+      break
+    fi
+    if [ $i -eq 30 ]; then
+      echo "❌ Docker failed to start within 60 seconds"
+      exit 1
+    fi
+    sleep 2
+    echo -n "."
+  done
 else
-  echo "ℹ️  .env already exists, skipping"
+  echo "✅ Docker is running"
 fi
 
 # Install dependencies
-echo "📥 Installing dependencies..."
-npm install
+if [ ! -d "node_modules" ]; then
+  echo ""
+  echo "📥 Installing npm dependencies..."
+  npm install
+else
+  echo "✅ Dependencies already installed"
+fi
+
+# Setup environment
+if [ ! -f .env ]; then
+  echo ""
+  echo "⚙️  Creating .env from template..."
+  cp .env.local.example .env
+  echo "✅ .env file created"
+else
+  echo "✅ .env file already exists"
+fi
+
+# Start database
+echo ""
+echo "🗄️  Starting database..."
+docker-compose up -d
+
+# Wait for database initialization
+echo "⏳ Waiting for database initialization..."
+for i in {1..30}; do
+  if docker-compose logs db-init 2>&1 | grep -q "Database 'dfx' ready"; then
+    echo "✅ Database ready"
+    break
+  fi
+  if [ $i -eq 30 ]; then
+    echo "❌ Database failed to initialize within 60 seconds"
+    echo "Run 'docker-compose logs' to see what went wrong"
+    exit 1
+  fi
+  sleep 2
+  echo -n "."
+done
 
 echo ""
-echo "=== Setup complete ==="
-echo "Run 'npm start' to start the dev server"
+echo "✅ Setup complete!"
+echo ""
+echo "🎯 To start the API server, run:"
+echo "   npm start"
+echo ""
+echo "📝 The server will be available at: http://localhost:3000"
+echo "📝 All external services are automatically mocked in local mode"
+echo ""

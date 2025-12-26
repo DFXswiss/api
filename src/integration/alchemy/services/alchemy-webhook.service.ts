@@ -39,6 +39,22 @@ export class AlchemyWebhookService implements OnModuleInit {
   }
 
   onModuleInit() {
+    const config = GetConfig();
+
+    // Skip webhook initialization in local development mode
+    if (config.environment === 'loc') {
+      this.logger.verbose('Skipping Alchemy webhook initialization in local development mode');
+      this.webhookCache = new Map();
+      return;
+    }
+
+    // Skip if credentials are not configured
+    if (!config.alchemy.apiKey || !config.alchemy.authToken) {
+      this.logger.warn('Alchemy credentials not configured, skipping webhook initialization');
+      this.webhookCache = new Map();
+      return;
+    }
+
     void this.getAllWebhooks().then((l) => (this.webhookCache = new Map(l.map((w) => [w.id, w.signingKey]))));
   }
 
