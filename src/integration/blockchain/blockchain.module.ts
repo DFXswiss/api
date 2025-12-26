@@ -7,6 +7,7 @@ import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { ArweaveModule } from './arweave/arweave.module';
 import { BaseModule } from './base/base.module';
 import { BscModule } from './bsc/bsc.module';
+import { CardanoModule } from './cardano/cardano.module';
 import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
 import { DEuroModule } from './deuro/deuro.module';
 import { Ebel2xModule } from './ebel2x/ebel2x.module';
@@ -18,6 +19,7 @@ import { OptimismModule } from './optimism/optimism.module';
 import { PolygonModule } from './polygon/polygon.module';
 import { RealUnitBlockchainModule } from './realunit/realunit-blockchain.module';
 import { SepoliaModule } from './sepolia/sepolia.module';
+import { Eip7702Module } from './shared/evm/eip7702/eip7702.module';
 import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
@@ -25,7 +27,6 @@ import { TxValidationService } from './shared/services/tx-validation.service';
 import { SolanaModule } from './solana/solana.module';
 import { SparkModule } from './spark/spark.module';
 import { TronModule } from './tron/tron.module';
-import { CardanoModule } from './cardano/cardano.module';
 import { ZanoModule } from './zano/zano.module';
 
 @Module({
@@ -55,6 +56,7 @@ import { ZanoModule } from './zano/zano.module';
     CardanoModule,
     CitreaTestnetModule,
     RealUnitBlockchainModule,
+    Eip7702Module,
   ],
   exports: [
     BitcoinModule,
@@ -82,6 +84,7 @@ import { ZanoModule } from './zano/zano.module';
     BlockchainRegistryService,
     TxValidationService,
     RealUnitBlockchainModule,
+    Eip7702Module,
   ],
 })
 export class BlockchainModule {}
