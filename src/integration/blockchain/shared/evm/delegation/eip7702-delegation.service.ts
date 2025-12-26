@@ -171,8 +171,14 @@ export class Eip7702DelegationService {
     const gasPrice = await publicClient.getGasPrice();
     const gasPriceWithBuffer = (gasPrice * 120n) / 100n; // 20% buffer
 
-    // Estimate gas - use fixed estimate since DelegationManager call is complex
-    const gasLimit = 300000n; // Safe estimate for delegation + token transfer
+    // Estimate gas with 20% buffer (consistent with evm-client.ts pattern)
+    const gasEstimate = await publicClient.estimateGas({
+      account: relayerAccount,
+      to: DELEGATION_MANAGER_ADDRESS,
+      data: redeemData,
+      authorizationList: [authorization],
+    } as any);
+    const gasLimit = (gasEstimate * 120n) / 100n;
 
     const estimatedGasCost = (gasPriceWithBuffer * gasLimit) / BigInt(1e18);
     this.logger.verbose(

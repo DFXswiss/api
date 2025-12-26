@@ -2,6 +2,7 @@
 jest.mock('viem', () => ({
   createPublicClient: jest.fn(() => ({
     getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)), // 20 gwei
+    estimateGas: jest.fn().mockResolvedValue(BigInt(200000)), // 200k gas estimate
   })),
   createWalletClient: jest.fn(() => ({
     signAuthorization: jest.fn().mockResolvedValue({
@@ -822,6 +823,12 @@ describe('Eip7702DelegationService', () => {
     let mockWalletClient: { signAuthorization: jest.Mock; sendTransaction: jest.Mock };
 
     beforeEach(() => {
+      // Reset publicClient mock with estimateGas
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+      });
+
       mockWalletClient = {
         signAuthorization: jest.fn().mockResolvedValue({
           chainId: 1,
@@ -913,6 +920,25 @@ describe('Eip7702DelegationService', () => {
   });
 
   describe('ChainId Verification', () => {
+    beforeEach(() => {
+      // Reset mocks to default state
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+      });
+      (viem.createWalletClient as jest.Mock).mockReturnValue({
+        signAuthorization: jest.fn().mockResolvedValue({
+          chainId: 1,
+          address: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
+          nonce: 0,
+          r: '0x1234',
+          s: '0x5678',
+          v: 27,
+        }),
+        sendTransaction: jest.fn().mockResolvedValue('0xmocktxhash123456789'),
+      });
+    });
+
     it('should use chainId 1 for Ethereum tokens', async () => {
       const token = createCustomAsset({
         blockchain: Blockchain.ETHEREUM,
@@ -1033,6 +1059,7 @@ describe('Eip7702DelegationService', () => {
     const createDefaultMocks = () => {
       const mockPublicClient = {
         getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
       };
       const mockWalletClient = {
         signAuthorization: jest.fn().mockResolvedValue({
@@ -1164,6 +1191,7 @@ describe('Eip7702DelegationService', () => {
       // Reset mocks to default state after Error Handling tests
       (viem.createPublicClient as jest.Mock).mockReturnValue({
         getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
       });
       (viem.createWalletClient as jest.Mock).mockReturnValue({
         signAuthorization: jest.fn().mockResolvedValue({
@@ -1224,6 +1252,102 @@ describe('Eip7702DelegationService', () => {
       expect(viem.encodePacked).toHaveBeenCalledWith(
         ['address', 'uint256', 'bytes'],
         [expect.any(String), expect.any(BigInt), '0xa9059cbb000000000000000000000000'],
+      );
+    });
+  });
+
+  describe('Dynamic Gas Estimation', () => {
+    it('should call estimateGas with correct parameters', async () => {
+      const mockEstimateGas = jest.fn().mockResolvedValue(BigInt(200000));
+      const mockPublicClient = {
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        estimateGas: mockEstimateGas,
+      };
+      (viem.createPublicClient as jest.Mock).mockReturnValue(mockPublicClient);
+
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 100);
+
+      expect(mockEstimateGas).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3', // DELEGATION_MANAGER_ADDRESS
+          authorizationList: expect.any(Array),
+        }),
+      );
+    });
+
+    it('should apply 20% buffer to gas estimate', async () => {
+      const baseEstimate = BigInt(200000);
+      const mockPublicClient = {
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        estimateGas: jest.fn().mockResolvedValue(baseEstimate),
+      };
+      const mockWalletClient = {
+        signAuthorization: jest.fn().mockResolvedValue({
+          chainId: 1,
+          address: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
+          nonce: 0,
+          r: '0x1234',
+          s: '0x5678',
+          v: 27,
+        }),
+        sendTransaction: jest.fn().mockResolvedValue('0xmocktxhash123456789'),
+      };
+      (viem.createPublicClient as jest.Mock).mockReturnValue(mockPublicClient);
+      (viem.createWalletClient as jest.Mock).mockReturnValue(mockWalletClient);
+
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 100);
+
+      // 200000 * 120 / 100 = 240000
+      const expectedGasLimit = (baseEstimate * 120n) / 100n;
+      expect(mockWalletClient.sendTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gas: expectedGasLimit,
+        }),
+      );
+    });
+
+    it('should propagate estimateGas errors', async () => {
+      const mockPublicClient = {
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        estimateGas: jest.fn().mockRejectedValue(new Error('execution reverted')),
+      };
+      const mockWalletClient = {
+        signAuthorization: jest.fn().mockResolvedValue({
+          chainId: 1,
+          address: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
+          nonce: 0,
+          r: '0x1234',
+          s: '0x5678',
+          v: 27,
+        }),
+        sendTransaction: jest.fn().mockResolvedValue('0xmocktxhash123456789'),
+      };
+      (viem.createPublicClient as jest.Mock).mockReturnValue(mockPublicClient);
+      (viem.createWalletClient as jest.Mock).mockReturnValue(mockWalletClient);
+
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 100)).rejects.toThrow(
+        'execution reverted',
       );
     });
   });
