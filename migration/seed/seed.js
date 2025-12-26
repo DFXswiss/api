@@ -144,7 +144,7 @@ async function main() {
 
   // Asset
   const assetData = parseCSV(path.join(seedDir, 'asset.csv'));
-  await seedTable(pool, 'asset', assetData, ['id', 'name', 'type', 'blockchain', 'buyable', 'sellable', 'uniqueName', 'category', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'approxPriceChf']);
+  await seedTable(pool, 'asset', assetData, ['id', 'name', 'type', 'blockchain', 'buyable', 'sellable', 'uniqueName', 'category', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'approxPriceChf', 'chainId', 'decimals']);
 
   // IpLog (required for auth to work - needs old created date)
   const ipLogCount = await pool.request().query('SELECT COUNT(*) as count FROM ip_log');
