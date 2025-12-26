@@ -2,6 +2,45 @@ const fs = require('fs');
 const path = require('path');
 const mssql = require('mssql');
 
+// ============================================================================
+// SAFETY CHECKS - Prevent accidental seeding of production databases
+// ============================================================================
+
+// Check 1: Only allow seeding in local environment
+const allowedEnvironments = ['loc', 'local', undefined, ''];
+const currentEnv = process.env.ENVIRONMENT;
+
+if (!allowedEnvironments.includes(currentEnv)) {
+  console.error('❌ SAFETY BLOCK: Seeding is only allowed in local environment!');
+  console.error(`   Current ENVIRONMENT: ${currentEnv}`);
+  console.error(`   Allowed: loc, local, or unset`);
+  process.exit(1);
+}
+
+// Check 2: Only allow seeding to local/dev database hosts
+const dbHost = process.env.SQL_HOST || 'localhost';
+const allowedHostPatterns = [
+  'localhost',
+  '127.0.0.1',
+  /^sql-dfx-api-loc/i,           // Azure loc database
+  /loc.*\.database\.windows\.net/i, // Any Azure loc database
+];
+
+const isHostAllowed = allowedHostPatterns.some(pattern =>
+  pattern instanceof RegExp ? pattern.test(dbHost) : dbHost === pattern
+);
+
+if (!isHostAllowed) {
+  console.error('❌ SAFETY BLOCK: Database host not in allowed list!');
+  console.error(`   Current host: ${dbHost}`);
+  console.error('   Allowed: localhost, 127.0.0.1, sql-dfx-api-loc*, *loc*.database.windows.net');
+  process.exit(1);
+}
+
+console.log(`✓ Safety checks passed (env=${currentEnv || 'unset'}, host=${dbHost})`);
+
+// ============================================================================
+
 const config = {
   user: process.env.SQL_USERNAME || 'sa',
   password: process.env.SQL_PASSWORD || 'LocalDev123!',

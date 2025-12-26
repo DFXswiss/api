@@ -19,6 +19,41 @@ const readline = require('readline');
 const { ethers } = require('ethers');
 const mssql = require('mssql');
 
+// ============================================================================
+// SAFETY CHECKS - Prevent accidental execution against production
+// ============================================================================
+
+const allowedEnvironments = ['loc', 'local', undefined, ''];
+const currentEnv = process.env.ENVIRONMENT;
+
+if (!allowedEnvironments.includes(currentEnv)) {
+  console.error('❌ SAFETY BLOCK: Setup is only allowed in local environment!');
+  console.error(`   Current ENVIRONMENT: ${currentEnv}`);
+  console.error('   Allowed: loc, local, or unset');
+  process.exit(1);
+}
+
+const dbHost = process.env.SQL_HOST || 'localhost';
+const allowedHostPatterns = [
+  'localhost',
+  '127.0.0.1',
+  /^sql-dfx-api-loc/i,
+  /loc.*\.database\.windows\.net/i,
+];
+
+const isHostAllowed = allowedHostPatterns.some(pattern =>
+  pattern instanceof RegExp ? pattern.test(dbHost) : dbHost === pattern
+);
+
+if (!isHostAllowed) {
+  console.error('❌ SAFETY BLOCK: Database host not in allowed list!');
+  console.error(`   Current host: ${dbHost}`);
+  console.error('   Allowed: localhost, 127.0.0.1, sql-dfx-api-loc*, *loc*.database.windows.net');
+  process.exit(1);
+}
+
+// ============================================================================
+
 const ENV_FILE = path.join(__dirname, '..', '.env');
 const ENV_EXAMPLE = path.join(__dirname, '..', '.env.local.example');
 const API_URL = 'http://localhost:3000';
