@@ -1,12 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as SolanaToken from '@solana/spl-token';
 import * as Solana from '@solana/web3.js';
+import { TronWeb } from 'tronweb';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
-import { TronClient } from 'src/integration/blockchain/tron/tron-client';
 import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -21,7 +21,6 @@ import {
 @Injectable()
 export class BlockchainTransactionService {
   private readonly solanaClient: SolanaClient;
-  private readonly tronClient: TronClient;
 
   constructor(
     private readonly solanaService: SolanaService,
@@ -30,7 +29,6 @@ export class BlockchainTransactionService {
     private readonly http: HttpService,
   ) {
     this.solanaClient = this.solanaService.getDefaultClient();
-    this.tronClient = this.tronService.getDefaultClient();
   }
 
   async createTransaction(dto: CreateTransactionDto): Promise<UnsignedTransactionDto> {
@@ -145,13 +143,20 @@ export class BlockchainTransactionService {
   }
 
   private async broadcastSolanaTransaction(signedTransaction: string): Promise<BroadcastResultDto> {
-    const result = await this.solanaClient.sendSignedTransaction(signedTransaction);
+    // signedTransaction is base64-encoded from the frontend
+    const connection = this.getSolanaConnection();
 
-    if (result.error) {
-      throw new BadRequestException(`Failed to broadcast Solana transaction: ${result.error.message}`);
+    try {
+      const txBuffer = Buffer.from(signedTransaction, 'base64');
+      const txHash = await connection.sendRawTransaction(txBuffer, {
+        skipPreflight: true,
+        preflightCommitment: 'processed',
+      });
+
+      return { txHash };
+    } catch (error) {
+      throw new BadRequestException(`Failed to broadcast Solana transaction: ${(error as Error).message}`);
     }
-
-    return { txHash: result.hash };
   }
 
   private getSolanaConnection(): Solana.Connection {
@@ -233,9 +238,6 @@ export class BlockchainTransactionService {
   }
 
   private tronAddressToHex(address: string): string {
-    // Simple base58 to hex conversion for Tron addresses
-    // Note: In production, use a proper library like tronweb
-    const TronWeb = require('tronweb');
     return TronWeb.address.toHex(address).replace(/^41/, '');
   }
 
