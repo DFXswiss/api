@@ -7,7 +7,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
-import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { HttpService } from 'src/shared/services/http.service';
@@ -24,7 +23,6 @@ export class BlockchainTransactionService {
 
   constructor(
     private readonly solanaService: SolanaService,
-    private readonly tronService: TronService,
     private readonly assetService: AssetService,
     private readonly http: HttpService,
   ) {
