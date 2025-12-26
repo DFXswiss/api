@@ -1,11 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
-import { WalletAccount } from '../../domain/wallet-account';
-import { Eip7702DelegationService } from '../eip7702-delegation.service';
-
-// Mock viem
+// Mock viem - must be before imports and use inline functions
 jest.mock('viem', () => ({
   createPublicClient: jest.fn(() => ({
     getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)), // 20 gwei
@@ -35,6 +28,15 @@ jest.mock('viem/accounts', () => ({
   })),
   signTypedData: jest.fn().mockResolvedValue('0xsignature'),
 }));
+
+import { Test, TestingModule } from '@nestjs/testing';
+import * as viem from 'viem';
+import * as viemAccounts from 'viem/accounts';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { WalletAccount } from '../../domain/wallet-account';
+import { Eip7702DelegationService } from '../eip7702-delegation.service';
 
 jest.mock('viem/chains', () => ({
   mainnet: { id: 1, name: 'Ethereum' },
@@ -381,7 +383,6 @@ describe('Eip7702DelegationService', () => {
 
     describe('Viem Integration', () => {
       it('should call createPublicClient with correct parameters', async () => {
-        const { createPublicClient } = require('viem');
         const token = createCustomAsset({
           blockchain: Blockchain.ETHEREUM,
           type: AssetType.TOKEN,
@@ -391,11 +392,10 @@ describe('Eip7702DelegationService', () => {
 
         await service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 100);
 
-        expect(createPublicClient).toHaveBeenCalled();
+        expect(viem.createPublicClient).toHaveBeenCalled();
       });
 
       it('should call createWalletClient with correct parameters', async () => {
-        const { createWalletClient } = require('viem');
         const token = createCustomAsset({
           blockchain: Blockchain.ETHEREUM,
           type: AssetType.TOKEN,
@@ -405,11 +405,10 @@ describe('Eip7702DelegationService', () => {
 
         await service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 100);
 
-        expect(createWalletClient).toHaveBeenCalled();
+        expect(viem.createWalletClient).toHaveBeenCalled();
       });
 
       it('should call encodeFunctionData for ERC20 transfer', async () => {
-        const { encodeFunctionData } = require('viem');
         const token = createCustomAsset({
           blockchain: Blockchain.ETHEREUM,
           type: AssetType.TOKEN,
@@ -419,7 +418,7 @@ describe('Eip7702DelegationService', () => {
 
         await service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 100);
 
-        expect(encodeFunctionData).toHaveBeenCalledWith(
+        expect(viem.encodeFunctionData).toHaveBeenCalledWith(
           expect.objectContaining({
             functionName: 'transfer',
           }),
@@ -427,7 +426,6 @@ describe('Eip7702DelegationService', () => {
       });
 
       it('should call encodePacked for ERC-7579 execution data', async () => {
-        const { encodePacked } = require('viem');
         const token = createCustomAsset({
           blockchain: Blockchain.ETHEREUM,
           type: AssetType.TOKEN,
@@ -437,11 +435,10 @@ describe('Eip7702DelegationService', () => {
 
         await service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 100);
 
-        expect(encodePacked).toHaveBeenCalledWith(['address', 'uint256', 'bytes'], expect.any(Array));
+        expect(viem.encodePacked).toHaveBeenCalledWith(['address', 'uint256', 'bytes'], expect.any(Array));
       });
 
       it('should sign delegation with EIP-712', async () => {
-        const { signTypedData } = require('viem/accounts');
         const token = createCustomAsset({
           blockchain: Blockchain.ETHEREUM,
           type: AssetType.TOKEN,
@@ -451,7 +448,7 @@ describe('Eip7702DelegationService', () => {
 
         await service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 100);
 
-        expect(signTypedData).toHaveBeenCalledWith(
+        expect(viemAccounts.signTypedData).toHaveBeenCalledWith(
           expect.objectContaining({
             domain: expect.objectContaining({
               name: 'DelegationManager',
