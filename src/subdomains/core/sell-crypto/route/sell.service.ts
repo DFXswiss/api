@@ -9,7 +9,6 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { merge } from 'lodash';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -37,7 +36,6 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { FindOneOptions, In, IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
-import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
@@ -86,62 +84,6 @@ export class SellService {
   async getById(id: number, options?: FindOneOptions<Sell>): Promise<Sell> {
     const defaultOptions = { where: { id }, relations: { user: { userData: { organization: true } } } };
     return this.sellRepo.findOne(merge(defaultOptions, options));
-  }
-
-  async getLatest(userId: number): Promise<Sell | null> {
-    return this.sellRepo.findOne({
-      where: { user: { id: userId } },
-      relations: { user: { userData: { organization: true } } },
-      order: { created: 'DESC' },
-    });
-  }
-
-  async getByLabel(userId: number, label: string, options?: FindOneOptions<Sell>): Promise<Sell> {
-    const defaultOptions = {
-      where: { route: { label }, user: { id: userId } },
-      relations: { user: { userData: { organization: true } } },
-    };
-    return this.sellRepo.findOne(merge(defaultOptions, options));
-  }
-
-  validateLightningRoute(route: Sell): void {
-    if (!route) throw new NotFoundException('Sell route not found');
-    if (route.deposit.blockchains !== Blockchain.LIGHTNING)
-      throw new BadRequestException('Only Lightning routes are allowed');
-  }
-
-  async getPaymentRoute(idOrLabel: string, options?: FindOneOptions<Sell>): Promise<Sell> {
-    const isRouteId = !isNaN(+idOrLabel);
-    const sellRoute = isRouteId
-      ? await this.getById(+idOrLabel, options)
-      : await this.getByLabel(undefined, idOrLabel, options);
-
-    try {
-      this.validateLightningRoute(sellRoute);
-    } catch (e) {
-      this.logger.verbose(`Failed to validate sell route ${idOrLabel}:`, e);
-      throw new NotFoundException(`Payment route not found`);
-    }
-    return sellRoute;
-  }
-
-  async getPaymentLinksFromRoute(
-    routeIdOrLabel: string,
-    externalIds?: string[],
-    ids?: number[],
-  ): Promise<PaymentLink[]> {
-    const route = await this.getPaymentRoute(routeIdOrLabel, {
-      relations: { paymentLinks: true },
-      where: {
-        paymentLinks: [
-          ...(externalIds?.length ? [{ externalId: In(externalIds) }] : []),
-          ...(ids?.length ? [{ id: In(ids) }] : []),
-        ],
-      },
-      order: { paymentLinks: { created: 'ASC' } },
-    });
-
-    return Array.from(new Map((route.paymentLinks || []).map((l) => [l.id, l])).values());
   }
 
   async getSellByKey(key: string, value: any, onlyDefaultRelation = false): Promise<Sell> {
@@ -443,31 +385,5 @@ export class SellService {
     }
 
     return sellDto;
-  }
-
-  async getPaymentRoutesForPublicName(publicName: string): Promise<Sell[]> {
-    return this.sellRepo.find({
-      where: {
-        active: true,
-        deposit: { blockchains: Blockchain.LIGHTNING },
-        user: { userData: { paymentLinksName: publicName } },
-      },
-      relations: { user: { userData: true } },
-    });
-  }
-
-  async getPaymentRouteForKey(key: string): Promise<Sell | undefined> {
-    return this.sellRepo
-      .createQueryBuilder('sell')
-      .innerJoin('sell.deposit', 'deposit')
-      .innerJoinAndSelect('sell.user', 'user')
-      .innerJoinAndSelect('user.userData', 'userData')
-      .where(
-        `EXISTS (SELECT 1 FROM OPENJSON(userdata.paymentLinksConfig, '$.accessKeys') AS k WHERE k.value = :key )`,
-        { key },
-      )
-      .andWhere('sell.active = 1')
-      .andWhere('deposit.blockchains = :chain', { chain: Blockchain.LIGHTNING })
-      .getOne();
   }
 }

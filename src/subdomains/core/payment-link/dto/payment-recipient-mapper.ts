@@ -1,12 +1,13 @@
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { isSellRoute } from '../../sell-crypto/route/sell.entity';
 import { PaymentRecipientDto } from './payment-recipient.dto';
 
 export class PaymentRecipientMapper {
-  static toDto(sell: Sell): PaymentRecipientDto {
+  static toDto(route: DepositRoute): PaymentRecipientDto {
     return {
-      id: sell.id,
-      currency: FiatDtoMapper.toDto(sell.fiat),
+      id: route.id,
+      currency: isSellRoute(route) ? FiatDtoMapper.toDto(route.fiat) : undefined,
     };
   }
 }

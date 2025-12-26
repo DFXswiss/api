@@ -78,17 +78,26 @@ export class BuyCryptoRegistrationService {
     const result = [];
 
     for (const payIn of allPayIns) {
-      const relevantRoute = routes.find(
-        (r) =>
-          (payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
-            r.deposit.blockchainList.includes(payIn.address.blockchain)) ||
-          (payIn.isPayment && payIn.paymentLinkPayment?.link.route.id === r.id),
-      );
-
+      const relevantRoute = this.findMatchingRoute(payIn, routes);
       relevantRoute && result.push([payIn, relevantRoute]);
     }
 
     return result;
+  }
+
+  private findMatchingRoute(payIn: CryptoInput, routes: Swap[]): Swap | undefined {
+    if (payIn.isPayment) {
+      const paymentRouteId =
+        payIn.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? payIn.paymentLinkPayment?.link.route.id;
+
+      return routes.find((r) => paymentRouteId === r.id);
+    } else {
+      return routes.find(
+        (r) =>
+          payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
+          r.deposit.blockchainList.includes(payIn.address.blockchain),
+      );
+    }
   }
 
   private async createBuyCryptosAndAckPayIns(payInsPairs: [CryptoInput, Swap][]): Promise<void> {

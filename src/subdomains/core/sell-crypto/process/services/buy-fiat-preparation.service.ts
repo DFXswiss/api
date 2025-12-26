@@ -268,7 +268,7 @@ export class BuyFiatPreparationService {
           inputReferenceAmountMinusFee / outputReferenceAmount,
         );
         const priceStep = PriceStep.create(
-          'Payment',
+          Config.priceSourcePayment,
           conversionPrice.source,
           conversionPrice.target,
           conversionPrice.price,
@@ -318,7 +318,7 @@ export class BuyFiatPreparationService {
           : undefined;
         const priceSteps = price?.steps ?? [
           PriceStep.create(
-            'DFX',
+            Config.priceSourceManual,
             entity.inputReferenceAsset,
             entity.outputReferenceAsset.name,
             entity.inputReferenceAmountMinusFee / entity.outputReferenceAmount,

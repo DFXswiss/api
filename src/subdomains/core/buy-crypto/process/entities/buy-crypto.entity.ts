@@ -11,6 +11,7 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
+import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -48,6 +49,7 @@ export enum BuyCryptoStatus {
   BATCHED = 'Batched',
   PRICE_SLIPPAGE = 'PriceSlippage',
   PENDING_LIQUIDITY = 'PendingLiquidity',
+  PENDING_AGGREGATION = 'PendingAggregation',
   READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
@@ -371,6 +373,52 @@ export class BuyCrypto extends IEntity {
     this.fee.addActualPurchaseFee(txPurchaseFee, this);
 
     return this;
+  }
+
+  setPaymentLinkPayment(
+    amountInEur: number,
+    amountInChf: number,
+    feeRate: number,
+    totalFee: number,
+    totalFeeAmountChf: number,
+    inputReferenceAmountMinusFee: number,
+    outputReferenceAmount: number,
+    paymentLinkFee: number,
+    priceSteps: PriceStep[],
+  ): UpdateResult<BuyCrypto> {
+    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+
+    const paymentLinkFeeAmount = Util.roundReadable(outputReferenceAmount * paymentLinkFee, AmountType.ASSET_FEE);
+
+    const update: Partial<BuyCrypto> =
+      inputReferenceAmountMinusFee < 0
+        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH }
+        : {
+            absoluteFeeAmount: 0,
+            minFeeAmount: 0,
+            minFeeAmountFiat: 0,
+            blockchainFee: 0,
+            percentFee: feeRate,
+            percentFeeAmount: totalFee,
+            totalFeeAmount: totalFee,
+            totalFeeAmountChf,
+            paymentLinkFee,
+            inputReferenceAmountMinusFee,
+            amountInEur,
+            amountInChf,
+            usedRef: Config.defaultRef,
+            refProvision: 0,
+            refFactor: 0,
+            usedFees: null,
+            outputAmount: Util.roundReadable(outputReferenceAmount - paymentLinkFeeAmount, AmountType.ASSET),
+            outputReferenceAmount,
+            priceSteps: this.priceSteps,
+            status: BuyCryptoStatus.PENDING_AGGREGATION,
+          };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   setOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
@@ -733,6 +781,10 @@ export class BuyCrypto extends IEntity {
     return this.buy ?? this.cryptoRoute;
   }
 
+  get paymentLinkPayment(): PaymentLinkPayment | undefined {
+    return this.cryptoInput?.paymentLinkPayment;
+  }
+
   get paymentMethodIn(): PaymentMethod {
     return this.checkoutTx ? FiatPaymentMethod.CARD : this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
   }
@@ -770,13 +822,14 @@ export class BuyCrypto extends IEntity {
   // --- HELPER METHODS --- //
 
   private resetTransaction(): Partial<BuyCrypto> {
+    const isManualPrice = this.priceStepsObject.some((p) => p.source === Config.priceSourceManual);
+    const isPayment = this.priceStepsObject.some((p) => p.source === Config.priceSourcePayment);
+
     const update: Partial<BuyCrypto> = {
-      outputReferenceAmount: this.priceStepsObject.some((p) => p.source === Config.manualPriceStepSourceName)
-        ? undefined
-        : null, // ignore reset when manual payout
+      outputReferenceAmount: isManualPrice || isPayment ? undefined : null, // ignore reset when manual payout or payment
       batch: null,
       isComplete: false,
-      outputAmount: null,
+      outputAmount: isPayment ? undefined : null, // ignore reset when payment
       outputDate: null,
     };
 

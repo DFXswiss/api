@@ -8,8 +8,10 @@ import { Util } from 'src/shared/utils/util';
 import { AmlListStatus } from 'src/subdomains/core/aml/enums/aml-list-status.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { FaucetRequest } from 'src/subdomains/core/faucet-request/entities/faucet-request.entity';
-import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
+import {
+  DefaultPaymentLinkConfig,
+  PaymentLinkConfig,
+} from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
