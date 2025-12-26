@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -10,17 +11,6 @@ import { BalanceDto, GetBalancesDto, GetBalancesResponseDto } from '../dto/get-b
 
 @Injectable()
 export class BlockchainBalanceService {
-  private readonly evmBlockchains: Blockchain[] = [
-    Blockchain.ETHEREUM,
-    Blockchain.SEPOLIA,
-    Blockchain.BINANCE_SMART_CHAIN,
-    Blockchain.ARBITRUM,
-    Blockchain.OPTIMISM,
-    Blockchain.POLYGON,
-    Blockchain.BASE,
-    Blockchain.GNOSIS,
-  ];
-
   constructor(
     private readonly alchemyService: AlchemyService,
     private readonly solanaService: SolanaService,
@@ -49,7 +39,7 @@ export class BlockchainBalanceService {
       return this.getTronBalances(address, filteredAssets);
     }
 
-    if (this.evmBlockchains.includes(blockchain)) {
+    if (AlchemyNetworkMapper.availableNetworks.includes(blockchain)) {
       return this.getEvmBalances(address, blockchain, filteredAssets);
     }
 

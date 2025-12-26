@@ -242,7 +242,7 @@ export class BlockchainTransactionService {
   private tronHttpConfig() {
     return {
       headers: {
-        'TRON-PRO-API-KEY': Config.blockchain.tron.tronApiKey,
+        'x-api-key': Config.blockchain.tron.tronApiKey,
         'Content-Type': 'application/json',
       },
     };
