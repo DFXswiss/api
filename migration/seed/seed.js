@@ -180,12 +180,22 @@ async function main() {
   const countryData = parseCSV(path.join(seedDir, 'country.csv'));
   await seedTable(pool, 'country', countryData, ['id', 'symbol', 'name', 'dfxEnable', 'ipEnable', 'maerkiBaumannEnable', 'lockEnable', 'symbol3']);
 
+  // PriceRule (must be before Asset due to FK constraint)
+  const priceRuleData = parseCSV(path.join(seedDir, 'price_rule.csv'));
+  await seedTable(pool, 'price_rule', priceRuleData, ['id', 'priceSource', 'priceAsset', 'priceReference', 'check1Source', 'check1Asset', 'check1Reference', 'check1Limit', 'check2Source', 'check2Asset', 'check2Reference', 'check2Limit', 'currentPrice', 'priceValiditySeconds', 'assetDisplayName', 'referenceDisplayName']);
+
   // Asset - drop unique index that conflicts with NULL dexName values
   try {
     await pool.request().query('DROP INDEX IF EXISTS IDX_83f52471fd746482b83b20f51b ON asset');
   } catch (e) { /* Index may not exist */ }
   const assetData = parseCSV(path.join(seedDir, 'asset.csv'));
-  await seedTable(pool, 'asset', assetData, ['id', 'name', 'type', 'blockchain', 'buyable', 'sellable', 'uniqueName', 'category', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'approxPriceChf', 'chainId', 'decimals']);
+  await seedTable(pool, 'asset', assetData, [
+    'id', 'name', 'type', 'buyable', 'sellable', 'chainId', 'sellCommand', 'dexName',
+    'category', 'blockchain', 'uniqueName', 'description', 'comingSoon', 'sortOrder',
+    'approxPriceUsd', 'ikna', 'priceRuleId', 'approxPriceChf', 'cardBuyable', 'cardSellable',
+    'instantBuyable', 'instantSellable', 'financialType', 'decimals', 'paymentEnabled',
+    'amlRuleFrom', 'amlRuleTo', 'approxPriceEur', 'refundEnabled'
+  ]);
 
   // IpLog (required for auth to work - needs old created date)
   const ipLogCount = await pool.request().query('SELECT COUNT(*) as count FROM ip_log');
@@ -206,10 +216,6 @@ async function main() {
     console.log(`  ip_log: already has ${ipLogCount.recordset[0].count} rows, skipping`);
   }
 
-  // PriceRule (required for pricing) - referenceId excluded as it references assets not in seed data
-  const priceRuleData = parseCSV(path.join(seedDir, 'price_rule.csv'));
-  await seedTable(pool, 'price_rule', priceRuleData, ['id', 'priceSource', 'priceAsset', 'priceReference', 'check1Source', 'check1Asset', 'check1Reference', 'check1Limit', 'check2Source', 'check2Asset', 'check2Reference', 'check2Limit', 'currentPrice', 'priceValiditySeconds', 'assetDisplayName', 'referenceDisplayName']);
-
   // Fee (required for transaction fees)
   const feeData = parseCSV(path.join(seedDir, 'fee.csv'));
   await seedTable(pool, 'fee', feeData, ['id', 'label', 'type', 'rate', 'accountType', 'active', 'fixed', 'payoutRefBonus', 'blockchainFactor', 'paymentMethodsIn', 'paymentMethodsOut']);
@@ -218,8 +224,8 @@ async function main() {
   const bankData = parseCSV(path.join(seedDir, 'bank.csv'));
   await seedTable(pool, 'bank', bankData, ['id', 'name', 'iban', 'bic', 'currency', 'receive', 'send', 'sctInst', 'amlEnabled']);
 
-  // Link assets and fiats to price rules (required for pricing)
-  console.log('  Linking assets/fiats to price rules...');
+  // Link fiats to price rules (assets already have priceRuleId from CSV)
+  console.log('  Linking fiats to price rules...');
   const priceRules = await pool.request().query('SELECT id, assetDisplayName, priceAsset FROM price_rule');
   const priceRuleMap = new Map();
   for (const rule of priceRules.recordset) {
@@ -237,17 +243,6 @@ async function main() {
         .input('ruleId', mssql.Int, ruleId)
         .input('id', mssql.Int, fiat.id)
         .query('UPDATE fiat SET priceRuleId = @ruleId WHERE id = @id');
-    }
-  }
-
-  const assets = await pool.request().query('SELECT id, name FROM asset WHERE priceRuleId IS NULL');
-  for (const asset of assets.recordset) {
-    const ruleId = priceRuleMap.get(asset.name.toUpperCase());
-    if (ruleId) {
-      await pool.request()
-        .input('ruleId', mssql.Int, ruleId)
-        .input('id', mssql.Int, asset.id)
-        .query('UPDATE asset SET priceRuleId = @ruleId WHERE id = @id');
     }
   }
 
