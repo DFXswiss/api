@@ -12,7 +12,7 @@
     "seed": "node migration/seed/seed.js",
     "setup": "node scripts/setup.js",
     "start": "nest start --debug --watch",
-    "start:local": "npm run seed & npm run start",
+    "start:local": "npm run seed && npm run start",
     "start:dev": "SET NODE_ENV=master& node --max-old-space-size=2048 dist/main",
     "start:prod": "SET NODE_ENV=master& node --max-old-space-size=6144 dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --no-fix",
