@@ -18,6 +18,7 @@ import { OptimismModule } from './optimism/optimism.module';
 import { PolygonModule } from './polygon/polygon.module';
 import { RealUnitBlockchainModule } from './realunit/realunit-blockchain.module';
 import { SepoliaModule } from './sepolia/sepolia.module';
+import { Eip7702DelegationModule } from './shared/evm/delegation/eip7702-delegation.module';
 import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
@@ -55,6 +56,7 @@ import { ZanoModule } from './zano/zano.module';
     CardanoModule,
     CitreaTestnetModule,
     RealUnitBlockchainModule,
+    Eip7702DelegationModule,
   ],
   exports: [
     BitcoinModule,
@@ -82,6 +84,7 @@ import { ZanoModule } from './zano/zano.module';
     BlockchainRegistryService,
     TxValidationService,
     RealUnitBlockchainModule,
+    Eip7702DelegationModule,
   ],
 })
 export class BlockchainModule {}

@@ -84,25 +84,25 @@ describe('SendStrategyRegistry', () => {
     zanoToken = new ZanoTokenStrategy(mock<PayInZanoService>(), mock<PayInRepository>());
 
     ethereumCoin = new EthereumCoinStrategy(mock<PayInEthereumService>(), mock<PayInRepository>());
-    ethereumToken = new EthereumTokenStrategy(mock<PayInEthereumService>(), mock<PayInRepository>());
+    ethereumToken = new EthereumTokenStrategy(mock<PayInEthereumService>(), mock<PayInRepository>(), undefined);
 
     bscCoin = new BscCoinStrategy(mock<PayInBscService>(), mock<PayInRepository>());
-    bscToken = new BscTokenStrategy(mock<PayInBscService>(), mock<PayInRepository>());
+    bscToken = new BscTokenStrategy(mock<PayInBscService>(), mock<PayInRepository>(), undefined);
 
     arbitrumCoin = new ArbitrumCoinStrategy(mock<PayInArbitrumService>(), mock<PayInRepository>());
-    arbitrumToken = new ArbitrumTokenStrategy(mock<PayInArbitrumService>(), mock<PayInRepository>());
+    arbitrumToken = new ArbitrumTokenStrategy(mock<PayInArbitrumService>(), mock<PayInRepository>(), undefined);
 
     optimismCoin = new OptimismCoinStrategy(mock<PayInOptimismService>(), mock<PayInRepository>());
-    optimismToken = new OptimismTokenStrategy(mock<PayInOptimismService>(), mock<PayInRepository>());
+    optimismToken = new OptimismTokenStrategy(mock<PayInOptimismService>(), mock<PayInRepository>(), undefined);
 
     polygonCoin = new PolygonCoinStrategy(mock<PayInPolygonService>(), mock<PayInRepository>());
-    polygonToken = new PolygonTokenStrategy(mock<PayInPolygonService>(), mock<PayInRepository>());
+    polygonToken = new PolygonTokenStrategy(mock<PayInPolygonService>(), mock<PayInRepository>(), undefined);
 
     baseCoin = new BaseCoinStrategy(mock<PayInBaseService>(), mock<PayInRepository>());
-    baseToken = new BaseTokenStrategy(mock<PayInBaseService>(), mock<PayInRepository>());
+    baseToken = new BaseTokenStrategy(mock<PayInBaseService>(), mock<PayInRepository>(), undefined);
 
     gnosisCoin = new GnosisCoinStrategy(mock<PayInGnosisService>(), mock<PayInRepository>());
-    gnosisToken = new GnosisTokenStrategy(mock<PayInGnosisService>(), mock<PayInRepository>());
+    gnosisToken = new GnosisTokenStrategy(mock<PayInGnosisService>(), mock<PayInRepository>(), undefined);
 
     solanaCoin = new SolanaCoinStrategy(mock<PayInSolanaService>(), mock<PayInRepository>());
     solanaToken = new SolanaTokenStrategy(mock<PayInSolanaService>(), mock<PayInRepository>());

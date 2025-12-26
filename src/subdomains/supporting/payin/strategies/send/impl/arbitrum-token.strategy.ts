@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { PayInRepository } from '../../../repositories/payin.repository';
@@ -9,8 +10,12 @@ import { EvmTokenStrategy } from './base/evm.token.strategy';
 
 @Injectable()
 export class ArbitrumTokenStrategy extends EvmTokenStrategy {
-  constructor(arbitrumService: PayInArbitrumService, payInRepo: PayInRepository) {
-    super(arbitrumService, payInRepo);
+  constructor(
+    arbitrumService: PayInArbitrumService,
+    payInRepo: PayInRepository,
+    delegationService: Eip7702DelegationService,
+  ) {
+    super(arbitrumService, payInRepo, delegationService);
   }
 
   get blockchain(): Blockchain {

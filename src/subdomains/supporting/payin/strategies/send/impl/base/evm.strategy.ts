@@ -119,7 +119,7 @@ export abstract class EvmStrategy extends SendStrategy {
       );
   }
 
-  private groupPayIns(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
+  protected groupPayIns(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
     const groups = new Map<SendGroupKey, SendGroup>();
 
     for (const payIn of payIns) {
@@ -152,7 +152,7 @@ export abstract class EvmStrategy extends SendStrategy {
     return `${payIn.address.address}&${payIn.destinationAddress.address}&&${payIn.asset.dexName}&${payIn.asset.type}&${payIn.status}`;
   }
 
-  private getPayInsIdentityKey(payInGroup: SendGroup): string {
+  protected getPayInsIdentityKey(payInGroup: SendGroup): string {
     return payInGroup.payIns.reduce((acc, t) => acc + `|${t.id}|`, '');
   }
 
