@@ -16,6 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const { spawn } = require('child_process');
 const { ethers } = require('ethers');
 const mssql = require('mssql');
 
@@ -165,6 +166,25 @@ async function waitForApi(maxRetries = 60, delayMs = 2000) {
   }
   console.log('');
   return false;
+}
+
+function startApi() {
+  const logFile = fs.openSync(path.join(__dirname, '..', 'api.log'), 'w');
+
+  const apiProcess = spawn('npm', ['run', 'start:local'], {
+    cwd: path.join(__dirname, '..'),
+    detached: true,
+    stdio: ['ignore', logFile, logFile],
+    env: { ...process.env, FORCE_COLOR: '0' },
+  });
+
+  // Unref so the parent can exit independently
+  apiProcess.unref();
+
+  // Save PID for later cleanup
+  fs.writeFileSync(path.join(__dirname, '..', '.api.pid'), apiProcess.pid.toString());
+
+  return apiProcess.pid;
 }
 
 async function getSignMessage(address) {
@@ -326,18 +346,18 @@ async function main() {
     logSuccess('Alchemy Auth Token already configured');
   }
 
-  // Step 4: Wait for API
-  logStep('3/6', 'Waiting for API');
-  logInfo('Make sure the API is running (npm run start)');
+  // Step 3: Start API
+  logStep('3/6', 'Starting API');
+
+  const apiPid = startApi();
+  logSuccess(`API started in background (PID: ${apiPid})`);
+  logInfo('Logs: api.log');
 
   const apiReady = await waitForApi();
   console.log(''); // New line after progress
 
   if (!apiReady) {
-    logError('API not responding. Please start the API first:');
-    logInfo('  npm run start');
-    logInfo('Then run this setup script again:');
-    logInfo('  npm run setup');
+    logError('API failed to start. Check api.log for errors.');
     process.exit(1);
   }
 
@@ -427,6 +447,10 @@ async function main() {
   log('Next steps:');
   log('  - Start the services frontend: cd ../services && npm start');
   log('  - Open http://localhost:3001 in your browser');
+  log('');
+  log('API Management:');
+  log('  - Stop API:  kill $(cat .api.pid)');
+  log('  - View logs: tail -f api.log');
   log('');
 }
 

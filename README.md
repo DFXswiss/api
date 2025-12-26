@@ -192,40 +192,41 @@ cp .env.local.example .env
 # 3. Start database
 docker-compose up -d
 
-# 4. Generate wallet seeds (writes to .env)
+# 4. Run setup (generates seeds, starts API, registers admin)
 npm run setup
-
-# 5. Start API (in another terminal)
-npm run start:local
-
-# 6. Return to setup terminal and press Enter to continue
-#    (registers admin user + creates deposit addresses)
 ```
 
 The API will be available at http://localhost:3000
+
+**API Management:**
+```bash
+kill $(cat .api.pid)   # Stop API
+tail -f api.log        # View logs
+npm run start:local    # Restart API manually
+```
 
 ### NPM Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run setup` | Generate all wallet seeds + register admin + create deposits |
+| `npm run setup` | Full setup: generate seeds, start API, register admin, create deposits |
 | `npm run start:local` | Start API + seed database with test data |
 | `npm run start` | Start API only (no seeding) |
 | `npm run seed` | Seed database manually |
 
 ### Setup Script
 
-The `npm run setup` command is an interactive script that:
+The `npm run setup` command is an all-in-one script that:
 
 1. **Generates All Wallet Seeds**: Creates 19 secure random seeds/keys and saves them to `.env`:
    - 10 mnemonic seeds (ADMIN, EVM_DEPOSIT, EVM_CUSTODY, SOLANA, TRON, CARDANO, PAYMENT_*)
    - 9 EVM private keys (shared across all EVM chains)
 2. **Prompts for Alchemy Token**: Optional - needed for automatic deposit address monitoring via webhooks
-3. **Waits for API**: Prompts you to start the API in another terminal
+3. **Starts API**: Launches the API in the background (logs to `api.log`, PID saved to `.api.pid`)
 4. **Registers Admin User**: Uses the API auth endpoint to create and authenticate the admin
 5. **Creates Deposit Addresses**: Uses the official API endpoint which also registers addresses with Alchemy
 
-**Important:** Run `npm run setup` before starting the API - the API requires wallet seeds to start.
+The API keeps running in the background after setup completes.
 
 ### Seed Data
 
