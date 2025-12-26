@@ -109,7 +109,8 @@ export class SwissQRService {
       debtor,
       currency,
       amount: bankInfo && transaction.buyCrypto?.inputAmount,
-      message: bankInfo && transaction.buyCrypto?.buy.bankUsage,
+      // For buy-specific IBANs, no remittance info (bankUsage) is needed
+      message: bankInfo && !bankInfo.isBuySpecificIban ? transaction.buyCrypto?.buy.bankUsage : undefined,
     };
 
     return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, transactionType);

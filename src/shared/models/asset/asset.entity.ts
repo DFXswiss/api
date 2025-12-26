@@ -79,6 +79,9 @@ export class Asset extends IEntity {
   @Column({ default: false })
   ikna: boolean;
 
+  @Column({ default: false })
+  personalIbanEnabled: boolean;
+
   @Column({ length: 256, default: Blockchain.DEFICHAIN })
   blockchain: Blockchain;
 

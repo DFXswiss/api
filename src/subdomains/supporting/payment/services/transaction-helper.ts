@@ -456,7 +456,7 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<TxStatementDetails> {
     const transaction = await this.transactionService.getTransactionById(txId, {
       userData: { organization: true },
-      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true },
+      buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
     });
@@ -469,6 +469,7 @@ export class TransactionHelper implements OnModuleInit {
 
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
+      const buy = transaction.buyCrypto.buy;
       return {
         statementType,
         transactionType: TransactionType.BUY,
@@ -476,12 +477,17 @@ export class TransactionHelper implements OnModuleInit {
         currency: fiat.name,
         bankInfo:
           statementType === TxStatementType.INVOICE &&
-          (await this.buyService.getBankInfo({
-            amount: transaction.buyCrypto.outputAmount,
-            currency: fiat.name,
-            paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
-            userData: transaction.userData,
-          })),
+          (await this.buyService.getBankInfo(
+            {
+              amount: transaction.buyCrypto.outputAmount,
+              currency: fiat.name,
+              paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
+              userData: transaction.userData,
+            },
+            buy,
+            buy?.asset,
+            buy?.user?.wallet,
+          )),
       };
     }
 
