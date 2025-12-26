@@ -172,3 +172,58 @@ The following steps must be carried out at the POS if a customer wants to pay wi
 1. [Confirm a payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_confirmPayment) (optional): A payment can be confirmed for documentation purposes. This can only be done after it is completed (paid by the customer). Please use the `externalPaymentId` query parameter to select the payment to be confirmed.
 
 1. [Cancel a payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_cancelPayment) (optional): A payment can be cancelled as long at it is still pending. Please use the `externalPaymentId` query parameter to select the payment to be cancelled.
+
+## Local Development
+
+### Prerequisites
+
+- Node.js (LTS)
+- Docker
+
+### Quick Start
+
+```bash
+./scripts/setup.sh
+npm start
+```
+
+Or manually:
+
+```bash
+docker-compose up -d
+docker-compose logs db-init   # wait for "Database 'dfx' ready"
+cp .env.local.example .env
+npm install
+npm start
+```
+
+The API will be available at http://localhost:3000
+
+### Docker Commands
+
+```bash
+docker-compose up -d          # Start database
+docker-compose logs db-init   # Check if database was created
+docker-compose down           # Stop database
+docker-compose down -v        # Stop and delete data
+docker logs dfx-mssql         # View database logs
+```
+
+### Environment
+
+The `.env.local.example` contains minimal config for local development:
+
+- `ENVIRONMENT=loc` enables mock mode for external services
+- `DISABLED_PROCESSES=*` disables all background jobs
+- `SQL_SYNCHRONIZE=true` auto-creates database tables
+- Database credentials match `docker-compose.yml`
+
+### Mock Mode
+
+When `ENVIRONMENT=loc`, external services are automatically mocked:
+
+- **HTTP calls**: External API requests (Alchemy, Tatum, Sift, CoinGecko, etc.) return mock responses
+- **Azure Storage**: Uses in-memory storage instead of Azure Blob Storage
+- **Localhost calls**: Requests to localhost/127.0.0.1 are never mocked
+
+This allows development without API keys or external dependencies. Only the database connection is required.
