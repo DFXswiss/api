@@ -180,7 +180,10 @@ async function main() {
   const countryData = parseCSV(path.join(seedDir, 'country.csv'));
   await seedTable(pool, 'country', countryData, ['id', 'symbol', 'name', 'dfxEnable', 'ipEnable', 'maerkiBaumannEnable', 'lockEnable', 'symbol3']);
 
-  // Asset
+  // Asset - drop unique index that conflicts with NULL dexName values
+  try {
+    await pool.request().query('DROP INDEX IF EXISTS IDX_83f52471fd746482b83b20f51b ON asset');
+  } catch (e) { /* Index may not exist */ }
   const assetData = parseCSV(path.join(seedDir, 'asset.csv'));
   await seedTable(pool, 'asset', assetData, ['id', 'name', 'type', 'blockchain', 'buyable', 'sellable', 'uniqueName', 'category', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'approxPriceChf', 'chainId', 'decimals']);
 
