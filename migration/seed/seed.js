@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const mssql = require('mssql');
-const { ethers } = require('ethers');
 
 const config = {
   user: process.env.SQL_USERNAME || 'sa',
@@ -210,24 +209,9 @@ async function main() {
     }
   }
 
-  // Deposit addresses (required for sell/swap - derived from EVM_DEPOSIT_SEED)
-  const depositCount = await pool.request().query('SELECT COUNT(*) as count FROM deposit');
-  if (depositCount.recordset[0].count === 0) {
-    const seed = process.env.EVM_DEPOSIT_SEED || 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-    const blockchains = 'Ethereum,BinanceSmartChain,Arbitrum,Optimism,Polygon,Base,Gnosis,Haqq';
-    console.log('  deposit: creating 5 EVM deposit addresses...');
-    for (let i = 0; i < 5; i++) {
-      const hdPath = "m/44'/60'/0'/0/" + i;
-      const wallet = ethers.Wallet.fromMnemonic(seed, hdPath);
-      await pool.request()
-        .input('address', mssql.NVarChar, wallet.address)
-        .input('blockchains', mssql.NVarChar, blockchains)
-        .input('accountIndex', mssql.Int, i)
-        .query('INSERT INTO deposit (address, blockchains, accountIndex) VALUES (@address, @blockchains, @accountIndex)');
-    }
-  } else {
-    console.log(`  deposit: already has ${depositCount.recordset[0].count} rows, skipping`);
-  }
+  // Note: Deposit addresses are NOT seeded here.
+  // They must be created via the API (/deposit endpoint) to ensure Alchemy webhook registration.
+  // Run 'npm run setup' after API starts to create deposits properly.
 
   await pool.close();
   console.log('Seed complete!');

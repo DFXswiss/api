@@ -192,11 +192,14 @@ cp .env.local.example .env
 # 3. Start database
 docker-compose up -d
 
-# 4. Start API with seed data (recommended for local development)
+# 4. Start API with seed data
 npm run start:local
+
+# 5. In another terminal: Run setup (creates admin user + deposit addresses)
+npm run setup
 ```
 
-That's it! The API will be available at http://localhost:3000
+The API will be available at http://localhost:3000
 
 ### NPM Scripts
 
@@ -205,6 +208,18 @@ That's it! The API will be available at http://localhost:3000
 | `npm run start:local` | Start API + seed database with test data |
 | `npm run start` | Start API only (no seeding) |
 | `npm run seed` | Seed database manually |
+| `npm run setup` | Interactive setup: admin user + deposit addresses |
+
+### Setup Script
+
+The `npm run setup` command is an interactive script that:
+
+1. **Generates Admin Seed**: Creates a random mnemonic for the admin user and saves it to `.env`
+2. **Prompts for Alchemy Token**: Optional - needed for automatic deposit address monitoring via webhooks
+3. **Registers Admin User**: Uses the API auth endpoint to create and authenticate the admin
+4. **Creates Deposit Addresses**: Uses the official API endpoint which also registers addresses with Alchemy
+
+This ensures deposit addresses are properly registered with Alchemy for transaction monitoring.
 
 ### Seed Data
 
@@ -215,7 +230,12 @@ The `start:local` command automatically seeds the database with test data:
 | language | 7 | EN, DE, FR, IT, PT, ES, SQ |
 | fiat | 24 | CHF, EUR, USD, etc. |
 | country | 250 | All countries |
-| asset | 261 | BTC, ETH, SOL, etc. |
+| asset | 227 | BTC, ETH, SOL, etc. |
+| bank | 10 | Test bank configurations |
+| fee | 27 | Fee configurations |
+| price_rule | 62 | Pricing rules |
+
+**Note:** Deposit addresses are NOT seeded directly. They are created via `npm run setup` to ensure proper Alchemy webhook registration.
 
 Seed data is stored in `migration/seed/` and can be customized as needed.
 
