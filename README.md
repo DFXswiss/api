@@ -192,11 +192,14 @@ cp .env.local.example .env
 # 3. Start database
 docker-compose up -d
 
-# 4. Start API with seed data
+# 4. Generate wallet seeds (writes to .env)
+npm run setup
+
+# 5. Start API (in another terminal)
 npm run start:local
 
-# 5. In another terminal: Run setup (creates admin user + deposit addresses)
-npm run setup
+# 6. Return to setup terminal and press Enter to continue
+#    (registers admin user + creates deposit addresses)
 ```
 
 The API will be available at http://localhost:3000
@@ -205,21 +208,24 @@ The API will be available at http://localhost:3000
 
 | Command | Description |
 |---------|-------------|
+| `npm run setup` | Generate all wallet seeds + register admin + create deposits |
 | `npm run start:local` | Start API + seed database with test data |
 | `npm run start` | Start API only (no seeding) |
 | `npm run seed` | Seed database manually |
-| `npm run setup` | Interactive setup: admin user + deposit addresses |
 
 ### Setup Script
 
 The `npm run setup` command is an interactive script that:
 
-1. **Generates Admin Seed**: Creates a random mnemonic for the admin user and saves it to `.env`
+1. **Generates All Wallet Seeds**: Creates 19 secure random seeds/keys and saves them to `.env`:
+   - 10 mnemonic seeds (ADMIN, EVM_DEPOSIT, EVM_CUSTODY, SOLANA, TRON, CARDANO, PAYMENT_*)
+   - 9 EVM private keys (shared across all EVM chains)
 2. **Prompts for Alchemy Token**: Optional - needed for automatic deposit address monitoring via webhooks
-3. **Registers Admin User**: Uses the API auth endpoint to create and authenticate the admin
-4. **Creates Deposit Addresses**: Uses the official API endpoint which also registers addresses with Alchemy
+3. **Waits for API**: Prompts you to start the API in another terminal
+4. **Registers Admin User**: Uses the API auth endpoint to create and authenticate the admin
+5. **Creates Deposit Addresses**: Uses the official API endpoint which also registers addresses with Alchemy
 
-This ensures deposit addresses are properly registered with Alchemy for transaction monitoring.
+**Important:** Run `npm run setup` before starting the API - the API requires wallet seeds to start.
 
 ### Seed Data
 
@@ -257,7 +263,8 @@ The `.env.local.example` template contains minimal config for local development:
 - `DISABLED_PROCESSES=*` - Disables all background jobs
 - `SQL_SYNCHRONIZE=true` - Auto-creates database tables from entities
 - `SQL_ENCRYPT=false` - Trusts Docker's self-signed SSL certificate
-- Test blockchain credentials - Safe to use locally, **never in production**
+
+**Note:** The template does not contain wallet seeds. All seeds are generated securely by `npm run setup` and written to your local `.env` file.
 
 ### Mock Mode
 
@@ -270,7 +277,7 @@ When `ENVIRONMENT=loc`, external services are automatically mocked to simplify l
 
 **❌ What's NOT mocked:**
 - **Database**: Requires running MSSQL instance (via Docker)
-- **Blockchain services**: Still initialize with test credentials from `.env`
+- **Blockchain services**: Still initialize with credentials from `.env`
 - **Localhost calls**: Requests to localhost/127.0.0.1 are never mocked
 
-**Note:** While HTTP calls are mocked, blockchain services (EVM, Solana, Tron, Cardano) still initialize during startup and require valid test credentials. The `.env.local.example` template includes safe test keys and mnemonics that should work out of the box.
+**Note:** While HTTP calls are mocked, blockchain services (EVM, Solana, Tron, Cardano) still initialize during startup and require wallet seeds. Run `npm run setup` first to generate all required seeds.
