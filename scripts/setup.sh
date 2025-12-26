@@ -18,23 +18,38 @@ fi
 
 # Check if Docker is running, start if needed
 if ! docker info &> /dev/null; then
-  echo "📦 Starting Docker Desktop..."
-  open -a Docker
+  echo "❌ Docker is not running"
+  echo ""
 
-  # Wait for Docker to start (max 60 seconds)
-  echo "⏳ Waiting for Docker to start..."
-  for i in {1..30}; do
-    if docker info &> /dev/null; then
-      echo "✅ Docker is ready"
-      break
-    fi
-    if [ $i -eq 30 ]; then
-      echo "❌ Docker failed to start within 60 seconds"
-      exit 1
-    fi
-    sleep 2
-    echo -n "."
-  done
+  # Try to start Docker automatically (macOS only)
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "📦 Attempting to start Docker Desktop..."
+    open -a Docker
+
+    # Wait for Docker to start (max 60 seconds)
+    echo "⏳ Waiting for Docker to start..."
+    for i in {1..30}; do
+      if docker info &> /dev/null; then
+        echo "✅ Docker is ready"
+        break
+      fi
+      if [ $i -eq 30 ]; then
+        echo "❌ Docker failed to start within 60 seconds"
+        echo "Please start Docker Desktop manually and run this script again"
+        exit 1
+      fi
+      sleep 2
+      echo -n "."
+    done
+  else
+    # Linux/Windows - cannot auto-start
+    echo "Please start Docker and run this script again:"
+    echo ""
+    echo "  Linux:   sudo systemctl start docker"
+    echo "  Windows: Start Docker Desktop from Start Menu"
+    echo ""
+    exit 1
+  fi
 else
   echo "✅ Docker is running"
 fi
