@@ -244,7 +244,7 @@ async function main() {
   log('========================================\n', colors.bright);
 
   // Step 1: Check/Generate Admin Seed
-  logStep('1/7', 'Admin Seed Configuration');
+  logStep('1/6', 'Admin Seed Configuration');
 
   let adminSeed = readEnvValue('ADMIN_SEED');
   let adminWallet;
@@ -264,71 +264,16 @@ async function main() {
     logInfo(`Seed saved to .env (keep this secret!)`);
   }
 
-  // Step 2: Generate all wallet seeds securely
-  logStep('2/7', 'Generating Wallet Seeds');
-
-  const seedsToGenerate = [
-    'EVM_DEPOSIT_SEED',
-    'EVM_CUSTODY_SEED',
-    'SOLANA_WALLET_SEED',
-    'TRON_WALLET_SEED',
-    'CARDANO_WALLET_SEED',
-    'PAYMENT_EVM_SEED',
-    'PAYMENT_SOLANA_SEED',
-    'PAYMENT_TRON_SEED',
-    'PAYMENT_CARDANO_SEED',
-  ];
-
-  const privateKeysToGenerate = [
-    'ETH_WALLET_PRIVATE_KEY',
-    'SEPOLIA_WALLET_PRIVATE_KEY',
-    'BSC_WALLET_PRIVATE_KEY',
-    'OPTIMISM_WALLET_PRIVATE_KEY',
-    'BASE_WALLET_PRIVATE_KEY',
-    'ARBITRUM_WALLET_PRIVATE_KEY',
-    'POLYGON_WALLET_PRIVATE_KEY',
-    'GNOSIS_WALLET_PRIVATE_KEY',
-    'CITREA_TESTNET_WALLET_PRIVATE_KEY',
-  ];
-
-  let generatedCount = 0;
-
-  // Generate mnemonic seeds
-  for (const seedName of seedsToGenerate) {
-    let existingValue = readEnvValue(seedName);
-    // Also check for insecure "abandon" seed
-    if (!existingValue || existingValue.includes('abandon')) {
-      const newSeed = generateMnemonic();
-      updateEnvFile({ [seedName]: newSeed });
-      generatedCount++;
-    }
-  }
-
-  // Generate private keys (all EVM chains can share the same key for local dev)
-  let sharedEvmKey = readEnvValue('ETH_WALLET_PRIVATE_KEY');
-  if (!sharedEvmKey || sharedEvmKey === '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80') {
-    // Generate new key if missing or if it's the well-known Hardhat key
-    const wallet = ethers.Wallet.createRandom();
-    sharedEvmKey = wallet.privateKey;
-  }
-
-  for (const keyName of privateKeysToGenerate) {
-    let existingValue = readEnvValue(keyName);
-    // Check for insecure Hardhat test key
-    if (!existingValue || existingValue === '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80') {
-      updateEnvFile({ [keyName]: sharedEvmKey });
-      generatedCount++;
-    }
-  }
-
-  if (generatedCount > 0) {
-    logSuccess(`Generated ${generatedCount} secure wallet seeds/keys`);
-  } else {
-    logSuccess('All wallet seeds already configured');
+  // Step 2: Check/Set EVM_DEPOSIT_SEED (use same as admin for simplicity in local dev)
+  let depositSeed = readEnvValue('EVM_DEPOSIT_SEED');
+  if (!depositSeed) {
+    depositSeed = generateMnemonic();
+    updateEnvFile({ 'EVM_DEPOSIT_SEED': depositSeed });
+    logSuccess('Generated EVM_DEPOSIT_SEED');
   }
 
   // Step 3: Alchemy API Key
-  logStep('3/7', 'Alchemy Configuration');
+  logStep('2/6', 'Alchemy Configuration');
 
   let alchemyKey = readEnvValue('ALCHEMY_AUTH_TOKEN');
 
@@ -352,7 +297,7 @@ async function main() {
   }
 
   // Step 4: Wait for API
-  logStep('4/7', 'Waiting for API');
+  logStep('3/6', 'Waiting for API');
   logInfo('Make sure the API is running (npm run start)');
 
   const apiReady = await waitForApi();
@@ -369,7 +314,7 @@ async function main() {
   logSuccess('API is ready');
 
   // Step 5: Register Admin User
-  logStep('5/7', 'Registering Admin User');
+  logStep('4/6', 'Registering Admin User');
 
   try {
     const signMessage = await getSignMessage(adminWallet.address);
@@ -392,7 +337,7 @@ async function main() {
   }
 
   // Step 6: Set Admin Role
-  logStep('6/7', 'Setting Admin Role');
+  logStep('5/6', 'Setting Admin Role');
 
   try {
     const user = await setAdminRole(adminWallet.address);
@@ -416,7 +361,7 @@ async function main() {
   }
 
   // Step 7: Create Deposit Addresses
-  logStep('7/7', 'Creating Deposit Addresses');
+  logStep('6/6', 'Creating Deposit Addresses');
 
   const depositCount = parseInt(await promptWithDefault('  How many deposit addresses to create?', '5'));
 
