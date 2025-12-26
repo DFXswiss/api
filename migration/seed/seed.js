@@ -145,6 +145,10 @@ async function main() {
   const assetData = parseCSV(path.join(seedDir, 'asset.csv'));
   await seedTable(pool, 'asset', assetData, ['id', 'name', 'type', 'blockchain', 'buyable', 'sellable', 'uniqueName', 'category', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'approxPriceChf']);
 
+  // IpLog (required for auth to work)
+  const ipLogData = parseCSV(path.join(seedDir, 'ip_log.csv'));
+  await seedTable(pool, 'ip_log', ipLogData, ['id', 'address', 'ip', 'country', 'url', 'result']);
+
   await pool.close();
   console.log('Seed complete!');
 }
