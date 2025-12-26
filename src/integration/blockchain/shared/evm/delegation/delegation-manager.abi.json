@@ -39,7 +39,7 @@
   },
   {
     "type": "function",
-    "name": "DOMAIN_HASH",
+    "name": "getDomainHash",
     "inputs": [],
     "outputs": [{ "type": "bytes32" }],
     "stateMutability": "view"
