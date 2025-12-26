@@ -243,36 +243,66 @@ async function main() {
   log('  DFX API Local Development Setup', colors.bright);
   log('========================================\n', colors.bright);
 
-  // Step 1: Check/Generate Admin Seed
-  logStep('1/6', 'Admin Seed Configuration');
+  // Step 1: Generate ALL wallet seeds
+  logStep('1/6', 'Generating Wallet Seeds');
 
-  let adminSeed = readEnvValue('ADMIN_SEED');
-  let adminWallet;
+  const seedsToGenerate = [
+    'ADMIN_SEED',
+    'EVM_DEPOSIT_SEED',
+    'EVM_CUSTODY_SEED',
+    'SOLANA_WALLET_SEED',
+    'TRON_WALLET_SEED',
+    'CARDANO_WALLET_SEED',
+    'PAYMENT_EVM_SEED',
+    'PAYMENT_SOLANA_SEED',
+    'PAYMENT_TRON_SEED',
+    'PAYMENT_CARDANO_SEED',
+  ];
 
-  if (adminSeed) {
-    logInfo('Existing ADMIN_SEED found in .env');
-    adminWallet = getAddressFromMnemonic(adminSeed);
-    logSuccess(`Admin address: ${adminWallet.address}`);
+  const privateKeysToGenerate = [
+    'ETH_WALLET_PRIVATE_KEY',
+    'SEPOLIA_WALLET_PRIVATE_KEY',
+    'BSC_WALLET_PRIVATE_KEY',
+    'OPTIMISM_WALLET_PRIVATE_KEY',
+    'BASE_WALLET_PRIVATE_KEY',
+    'ARBITRUM_WALLET_PRIVATE_KEY',
+    'POLYGON_WALLET_PRIVATE_KEY',
+    'GNOSIS_WALLET_PRIVATE_KEY',
+    'CITREA_TESTNET_WALLET_PRIVATE_KEY',
+  ];
+
+  let generatedCount = 0;
+
+  // Generate mnemonic seeds
+  for (const seedName of seedsToGenerate) {
+    if (!readEnvValue(seedName)) {
+      updateEnvFile({ [seedName]: generateMnemonic() });
+      generatedCount++;
+    }
+  }
+
+  // Generate private keys (share one key for all EVM chains)
+  let sharedEvmKey = readEnvValue('ETH_WALLET_PRIVATE_KEY');
+  if (!sharedEvmKey) {
+    sharedEvmKey = ethers.Wallet.createRandom().privateKey;
+    for (const keyName of privateKeysToGenerate) {
+      updateEnvFile({ [keyName]: sharedEvmKey });
+      generatedCount++;
+    }
+  }
+
+  if (generatedCount > 0) {
+    logSuccess(`Generated ${generatedCount} wallet seeds/keys`);
   } else {
-    logInfo('Generating new admin seed...');
-    adminSeed = generateMnemonic();
-    adminWallet = getAddressFromMnemonic(adminSeed);
-
-    updateEnvFile({ 'ADMIN_SEED': adminSeed });
-    logSuccess(`Generated new admin seed`);
-    logSuccess(`Admin address: ${adminWallet.address}`);
-    logInfo(`Seed saved to .env (keep this secret!)`);
+    logSuccess('All wallet seeds already configured');
   }
 
-  // Step 2: Check/Set EVM_DEPOSIT_SEED (use same as admin for simplicity in local dev)
-  let depositSeed = readEnvValue('EVM_DEPOSIT_SEED');
-  if (!depositSeed) {
-    depositSeed = generateMnemonic();
-    updateEnvFile({ 'EVM_DEPOSIT_SEED': depositSeed });
-    logSuccess('Generated EVM_DEPOSIT_SEED');
-  }
+  // Get admin wallet for later steps
+  const adminSeed = readEnvValue('ADMIN_SEED');
+  const adminWallet = getAddressFromMnemonic(adminSeed);
+  logSuccess(`Admin address: ${adminWallet.address}`);
 
-  // Step 3: Alchemy API Key
+  // Step 2: Alchemy API Key
   logStep('2/6', 'Alchemy Configuration');
 
   let alchemyKey = readEnvValue('ALCHEMY_AUTH_TOKEN');
