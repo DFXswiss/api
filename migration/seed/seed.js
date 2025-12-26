@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const mssql = require('mssql');
+const { ethers } = require('ethers');
 
 const config = {
   user: process.env.SQL_USERNAME || 'sa',
@@ -152,6 +153,33 @@ async function main() {
   // PriceRule (required for pricing) - referenceId excluded as it references assets not in seed data
   const priceRuleData = parseCSV(path.join(seedDir, 'price_rule.csv'));
   await seedTable(pool, 'price_rule', priceRuleData, ['id', 'priceSource', 'priceAsset', 'priceReference', 'check1Source', 'check1Asset', 'check1Reference', 'check1Limit', 'check2Source', 'check2Asset', 'check2Reference', 'check2Limit', 'currentPrice', 'priceValiditySeconds', 'assetDisplayName', 'referenceDisplayName']);
+
+  // Fee (required for transaction fees)
+  const feeData = parseCSV(path.join(seedDir, 'fee.csv'));
+  await seedTable(pool, 'fee', feeData, ['id', 'label', 'type', 'rate', 'accountType', 'active', 'fixed', 'payoutRefBonus', 'blockchainFactor', 'paymentMethodsIn', 'paymentMethodsOut']);
+
+  // Bank (required for payment processing)
+  const bankData = parseCSV(path.join(seedDir, 'bank.csv'));
+  await seedTable(pool, 'bank', bankData, ['id', 'name', 'iban', 'bic', 'currency', 'receive', 'send', 'sctInst', 'amlEnabled']);
+
+  // Deposit addresses (required for sell/swap - derived from EVM_DEPOSIT_SEED)
+  const depositCount = await pool.request().query('SELECT COUNT(*) as count FROM deposit');
+  if (depositCount.recordset[0].count === 0) {
+    const seed = process.env.EVM_DEPOSIT_SEED || 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+    const blockchains = 'Ethereum,BinanceSmartChain,Arbitrum,Optimism,Polygon,Base,Gnosis,Haqq';
+    console.log('  deposit: creating 5 EVM deposit addresses...');
+    for (let i = 0; i < 5; i++) {
+      const hdPath = "m/44'/60'/0'/0/" + i;
+      const wallet = ethers.Wallet.fromMnemonic(seed, hdPath);
+      await pool.request()
+        .input('address', mssql.NVarChar, wallet.address)
+        .input('blockchains', mssql.NVarChar, blockchains)
+        .input('accountIndex', mssql.Int, i)
+        .query('INSERT INTO deposit (address, blockchains, accountIndex) VALUES (@address, @blockchains, @accountIndex)');
+    }
+  } else {
+    console.log(`  deposit: already has ${depositCount.recordset[0].count} rows, skipping`);
+  }
 
   await pool.close();
   console.log('Seed complete!');
