@@ -149,6 +149,10 @@ async function main() {
   const ipLogData = parseCSV(path.join(seedDir, 'ip_log.csv'));
   await seedTable(pool, 'ip_log', ipLogData, ['id', 'address', 'ip', 'country', 'url', 'result']);
 
+  // PriceRule (required for pricing) - referenceId excluded as it references assets not in seed data
+  const priceRuleData = parseCSV(path.join(seedDir, 'price_rule.csv'));
+  await seedTable(pool, 'price_rule', priceRuleData, ['id', 'priceSource', 'priceAsset', 'priceReference', 'check1Source', 'check1Asset', 'check1Reference', 'check1Limit', 'check2Source', 'check2Asset', 'check2Reference', 'check2Limit', 'currentPrice', 'priceValiditySeconds', 'assetDisplayName', 'referenceDisplayName']);
+
   await pool.close();
   console.log('Seed complete!');
 }
