@@ -66,8 +66,6 @@ export class Eip7702DelegationService {
   private readonly logger = new DfxLogger(Eip7702DelegationService);
   private readonly config = GetConfig().blockchain;
 
-  constructor() {}
-
   /**
    * Check if delegation is enabled and supported for the given blockchain
    */
