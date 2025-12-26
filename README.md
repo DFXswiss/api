@@ -183,25 +183,6 @@ The following steps must be carried out at the POS if a customer wants to pay wi
 ### Quick Start
 
 ```bash
-# Automated setup (recommended)
-./scripts/setup.sh
-npm start
-```
-
-That's it! The API will be available at http://localhost:3000
-
-The setup script will:
-- ✅ Check and start Docker Desktop if needed
-- ✅ Install npm dependencies
-- ✅ Create `.env` from template
-- ✅ Start database in Docker
-- ✅ Wait for database initialization
-
-### Manual Setup
-
-If you prefer to run the steps manually:
-
-```bash
 # 1. Install dependencies
 npm install
 
@@ -211,12 +192,32 @@ cp .env.local.example .env
 # 3. Start database
 docker-compose up -d
 
-# 4. Wait for database to be ready (check logs)
-docker-compose logs db-init   # wait for "Database 'dfx' ready"
-
-# 5. Start the API
-npm start
+# 4. Start API with seed data (recommended for local development)
+npm run start:local
 ```
+
+That's it! The API will be available at http://localhost:3000
+
+### NPM Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run start:local` | Start API + seed database with test data |
+| `npm run start` | Start API only (no seeding) |
+| `npm run seed` | Seed database manually |
+
+### Seed Data
+
+The `start:local` command automatically seeds the database with test data:
+
+| Table | Rows | Description |
+|-------|------|-------------|
+| language | 7 | EN, DE, FR, IT, PT, ES, SQ |
+| fiat | 24 | CHF, EUR, USD, etc. |
+| country | 250 | All countries |
+| asset | 261 | BTC, ETH, SOL, etc. |
+
+Seed data is stored in `migration/seed/` and can be customized as needed.
 
 ### Docker Commands
 
