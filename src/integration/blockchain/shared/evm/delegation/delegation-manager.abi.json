@@ -1,0 +1,47 @@
+[
+  {
+    "type": "function",
+    "name": "redeemDelegations",
+    "inputs": [
+      { "name": "_permissionContexts", "type": "bytes[]" },
+      { "name": "_modes", "type": "bytes32[]" },
+      { "name": "_executionCallDatas", "type": "bytes[]" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getDelegationHash",
+    "inputs": [
+      {
+        "name": "_input",
+        "type": "tuple",
+        "components": [
+          { "name": "delegate", "type": "address" },
+          { "name": "delegator", "type": "address" },
+          { "name": "authority", "type": "bytes32" },
+          {
+            "name": "caveats",
+            "type": "tuple[]",
+            "components": [
+              { "name": "enforcer", "type": "address" },
+              { "name": "terms", "type": "bytes" }
+            ]
+          },
+          { "name": "salt", "type": "uint256" },
+          { "name": "signature", "type": "bytes" }
+        ]
+      }
+    ],
+    "outputs": [{ "type": "bytes32" }],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "DOMAIN_HASH",
+    "inputs": [],
+    "outputs": [{ "type": "bytes32" }],
+    "stateMutability": "view"
+  }
+]

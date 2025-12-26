@@ -3,16 +3,15 @@ import {
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
+  encodeAbiParameters,
   http,
   parseAbi,
-  concat,
-  toHex,
-  pad,
+  encodePacked,
   Hex,
   Address,
   Chain,
 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { privateKeyToAccount, signTypedData } from 'viem/accounts';
 import { mainnet, arbitrum, optimism, polygon, base, bsc, gnosis, sepolia } from 'viem/chains';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -20,7 +19,14 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { WalletAccount } from '../domain/wallet-account';
 import { EvmUtil } from '../evm.util';
-import EIP7702_DELEGATOR_ABI from './eip7702-stateless-delegator.abi.json';
+import DELEGATION_MANAGER_ABI from './delegation-manager.abi.json';
+
+// Contract addresses (same on all EVM chains via CREATE2)
+const DELEGATOR_ADDRESS = '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b' as Address;
+const DELEGATION_MANAGER_ADDRESS = '0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3' as Address;
+
+// ROOT_AUTHORITY constant - delegating own authority
+const ROOT_AUTHORITY = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' as Hex;
 
 // ERC-7579 execution mode for single call
 const CALLTYPE_SINGLE = '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex;
@@ -40,15 +46,27 @@ const CHAIN_CONFIG: Partial<Record<Blockchain, { chain: Chain; configKey: string
   [Blockchain.SEPOLIA]: { chain: sepolia, configKey: 'sepolia', prefix: 'sepolia' },
 };
 
+// Delegation struct type
+interface Caveat {
+  enforcer: Address;
+  terms: Hex;
+}
+
+interface Delegation {
+  delegate: Address;
+  delegator: Address;
+  authority: Hex;
+  caveats: Caveat[];
+  salt: bigint;
+  signature: Hex;
+}
+
 @Injectable()
 export class Eip7702DelegationService {
   private readonly logger = new DfxLogger(Eip7702DelegationService);
-  private readonly delegatorAddress: Address;
   private readonly config = GetConfig().blockchain;
 
-  constructor() {
-    this.delegatorAddress = this.config.evm.delegatorAddress as Address;
-  }
+  constructor() {}
 
   /**
    * Check if delegation is enabled and supported for the given blockchain
@@ -58,7 +76,8 @@ export class Eip7702DelegationService {
   }
 
   /**
-   * Transfer tokens via EIP-7702 delegation
+   * Transfer tokens via EIP-7702 delegation using DelegationManager
+   * Flow: Relayer -> DelegationManager.redeemDelegations() -> Account.executeFromExecutor()
    * Single transaction instead of gas-topup + token transfer
    */
   async transferTokenViaDelegation(
@@ -111,7 +130,15 @@ export class Eip7702DelegationService {
       transport: http(chainConfig.rpcUrl),
     });
 
-    // Encode ERC20 transfer call
+    // 1. Create and sign delegation (deposit -> relayer)
+    const delegation = await this.createSignedDelegation(
+      depositViemAccount,
+      relayerAccount.address,
+      depositAddress,
+      chainConfig.chain.id,
+    );
+
+    // 2. Encode ERC20 transfer call
     const amountWei = BigInt(EvmUtil.toWeiAmount(amount, token.decimals).toString());
     const transferData = encodeFunctionData({
       abi: ERC20_ABI,
@@ -119,62 +146,160 @@ export class Eip7702DelegationService {
       args: [recipient as Address, amountWei],
     });
 
-    // Encode execution data for EIP7702StatelessDeleGator
-    // Format: target (20 bytes) || value (32 bytes) || callData
-    const executionData = concat([
-      token.chainId as Address, // target (ERC20 token contract)
-      pad(toHex(0n), { size: 32 }), // value (0 for token transfer)
-      transferData, // callData
-    ]);
+    // 3. Encode execution data using ERC-7579 format: encodePacked(target, value, callData)
+    // Format: address (20 bytes) + uint256 (32 bytes) + callData (variable)
+    const executionData = encodePacked(
+      ['address', 'uint256', 'bytes'],
+      [token.chainId as Address, 0n, transferData],
+    );
 
-    // Encode the execute call on the delegator
-    const executeData = encodeFunctionData({
-      abi: EIP7702_DELEGATOR_ABI,
-      functionName: 'execute',
-      args: [CALLTYPE_SINGLE, executionData],
+    // 4. Encode permission context (array of delegations)
+    const permissionContext = this.encodePermissionContext([delegation]);
+
+    // 5. Encode redeemDelegations call
+    const redeemData = encodeFunctionData({
+      abi: DELEGATION_MANAGER_ABI,
+      functionName: 'redeemDelegations',
+      args: [[permissionContext], [CALLTYPE_SINGLE], [executionData]],
     });
 
-    // Sign EIP-7702 authorization (deposit address delegates to delegator contract)
+    // 6. Sign EIP-7702 authorization (deposit address delegates to MetaMask delegator contract)
     const authorization = await walletClient.signAuthorization({
       account: depositViemAccount,
-      contractAddress: this.delegatorAddress,
+      contractAddress: DELEGATOR_ADDRESS,
     });
 
     // Get gas price with buffer
     const gasPrice = await publicClient.getGasPrice();
     const gasPriceWithBuffer = (gasPrice * 120n) / 100n; // 20% buffer
 
-    // Estimate gas for the transaction
-    // Note: Gas estimation without authorizationList may underestimate because
-    // the deposit address is still an EOA at estimation time. Using 30% buffer to compensate.
-    const gasEstimate = await publicClient.estimateGas({
-      account: relayerAccount,
-      to: depositAddress,
-      data: executeData,
-    });
-    const gasLimit = (gasEstimate * 130n) / 100n; // 30% buffer for EIP-7702 overhead
+    // Estimate gas - use fixed estimate since DelegationManager call is complex
+    const gasLimit = 300000n; // Safe estimate for delegation + token transfer
 
     const estimatedGasCost = (gasPriceWithBuffer * gasLimit) / BigInt(1e18);
     this.logger.verbose(
-      `Executing delegation transfer on ${blockchain}: ${amount} ${token.name} from ${depositAddress} to ${recipient} ` +
-        `(gasLimit: ${gasLimit}, gasPrice: ${gasPriceWithBuffer}, estimatedCost: ~${estimatedGasCost} ETH)`,
+      `Executing delegation transfer via DelegationManager on ${blockchain}: ${amount} ${token.name} ` +
+        `from ${depositAddress} to ${recipient} (gasLimit: ${gasLimit}, estimatedCost: ~${estimatedGasCost} native)`,
     );
 
-    // Send transaction with authorization
-    // Note: Using 'as any' because viem's TypeScript types don't yet fully support EIP-7702 authorizationList
+    // Send transaction to DelegationManager with authorization
     const txHash = await walletClient.sendTransaction({
-      to: depositAddress, // Call to the deposit address (with delegated code)
-      data: executeData,
+      to: DELEGATION_MANAGER_ADDRESS,
+      data: redeemData,
       authorizationList: [authorization],
       gas: gasLimit,
       gasPrice: gasPriceWithBuffer,
     } as any);
 
     this.logger.info(
-      `Delegation transfer successful on ${blockchain}: ${amount} ${token.name} to ${recipient} | TX: ${txHash}`,
+      `Delegation transfer via DelegationManager successful on ${blockchain}: ` +
+        `${amount} ${token.name} to ${recipient} | TX: ${txHash}`,
     );
 
     return txHash;
+  }
+
+  /**
+   * Create and sign a delegation from deposit account to relayer
+   */
+  private async createSignedDelegation(
+    depositViemAccount: ReturnType<typeof privateKeyToAccount>,
+    relayerAddress: Address,
+    depositAddress: Address,
+    chainId: number,
+  ): Promise<Delegation> {
+    // Create delegation struct
+    const delegation: Delegation = {
+      delegate: relayerAddress,
+      delegator: depositAddress,
+      authority: ROOT_AUTHORITY,
+      caveats: [], // No restrictions
+      salt: BigInt(Date.now()), // Unique salt
+      signature: '0x' as Hex,
+    };
+
+    // EIP-712 typed data for delegation signing
+    const domain = {
+      name: 'DelegationManager',
+      version: '1',
+      chainId: chainId,
+      verifyingContract: DELEGATION_MANAGER_ADDRESS,
+    };
+
+    const types = {
+      Delegation: [
+        { name: 'delegate', type: 'address' },
+        { name: 'delegator', type: 'address' },
+        { name: 'authority', type: 'bytes32' },
+        { name: 'caveats', type: 'Caveat[]' },
+        { name: 'salt', type: 'uint256' },
+      ],
+      Caveat: [
+        { name: 'enforcer', type: 'address' },
+        { name: 'terms', type: 'bytes' },
+      ],
+    };
+
+    const message = {
+      delegate: delegation.delegate,
+      delegator: delegation.delegator,
+      authority: delegation.authority,
+      caveats: delegation.caveats,
+      salt: delegation.salt,
+    };
+
+    // Sign the delegation
+    const signature = await signTypedData({
+      privateKey: depositViemAccount.source as Hex,
+      domain,
+      types,
+      primaryType: 'Delegation',
+      message,
+    });
+
+    delegation.signature = signature;
+
+    return delegation;
+  }
+
+  /**
+   * Encode permission context (array of delegations) for redeemDelegations
+   */
+  private encodePermissionContext(delegations: Delegation[]): Hex {
+    // Each delegation is encoded as a tuple
+    const encodedDelegations = delegations.map((d) => ({
+      delegate: d.delegate,
+      delegator: d.delegator,
+      authority: d.authority,
+      caveats: d.caveats.map((c) => ({ enforcer: c.enforcer, terms: c.terms })),
+      salt: d.salt,
+      signature: d.signature,
+    }));
+
+    // Encode as array of Delegation tuples
+    return encodeAbiParameters(
+      [
+        {
+          type: 'tuple[]',
+          components: [
+            { name: 'delegate', type: 'address' },
+            { name: 'delegator', type: 'address' },
+            { name: 'authority', type: 'bytes32' },
+            {
+              name: 'caveats',
+              type: 'tuple[]',
+              components: [
+                { name: 'enforcer', type: 'address' },
+                { name: 'terms', type: 'bytes' },
+              ],
+            },
+            { name: 'salt', type: 'uint256' },
+            { name: 'signature', type: 'bytes' },
+          ],
+        },
+      ],
+      [encodedDelegations],
+    );
   }
 
   /**
