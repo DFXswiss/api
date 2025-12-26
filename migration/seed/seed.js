@@ -146,9 +146,24 @@ async function main() {
   const assetData = parseCSV(path.join(seedDir, 'asset.csv'));
   await seedTable(pool, 'asset', assetData, ['id', 'name', 'type', 'blockchain', 'buyable', 'sellable', 'uniqueName', 'category', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'approxPriceChf']);
 
-  // IpLog (required for auth to work)
-  const ipLogData = parseCSV(path.join(seedDir, 'ip_log.csv'));
-  await seedTable(pool, 'ip_log', ipLogData, ['id', 'address', 'ip', 'country', 'url', 'result']);
+  // IpLog (required for auth to work - needs old created date)
+  const ipLogCount = await pool.request().query('SELECT COUNT(*) as count FROM ip_log');
+  if (ipLogCount.recordset[0].count === 0) {
+    console.log('  ip_log: inserting 1 rows...');
+    const oldDate = new Date();
+    oldDate.setFullYear(oldDate.getFullYear() - 1);
+    await pool.request()
+      .input('address', mssql.NVarChar, '0x0000000000000000000000000000000000000000')
+      .input('ip', mssql.NVarChar, '127.0.0.1')
+      .input('country', mssql.NVarChar, 'CH')
+      .input('url', mssql.NVarChar, '/v1/auth')
+      .input('result', mssql.Bit, 1)
+      .input('created', mssql.DateTime2, oldDate)
+      .input('updated', mssql.DateTime2, oldDate)
+      .query('INSERT INTO ip_log (address, ip, country, url, result, created, updated) VALUES (@address, @ip, @country, @url, @result, @created, @updated)');
+  } else {
+    console.log(`  ip_log: already has ${ipLogCount.recordset[0].count} rows, skipping`);
+  }
 
   // PriceRule (required for pricing) - referenceId excluded as it references assets not in seed data
   const priceRuleData = parseCSV(path.join(seedDir, 'price_rule.csv'));
@@ -161,6 +176,39 @@ async function main() {
   // Bank (required for payment processing)
   const bankData = parseCSV(path.join(seedDir, 'bank.csv'));
   await seedTable(pool, 'bank', bankData, ['id', 'name', 'iban', 'bic', 'currency', 'receive', 'send', 'sctInst', 'amlEnabled']);
+
+  // Link assets and fiats to price rules (required for pricing)
+  console.log('  Linking assets/fiats to price rules...');
+  const priceRules = await pool.request().query('SELECT id, assetDisplayName, priceAsset FROM price_rule');
+  const priceRuleMap = new Map();
+  for (const rule of priceRules.recordset) {
+    const name = (rule.assetDisplayName || rule.priceAsset || '').toUpperCase();
+    if (name && !priceRuleMap.has(name)) {
+      priceRuleMap.set(name, rule.id);
+    }
+  }
+
+  const fiats = await pool.request().query('SELECT id, name FROM fiat WHERE priceRuleId IS NULL');
+  for (const fiat of fiats.recordset) {
+    const ruleId = priceRuleMap.get(fiat.name.toUpperCase());
+    if (ruleId) {
+      await pool.request()
+        .input('ruleId', mssql.Int, ruleId)
+        .input('id', mssql.Int, fiat.id)
+        .query('UPDATE fiat SET priceRuleId = @ruleId WHERE id = @id');
+    }
+  }
+
+  const assets = await pool.request().query('SELECT id, name FROM asset WHERE priceRuleId IS NULL');
+  for (const asset of assets.recordset) {
+    const ruleId = priceRuleMap.get(asset.name.toUpperCase());
+    if (ruleId) {
+      await pool.request()
+        .input('ruleId', mssql.Int, ruleId)
+        .input('id', mssql.Int, asset.id)
+        .query('UPDATE asset SET priceRuleId = @ruleId WHERE id = @id');
+    }
+  }
 
   // Deposit addresses (required for sell/swap - derived from EVM_DEPOSIT_SEED)
   const depositCount = await pool.request().query('SELECT COUNT(*) as count FROM deposit');

@@ -28,6 +28,7 @@ const MOCK_RESPONSES: { pattern: RegExp; response: any }[] = [
   { pattern: /letterxpress/, response: { letterId: 'mock-letter', status: 'queued' } },
   { pattern: /blockfrost\.io/, response: { amount: [] } },
   { pattern: /goldsky\.com/, response: { data: { transfers: [] } } },
+  { pattern: /sepatools\.eu/, response: { result: 'passed', iban: 'valid', sct: 'yes', sct_inst: 'yes', bic_candidates: [{ bic: 'MOCKBIC1XXX' }] } },
 ];
 
 @Injectable()
