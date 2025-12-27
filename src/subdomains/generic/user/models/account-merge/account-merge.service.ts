@@ -68,18 +68,18 @@ export class AccountMergeService {
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
         texts: [
           { key: MailKey.SPACE, params: { value: '3' } },
-          {
-            key: `${MailTranslationKey.GENERAL}.welcome`,
-            params: { name },
-          },
-          { key: MailKey.SPACE, params: { value: '2' } },
+          ...(name
+            ? [{ key: `${MailTranslationKey.GENERAL}.welcome`, params: { name } }, { key: MailKey.SPACE, params: { value: '2' } }]
+            : []),
           {
             key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.message`,
             params: { url, urlText: url },
           },
+          {
+            key: `${MailTranslationKey.GENERAL}.button`,
+            params: { url, button: 'true' },
+          },
           { key: MailKey.SPACE, params: { value: '2' } },
-          { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.closing` },
-          { key: MailKey.SPACE, params: { value: '4' } },
           { key: MailKey.DFX_TEAM_CLOSING },
         ],
       },
