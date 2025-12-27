@@ -186,7 +186,7 @@ export class Configuration {
     phone: /^\+\d+$/,
     accountServiceRef: /^([A-Z]{2}\d{8}\/\d+\/\d+|[a-f0-9]{32})$/,
     number: /^\d+$/,
-    transactionUid: /^T[A-Za-z0-9]{16}$/,
+    transactionUid: new RegExp(`^${this.prefixes.transactionUidPrefix}[A-Za-z0-9]{16}$`),
   };
 
   database: TypeOrmModuleOptions = {
