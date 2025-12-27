@@ -172,3 +172,115 @@ The following steps must be carried out at the POS if a customer wants to pay wi
 1. [Confirm a payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_confirmPayment) (optional): A payment can be confirmed for documentation purposes. This can only be done after it is completed (paid by the customer). Please use the `externalPaymentId` query parameter to select the payment to be confirmed.
 
 1. [Cancel a payment](https://api.dfx.swiss/swagger#/Payment%20Link/PaymentLinkController_cancelPayment) (optional): A payment can be cancelled as long at it is still pending. Please use the `externalPaymentId` query parameter to select the payment to be cancelled.
+
+## Local Development
+
+### Prerequisites
+
+- **Node.js** (LTS version) - [Download](https://nodejs.org)
+- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop)
+
+### Quick Start
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Create environment file
+cp .env.local.example .env
+
+# 3. Start database
+docker-compose up -d
+
+# 4. Run setup (generates seeds, starts API, registers admin)
+npm run setup
+```
+
+The API will be available at http://localhost:3000
+
+**API Management:**
+```bash
+kill $(cat .api.pid)   # Stop API
+tail -f api.log        # View logs
+npm run start:local    # Restart API manually
+```
+
+### NPM Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run setup` | Full setup: generate seeds, start API, register admin, create deposits |
+| `npm run start:local` | Start API + seed database with test data |
+| `npm run start` | Start API only (no seeding) |
+| `npm run seed` | Seed database manually |
+
+### Setup Script
+
+The `npm run setup` command is an all-in-one script that:
+
+1. **Generates All Wallet Seeds**: Creates 19 secure random seeds/keys and saves them to `.env`:
+   - 10 mnemonic seeds (ADMIN, EVM_DEPOSIT, EVM_CUSTODY, SOLANA, TRON, CARDANO, PAYMENT_*)
+   - 9 EVM private keys (shared across all EVM chains)
+2. **Starts API**: Launches the API in the background (logs to `api.log`, PID saved to `.api.pid`)
+3. **Registers Admin User**: Uses the API auth endpoint to create and authenticate the admin
+4. **Sets Admin Role**: Grants admin privileges in the database
+5. **Seeds Deposit Addresses**: Creates deposit addresses directly in the database
+
+**Note**: Alchemy webhooks are not used in local development since localhost is not reachable from external services. Deposit addresses are seeded directly into the database instead.
+
+The API keeps running in the background after setup completes.
+
+### Seed Data
+
+The `start:local` command automatically seeds the database with test data:
+
+| Table | Rows | Description |
+|-------|------|-------------|
+| language | 7 | EN, DE, FR, IT, PT, ES, SQ |
+| fiat | 24 | CHF, EUR, USD, etc. |
+| country | 250 | All countries |
+| asset | 227 | BTC, ETH, SOL, etc. |
+| bank | 10 | Test bank configurations |
+| fee | 27 | Fee configurations |
+| price_rule | 62 | Pricing rules |
+
+**Note:** Deposit addresses are seeded via `npm run setup` directly into the database (no Alchemy webhooks in local development).
+
+Seed data is stored in `migration/seed/` and can be customized as needed.
+
+### Docker Commands
+
+```bash
+docker-compose up -d          # Start database
+docker-compose logs db-init   # Check if database was created
+docker-compose down           # Stop database
+docker-compose down -v        # Stop and delete data
+docker logs dfx-mssql         # View database logs
+```
+
+### Environment Configuration
+
+The `.env.local.example` template contains minimal config for local development:
+
+- `ENVIRONMENT=loc` - Enables mock mode for external services
+- `DISABLED_PROCESSES=*` - Disables all background jobs
+- `SQL_SYNCHRONIZE=true` - Auto-creates database tables from entities
+- `SQL_ENCRYPT=false` - Trusts Docker's self-signed SSL certificate
+
+**Note:** The template does not contain wallet seeds. All seeds are generated securely by `npm run setup` and written to your local `.env` file.
+
+### Mock Mode
+
+When `ENVIRONMENT=loc`, external services are automatically mocked to simplify local development:
+
+**✅ What's mocked:**
+- **HTTP calls**: External API requests (Alchemy, Tatum, Sift, CoinGecko, SumSub, etc.) return predefined mock responses
+- **Azure Storage**: Uses in-memory storage instead of Azure Blob Storage
+- **Mail service**: Mail sending is logged but not actually sent
+
+**❌ What's NOT mocked:**
+- **Database**: Requires running MSSQL instance (via Docker)
+- **Blockchain services**: Still initialize with credentials from `.env`
+- **Localhost calls**: Requests to localhost/127.0.0.1 are never mocked
+
+**Note:** While HTTP calls are mocked, blockchain services (EVM, Solana, Tron, Cardano) still initialize during startup and require wallet seeds. Run `npm run setup` first to generate all required seeds.

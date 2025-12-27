@@ -4,12 +4,14 @@ import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as AppInsights from 'applicationinsights';
 import { useContainer } from 'class-validator';
+import { spawn } from 'child_process';
 import cors from 'cors';
 import { json, raw, text } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { join } from 'path';
 import { AppModule } from './app.module';
-import { Config } from './config/config';
+import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
 import { DfxLogger } from './shared/services/dfx-logger';
 import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
@@ -75,6 +77,41 @@ async function bootstrap() {
   await app.listen(Config.port);
 
   new DfxLogger('Main').info(`Application ready ...`);
+
+  // Run seed after app starts in LOC environment (tables must exist first)
+  if (Config.environment === Environment.LOC) {
+    runSeed();
+  }
+}
+
+function runSeed(): void {
+  const logger = new DfxLogger('Seed');
+  // Use process.cwd() instead of __dirname because __dirname points to dist/src when compiled
+  const seedPath = join(process.cwd(), 'migration', 'seed', 'seed.js');
+
+  logger.info('Running database seed...');
+
+  const seedProcess = spawn('node', [seedPath], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: process.env,
+  });
+
+  seedProcess.stdout.on('data', (data: Buffer) => {
+    const lines = data.toString().trim().split('\n');
+    lines.forEach((line) => line && logger.verbose(line));
+  });
+
+  seedProcess.stderr.on('data', (data: Buffer) => {
+    logger.error(data.toString().trim());
+  });
+
+  seedProcess.on('close', (code) => {
+    if (code === 0) {
+      logger.info('Database seed completed');
+    } else {
+      logger.error(`Database seed failed with code ${code}`);
+    }
+  });
 }
 
 void bootstrap();
