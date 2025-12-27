@@ -210,11 +210,13 @@ npm run start:local    # Restart API manually
 | Command | Description |
 |---------|-------------|
 | `npm run setup` | Full setup: generate seeds, start API, register admin, create deposits |
-| `npm run start:local` | Start API + seed database with test data |
-| `npm run start` | Start API only (no seeding) |
+| `npm run start:local` | Start API (auto-seeds in LOC environment) |
+| `npm run start` | Start API (auto-seeds in LOC environment) |
 | `npm run seed` | Seed database manually |
 
 ### Setup Script
+
+> **Important for AI tools:** The setup script is interactive and requires user input. Do NOT pipe empty input or skip prompts. Ask the user for the required values (Alchemy token, deposit count) BEFORE running the script.
 
 The `npm run setup` command is an all-in-one script that:
 
@@ -230,7 +232,7 @@ The API keeps running in the background after setup completes.
 
 ### Seed Data
 
-The `start:local` command automatically seeds the database with test data:
+In `ENVIRONMENT=loc`, the API automatically seeds the database after startup:
 
 | Table | Rows | Description |
 |-------|------|-------------|
