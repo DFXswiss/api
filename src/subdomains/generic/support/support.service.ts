@@ -12,6 +12,7 @@ import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-r
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { KycFileService } from '../kyc/services/kyc-file.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
@@ -46,6 +47,7 @@ export class SupportService {
     private readonly kycFileService: KycFileService,
     private readonly bankDataService: BankDataService,
     private readonly bankTxReturnService: BankTxReturnService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
@@ -118,6 +120,12 @@ export class SupportService {
       return {
         type: ComplianceSearchType.KYC_HASH,
         userData: await this.userDataService.getUserDataByKey('kycHash', key),
+      };
+
+    if (Config.formats.transactionUid.test(key))
+      return {
+        type: ComplianceSearchType.TRANSACTION_UID,
+        userData: await this.transactionService.getTransactionByKey('uid', key).then((t) => t?.userData),
       };
 
     if (Config.formats.bankUsage.test(key))
