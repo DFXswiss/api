@@ -174,7 +174,7 @@ async function main() {
 
   // Fiat
   const fiatData = parseCSV(path.join(seedDir, 'fiat.csv'));
-  await seedTable(pool, 'fiat', fiatData, ['id', 'name', 'buyable', 'sellable', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'approxPriceChf']);
+  await seedTable(pool, 'fiat', fiatData, ['id', 'name', 'buyable', 'sellable', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'approxPriceChf', 'priceRuleId']);
 
   // Country
   const countryData = parseCSV(path.join(seedDir, 'country.csv'));
@@ -197,12 +197,13 @@ async function main() {
     'amlRuleFrom', 'amlRuleTo', 'approxPriceEur', 'refundEnabled'
   ]);
 
-  // IpLog (required for auth to work - needs old created date)
+  // IpLog (required for auth to work - needs at least one entry with old created date)
+  const oldDate = new Date();
+  oldDate.setFullYear(oldDate.getFullYear() - 1);
+
   const ipLogCount = await pool.request().query('SELECT COUNT(*) as count FROM ip_log');
   if (ipLogCount.recordset[0].count === 0) {
     console.log('  ip_log: inserting 1 rows...');
-    const oldDate = new Date();
-    oldDate.setFullYear(oldDate.getFullYear() - 1);
     await pool.request()
       .input('address', mssql.NVarChar, '0x0000000000000000000000000000000000000000')
       .input('ip', mssql.NVarChar, '127.0.0.1')
@@ -213,7 +214,11 @@ async function main() {
       .input('updated', mssql.DateTime2, oldDate)
       .query('INSERT INTO ip_log (address, ip, country, url, result, created, updated) VALUES (@address, @ip, @country, @url, @result, @created, @updated)');
   } else {
-    console.log(`  ip_log: already has ${ipLogCount.recordset[0].count} rows, skipping`);
+    console.log(`  ip_log: already has ${ipLogCount.recordset[0].count} rows, fixing oldest entry date...`);
+    // Ensure at least one entry has an old date (required for IpLogService.updateUserIpLogs)
+    await pool.request()
+      .input('oldDate', mssql.DateTime2, oldDate)
+      .query('UPDATE ip_log SET created = @oldDate, updated = @oldDate WHERE id = (SELECT MIN(id) FROM ip_log)');
   }
 
   // Fee (required for transaction fees)
@@ -224,26 +229,14 @@ async function main() {
   const bankData = parseCSV(path.join(seedDir, 'bank.csv'));
   await seedTable(pool, 'bank', bankData, ['id', 'name', 'iban', 'bic', 'currency', 'receive', 'send', 'sctInst', 'amlEnabled']);
 
-  // Link fiats to price rules (assets already have priceRuleId from CSV)
-  console.log('  Linking fiats to price rules...');
-  const priceRules = await pool.request().query('SELECT id, assetDisplayName, priceAsset FROM price_rule');
-  const priceRuleMap = new Map();
-  for (const rule of priceRules.recordset) {
-    const name = (rule.assetDisplayName || rule.priceAsset || '').toUpperCase();
-    if (name && !priceRuleMap.has(name)) {
-      priceRuleMap.set(name, rule.id);
-    }
-  }
-
-  const fiats = await pool.request().query('SELECT id, name FROM fiat WHERE priceRuleId IS NULL');
-  for (const fiat of fiats.recordset) {
-    const ruleId = priceRuleMap.get(fiat.name.toUpperCase());
-    if (ruleId) {
-      await pool.request()
-        .input('ruleId', mssql.Int, ruleId)
-        .input('id', mssql.Int, fiat.id)
-        .query('UPDATE fiat SET priceRuleId = @ruleId WHERE id = @id');
-    }
+  // Fix fiat priceRuleId links (always run to ensure consistency)
+  console.log('  Fixing fiat price rule links...');
+  const fiatRuleMapping = { CHF: 2, EUR: 39, USD: 1, AED: 45 };
+  for (const [fiatName, ruleId] of Object.entries(fiatRuleMapping)) {
+    await pool.request()
+      .input('ruleId', mssql.Int, ruleId)
+      .input('name', mssql.NVarChar, fiatName)
+      .query('UPDATE fiat SET priceRuleId = @ruleId WHERE name = @name AND (priceRuleId IS NULL OR priceRuleId != @ruleId)');
   }
 
   // Note: Deposit addresses are NOT seeded here.
