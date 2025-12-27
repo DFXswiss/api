@@ -4,7 +4,7 @@ import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as AppInsights from 'applicationinsights';
 import { useContainer } from 'class-validator';
-import { spawn } from 'child_process';
+import { spawnSync } from 'child_process';
 import cors from 'cors';
 import { json, raw, text } from 'express';
 import helmet from 'helmet';
@@ -20,6 +20,7 @@ import {
   KycFailedWebhookDto,
 } from './subdomains/generic/user/services/webhook/dto/kyc-webhook.dto';
 import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { PricingService } from './subdomains/supporting/pricing/services/pricing.service';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -74,44 +75,46 @@ async function bootstrap() {
   });
   SwaggerModule.setup('/swagger', app, swaggerDocument);
 
+  // Run seed BEFORE listen in LOC environment (tables exist after NestFactory.create)
+  if (Config.environment === Environment.LOC) {
+    runSeed();
+
+    // Re-initialize PricingService fiatMap after seeding (was empty during onModuleInit)
+    const pricingService = app.get(PricingService);
+    await pricingService.onModuleInit();
+  }
+
   await app.listen(Config.port);
 
   new DfxLogger('Main').info(`Application ready ...`);
-
-  // Run seed after app starts in LOC environment (tables must exist first)
-  if (Config.environment === Environment.LOC) {
-    runSeed();
-  }
 }
 
 function runSeed(): void {
   const logger = new DfxLogger('Seed');
-  // Use process.cwd() instead of __dirname because __dirname points to dist/src when compiled
   const seedPath = join(process.cwd(), 'migration', 'seed', 'seed.js');
 
   logger.info('Running database seed...');
 
-  const seedProcess = spawn('node', [seedPath], {
+  // Run synchronously to ensure data exists before API accepts requests
+  const result = spawnSync('node', [seedPath], {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
   });
 
-  seedProcess.stdout.on('data', (data: Buffer) => {
-    const lines = data.toString().trim().split('\n');
+  if (result.stdout) {
+    const lines = result.stdout.toString().trim().split('\n');
     lines.forEach((line) => line && logger.verbose(line));
-  });
+  }
 
-  seedProcess.stderr.on('data', (data: Buffer) => {
-    logger.error(data.toString().trim());
-  });
+  if (result.stderr && result.stderr.length > 0) {
+    logger.error(result.stderr.toString().trim());
+  }
 
-  seedProcess.on('close', (code) => {
-    if (code === 0) {
-      logger.info('Database seed completed');
-    } else {
-      logger.error(`Database seed failed with code ${code}`);
-    }
-  });
+  if (result.status === 0) {
+    logger.info('Database seed completed');
+  } else {
+    logger.error(`Database seed failed with code ${result.status}`);
+  }
 }
 
 void bootstrap();
