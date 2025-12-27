@@ -76,8 +76,11 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
 
     // IBAN tools
     const { valid } = IbanTools.validateIBAN(iban);
-    if (!valid || (!this.currentBIC && !iban.startsWith('CH') && !iban.startsWith('LI')))
-      return `${args.property} not valid`;
+    if (!valid) return `${args.property} not valid`;
+
+    // BIC lookup required for non-CH/LI IBANs
+    if (!this.currentBIC && !iban.startsWith('CH') && !iban.startsWith('LI'))
+      return `${args.property} BIC could not be determined`;
 
     // check blocked IBANs
     const isBlocked = this.blockedIbans.some((i) => new RegExp(i.toLowerCase()).test(iban.toLowerCase()));

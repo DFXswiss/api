@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { CoinGeckoClient } from 'coingecko-api-v3';
-import { GetConfig } from 'src/config/config';
+import { Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -43,6 +43,11 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
   }
 
   onModuleInit() {
+    if (GetConfig().environment === Environment.LOC) {
+      this.currencies = ['usd', 'eur', 'chf', 'btc', 'eth'];
+      this.logger.verbose('Using mock currencies for local development');
+      return;
+    }
     void this.client.simpleSupportedCurrencies().then((cs) => (this.currencies = cs));
   }
 

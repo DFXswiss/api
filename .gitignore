@@ -44,3 +44,4 @@ placeholder.env
 # Custom
 thunder-tests/env
 .claude/settings.local.json
+.api.pid
