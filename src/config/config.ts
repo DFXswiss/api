@@ -184,8 +184,9 @@ export class Configuration {
     recommendationCode: /[0-9A-Z]{2}-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{2}/,
     kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
     phone: /^\+\d+$/,
-    accountServiceRef: /^[A-Z]{2}\d{8}\/\d+\/\d+$/,
+    accountServiceRef: /^([A-Z]{2}\d{8}\/\d+\/\d+|[a-f0-9]{32})$/,
     number: /^\d+$/,
+    transactionUid: new RegExp(`^${this.prefixes.transactionUidPrefix}[A-Za-z0-9]{16}$`),
   };
 
   database: TypeOrmModuleOptions = {
