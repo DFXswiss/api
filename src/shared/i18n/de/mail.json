@@ -354,8 +354,7 @@
         "request": {
             "title": "E-Mail bestätigen",
             "salutation": "Bestätige deine E-Mail",
-            "message": "Klicke den nachfolgenden Link, um deine E-Mail für einen anderen Account zu bestätigen:<br>[url:{urlText}]",
-            "closing": "Wenn du du deine Mail nicht in einem anderen DFX Account eingegeben hast, kontaktiere bitte unverzüglich den Support unter [url:https://app.dfx.swiss/support]."
+            "message": "Klicke den nachfolgenden Link, um deine E-Mail für einen anderen Account zu bestätigen:<br>[url:{urlText}]"
         },
         "added_address": {
             "title": "Adresse zu Account hinzugefügt",
