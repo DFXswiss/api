@@ -1,4 +1,5 @@
 import { Currency } from '@uniswap/sdk-core';
+import type { SendResult } from '@btc-vision/bitcoin-rpc/build/rpc/types/NewMethods';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
@@ -39,7 +40,7 @@ export class BitcoinClient extends NodeClient {
     // 135 vByte for a single-input single-output TX
     const feeAmount = (feeRate * 135) / Math.pow(10, 8);
 
-    const result = await this.callNode(
+    const result = await this.callNode<SendResult>(
       () =>
         this.rpc.send([{ [addressTo]: this.roundAmount(amount - feeAmount) }], {
           feeRate,
@@ -57,7 +58,7 @@ export class BitcoinClient extends NodeClient {
   async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
     const outputs = payload.map((p) => ({ [p.addressTo]: p.amount }));
 
-    const result = await this.callNode(
+    const result = await this.callNode<SendResult>(
       () =>
         this.rpc.send(outputs, {
           feeRate,
@@ -94,7 +95,7 @@ export class BitcoinClient extends NodeClient {
 
   async sendSignedTransaction(hex: string): Promise<BlockchainSignedTransactionResponse> {
     try {
-      const txid = await this.callNode(() => this.rpc.sendRawTransaction({ hexstring: hex }), true);
+      const txid = await this.callNode<string>(() => this.rpc.sendRawTransaction({ hexstring: hex }), true);
       return { hash: txid ?? '' };
     } catch (e) {
       return {

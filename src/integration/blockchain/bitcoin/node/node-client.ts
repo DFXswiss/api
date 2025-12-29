@@ -1,5 +1,7 @@
 import { BitcoinRPC, BlockchainInfo } from '@btc-vision/bitcoin-rpc';
 import { RPCConfig } from '@btc-vision/bitcoin-rpc/build/rpc/interfaces/RPCConfig.js';
+import type { SendResult } from '@btc-vision/bitcoin-rpc/build/rpc/types/NewMethods';
+import type { WalletInfo } from '@btc-vision/bitcoin-rpc/build/rpc/types/WalletInfo';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -82,7 +84,7 @@ export abstract class NodeClient extends BlockchainClient {
   // --- BLOCKCHAIN METHODS --- //
 
   async getBlockCount(): Promise<number> {
-    const count = await this.callNode(() => this.rpc.getBlockCount());
+    const count = await this.callNode<number>(() => this.rpc.getBlockCount());
     if (count === null) throw new Error('Failed to get block count');
     return count;
   }
@@ -114,7 +116,7 @@ export abstract class NodeClient extends BlockchainClient {
   }
 
   async getBlockHash(height: number): Promise<string> {
-    const hash = await this.callNode(() => this.rpc.getBlockHash(height));
+    const hash = await this.callNode<string>(() => this.rpc.getBlockHash(height));
     if (hash === null) throw new Error(`Failed to get block hash for height ${height}`);
     return hash;
   }
@@ -184,10 +186,10 @@ export abstract class NodeClient extends BlockchainClient {
   }
 
   async getBalance(): Promise<number> {
-    const wallets = await this.callNode(() => this.rpc.listWallets(), true);
+    const wallets = await this.callNode<string[]>(() => this.rpc.listWallets(), true);
     const walletName = wallets?.[0] ?? '';
 
-    const walletInfo = await this.callNode(() => this.rpc.getWalletInfo(walletName), true);
+    const walletInfo = await this.callNode<WalletInfo>(() => this.rpc.getWalletInfo(walletName), true);
 
     return walletInfo?.balance ?? 0;
   }
@@ -199,7 +201,7 @@ export abstract class NodeClient extends BlockchainClient {
 
     const outputs = payload.map((p) => ({ [p.addressTo]: p.amount }));
 
-    const result = await this.callNode(() => this.rpc.send(outputs), true);
+    const result = await this.callNode<SendResult>(() => this.rpc.send(outputs), true);
 
     return result?.txid ?? '';
   }
