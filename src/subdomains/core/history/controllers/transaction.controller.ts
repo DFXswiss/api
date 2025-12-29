@@ -646,26 +646,29 @@ export class TransactionController {
     detailed = false,
   ): Promise<TransactionDto | TransactionDetailDto | UnassignedTransactionDto | undefined> {
     switch (transaction?.targetEntity?.constructor) {
-      case BuyCrypto:
+      case BuyCrypto: {
         const buyCryptoExtended = await this.buyCryptoWebhookService.extendBuyCrypto(transaction.buyCrypto);
         return detailed
           ? TransactionDtoMapper.mapBuyCryptoTransactionDetail(buyCryptoExtended)
           : TransactionDtoMapper.mapBuyCryptoTransaction(buyCryptoExtended);
+      }
 
-      case BuyFiat:
+      case BuyFiat: {
         const buyFiatExtended = await this.buyFiatService.extendBuyFiat(transaction.buyFiat);
         return detailed
           ? TransactionDtoMapper.mapBuyFiatTransactionDetail(buyFiatExtended)
           : TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
+      }
 
       case RefReward:
         return detailed
           ? TransactionDtoMapper.mapReferralRewardDetail(transaction.refReward)
           : TransactionDtoMapper.mapReferralReward(transaction.refReward);
 
-      case BankTxReturn:
+      case BankTxReturn: {
         const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);
         return TransactionDtoMapper.mapUnassignedTransaction(transaction.bankTx, currency, transaction.bankTxReturn);
+      }
 
       default:
         if (transaction?.sourceEntity instanceof BankTx && !transaction?.type) {
