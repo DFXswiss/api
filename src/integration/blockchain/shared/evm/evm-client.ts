@@ -784,15 +784,22 @@ export abstract class EvmClient extends BlockchainClient {
     amount: number,
     nonce?: number,
   ): Promise<string> {
+    console.log(`DEBUG sendToken: fromAddress=${fromAddress}, toAddress=${toAddress}, amount=${amount}`);
     const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress));
+    console.log(`DEBUG sendToken: gasLimit=${gasLimit}`);
     const gasPrice = +(await this.getRecommendedGasPrice());
+    console.log(`DEBUG sendToken: gasPrice=${gasPrice}`);
     const currentNonce = await this.getNonce(fromAddress);
+    console.log(`DEBUG sendToken: currentNonce=${currentNonce}`);
     const txNonce = nonce ?? currentNonce;
 
     const token = await this.getTokenByContract(contract);
     const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
+    console.log(`DEBUG sendToken: token=${token.name}, targetAmount=${targetAmount.toString()}`);
 
+    console.log(`DEBUG sendToken: calling contract.transfer...`);
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
+    console.log(`DEBUG sendToken: contract.transfer returned, tx.hash=${tx.hash}`);
 
     if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 

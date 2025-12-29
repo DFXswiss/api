@@ -710,6 +710,10 @@ export class Configuration {
       custodySeed: process.env.EVM_CUSTODY_SEED,
       minimalPreparationFee: 0.00000001,
 
+      // EIP-7702 Delegation (MetaMask EIP7702StatelessDeleGator v1.3.0)
+      delegationEnabled: process.env.EVM_DELEGATION_ENABLED === 'true',
+      delegatorAddress: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
+
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.evm.depositSeed,
         index: accountIndex,
@@ -775,6 +779,8 @@ export class Configuration {
       gnosisWalletAddress: process.env.GNOSIS_WALLET_ADDRESS,
       gnosisWalletPrivateKey: process.env.GNOSIS_WALLET_PRIVATE_KEY,
       gnosisApiKey: process.env.ALCHEMY_API_KEY,
+      swapContractAddress: process.env.GNOSIS_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.GNOSIS_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
       ...EVM_CHAINS.bsc,
