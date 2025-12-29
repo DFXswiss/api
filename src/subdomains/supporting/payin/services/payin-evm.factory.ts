@@ -13,7 +13,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { PayInEvmService } from './base/payin-evm.service';
 
-const EVM_SERVICE_MAP: Record<Blockchain, Type<EvmService>> = {
+const EVM_SERVICE_MAP: Partial<Record<Blockchain, Type<EvmService>>> = {
   [Blockchain.ETHEREUM]: EthereumService,
   [Blockchain.SEPOLIA]: SepoliaService,
   [Blockchain.BINANCE_SMART_CHAIN]: BscService,
@@ -23,31 +23,6 @@ const EVM_SERVICE_MAP: Record<Blockchain, Type<EvmService>> = {
   [Blockchain.BASE]: BaseService,
   [Blockchain.GNOSIS]: GnosisService,
   [Blockchain.CITREA_TESTNET]: CitreaTestnetService,
-  [Blockchain.BITCOIN]: undefined,
-  [Blockchain.LIGHTNING]: undefined,
-  [Blockchain.MONERO]: undefined,
-  [Blockchain.ZANO]: undefined,
-  [Blockchain.SOLANA]: undefined,
-  [Blockchain.TRON]: undefined,
-  [Blockchain.CARDANO]: undefined,
-  [Blockchain.LIQUID]: undefined,
-  [Blockchain.DEFICHAIN]: undefined,
-  [Blockchain.SPARK]: undefined,
-  [Blockchain.ARWEAVE]: undefined,
-  [Blockchain.HAQQ]: undefined,
-  [Blockchain.RAILGUN]: undefined,
-  [Blockchain.BINANCE_PAY]: undefined,
-  [Blockchain.KUCOIN_PAY]: undefined,
-  [Blockchain.KRAKEN]: undefined,
-  [Blockchain.BINANCE]: undefined,
-  [Blockchain.XT]: undefined,
-  [Blockchain.MEXC]: undefined,
-  [Blockchain.MAERKI_BAUMANN]: undefined,
-  [Blockchain.OLKYPAY]: undefined,
-  [Blockchain.CHECKOUT]: undefined,
-  [Blockchain.KALEIDO]: undefined,
-  [Blockchain.SUMIXX]: undefined,
-  [Blockchain.YAPEAL]: undefined,
 };
 
 @Injectable()

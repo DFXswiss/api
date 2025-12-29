@@ -15,7 +15,7 @@ export interface AssetQuery {
 
 @Injectable()
 export class AssetService {
-  private static readonly NATIVE_COIN_MAP: Record<Blockchain, string> = {
+  private static readonly NATIVE_COIN_MAP: Partial<Record<Blockchain, string>> = {
     [Blockchain.ETHEREUM]: 'ETH',
     [Blockchain.SEPOLIA]: 'ETH',
     [Blockchain.BINANCE_SMART_CHAIN]: 'BNB',
@@ -37,19 +37,6 @@ export class AssetService {
     [Blockchain.ARWEAVE]: 'AR',
     [Blockchain.HAQQ]: 'ISLM',
     [Blockchain.CITREA_TESTNET]: 'cBTC',
-    [Blockchain.RAILGUN]: undefined,
-    [Blockchain.BINANCE_PAY]: undefined,
-    [Blockchain.KUCOIN_PAY]: undefined,
-    [Blockchain.KRAKEN]: undefined,
-    [Blockchain.BINANCE]: undefined,
-    [Blockchain.XT]: undefined,
-    [Blockchain.MEXC]: undefined,
-    [Blockchain.MAERKI_BAUMANN]: undefined,
-    [Blockchain.OLKYPAY]: undefined,
-    [Blockchain.CHECKOUT]: undefined,
-    [Blockchain.KALEIDO]: undefined,
-    [Blockchain.SUMIXX]: undefined,
-    [Blockchain.YAPEAL]: undefined,
   };
 
   constructor(private assetRepo: AssetRepository) {}
