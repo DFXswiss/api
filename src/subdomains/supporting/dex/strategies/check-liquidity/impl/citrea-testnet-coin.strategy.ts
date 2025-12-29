@@ -7,7 +7,10 @@ import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class CitreaTestnetCoinStrategy extends EvmCoinStrategy {
-  constructor(protected readonly assetService: AssetService, dexCitreaTestnetService: DexCitreaTestnetService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    dexCitreaTestnetService: DexCitreaTestnetService,
+  ) {
     super(dexCitreaTestnetService);
   }
 

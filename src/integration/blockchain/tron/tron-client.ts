@@ -284,10 +284,9 @@ export class TronClient extends BlockchainClient {
     const url = Config.blockchain.tron.tronApiUrl;
 
     const transactions = await this.http
-      .get<{ transactions: TronTransactionResponse[] }>(
-        `${url}/transaction/account/${this.wallet.address}`,
-        this.httpConfig(),
-      )
+      .get<{
+        transactions: TronTransactionResponse[];
+      }>(`${url}/transaction/account/${this.wallet.address}`, this.httpConfig())
       .then((r) => TronTransactionMapper.toTransactionDtos(r.transactions));
 
     const transactionIds = transactions.map((t) => t.txId);

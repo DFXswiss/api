@@ -7,7 +7,10 @@ import { TradingRuleService } from './trading-rule.service';
 
 @Injectable()
 export class TradingJobService {
-  constructor(private readonly ruleService: TradingRuleService, private readonly orderService: TradingOrderService) {}
+  constructor(
+    private readonly ruleService: TradingRuleService,
+    private readonly orderService: TradingOrderService,
+  ) {}
 
   // --- RULES --- //
 

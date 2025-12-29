@@ -24,9 +24,9 @@ import {
 } from './kucoin-pay.dto';
 
 @Injectable()
-export class KucoinPayService
-  implements C2BPaymentLinkProvider<KucoinPayOrderNotification | KucoinPayRefundNotification>
-{
+export class KucoinPayService implements C2BPaymentLinkProvider<
+  KucoinPayOrderNotification | KucoinPayRefundNotification
+> {
   private readonly logger = new DfxLogger(KucoinPayService);
   private readonly baseUrl: string;
   private readonly apiKey: string;

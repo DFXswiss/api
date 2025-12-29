@@ -10,11 +10,7 @@ import { EvmTokenStrategy } from './base/evm.token.strategy';
 
 @Injectable()
 export class BaseTokenStrategy extends EvmTokenStrategy {
-  constructor(
-    baseService: PayInBaseService,
-    payInRepo: PayInRepository,
-    delegationService: Eip7702DelegationService,
-  ) {
+  constructor(baseService: PayInBaseService, payInRepo: PayInRepository, delegationService: Eip7702DelegationService) {
     super(baseService, payInRepo, delegationService);
   }
 

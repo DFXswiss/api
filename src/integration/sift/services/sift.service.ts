@@ -45,7 +45,10 @@ export class SiftService {
 
   private readonly logger = new DfxLogger(SiftService);
 
-  constructor(private readonly http: HttpService, private readonly siftErrorLogRepo: SiftErrorLogRepository) {}
+  constructor(
+    private readonly http: HttpService,
+    private readonly siftErrorLogRepo: SiftErrorLogRepository,
+  ) {}
 
   // --- ACCOUNT --- //
   createAccount(user: User): void {
@@ -189,18 +192,18 @@ export class SiftService {
           $bank_country: tx.cardIssuerCountry ?? undefined,
         }
       : tx instanceof BankTx
-      ? {
-          $payment_type: paymentType,
-          $account_holder_name: tx.name,
-          $shortened_iban_first6: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(0, 6) : undefined,
-          $shortened_iban_last4: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(-4) : undefined,
-          $bank_name: tx.bankName ?? undefined,
-          $bank_country: tx.country ?? undefined,
-          $routing_number: tx.aba ?? undefined,
-        }
-      : {
-          $payment_type: paymentType,
-        };
+        ? {
+            $payment_type: paymentType,
+            $account_holder_name: tx.name,
+            $shortened_iban_first6: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(0, 6) : undefined,
+            $shortened_iban_last4: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(-4) : undefined,
+            $bank_name: tx.bankName ?? undefined,
+            $bank_country: tx.country ?? undefined,
+            $routing_number: tx.aba ?? undefined,
+          }
+        : {
+            $payment_type: paymentType,
+          };
   }
 
   private createDigitalOrder(type: SiftAssetType, from: string, to: string, amount?: number): DigitalOrder {

@@ -96,10 +96,9 @@ export class LightningClient {
     const amountInSat = LightningHelper.btcToSat(amount);
 
     return this.http
-      .get<{ routes: LndRouteDto[] }>(
-        `${Config.blockchain.lightning.lnd.apiUrl}/graph/routes/${publicKey}/${amountInSat}`,
-        this.httpLndConfig(),
-      )
+      .get<{
+        routes: LndRouteDto[];
+      }>(`${Config.blockchain.lightning.lnd.apiUrl}/graph/routes/${publicKey}/${amountInSat}`, this.httpLndConfig())
       .then((r) => r.routes);
   }
 

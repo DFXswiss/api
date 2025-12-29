@@ -10,7 +10,10 @@ import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exc
 import { SendStrategy, SendType } from './send.strategy';
 
 export abstract class CardanoStrategy extends SendStrategy {
-  constructor(protected readonly payInCardanoService: PayInCardanoService, protected readonly payInRepo: PayInRepository) {
+  constructor(
+    protected readonly payInCardanoService: PayInCardanoService,
+    protected readonly payInRepo: PayInRepository,
+  ) {
     super();
   }
 

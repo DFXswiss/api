@@ -31,7 +31,10 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
 
   private frankencoinClient: FrankencoinClient;
 
-  constructor(private readonly moduleRef: ModuleRef, private readonly logService: LogService) {
+  constructor(
+    private readonly moduleRef: ModuleRef,
+    private readonly logService: LogService,
+  ) {
     super();
   }
 

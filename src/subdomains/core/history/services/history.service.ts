@@ -26,8 +26,8 @@ import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
 export type HistoryDto<T> = T extends ExportType.COMPACT
   ? TransactionDto
   : T extends ExportType.COIN_TRACKING
-  ? CoinTrackingCsvHistoryDto
-  : ChainReportCsvHistoryDto;
+    ? CoinTrackingCsvHistoryDto
+    : ChainReportCsvHistoryDto;
 
 export enum ExportType {
   COMPACT = 'Compact',

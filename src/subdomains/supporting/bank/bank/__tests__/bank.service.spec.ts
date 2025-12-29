@@ -76,14 +76,12 @@ describe('BankService', () => {
       .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: maerkiBaumannEnable }));
 
     const allBanks = disabledBank ? createDefaultDisabledBanks() : createDefaultBanks();
-    jest
-      .spyOn(bankRepo, 'findCachedBy')
-      .mockImplementation(async (_key: string, filter?: any) => {
-        if (filter?.receive !== undefined) {
-          return allBanks.filter(b => b.receive === filter.receive);
-        }
-        return allBanks;
-      });
+    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
+      if (filter?.receive !== undefined) {
+        return allBanks.filter((b) => b.receive === filter.receive);
+      }
+      return allBanks;
+    });
   }
 
   it('should be defined', () => {

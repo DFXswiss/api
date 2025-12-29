@@ -27,7 +27,10 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { DefaultPaymentLinkConfig, PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import {
+  DefaultPaymentLinkConfig,
+  PaymentLinkConfig,
+} from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';

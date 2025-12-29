@@ -7,7 +7,10 @@ export class BlockchainToken {
   readonly isNative = false;
   readonly isToken = true;
 
-  constructor(readonly address: string, readonly decimals: number) {}
+  constructor(
+    readonly address: string,
+    readonly decimals: number,
+  ) {}
 }
 
 export type BlockchainCurrency = Currency | BlockchainToken;

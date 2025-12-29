@@ -36,7 +36,10 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
 
   private frankencoinService: FrankencoinService;
 
-  constructor(private readonly moduleRef: ModuleRef, private readonly logService: LogService) {
+  constructor(
+    private readonly moduleRef: ModuleRef,
+    private readonly logService: LogService,
+  ) {
     super();
   }
 

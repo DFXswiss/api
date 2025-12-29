@@ -34,10 +34,10 @@ export class FiatOutputService {
         where: dto.buyCryptoId
           ? { buyCrypto: { id: dto.buyCryptoId }, type: dto.type }
           : dto.buyFiatId
-          ? { buyFiats: { id: dto.buyFiatId }, type: dto.type }
-          : dto.bankTxReturnId
-          ? { bankTxReturn: { id: dto.bankTxReturnId }, type: dto.type }
-          : { bankTxRepeat: { id: dto.bankTxRepeatId }, type: dto.type },
+            ? { buyFiats: { id: dto.buyFiatId }, type: dto.type }
+            : dto.bankTxReturnId
+              ? { bankTxReturn: { id: dto.bankTxReturnId }, type: dto.type }
+              : { bankTxRepeat: { id: dto.bankTxRepeatId }, type: dto.type },
       });
       if (existing) throw new BadRequestException('FiatOutput already exists');
     }

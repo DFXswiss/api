@@ -6,12 +6,7 @@ export class MockStorageService {
   private readonly logger = new DfxLogger(MockStorageService);
   private readonly storage = new Map<string, Buffer>();
 
-  async uploadFile(
-    container: string,
-    fileName: string,
-    data: Buffer,
-    _contentType?: string,
-  ): Promise<string> {
+  async uploadFile(container: string, fileName: string, data: Buffer, _contentType?: string): Promise<string> {
     const key = `${container}/${fileName}`;
     this.storage.set(key, data);
     this.logger.verbose(`Mock: Uploaded ${key} (${data.length} bytes)`);

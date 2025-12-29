@@ -14,7 +14,10 @@ import { UserDataRepository } from './user-data.repository';
 
 @Injectable()
 export class UserDataJobService {
-  constructor(private readonly userDataRepo: UserDataRepository, private readonly kycService: KycService) {}
+  constructor(
+    private readonly userDataRepo: UserDataRepository,
+    private readonly kycService: KycService,
+  ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.USER_DATA, timeout: 1800 })
   async fillUserData() {

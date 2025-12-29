@@ -275,7 +275,11 @@ export class RealUnitBuyDto {
   @Type(() => Number)
   amount: number;
 
-  @ApiPropertyOptional({ enum: RealUnitBuyCurrency, description: 'Currency (CHF or EUR)', default: RealUnitBuyCurrency.CHF })
+  @ApiPropertyOptional({
+    enum: RealUnitBuyCurrency,
+    description: 'Currency (CHF or EUR)',
+    default: RealUnitBuyCurrency.CHF,
+  })
   @IsOptional()
   @IsEnum(RealUnitBuyCurrency)
   currency?: RealUnitBuyCurrency;
