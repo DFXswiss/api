@@ -449,12 +449,16 @@ export class TransactionHelper implements OnModuleInit {
       },
       refundAsset,
       refundTarget,
-      name: bankTx?.name,
-      address: bankTx?.addressLine1,
-      city: bankTx?.addressLine2,
-      country: bankTx?.country,
-      iban: bankTx?.iban,
-      bic: bankTx?.bic,
+      bankDetails: bankTx
+        ? {
+            name: bankTx?.name,
+            address: bankTx?.addressLine1,
+            city: bankTx?.addressLine2,
+            country: bankTx?.country,
+            iban: bankTx?.iban,
+            bic: bankTx?.bic,
+          }
+        : undefined,
     };
   }
 

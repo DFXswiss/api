@@ -14,28 +14,7 @@ export class RefundFeeDto {
   dfx: number;
 }
 
-export class RefundDataDto {
-  @ApiProperty({ description: 'Expiry date of the refund data' })
-  expiryDate: Date;
-
-  @ApiProperty({ type: RefundFeeDto, description: 'Refund fees' })
-  fee: RefundFeeDto;
-
-  @ApiProperty()
-  inputAmount: number;
-
-  @ApiProperty({ oneOf: [{ $ref: getSchemaPath(AssetDto) }, { $ref: getSchemaPath(FiatDto) }] })
-  inputAsset: ActiveDto;
-
-  @ApiProperty()
-  refundAmount: number;
-
-  @ApiProperty({ oneOf: [{ $ref: getSchemaPath(AssetDto) }, { $ref: getSchemaPath(FiatDto) }] })
-  refundAsset: ActiveDto;
-
-  @ApiPropertyOptional({ description: 'IBAN for bank tx or blockchain address for crypto tx' })
-  refundTarget?: string;
-
+export class RefundBankDetailsDto {
   @ApiPropertyOptional({ description: 'Account holder name' })
   name?: string;
 
@@ -59,4 +38,30 @@ export class RefundDataDto {
 
   @ApiPropertyOptional({ description: 'BIC/SWIFT code' })
   bic?: string;
+}
+
+export class RefundDataDto {
+  @ApiProperty({ description: 'Expiry date of the refund data' })
+  expiryDate: Date;
+
+  @ApiProperty({ type: RefundFeeDto, description: 'Refund fees' })
+  fee: RefundFeeDto;
+
+  @ApiProperty()
+  inputAmount: number;
+
+  @ApiProperty({ oneOf: [{ $ref: getSchemaPath(AssetDto) }, { $ref: getSchemaPath(FiatDto) }] })
+  inputAsset: ActiveDto;
+
+  @ApiProperty()
+  refundAmount: number;
+
+  @ApiProperty({ oneOf: [{ $ref: getSchemaPath(AssetDto) }, { $ref: getSchemaPath(FiatDto) }] })
+  refundAsset: ActiveDto;
+
+  @ApiPropertyOptional({ description: 'IBAN for bank tx or blockchain address for crypto tx' })
+  refundTarget?: string;
+
+  @ApiPropertyOptional({ type: RefundBankDetailsDto, description: 'Bank details' })
+  bankDetails?: RefundBankDetailsDto;
 }
