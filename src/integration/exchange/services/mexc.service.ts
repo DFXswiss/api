@@ -87,8 +87,8 @@ export class MexcService extends ExchangeService {
       status: [DepositStatus.INVALID, DepositStatus.REJECTED].includes(d.status)
         ? 'failed'
         : [DepositStatus.SUCCESS, DepositStatus.COMPLETED].includes(d.status)
-        ? 'ok'
-        : 'pending',
+          ? 'ok'
+          : 'pending',
       updated: undefined,
       fee: undefined,
       network: d.network,
@@ -125,8 +125,8 @@ export class MexcService extends ExchangeService {
       status: [WithdrawalStatus.FAILED, WithdrawalStatus.CANCEL].includes(d.status)
         ? 'failed'
         : [WithdrawalStatus.SUCCESS].includes(d.status)
-        ? 'ok'
-        : 'pending',
+          ? 'ok'
+          : 'pending',
       updated: undefined,
       fee: undefined,
       network: d.network,

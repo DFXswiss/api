@@ -40,7 +40,10 @@ interface IncompleteTransactions {
 export class PaymentObserver extends MetricObserver<PaymentData> {
   protected readonly logger = new DfxLogger(PaymentObserver);
 
-  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
+  constructor(
+    monitoringService: MonitoringService,
+    private readonly repos: RepositoryFactory,
+  ) {
     super(monitoringService, 'payment', 'combined');
   }
 

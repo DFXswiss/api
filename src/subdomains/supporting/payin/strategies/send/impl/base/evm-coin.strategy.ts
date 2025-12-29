@@ -8,7 +8,10 @@ import { EvmStrategy } from './evm.strategy';
 import { SendGroup, SendType } from './send.strategy';
 
 export abstract class EvmCoinStrategy extends EvmStrategy {
-  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
+  constructor(
+    protected readonly payInEvmService: PayInEvmService,
+    protected readonly payInRepo: PayInRepository,
+  ) {
     super(payInEvmService, payInRepo);
   }
 

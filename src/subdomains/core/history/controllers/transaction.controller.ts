@@ -348,8 +348,8 @@ export class TransactionController {
     const bankIn = transaction.cryptoInput
       ? undefined
       : transaction.checkoutTx
-      ? CardBankName.CHECKOUT
-      : await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name);
+        ? CardBankName.CHECKOUT
+        : await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name);
 
     const refundTarget = await this.getRefundTarget(transaction);
 

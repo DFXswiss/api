@@ -88,9 +88,7 @@ export class MockHttpService {
   }
 
   private mock<T>(method: string, url: string): T {
-    const mockResponse = this.mockResponses.find(
-      (m) => m.pattern.test(url) && (!m.method || m.method === method),
-    );
+    const mockResponse = this.mockResponses.find((m) => m.pattern.test(url) && (!m.method || m.method === method));
 
     this.logger.verbose(`Mock ${method} ${url} → ${JSON.stringify(mockResponse?.response).substring(0, 100)}`);
 

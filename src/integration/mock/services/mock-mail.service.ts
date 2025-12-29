@@ -14,12 +14,7 @@ export class MockMailService {
   private readonly logger = new DfxLogger(MockMailService);
   private readonly sentMails: MockMail[] = [];
 
-  async sendMail(options: {
-    to: string;
-    subject: string;
-    template?: string;
-    context?: any;
-  }): Promise<void> {
+  async sendMail(options: { to: string; subject: string; template?: string; context?: any }): Promise<void> {
     const mail: MockMail = {
       to: options.to,
       subject: options.subject,

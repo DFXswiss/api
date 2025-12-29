@@ -28,7 +28,16 @@ const MOCK_RESPONSES: { pattern: RegExp; response: any }[] = [
   { pattern: /letterxpress/, response: { letterId: 'mock-letter', status: 'queued' } },
   { pattern: /blockfrost\.io/, response: { amount: [] } },
   { pattern: /goldsky\.com/, response: { data: { transfers: [] } } },
-  { pattern: /sepatools\.eu/, response: { result: 'passed', iban: 'valid', sct: 'yes', sct_inst: 'yes', bic_candidates: [{ bic: 'MOCKBIC1XXX' }] } },
+  {
+    pattern: /sepatools\.eu/,
+    response: {
+      result: 'passed',
+      iban: 'valid',
+      sct: 'yes',
+      sct_inst: 'yes',
+      bic_candidates: [{ bic: 'MOCKBIC1XXX' }],
+    },
+  },
 ];
 
 @Injectable()
@@ -52,7 +61,9 @@ export class HttpService {
 
   private getMockResponse<T>(url: string): T {
     const mock = MOCK_RESPONSES.find((m) => m.pattern.test(url));
-    this.logger.verbose(`Mock HTTP: ${url.substring(0, 80)}... → ${JSON.stringify(mock?.response ?? {}).substring(0, 50)}`);
+    this.logger.verbose(
+      `Mock HTTP: ${url.substring(0, 80)}... → ${JSON.stringify(mock?.response ?? {}).substring(0, 50)}`,
+    );
     return (mock?.response ?? { mock: true }) as T;
   }
 

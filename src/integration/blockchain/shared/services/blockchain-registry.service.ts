@@ -25,8 +25,22 @@ import { EvmClient } from '../evm/evm-client';
 import { EvmService } from '../evm/evm.service';
 import { L2BridgeEvmClient } from '../evm/interfaces';
 
-type BlockchainClientType = EvmClient | BitcoinClient | MoneroClient | ZanoClient | SolanaClient | TronClient | CardanoClient;
-type BlockchainServiceType = EvmService | BitcoinService | MoneroService | ZanoService | SolanaService | TronService | CardanoService;
+type BlockchainClientType =
+  | EvmClient
+  | BitcoinClient
+  | MoneroClient
+  | ZanoClient
+  | SolanaClient
+  | TronClient
+  | CardanoClient;
+type BlockchainServiceType =
+  | EvmService
+  | BitcoinService
+  | MoneroService
+  | ZanoService
+  | SolanaService
+  | TronService
+  | CardanoService;
 
 @Injectable()
 export class BlockchainRegistryService {

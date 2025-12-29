@@ -97,8 +97,8 @@ export class LiquidityManagementRule extends IEntity {
       action: isDeficit
         ? LiquidityOptimizationType.DEFICIT
         : isRedundancy
-        ? LiquidityOptimizationType.REDUNDANCY
-        : null,
+          ? LiquidityOptimizationType.REDUNDANCY
+          : null,
       minAmount: isDeficit ? Math.min(deficit, transmissionMinimum) : redundancy,
       maxAmount: Util.round(Math.abs(this.optimal - balance.amount), 8),
     };

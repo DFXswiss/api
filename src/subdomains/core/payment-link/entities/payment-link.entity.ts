@@ -4,12 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
-import {
-  PaymentLinkMode,
-  PaymentLinkPaymentStatus,
-  PaymentLinkStatus,
-  PaymentStandard,
-} from '../enums';
+import { PaymentLinkMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
 import { DefaultPaymentLinkConfig, PaymentLinkConfig } from './payment-link.config';
 

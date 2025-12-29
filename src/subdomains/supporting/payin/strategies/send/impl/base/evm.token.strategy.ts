@@ -37,12 +37,8 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
     }
 
     // Split pay-ins: legacy flow for PREPARING/PREPARED (already have gas), delegation for new ones
-    const legacyPayIns = payIns.filter((p) =>
-      [PayInStatus.PREPARING, PayInStatus.PREPARED].includes(p.status),
-    );
-    const delegationPayIns = payIns.filter((p) =>
-      [PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(p.status),
-    );
+    const legacyPayIns = payIns.filter((p) => [PayInStatus.PREPARING, PayInStatus.PREPARED].includes(p.status));
+    const delegationPayIns = payIns.filter((p) => [PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(p.status));
 
     // Complete legacy flow for pay-ins that already started preparation
     if (legacyPayIns.length > 0) {
@@ -80,12 +76,7 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
       `Sending ${amount} ${asset.name} from ${payInGroup.sourceAddress} to ${destinationAddress} via EIP-7702 delegation`,
     );
 
-    const txHash = await this.delegationService.transferTokenViaDelegation(
-      account,
-      asset,
-      destinationAddress,
-      amount,
-    );
+    const txHash = await this.delegationService.transferTokenViaDelegation(account, asset, destinationAddress, amount);
 
     // Update pay-ins with transaction data (fee is paid by relayer, not deducted from amount)
     for (const payIn of payInGroup.payIns) {

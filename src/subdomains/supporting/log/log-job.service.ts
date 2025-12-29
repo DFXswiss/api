@@ -667,9 +667,8 @@ export class LogJobService {
     const buyCryptos = await this.buyCryptoService.getBuyCrypto(firstDayOfMonth, {
       cryptoInput: { paymentLinkPayment: true },
     });
-    const { fee: tradingOrderFee, profit: tradingOrderProfit } = await this.tradingOrderService.getTradingOrderYield(
-      firstDayOfMonth,
-    );
+    const { fee: tradingOrderFee, profit: tradingOrderProfit } =
+      await this.tradingOrderService.getTradingOrderYield(firstDayOfMonth);
 
     const buyFiatFee = this.getFeeAmount(buyFiats.filter((b) => !b.cryptoInput.paymentLinkPayment));
     const paymentLinkFee = this.getFeeAmount([

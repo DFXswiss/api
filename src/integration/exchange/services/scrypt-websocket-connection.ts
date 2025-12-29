@@ -63,7 +63,11 @@ export class ScryptWebSocketConnection {
   private subscriptions: Map<ScryptMessageType, Set<SubscriptionCallback>> = new Map();
   private activeStreams: Set<ScryptMessageType> = new Set();
 
-  constructor(private readonly wsUrl: string, private readonly apiKey: string, private readonly apiSecret: string) {}
+  constructor(
+    private readonly wsUrl: string,
+    private readonly apiKey: string,
+    private readonly apiSecret: string,
+  ) {}
 
   // --- PUBLIC METHODS --- //
 

@@ -49,7 +49,10 @@ export abstract class NodeClient extends BlockchainClient {
   private initialized = false;
   private readonly rpcConfig: RPCConfig;
 
-  constructor(private readonly http: HttpService, private readonly url: string) {
+  constructor(
+    private readonly http: HttpService,
+    private readonly url: string,
+  ) {
     super();
 
     this.rpcConfig = this.parseRpcUrl(url);

@@ -404,10 +404,7 @@ describe('BuyCrypto', () => {
           outputAsset: 'BTC',
           action: { system: 'Binance' },
         };
-        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [
-          eurUsdtOrder,
-          usdtBtcOrder,
-        ]);
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [eurUsdtOrder, usdtBtcOrder]);
 
         const entity = createCustomBuyCrypto({
           inputReferenceAmountMinusFee: 1000,
