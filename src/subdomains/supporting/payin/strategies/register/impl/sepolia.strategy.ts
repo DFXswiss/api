@@ -1,25 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { AlchemyStrategy } from './base/alchemy.strategy';
+import { GenericAlchemyStrategy } from './base/generic-alchemy.strategy';
 
 @Injectable()
-export class SepoliaStrategy extends AlchemyStrategy {
-  protected readonly logger = new DfxLogger(SepoliaStrategy);
-
-  get blockchain(): Blockchain {
-    return Blockchain.SEPOLIA;
-  }
-
-  //*** HELPER METHODS ***//
-
-  /**
-   * @note
-   * this is needed to skip registering inputs from own address
-   * cannot be filtered as a dust input, because fees can go high
-   */
-  protected getOwnAddresses(): string[] {
-    return [Config.blockchain.sepolia.sepoliaWalletAddress];
+export class SepoliaStrategy extends GenericAlchemyStrategy {
+  constructor() {
+    super(Blockchain.SEPOLIA);
   }
 }
