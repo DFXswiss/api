@@ -12,7 +12,6 @@ import { IdDocTypeMap, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepType, UrlType } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
-import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycFile } from './kyc-file.entity';
 import { StepLog } from './step-log.entity';
@@ -110,7 +109,8 @@ export class KycStep extends IEntity {
         } else if (this.isManual) {
           return { url: `${apiUrl}/ident/manual/${this.id}`, type: UrlType.API };
         } else {
-          return { url: IdentService.identUrl(this), type: UrlType.BROWSER };
+          // IDnow integration removed - old ident steps no longer have active URLs
+          return { url: '', type: UrlType.NONE };
         }
       }
 
