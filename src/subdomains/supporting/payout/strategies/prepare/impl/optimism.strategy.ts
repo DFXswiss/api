@@ -16,6 +16,6 @@ export class OptimismStrategy extends EvmStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getOptimismCoin();
+    return this.assetService.getNativeCoin(this.blockchain);
   }
 }

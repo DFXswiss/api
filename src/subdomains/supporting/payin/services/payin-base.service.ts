@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { BaseService } from 'src/integration/blockchain/base/base.service';
-import { PayInEvmService } from './base/payin-evm.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PayInEvmProxyService } from './base/payin-evm-proxy.service';
+import { PayInEvmFactory } from './payin-evm.factory';
 
 @Injectable()
-export class PayInBaseService extends PayInEvmService {
-  constructor(baseService: BaseService) {
-    super(baseService);
+export class PayInBaseService extends PayInEvmProxyService {
+  protected readonly blockchain = Blockchain.BASE;
+
+  constructor(factory: PayInEvmFactory) {
+    super(factory);
   }
 }

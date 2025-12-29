@@ -15,6 +15,43 @@ export interface AssetQuery {
 
 @Injectable()
 export class AssetService {
+  private static readonly NATIVE_COIN_MAP: Record<Blockchain, string> = {
+    [Blockchain.ETHEREUM]: 'ETH',
+    [Blockchain.SEPOLIA]: 'ETH',
+    [Blockchain.BINANCE_SMART_CHAIN]: 'BNB',
+    [Blockchain.ARBITRUM]: 'ETH',
+    [Blockchain.OPTIMISM]: 'ETH',
+    [Blockchain.POLYGON]: 'POL',
+    [Blockchain.BASE]: 'ETH',
+    [Blockchain.GNOSIS]: 'xDAI',
+    [Blockchain.BITCOIN]: 'BTC',
+    [Blockchain.LIGHTNING]: 'BTC',
+    [Blockchain.MONERO]: 'XMR',
+    [Blockchain.ZANO]: 'ZANO',
+    [Blockchain.SOLANA]: 'SOL',
+    [Blockchain.TRON]: 'TRX',
+    [Blockchain.CARDANO]: 'ADA',
+    [Blockchain.LIQUID]: 'L-BTC',
+    [Blockchain.DEFICHAIN]: 'DFI',
+    [Blockchain.SPARK]: 'FLR',
+    [Blockchain.ARWEAVE]: 'AR',
+    [Blockchain.HAQQ]: 'ISLM',
+    [Blockchain.CITREA_TESTNET]: 'cBTC',
+    [Blockchain.RAILGUN]: undefined,
+    [Blockchain.BINANCE_PAY]: undefined,
+    [Blockchain.KUCOIN_PAY]: undefined,
+    [Blockchain.KRAKEN]: undefined,
+    [Blockchain.BINANCE]: undefined,
+    [Blockchain.XT]: undefined,
+    [Blockchain.MEXC]: undefined,
+    [Blockchain.MAERKI_BAUMANN]: undefined,
+    [Blockchain.OLKYPAY]: undefined,
+    [Blockchain.CHECKOUT]: undefined,
+    [Blockchain.KALEIDO]: undefined,
+    [Blockchain.SUMIXX]: undefined,
+    [Blockchain.YAPEAL]: undefined,
+  };
+
   constructor(private assetRepo: AssetRepository) {}
 
   async updateAsset(id: number, dto: UpdateAssetDto): Promise<Asset> {
@@ -183,6 +220,19 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'xDAI',
       blockchain: Blockchain.GNOSIS,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getNativeCoin(blockchain: Blockchain): Promise<Asset> {
+    const coinName = AssetService.NATIVE_COIN_MAP[blockchain];
+    if (!coinName) {
+      throw new BadRequestException(`No native coin configured for blockchain: ${blockchain}`);
+    }
+
+    return this.getAssetByQuery({
+      name: coinName,
+      blockchain,
       type: AssetType.COIN,
     });
   }

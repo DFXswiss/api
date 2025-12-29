@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { CitreaTestnetService } from 'src/integration/blockchain/citrea-testnet/citrea-testnet.service';
-import { PayInEvmService } from './base/payin-evm.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PayInEvmProxyService } from './base/payin-evm-proxy.service';
+import { PayInEvmFactory } from './payin-evm.factory';
 
 @Injectable()
-export class PayInCitreaTestnetService extends PayInEvmService {
-  constructor(citreaTestnetService: CitreaTestnetService) {
-    super(citreaTestnetService);
+export class PayInCitreaTestnetService extends PayInEvmProxyService {
+  protected readonly blockchain = Blockchain.CITREA_TESTNET;
+
+  constructor(factory: PayInEvmFactory) {
+    super(factory);
   }
 }

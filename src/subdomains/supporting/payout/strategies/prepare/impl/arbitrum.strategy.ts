@@ -16,6 +16,6 @@ export class ArbitrumStrategy extends EvmStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getArbitrumCoin();
+    return this.assetService.getNativeCoin(this.blockchain);
   }
 }

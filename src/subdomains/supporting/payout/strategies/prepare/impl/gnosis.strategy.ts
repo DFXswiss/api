@@ -16,6 +16,6 @@ export class GnosisStrategy extends EvmStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getGnosisCoin();
+    return this.assetService.getNativeCoin(this.blockchain);
   }
 }

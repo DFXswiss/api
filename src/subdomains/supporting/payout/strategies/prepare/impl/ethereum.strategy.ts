@@ -16,6 +16,6 @@ export class EthereumStrategy extends EvmStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getEthCoin();
+    return this.assetService.getNativeCoin(this.blockchain);
   }
 }

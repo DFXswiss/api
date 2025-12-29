@@ -16,6 +16,6 @@ export class PolygonStrategy extends EvmStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getPolygonCoin();
+    return this.assetService.getNativeCoin(this.blockchain);
   }
 }

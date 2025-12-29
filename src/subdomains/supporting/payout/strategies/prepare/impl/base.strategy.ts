@@ -16,6 +16,6 @@ export class BaseStrategy extends EvmStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getBaseCoin();
+    return this.assetService.getNativeCoin(this.blockchain);
   }
 }

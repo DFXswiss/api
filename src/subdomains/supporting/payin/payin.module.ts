@@ -23,6 +23,7 @@ import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
 import { PayInCitreaTestnetService } from './services/payin-citrea-testnet.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
+import { PayInEvmFactory } from './services/payin-evm.factory';
 import { PayInGnosisService } from './services/payin-gnosis.service';
 import { PayInLightningService } from './services/payin-lightning.service';
 import { PayInMoneroService } from './services/payin-monero.service';
@@ -114,6 +115,7 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     PayInLightningService,
     PayInMoneroService,
     PayInZanoService,
+    PayInEvmFactory,
     PayInEthereumService,
     PayInSepoliaService,
     PayInBscService,
@@ -121,11 +123,11 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     PayInOptimismService,
     PayInPolygonService,
     PayInBaseService,
-    PayInSolanaService,
     PayInGnosisService,
+    PayInCitreaTestnetService,
+    PayInSolanaService,
     PayInTronService,
     PayInCardanoService,
-    PayInCitreaTestnetService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
     BitcoinStrategyR,

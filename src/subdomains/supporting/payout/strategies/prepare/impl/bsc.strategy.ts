@@ -16,6 +16,6 @@ export class BscStrategy extends EvmStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getBnbCoin();
+    return this.assetService.getNativeCoin(this.blockchain);
   }
 }
