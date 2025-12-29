@@ -704,7 +704,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get chargebackBankFee(): number {
-    return this.bankTx ? this.bankTx.chargeAmountChf : 0;
+    return this.bankTx ? this.bankTx.chargebackBankFee : 0;
   }
 
   get manualChfPrice(): Price {
