@@ -158,7 +158,7 @@ async function waitForApi(maxRetries = 60, delayMs = 2000) {
 async function waitForDatabaseReady(maxRetries = 60, delayMs = 2000) {
   const config = {
     user: process.env.SQL_USERNAME || 'sa',
-    password: process.env.SQL_PASSWORD || 'LocalDev123!',
+    password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
     server: process.env.SQL_HOST || 'localhost',
     port: parseInt(process.env.SQL_PORT) || 1433,
     database: process.env.SQL_DB || 'dfx',
@@ -269,7 +269,7 @@ async function registerUser(address, signature) {
 async function setAdminRole(address) {
   const config = {
     user: process.env.SQL_USERNAME || 'sa',
-    password: process.env.SQL_PASSWORD || 'LocalDev123!',
+    password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
     server: process.env.SQL_HOST || 'localhost',
     port: parseInt(process.env.SQL_PORT) || 1433,
     database: process.env.SQL_DB || 'dfx',
@@ -300,7 +300,7 @@ async function setAdminRole(address) {
 async function seedDepositAddresses(adminSeed, count) {
   const config = {
     user: process.env.SQL_USERNAME || 'sa',
-    password: process.env.SQL_PASSWORD || 'LocalDev123!',
+    password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
     server: process.env.SQL_HOST || 'localhost',
     port: parseInt(process.env.SQL_PORT) || 1433,
     database: process.env.SQL_DB || 'dfx',
