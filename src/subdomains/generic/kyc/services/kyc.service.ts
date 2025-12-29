@@ -1025,7 +1025,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.CONTACT_DATA:
-
+      // falls through
       case KycStepName.LEGAL_ENTITY:
       case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.SIGNATORY_POWER:

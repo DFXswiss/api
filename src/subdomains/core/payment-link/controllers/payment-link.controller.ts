@@ -252,7 +252,7 @@ export class PaymentLinkController {
     @Query('route') route: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    const link = Boolean(key)
+    const link = key
       ? await this.paymentLinkService.createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
       : await this.paymentLinkService.createPayment(dto, jwt && +jwt.user, +linkId, externalLinkId, route);
 
