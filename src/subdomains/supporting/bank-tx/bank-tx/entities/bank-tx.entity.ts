@@ -356,7 +356,7 @@ export class BankTx extends IEntity {
   reset(): UpdateResult<BankTx> {
     const update: Partial<BankTx> = {
       remittanceInfo: null,
-      type: BankTxType.GSHEET,
+      type: BankTxType.PENDING,
     };
 
     Object.assign(this, update);
