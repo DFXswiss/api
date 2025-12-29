@@ -1,6 +1,7 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import {
   BroadcastResultDto,
@@ -22,7 +23,7 @@ export class BlockchainBalanceController {
 
   @Post('balances')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), UserActiveGuard())
+  @UseGuards(RateLimitGuard, AuthGuard(), UserActiveGuard())
   @ApiOkResponse({ type: GetBalancesResponseDto })
   async getBalances(@Body() dto: GetBalancesDto): Promise<GetBalancesResponseDto> {
     return this.blockchainBalanceService.getBalances(dto);
@@ -30,7 +31,7 @@ export class BlockchainBalanceController {
 
   @Post('transaction')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), UserActiveGuard())
+  @UseGuards(RateLimitGuard, AuthGuard(), UserActiveGuard())
   @ApiOkResponse({ type: UnsignedTransactionDto })
   async createTransaction(@Body() dto: CreateTransactionDto): Promise<UnsignedTransactionDto> {
     return this.blockchainTransactionService.createTransaction(dto);
@@ -38,7 +39,7 @@ export class BlockchainBalanceController {
 
   @Post('broadcast')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), UserActiveGuard())
+  @UseGuards(RateLimitGuard, AuthGuard(), UserActiveGuard())
   @ApiOkResponse({ type: BroadcastResultDto })
   async broadcastTransaction(@Body() dto: BroadcastTransactionDto): Promise<BroadcastResultDto> {
     return this.blockchainTransactionService.broadcastTransaction(dto);
