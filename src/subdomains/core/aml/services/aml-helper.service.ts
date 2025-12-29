@@ -175,6 +175,7 @@ export class AmlHelperService {
       // buyCrypto
       if (entity.userData.isRiskBuyCryptoBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
       if (
+        !entity.cryptoInput &&
         entity.userData.country &&
         !entity.userData.phoneCallIpCountryCheckDate &&
         ipLogCountries.some(
