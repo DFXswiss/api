@@ -40,12 +40,12 @@ module.exports = tseslint.config(
     },
   },
   {
-    files: ['**/*.spec.ts', '**/*.test.ts', '**/__tests__/**/*.ts'],
+    files: ['**/*.spec.ts', '**/*.test.ts', '**/__tests__/**/*.ts', 'scripts/**/*.ts'],
     rules: {
       'no-console': 'off',
     },
   },
   {
-    ignores: ['eslint.config.js', 'migration/*.js', 'dist/**', 'node_modules/**'],
+    ignores: ['eslint.config.js', 'migration/**/*.js', 'scripts/*.js', 'dist/**', 'node_modules/**'],
   },
 );
