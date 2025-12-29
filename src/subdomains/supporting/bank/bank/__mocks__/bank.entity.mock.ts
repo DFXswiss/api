@@ -19,19 +19,19 @@ export const olkyEUR = createCustomBank({
   sctInst: true,
 });
 
-export const maerkiEUR = createCustomBank({
-  name: IbanBankName.MAERKI,
+export const yapealEUR = createCustomBank({
+  name: IbanBankName.YAPEAL,
   currency: 'EUR',
-  iban: 'CH6808573177975201814',
-  bic: 'MAEBCHZZ',
+  iban: 'CH1234567890123456789',
+  bic: 'YAPECHCHXXX',
   receive: true,
 });
 
-export const maerkiCHF = createCustomBank({
-  name: IbanBankName.MAERKI,
+export const yapealCHF = createCustomBank({
+  name: IbanBankName.YAPEAL,
   currency: 'CHF',
-  iban: 'CH3408573177975200001',
-  bic: 'MAEBCHZZ',
+  iban: 'CH9876543210987654321',
+  bic: 'YAPECHCHXXX',
   receive: true,
 });
 
@@ -44,10 +44,10 @@ export function createCustomBank(customValues: Partial<Bank>): Bank {
 }
 
 export function createDefaultBanks(): Bank[] {
-  return [olkyEUR, maerkiEUR, maerkiCHF];
+  return [olkyEUR, yapealEUR, yapealCHF];
 }
 
 export function createDefaultDisabledBanks(): Bank[] {
   olkyEUR.receive = false;
-  return [olkyEUR, maerkiEUR, maerkiCHF];
+  return [olkyEUR, yapealEUR, yapealCHF];
 }

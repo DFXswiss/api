@@ -107,8 +107,6 @@ export class BankService implements OnModuleInit {
 
   private static blockchainToBankName(blockchain: Blockchain): IbanBankName | undefined {
     switch (blockchain) {
-      case Blockchain.MAERKI_BAUMANN:
-        return IbanBankName.MAERKI;
       case Blockchain.OLKYPAY:
         return IbanBankName.OLKY;
       case Blockchain.YAPEAL:

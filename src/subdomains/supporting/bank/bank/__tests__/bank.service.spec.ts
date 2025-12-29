@@ -14,8 +14,8 @@ import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment
 import {
   createDefaultBanks,
   createDefaultDisabledBanks,
-  maerkiCHF,
-  maerkiEUR,
+  yapealCHF,
+  yapealEUR,
   olkyEUR,
 } from '../__mocks__/bank.entity.mock';
 import { BankRepository } from '../bank.repository';
@@ -70,10 +70,10 @@ describe('BankService', () => {
     service = module.get<BankService>(BankService);
   });
 
-  function defaultSetup(maerkiBaumannEnable = true, disabledBank = false) {
+  function defaultSetup(yapealEnable = true, disabledBank = false) {
     jest
       .spyOn(countryService, 'getCountryWithSymbol')
-      .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: maerkiBaumannEnable }));
+      .mockResolvedValue(createCustomCountry({ yapealEnable: yapealEnable }));
 
     const allBanks = disabledBank ? createDefaultDisabledBanks() : createDefaultBanks();
     jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
@@ -91,8 +91,8 @@ describe('BankService', () => {
   it('should return first matching bank for CHF currency', async () => {
     defaultSetup();
     const result = await service.getBank(createBankSelectorInput('CHF', 10000));
-    expect(result.iban).toBe(maerkiCHF.iban);
-    expect(result.bic).toBe(maerkiCHF.bic);
+    expect(result.iban).toBe(yapealCHF.iban);
+    expect(result.bic).toBe(yapealCHF.bic);
   });
 
   it('should return matching bank for EUR currency', async () => {
@@ -112,8 +112,8 @@ describe('BankService', () => {
   it('should return first matching bank for CHF currency with standard payment', async () => {
     defaultSetup(true);
     const result = await service.getBank(createBankSelectorInput('CHF'));
-    expect(result.iban).toBe(maerkiCHF.iban);
-    expect(result.bic).toBe(maerkiCHF.bic);
+    expect(result.iban).toBe(yapealCHF.iban);
+    expect(result.bic).toBe(yapealCHF.bic);
   });
 
   it('should fallback to EUR for unsupported currency', async () => {
@@ -126,7 +126,7 @@ describe('BankService', () => {
   it('should fallback to first EUR bank when sctInst bank is disabled', async () => {
     defaultSetup(true, true);
     const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
-    expect(result.iban).toBe(maerkiEUR.iban);
-    expect(result.bic).toBe(maerkiEUR.bic);
+    expect(result.iban).toBe(yapealEUR.iban);
+    expect(result.bic).toBe(yapealEUR.bic);
   });
 });

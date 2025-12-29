@@ -38,9 +38,6 @@ export class Bank extends IEntity {
   // --- ENTITY METHODS --- //
 
   isCountryEnabled(country: Country): boolean {
-    return (
-      (this.name === IbanBankName.YAPEAL && country.yapealEnable) ||
-      (this.name === IbanBankName.MAERKI && country.maerkiBaumannEnable)
-    );
+    return this.name === IbanBankName.YAPEAL && country.yapealEnable;
   }
 }
