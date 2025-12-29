@@ -375,18 +375,6 @@ async function main() {
     'PAYMENT_CARDANO_SEED',
   ];
 
-  const privateKeysToGenerate = [
-    'ETH_WALLET_PRIVATE_KEY',
-    'SEPOLIA_WALLET_PRIVATE_KEY',
-    'BSC_WALLET_PRIVATE_KEY',
-    'OPTIMISM_WALLET_PRIVATE_KEY',
-    'BASE_WALLET_PRIVATE_KEY',
-    'ARBITRUM_WALLET_PRIVATE_KEY',
-    'POLYGON_WALLET_PRIVATE_KEY',
-    'GNOSIS_WALLET_PRIVATE_KEY',
-    'CITREA_TESTNET_WALLET_PRIVATE_KEY',
-  ];
-
   let generatedCount = 0;
 
   // Generate mnemonic seeds
@@ -397,14 +385,18 @@ async function main() {
     }
   }
 
-  // Generate private keys (share one key for all EVM chains)
-  let sharedEvmKey = readEnvValue('ETH_WALLET_PRIVATE_KEY');
-  if (!sharedEvmKey) {
-    sharedEvmKey = ethers.Wallet.createRandom().privateKey;
-    for (const keyName of privateKeysToGenerate) {
-      updateEnvFile({ [keyName]: sharedEvmKey });
-      generatedCount++;
-    }
+  // Generate standard EVM private key (shared for all standard EVM chains)
+  if (!readEnvValue('STANDARD_EVM_WALLET_PRIVATE_KEY')) {
+    const sharedEvmKey = ethers.Wallet.createRandom().privateKey;
+    updateEnvFile({ 'STANDARD_EVM_WALLET_PRIVATE_KEY': sharedEvmKey });
+    generatedCount++;
+  }
+
+  // Generate private key for non-standard EVM chain (Citrea)
+  if (!readEnvValue('CITREA_TESTNET_WALLET_PRIVATE_KEY')) {
+    const citreaKey = ethers.Wallet.createRandom().privateKey;
+    updateEnvFile({ 'CITREA_TESTNET_WALLET_PRIVATE_KEY': citreaKey });
+    generatedCount++;
   }
 
   if (generatedCount > 0) {
