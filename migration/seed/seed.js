@@ -43,7 +43,7 @@ console.log(`✓ Safety checks passed (env=${currentEnv || 'unset'}, host=${dbHo
 
 const config = {
   user: process.env.SQL_USERNAME || 'sa',
-  password: process.env.SQL_PASSWORD || 'LocalDev123!',
+  password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
   server: process.env.SQL_HOST || 'localhost',
   port: parseInt(process.env.SQL_PORT) || 1433,
   database: process.env.SQL_DB || 'dfx',

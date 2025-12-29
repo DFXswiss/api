@@ -4,14 +4,14 @@ services:
     container_name: dfx-mssql
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=LocalDev123!
+      - MSSQL_SA_PASSWORD=LocalDev2026@SQL
       - MSSQL_PID=Developer
     ports:
       - "1433:1433"
     volumes:
       - mssql_data:/var/opt/mssql
     healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "LocalDev123!" -C -Q "SELECT 1" || exit 1
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "LocalDev2026@SQL" -C -Q "SELECT 1" || exit 1
       interval: 10s
       timeout: 3s
       retries: 10
@@ -25,7 +25,7 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        /opt/mssql-tools18/bin/sqlcmd -S db -U sa -P "LocalDev123!" -C -Q "
+        /opt/mssql-tools18/bin/sqlcmd -S db -U sa -P "LocalDev2026@SQL" -C -Q "
           IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'dfx')
           BEGIN
             CREATE DATABASE dfx
