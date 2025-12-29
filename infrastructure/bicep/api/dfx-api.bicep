@@ -243,11 +243,6 @@ param olkyUser string
 @secure()
 param olkyPassword string
 
-@secure()
-param revolutRefreshToken string
-@secure()
-param revolutClientAssertion string
-
 param letterUrl string
 param letterUser string
 @secure()
@@ -1245,14 +1240,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'OLKY_PASSWORD'
           value: olkyPassword
-        }
-        {
-          name: 'REVOLUT_REFRESH_TOKEN'
-          value: revolutRefreshToken
-        }
-        {
-          name: 'REVOLUT_CLIENT_ASSERTION'
-          value: revolutClientAssertion
         }
         {
           name: 'COIN_GECKO_API_KEY'
