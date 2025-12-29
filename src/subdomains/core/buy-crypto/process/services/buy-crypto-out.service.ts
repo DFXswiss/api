@@ -85,7 +85,7 @@ export class BuyCryptoOutService {
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
 
-          for (const feeId of transaction.usedFees?.split(';')) {
+          for (const feeId of transaction.usedFees?.split(';') ?? []) {
             await this.feeService.increaseTxUsages(
               transaction.amountInChf,
               Number.parseInt(feeId),

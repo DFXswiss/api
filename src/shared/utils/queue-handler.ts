@@ -88,7 +88,9 @@ export class QueueHandler {
         } else {
           await Util.delay(10);
         }
-      } catch {}
+      } catch {
+        // ignore - continue processing queue
+      }
     }
   }
 }

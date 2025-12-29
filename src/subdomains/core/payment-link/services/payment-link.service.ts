@@ -85,7 +85,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     routeLabel?: string,
   ) {
-    const link = Boolean(userId)
+    const link = userId
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId).catch(() => undefined)
       : undefined;
 
@@ -115,7 +115,7 @@ export class PaymentLinkService {
     key?: string,
     externalLinkId?: string,
   ): Promise<PaymentLink[]> {
-    const ownerUserId = Boolean(key)
+    const ownerUserId = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId).then((pl) => pl.route.user.id)
       : userId;
 
@@ -574,7 +574,7 @@ export class PaymentLinkService {
     key?: string,
     routeLabel?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(key)
+    const paymentLink = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
       : await this.getForUserOrPublic(userId, linkId, externalLinkId, externalPaymentId, routeLabel);
 
@@ -627,7 +627,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(key)
+    const paymentLink = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
       : await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
@@ -646,7 +646,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(key)
+    const paymentLink = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
       : await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 

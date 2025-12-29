@@ -266,18 +266,24 @@ export class CryptoService {
 
     try {
       isValid = Verifier.verifySignature(address, message, signature, true);
-    } catch {}
+    } catch {
+      // ignore - try next verification method
+    }
 
     if (!isValid) {
       try {
         isValid = verify(message, address, signature, prefix, true); // ← WICHTIG: electrum=true
-      } catch {}
+      } catch {
+        // ignore - try next verification method
+      }
     }
 
     if (!isValid) {
       try {
         isValid = verify(message, address, signature, prefix);
-      } catch {}
+      } catch {
+        // ignore - verification failed
+      }
     }
 
     return isValid;

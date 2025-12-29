@@ -139,7 +139,7 @@ export class SumsubService {
     const videoData = await this.getVideoData(applicantId);
 
     const identDocuments = [];
-    for (const composition of videoData.videoIdentData?.compositions) {
+    for (const composition of videoData.videoIdentData?.compositions ?? []) {
       const content = await this.callApi<string>(
         `/resources/videoIdent/applicant/${applicantId}/media/${composition.compositionMediaId}`,
         'GET',

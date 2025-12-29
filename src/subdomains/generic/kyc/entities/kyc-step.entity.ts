@@ -338,7 +338,9 @@ export class KycStep extends IEntity {
     if (!this.result) return undefined;
     try {
       return JSON.parse(this.result);
-    } catch {}
+    } catch {
+      // ignore - return raw result if not valid JSON
+    }
 
     return this.result as T;
   }
