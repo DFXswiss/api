@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { ArbitrumService } from 'src/integration/blockchain/arbitrum/arbitrum.service';
-import { PayoutEvmService } from './payout-evm.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PayoutEvmProxyService } from './base/payout-evm-proxy.service';
+import { PayoutEvmFactory } from './payout-evm.factory';
 
 @Injectable()
-export class PayoutArbitrumService extends PayoutEvmService {
-  constructor(arbitrumService: ArbitrumService) {
-    super(arbitrumService);
+export class PayoutArbitrumService extends PayoutEvmProxyService {
+  protected readonly blockchain = Blockchain.ARBITRUM;
+
+  constructor(factory: PayoutEvmFactory) {
+    super(factory);
   }
 }

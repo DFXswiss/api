@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { SepoliaService } from 'src/integration/blockchain/sepolia/sepolia.service';
-import { PayoutEvmService } from './payout-evm.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PayoutEvmProxyService } from './base/payout-evm-proxy.service';
+import { PayoutEvmFactory } from './payout-evm.factory';
 
 @Injectable()
-export class PayoutSepoliaService extends PayoutEvmService {
-  constructor(sepoliaService: SepoliaService) {
-    super(sepoliaService);
+export class PayoutSepoliaService extends PayoutEvmProxyService {
+  protected readonly blockchain = Blockchain.SEPOLIA;
+
+  constructor(factory: PayoutEvmFactory) {
+    super(factory);
   }
 }

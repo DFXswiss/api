@@ -7,7 +7,7 @@ import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
-import { PayoutEvmService } from '../../../../services/payout-evm.service';
+import { IPayoutEvmService } from '../../../../services/base/payout-evm.interface';
 import { PayoutStrategy } from './payout.strategy';
 
 export abstract class EvmStrategy extends PayoutStrategy {
@@ -16,7 +16,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
   private readonly txFees = new AsyncCache<number>(CacheItemResetPeriod.EVERY_30_SECONDS);
 
   constructor(
-    protected readonly payoutEvmService: PayoutEvmService,
+    protected readonly payoutEvmService: IPayoutEvmService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super();

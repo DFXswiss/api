@@ -1,15 +1,18 @@
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { OptimismClient } from 'src/integration/blockchain/optimism/optimism-client';
 import { OptimismService } from 'src/integration/blockchain/optimism/optimism.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PayoutEvmService } from './payout-evm.service';
+import { PayoutEvmProxyService } from './base/payout-evm-proxy.service';
+import { PayoutEvmFactory } from './payout-evm.factory';
 
 @Injectable()
-export class PayoutOptimismService extends PayoutEvmService {
+export class PayoutOptimismService extends PayoutEvmProxyService {
+  protected readonly blockchain = Blockchain.OPTIMISM;
   private readonly optimismClient: OptimismClient;
 
-  constructor(optimismService: OptimismService) {
-    super(optimismService);
+  constructor(factory: PayoutEvmFactory, optimismService: OptimismService) {
+    super(factory);
     this.optimismClient = optimismService.getDefaultClient<OptimismClient>();
   }
 

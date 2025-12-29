@@ -9,6 +9,7 @@ import { PayoutOrder } from './entities/payout-order.entity';
 import { PayoutOrderFactory } from './factories/payout-order.factory';
 import { PayoutController } from './payout.controller';
 import { PayoutOrderRepository } from './repositories/payout-order.repository';
+import { PayoutEvmFactory } from './services/payout-evm.factory';
 import { PayoutArbitrumService } from './services/payout-arbitrum.service';
 import { PayoutBaseService } from './services/payout-base.service';
 import { PayoutBitcoinService } from './services/payout-bitcoin.service';
@@ -88,6 +89,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
   providers: [
     PayoutOrderRepository,
     PayoutOrderFactory,
+    PayoutEvmFactory,
     PayoutLogService,
     PayoutService,
     PayoutBitcoinService,
