@@ -771,8 +771,6 @@ export class Configuration {
       gnosisWalletAddress: process.env.GNOSIS_WALLET_ADDRESS,
       gnosisWalletPrivateKey: process.env.GNOSIS_WALLET_PRIVATE_KEY,
       gnosisApiKey: process.env.ALCHEMY_API_KEY,
-      swapContractAddress: process.env.GNOSIS_SWAP_CONTRACT_ADDRESS,
-      quoteContractAddress: process.env.GNOSIS_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
       ...EVM_CHAINS.bsc,
