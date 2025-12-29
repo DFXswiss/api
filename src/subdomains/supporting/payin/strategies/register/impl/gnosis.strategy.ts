@@ -9,6 +9,10 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { AlchemyStrategy } from './base/alchemy.strategy';
 
+/**
+ * @note Gnosis requires special handling for asset mapping (ETH -> xDAI)
+ * Cannot use GenericAlchemyStrategy due to custom onModuleInit pipeline
+ */
 @Injectable()
 export class GnosisStrategy extends AlchemyStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(GnosisStrategy);
