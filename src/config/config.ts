@@ -961,10 +961,6 @@ export class Configuration {
         clientSecret: process.env.OLKY_CLIENT_SECRET,
       },
     },
-    revolut: {
-      refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
-      clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
-    },
     raiffeisen: {
       credentials: {
         url: process.env.RAIFFEISEN_EBICS_URL,

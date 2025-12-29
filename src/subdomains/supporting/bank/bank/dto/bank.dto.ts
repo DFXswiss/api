@@ -17,7 +17,6 @@ export class BankDto {
 export enum IbanBankName {
   OLKY = 'Olkypay',
   MAERKI = 'Maerki Baumann',
-  REVOLUT = 'Revolut',
   RAIFFEISEN = 'Raiffeisen',
   YAPEAL = 'Yapeal',
 }

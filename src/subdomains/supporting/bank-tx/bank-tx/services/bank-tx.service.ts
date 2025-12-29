@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Observable, Subject } from 'rxjs';
-import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -63,7 +62,6 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.KRAKEN]: TransactionTypeInternal.KRAKEN,
   [BankTxType.SCB]: TransactionTypeInternal.SCB,
   [BankTxType.CHECKOUT_LTD]: TransactionTypeInternal.CHECKOUT_LTD,
-  [BankTxType.REVOLUT_CARD_PAYMENT]: TransactionTypeInternal.REVOLUT_CARD_PAYMENT,
   [BankTxType.BANK_ACCOUNT_FEE]: TransactionTypeInternal.BANK_ACCOUNT_FEE,
   [BankTxType.EXTRAORDINARY_EXPENSES]: TransactionTypeInternal.EXTRAORDINARY_EXPENSES,
   [BankTxType.TEST_FIAT_FIAT]: null,
@@ -89,7 +87,6 @@ export class BankTxService implements OnModuleInit {
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
-    private readonly revolutService: RevolutService,
     private readonly yapealService: YapealService,
     @Inject(forwardRef(() => TransactionService))
     private readonly transactionService: TransactionService,
@@ -151,25 +148,17 @@ export class BankTxService implements OnModuleInit {
   private async checkTransactions(): Promise<void> {
     // Get settings
     const settingKeyOlky = 'lastBankOlkyDate';
-    const settingKeyRevolut = 'lastBankRevolutDate';
     const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
-    const lastModificationTimeRevolut = await this.settingService.get(settingKeyRevolut, new Date(0).toISOString());
 
     const newModificationTime = new Date().toISOString();
 
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
-    const revolutBank = await this.bankService.getBankInternal(IbanBankName.REVOLUT, 'EUR');
 
     // Get bank transactions
     const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
-    const revolutTransactions = await this.revolutService.getRevolutTransactions(
-      lastModificationTimeRevolut,
-      revolutBank.iban,
-    );
-    const allTransactions = olkyTransactions.concat(revolutTransactions);
 
     const multiAccounts = await this.specialAccountService.getMultiAccounts();
-    for (const transaction of allTransactions) {
+    for (const transaction of olkyTransactions) {
       try {
         await this.create(transaction, multiAccounts);
       } catch (e) {
@@ -178,7 +167,6 @@ export class BankTxService implements OnModuleInit {
     }
 
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
-    if (revolutTransactions.length > 0) await this.settingService.set(settingKeyRevolut, newModificationTime);
   }
 
   private async assignTransactions(): Promise<void> {
