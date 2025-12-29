@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import BigNumber from 'bignumber.js';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -12,7 +11,7 @@ import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.ser
 interface NodeBalanceData {
   balance: {
     bitcoin: {
-      input: BigNumber;
+      input: number;
     };
   };
 }
@@ -43,7 +42,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
     return {
       balance: {
         bitcoin: {
-          input: (await this.bitcoinClient?.getBalance()) ?? new BigNumber(0),
+          input: (await this.bitcoinClient?.getBalance()) ?? 0,
         },
       },
     };

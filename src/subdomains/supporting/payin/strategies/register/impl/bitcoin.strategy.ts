@@ -78,7 +78,7 @@ export class BitcoinStrategy extends PollingStrategy {
         txType: this.getTxType(u.address),
         txSequence: u.vout,
         blockHeight: null,
-        amount: u.amount.toNumber(),
+        amount: u.amount,
         asset,
       }));
   }

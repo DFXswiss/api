@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
-import { NodeClient, NodeCommand } from './node-client';
+import { NodeClient } from './node-client';
 
 export interface TransactionHistory {
   address: string;
@@ -24,10 +24,6 @@ export interface TestMempoolResult {
   'reject-reason': string;
 }
 
-type AddressInfoOuterArray = AddressInfoInnerArray[];
-type AddressInfoInnerArray = AddressInfoArray[];
-type AddressInfoArray = [string, number, string];
-
 export class BitcoinClient extends NodeClient {
   get walletAddress(): string {
     return Config.blockchain.default.btcOutput.address;
@@ -43,84 +39,109 @@ export class BitcoinClient extends NodeClient {
     // 135 vByte for a single-input single-output TX
     const feeAmount = (feeRate * 135) / Math.pow(10, 8);
 
-    const sendUtxo = await this.callNode<{ txid: string }>(
-      (c) =>
-        c.call(
-          NodeCommand.SEND,
-          [
-            [{ [addressTo]: this.roundAmount(amount - feeAmount) }],
-            null,
-            'unset',
-            null,
-            { fee_rate: feeRate, inputs: [{ txid: txId, vout: vout }], replaceable: true },
-          ],
-          'number',
-        ),
+    const result = await this.callNode(
+      () =>
+        this.rpc.send([{ [addressTo]: this.roundAmount(amount - feeAmount) }], {
+          feeRate,
+          advancedOptions: {
+            inputs: [{ txid: txId, vout }],
+            replaceable: true,
+          },
+        }),
       true,
     );
 
-    return { outTxId: sendUtxo.txid, feeAmount };
+    return { outTxId: result?.txid ?? '', feeAmount };
   }
 
   async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
-    const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}` }), {});
+    const outputs = payload.map((p) => ({ [p.addressTo]: p.amount }));
 
-    return this.callNode<{ txid: string }>(
-      (c) =>
-        c.call(
-          NodeCommand.SEND,
-          [
-            batch,
-            null,
-            'unset',
-            null,
-            { fee_rate: feeRate, replaceable: true, change_address: Config.blockchain.default.btcOutput.address },
-          ],
-          'number',
-        ),
+    const result = await this.callNode(
+      () =>
+        this.rpc.send(outputs, {
+          feeRate,
+          advancedOptions: {
+            replaceable: true,
+            change_address: Config.blockchain.default.btcOutput.address,
+          },
+        }),
       true,
-    ).then((r) => r.txid);
+    );
+
+    return result?.txid ?? '';
   }
 
   async testMempoolAccept(hex: string): Promise<TestMempoolResult[]> {
-    return this.callNode<TestMempoolResult[]>(
-      (c) => c.call(NodeCommand.TEST_MEMPOOL_ACCEPT, [[hex], null], 'number'),
-      true,
-    );
+    const result = await this.callNode(async () => {
+      const rpcClient = this.getInternalRpcClient();
+      if (!rpcClient) return [];
+      return rpcClient.testmempoolaccept({ rawtxs: [hex] });
+    }, true);
+
+    if (!result || !Array.isArray(result)) {
+      return [{ txid: '', allowed: false, vsize: 0, fees: { base: 0 }, 'reject-reason': 'RPC call failed' }];
+    }
+
+    return result.map((r: any) => ({
+      txid: r.txid ?? '',
+      allowed: r.allowed ?? false,
+      vsize: r.vsize ?? 0,
+      fees: { base: r.fees?.base ?? 0 },
+      'reject-reason': r['reject-reason'] ?? '',
+    }));
   }
 
   async sendSignedTransaction(hex: string): Promise<BlockchainSignedTransactionResponse> {
-    return this.callNode<string>((c) => c.call(NodeCommand.SEND_RAW_TRANSACTION, [hex, null], 'number'), true)
-      .then((r) => ({ hash: r }))
-      .catch((e) => ({
+    try {
+      const txid = await this.callNode(() => this.rpc.sendRawTransaction({ hexstring: hex }), true);
+      return { hash: txid ?? '' };
+    } catch (e) {
+      return {
         error: {
-          code: e.code,
-          message: e.message,
+          code: e.code ?? -1,
+          message: e.message ?? 'Unknown error',
         },
-      }));
+      };
+    }
   }
 
   async getRecentHistory(txCount = 100): Promise<TransactionHistory[]> {
-    return this.callNode<TransactionHistory[]>((c) => c.call('listtransactions', ['*', txCount], 'number'), true);
+    return this.callNode(async () => {
+      const rpcClient = this.getInternalRpcClient();
+      if (!rpcClient) return [];
+      const result = await rpcClient.listtransactions({ label: '*', count: txCount });
+      return (result as TransactionHistory[]) ?? [];
+    }, true);
   }
 
   async isTxComplete(txId: string, minConfirmations?: number): Promise<boolean> {
     const transaction = await this.getTx(txId);
-    return transaction.blockhash && transaction.confirmations > minConfirmations;
+    return transaction !== null && transaction.blockhash !== undefined && transaction.confirmations > (minConfirmations ?? 0);
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    return this.getBalance().then((r) => r.toNumber());
+    return this.getBalance();
   }
 
   // Note: This method only works for all addresses of our wallet
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
-    const outer = await this.callNode<AddressInfoOuterArray>(
-      (c) => c.call(NodeCommand.LIST_ADDRESS_GROUPINGS, [], 'number'),
-      true,
-    );
+    const result = await this.callNode(async () => {
+      const rpcClient = this.getInternalRpcClient();
+      if (!rpcClient) return [];
+      const groupings = await rpcClient.listaddressgroupings();
+      return groupings ?? [];
+    }, true);
 
-    return outer.find((o) => o.find((i) => i[0] === address))?.map((i) => i[1])[0] ?? 0;
+    for (const outer of result) {
+      for (const inner of outer) {
+        if (inner[0] === address) {
+          return inner[1];
+        }
+      }
+    }
+
+    return 0;
   }
 
   // --- UNIMPLEMENTED METHODS --- //
