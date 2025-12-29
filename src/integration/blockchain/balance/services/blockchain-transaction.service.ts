@@ -67,8 +67,8 @@ export class BlockchainTransactionService {
     amount: number,
     asset: Asset | null,
   ): Promise<UnsignedTransactionDto> {
-    const fromPublicKey = new Solana.PublicKey(fromAddress);
-    const toPublicKey = new Solana.PublicKey(toAddress);
+    const fromPublicKey = this.toSolanaPublicKey(fromAddress, 'fromAddress');
+    const toPublicKey = this.toSolanaPublicKey(toAddress, 'toAddress');
 
     const transaction = new Solana.Transaction();
 
@@ -171,6 +171,9 @@ export class BlockchainTransactionService {
     amount: number,
     asset: Asset | null,
   ): Promise<UnsignedTransactionDto> {
+    this.validateTronAddress(fromAddress, 'fromAddress');
+    this.validateTronAddress(toAddress, 'toAddress');
+
     const url = Config.blockchain.tron.tronGatewayUrl;
 
     if (!asset || asset.type === AssetType.COIN) {
@@ -224,7 +227,12 @@ export class BlockchainTransactionService {
   private async broadcastTronTransaction(signedTransaction: string): Promise<BroadcastResultDto> {
     const url = Config.blockchain.tron.tronGatewayUrl;
 
-    const tx = JSON.parse(signedTransaction);
+    let tx: any;
+    try {
+      tx = JSON.parse(signedTransaction);
+    } catch {
+      throw new BadRequestException('Invalid signed transaction format: expected valid JSON');
+    }
 
     const response = await this.http.post<any>(`${url}/wallet/broadcasttransaction`, tx, this.tronHttpConfig());
 
@@ -246,5 +254,21 @@ export class BlockchainTransactionService {
         'Content-Type': 'application/json',
       },
     };
+  }
+
+  // --- Validation Helpers --- //
+
+  private toSolanaPublicKey(address: string, fieldName: string): Solana.PublicKey {
+    try {
+      return new Solana.PublicKey(address);
+    } catch {
+      throw new BadRequestException(`Invalid Solana address for ${fieldName}: ${address}`);
+    }
+  }
+
+  private validateTronAddress(address: string, fieldName: string): void {
+    if (!TronWeb.isAddress(address)) {
+      throw new BadRequestException(`Invalid Tron address for ${fieldName}: ${address}`);
+    }
   }
 }
