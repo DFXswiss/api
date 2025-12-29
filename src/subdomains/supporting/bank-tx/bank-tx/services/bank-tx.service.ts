@@ -198,6 +198,16 @@ export class BankTxService implements OnModuleInit {
     for (const tx of unassignedBankTx) {
       try {
         if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
+          // First check if virtualIban is linked to a specific buy
+          if (tx.virtualIban) {
+            const virtualIban = await this.virtualIbanService.getByIbanWithBuy(tx.virtualIban);
+            if (virtualIban?.buy) {
+              await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: virtualIban.buy.id });
+              continue;
+            }
+          }
+
+          // Fall back to remittanceInfo (bankUsage) matching
           const buy = this.findMatchingBuy(tx, buys);
 
           if (buy) {
