@@ -1,5 +1,5 @@
-import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
+import { InWalletTransaction } from 'src/integration/blockchain/bitcoin/node/node-client';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { BitcoinTransaction, BitcoinUTXO } from 'src/integration/blockchain/bitcoin/node/dto/bitcoin-transaction.dto';
@@ -42,7 +42,7 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
     return this.client.isTxComplete(txId, minConfirmations);
   }
 
-  async getTx(outTxId: string): Promise<InWalletTransaction> {
+  async getTx(outTxId: string): Promise<InWalletTransaction | null> {
     return this.client.getTx(outTxId);
   }
 

@@ -1,5 +1,5 @@
-import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { InWalletTransaction } from './node-client';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';

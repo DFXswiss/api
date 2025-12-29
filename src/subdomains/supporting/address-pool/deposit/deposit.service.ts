@@ -1,4 +1,3 @@
-import { AddressType } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
@@ -106,10 +105,9 @@ export class DepositService {
   private async createBitcoinDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const client = this.bitcoinClient;
     const label = Util.isoDate(new Date());
-    const type = AddressType.P2SH_SEGWIT;
 
     for (let i = 0; i < count; i++) {
-      const address = await client.createAddress(label, type);
+      const address = await client.createAddress(label, 'p2sh-segwit');
       const deposit = Deposit.create(address, [blockchain]);
       await this.depositRepo.save(deposit);
     }

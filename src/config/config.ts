@@ -1,5 +1,6 @@
-import { NetworkName } from '@defichain/jellyfish-network';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+
+export type NetworkName = 'mainnet' | 'testnet' | 'regtest';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConstructorArgs } from 'ccxt';

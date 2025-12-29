@@ -32,7 +32,9 @@ export class PayoutBitcoinService extends PayoutBitcoinBasedService {
     const transaction = await this.client.getTx(payoutTxId);
 
     const isComplete = transaction && transaction.blockhash && transaction.confirmations > 0;
-    const payoutFee = isComplete ? -transaction.fee : 0;
+    // fee is negative in Bitcoin Core for outgoing transactions, so we negate it
+    // Safeguard: if fee is undefined (should not happen for payout txs), default to 0
+    const payoutFee = isComplete ? -(transaction.fee ?? 0) : 0;
 
     return [isComplete, payoutFee];
   }
