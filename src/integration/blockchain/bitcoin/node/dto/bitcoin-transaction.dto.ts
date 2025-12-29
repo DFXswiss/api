@@ -11,6 +11,9 @@ export interface UTXO {
 
 export interface BitcoinUTXO extends UTXO {
   prevoutAddresses: string[];
+  isUnconfirmed?: boolean;
+  feeRate?: number;
+  isNextBlockCandidate?: boolean;
 }
 
 export interface BitcoinTransactionVin {
