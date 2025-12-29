@@ -132,7 +132,11 @@ export class SettingService {
     const customSignUpFeesArray = await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees', []);
 
     const customSignUpFee = customSignUpFeesArray.find((customSignUpFee) => customSignUpFee.label === dto.label);
-    customSignUpFee ? Object.assign(customSignUpFee, dto) : customSignUpFeesArray.push(dto);
+    if (customSignUpFee) {
+      Object.assign(customSignUpFee, dto);
+    } else {
+      customSignUpFeesArray.push(dto);
+    }
 
     await this.setObj<CustomSignUpFeesDto[]>('customSignUpFees', customSignUpFeesArray);
   }
@@ -141,7 +145,11 @@ export class SettingService {
     const disabledProcesses = await this.getDisabledProcesses();
     const index = disabledProcesses.indexOf(dto.process);
 
-    index >= 0 ? disabledProcesses.splice(index, 1) : disabledProcesses.push(dto.process);
+    if (index >= 0) {
+      disabledProcesses.splice(index, 1);
+    } else {
+      disabledProcesses.push(dto.process);
+    }
 
     await this.setObj<Process[]>('disabledProcess', disabledProcesses);
   }

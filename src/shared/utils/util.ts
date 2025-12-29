@@ -501,21 +501,21 @@ export class Util {
     timeout: number,
     catchErrors?: boolean,
   ): Promise<T | undefined> {
-    return new Promise(async (resolve, reject) => {
-      let abort = false;
+    let abort = false;
 
-      // action/error handling
-      const doAction = async () =>
-        action().catch((e) => {
-          if (catchErrors) return undefined;
+    // action/error handling
+    const doAction = async () =>
+      action().catch((e) => {
+        if (catchErrors) return undefined;
 
-          abort = true;
-          reject(e);
-        });
+        abort = true;
+        throw e;
+      });
 
-      // set timer
-      const timer = setTimeout(() => (abort = true), timeout);
+    // set timer
+    const timer = setTimeout(() => (abort = true), timeout);
 
+    try {
       // poll
       let result = await doAction();
       while (!abort && !verify(result)) {
@@ -523,9 +523,10 @@ export class Util {
         result = await doAction();
       }
 
+      return result;
+    } finally {
       clearTimeout(timer);
-      return resolve(result);
-    });
+    }
   }
 
   static async doInBatches<T, U>(list: T[], action: (batch: T[]) => Promise<U>, batchSize: number): Promise<U[]> {

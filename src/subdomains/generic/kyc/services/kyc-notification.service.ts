@@ -46,7 +46,7 @@ export class KycNotificationService {
       relations: { userData: { wallet: true } },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} KYC reminder email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} KYC reminder email(s)`);
 
     for (const entity of entities) {
       try {
@@ -119,7 +119,7 @@ export class KycNotificationService {
           },
         });
       } else {
-        !userData.mail &&
+        if (!userData.mail)
           this.logger.warn(`Failed to send kyc step failed mail for user data ${userData.id}: user has no email`);
       }
 

@@ -32,9 +32,11 @@ export class BuyCryptoWebhookService {
   async triggerWebhook(buyCrypto: BuyCrypto): Promise<void> {
     const extended = await this.extendBuyCrypto(buyCrypto);
 
-    buyCrypto.isCryptoCryptoTransaction
-      ? await this.webhookService.cryptoCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended)
-      : await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended);
+    if (buyCrypto.isCryptoCryptoTransaction) {
+      await this.webhookService.cryptoCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended);
+    } else {
+      await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended);
+    }
   }
 
   async extendBuyCrypto(buyCrypto: BuyCrypto): Promise<BuyCryptoExtended> {

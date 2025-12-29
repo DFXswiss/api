@@ -171,7 +171,7 @@ export class BuyService {
     // save
     const entity = await this.buyRepo.save(buy);
 
-    this.cache && this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
+    if (this.cache) this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
 
     return entity;
   }

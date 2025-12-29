@@ -36,7 +36,7 @@ export class RefRewardNotificationService {
       relations: { user: { userData: true, wallet: true } },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'ref reward' email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} 'ref reward' email(s)`);
 
     for (const entity of entities) {
       try {

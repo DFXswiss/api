@@ -232,7 +232,11 @@ export class PricingService implements OnModuleInit {
 
   private async getRuleFor(item: Active): Promise<PriceRule | undefined> {
     const query = this.priceRuleRepo.createQueryBuilder('rule');
-    isFiat(item) ? query.innerJoin('rule.fiats', 'item') : query.innerJoin('rule.assets', 'item');
+    if (isFiat(item)) {
+      query.innerJoin('rule.fiats', 'item');
+    } else {
+      query.innerJoin('rule.assets', 'item');
+    }
 
     return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }

@@ -82,7 +82,24 @@ export class OCPStickerService {
     const imgAspect = 1;
     const ratioSum = imgAspect + 1;
 
-    return new Promise<Buffer>(async (resolve, reject) => {
+    // Pre-generate all QR codes before entering the Promise
+    const qrBuffers: Map<string, Buffer> = new Map();
+    for (const link of links) {
+      let qrCodeUrl: string;
+      if (mode === StickerQrMode.POS) {
+        qrCodeUrl = posUrls.get(link.uniqueId);
+      } else {
+        const lnurl = LightningHelper.createEncodedLnurlp(link.uniqueId);
+        qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
+      }
+      const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
+        width: 400,
+        margin: 0,
+      });
+      qrBuffers.set(link.uniqueId, Buffer.from(qrCodeDataUrl.split(',')[1], 'base64'));
+    }
+
+    return new Promise<Buffer>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A3', margin: 0 });
         const chunks: Buffer[] = [];
@@ -120,19 +137,7 @@ export class OCPStickerService {
           const x = startX + col * (stickerWidth + stickerSpacing);
           const y = startY + row * (stickerHeight + stickerSpacing);
 
-          // Generate QR code URL based on mode
-          let qrCodeUrl: string;
-          if (mode === StickerQrMode.POS) {
-            qrCodeUrl = posUrls.get(uniqueId);
-          } else {
-            const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
-            qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
-          }
-          const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
-            width: 400,
-            margin: 0,
-          });
-          const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+          const qrBuffer = qrBuffers.get(uniqueId);
 
           // Add Classic (blue) OCP Sticker
           pdf.image(stickerBuffer, x, y, { width: pngWidth, height: stickerHeight + 1 });
@@ -231,7 +236,7 @@ export class OCPStickerService {
     const ocpLogoAspect = 1.31590909; // width / height ratio of the OCP logo
     const leftPartition = 0.532; // Left partition of the sticker
 
-    return new Promise<Buffer>(async (resolve, reject) => {
+    return new Promise<Buffer>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A3', margin: 0 });
         const chunks: Buffer[] = [];

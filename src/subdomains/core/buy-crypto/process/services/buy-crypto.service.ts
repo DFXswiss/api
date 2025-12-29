@@ -390,7 +390,11 @@ export class BuyCryptoService {
 
     // update/reset fields
     const update: Partial<BuyCrypto> = {};
-    route instanceof Buy ? (update.buy = route) : (update.cryptoRoute = route);
+    if (route instanceof Buy) {
+      update.buy = route;
+    } else {
+      update.cryptoRoute = route;
+    }
 
     update.outputAsset = route.asset;
     update.outputReferenceAsset = route.asset;

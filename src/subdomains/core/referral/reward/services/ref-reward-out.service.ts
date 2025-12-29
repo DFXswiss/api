@@ -110,7 +110,7 @@ export class RefRewardOutService {
   private logTransactionsPayouts(transactions: RefReward[]): void {
     const transactionsLogs = transactions.map((tx) => tx.id);
 
-    transactions.length &&
+    if (transactions.length)
       this.logger.info(
         `Paying out ${transactionsLogs.length} reward transaction(s). Transaction ID(s): ${transactionsLogs}`,
       );

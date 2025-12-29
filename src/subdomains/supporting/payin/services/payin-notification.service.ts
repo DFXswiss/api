@@ -39,7 +39,7 @@ export class PayInNotificationService {
       relations: { transaction: { user: { wallet: true }, userData: true }, route: true },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} cryptoInput return email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} cryptoInput return email(s)`);
 
     for (const entity of entities) {
       try {

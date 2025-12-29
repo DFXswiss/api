@@ -54,7 +54,7 @@ export class BuyFiatRegistrationService {
 
     const sellPayIns = await this.filterSellPayIns(newPayIns);
 
-    sellPayIns.length > 0 &&
+    if (sellPayIns.length > 0)
       this.logger.verbose(
         `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s): ${sellPayIns.map(
           (s) => s[0].id,
@@ -83,7 +83,7 @@ export class BuyFiatRegistrationService {
 
     for (const payIn of allPayIns) {
       const relevantRoute = this.findMatchingRoute(payIn, routes);
-      relevantRoute && result.push([payIn, relevantRoute]);
+      if (relevantRoute) result.push([payIn, relevantRoute]);
     }
 
     return result;
