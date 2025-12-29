@@ -136,7 +136,7 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
         default:
           return false;
       }
-    } catch (e) {
+    } catch {
       return false;
     }
   }

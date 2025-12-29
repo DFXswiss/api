@@ -208,7 +208,7 @@ export class LogJobService {
           const liqAddress = this.blockchainRegistryService.getClient(blockchain)?.walletAddress;
 
           return [blockchain, liqAddress];
-        } catch (e) {
+        } catch {
           return [blockchain, undefined];
         }
       }),

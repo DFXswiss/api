@@ -225,7 +225,7 @@ export class Iso20022Service {
       for (const entry of stmt.Ntry) {
         try {
           transactions.push(Iso20022Service.parseCamt053JsonEntry(entry, accountIban));
-        } catch (error) {
+        } catch {
           continue;
         }
       }
