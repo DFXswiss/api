@@ -13,6 +13,7 @@ import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/si
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
 import { GoldskyService } from 'src/integration/goldsky/goldsky.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -53,6 +54,8 @@ export enum Direction {
 }
 
 export abstract class EvmClient extends BlockchainClient {
+  protected readonly logger = new DfxLogger(EvmClient);
+
   readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
   protected readonly goldskyService?: GoldskyService;
@@ -784,22 +787,22 @@ export abstract class EvmClient extends BlockchainClient {
     amount: number,
     nonce?: number,
   ): Promise<string> {
-    console.log(`DEBUG sendToken: fromAddress=${fromAddress}, toAddress=${toAddress}, amount=${amount}`);
+    this.logger.verbose(`sendToken: fromAddress=${fromAddress}, toAddress=${toAddress}, amount=${amount}`);
     const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress));
-    console.log(`DEBUG sendToken: gasLimit=${gasLimit}`);
+    this.logger.verbose(`sendToken: gasLimit=${gasLimit}`);
     const gasPrice = +(await this.getRecommendedGasPrice());
-    console.log(`DEBUG sendToken: gasPrice=${gasPrice}`);
+    this.logger.verbose(`sendToken: gasPrice=${gasPrice}`);
     const currentNonce = await this.getNonce(fromAddress);
-    console.log(`DEBUG sendToken: currentNonce=${currentNonce}`);
+    this.logger.verbose(`sendToken: currentNonce=${currentNonce}`);
     const txNonce = nonce ?? currentNonce;
 
     const token = await this.getTokenByContract(contract);
     const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
-    console.log(`DEBUG sendToken: token=${token.name}, targetAmount=${targetAmount.toString()}`);
+    this.logger.verbose(`sendToken: token=${token.name}, targetAmount=${targetAmount.toString()}`);
 
-    console.log(`DEBUG sendToken: calling contract.transfer...`);
+    this.logger.verbose(`sendToken: calling contract.transfer...`);
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
-    console.log(`DEBUG sendToken: contract.transfer returned, tx.hash=${tx.hash}`);
+    this.logger.verbose(`sendToken: contract.transfer returned, tx.hash=${tx.hash}`);
 
     if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 

@@ -16,7 +16,7 @@ interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt
 }
 
 export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
-  private readonly logger = new DfxLogger(OptimismClient);
+  protected override readonly logger = new DfxLogger(OptimismClient);
 
   private readonly l1Provider: ethers.providers.JsonRpcProvider;
   private readonly l1Wallet: ethers.Wallet;
