@@ -434,6 +434,9 @@ export class TransactionHelper implements OnModuleInit {
     const refundAsset =
       inputCurrency instanceof Asset ? AssetDtoMapper.toDto(inputCurrency) : FiatDtoMapper.toDto(inputCurrency);
 
+    // Get bank details from the refund entity
+    const bankTx = this.getBankTxFromRefundEntity(refundEntity);
+
     return {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       inputAmount: Util.roundReadable(inputAmount, amountType),
@@ -446,7 +449,24 @@ export class TransactionHelper implements OnModuleInit {
       },
       refundAsset,
       refundTarget,
+      bankDetails: bankTx
+        ? {
+            name: bankTx?.name,
+            address: bankTx?.addressLine1,
+            city: bankTx?.addressLine2,
+            country: bankTx?.country,
+            iban: bankTx?.iban,
+            bic: bankTx?.bic,
+          }
+        : undefined,
     };
+  }
+
+  private getBankTxFromRefundEntity(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): BankTx | undefined {
+    if (refundEntity instanceof BankTx) return refundEntity;
+    if (refundEntity instanceof BuyCrypto) return refundEntity.bankTx;
+    if (refundEntity instanceof BankTxReturn) return refundEntity.bankTx;
+    return undefined;
   }
 
   async getTxStatementDetails(
