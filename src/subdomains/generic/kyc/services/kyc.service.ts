@@ -940,22 +940,6 @@ export class KycService {
       : getSumSubReason(reason as SumSubRejectionLabels[]);
   }
 
-  async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<string> {
-    const transaction = await this.getUserByTransactionOrThrow(transactionId, status);
-
-    const user = transaction.user;
-    const kycStep = user.getStepOrThrow(transaction.stepId);
-
-    if (status === IdentStatus.SUCCESS && !kycStep.result) {
-      await this.kycStepRepo.update(...kycStep.finish());
-
-      await this.updateProgress(user, false);
-    }
-
-    const search = new URLSearchParams({ code: user.kycHash, status: kycStep.status });
-    return `${Config.frontend.services}/kyc/redirect?${search.toString()}`;
-  }
-
   // --- STEPPING METHODS --- //
   async getOrCreateStepInternal(
     kycHash: string,

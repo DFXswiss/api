@@ -40,8 +40,6 @@ import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { SignatoryPower } from '../../user/models/user-data/user-data.enum';
-import { IdNowResult } from '../dto/ident-result.dto';
-import { IdentStatus } from '../dto/ident.dto';
 import {
   KycBeneficialData,
   KycContactData,
@@ -420,38 +418,7 @@ export class KycController {
     return this.kycService.updateIdentManual(code, +id, data);
   }
 
-  @Post('ident/:type')
-  @ApiExcludeEndpoint()
-  async identWebhook(@RealIP() ip: string, @Body() data: IdNowResult) {
-    this.checkWebhookIp(ip, data);
-
-    try {
-      await this.kycService.updateIntrumIdent(data);
-    } catch (e) {
-      this.logger.error(`Failed to handle intrum ident webhook call for session ${data.identificationprocess?.id}:`, e);
-      throw new InternalServerErrorException(e.message);
-    }
-  }
-
-  @Get('ident/:type/:channel/:status')
-  @ApiExcludeEndpoint()
-  async identRedirect(
-    @Res() res: Response,
-    @Param('status') status: IdentStatus,
-    @Query('transactionId') transactionId: string,
-  ): Promise<void> {
-    const redirectUri = await this.kycService.updateIdentStatus(transactionId, status);
-    this.allowFrameIntegration(res);
-    res.redirect(307, redirectUri);
-  }
-
   // --- HELPER METHODS --- //
-  private checkWebhookIp(ip: string, data: IdNowResult) {
-    if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
-      this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
-      throw new ForbiddenException('Invalid source IP');
-    }
-  }
 
   private allowFrameIntegration(res: Response) {
     res.removeHeader('X-Frame-Options');
