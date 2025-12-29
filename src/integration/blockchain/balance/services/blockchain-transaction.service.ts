@@ -32,7 +32,16 @@ export class BlockchainTransactionService {
   async createTransaction(dto: CreateTransactionDto): Promise<UnsignedTransactionDto> {
     const { blockchain, fromAddress, toAddress, amount, assetId } = dto;
 
-    const asset = assetId ? await this.assetService.getAssetById(assetId) : null;
+    let asset: Asset | null = null;
+    if (assetId) {
+      asset = await this.assetService.getAssetById(assetId);
+      if (!asset) {
+        throw new BadRequestException(`Asset with ID ${assetId} not found`);
+      }
+      if (asset.blockchain !== blockchain) {
+        throw new BadRequestException(`Asset ${assetId} is not on blockchain ${blockchain}`);
+      }
+    }
 
     if (blockchain === Blockchain.SOLANA) {
       return this.createSolanaTransaction(fromAddress, toAddress, amount, asset);
@@ -189,6 +198,10 @@ export class BlockchainTransactionService {
         this.tronHttpConfig(),
       );
 
+      if (!response?.txID) {
+        throw new BadRequestException(`Failed to create Tron transaction: ${response?.Error || 'Unknown error'}`);
+      }
+
       return {
         rawTransaction: JSON.stringify(response),
         encoding: 'hex',
@@ -215,6 +228,12 @@ export class BlockchainTransactionService {
         },
         this.tronHttpConfig(),
       );
+
+      if (!response?.transaction?.txID) {
+        throw new BadRequestException(
+          `Failed to create Tron token transaction: ${response?.result?.message || 'Unknown error'}`,
+        );
+      }
 
       return {
         rawTransaction: JSON.stringify(response.transaction),
