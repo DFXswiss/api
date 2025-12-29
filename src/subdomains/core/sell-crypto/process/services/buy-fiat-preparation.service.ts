@@ -201,7 +201,7 @@ export class BuyFiatPreparationService {
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
           undefined,
-          IbanBankName.MAERKI,
+          IbanBankName.YAPEAL,
           entity.user,
         );
 
