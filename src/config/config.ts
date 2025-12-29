@@ -256,12 +256,9 @@ export class Configuration {
   };
 
   kyc = {
-    gatewayHost: process.env.KYC_GATEWAY_HOST,
-    auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
-    video: { customer: process.env.KYC_CUSTOMER_VIDEO, apiKey: process.env.KYC_API_KEY_VIDEO },
+    // IDnow integration removed - config keys kept for Sumsub
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
     identFailAfterDays: 30,
-    allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
     reminderAfterDays: 2,
     appToken: process.env.KYC_APP_TOKEN,
     secretKey: process.env.KYC_SECRET_KEY,

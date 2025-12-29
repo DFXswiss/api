@@ -48,13 +48,8 @@ export class KycAdminController {
     await this.kycAdminService.updateKycStep(+id, dto);
   }
 
-  @Put('step/:id/ident')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async syncIdentStep(@Param('id') id: string): Promise<void> {
-    await this.kycAdminService.syncIdentStep(+id);
-  }
+  // IDnow integration removed - endpoint disabled
+  // @Put('step/:id/ident')
 
   @Put('blacklist/ip')
   @ApiBearerAuth()
@@ -99,6 +94,8 @@ export class KycAdminController {
     await this.kycLogService.updateLog(+id, dto);
   }
 
+  // IDnow integration removed - endpoint disabled
+  // File sync still available via kycService.syncIdentFiles() for Sumsub
   @Post('ident/file/sync')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())

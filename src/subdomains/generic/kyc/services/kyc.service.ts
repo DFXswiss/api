@@ -84,7 +84,6 @@ import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
-import { IdentService } from './integration/ident.service';
 import { KycDocumentService } from './integration/kyc-document.service';
 import { SumsubService } from './integration/sum-sub.service';
 import { KycFileService } from './kyc-file.service';
@@ -101,7 +100,6 @@ export class KycService {
   constructor(
     @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
-    private readonly identService: IdentService,
     private readonly financialService: FinancialService,
     private readonly documentService: KycDocumentService,
     private readonly kycStepRepo: KycStepRepository,
@@ -401,11 +399,7 @@ export class KycService {
   }
 
   async syncIdentStep(kycStep: KycStep): Promise<void> {
-    if (!kycStep.isInReview) throw new BadRequestException(`Invalid KYC step status ${kycStep.status}`);
-    if (kycStep.isSumsub) throw new BadRequestException('Ident step sync is only available for IDnow');
-
-    const result = await this.identService.getResult(kycStep);
-    return this.updateIntrumIdent(result);
+    throw new BadRequestException('IDnow integration has been removed. Use Sumsub or Manual ident instead.');
   }
 
   async getInfo(kycHash: string): Promise<KycLevelDto> {
@@ -745,18 +739,8 @@ export class KycService {
   }
 
   async updateIntrumIdent(dto: IdNowResult): Promise<void> {
-    const { id: sessionId, transactionnumber: transactionId, reason } = dto.identificationprocess;
-    if (!sessionId || !transactionId) throw new BadRequestException(`Session data is missing`);
-
-    const result = getIdentResult(dto);
-    if (!result)
-      throw new Error(
-        `Received unknown intrum ident result for transaction ${transactionId}: ${dto.identificationprocess.result}`,
-      );
-
-    this.logger.info(`Received intrum ident webhook call for transaction ${transactionId}: ${result}`);
-
-    await this.updateIdent(IdentType.ID_NOW, transactionId, dto, result, [reason]);
+    this.logger.warn('IDnow webhook called but integration has been removed');
+    throw new BadRequestException('IDnow integration has been removed');
   }
 
   updateSumsubIdent(dto: SumSubWebhookResult): void {
@@ -1171,7 +1155,8 @@ export class KycService {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
           kycStep.sessionId = await this.sumsubService.initiateIdent(user, kycStep);
         } else if (!kycStep.isManual) {
-          throw new InternalServerErrorException('Intrum Ident not possible');
+          // IDnow integration removed - only Sumsub and Manual ident supported
+          throw new BadRequestException('IDnow integration removed. Only Sumsub and Manual ident are supported.');
         }
 
         break;
@@ -1562,11 +1547,13 @@ export class KycService {
     const kycStep = await this.kycStepRepo.findOne({ where: { id: stepId }, relations: { userData: true } });
     if (!kycStep || kycStep.name !== KycStepName.IDENT) throw new NotFoundException('Invalid step');
 
-    const userFiles = await this.documentService.listUserFiles(kycStep.userData.id);
+    // IDnow integration removed - only support Sumsub
+    if (!kycStep.isSumsub) {
+      throw new BadRequestException('File sync only available for Sumsub ident steps');
+    }
 
-    const documents = kycStep.isSumsub
-      ? await this.sumsubService.getDocuments(kycStep)
-      : await this.identService.getDocuments(kycStep);
+    const userFiles = await this.documentService.listUserFiles(kycStep.userData.id);
+    const documents = await this.sumsubService.getDocuments(kycStep);
 
     if (kycStep.isSumsubVideo) {
       documents.push(...(await this.sumsubService.getMedia(kycStep)));

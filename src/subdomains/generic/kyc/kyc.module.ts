@@ -27,7 +27,6 @@ import { StepLogRepository } from './repositories/step-log.repository';
 import { TfaLogRepository } from './repositories/tfa-log.repository';
 import { DilisenseService } from './services/integration/dilisense.service';
 import { FinancialService } from './services/integration/financial.service';
-import { IdentService } from './services/integration/ident.service';
 import { KycDocumentService } from './services/integration/kyc-document.service';
 import { SumsubService } from './services/integration/sum-sub.service';
 import { KycAdminService } from './services/kyc-admin.service';
@@ -72,7 +71,6 @@ import { TfaService } from './services/tfa.service';
     StepLogRepository,
     TfaLogRepository,
     DilisenseService,
-    IdentService,
     FinancialService,
     KycFileService,
     KycLogRepository,
