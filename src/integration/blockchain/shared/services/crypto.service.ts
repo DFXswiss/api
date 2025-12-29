@@ -1,4 +1,3 @@
-import { MainNet } from '@defichain/jellyfish-network';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Verifier } from 'bip322-js';
 import { verify } from 'bitcoinjs-message';
@@ -167,14 +166,14 @@ export class CryptoService {
     if (CryptoService.isArweaveAddress(address)) return [Blockchain.ARWEAVE];
     if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
     if (CryptoService.isRailgunAddress(address)) return [Blockchain.RAILGUN];
-    return [Blockchain.BITCOIN];
+    if (CryptoService.isDefichainAddress(address)) return [Blockchain.DEFICHAIN];
+    return [];
   }
 
   public static getDefaultBlockchainBasedOn(address: string): Blockchain {
     const chains = this.getBlockchainsBasedOn(address);
-    return chains.includes(this.defaultEthereumChain)
-      ? this.defaultEthereumChain
-      : this.getBlockchainsBasedOn(address)[0];
+    if (chains.length === 0) throw new BadRequestException('Unsupported blockchain address');
+    return chains.includes(this.defaultEthereumChain) ? this.defaultEthereumChain : chains[0];
   }
 
   private static isBitcoinAddress(address: string): boolean {
@@ -228,6 +227,10 @@ export class CryptoService {
     return new RegExp(`^(${Config.tronAddressFormat})$`).test(address);
   }
 
+  private static isDefichainAddress(address: string): boolean {
+    return new RegExp(`^(${Config.defichainAddressFormat})$`).test(address);
+  }
+
   // --- SIGNATURE VERIFICATION --- //
   public async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {
     const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
@@ -245,8 +248,6 @@ export class CryptoService {
       if (blockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
       if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
       if (blockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
-      if (blockchain === Blockchain.DEFICHAIN)
-        return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
     } catch (e) {
       if (e instanceof SignatureException) throw new BadRequestException(e.message);
     }
