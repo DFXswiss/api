@@ -51,6 +51,13 @@ export class LiquidityManagementService {
 
   //*** PUBLIC API ***//
 
+  async getPipelineWithOrders(pipelineId: number): Promise<LiquidityManagementPipeline | null> {
+    return this.pipelineRepo.findOne({
+      where: { id: pipelineId },
+      relations: { orders: true },
+    });
+  }
+
   async buyLiquidity(
     assetId: number,
     minAmount: number,
