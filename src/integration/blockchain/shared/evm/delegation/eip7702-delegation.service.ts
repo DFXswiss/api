@@ -130,7 +130,7 @@ export class Eip7702DelegationService {
 
     // 1. Create and sign delegation (deposit -> relayer)
     const delegation = await this.createSignedDelegation(
-      depositViemAccount,
+      depositPrivateKey,
       relayerAccount.address,
       depositAddress,
       chainConfig.chain.id,
@@ -167,20 +167,28 @@ export class Eip7702DelegationService {
       contractAddress: DELEGATOR_ADDRESS,
     });
 
-    // Get gas price with buffer
-    const gasPrice = await publicClient.getGasPrice();
-    const gasPriceWithBuffer = (gasPrice * 120n) / 100n; // 20% buffer
-
     // Estimate gas with 20% buffer (consistent with evm-client.ts pattern)
-    const gasEstimate = await publicClient.estimateGas({
-      account: relayerAccount,
-      to: DELEGATION_MANAGER_ADDRESS,
-      data: redeemData,
-      authorizationList: [authorization],
-    } as any);
+    let gasEstimate: bigint;
+    try {
+      gasEstimate = await publicClient.estimateGas({
+        account: relayerAccount,
+        to: DELEGATION_MANAGER_ADDRESS,
+        data: redeemData,
+        authorizationList: [authorization],
+      } as any);
+    } catch (error) {
+      // Fallback to reasonable default if estimate fails (e.g. rate limit)
+      this.logger.warn(`Gas estimation failed, using default: ${error.message}`);
+      gasEstimate = 150000n; // Conservative estimate for EIP-7702 delegation
+    }
     const gasLimit = (gasEstimate * 120n) / 100n;
 
-    const estimatedGasCost = (gasPriceWithBuffer * gasLimit) / BigInt(1e18);
+    // Use EIP-1559 gas parameters (maxFeePerGas) instead of legacy gasPrice
+    const block = await publicClient.getBlock();
+    const maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
+    const maxFeePerGas = block.baseFeePerGas ? (block.baseFeePerGas * 2n + maxPriorityFeePerGas) : maxPriorityFeePerGas * 2n;
+
+    const estimatedGasCost = (maxFeePerGas * gasLimit) / BigInt(1e18);
     this.logger.verbose(
       `Executing delegation transfer via DelegationManager on ${blockchain}: ${amount} ${token.name} ` +
         `from ${depositAddress} to ${recipient} (gasLimit: ${gasLimit}, estimatedCost: ~${estimatedGasCost} native)`,
@@ -192,7 +200,8 @@ export class Eip7702DelegationService {
       data: redeemData,
       authorizationList: [authorization],
       gas: gasLimit,
-      gasPrice: gasPriceWithBuffer,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
     } as any);
 
     this.logger.info(
@@ -207,7 +216,7 @@ export class Eip7702DelegationService {
    * Create and sign a delegation from deposit account to relayer
    */
   private async createSignedDelegation(
-    depositViemAccount: ReturnType<typeof privateKeyToAccount>,
+    depositPrivateKey: Hex,
     relayerAddress: Address,
     depositAddress: Address,
     chainId: number,
@@ -254,7 +263,7 @@ export class Eip7702DelegationService {
 
     // Sign the delegation
     const signature = await signTypedData({
-      privateKey: depositViemAccount.source as Hex,
+      privateKey: depositPrivateKey,
       domain,
       types,
       primaryType: 'Delegation',
