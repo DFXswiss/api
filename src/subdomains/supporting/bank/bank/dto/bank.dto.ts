@@ -18,7 +18,6 @@ export enum IbanBankName {
   OLKY = 'Olkypay',
   MAERKI = 'Maerki Baumann',
   REVOLUT = 'Revolut',
-  KALEIDO = 'Kaleido',
   RAIFFEISEN = 'Raiffeisen',
   YAPEAL = 'Yapeal',
 }
