@@ -1,7 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { merge } from 'lodash';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
 import { FindOneOptions, In } from 'typeorm';
 import { DepositRoute } from './deposit-route.entity';
@@ -9,17 +9,15 @@ import { DepositRouteRepository } from './deposit-route.repository';
 
 @Injectable()
 export class DepositRouteService {
-  private readonly logger = new DfxLogger(DepositRouteService);
-
   constructor(private readonly depositRouteRepo: DepositRouteRepository) {}
 
   async get(userId: number, id: number): Promise<DepositRoute> {
-    const routes = await this.depositRouteRepo.findOne({
+    const route = await this.depositRouteRepo.findOne({
       where: { id, user: { id: userId } },
       relations: { user: { userData: true } },
     });
-    if (!routes) throw new NotFoundException('Route not found');
-    return routes;
+    if (!route) throw new NotFoundException('Route not found');
+    return route;
   }
 
   async getById(id: number, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute> {
@@ -27,7 +25,7 @@ export class DepositRouteService {
     return this.depositRouteRepo.findOne(merge(defaultOptions, options));
   }
 
-  async getLatest(userId: number): Promise<DepositRoute | null> {
+  async getLatest(userId: number): Promise<DepositRoute | undefined> {
     return this.depositRouteRepo.findOne({
       where: { user: { id: userId } },
       relations: { user: { userData: true } },
@@ -43,24 +41,14 @@ export class DepositRouteService {
     return this.depositRouteRepo.findOne(merge(defaultOptions, options));
   }
 
-  validateLightningRoute(route: DepositRoute): void {
-    if (!route) throw new NotFoundException('Route not found');
-    if (route.deposit.blockchains !== Blockchain.LIGHTNING)
-      throw new BadRequestException('Only Lightning routes are allowed');
-  }
-
   async getPaymentRoute(idOrLabel: string, options?: FindOneOptions<DepositRoute>): Promise<DepositRoute> {
     const isRouteId = !isNaN(+idOrLabel);
     const route = isRouteId
       ? await this.getById(+idOrLabel, options)
       : await this.getByLabel(undefined, idOrLabel, options);
 
-    try {
-      this.validateLightningRoute(route);
-    } catch (e) {
-      this.logger.verbose(`Failed to validate route ${idOrLabel}:`, e);
-      throw new NotFoundException(`Payment route not found`);
-    }
+    if (route?.deposit.blockchains !== Blockchain.LIGHTNING) throw new NotFoundException(`Payment route not found`);
+
     return route;
   }
 
@@ -80,7 +68,7 @@ export class DepositRouteService {
       order: { paymentLinks: { created: 'ASC' } },
     });
 
-    return Array.from(new Map((route.paymentLinks || []).map((l) => [l.id, l])).values());
+    return Util.toUniqueList(route.paymentLinks || [], 'id');
   }
 
   async getPaymentRoutesForPublicName(publicName: string): Promise<DepositRoute[]> {

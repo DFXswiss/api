@@ -139,7 +139,8 @@ export class PaymentLinkService {
       ? await this.depositRouteService.get(userId, dto.routeId)
       : await this.depositRouteService.getLatest(userId);
 
-    this.depositRouteService.validateLightningRoute(route);
+    if (route?.deposit.blockchains !== Blockchain.LIGHTNING)
+      throw new BadRequestException('Only Lightning routes are allowed');
 
     if (dto.externalId) {
       const exists = await this.paymentLinkRepo.existsBy({
@@ -158,7 +159,8 @@ export class PaymentLinkService {
       ? await this.depositRouteService.getByLabel(undefined, dto.route)
       : await this.depositRouteService.getById(+dto.routeId);
 
-    this.depositRouteService.validateLightningRoute(route);
+    if (route?.deposit.blockchains !== Blockchain.LIGHTNING)
+      throw new BadRequestException('Only Lightning routes are allowed');
 
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
