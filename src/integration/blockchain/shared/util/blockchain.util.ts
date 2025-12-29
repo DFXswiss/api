@@ -137,61 +137,33 @@ const TxPaths: { [b in Blockchain]: string } = {
 };
 
 function assetPaths(asset: Asset): string | undefined {
-  switch (asset.blockchain) {
-    case Blockchain.DEFICHAIN:
-      return `tokens/${asset.name}`;
+  if (asset.blockchain === Blockchain.DEFICHAIN) return `tokens/${asset.name}`;
+  if (asset.blockchain === Blockchain.ZANO) return asset.chainId ? `assets?asset_id=${asset.chainId}` : undefined;
+  if (asset.blockchain === Blockchain.TRON) return asset.chainId ? `token20/${asset.chainId}` : undefined;
 
-    case Blockchain.BITCOIN:
-    case Blockchain.LIGHTNING:
-    case Blockchain.MONERO:
-      return undefined;
-
-    case Blockchain.ZANO:
-      return asset.chainId ? `assets?asset_id=${asset.chainId}` : undefined;
-
-    case Blockchain.ETHEREUM:
-    case Blockchain.BINANCE_SMART_CHAIN:
-    case Blockchain.OPTIMISM:
-    case Blockchain.ARBITRUM:
-    case Blockchain.POLYGON:
-    case Blockchain.BASE:
-    case Blockchain.GNOSIS:
-    case Blockchain.CITREA_TESTNET:
-    case Blockchain.SOLANA:
-    case Blockchain.HAQQ:
-    case Blockchain.CARDANO:
-      return asset.chainId ? `token/${asset.chainId}` : undefined;
-
-    case Blockchain.TRON:
-      return asset.chainId ? `token20/${asset.chainId}` : undefined;
+  // Standard EVM chains + Solana + Cardano use token/{chainId}
+  if (EvmBlockchains.includes(asset.blockchain) ||
+      asset.blockchain === Blockchain.SOLANA ||
+      asset.blockchain === Blockchain.CARDANO) {
+    return asset.chainId ? `token/${asset.chainId}` : undefined;
   }
+
+  return undefined;
 }
 
 function addressPaths(blockchain: Blockchain): string | undefined {
-  switch (blockchain) {
-    case Blockchain.LIGHTNING:
-    case Blockchain.MONERO:
-    case Blockchain.ZANO:
-      return undefined;
+  if (blockchain === Blockchain.SOLANA) return 'account';
 
-    case Blockchain.DEFICHAIN:
-    case Blockchain.BITCOIN:
-    case Blockchain.ETHEREUM:
-    case Blockchain.BINANCE_SMART_CHAIN:
-    case Blockchain.OPTIMISM:
-    case Blockchain.ARBITRUM:
-    case Blockchain.POLYGON:
-    case Blockchain.BASE:
-    case Blockchain.GNOSIS:
-    case Blockchain.CITREA_TESTNET:
-    case Blockchain.TRON:
-    case Blockchain.HAQQ:
-    case Blockchain.LIQUID:
-    case Blockchain.ARWEAVE:
-    case Blockchain.CARDANO:
-      return 'address';
-
-    case Blockchain.SOLANA:
-      return 'account';
+  // Standard EVM chains + other blockchains with address explorers
+  if (EvmBlockchains.includes(blockchain) ||
+      blockchain === Blockchain.DEFICHAIN ||
+      blockchain === Blockchain.BITCOIN ||
+      blockchain === Blockchain.TRON ||
+      blockchain === Blockchain.LIQUID ||
+      blockchain === Blockchain.ARWEAVE ||
+      blockchain === Blockchain.CARDANO) {
+    return 'address';
   }
+
+  return undefined;
 }

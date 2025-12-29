@@ -51,103 +51,45 @@ export class CryptoService {
   ): Promise<string | undefined> {
     if (!isValid) return undefined;
 
-    switch (asset.blockchain) {
-      case Blockchain.BITCOIN:
-        return this.bitcoinService.getPaymentRequest(address, amount, label);
+    if (asset.blockchain === Blockchain.BITCOIN) return this.bitcoinService.getPaymentRequest(address, amount, label);
+    if (asset.blockchain === Blockchain.LIGHTNING) return this.lightningService.getInvoiceByLnurlp(address, amount);
+    if (asset.blockchain === Blockchain.SPARK) return this.sparkService.getPaymentRequest(address, amount);
+    if (asset.blockchain === Blockchain.MONERO) return this.moneroService.getPaymentRequest(address, amount);
+    if (asset.blockchain === Blockchain.ZANO) return this.zanoService.getPaymentRequest(address, amount);
+    if (asset.blockchain === Blockchain.SOLANA) return this.solanaService.getPaymentRequest(address, amount);
+    if (asset.blockchain === Blockchain.TRON) return this.tronService.getPaymentRequest(address, amount);
+    if (asset.blockchain === Blockchain.CARDANO) return this.cardanoService.getPaymentRequest(address, amount);
 
-      case Blockchain.LIGHTNING:
-        return this.lightningService.getInvoiceByLnurlp(address, amount);
+    // Standard EVM chains
+    if (EvmBlockchains.includes(asset.blockchain)) return EvmUtil.getPaymentRequest(address, asset, amount);
 
-      case Blockchain.SPARK:
-        return this.sparkService.getPaymentRequest(address, amount);
-
-      case Blockchain.MONERO:
-        return this.moneroService.getPaymentRequest(address, amount);
-
-      case Blockchain.ZANO:
-        return this.zanoService.getPaymentRequest(address, amount);
-
-      case Blockchain.ETHEREUM:
-      case Blockchain.SEPOLIA:
-      case Blockchain.ARBITRUM:
-      case Blockchain.OPTIMISM:
-      case Blockchain.POLYGON:
-      case Blockchain.BASE:
-      case Blockchain.GNOSIS:
-      case Blockchain.HAQQ:
-      case Blockchain.BINANCE_SMART_CHAIN:
-      case Blockchain.CITREA_TESTNET:
-        return EvmUtil.getPaymentRequest(address, asset, amount);
-
-      case Blockchain.SOLANA:
-        return this.solanaService.getPaymentRequest(address, amount);
-
-      case Blockchain.TRON:
-        return this.tronService.getPaymentRequest(address, amount);
-
-      case Blockchain.CARDANO:
-        return this.cardanoService.getPaymentRequest(address, amount);
-
-      default:
-        return undefined;
-    }
+    return undefined;
   }
 
   // --- ADDRESSES --- //
   public static getAddressType(address: string): UserAddressType {
     const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
 
-    switch (blockchain) {
-      case Blockchain.BITCOIN:
-        if (address.startsWith('bc1')) return UserAddressType.BITCOIN_BECH32;
-        return UserAddressType.BITCOIN_LEGACY;
-
-      case Blockchain.LIGHTNING:
-        if (address.startsWith('$')) return UserAddressType.UMA;
-        return LightningHelper.getAddressType(address) as unknown as UserAddressType;
-
-      case Blockchain.SPARK:
-        return UserAddressType.SPARK;
-
-      case Blockchain.MONERO:
-        return UserAddressType.MONERO;
-
-      case Blockchain.ZANO:
-        return UserAddressType.ZANO;
-
-      case Blockchain.ETHEREUM:
-      case Blockchain.SEPOLIA:
-      case Blockchain.BINANCE_SMART_CHAIN:
-      case Blockchain.POLYGON:
-      case Blockchain.ARBITRUM:
-      case Blockchain.OPTIMISM:
-      case Blockchain.BASE:
-      case Blockchain.GNOSIS:
-      case Blockchain.HAQQ:
-      case Blockchain.CITREA_TESTNET:
-        return UserAddressType.EVM;
-
-      case Blockchain.SOLANA:
-        return UserAddressType.SOLANA;
-
-      case Blockchain.TRON:
-        return UserAddressType.TRON;
-
-      case Blockchain.LIQUID:
-        return UserAddressType.LIQUID;
-
-      case Blockchain.ARWEAVE:
-        return UserAddressType.ARWEAVE;
-
-      case Blockchain.CARDANO:
-        return UserAddressType.CARDANO;
-
-      case Blockchain.RAILGUN:
-        return UserAddressType.RAILGUN;
-
-      default:
-        return UserAddressType.OTHER;
+    if (blockchain === Blockchain.BITCOIN) {
+      return address.startsWith('bc1') ? UserAddressType.BITCOIN_BECH32 : UserAddressType.BITCOIN_LEGACY;
     }
+    if (blockchain === Blockchain.LIGHTNING) {
+      return address.startsWith('$') ? UserAddressType.UMA : LightningHelper.getAddressType(address) as unknown as UserAddressType;
+    }
+    if (blockchain === Blockchain.SPARK) return UserAddressType.SPARK;
+    if (blockchain === Blockchain.MONERO) return UserAddressType.MONERO;
+    if (blockchain === Blockchain.ZANO) return UserAddressType.ZANO;
+    if (blockchain === Blockchain.SOLANA) return UserAddressType.SOLANA;
+    if (blockchain === Blockchain.TRON) return UserAddressType.TRON;
+    if (blockchain === Blockchain.LIQUID) return UserAddressType.LIQUID;
+    if (blockchain === Blockchain.ARWEAVE) return UserAddressType.ARWEAVE;
+    if (blockchain === Blockchain.CARDANO) return UserAddressType.CARDANO;
+    if (blockchain === Blockchain.RAILGUN) return UserAddressType.RAILGUN;
+
+    // Standard EVM chains
+    if (EvmBlockchains.includes(blockchain)) return UserAddressType.EVM;
+
+    return UserAddressType.OTHER;
   }
 
   public static getBlockchainsBasedOn(address: string): Blockchain[] {

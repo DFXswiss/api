@@ -1,5 +1,6 @@
 import { Inject, OnModuleInit } from '@nestjs/common';
 import { AssetTransfersWithMetadataResult } from 'alchemy-sdk';
+import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyTransactionDto } from 'src/integration/alchemy/dto/alchemy-transaction.dto';
 import { AlchemyTransactionMapper } from 'src/integration/alchemy/dto/alchemy-transaction.mapper';
 import { AlchemyWebhookActivityDto, AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
@@ -21,6 +22,21 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
   @Inject() protected readonly alchemyService: AlchemyService;
 
   protected abstract getOwnAddresses(): string[];
+
+  onModuleInit() {
+    super.onModuleInit();
+
+    this.addressWebhookMessageQueue = new QueueHandler();
+    this.assetTransfersMessageQueue = new QueueHandler();
+
+    this.alchemyWebhookService
+      .getAddressWebhookObservable(AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(this.blockchain))
+      .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
+
+    this.alchemyService
+      .getAssetTransfersObservable(this.blockchain)
+      .subscribe((at) => this.processAssetTransfersMessageQueue(at));
+  }
 
   // --- WEBHOOKS --- //
 

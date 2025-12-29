@@ -30,6 +30,9 @@ type BlockchainServiceType = EvmService | BitcoinService | MoneroService | ZanoS
 
 @Injectable()
 export class BlockchainRegistryService {
+  private readonly serviceMap: Map<Blockchain, BlockchainServiceType>;
+  private readonly l2ClientMap: Map<Blockchain, () => EvmClient & L2BridgeEvmClient>;
+
   constructor(
     private readonly ethereumService: EthereumService,
     private readonly sepoliaService: SepoliaService,
@@ -46,7 +49,33 @@ export class BlockchainRegistryService {
     private readonly tronService: TronService,
     private readonly cardanoService: CardanoService,
     private readonly citreaTestnetService: CitreaTestnetService,
-  ) {}
+  ) {
+    this.serviceMap = new Map([
+      [Blockchain.ETHEREUM, this.ethereumService],
+      [Blockchain.SEPOLIA, this.sepoliaService],
+      [Blockchain.BINANCE_SMART_CHAIN, this.bscService],
+      [Blockchain.ARBITRUM, this.arbitrumService],
+      [Blockchain.OPTIMISM, this.optimismService],
+      [Blockchain.POLYGON, this.polygonService],
+      [Blockchain.BASE, this.baseService],
+      [Blockchain.GNOSIS, this.gnosisService],
+      [Blockchain.BITCOIN, this.bitcoinService],
+      [Blockchain.MONERO, this.moneroService],
+      [Blockchain.ZANO, this.zanoService],
+      [Blockchain.SOLANA, this.solanaService],
+      [Blockchain.TRON, this.tronService],
+      [Blockchain.CARDANO, this.cardanoService],
+      [Blockchain.CITREA_TESTNET, this.citreaTestnetService],
+    ]);
+
+    this.l2ClientMap = new Map([
+      [Blockchain.ARBITRUM, () => this.arbitrumService.getDefaultClient()],
+      [Blockchain.OPTIMISM, () => this.optimismService.getDefaultClient()],
+      [Blockchain.POLYGON, () => this.polygonService.getDefaultClient()],
+      [Blockchain.BASE, () => this.baseService.getDefaultClient()],
+      [Blockchain.GNOSIS, () => this.gnosisService.getDefaultClient()],
+    ]);
+  }
 
   getClient(blockchain: Blockchain): BlockchainClientType {
     return this.getService(blockchain).getDefaultClient();
@@ -66,58 +95,14 @@ export class BlockchainRegistryService {
   }
 
   getService(blockchain: Blockchain): BlockchainServiceType {
-    switch (blockchain) {
-      case Blockchain.ETHEREUM:
-        return this.ethereumService;
-      case Blockchain.SEPOLIA:
-        return this.sepoliaService;
-      case Blockchain.BINANCE_SMART_CHAIN:
-        return this.bscService;
-      case Blockchain.ARBITRUM:
-        return this.arbitrumService;
-      case Blockchain.OPTIMISM:
-        return this.optimismService;
-      case Blockchain.POLYGON:
-        return this.polygonService;
-      case Blockchain.BASE:
-        return this.baseService;
-      case Blockchain.GNOSIS:
-        return this.gnosisService;
-      case Blockchain.BITCOIN:
-        return this.bitcoinService;
-      case Blockchain.MONERO:
-        return this.moneroService;
-      case Blockchain.ZANO:
-        return this.zanoService;
-      case Blockchain.SOLANA:
-        return this.solanaService;
-      case Blockchain.TRON:
-        return this.tronService;
-      case Blockchain.CARDANO:
-        return this.cardanoService;
-      case Blockchain.CITREA_TESTNET:
-        return this.citreaTestnetService;
-
-      default:
-        throw new Error(`No service found for blockchain ${blockchain}`);
-    }
+    const service = this.serviceMap.get(blockchain);
+    if (!service) throw new Error(`No service found for blockchain ${blockchain}`);
+    return service;
   }
 
   getL2Client(blockchain: Blockchain): EvmClient & L2BridgeEvmClient {
-    switch (blockchain) {
-      case Blockchain.ARBITRUM:
-        return this.arbitrumService.getDefaultClient();
-      case Blockchain.OPTIMISM:
-        return this.optimismService.getDefaultClient();
-      case Blockchain.POLYGON:
-        return this.polygonService.getDefaultClient();
-      case Blockchain.BASE:
-        return this.baseService.getDefaultClient();
-      case Blockchain.GNOSIS:
-        return this.gnosisService.getDefaultClient();
-
-      default:
-        throw new Error(`No l2 client found for blockchain ${blockchain}`);
-    }
+    const clientFactory = this.l2ClientMap.get(blockchain);
+    if (!clientFactory) throw new Error(`No l2 client found for blockchain ${blockchain}`);
+    return clientFactory();
   }
 }
