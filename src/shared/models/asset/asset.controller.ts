@@ -20,7 +20,10 @@ import { UpdateAssetDto } from './dto/update-asset.dto';
 @ApiTags('Asset')
 @Controller('asset')
 export class AssetController {
-  constructor(private assetService: AssetService, private readonly repoFactory: RepositoryFactory) {}
+  constructor(
+    private assetService: AssetService,
+    private readonly repoFactory: RepositoryFactory,
+  ) {}
 
   @Get()
   @ApiBearerAuth()

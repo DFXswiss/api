@@ -272,10 +272,9 @@ export class ZanoClient extends BlockchainClient {
     });
 
     return this.http
-      .post<{ result: { tx_details: { tx_hash: string } } }>(
-        `${Config.blockchain.zano.wallet.url}/json_rpc`,
-        transferParams,
-      )
+      .post<{
+        result: { tx_details: { tx_hash: string } };
+      }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, transferParams)
       .then((r) => this.createSendTransferResult(payoutAmount, r));
   }
 
@@ -304,10 +303,9 @@ export class ZanoClient extends BlockchainClient {
     });
 
     return this.http
-      .post<{ result: { transfers: ZanoGetTransferResultDto[] } }>(
-        `${Config.blockchain.zano.wallet.url}/json_rpc`,
-        params,
-      )
+      .post<{
+        result: { transfers: ZanoGetTransferResultDto[] };
+      }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params)
       .then((r) => (r.result.transfers ? this.mapTransfer(r.result.transfers) : []));
   }
 

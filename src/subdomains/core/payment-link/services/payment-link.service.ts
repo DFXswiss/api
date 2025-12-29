@@ -135,8 +135,8 @@ export class PaymentLinkService {
     const route = dto.route
       ? await this.sellService.getByLabel(userId, dto.route)
       : dto.routeId
-      ? await this.sellService.get(userId, dto.routeId)
-      : await this.sellService.getLatest(userId);
+        ? await this.sellService.get(userId, dto.routeId)
+        : await this.sellService.getLatest(userId);
 
     this.sellService.validateLightningRoute(route);
 
@@ -681,8 +681,8 @@ export class PaymentLinkService {
       scoped == null
         ? paymentLink.configObj
         : scoped
-        ? paymentLink.linkConfigObj
-        : paymentLink.route.userData.paymentLinksConfigObj;
+          ? paymentLink.linkConfigObj
+          : paymentLink.route.userData.paymentLinksConfigObj;
 
     let accessKey = config.accessKeys?.at(0);
     if (!accessKey) {

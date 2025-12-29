@@ -403,8 +403,8 @@ export class UserData extends IEntity {
         this.users.length === 0
           ? UserDataStatus.KYC_ONLY
           : this.users.some((u) => u.status === UserStatus.ACTIVE)
-          ? UserDataStatus.ACTIVE
-          : UserDataStatus.NA,
+            ? UserDataStatus.ACTIVE
+            : UserDataStatus.NA,
       deactivationDate: null,
     };
   }

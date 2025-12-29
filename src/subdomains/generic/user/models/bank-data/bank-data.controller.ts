@@ -13,7 +13,10 @@ import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 @ApiTags('bankData')
 @Controller('bankData')
 export class BankDataController {
-  constructor(private readonly bankDataService: BankDataService, private readonly nameCheckService: NameCheckService) {}
+  constructor(
+    private readonly bankDataService: BankDataService,
+    private readonly nameCheckService: NameCheckService,
+  ) {}
 
   @Put(':id')
   @ApiBearerAuth()

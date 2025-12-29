@@ -14,7 +14,10 @@ import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy
 export abstract class EvmStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(EvmStrategy);
 
-  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
+  constructor(
+    protected readonly payInEvmService: PayInEvmService,
+    protected readonly payInRepo: PayInRepository,
+  ) {
     super();
   }
 

@@ -1182,8 +1182,8 @@ export class KycService {
         user.kycLevel >= KycLevel.LEVEL_50
           ? kycStep.complete()
           : missingCompletedSteps.length === 1
-          ? kycStep.manualReview()
-          : kycStep.onHold();
+            ? kycStep.manualReview()
+            : kycStep.onHold();
 
         break;
     }
@@ -1276,8 +1276,8 @@ export class KycService {
     nationality ??= nationalityStepData?.nationality?.id
       ? await this.countryService.getCountry(nationalityStepData.nationality.id)
       : data.nationality
-      ? await this.countryService.getCountryWithSymbol(data.nationality)
-      : null;
+        ? await this.countryService.getCountryWithSymbol(data.nationality)
+        : null;
 
     if (
       data.birthday &&

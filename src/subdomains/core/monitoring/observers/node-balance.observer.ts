@@ -23,7 +23,10 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
 
   private readonly bitcoinClient: BitcoinClient;
 
-  constructor(monitoringService: MonitoringService, readonly bitcoinService: BitcoinService) {
+  constructor(
+    monitoringService: MonitoringService,
+    readonly bitcoinService: BitcoinService,
+  ) {
     super(monitoringService, 'node', 'balance');
 
     this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);

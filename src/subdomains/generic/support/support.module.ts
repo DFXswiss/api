@@ -11,7 +11,16 @@ import { SupportController } from './support.controller';
 import { SupportService } from './support.service';
 
 @Module({
-  imports: [SharedModule, UserModule, BuyCryptoModule, SellCryptoModule, PayInModule, BankTxModule, KycModule, TransactionModule],
+  imports: [
+    SharedModule,
+    UserModule,
+    BuyCryptoModule,
+    SellCryptoModule,
+    PayInModule,
+    BankTxModule,
+    KycModule,
+    TransactionModule,
+  ],
   controllers: [SupportController],
   providers: [SupportService],
   exports: [],

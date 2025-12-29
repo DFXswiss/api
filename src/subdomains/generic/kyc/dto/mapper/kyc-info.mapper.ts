@@ -66,7 +66,7 @@ export class KycInfoMapper {
       .reduce((map, step) => {
         const key = step.type
           ? `${step.name}-${step.type.replace('Sumsub', '')}`
-          : Array.from(map.keys()).find((k) => k.includes(step.name)) ?? `${step.name}`;
+          : (Array.from(map.keys()).find((k) => k.includes(step.name)) ?? `${step.name}`);
 
         return map.set(key, (map.get(key) ?? []).concat(step));
       }, new Map<string, KycStep[]>());

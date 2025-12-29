@@ -11,7 +11,10 @@ import { PayInBitcoinBasedService } from './base/payin-bitcoin-based.service';
 export class PayInBitcoinService extends PayInBitcoinBasedService {
   private readonly client: BitcoinClient;
 
-  constructor(readonly bitcoinService: BitcoinService, private readonly feeService: BitcoinFeeService) {
+  constructor(
+    readonly bitcoinService: BitcoinService,
+    private readonly feeService: BitcoinFeeService,
+  ) {
     super();
 
     this.client = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);

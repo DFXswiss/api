@@ -357,7 +357,16 @@ export class RealUnitService {
   }
 
   private generateGiroCode(
-    bankInfo: { name: string; street: string; number: string; zip: string; city: string; country: string; iban: string; bic: string },
+    bankInfo: {
+      name: string;
+      street: string;
+      number: string;
+      zip: string;
+      city: string;
+      country: string;
+      iban: string;
+      bic: string;
+    },
     amount: number,
     currency: string,
   ): string {
@@ -534,20 +543,20 @@ ${Config.giroCode.ref}
     };
 
     const message = {
-      "email": data.email,
-      "name": data.name,
-      "type": data.type,
-      "phoneNumber": data.phoneNumber,
-      "birthday": data.birthday,
-      "nationality": data.nationality,
-      "addressStreet": data.addressStreet,
-      "addressPostalCode": data.addressPostalCode,
-      "addressCity": data.addressCity,
-      "addressCountry": data.addressCountry,
-      "swissTaxResidence": data.swissTaxResidence,
-      "registrationDate": data.registrationDate,
-      "walletAddress": data.walletAddress
-    }
+      email: data.email,
+      name: data.name,
+      type: data.type,
+      phoneNumber: data.phoneNumber,
+      birthday: data.birthday,
+      nationality: data.nationality,
+      addressStreet: data.addressStreet,
+      addressPostalCode: data.addressPostalCode,
+      addressCity: data.addressCity,
+      addressCountry: data.addressCountry,
+      swissTaxResidence: data.swissTaxResidence,
+      registrationDate: data.registrationDate,
+      walletAddress: data.walletAddress,
+    };
 
     const signatureToUse = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
     const recoveredAddress = verifyTypedData(domain, types, message, signatureToUse);

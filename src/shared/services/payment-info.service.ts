@@ -21,7 +21,10 @@ import { DisabledProcess, Process } from './process.service';
 
 @Injectable()
 export class PaymentInfoService {
-  constructor(private readonly fiatService: FiatService, private readonly assetService: AssetService) {}
+  constructor(
+    private readonly fiatService: FiatService,
+    private readonly assetService: AssetService,
+  ) {}
 
   async buyCheck<T extends GetBuyPaymentInfoDto | GetBuyQuoteDto | CreateBuyDto>(
     dto: T,

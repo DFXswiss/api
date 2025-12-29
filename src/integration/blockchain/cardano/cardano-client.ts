@@ -306,10 +306,9 @@ export class CardanoClient extends BlockchainClient {
     const url = Config.blockchain.cardano.cardanoApiUrl;
 
     return this.http
-      .get<CardanoTransactionResponse[]>(
-        `${url}/transaction/address/${address}?pageSize=${limit}&offset=0`,
-        this.httpConfig(),
-      )
+      .get<
+        CardanoTransactionResponse[]
+      >(`${url}/transaction/address/${address}?pageSize=${limit}&offset=0`, this.httpConfig())
       .then((trs) => this.mapTransactionResponses(address, trs));
   }
 

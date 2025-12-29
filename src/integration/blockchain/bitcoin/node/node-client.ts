@@ -26,7 +26,10 @@ export abstract class NodeClient extends BlockchainClient {
   private readonly client: ApiClient;
   private readonly queue: QueueHandler;
 
-  constructor(private readonly http: HttpService, private readonly url: string) {
+  constructor(
+    private readonly http: HttpService,
+    private readonly url: string,
+  ) {
     super();
 
     this.client = this.createJellyfishClient();

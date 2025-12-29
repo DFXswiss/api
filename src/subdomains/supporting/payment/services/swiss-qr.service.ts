@@ -45,7 +45,10 @@ interface SwissQRBillTableData {
 
 @Injectable()
 export class SwissQRService {
-  constructor(private readonly assetService: AssetService, private readonly i18n: I18nService) {}
+  constructor(
+    private readonly assetService: AssetService,
+    private readonly i18n: I18nService,
+  ) {}
 
   createQrCode(amount: number, currency: 'CHF', reference: string, bankInfo: BankInfoDto, userData?: UserData): string {
     const data = this.generateQrData(amount, currency, bankInfo, reference, userData);

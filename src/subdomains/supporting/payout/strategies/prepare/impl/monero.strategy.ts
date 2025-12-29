@@ -7,7 +7,10 @@ import { AutoConfirmStrategy } from './base/auto-confirm.strategy';
 
 @Injectable()
 export class MoneroStrategy extends AutoConfirmStrategy {
-  constructor(private readonly assetService: AssetService, payoutOrderRepo: PayoutOrderRepository) {
+  constructor(
+    private readonly assetService: AssetService,
+    payoutOrderRepo: PayoutOrderRepository,
+  ) {
     super(payoutOrderRepo);
   }
 
