@@ -51,7 +51,6 @@ export class BuyCryptoBatchService {
       const search: FindOptionsWhere<BuyCrypto> = {
         outputReferenceAsset: { id: Not(IsNull()) },
         outputAsset: { type: Not(In([AssetType.CUSTOM, AssetType.PRESALE])) },
-        outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
         batch: IsNull(),
         inputReferenceAmountMinusFee: Not(IsNull()),
@@ -129,7 +128,7 @@ export class BuyCryptoBatchService {
           tx.priceStepsObject = [
             ...tx.inputPriceStep,
             PriceStep.create(
-              Config.manualPriceStepSourceName,
+              Config.priceSourceManual,
               tx.inputReferenceAsset,
               tx.outputReferenceAsset.name,
               tx.inputReferenceAmountMinusFee / tx.outputReferenceAmount,
