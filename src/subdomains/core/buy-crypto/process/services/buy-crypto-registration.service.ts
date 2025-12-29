@@ -79,7 +79,7 @@ export class BuyCryptoRegistrationService {
 
     for (const payIn of allPayIns) {
       const relevantRoute = this.findMatchingRoute(payIn, routes);
-      relevantRoute && result.push([payIn, relevantRoute]);
+      if (relevantRoute) result.push([payIn, relevantRoute]);
     }
 
     return result;
