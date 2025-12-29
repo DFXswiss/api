@@ -7,7 +7,10 @@ import { EvmTokenStrategy } from './base/evm-token.strategy';
 
 @Injectable()
 export class BscTokenStrategy extends EvmTokenStrategy {
-  constructor(protected readonly assetService: AssetService, dexBscService: DexBscService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    dexBscService: DexBscService,
+  ) {
     super(dexBscService);
   }
 

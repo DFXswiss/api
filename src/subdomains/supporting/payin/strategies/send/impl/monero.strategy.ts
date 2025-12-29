@@ -14,7 +14,10 @@ import { SendType } from './base/send.strategy';
 export class MoneroStrategy extends BitcoinBasedStrategy {
   protected readonly logger = new DfxLogger(MoneroStrategy);
 
-  constructor(private readonly moneroService: PayInMoneroService, readonly payInRepo: PayInRepository) {
+  constructor(
+    private readonly moneroService: PayInMoneroService,
+    readonly payInRepo: PayInRepository,
+  ) {
     super(moneroService, payInRepo);
   }
 

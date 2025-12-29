@@ -44,7 +44,7 @@ export class BuyCryptoWebhookService {
     const inputReferenceAssetEntity =
       buyCrypto.inputAsset === buyCrypto.inputReferenceAsset
         ? inputAssetEntity
-        : buyCrypto.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(buyCrypto.inputReferenceAsset));
+        : (buyCrypto.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(buyCrypto.inputReferenceAsset)));
     return Object.assign(buyCrypto, { inputAssetEntity, inputReferenceAssetEntity });
   }
 }

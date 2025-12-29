@@ -38,7 +38,7 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
     const transaction = await this.client.getTransaction(payoutTxId);
 
     const isComplete = MoneroHelper.isTransactionComplete(transaction);
-    const payoutFee = isComplete ? transaction.txnFee ?? 0 : 0;
+    const payoutFee = isComplete ? (transaction.txnFee ?? 0) : 0;
 
     return [isComplete, payoutFee];
   }

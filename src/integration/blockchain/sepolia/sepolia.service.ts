@@ -8,8 +8,14 @@ import { SepoliaClient } from './sepolia-client';
 @Injectable()
 export class SepoliaService extends EvmService {
   constructor(http: HttpService, alchemyService: AlchemyService) {
-    const { sepoliaGatewayUrl, sepoliaApiKey, sepoliaWalletPrivateKey, sepoliaChainId, swapContractAddress, quoteContractAddress } =
-      GetConfig().blockchain.sepolia;
+    const {
+      sepoliaGatewayUrl,
+      sepoliaApiKey,
+      sepoliaWalletPrivateKey,
+      sepoliaChainId,
+      swapContractAddress,
+      quoteContractAddress,
+    } = GetConfig().blockchain.sepolia;
 
     super(SepoliaClient, {
       http,

@@ -62,7 +62,11 @@ export class AlchemyService {
     return [AssetTransfersCategory.ERC20];
   }
 
-  async getNativeCoinBalance(chainId: ChainId, address: string, blockTag?: number | 'latest'): Promise<AlchemyBigNumber> {
+  async getNativeCoinBalance(
+    chainId: ChainId,
+    address: string,
+    blockTag?: number | 'latest',
+  ): Promise<AlchemyBigNumber> {
     const alchemy = this.getAlchemy(chainId);
 
     return alchemy.core.getBalance(address, blockTag ?? 'latest');

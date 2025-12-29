@@ -82,7 +82,10 @@ const TfaResponse = { description: '2FA is required' };
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 
-  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
+  constructor(
+    private readonly kycService: KycService,
+    private readonly tfaService: TfaService,
+  ) {}
 
   // --- 2FA --- //
   @Get('2fa')

@@ -17,12 +17,7 @@ export class MockModule {
     // eslint-disable-next-line no-console
     console.log('🔶 MockModule: Loading mock services for local development');
 
-    const mockProviders: Provider[] = [
-      MockHttpService,
-      MockStorageService,
-      MockMailService,
-      MockAlchemyService,
-    ];
+    const mockProviders: Provider[] = [MockHttpService, MockStorageService, MockMailService, MockAlchemyService];
 
     return {
       module: MockModule,

@@ -8,7 +8,10 @@ import { BitcoinBasedStrategy } from './bitcoin-based.strategy';
 import { SendType } from './send.strategy';
 
 export abstract class ZanoStrategy extends BitcoinBasedStrategy {
-  constructor(readonly payInZanoService: PayInZanoService, readonly payInRepo: PayInRepository) {
+  constructor(
+    readonly payInZanoService: PayInZanoService,
+    readonly payInRepo: PayInRepository,
+  ) {
     super(payInZanoService, payInRepo);
   }
 

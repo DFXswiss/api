@@ -33,7 +33,7 @@ export class PayoutZanoService extends PayoutBitcoinBasedService {
     const transaction = await this.zanoService.getTransaction(payoutTxId);
 
     const isComplete = await this.zanoService.isTxComplete(payoutTxId);
-    const payoutFee = isComplete ? transaction.fee ?? 0 : 0;
+    const payoutFee = isComplete ? (transaction.fee ?? 0) : 0;
 
     return [isComplete, payoutFee];
   }

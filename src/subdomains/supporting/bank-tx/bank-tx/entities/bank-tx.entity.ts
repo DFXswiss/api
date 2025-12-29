@@ -392,8 +392,8 @@ export class BankTx extends IEntity {
         return this.iban === targetIban && this.accountIban === sourceIban
           ? this.instructedAmount
           : this.iban === sourceIban && this.accountIban === targetIban
-          ? -this.instructedAmount
-          : 0;
+            ? -this.instructedAmount
+            : 0;
 
       case BankTxType.KRAKEN:
         if (

@@ -59,9 +59,14 @@ export class PdfUtil {
     pdf.text(this.translate('balance.table.headers.balance', language, i18n), marginX + col1Width, y, {
       width: col2Width - 10,
     });
-    pdf.text(this.translate('balance.table.headers.price', language, i18n, { currency }), marginX + col1Width + col2Width, y, {
-      width: col3Width - 10,
-    });
+    pdf.text(
+      this.translate('balance.table.headers.price', language, i18n, { currency }),
+      marginX + col1Width + col2Width,
+      y,
+      {
+        width: col3Width - 10,
+      },
+    );
     pdf.text(
       this.translate('balance.table.headers.value', language, i18n, { currency }),
       marginX + col1Width + col2Width + col3Width,

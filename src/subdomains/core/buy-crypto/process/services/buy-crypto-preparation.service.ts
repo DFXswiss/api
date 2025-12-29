@@ -106,9 +106,8 @@ export class BuyCryptoPreparationService {
           isPayment,
         );
 
-        const { users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames } = await this.amlService.getAmlCheckInput(
-          entity,
-        );
+        const { users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames } =
+          await this.amlService.getAmlCheckInput(entity);
         if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(
@@ -263,8 +262,8 @@ export class BuyCryptoPreparationService {
         const bankIn = entity.bankTx
           ? await this.bankService.getBankByIban(entity.bankTx.accountIban).then((b) => b.name)
           : entity.checkoutTx
-          ? CardBankName.CHECKOUT
-          : undefined;
+            ? CardBankName.CHECKOUT
+            : undefined;
 
         const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,

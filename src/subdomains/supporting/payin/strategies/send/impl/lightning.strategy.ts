@@ -13,7 +13,10 @@ import { SendStrategy, SendType } from './base/send.strategy';
 export class LightningStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(LightningStrategy);
 
-  constructor(private readonly lightningService: PayInLightningService, private readonly payInRepo: PayInRepository) {
+  constructor(
+    private readonly lightningService: PayInLightningService,
+    private readonly payInRepo: PayInRepository,
+  ) {
     super();
   }
 

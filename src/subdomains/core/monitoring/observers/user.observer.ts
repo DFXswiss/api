@@ -20,7 +20,10 @@ interface UserWithout {
 export class UserObserver extends MetricObserver<UserData> {
   protected readonly logger = new DfxLogger(UserObserver);
 
-  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
+  constructor(
+    monitoringService: MonitoringService,
+    private readonly repos: RepositoryFactory,
+  ) {
     super(monitoringService, 'user', 'kyc');
   }
 

@@ -7,7 +7,10 @@ import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class EthereumCoinStrategy extends EvmCoinStrategy {
-  constructor(protected readonly assetService: AssetService, dexEthereumService: DexEthereumService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    dexEthereumService: DexEthereumService,
+  ) {
     super(dexEthereumService);
   }
 
