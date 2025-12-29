@@ -47,7 +47,10 @@ export class AppController {
     [App.SERVICES]: 'https://app.dfx.swiss/',
   };
 
-  constructor(private readonly refService: RefService, private readonly settingService: SettingService) {}
+  constructor(
+    private readonly refService: RefService,
+    private readonly settingService: SettingService,
+  ) {}
 
   @Get()
   @Redirect('swagger')

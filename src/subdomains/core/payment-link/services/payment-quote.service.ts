@@ -74,7 +74,7 @@ export class PaymentQuoteService {
   // --- CRUD --- //
   async getActualQuote(payment: PaymentLinkPayment, transferInfo: TransferInfo): Promise<PaymentQuote | undefined> {
     return transferInfo.quoteUniqueId
-      ? this.getActualQuoteByUniqueId(transferInfo.quoteUniqueId) ?? undefined
+      ? (this.getActualQuoteByUniqueId(transferInfo.quoteUniqueId) ?? undefined)
       : this.getActualQuoteByPaymentId(payment, transferInfo); // fallback for Lightning
   }
 

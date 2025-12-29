@@ -15,7 +15,10 @@ export class DexTronService {
   private readonly nativeCoin = 'TRX';
   private readonly blockchain = Blockchain.TRON;
 
-  constructor(private readonly liquidityOrderRepo: LiquidityOrderRepository, tronService: TronService) {
+  constructor(
+    private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    tronService: TronService,
+  ) {
     this.tronClient = tronService.getDefaultClient();
   }
 

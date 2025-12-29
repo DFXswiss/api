@@ -9,7 +9,10 @@ import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
 export class CardanoTokenStrategy extends CheckLiquidityStrategy {
-  constructor(protected readonly assetService: AssetService, private readonly dexCardanoService: DexCardanoService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    private readonly dexCardanoService: DexCardanoService,
+  ) {
     super();
   }
 

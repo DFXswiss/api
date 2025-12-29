@@ -10,7 +10,10 @@ import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exc
 import { SendStrategy, SendType } from './send.strategy';
 
 export abstract class TronStrategy extends SendStrategy {
-  constructor(protected readonly payInTronService: PayInTronService, protected readonly payInRepo: PayInRepository) {
+  constructor(
+    protected readonly payInTronService: PayInTronService,
+    protected readonly payInRepo: PayInRepository,
+  ) {
     super();
   }
 

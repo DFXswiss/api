@@ -11,7 +11,10 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 export class DexMoneroService {
   private readonly client: MoneroClient;
 
-  constructor(private readonly liquidityOrderRepo: LiquidityOrderRepository, moneroService: MoneroService) {
+  constructor(
+    private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    moneroService: MoneroService,
+  ) {
     this.client = moneroService.getDefaultClient();
   }
 

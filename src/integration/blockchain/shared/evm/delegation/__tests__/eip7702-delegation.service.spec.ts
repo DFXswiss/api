@@ -190,9 +190,9 @@ describe('Eip7702DelegationService', () => {
           decimals: 6,
         });
 
-        await expect(
-          service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 0),
-        ).rejects.toThrow('Invalid transfer amount: 0');
+        await expect(service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 0)).rejects.toThrow(
+          'Invalid transfer amount: 0',
+        );
       });
 
       it('should throw error for negative amount', async () => {
@@ -216,9 +216,9 @@ describe('Eip7702DelegationService', () => {
           decimals: 6,
         });
 
-        await expect(
-          service.transferTokenViaDelegation(validDepositAccount, token, '0x123', 100),
-        ).rejects.toThrow('Invalid recipient address: 0x123');
+        await expect(service.transferTokenViaDelegation(validDepositAccount, token, '0x123', 100)).rejects.toThrow(
+          'Invalid recipient address: 0x123',
+        );
       });
 
       it('should throw error for invalid recipient address - not hex', async () => {
@@ -354,12 +354,7 @@ describe('Eip7702DelegationService', () => {
           name: 'SHIB',
         });
 
-        const txHash = await service.transferTokenViaDelegation(
-          validDepositAccount,
-          token,
-          validRecipient,
-          0.000001,
-        );
+        const txHash = await service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 0.000001);
 
         expect(txHash).toBe('0xmocktxhash123456789');
       });
@@ -373,12 +368,7 @@ describe('Eip7702DelegationService', () => {
           name: 'USDC',
         });
 
-        const txHash = await service.transferTokenViaDelegation(
-          validDepositAccount,
-          token,
-          validRecipient,
-          1000000,
-        );
+        const txHash = await service.transferTokenViaDelegation(validDepositAccount, token, validRecipient, 1000000);
 
         expect(txHash).toBe('0xmocktxhash123456789');
       });
@@ -474,12 +464,7 @@ describe('Eip7702DelegationService', () => {
       });
       const mixedCaseRecipient = '0x742D35Cc6634C0532925a3b844Bc9E7595f2bD78';
 
-      const txHash = await service.transferTokenViaDelegation(
-        validDepositAccount,
-        token,
-        mixedCaseRecipient,
-        100,
-      );
+      const txHash = await service.transferTokenViaDelegation(validDepositAccount, token, mixedCaseRecipient, 100);
 
       expect(txHash).toBe('0xmocktxhash123456789');
     });
@@ -727,16 +712,13 @@ describe('Eip7702DelegationService', () => {
 
       // The second argument to encodeAbiParameters should contain the delegation array
       // with signature field populated from signTypedData mock ('0xsignature')
-      expect(viem.encodeAbiParameters).toHaveBeenCalledWith(
-        expect.any(Array),
-        [
-          expect.arrayContaining([
-            expect.objectContaining({
-              signature: '0xsignature',
-            }),
-          ]),
-        ],
-      );
+      expect(viem.encodeAbiParameters).toHaveBeenCalledWith(expect.any(Array), [
+        expect.arrayContaining([
+          expect.objectContaining({
+            signature: '0xsignature',
+          }),
+        ]),
+      ]);
     });
   });
 

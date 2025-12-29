@@ -146,10 +146,7 @@ export class Eip7702DelegationService {
 
     // 3. Encode execution data using ERC-7579 format: encodePacked(target, value, callData)
     // Format: address (20 bytes) + uint256 (32 bytes) + callData (variable)
-    const executionData = encodePacked(
-      ['address', 'uint256', 'bytes'],
-      [token.chainId as Address, 0n, transferData],
-    );
+    const executionData = encodePacked(['address', 'uint256', 'bytes'], [token.chainId as Address, 0n, transferData]);
 
     // 4. Encode permission context (array of delegations)
     const permissionContext = this.encodePermissionContext([delegation]);
@@ -179,7 +176,9 @@ export class Eip7702DelegationService {
     // Use EIP-1559 gas parameters (maxFeePerGas) instead of legacy gasPrice
     const block = await publicClient.getBlock();
     const maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
-    const maxFeePerGas = block.baseFeePerGas ? (block.baseFeePerGas * 2n + maxPriorityFeePerGas) : maxPriorityFeePerGas * 2n;
+    const maxFeePerGas = block.baseFeePerGas
+      ? block.baseFeePerGas * 2n + maxPriorityFeePerGas
+      : maxPriorityFeePerGas * 2n;
 
     const estimatedGasCost = (maxFeePerGas * gasLimit) / BigInt(1e18);
     this.logger.verbose(

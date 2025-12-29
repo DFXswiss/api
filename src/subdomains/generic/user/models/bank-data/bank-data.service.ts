@@ -371,10 +371,10 @@ export class BankDataService {
     const bankData =
       entity.type === BankDataType.USER
         ? entity
-        : (await this.bankDataRepo.findOne({
+        : ((await this.bankDataRepo.findOne({
             where: { userData: { id: userDataId }, iban: entity.iban },
             relations: { userData: true },
-          })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER }));
+          })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER })));
 
     return this.updateBankDataInternal(bankData, dto);
   }

@@ -14,7 +14,10 @@ import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy
 export abstract class EvmStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(EvmStrategy);
 
-  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
+  constructor(
+    protected readonly payInEvmService: PayInEvmService,
+    protected readonly payInRepo: PayInRepository,
+  ) {
     super();
   }
 
@@ -33,7 +36,9 @@ export abstract class EvmStrategy extends SendStrategy {
 
     for (const payInGroup of [...groups.values()]) {
       try {
-        this.logger.verbose(`DEBUG: payInGroup.status = ${payInGroup.status}, PayInStatus.PREPARED = ${PayInStatus.PREPARED}`);
+        this.logger.verbose(
+          `DEBUG: payInGroup.status = ${payInGroup.status}, PayInStatus.PREPARED = ${PayInStatus.PREPARED}`,
+        );
 
         if (payInGroup.status === PayInStatus.PREPARING) {
           const isReady = await this.checkPreparation(payInGroup);

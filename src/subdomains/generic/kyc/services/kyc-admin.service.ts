@@ -100,7 +100,6 @@ export class KycAdminService {
     await this.kycStepRepo.update(...dto);
   }
 
-
   async resetKyc(userData: UserData, comment: KycError): Promise<void> {
     for (const kycStep of userData.kycSteps) {
       if (

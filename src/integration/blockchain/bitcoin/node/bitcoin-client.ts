@@ -118,7 +118,9 @@ export class BitcoinClient extends NodeClient {
 
   async isTxComplete(txId: string, minConfirmations?: number): Promise<boolean> {
     const transaction = await this.getTx(txId);
-    return transaction !== null && transaction.blockhash !== undefined && transaction.confirmations > (minConfirmations ?? 0);
+    return (
+      transaction !== null && transaction.blockhash !== undefined && transaction.confirmations > (minConfirmations ?? 0)
+    );
   }
 
   async getNativeCoinBalance(): Promise<number> {

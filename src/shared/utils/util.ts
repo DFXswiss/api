@@ -137,15 +137,18 @@ export class Util {
   }
 
   static aggregate<T>(list: T[], key: KeyType<T, string>, value: KeyType<T, number>): { [field: string]: number } {
-    return list.reduce((prev, curr) => {
-      const keyValue = curr[key] as unknown as string;
-      if (prev[keyValue]) {
-        prev[keyValue] += curr[value] as unknown as number;
-      } else {
-        prev[keyValue] = curr[value] as unknown as number;
-      }
-      return prev;
-    }, {} as { [key: string]: number });
+    return list.reduce(
+      (prev, curr) => {
+        const keyValue = curr[key] as unknown as string;
+        if (prev[keyValue]) {
+          prev[keyValue] += curr[value] as unknown as number;
+        } else {
+          prev[keyValue] = curr[value] as unknown as number;
+        }
+        return prev;
+      },
+      {} as { [key: string]: number },
+    );
   }
 
   static groupBy<T, U>(list: T[], key: KeyType<T, U>): Map<U, T[]> {

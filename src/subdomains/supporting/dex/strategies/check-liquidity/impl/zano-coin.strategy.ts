@@ -9,7 +9,10 @@ import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
 export class ZanoCoinStrategy extends CheckLiquidityStrategy {
-  constructor(protected readonly assetService: AssetService, private readonly dexZanoService: DexZanoService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    private readonly dexZanoService: DexZanoService,
+  ) {
     super();
   }
 

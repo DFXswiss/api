@@ -23,7 +23,10 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
   // Limit parallel Bitcoin node calls to prevent overload
   private readonly nodeCallQueue = QueueHandler.createParallelQueueHandler(5);
 
-  constructor(readonly bitcoinService: BitcoinService, private readonly feeService: BitcoinFeeService) {
+  constructor(
+    readonly bitcoinService: BitcoinService,
+    private readonly feeService: BitcoinFeeService,
+  ) {
     super();
 
     this.client = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);

@@ -7,7 +7,10 @@ class QueueItem<T> {
   private resolve: (value: T | PromiseLike<T>) => void;
   private reject: (e: Error) => void;
 
-  constructor(private readonly action: () => Promise<T>, timeout?: number) {
+  constructor(
+    private readonly action: () => Promise<T>,
+    timeout?: number,
+  ) {
     this.promise = new Promise((resolve, reject) => {
       this.resolve = (v) => {
         if (this.timeout) clearTimeout(this.timeout);

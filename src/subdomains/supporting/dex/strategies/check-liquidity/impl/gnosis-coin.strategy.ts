@@ -7,7 +7,10 @@ import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class GnosisCoinStrategy extends EvmCoinStrategy {
-  constructor(protected readonly assetService: AssetService, dexGnosisService: DexGnosisService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    dexGnosisService: DexGnosisService,
+  ) {
     super(dexGnosisService);
   }
 

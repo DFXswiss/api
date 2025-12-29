@@ -10,7 +10,10 @@ import { ZanoStrategy } from './base/zano.strategy';
 export class ZanoTokenStrategy extends ZanoStrategy {
   protected readonly logger = new DfxLogger(ZanoTokenStrategy);
 
-  constructor(readonly payInZanoService: PayInZanoService, readonly payInRepo: PayInRepository) {
+  constructor(
+    readonly payInZanoService: PayInZanoService,
+    readonly payInRepo: PayInRepository,
+  ) {
     super(payInZanoService, payInRepo);
   }
 

@@ -136,8 +136,8 @@ export class PaymentLinkService {
     const route = dto.route
       ? await this.depositRouteService.getByLabel(userId, dto.route)
       : dto.routeId
-      ? await this.depositRouteService.get(userId, dto.routeId)
-      : await this.depositRouteService.getLatest(userId);
+        ? await this.depositRouteService.get(userId, dto.routeId)
+        : await this.depositRouteService.getLatest(userId);
 
     if (route?.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
@@ -684,8 +684,8 @@ export class PaymentLinkService {
       scoped == null
         ? paymentLink.configObj
         : scoped
-        ? paymentLink.linkConfigObj
-        : paymentLink.route.userData.paymentLinksConfigObj;
+          ? paymentLink.linkConfigObj
+          : paymentLink.route.userData.paymentLinksConfigObj;
 
     let accessKey = config.accessKeys?.at(0);
     if (!accessKey) {

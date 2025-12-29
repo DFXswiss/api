@@ -210,13 +210,12 @@ export class RealUnitController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOperation({ summary: 'Register for RealUnit' })
   @ApiOkResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration completed successfully' })
-  @ApiAcceptedResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration accepted, pending manual review' })
+  @ApiAcceptedResponse({
+    type: RealUnitRegistrationResponseDto,
+    description: 'Registration accepted, pending manual review',
+  })
   @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
-  async register(
-    @GetJwt() jwt: JwtPayload,
-    @Body() dto: RealUnitRegistrationDto,
-    @Res() res: Response,
-  ): Promise<void> {
+  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto, @Res() res: Response): Promise<void> {
     const needsReview = await this.realunitService.register(jwt.account, dto);
 
     const response: RealUnitRegistrationResponseDto = {

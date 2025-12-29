@@ -10,7 +10,10 @@ import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-ba
 export class PayoutBitcoinService extends PayoutBitcoinBasedService {
   private readonly client: BitcoinClient;
 
-  constructor(readonly bitcoinService: BitcoinService, private readonly feeService: BitcoinFeeService) {
+  constructor(
+    readonly bitcoinService: BitcoinService,
+    private readonly feeService: BitcoinFeeService,
+  ) {
     super();
 
     this.client = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);

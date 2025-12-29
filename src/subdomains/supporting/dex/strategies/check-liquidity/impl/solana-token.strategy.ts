@@ -9,7 +9,10 @@ import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
 export class SolanaTokenStrategy extends CheckLiquidityStrategy {
-  constructor(protected readonly assetService: AssetService, private readonly dexSolanaService: DexSolanaService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    private readonly dexSolanaService: DexSolanaService,
+  ) {
     super();
   }
 

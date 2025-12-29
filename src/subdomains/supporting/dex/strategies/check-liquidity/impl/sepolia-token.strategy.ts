@@ -7,7 +7,10 @@ import { EvmTokenStrategy } from './base/evm-token.strategy';
 
 @Injectable()
 export class SepoliaTokenStrategy extends EvmTokenStrategy {
-  constructor(protected readonly assetService: AssetService, dexSepoliaService: DexSepoliaService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    dexSepoliaService: DexSepoliaService,
+  ) {
     super(dexSepoliaService);
   }
 

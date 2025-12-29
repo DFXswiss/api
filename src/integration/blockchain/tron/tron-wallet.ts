@@ -15,5 +15,8 @@ export class TronWallet {
     return new TronWallet(privateKey, address);
   }
 
-  constructor(readonly privateKey: string, readonly address: string) {}
+  constructor(
+    readonly privateKey: string,
+    readonly address: string,
+  ) {}
 }

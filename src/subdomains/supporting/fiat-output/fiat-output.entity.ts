@@ -183,8 +183,8 @@ export class FiatOutput extends IEntity {
     return this.bankAccountCurrency === this.currency || !this.originEntity
       ? this.amount
       : this.bankAccountCurrency === 'CHF'
-      ? this.originEntity.amountInChf
-      : this.originEntity.amountInEur;
+        ? this.originEntity.amountInChf
+        : this.originEntity.amountInEur;
   }
 
   get originEntity(): BuyCrypto | BuyFiat | BankTxReturn | undefined {

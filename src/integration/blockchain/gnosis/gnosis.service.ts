@@ -8,8 +8,7 @@ import { GnosisClient } from './gnosis-client';
 @Injectable()
 export class GnosisService extends EvmService {
   constructor(http: HttpService, alchemyService: AlchemyService) {
-    const { gnosisGatewayUrl, gnosisApiKey, gnosisWalletPrivateKey, gnosisChainId } =
-      GetConfig().blockchain.gnosis;
+    const { gnosisGatewayUrl, gnosisApiKey, gnosisWalletPrivateKey, gnosisChainId } = GetConfig().blockchain.gnosis;
 
     super(GnosisClient, {
       http,

@@ -10,7 +10,10 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 export class DexLightningService {
   private readonly lightningClient: LightningClient;
 
-  constructor(private readonly liquidityOrderRepo: LiquidityOrderRepository, lightningService: LightningService) {
+  constructor(
+    private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    lightningService: LightningService,
+  ) {
     this.lightningClient = lightningService.getDefaultClient();
   }
 
