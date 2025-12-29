@@ -204,7 +204,7 @@ export class HistoryService {
           'DESC',
         ) as HistoryDto<T>[];
 
-      case ExportType.COMPACT:
+      case ExportType.COMPACT: {
         const extendedBuyCryptos = buyCryptos.length
           ? await Util.asyncMap(buyCryptos, (b) => this.buyCryptoWebhookService.extendBuyCrypto(b))
           : [];
@@ -221,6 +221,7 @@ export class HistoryService {
           'date',
           'DESC',
         ) as HistoryDto<T>[];
+      }
     }
   }
 

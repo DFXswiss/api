@@ -474,7 +474,7 @@ export class SwissQRService {
     };
 
     switch (transactionType) {
-      case TransactionType.BUY:
+      case TransactionType.BUY: {
         const outputAsset = transaction.buyCrypto?.outputAsset;
 
         return {
@@ -487,8 +487,9 @@ export class SwissQRService {
           fiatAmount: transaction.buyCrypto?.inputAmount,
           ...titleAndDate,
         };
+      }
 
-      case TransactionType.SELL:
+      case TransactionType.SELL: {
         const inputAsset = transaction.buyFiat?.cryptoInput?.asset;
 
         return {
@@ -501,8 +502,9 @@ export class SwissQRService {
           fiatAmount: transaction.buyFiat?.outputAmount,
           ...titleAndDate,
         };
+      }
 
-      case TransactionType.SWAP:
+      case TransactionType.SWAP: {
         const sourceAsset = transaction.buyCrypto?.cryptoInput?.asset;
         const targetAsset = transaction.buyCrypto?.outputAsset;
 
@@ -520,8 +522,9 @@ export class SwissQRService {
           fiatAmount: currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur,
           ...titleAndDate,
         };
+      }
 
-      case TransactionType.REFERRAL:
+      case TransactionType.REFERRAL: {
         const targetBlockchain = transaction.refReward?.targetBlockchain;
         if (!targetBlockchain) throw new Error('Missing blockchain information for referral');
         const asset = await this.assetService.getNativeAsset(targetBlockchain);
@@ -536,6 +539,7 @@ export class SwissQRService {
           fiatAmount: currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur,
           ...titleAndDate,
         };
+      }
 
       default:
         throw new Error('Unsupported transaction type');

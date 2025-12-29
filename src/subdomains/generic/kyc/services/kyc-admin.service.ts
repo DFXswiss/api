@@ -71,12 +71,13 @@ export class KycAdminService {
           await this.kycService.completeCommercialRegister(kycStep.userData);
           break;
 
-        case KycStepName.IDENT:
+        case KycStepName.IDENT: {
           const nationalityData = kycStep.userData
             .getCompletedStepWith(KycStepName.NATIONALITY_DATA)
             ?.getResult<KycNationalityData>();
           await this.kycService.completeIdent(kycStep, undefined, nationalityData);
           break;
+        }
 
         case KycStepName.FINANCIAL_DATA:
           await this.kycService.completeFinancialData(kycStep);

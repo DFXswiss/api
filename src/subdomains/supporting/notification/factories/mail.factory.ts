@@ -258,7 +258,7 @@ export class MailFactory {
           DefaultEmptyLine,
         ];
 
-      default:
+      default: {
         const params = Util.removeNullFields(element.params);
         const translatedParams = this.translateParams(params, lang);
         const text = this.translate(element.key, lang, translatedParams);
@@ -290,6 +290,7 @@ export class MailFactory {
             underline: element.params?.underline,
           },
         ];
+      }
     }
   }
 

@@ -1039,7 +1039,7 @@ export class KycService {
       case KycStepName.STATUTES:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
-      case KycStepName.RECOMMENDATION:
+      case KycStepName.RECOMMENDATION: {
         const recommendationSteps = user.getStepsWith(KycStepName.RECOMMENDATION);
         if (
           (recommendationSteps.some((r) => r.comment?.split(';').includes(KycError.BLOCKED)) ||
@@ -1049,8 +1049,9 @@ export class KycService {
           return { nextStep: undefined };
 
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
+      }
 
-      case KycStepName.IDENT:
+      case KycStepName.IDENT: {
         const identSteps = user.getStepsWith(KycStepName.IDENT);
         if (
           identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)) ||
@@ -1090,8 +1091,9 @@ export class KycService {
             preventDirectEvaluation,
           },
         };
+      }
 
-      case KycStepName.DFX_APPROVAL:
+      case KycStepName.DFX_APPROVAL: {
         const approvalSteps = user.getStepsWith(KycStepName.DFX_APPROVAL);
         if (
           (approvalSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) &&
@@ -1101,6 +1103,7 @@ export class KycService {
           return { nextStep: undefined };
 
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
+      }
 
       default:
         return { nextStep: undefined };
@@ -1145,7 +1148,7 @@ export class KycService {
 
         break;
 
-      case KycStepName.DFX_APPROVAL:
+      case KycStepName.DFX_APPROVAL: {
         const missingCompletedSteps = requiredKycSteps(user).filter((rs) => !user.hasCompletedStep(rs));
 
         user.kycLevel >= KycLevel.LEVEL_50
@@ -1155,6 +1158,7 @@ export class KycService {
             : kycStep.onHold();
 
         break;
+      }
     }
 
     return this.kycStepRepo.save(kycStep);
