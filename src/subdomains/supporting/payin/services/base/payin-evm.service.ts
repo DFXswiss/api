@@ -3,8 +3,9 @@ import { Direction, EvmClient } from 'src/integration/blockchain/shared/evm/evm-
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { IPayInEvmService } from './payin-evm.interface';
 
-export abstract class PayInEvmService {
+export class PayInEvmService implements IPayInEvmService {
   #client: EvmClient;
 
   constructor(protected readonly service: EvmService) {

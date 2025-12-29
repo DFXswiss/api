@@ -50,7 +50,7 @@ export class BlockchainRegistryService {
     private readonly cardanoService: CardanoService,
     private readonly citreaTestnetService: CitreaTestnetService,
   ) {
-    this.serviceMap = new Map([
+    const serviceEntries: Array<[Blockchain, BlockchainServiceType]> = [
       [Blockchain.ETHEREUM, this.ethereumService],
       [Blockchain.SEPOLIA, this.sepoliaService],
       [Blockchain.BINANCE_SMART_CHAIN, this.bscService],
@@ -66,7 +66,8 @@ export class BlockchainRegistryService {
       [Blockchain.TRON, this.tronService],
       [Blockchain.CARDANO, this.cardanoService],
       [Blockchain.CITREA_TESTNET, this.citreaTestnetService],
-    ]);
+    ];
+    this.serviceMap = new Map(serviceEntries);
 
     this.l2ClientMap = new Map([
       [Blockchain.ARBITRUM, () => this.arbitrumService.getDefaultClient()],

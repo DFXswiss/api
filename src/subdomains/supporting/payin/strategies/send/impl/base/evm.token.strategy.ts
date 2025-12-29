@@ -1,13 +1,13 @@
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
-import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
+import { IPayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.interface';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EvmStrategy } from './evm.strategy';
 import { SendGroup, SendType } from './send.strategy';
 
 export abstract class EvmTokenStrategy extends EvmStrategy {
-  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
+  constructor(protected readonly payInEvmService: IPayInEvmService, protected readonly payInRepo: PayInRepository) {
     super(payInEvmService, payInRepo);
   }
 

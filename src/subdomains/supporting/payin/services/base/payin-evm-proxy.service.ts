@@ -3,8 +3,9 @@ import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wall
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PayInEvmFactory } from '../payin-evm.factory';
+import { IPayInEvmService } from './payin-evm.interface';
 
-export abstract class PayInEvmProxyService {
+export abstract class PayInEvmProxyService implements IPayInEvmService {
   protected abstract readonly blockchain: Blockchain;
 
   constructor(protected readonly factory: PayInEvmFactory) {}
@@ -35,5 +36,9 @@ export abstract class PayInEvmProxyService {
     toBlock?: number,
   ): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {
     return this.service.getHistory(address, fromBlock, toBlock);
+  }
+
+  async getCurrentBlockNumber(): Promise<number> {
+    return this.service.getCurrentBlockNumber();
   }
 }

@@ -7,14 +7,14 @@ import {
   PayInStatus,
 } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
-import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
+import { IPayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.interface';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
 
 export abstract class EvmStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(EvmStrategy);
 
-  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
+  constructor(protected readonly payInEvmService: IPayInEvmService, protected readonly payInRepo: PayInRepository) {
     super();
   }
 
