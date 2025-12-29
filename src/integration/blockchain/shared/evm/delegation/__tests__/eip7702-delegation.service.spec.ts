@@ -3,6 +3,8 @@ jest.mock('viem', () => ({
   createPublicClient: jest.fn(() => ({
     getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)), // 20 gwei
     estimateGas: jest.fn().mockResolvedValue(BigInt(200000)), // 200k gas estimate
+    getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }), // 10 gwei base fee
+    estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)), // 1 gwei priority fee
   })),
   createWalletClient: jest.fn(() => ({
     signAuthorization: jest.fn().mockResolvedValue({
@@ -826,6 +828,8 @@ describe('Eip7702DelegationService', () => {
       // Reset publicClient mock with estimateGas
       (viem.createPublicClient as jest.Mock).mockReturnValue({
         getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
       });
 
@@ -924,6 +928,8 @@ describe('Eip7702DelegationService', () => {
       // Reset mocks to default state
       (viem.createPublicClient as jest.Mock).mockReturnValue({
         getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
       });
       (viem.createWalletClient as jest.Mock).mockReturnValue({
@@ -1059,6 +1065,8 @@ describe('Eip7702DelegationService', () => {
     const createDefaultMocks = () => {
       const mockPublicClient = {
         getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
       };
       const mockWalletClient = {
@@ -1095,7 +1103,7 @@ describe('Eip7702DelegationService', () => {
 
     it('should propagate gas estimation errors', async () => {
       const { mockPublicClient, mockWalletClient } = createDefaultMocks();
-      mockPublicClient.getGasPrice.mockRejectedValue(new Error('Failed to estimate gas'));
+      mockPublicClient.estimateGas.mockRejectedValue(new Error('Failed to estimate gas'));
       (viem.createPublicClient as jest.Mock).mockReturnValue(mockPublicClient);
       (viem.createWalletClient as jest.Mock).mockReturnValue(mockWalletClient);
 
@@ -1113,7 +1121,7 @@ describe('Eip7702DelegationService', () => {
 
     it('should propagate RPC connection errors', async () => {
       const { mockPublicClient, mockWalletClient } = createDefaultMocks();
-      mockPublicClient.getGasPrice.mockRejectedValue(new Error('ECONNREFUSED: Connection refused'));
+      mockPublicClient.getBlock.mockRejectedValue(new Error('ECONNREFUSED: Connection refused'));
       (viem.createPublicClient as jest.Mock).mockReturnValue(mockPublicClient);
       (viem.createWalletClient as jest.Mock).mockReturnValue(mockWalletClient);
 
@@ -1191,6 +1199,8 @@ describe('Eip7702DelegationService', () => {
       // Reset mocks to default state after Error Handling tests
       (viem.createPublicClient as jest.Mock).mockReturnValue({
         getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
       });
       (viem.createWalletClient as jest.Mock).mockReturnValue({
@@ -1261,6 +1271,8 @@ describe('Eip7702DelegationService', () => {
       const mockEstimateGas = jest.fn().mockResolvedValue(BigInt(200000));
       const mockPublicClient = {
         getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: mockEstimateGas,
       };
       (viem.createPublicClient as jest.Mock).mockReturnValue(mockPublicClient);
@@ -1286,6 +1298,8 @@ describe('Eip7702DelegationService', () => {
       const baseEstimate = BigInt(200000);
       const mockPublicClient = {
         getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(baseEstimate),
       };
       const mockWalletClient = {
@@ -1323,6 +1337,8 @@ describe('Eip7702DelegationService', () => {
     it('should propagate estimateGas errors', async () => {
       const mockPublicClient = {
         getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockRejectedValue(new Error('execution reverted')),
       };
       const mockWalletClient = {
