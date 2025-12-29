@@ -32,7 +32,7 @@ export function createCustomLiquidityOrder(customValues: Partial<LiquidityOrder>
   entity.type = keys.includes('type') ? type : LiquidityOrderType.PURCHASE;
   entity.context = keys.includes('context') ? context : LiquidityOrderContext.BUY_CRYPTO;
   entity.correlationId = keys.includes('correlationId') ? correlationId : 'CID_01';
-  entity.chain = keys.includes('chain') ? chain : Blockchain.DEFICHAIN;
+  entity.chain = keys.includes('chain') ? chain : Blockchain.BITCOIN;
   entity.referenceAsset = keys.includes('referenceAsset') ? referenceAsset : createCustomAsset({ dexName: 'BTC' });
   entity.referenceAmount = keys.includes('referenceAmount') ? referenceAmount : 1;
   entity.targetAsset = keys.includes('targetAsset') ? targetAsset : createDefaultAsset();

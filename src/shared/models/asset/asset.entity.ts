@@ -82,7 +82,7 @@ export class Asset extends IEntity {
   @Column({ default: false })
   personalIbanEnabled: boolean;
 
-  @Column({ length: 256, default: Blockchain.DEFICHAIN })
+  @Column({ length: 256, default: Blockchain.BITCOIN })
   blockchain: Blockchain;
 
   @Column({ default: false })

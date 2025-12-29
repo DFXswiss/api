@@ -167,7 +167,7 @@ export class CryptoService {
     if (CryptoService.isArweaveAddress(address)) return [Blockchain.ARWEAVE];
     if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
     if (CryptoService.isRailgunAddress(address)) return [Blockchain.RAILGUN];
-    return [Blockchain.DEFICHAIN];
+    return [Blockchain.BITCOIN];
   }
 
   public static getDefaultBlockchainBasedOn(address: string): Blockchain {

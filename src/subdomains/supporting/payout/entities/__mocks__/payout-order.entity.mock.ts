@@ -16,7 +16,7 @@ export function createCustomPayoutOrder(customValues: Partial<PayoutOrder>): Pay
   entity.id = keys.includes('id') ? id : 1;
   entity.context = keys.includes('context') ? context : PayoutOrderContext.BUY_CRYPTO;
   entity.correlationId = keys.includes('correlationId') ? correlationId : 'CID_01';
-  entity.chain = keys.includes('chain') ? chain : Blockchain.DEFICHAIN;
+  entity.chain = keys.includes('chain') ? chain : Blockchain.BITCOIN;
   entity.asset = keys.includes('asset') ? asset : createDefaultAsset();
   entity.amount = keys.includes('amount') ? amount : 1;
   entity.destinationAddress = keys.includes('destinationAddress') ? destinationAddress : 'ADDR_01';
