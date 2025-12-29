@@ -94,7 +94,6 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.MAERKI_BAUMANN]: undefined,
   [Blockchain.OLKYPAY]: undefined,
   [Blockchain.CHECKOUT]: undefined,
-  [Blockchain.KALEIDO]: undefined,
   [Blockchain.SUMIXX]: undefined,
   [Blockchain.YAPEAL]: undefined,
 };
@@ -131,7 +130,6 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.MAERKI_BAUMANN]: undefined,
   [Blockchain.OLKYPAY]: undefined,
   [Blockchain.CHECKOUT]: undefined,
-  [Blockchain.KALEIDO]: undefined,
   [Blockchain.SUMIXX]: undefined,
   [Blockchain.YAPEAL]: undefined,
 };
