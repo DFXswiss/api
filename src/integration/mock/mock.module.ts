@@ -4,7 +4,6 @@ import { MockHttpService } from './services/mock-http.service';
 import { MockStorageService } from './services/mock-storage.service';
 import { MockMailService } from './services/mock-mail.service';
 import { MockAlchemyService } from './services/mock-alchemy.service';
-import { HttpService } from 'src/shared/services/http.service';
 
 @Module({})
 export class MockModule {
@@ -15,6 +14,7 @@ export class MockModule {
       return { module: MockModule };
     }
 
+    // eslint-disable-next-line no-console
     console.log('🔶 MockModule: Loading mock services for local development');
 
     const mockProviders: Provider[] = [
