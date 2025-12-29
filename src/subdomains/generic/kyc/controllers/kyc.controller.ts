@@ -11,7 +11,6 @@ import {
   Put,
   Query,
   Req,
-  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -28,7 +27,7 @@ import {
 } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
-import { Config, GetConfig } from 'src/config/config';
+import { GetConfig } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';

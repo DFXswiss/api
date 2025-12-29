@@ -3,7 +3,6 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -38,14 +37,8 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentResultData, IdentType, NationalityDocType, ValidDocType } from '../dto/ident-result-data.dto';
-import {
-  IdNowReason,
-  IdNowResult,
-  IdentShortResult,
-  getIdNowIdentReason,
-  getIdentResult,
-} from '../dto/ident-result.dto';
-import { IdentDocument, IdentStatus } from '../dto/ident.dto';
+import { IdNowReason, IdNowResult, IdentShortResult, getIdNowIdentReason } from '../dto/ident-result.dto';
+import { IdentDocument } from '../dto/ident.dto';
 import {
   ContactPersonData,
   KycBeneficialData,
@@ -398,7 +391,7 @@ export class KycService {
     }
   }
 
-  async syncIdentStep(kycStep: KycStep): Promise<void> {
+  async syncIdentStep(_kycStep: KycStep): Promise<void> {
     throw new BadRequestException('IDnow integration has been removed. Use Sumsub or Manual ident instead.');
   }
 
@@ -738,7 +731,7 @@ export class KycService {
     );
   }
 
-  async updateIntrumIdent(dto: IdNowResult): Promise<void> {
+  async updateIntrumIdent(_dto: IdNowResult): Promise<void> {
     this.logger.warn('IDnow webhook called but integration has been removed');
     throw new BadRequestException('IDnow integration has been removed');
   }

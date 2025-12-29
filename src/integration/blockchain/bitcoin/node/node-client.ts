@@ -241,7 +241,7 @@ export abstract class NodeClient extends BlockchainClient {
         return { feeRate, vsize: result.vsize };
       }
       return null;
-    } catch (e) {
+    } catch {
       // TX not in mempool (already confirmed or doesn't exist)
       return null;
     }

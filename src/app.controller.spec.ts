@@ -17,7 +17,7 @@ describe('AppController', () => {
       ],
     }).compile();
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     controller = app.get<AppController>(AppController);
   });
 

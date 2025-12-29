@@ -59,7 +59,7 @@ export class GetSellPaymentInfoDto {
   @Transform(Util.sanitize)
   externalTransactionId?: string;
 
-  //eslint-disable-next-line @typescript-eslint/no-inferrable-types
+   
   @ApiPropertyOptional({ description: 'Require an exact price (may take longer)' })
   @IsNotEmpty()
   @IsBoolean()

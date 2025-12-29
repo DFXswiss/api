@@ -50,7 +50,7 @@ export class RefRewardOutService {
         try {
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
-        } catch (e) {
+        } catch {
           this.logger.error(`Failed to initiate ref-reward payout. Transaction ID: ${transaction.id}`);
           // continue with next transaction in case payout initiation failed
           continue;

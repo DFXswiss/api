@@ -118,7 +118,7 @@ describeIfSepolia('EIP-7702 Delegation Integration Tests (Sepolia)', () => {
   const depositAccount = privateKeyToAccount(depositPrivateKey);
   const relayerAccount = privateKeyToAccount(relayerPrivateKey);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let publicClient: any;
 
   beforeAll(() => {
