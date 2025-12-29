@@ -38,7 +38,6 @@ module.exports = tseslint.config(
         },
       ],
       '@typescript-eslint/no-unused-expressions': 'off',
-      'no-async-promise-executor': 'off',
     },
   },
   {
