@@ -872,11 +872,17 @@ export class LogJobService {
   ): { senderPair: BankTx | ExchangeTx; receiverIndex: number } {
     if (!receiverTx.length) return { receiverIndex: undefined, senderPair: undefined };
 
-    (senderTx[0] instanceof BankTx && !reverseSearch) || (!(senderTx[0] instanceof BankTx) && reverseSearch)
-      ? senderTx.sort((a, b) => a.id - b.id)
-      : senderTx.sort((a, b) => b.id - a.id);
+    if ((senderTx[0] instanceof BankTx && !reverseSearch) || (!(senderTx[0] instanceof BankTx) && reverseSearch)) {
+      senderTx.sort((a, b) => a.id - b.id);
+    } else {
+      senderTx.sort((a, b) => b.id - a.id);
+    }
 
-    !reverseSearch ? receiverTx.sort((a, b) => a.id - b.id) : receiverTx.sort((a, b) => b.id - a.id);
+    if (!reverseSearch) {
+      receiverTx.sort((a, b) => a.id - b.id);
+    } else {
+      receiverTx.sort((a, b) => b.id - a.id);
+    }
 
     let receiverIndex = 0;
 
@@ -898,7 +904,11 @@ export class LogJobService {
         receiverIndex++;
       } else {
         if (reverseSearch) {
-          senderTx[0] instanceof BankTx ? senderTx.sort((a, b) => a.id - b.id) : senderTx.sort((a, b) => b.id - a.id);
+          if (senderTx[0] instanceof BankTx) {
+            senderTx.sort((a, b) => a.id - b.id);
+          } else {
+            senderTx.sort((a, b) => b.id - a.id);
+          }
           receiverTx.sort((a, b) => a.id - b.id);
         }
 

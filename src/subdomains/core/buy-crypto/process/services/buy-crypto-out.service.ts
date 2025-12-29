@@ -243,7 +243,7 @@ export class BuyCryptoOutService {
   private logTransactionsPayouts(transactions: BuyCrypto[]): void {
     const transactionsIds = transactions.map((tx) => tx.id);
 
-    transactions.length &&
+    if (transactions.length)
       this.logger.verbose(`Paying out ${transactionsIds.length} transaction(s). Transaction ID(s): ${transactionsIds}`);
   }
 }

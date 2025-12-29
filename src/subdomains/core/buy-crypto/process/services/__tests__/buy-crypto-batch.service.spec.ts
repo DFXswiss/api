@@ -253,12 +253,16 @@ describe('BuyCryptoBatchService', () => {
       .spyOn(pricingService, 'getPrice')
       .mockImplementationOnce(async () => {
         const price = new Price();
-        ((price.price = 10), (price.source = 'EUR'), (price.target = 'BTC'));
+        price.price = 10;
+        price.source = 'EUR';
+        price.target = 'BTC';
         return price;
       })
       .mockImplementationOnce(async () => {
         const price = new Price();
-        ((price.price = 10), (price.source = 'EUR'), (price.target = 'USDT'));
+        price.price = 10;
+        price.source = 'EUR';
+        price.target = 'USDT';
         return price;
       });
 

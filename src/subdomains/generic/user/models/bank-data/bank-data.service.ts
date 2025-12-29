@@ -159,10 +159,13 @@ export class BankDataService {
         errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
       if (existingActive.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN)
         errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
-      if (pendingMergeRequest)
-        pendingMergeRequest.isExpired
-          ? errors.push(BankDataVerificationError.MERGE_EXPIRED)
-          : errors.push(BankDataVerificationError.MERGE_PENDING);
+      if (pendingMergeRequest) {
+        if (pendingMergeRequest.isExpired) {
+          errors.push(BankDataVerificationError.MERGE_EXPIRED);
+        } else {
+          errors.push(BankDataVerificationError.MERGE_PENDING);
+        }
+      }
     }
 
     return errors;

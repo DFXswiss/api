@@ -161,7 +161,7 @@ export class AmlService {
     // verified country
     if (!entity.userData.verifiedCountry) {
       const verifiedCountry = await this.getVerifiedCountry(entity);
-      verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
+      if (verifiedCountry) await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry });
     }
 
     if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist };

@@ -206,9 +206,11 @@ export class PaymentLinkService {
     try {
       return await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
     } catch (e) {
-      e instanceof BadRequestException
-        ? this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment: ${e.message}`)
-        : this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}:`, e);
+      if (e instanceof BadRequestException) {
+        this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment: ${e.message}`);
+      } else {
+        this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}:`, e);
+      }
     }
   }
 
@@ -230,7 +232,7 @@ export class PaymentLinkService {
 
     await this.paymentLinkRepo.save(paymentLink);
 
-    dto.payment &&
+    if (dto.payment)
       paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
 
     return paymentLink;

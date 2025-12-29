@@ -16,7 +16,7 @@ export class DilisenseService {
     onlyPdf = false,
   ): Promise<{ data: DilisenseApiData; pdfData: string }> {
     const params = new URLSearchParams({ names: name });
-    dob && params.set('dob', dob.toLocaleDateString('en-GB'));
+    if (dob) params.set('dob', dob.toLocaleDateString('en-GB'));
 
     const urlEndpoint = isBusiness ? 'checkEntity' : 'checkIndividual';
     const pdfEndpoint = isBusiness ? 'generateEntityReport' : 'generateIndividualReport';

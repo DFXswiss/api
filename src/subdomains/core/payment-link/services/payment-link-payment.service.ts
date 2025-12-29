@@ -240,7 +240,11 @@ export class PaymentLinkPaymentService {
     // auto confirm (DEV only)
     if (Config.environment !== Environment.PRD && paymentLink.configObj.autoConfirmSecs != null) {
       setTimeout(async () => {
-        payment.amount === 0.01 ? payment.cancel() : payment.complete();
+        if (payment.amount === 0.01) {
+          payment.cancel();
+        } else {
+          payment.complete();
+        }
         await this.doSave(payment, true);
       }, paymentLink.configObj.autoConfirmSecs * 1000);
     }

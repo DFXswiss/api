@@ -122,7 +122,7 @@ export abstract class EvmStrategy extends SendStrategy {
   private logInput(payIns: CryptoInput[], type: SendType): void {
     const newPayIns = payIns.filter((p) => p.status !== PayInStatus.PREPARING);
 
-    newPayIns.length > 0 &&
+    if (newPayIns.length > 0)
       this.logger.verbose(
         `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${newPayIns.length} ${this.blockchain} ${
           payIns[0].asset.type
