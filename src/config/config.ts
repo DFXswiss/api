@@ -24,11 +24,6 @@ import { MailOptions } from 'src/subdomains/supporting/notification/services/mai
 import { LoggerOptions } from 'typeorm';
 import { EVM_CHAINS } from './chains.config';
 
-// Helper function to get chain-specific private key with fallback to standard EVM wallet
-const getWalletPrivateKey = (chainSpecific: string | undefined): string | undefined => {
-  return chainSpecific || process.env.STANDARD_EVM_WALLET_PRIVATE_KEY;
-};
-
 export enum Environment {
   LOC = 'loc',
   DEV = 'dev',
@@ -726,7 +721,7 @@ export class Configuration {
       ethGatewayUrl: EVM_CHAINS.ethereum.gatewayUrl,
       ethChainId: EVM_CHAINS.ethereum.chainId,
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
-      ethWalletPrivateKey: getWalletPrivateKey(process.env.ETH_WALLET_PRIVATE_KEY),
+      ethWalletPrivateKey: process.env.STANDARD_EVM_WALLET_PRIVATE_KEY,
       ethApiKey: process.env.ALCHEMY_API_KEY,
     },
     sepolia: {
@@ -734,7 +729,7 @@ export class Configuration {
       sepoliaGatewayUrl: EVM_CHAINS.sepolia.gatewayUrl,
       sepoliaChainId: EVM_CHAINS.sepolia.chainId,
       sepoliaWalletAddress: process.env.SEPOLIA_WALLET_ADDRESS,
-      sepoliaWalletPrivateKey: getWalletPrivateKey(process.env.SEPOLIA_WALLET_PRIVATE_KEY),
+      sepoliaWalletPrivateKey: process.env.STANDARD_EVM_WALLET_PRIVATE_KEY,
       sepoliaApiKey: process.env.ALCHEMY_API_KEY,
     },
     optimism: {
@@ -742,7 +737,7 @@ export class Configuration {
       optimismGatewayUrl: EVM_CHAINS.optimism.gatewayUrl,
       optimismChainId: EVM_CHAINS.optimism.chainId,
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
-      optimismWalletPrivateKey: getWalletPrivateKey(process.env.OPTIMISM_WALLET_PRIVATE_KEY),
+      optimismWalletPrivateKey: process.env.STANDARD_EVM_WALLET_PRIVATE_KEY,
       optimismApiKey: process.env.ALCHEMY_API_KEY,
     },
     arbitrum: {
@@ -750,7 +745,7 @@ export class Configuration {
       arbitrumGatewayUrl: EVM_CHAINS.arbitrum.gatewayUrl,
       arbitrumChainId: EVM_CHAINS.arbitrum.chainId,
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
-      arbitrumWalletPrivateKey: getWalletPrivateKey(process.env.ARBITRUM_WALLET_PRIVATE_KEY),
+      arbitrumWalletPrivateKey: process.env.STANDARD_EVM_WALLET_PRIVATE_KEY,
       arbitrumApiKey: process.env.ALCHEMY_API_KEY,
     },
     polygon: {
@@ -758,7 +753,7 @@ export class Configuration {
       polygonGatewayUrl: EVM_CHAINS.polygon.gatewayUrl,
       polygonChainId: EVM_CHAINS.polygon.chainId,
       polygonWalletAddress: process.env.POLYGON_WALLET_ADDRESS,
-      polygonWalletPrivateKey: getWalletPrivateKey(process.env.POLYGON_WALLET_PRIVATE_KEY),
+      polygonWalletPrivateKey: process.env.STANDARD_EVM_WALLET_PRIVATE_KEY,
       polygonApiKey: process.env.ALCHEMY_API_KEY,
     },
     base: {
@@ -766,7 +761,7 @@ export class Configuration {
       baseGatewayUrl: EVM_CHAINS.base.gatewayUrl,
       baseChainId: EVM_CHAINS.base.chainId,
       baseWalletAddress: process.env.BASE_WALLET_ADDRESS,
-      baseWalletPrivateKey: getWalletPrivateKey(process.env.BASE_WALLET_PRIVATE_KEY),
+      baseWalletPrivateKey: process.env.STANDARD_EVM_WALLET_PRIVATE_KEY,
       baseApiKey: process.env.ALCHEMY_API_KEY,
     },
     gnosis: {
@@ -774,7 +769,7 @@ export class Configuration {
       gnosisGatewayUrl: EVM_CHAINS.gnosis.gatewayUrl,
       gnosisChainId: EVM_CHAINS.gnosis.chainId,
       gnosisWalletAddress: process.env.GNOSIS_WALLET_ADDRESS,
-      gnosisWalletPrivateKey: getWalletPrivateKey(process.env.GNOSIS_WALLET_PRIVATE_KEY),
+      gnosisWalletPrivateKey: process.env.STANDARD_EVM_WALLET_PRIVATE_KEY,
       gnosisApiKey: process.env.ALCHEMY_API_KEY,
     },
     bsc: {
@@ -782,7 +777,7 @@ export class Configuration {
       bscGatewayUrl: EVM_CHAINS.bsc.gatewayUrl,
       bscChainId: EVM_CHAINS.bsc.chainId,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
-      bscWalletPrivateKey: getWalletPrivateKey(process.env.BSC_WALLET_PRIVATE_KEY),
+      bscWalletPrivateKey: process.env.STANDARD_EVM_WALLET_PRIVATE_KEY,
       bscApiKey: process.env.ALCHEMY_API_KEY,
       gasPrice: process.env.BSC_GAS_PRICE,
     },
@@ -791,7 +786,7 @@ export class Configuration {
       citreaTestnetGatewayUrl: EVM_CHAINS.citreaTestnet.gatewayUrl,
       citreaTestnetChainId: EVM_CHAINS.citreaTestnet.chainId,
       citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
-      citreaTestnetWalletPrivateKey: getWalletPrivateKey(process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY),
+      citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
       goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
     },
