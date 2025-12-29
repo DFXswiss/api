@@ -452,18 +452,6 @@
     "olkyPassword": {
       "value": "xxx"
     },
-    "frickUrl": {
-      "value": "https://olbtest.bankfrick.li/webapi/v2"
-    },
-    "frickKey": {
-      "value": "xxx"
-    },
-    "frickPassword": {
-      "value": "xxx"
-    },
-    "frickPrivateKey": {
-      "value": "xxx"
-    },
     "revolutRefreshToken": {
       "value": "xxx"
     },
