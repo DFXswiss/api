@@ -168,19 +168,12 @@ export class Eip7702DelegationService {
     });
 
     // Estimate gas with 20% buffer (consistent with evm-client.ts pattern)
-    let gasEstimate: bigint;
-    try {
-      gasEstimate = await publicClient.estimateGas({
-        account: relayerAccount,
-        to: DELEGATION_MANAGER_ADDRESS,
-        data: redeemData,
-        authorizationList: [authorization],
-      } as any);
-    } catch (error) {
-      // Fallback to reasonable default if estimate fails (e.g. rate limit)
-      this.logger.warn(`Gas estimation failed, using default: ${error.message}`);
-      gasEstimate = 150000n; // Conservative estimate for EIP-7702 delegation
-    }
+    const gasEstimate = await publicClient.estimateGas({
+      account: relayerAccount,
+      to: DELEGATION_MANAGER_ADDRESS,
+      data: redeemData,
+      authorizationList: [authorization],
+    } as any);
     const gasLimit = (gasEstimate * 120n) / 100n;
 
     // Use EIP-1559 gas parameters (maxFeePerGas) instead of legacy gasPrice
