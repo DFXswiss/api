@@ -130,7 +130,7 @@ export class NameCheckService implements OnModuleInit {
     return NameCheckRiskStatus.SANCTIONED;
   }
 
-  async getRiskDataAndUploadPdf(
+  private async getRiskDataAndUploadPdf(
     userData: UserData,
     isBusiness: boolean,
     name: string,
