@@ -36,7 +36,6 @@ export enum BankTxType {
   KRAKEN = 'Kraken',
   SCB = 'SCB',
   CHECKOUT_LTD = 'CheckoutLtd',
-  REVOLUT_CARD_PAYMENT = 'RevolutCardPayment',
   BANK_ACCOUNT_FEE = 'BankAccountFee',
   EXTRAORDINARY_EXPENSES = 'ExtraordinaryExpenses',
   PENDING = 'Pending',

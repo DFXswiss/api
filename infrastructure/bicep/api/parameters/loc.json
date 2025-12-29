@@ -452,12 +452,6 @@
     "olkyPassword": {
       "value": "xxx"
     },
-    "revolutRefreshToken": {
-      "value": "xxx"
-    },
-    "revolutClientAssertion": {
-      "value": "xxx"
-    },
     "letterUrl": {
       "value": "https://sandbox.letterxpress.de/v1"
     },
