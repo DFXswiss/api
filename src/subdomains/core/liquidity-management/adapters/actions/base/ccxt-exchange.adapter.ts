@@ -122,7 +122,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { asset, tradeAsset, minTradeAmount, fullTrade, liquidityLimited } = this.parseBuyParams(order.action.paramMap);
+    const { asset, tradeAsset, minTradeAmount, fullTrade, liquidityLimited, maxPriceDeviation } = this.parseBuyParams(
+      order.action.paramMap,
+    );
 
     const targetAssetEntity = asset
       ? await this.assetService.getAssetByUniqueName(asset)
@@ -139,7 +141,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       );
     }
 
-    const price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity);
+    const price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity, maxPriceDeviation);
 
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
     let maxSellAmount = Util.floor(maxAmount * price, 6);
@@ -211,12 +213,12 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { tradeAsset, liquidityLimited } = this.parseSellParams(order.action.paramMap);
+    const { tradeAsset, liquidityLimited, maxPriceDeviation } = this.parseSellParams(order.action.paramMap);
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
     const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`${this.exchangeService.name}/${tradeAsset}`);
-    await this.getAndCheckTradePrice(order.pipeline.rule.targetAsset, tradeAssetEntity);
+    await this.getAndCheckTradePrice(order.pipeline.rule.targetAsset, tradeAssetEntity, maxPriceDeviation);
 
     const availableBalance = await this.getAvailableTradeBalance(asset, tradeAsset);
     if (order.minAmount > availableBalance)
@@ -276,15 +278,15 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
   }
 
-  private async getAndCheckTradePrice(from: Asset, to: Asset): Promise<number> {
+  private async getAndCheckTradePrice(from: Asset, to: Asset, maxPriceDeviation = 0.05): Promise<number> {
     const price = await this.exchangeService.getCurrentPrice(from.name, to.name);
 
     // price fetch should already throw error if out of range
     const checkPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
 
-    if (Math.abs((price - checkPrice.price) / checkPrice.price) > 0.05)
+    if (Math.abs((price - checkPrice.price) / checkPrice.price) > maxPriceDeviation)
       throw new OrderFailedException(
-        `Trade price out of range: exchange price ${price}, check price ${checkPrice.price}`,
+        `Trade price out of range: exchange price ${price}, check price ${checkPrice.price}, max deviation ${maxPriceDeviation}`,
       );
 
     return price;
@@ -523,16 +525,18 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     minTradeAmount: number;
     fullTrade: boolean;
     liquidityLimited: boolean;
+    maxPriceDeviation?: number;
   } {
     const asset = params.asset as string | undefined;
     const tradeAsset = params.tradeAsset as string | undefined;
     const minTradeAmount = params.minTradeAmount as number | undefined;
     const fullTrade = Boolean(params.fullTrade); // use full trade for directly triggered actions
     const liquidityLimited = Boolean(params.liquidityLimited);
+    const maxPriceDeviation = params.maxPriceDeviation as number | undefined;
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.buy(...) command are invalid.`);
 
-    return { asset, tradeAsset, minTradeAmount, fullTrade, liquidityLimited };
+    return { asset, tradeAsset, minTradeAmount, fullTrade, liquidityLimited, maxPriceDeviation };
   }
 
   private validateSellParams(params: Record<string, unknown>): boolean {
@@ -544,13 +548,18 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
   }
 
-  private parseSellParams(params: Record<string, unknown>): { tradeAsset: string; liquidityLimited: boolean } {
+  private parseSellParams(params: Record<string, unknown>): {
+    tradeAsset: string;
+    liquidityLimited: boolean;
+    maxPriceDeviation?: number;
+  } {
     const tradeAsset = params.tradeAsset as string | undefined;
     const liquidityLimited = Boolean(params.liquidityLimited);
+    const maxPriceDeviation = params.maxPriceDeviation as number | undefined;
 
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.sell(...) command are invalid.`);
 
-    return { tradeAsset, liquidityLimited };
+    return { tradeAsset, liquidityLimited, maxPriceDeviation };
   }
 
   private validateTransferParams(params: Record<string, unknown>): boolean {
