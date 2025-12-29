@@ -50,7 +50,7 @@ export const EVM_CHAINS = {
   },
   bsc: {
     chainId: 56,
-    gatewayUrl: 'https://bsc-dataseed.binance.org',
+    gatewayUrl: 'https://bnb-mainnet.g.alchemy.com/v2',
     swapContractAddress: '0xD99D1c33F9fC3444f8101754aBC46c52416550D1',
     quoteContractAddress: '0x78D78E420Da98ad378D7799bE8f4AF69033EB077',
   },

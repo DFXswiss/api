@@ -407,6 +407,29 @@ async function main() {
     }
   }
 
+  // Derive and set wallet addresses from private keys
+  const wallet = new ethers.Wallet(sharedEvmKey);
+  const sharedEvmAddress = wallet.address;
+
+  const addressesToGenerate = [
+    'ETH_WALLET_ADDRESS',
+    'SEPOLIA_WALLET_ADDRESS',
+    'BSC_WALLET_ADDRESS',
+    'OPTIMISM_WALLET_ADDRESS',
+    'BASE_WALLET_ADDRESS',
+    'ARBITRUM_WALLET_ADDRESS',
+    'POLYGON_WALLET_ADDRESS',
+    'GNOSIS_WALLET_ADDRESS',
+    'CITREA_TESTNET_WALLET_ADDRESS',
+  ];
+
+  for (const addressName of addressesToGenerate) {
+    if (!readEnvValue(addressName)) {
+      updateEnvFile({ [addressName]: sharedEvmAddress });
+      generatedCount++;
+    }
+  }
+
   if (generatedCount > 0) {
     logSuccess(`Generated ${generatedCount} wallet seeds/keys`);
   } else {

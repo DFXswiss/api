@@ -433,6 +433,11 @@ export class AuthService {
       return !dbSignature || signature === dbSignature;
     }
 
+    if (blockchains.includes(Blockchain.DEFICHAIN)) {
+      // DeFiChain wallet, only comparison check (no new registrations)
+      return dbSignature && signature === dbSignature;
+    }
+
     let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
     if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
 

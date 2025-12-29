@@ -4,7 +4,7 @@
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [url:https://app.dfx.swiss/support].",
         "thanks": "Merci beaucoup pour votre confiance",
-        "welcome": "Bonjour {name},",
+        "welcome": "Bonjour {name}",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
         "button": "ou<br>[url:Cliquez ici]",
@@ -354,8 +354,7 @@
         "request": {
             "title": "Confirmer l'e-mail",
             "salutation": "Confirmez votre e-mail",
-            "message": "Cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]",
-            "closing": "Si vous n'avez pas saisi votre courrier dans un autre compte DFX, veuillez contacter immédiatement le service d'assistance à l'adresse [url:https://app.dfx.swiss/support]."
+            "message": "Cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]"
         },
         "added_address": {
             "title": "Adresse ajoutée au compte",
