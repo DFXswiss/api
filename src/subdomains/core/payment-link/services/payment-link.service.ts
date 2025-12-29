@@ -136,8 +136,8 @@ export class PaymentLinkService {
     const route = dto.route
       ? await this.depositRouteService.getByLabel(userId, dto.route)
       : dto.routeId
-        ? await this.depositRouteService.get(userId, dto.routeId)
-        : await this.depositRouteService.getLatest(userId);
+      ? await this.depositRouteService.get(userId, dto.routeId)
+      : await this.depositRouteService.getLatest(userId);
 
     if (route?.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
