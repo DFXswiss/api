@@ -344,7 +344,7 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
 
       it('fails to get strategy for non-supported AssetCategory', () => {
         const strategy = registry.getPurchaseLiquidityStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: 'NewCategory' as AssetCategory }),
+          createCustomAsset({ blockchain: Blockchain.BITCOIN, category: 'NewCategory' as AssetCategory }),
         );
 
         expect(strategy).toBeUndefined();
