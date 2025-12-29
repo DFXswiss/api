@@ -173,11 +173,12 @@ export abstract class NodeClient extends BlockchainClient {
     return address;
   }
 
-  async getUtxo(): Promise<UTXO[]> {
+  async getUtxo(includeUnconfirmed = false): Promise<UTXO[]> {
     return this.callNode(async () => {
       const rpcClient = this.getInternalRpcClient();
       if (!rpcClient) return [];
-      const result = await rpcClient.listunspent({});
+      const minConf = includeUnconfirmed ? 0 : 1;
+      const result = await rpcClient.listunspent({ minconf: minConf });
       return (result as UTXO[]) ?? [];
     }, true);
   }
@@ -201,6 +202,44 @@ export abstract class NodeClient extends BlockchainClient {
     const result = await this.callNode(() => this.rpc.send(outputs), true);
 
     return result?.txid ?? '';
+  }
+
+  // --- FEE ESTIMATION METHODS --- //
+
+  async estimateSmartFee(confTarget = 1): Promise<number | null> {
+    const result = await this.callNode(async () => {
+      const rpcClient = this.getInternalRpcClient();
+      if (!rpcClient) return null;
+      return rpcClient.estimatesmartfee({ conf_target: confTarget });
+    });
+
+    // Returns fee rate in BTC/kvB, convert to sat/vB
+    // Note: Bitcoin Core returns feerate: -1 when insufficient data
+    if (result?.feerate && result.feerate > 0) {
+      return result.feerate * 100000; // BTC/kvB → sat/vB
+    }
+    return null;
+  }
+
+  async getMempoolEntry(txid: string): Promise<{ feeRate: number; vsize: number } | null> {
+    try {
+      const result = await this.callNode(async () => {
+        const rpcClient = this.getInternalRpcClient();
+        if (!rpcClient) return null;
+        return rpcClient.getmempoolentry({ txid });
+      });
+
+      if (result?.fees?.base && result?.vsize) {
+        // fees.base is in BTC, vsize is in vBytes
+        // feeRate = (fees.base * 100_000_000) / vsize = sat/vB
+        const feeRate = (result.fees.base * 100000000) / result.vsize;
+        return { feeRate, vsize: result.vsize };
+      }
+      return null;
+    } catch (e) {
+      // TX not in mempool (already confirmed or doesn't exist)
+      return null;
+    }
   }
 
   // --- FORWARDING METHODS --- //

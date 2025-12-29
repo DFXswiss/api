@@ -701,6 +701,9 @@ export class Configuration {
       walletPassword: process.env.NODE_WALLET_PASSWORD,
       utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
       minTxAmount: 0.00000297,
+      allowUnconfirmedUtxos: process.env.ALLOW_UNCONFIRMED_UTXOS === 'true',
+      cpfpFeeMultiplier: +(process.env.CPFP_FEE_MULTIPLIER ?? '2.0'),
+      defaultFeeMultiplier: +(process.env.DEFAULT_FEE_MULTIPLIER ?? '1.5'),
     },
     evm: {
       depositSeed: process.env.EVM_DEPOSIT_SEED,
