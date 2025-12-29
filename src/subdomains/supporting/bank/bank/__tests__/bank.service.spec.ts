@@ -100,8 +100,8 @@ describe('BankService', () => {
   it('should return matching bank for EUR currency', async () => {
     defaultSetup();
     const result = await service.getBank(createBankSelectorInput('EUR'));
-    expect(result.iban).toBe(maerkiEUR.iban);
-    expect(result.bic).toBe(maerkiEUR.bic);
+    expect(result.iban).toBe(olkyEUR.iban);
+    expect(result.bic).toBe(olkyEUR.bic);
   });
 
   it('should return sctInst bank for instant payment', async () => {
@@ -121,8 +121,8 @@ describe('BankService', () => {
   it('should fallback to EUR for unsupported currency', async () => {
     defaultSetup(false);
     const result = await service.getBank(createBankSelectorInput('GBP'));
-    expect(result.iban).toBe(maerkiEUR.iban);
-    expect(result.bic).toBe(maerkiEUR.bic);
+    expect(result.iban).toBe(olkyEUR.iban);
+    expect(result.bic).toBe(olkyEUR.bic);
   });
 
   it('should fallback to first EUR bank when sctInst bank is disabled', async () => {
