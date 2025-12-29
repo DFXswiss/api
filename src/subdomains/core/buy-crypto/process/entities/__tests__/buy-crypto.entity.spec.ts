@@ -333,6 +333,151 @@ describe('BuyCrypto', () => {
         // Should use pipeline price (50000): 25000 / 50000 = 0.5 BTC
         expect(entity.outputReferenceAmount).toBe(0.5);
       });
+
+      it('works with FPS using FRANKENCOIN system', () => {
+        // FPS purchase: ZCHF → FPS via Frankencoin contract
+        const pipelineOrder = {
+          inputAmount: 1000,
+          outputAmount: 10, // 1000 ZCHF → 10 FPS (price = 100 ZCHF/FPS)
+          inputAsset: 'ZCHF',
+          outputAsset: 'FPS',
+          action: { system: 'Frankencoin' },
+        };
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [pipelineOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 500,
+          inputReferenceAsset: 'ZCHF',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        // Market price is 120 ZCHF/FPS (different from pipeline)
+        const marketPrice = Price.create('ZCHF', 'FPS', 120);
+
+        entity.calculateOutputReferenceAmount(marketPrice, [pipelineOrder] as any);
+
+        // Should use pipeline price (100): 500 / 100 = 5 FPS
+        expect(entity.outputReferenceAmount).toBe(5);
+      });
+
+      it('works with nDEPS using DEURO system', () => {
+        // nDEPS purchase: dEURO → nDEPS via dEURO contract
+        const pipelineOrder = {
+          inputAmount: 2000,
+          outputAmount: 20, // 2000 dEURO → 20 nDEPS (price = 100 dEURO/nDEPS)
+          inputAsset: 'dEURO',
+          outputAsset: 'nDEPS',
+          action: { system: 'dEURO' },
+        };
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [pipelineOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 1000,
+          inputReferenceAsset: 'dEURO',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        // Market price is 150 dEURO/nDEPS (different from pipeline)
+        const marketPrice = Price.create('dEURO', 'nDEPS', 150);
+
+        entity.calculateOutputReferenceAmount(marketPrice, [pipelineOrder] as any);
+
+        // Should use pipeline price (100): 1000 / 100 = 10 nDEPS
+        expect(entity.outputReferenceAmount).toBe(10);
+      });
+
+      it('handles multi-step conversion EUR → USDT → BTC with pipeline prices', () => {
+        // Two-step conversion: EUR → USDT (Kraken) → BTC (Binance)
+        const eurUsdtOrder = {
+          inputAmount: 10000,
+          outputAmount: 10400, // 10000 EUR → 10400 USDT (price = 0.9615 EUR/USDT)
+          inputAsset: 'EUR',
+          outputAsset: 'USDT',
+          action: { system: 'Kraken' },
+        };
+        const usdtBtcOrder = {
+          inputAmount: 104000,
+          outputAmount: 2, // 104000 USDT → 2 BTC (price = 52000 USDT/BTC)
+          inputAsset: 'USDT',
+          outputAsset: 'BTC',
+          action: { system: 'Binance' },
+        };
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [
+          eurUsdtOrder,
+          usdtBtcOrder,
+        ]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 1000,
+          inputReferenceAsset: 'EUR',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        // Market price with steps (different from pipeline)
+        const marketPrice = Object.assign(new Price(), {
+          source: 'EUR',
+          target: 'BTC',
+          price: 55000, // 1 EUR = 1.1 USDT * 50000 USDT/BTC = 55000 EUR/BTC
+          steps: [
+            PriceStep.create('CoinGecko', 'EUR', 'USDT', 1.1), // Market: 1 EUR = 1.1 USDT
+            PriceStep.create('CoinGecko', 'USDT', 'BTC', 50000), // Market: 50000 USDT/BTC
+          ],
+        });
+
+        entity.calculateOutputReferenceAmount(marketPrice, [eurUsdtOrder, usdtBtcOrder] as any);
+
+        // Pipeline prices: EUR/USDT = 0.9615, USDT/BTC = 52000
+        // Total: 0.9615 * 52000 = 49998 EUR/BTC (approximately 50000)
+        // 1000 EUR / 50000 = 0.02 BTC
+        // Note: Actual calculation uses aggregated amounts:
+        // EUR→USDT: 10000/10400 = 0.9615 (inverted, so 1.04 USDT per EUR)
+        // Wait, price = inputAmount/outputAmount = 10000/10400 = 0.9615
+        // USDT→BTC: 104000/2 = 52000
+        // Total = 0.9615 * 52000 = 49998
+        // 1000 / 49998 ≈ 0.02 BTC
+        expect(entity.outputReferenceAmount).toBeCloseTo(0.02, 4);
+      });
+
+      it('replaces only matching steps - keeps CoinGecko for unmatched', () => {
+        // Pipeline only has USDT → BTC, not EUR → USDT
+        const usdtBtcOrder = {
+          inputAmount: 50000,
+          outputAmount: 1, // 50000 USDT → 1 BTC
+          inputAsset: 'USDT',
+          outputAsset: 'BTC',
+          action: { system: 'Binance' },
+        };
+        const pipeline = createPipelineMock(LiquidityManagementPipelineStatus.COMPLETE, [usdtBtcOrder]);
+
+        const entity = createCustomBuyCrypto({
+          inputReferenceAmountMinusFee: 1000,
+          inputReferenceAsset: 'EUR',
+          outputReferenceAmount: undefined,
+          liquidityPipeline: pipeline,
+        });
+
+        // Market price with steps
+        const marketPrice = Object.assign(new Price(), {
+          source: 'EUR',
+          target: 'BTC',
+          price: 55000,
+          steps: [
+            PriceStep.create('CoinGecko', 'EUR', 'USDT', 1.1), // No pipeline match - keep CoinGecko
+            PriceStep.create('CoinGecko', 'USDT', 'BTC', 50000), // Pipeline match - replace
+          ],
+        });
+
+        entity.calculateOutputReferenceAmount(marketPrice, [usdtBtcOrder] as any);
+
+        // EUR → USDT: CoinGecko 1.1
+        // USDT → BTC: Pipeline 50000
+        // Total = 1.1 * 50000 = 55000
+        // 1000 / 55000 = 0.01818...
+        expect(entity.outputReferenceAmount).toBeCloseTo(0.01818, 4);
+      });
     });
   });
 
