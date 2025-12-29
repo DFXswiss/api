@@ -68,9 +68,8 @@ export class AccountMergeService {
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
         texts: [
           { key: MailKey.SPACE, params: { value: '3' } },
-          ...(name
-            ? [{ key: `${MailTranslationKey.GENERAL}.welcome`, params: { name } }, { key: MailKey.SPACE, params: { value: '2' } }]
-            : []),
+          { key: `${MailTranslationKey.GENERAL}.welcome`, params: { name } },
+          { key: MailKey.SPACE, params: { value: '2' } },
           {
             key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.message`,
             params: { url, urlText: url },

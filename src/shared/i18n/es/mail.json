@@ -4,7 +4,7 @@
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Si tienes alguna pregunta,<br>nos encantaría ayudarte en [url:https://app.dfx.swiss/support].",
         "thanks": "Muchas gracias por tu confianza",
-        "welcome": "Hola {name},",
+        "welcome": "Hola {name}",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
         "button": "o<br>[url:Haga clic aquí]",
