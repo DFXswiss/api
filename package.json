@@ -181,6 +181,8 @@
   "overrides": {
     "request": {
       "form-data": "2.5.5"
-    }
+    },
+    "uuid": "^9.0.0",
+    "semver": "^7.6.0"
   }
 }
