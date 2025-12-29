@@ -979,14 +979,6 @@ export class Configuration {
         clientSecret: process.env.OLKY_CLIENT_SECRET,
       },
     },
-    frick: {
-      credentials: {
-        url: process.env.FRICK_URL,
-        key: process.env.FRICK_KEY,
-        password: process.env.FRICK_PASSWORD,
-        privateKey: process.env.FRICK_PRIVATE_KEY?.split('<br>').join('\n'),
-      },
-    },
     revolut: {
       refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
       clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
