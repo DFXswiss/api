@@ -81,7 +81,7 @@ async function testDelegation() {
     transport: http(rpcUrl),
   });
 
-  const walletClient = createWalletClient({
+  const _walletClient = createWalletClient({
     account: relayerAccount,
     chain: sepolia,
     transport: http(rpcUrl),
@@ -233,7 +233,7 @@ async function testDelegation() {
     const gasPriceWithBuffer = (gasPrice * 120n) / 100n;
     console.log('Current gas price:', gasPrice.toString(), 'wei');
     console.log('Gas price with 20% buffer:', gasPriceWithBuffer.toString(), 'wei');
-  } catch (error) {
+  } catch {
     console.log('Could not get gas price (expected if no RPC connection)');
   }
 
