@@ -388,6 +388,7 @@ export class BuyCryptoPreparationService {
           conversionPrice.source,
           conversionPrice.target,
           conversionPrice.price,
+          entity.cryptoInput.paymentQuote.created,
         );
 
         const outputStep = PriceStep.create(
@@ -395,6 +396,7 @@ export class BuyCryptoPreparationService {
           outputPrice.source,
           outputPrice.target,
           outputPrice.price,
+          outputPrice.timestamp,
         );
 
         await this.buyCryptoRepo.update(
