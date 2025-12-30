@@ -1,7 +1,5 @@
 import { BitcoinRPC, BlockchainInfo } from '@btc-vision/bitcoin-rpc';
 import { RPCConfig } from '@btc-vision/bitcoin-rpc/build/rpc/interfaces/RPCConfig.js';
-import type { SendResult } from '@btc-vision/bitcoin-rpc/build/rpc/types/NewMethods';
-import type { WalletInfo } from '@btc-vision/bitcoin-rpc/build/rpc/types/WalletInfo';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -28,6 +26,14 @@ export interface Block {
   height: number;
   time: number;
   tx: string[];
+}
+
+export interface WalletInfo {
+  walletname: string;
+  balance: number;
+  unconfirmed_balance: number;
+  immature_balance: number;
+  txcount: number;
 }
 
 export { BlockchainInfo };
@@ -87,13 +93,15 @@ export abstract class NodeClient extends BlockchainClient {
   // --- BLOCKCHAIN METHODS --- //
 
   async getBlockCount(): Promise<number> {
-    const count = await this.callNode<number>(() => this.rpc.getBlockCount());
+    // Positional parameters: getblockcount (no params)
+    const count = await this.callNode<number>(() => this.callRpcWithPositionalParams<number>('getblockcount', []));
     if (count === null) throw new Error('Failed to get block count');
     return count;
   }
 
   async getInfo(): Promise<BlockchainInfo> {
-    const info = await this.callNode(() => this.rpc.getChainInfo());
+    // Positional parameters: getblockchaininfo (no params)
+    const info = await this.callNode(() => this.callRpcWithPositionalParams<BlockchainInfo>('getblockchaininfo', []));
     if (info === null) throw new Error('Failed to get chain info');
     return info;
   }
@@ -110,16 +118,16 @@ export abstract class NodeClient extends BlockchainClient {
 
   async getBlock(hash: string): Promise<Block> {
     const block = await this.callNode(async () => {
-      const rpcClient = this.getInternalRpcClient();
-      if (!rpcClient) return null;
-      return rpcClient.getblock({ blockhash: hash, verbosity: 1 });
+      // Use positional parameters: getblock "blockhash" verbosity
+      return this.callRpcWithPositionalParams<Block>('getblock', [hash, 1]);
     });
     if (!block) throw new Error(`Failed to get block ${hash}`);
     return block;
   }
 
   async getBlockHash(height: number): Promise<string> {
-    const hash = await this.callNode<string>(() => this.rpc.getBlockHash(height));
+    // Positional parameters: getblockhash height
+    const hash = await this.callNode<string>(() => this.callRpcWithPositionalParams<string>('getblockhash', [height]));
     if (hash === null) throw new Error(`Failed to get block hash for height ${height}`);
     return hash;
   }
@@ -144,10 +152,16 @@ export abstract class NodeClient extends BlockchainClient {
   async getTx(txId: string): Promise<InWalletTransaction | null> {
     try {
       // Use wallet's gettransaction RPC to get fee and amount from wallet's perspective
+      // Positional parameters: gettransaction "txid"
       const tx = await this.callNode(async () => {
-        const rpcClient = this.getInternalRpcClient();
-        if (!rpcClient) return null;
-        return rpcClient.gettransaction({ txid: txId });
+        return this.callRpcWithPositionalParams<{
+          txid: string;
+          blockhash?: string;
+          confirmations?: number;
+          time?: number;
+          amount?: number;
+          fee?: number;
+        }>('gettransaction', [txId]);
       }, true);
 
       if (!tx) return null;
@@ -168,11 +182,9 @@ export abstract class NodeClient extends BlockchainClient {
   // --- WALLET METHODS --- //
 
   async createAddress(label: string, type: AddressType = 'bech32'): Promise<string> {
-    // Use internal RPC client to pass both label and address_type parameters
+    // Positional parameters: getnewaddress "label" "address_type"
     const address = await this.callNode(async () => {
-      const rpcClient = this.getInternalRpcClient();
-      if (!rpcClient) throw new Error('RPC client not available');
-      return rpcClient.getnewaddress({ label, address_type: type });
+      return this.callRpcWithPositionalParams<string>('getnewaddress', [label, type]);
     }, true);
     if (address === null) throw new Error('Failed to create new address');
     return address;
@@ -180,19 +192,25 @@ export abstract class NodeClient extends BlockchainClient {
 
   async getUtxo(includeUnconfirmed = false): Promise<UTXO[]> {
     return this.callNode(async () => {
-      const rpcClient = this.getInternalRpcClient();
-      if (!rpcClient) return [];
       const minConf = includeUnconfirmed ? 0 : 1;
-      const result = await rpcClient.listunspent({ minconf: minConf });
-      return (result as UTXO[]) ?? [];
+      // Use positional parameters for maximum compatibility with Bitcoin Core versions
+      const result = await this.callRpcWithPositionalParams<UTXO[]>('listunspent', [minConf]);
+      return result ?? [];
     }, true);
   }
 
   async getBalance(): Promise<number> {
-    const wallets = await this.callNode<string[]>(() => this.rpc.listWallets(), true);
+    // Positional parameters: listwallets (no params), getwalletinfo (no params for default wallet)
+    const wallets = await this.callNode<string[]>(
+      () => this.callRpcWithPositionalParams<string[]>('listwallets', []),
+      true,
+    );
     const walletName = wallets?.[0] ?? '';
 
-    const walletInfo = await this.callNode<WalletInfo>(() => this.rpc.getWalletInfo(walletName), true);
+    const walletInfo = await this.callNode<WalletInfo>(
+      () => this.callRpcWithPositionalParams<WalletInfo>('getwalletinfo', []),
+      true,
+    );
 
     return walletInfo?.balance ?? 0;
   }
@@ -202,20 +220,24 @@ export abstract class NodeClient extends BlockchainClient {
       throw new Error('Too many addresses in one transaction batch, allowed max 100 for UTXO');
     }
 
-    const outputs = payload.map((p) => ({ [p.addressTo]: p.amount }));
+    // Use sendmany for better compatibility with older Bitcoin Core versions
+    // Positional parameters: sendmany "" {"address":amount,...}
+    const amounts = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: p.amount }), {});
 
-    const result = await this.callNode<SendResult>(() => this.rpc.send(outputs), true);
+    const result = await this.callNode<string>(
+      () => this.callRpcWithPositionalParams<string>('sendmany', ['', amounts]),
+      true,
+    );
 
-    return result?.txid ?? '';
+    return result ?? '';
   }
 
   // --- FEE ESTIMATION METHODS --- //
 
   async estimateSmartFee(confTarget = 1): Promise<number | null> {
+    // Positional parameters: estimatesmartfee conf_target
     const result = await this.callNode(async () => {
-      const rpcClient = this.getInternalRpcClient();
-      if (!rpcClient) return null;
-      return rpcClient.estimatesmartfee({ conf_target: confTarget });
+      return this.callRpcWithPositionalParams<{ feerate?: number }>('estimatesmartfee', [confTarget]);
     });
 
     // Returns fee rate in BTC/kvB, convert to sat/vB
@@ -228,10 +250,12 @@ export abstract class NodeClient extends BlockchainClient {
 
   async getMempoolEntry(txid: string): Promise<{ feeRate: number; vsize: number } | null> {
     try {
+      // Positional parameters: getmempoolentry "txid"
       const result = await this.callNode(async () => {
-        const rpcClient = this.getInternalRpcClient();
-        if (!rpcClient) return null;
-        return rpcClient.getmempoolentry({ txid });
+        return this.callRpcWithPositionalParams<{ fees?: { base?: number }; vsize?: number }>(
+          'getmempoolentry',
+          [txid],
+        );
       });
 
       if (result?.fees?.base && result?.vsize) {
@@ -260,10 +284,9 @@ export abstract class NodeClient extends BlockchainClient {
     const method = cmdParts.shift();
     const params = cmdParts.map((p) => JSON.parse(p));
 
+    // Use positional parameters for CLI commands
     return this.callNode(async () => {
-      const rpcClient = this.getInternalRpcClient();
-      if (!rpcClient) throw new Error('RPC client not available');
-      return rpcClient[method]?.(...params) ?? rpcClient.call(method, params);
+      return this.callRpcWithPositionalParams(method, params);
     }, !noAutoUnlock);
   }
 
@@ -277,10 +300,6 @@ export abstract class NodeClient extends BlockchainClient {
   }
 
   // --- HELPER METHODS --- //
-
-  protected getInternalRpcClient(): any {
-    return (this.rpc as any).rpc;
-  }
 
   protected async callNode<T>(call: () => Promise<T>, unlock = false): Promise<T> {
     try {
@@ -311,13 +330,11 @@ export abstract class NodeClient extends BlockchainClient {
 
   private async unlock(timeout = 60): Promise<void> {
     try {
-      const rpcClient = this.getInternalRpcClient();
-      if (!rpcClient) return;
-
-      await rpcClient.walletpassphrase({
-        passphrase: Config.blockchain.default.walletPassword,
+      // Use positional parameters for maximum compatibility with Bitcoin Core versions
+      await this.callRpcWithPositionalParams('walletpassphrase', [
+        Config.blockchain.default.walletPassword,
         timeout,
-      });
+      ]);
     } catch (e) {
       this.logger.verbose('Wallet unlock attempt:', e.message);
     }
@@ -328,6 +345,38 @@ export abstract class NodeClient extends BlockchainClient {
       `${Config.blockchain.default.user}:${Config.blockchain.default.password}`,
     ).toString('base64');
     return { Authorization: 'Basic ' + passwordHash };
+  }
+
+  /**
+   * Make an RPC call using positional parameters (arrays) for maximum compatibility.
+   * This is useful for Bitcoin Core versions that don't fully support named parameters.
+   */
+  protected async callRpcWithPositionalParams<T>(method: string, params: unknown[] = []): Promise<T | null> {
+    const body = {
+      method,
+      params,
+      jsonrpc: '1.0',
+      id: 'rpc-bitcoin',
+    };
+
+    try {
+      const response = await this.http.post<{ result: T; error: { message: string } | null }>(
+        this.url,
+        JSON.stringify(body),
+        {
+          headers: { ...this.createHeaders(), 'Content-Type': 'application/json' },
+        },
+      );
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      return response.result;
+    } catch (e) {
+      this.logger.verbose(`RPC call ${method} failed:`, e);
+      throw e;
+    }
   }
 
   protected roundAmount(amount: number): number {
