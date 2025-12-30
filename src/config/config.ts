@@ -101,6 +101,7 @@ export class Configuration {
     fiatOutput: {
       batchAmountLimit: 9500,
     },
+    usePipelinePriceForAllAssets: process.env.USE_PIPELINE_PRICE_FOR_ALL_ASSETS === 'true',
   };
 
   defaultVolumeDecimal = 2;

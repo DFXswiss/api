@@ -94,6 +94,17 @@ describe('BuyCrypto', () => {
     });
 
     describe('with liquidityPipeline', () => {
+      beforeEach(async () => {
+        // Enable pipeline price feature for these tests
+        await Test.createTestingModule({
+          providers: [
+            TestUtil.provideConfig({
+              liquidityManagement: { usePipelinePriceForAllAssets: true, bankMinBalance: 100, fiatOutput: { batchAmountLimit: 9500 } },
+            }),
+          ],
+        }).compile();
+      });
+
       it('uses pipeline price when pipeline is COMPLETE with exchange orders', () => {
         // Pipeline bought 1 BTC for 50000 USDT (price = 50000)
         const pipelineOrder = createPipelineOrderMock(50000, 1);
