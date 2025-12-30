@@ -18,6 +18,7 @@ import {
   Block,
   BlockchainInfo,
   MempoolEntry,
+  RawTransaction,
   RpcResponse,
   SendResult,
   SmartFeeResult,
@@ -109,6 +110,30 @@ export class BitcoinRpcClient {
 
   async getMempoolEntry(txid: string): Promise<MempoolEntry> {
     return this.call<MempoolEntry>('getmempoolentry', [txid]);
+  }
+
+  /**
+   * Get raw transaction data.
+   * Works for ALL transactions, not just wallet transactions.
+   * Requires txindex=1 on the node for non-wallet transactions.
+   *
+   * @param txid - Transaction ID
+   * @param verbosity - 0: hex string, 1: JSON object, 2: JSON with prevout info
+   * @returns Raw transaction data or null if not found
+   */
+  async getRawTransaction(txid: string, verbosity: 0 | 1 | 2 = 1): Promise<RawTransaction | string | null> {
+    try {
+      if (verbosity === 0) {
+        return await this.call<string>('getrawtransaction', [txid, verbosity]);
+      }
+      return await this.call<RawTransaction>('getrawtransaction', [txid, verbosity]);
+    } catch (e) {
+      // Error code -5 means "No such mempool or blockchain transaction"
+      if ((e as Error & { code: number }).code === -5) {
+        return null;
+      }
+      throw e;
+    }
   }
 
   // --- Wallet Methods --- //

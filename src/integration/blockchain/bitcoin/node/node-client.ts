@@ -6,7 +6,7 @@ import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainClient } from '../../shared/util/blockchain-client';
 import { UTXO } from './dto/bitcoin-transaction.dto';
-import { BitcoinRpcClient, BitcoinRpcConfig, BlockchainInfo } from './rpc';
+import { BitcoinRpcClient, BitcoinRpcConfig, BlockchainInfo, RawTransaction } from './rpc';
 
 export type AddressType = 'legacy' | 'p2sh-segwit' | 'bech32';
 
@@ -117,6 +117,23 @@ export abstract class NodeClient extends BlockchainClient {
         amount: tx.amount ?? 0,
         fee: tx.fee,
       };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get raw transaction using getrawtransaction RPC.
+   * Works for ALL transactions, not just wallet transactions.
+   * Requires txindex=1 on the node for non-wallet transactions.
+   *
+   * @param txId - Transaction ID
+   * @returns Raw transaction data or null if not found
+   */
+  async getRawTx(txId: string): Promise<RawTransaction | null> {
+    try {
+      const result = await this.callNode(() => this.rpc.getRawTransaction(txId, 2));
+      return result as RawTransaction | null;
     } catch {
       return null;
     }

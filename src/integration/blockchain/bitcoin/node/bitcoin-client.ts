@@ -112,9 +112,11 @@ export class BitcoinClient extends NodeClient {
   }
 
   async isTxComplete(txId: string, minConfirmations?: number): Promise<boolean> {
-    const transaction = await this.getTx(txId);
+    const transaction = await this.getRawTx(txId);
     return (
-      transaction !== null && transaction.blockhash !== undefined && transaction.confirmations > (minConfirmations ?? 0)
+      transaction !== null &&
+      transaction.blockhash !== undefined &&
+      (transaction.confirmations ?? 0) > (minConfirmations ?? 0)
     );
   }
 
