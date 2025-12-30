@@ -349,6 +349,7 @@ export class BuyCrypto extends IEntity {
   setMissingLiquidityStatus(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       status: BuyCryptoStatus.MISSING_LIQUIDITY,
+      batch: null,
       ...this.resetTransaction(),
     };
 
