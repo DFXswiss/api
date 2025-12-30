@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
-import { HttpService } from './shared/services/http.service';
 import { SettingService } from './shared/models/setting/setting.service';
+import { HttpService } from './shared/services/http.service';
 import { RefService } from './subdomains/core/referral/process/ref.service';
 
 describe('AppController', () => {
@@ -17,7 +17,6 @@ describe('AppController', () => {
       ],
     }).compile();
 
-     
     controller = app.get<AppController>(AppController);
   });
 

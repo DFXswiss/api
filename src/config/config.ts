@@ -1,6 +1,4 @@
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-
-export type NetworkName = 'mainnet' | 'testnet' | 'regtest';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConstructorArgs } from 'ccxt';
@@ -24,6 +22,8 @@ import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-d
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 import { LoggerOptions } from 'typeorm';
 import { EVM_CHAINS } from './chains.config';
+
+export type NetworkName = 'mainnet' | 'testnet' | 'regtest';
 
 export enum Environment {
   LOC = 'loc',
