@@ -286,6 +286,41 @@ describe('Bitcoin RPC Integration Tests', () => {
 
       console.log(`✅ Transaction complete check: ${isComplete}`);
     });
+
+    it('should get raw transaction data via getrawtransaction', async () => {
+      if (SKIP_INTEGRATION_TESTS) return;
+
+      if (!TEST_TXID) {
+        console.log('⚠️  TEST_BITCOIN_TXID not set, skipping getRawTx test');
+        return;
+      }
+
+      const rawTx = await inputClient.getRawTx(TEST_TXID);
+
+      expect(rawTx).not.toBeNull();
+      if (rawTx) {
+        expect(rawTx.txid).toBe(TEST_TXID);
+        expect(typeof rawTx.confirmations).toBe('number');
+        expect(Array.isArray(rawTx.vin)).toBe(true);
+        expect(Array.isArray(rawTx.vout)).toBe(true);
+
+        console.log(`✅ Raw transaction retrieved:`);
+        console.log(`   - txid: ${rawTx.txid}`);
+        console.log(`   - confirmations: ${rawTx.confirmations}`);
+        console.log(`   - blockhash: ${rawTx.blockhash ? 'present' : 'missing'}`);
+        console.log(`   - inputs: ${rawTx.vin.length}, outputs: ${rawTx.vout.length}`);
+      }
+    });
+
+    it('should return null for non-existent raw transaction', async () => {
+      if (SKIP_INTEGRATION_TESTS) return;
+
+      const rawTx = await inputClient.getRawTx('0000000000000000000000000000000000000000000000000000000000000000');
+
+      expect(rawTx).toBeNull();
+
+      console.log(`✅ Non-existent raw transaction returns null`);
+    });
   });
 
   describe('6. Payout Fee Calculation (CRITICAL)', () => {

@@ -188,6 +188,54 @@ describe('BitcoinRpcClient', () => {
       expect(lastPostCall?.body.method).toBe('getmempoolentry');
       expect(lastPostCall?.body.params).toEqual([txid]);
     });
+
+    it('getRawTransaction(txid, verbosity) should pass parameters in order', async () => {
+      const txid = 'abc123def456';
+
+      await client.getRawTransaction(txid, 2);
+
+      expect(lastPostCall?.body.method).toBe('getrawtransaction');
+      expect(lastPostCall?.body.params).toEqual([txid, 2]);
+    });
+
+    it('getRawTransaction(txid) should default verbosity to 1', async () => {
+      const txid = 'abc123def456';
+
+      await client.getRawTransaction(txid);
+
+      expect(lastPostCall?.body.params).toEqual([txid, 1]);
+    });
+
+    it('getRawTransaction should return null for error code -5 (TX not found)', async () => {
+      const error = new Error('No such mempool or blockchain transaction') as Error & { code: number };
+      error.code = -5;
+      mockHttpService.post.mockRejectedValueOnce(error);
+
+      const result = await client.getRawTransaction('nonexistent');
+
+      expect(result).toBeNull();
+    });
+
+    it('getRawTransaction should throw for other errors', async () => {
+      const error = new Error('Connection refused') as Error & { code: number };
+      error.code = -1;
+      mockHttpService.post.mockRejectedValueOnce(error);
+
+      await expect(client.getRawTransaction('txid')).rejects.toThrow('Connection refused');
+    });
+
+    it('getRawTransaction with verbosity 0 should return hex string', async () => {
+      const hexTx = '0100000001...';
+      mockHttpService.post.mockResolvedValueOnce({
+        result: hexTx,
+        error: null,
+        id: 'test',
+      });
+
+      const result = await client.getRawTransaction('txid', 0);
+
+      expect(result).toBe(hexTx);
+    });
   });
 
   // --- Wallet Methods Parameter Tests --- //

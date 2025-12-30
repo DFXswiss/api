@@ -116,6 +116,57 @@ export interface TestMempoolAcceptResult {
   'reject-reason'?: string;
 }
 
+// --- Raw Transaction Types (for getrawtransaction) --- //
+
+export interface RawTransactionScriptPubKey {
+  asm: string;
+  desc?: string;
+  hex: string;
+  type: string;
+  address?: string;
+}
+
+export interface RawTransactionPrevout {
+  value: number;
+  scriptPubKey: RawTransactionScriptPubKey;
+}
+
+export interface RawTransactionVin {
+  txid: string;
+  vout: number;
+  scriptSig?: {
+    asm: string;
+    hex: string;
+  };
+  txinwitness?: string[];
+  sequence: number;
+  prevout?: RawTransactionPrevout;
+}
+
+export interface RawTransactionVout {
+  value: number;
+  n: number;
+  scriptPubKey: RawTransactionScriptPubKey;
+}
+
+export interface RawTransaction {
+  txid: string;
+  hash: string;
+  version: number;
+  size: number;
+  vsize: number;
+  weight: number;
+  locktime: number;
+  vin: RawTransactionVin[];
+  vout: RawTransactionVout[];
+  hex?: string;
+  blockhash?: string;
+  confirmations?: number;
+  time?: number;
+  blocktime?: number;
+  fee?: number;
+}
+
 // --- Wallet Types --- //
 
 export interface UTXO {

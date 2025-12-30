@@ -268,6 +268,35 @@ describe('NodeClient', () => {
       expect(result!.amount).toBe(0);
       expect(result!.fee).toBeUndefined();
     });
+
+    it('getRawTx(txId) should return raw transaction with confirmations', async () => {
+      const mockRawTx = {
+        txid: 'abc123',
+        blockhash: '00000000...',
+        confirmations: 6,
+        time: 1680000000,
+        vin: [],
+        vout: [],
+      };
+      mockRpcPost.mockResolvedValueOnce({ result: mockRawTx, error: null, id: 'test' });
+
+      const result = await client.getRawTx('abc123');
+
+      expect(result).not.toBeNull();
+      expect(result!.txid).toBe('abc123');
+      expect(result!.confirmations).toBe(6);
+      expect(result!.blockhash).toBe('00000000...');
+    });
+
+    it('getRawTx(txId) should return null when transaction not found', async () => {
+      const error = new Error('No such mempool or blockchain transaction') as Error & { code: number };
+      error.code = -5;
+      mockRpcPost.mockRejectedValueOnce(error);
+
+      const result = await client.getRawTx('nonexistent');
+
+      expect(result).toBeNull();
+    });
   });
 
   // --- Wallet Methods Tests --- //
