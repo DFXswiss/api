@@ -171,11 +171,9 @@ export type AddressType = 'legacy' | 'p2sh-segwit' | 'bech32' | 'bech32m';
 // --- RPC Configuration --- //
 
 export interface BitcoinRpcConfig {
-  host: string;
-  port: number;
+  url: string;
   username: string;
   password: string;
-  timeout?: number;
 }
 
 // --- RPC Response Types --- //

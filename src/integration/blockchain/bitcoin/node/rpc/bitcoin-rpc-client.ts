@@ -34,9 +34,9 @@ export class BitcoinRpcClient {
 
   constructor(
     private readonly http: HttpService,
-    private readonly config: BitcoinRpcConfig,
+    config: BitcoinRpcConfig,
   ) {
-    this.url = `http://${config.host}:${config.port}`;
+    this.url = config.url;
     this.authHeader = 'Basic ' + Buffer.from(`${config.username}:${config.password}`).toString('base64');
   }
 

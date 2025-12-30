@@ -47,19 +47,13 @@ export abstract class NodeClient extends BlockchainClient {
   constructor(http: HttpService, url: string) {
     super();
 
-    const config = this.parseRpcUrl(url);
-    this.rpc = new BitcoinRpcClient(http, config);
-    this.queue = new QueueHandler(180000, 60000);
-  }
-
-  private parseRpcUrl(url: string): BitcoinRpcConfig {
-    const parsed = new URL(url);
-    return {
-      host: parsed.hostname,
-      port: parseInt(parsed.port, 10) || (parsed.protocol === 'https:' ? 443 : 8332),
+    const config: BitcoinRpcConfig = {
+      url,
       username: Config.blockchain.default.user,
       password: Config.blockchain.default.password,
     };
+    this.rpc = new BitcoinRpcClient(http, config);
+    this.queue = new QueueHandler(180000, 60000);
   }
 
   clearRequestQueue(): void {
