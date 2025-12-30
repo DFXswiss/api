@@ -15,7 +15,7 @@ import { BlockchainTransactionService } from '../services/blockchain-transaction
 
 @ApiTags('Blockchain')
 @Controller('blockchain')
-export class BlockchainBalanceController {
+export class BlockchainApiController {
   constructor(
     private readonly blockchainBalanceService: BlockchainBalanceService,
     private readonly blockchainTransactionService: BlockchainTransactionService,
