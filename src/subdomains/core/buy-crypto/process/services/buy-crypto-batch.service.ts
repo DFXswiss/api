@@ -144,9 +144,10 @@ export class BuyCryptoBatchService {
             PriceValidity.VALID_ONLY,
           );
 
-          const exchangeOrders = tx.liquidityPipeline
-            ? await this.findAllExchangeOrders(tx.liquidityPipeline)
-            : undefined;
+          const exchangeOrders =
+            Config.liquidityManagement.usePipelinePriceForAllAssets && tx.liquidityPipeline
+              ? await this.findAllExchangeOrders(tx.liquidityPipeline)
+              : undefined;
 
           tx.calculateOutputReferenceAmount(price, exchangeOrders);
         }
