@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsLowercase,
   IsNotEmpty,
   IsNotEmptyObject,
   IsString,
@@ -56,7 +57,8 @@ export class AktionariatRegistrationDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
-  @Transform(Util.toLowerCaseTrim)
+  @IsLowercase()
+  @Transform(Util.trim)
   email: string;
 
   @ApiProperty({ description: 'Full name' })

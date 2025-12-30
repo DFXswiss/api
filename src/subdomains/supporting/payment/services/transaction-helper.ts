@@ -434,6 +434,9 @@ export class TransactionHelper implements OnModuleInit {
     const refundAsset =
       inputCurrency instanceof Asset ? AssetDtoMapper.toDto(inputCurrency) : FiatDtoMapper.toDto(inputCurrency);
 
+    // Get bank details from the refund entity
+    const bankTx = this.getBankTxFromRefundEntity(refundEntity);
+
     return {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       inputAmount: Util.roundReadable(inputAmount, amountType),
@@ -446,7 +449,24 @@ export class TransactionHelper implements OnModuleInit {
       },
       refundAsset,
       refundTarget,
+      bankDetails: bankTx
+        ? {
+            name: bankTx?.name,
+            address: bankTx?.addressLine1,
+            city: bankTx?.addressLine2,
+            country: bankTx?.country,
+            iban: bankTx?.iban,
+            bic: bankTx?.bic,
+          }
+        : undefined,
     };
+  }
+
+  private getBankTxFromRefundEntity(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): BankTx | undefined {
+    if (refundEntity instanceof BankTx) return refundEntity;
+    if (refundEntity instanceof BuyCrypto) return refundEntity.bankTx;
+    if (refundEntity instanceof BankTxReturn) return refundEntity.bankTx;
+    return undefined;
   }
 
   async getTxStatementDetails(
@@ -456,7 +476,7 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<TxStatementDetails> {
     const transaction = await this.transactionService.getTransactionById(txId, {
       userData: { organization: true },
-      buyCrypto: { buy: true, cryptoRoute: true, cryptoInput: true },
+      buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
     });
@@ -469,19 +489,28 @@ export class TransactionHelper implements OnModuleInit {
 
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
+      const buy = transaction.buyCrypto.buy;
+      const bankInfo =
+        statementType === TxStatementType.INVOICE &&
+        (await this.buyService.getBankInfo(
+          {
+            amount: transaction.buyCrypto.outputAmount,
+            currency: fiat.name,
+            paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
+            userData: transaction.userData,
+          },
+          buy,
+          buy?.asset,
+          buy?.user?.wallet,
+        ));
+
       return {
         statementType,
         transactionType: TransactionType.BUY,
         transaction,
         currency: fiat.name,
-        bankInfo:
-          statementType === TxStatementType.INVOICE &&
-          (await this.buyService.getBankInfo({
-            amount: transaction.buyCrypto.outputAmount,
-            currency: fiat.name,
-            paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
-            userData: transaction.userData,
-          })),
+        bankInfo,
+        reference: bankInfo?.reference,
       };
     }
 

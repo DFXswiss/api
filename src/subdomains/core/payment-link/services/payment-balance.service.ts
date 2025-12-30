@@ -83,7 +83,7 @@ export class PaymentBalanceService implements OnModuleInit {
             for (const token of tokens) {
               const balance = tokenBalances.find((b) => b.contractAddress === token.chainId)?.balance;
 
-              balance &&
+              if (balance)
                 balanceMap.set(token.id, {
                   owner: targetAddress,
                   contractAddress: token.chainId,

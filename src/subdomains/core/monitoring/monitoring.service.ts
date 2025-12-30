@@ -108,7 +108,9 @@ export class MonitoringService implements OnModuleInit {
           try {
             const observer = this.getMetricObserver(subsystem, metric);
             observer.init(data);
-          } catch {}
+          } catch {
+            // ignore - metric initialization may fail
+          }
         }
       }
     }

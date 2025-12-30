@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, GetConfig } from 'src/config/config';
@@ -14,19 +14,24 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -44,6 +49,8 @@ import {
   BankDetailsDto,
   HistoricalPriceDto,
   HoldersDto,
+  RealUnitBuyDto,
+  RealUnitPaymentInfoDto,
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
@@ -70,6 +77,9 @@ export class RealUnitService {
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly http: HttpService,
+    private readonly fiatService: FiatService,
+    @Inject(forwardRef(() => BuyService))
+    private readonly buyService: BuyService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -183,6 +193,79 @@ export class RealUnitService {
     };
   }
 
+  // --- Buy Payment Info Methods ---
+
+  async getPaymentInfo(user: User, dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
+    const userData = user.userData;
+    const currencyName = dto.currency ?? 'CHF';
+
+    // 1. KYC Level 50 required for RealUnit
+    if (userData.kycLevel < KycLevel.LEVEL_50) {
+      throw new BadRequestException('KYC Level 50 required for RealUnit');
+    }
+
+    // 2. Registration required
+    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
+    if (!hasRegistration) {
+      throw new BadRequestException('RealUnit registration required');
+    }
+
+    // 3. Get or create Buy route for REALU
+    const realuAsset = await this.getRealuAsset();
+    const buy = await this.buyService.createBuy(user, user.address, { asset: realuAsset }, true);
+
+    // 4. Get currency
+    const currency = await this.fiatService.getFiatByName(currencyName);
+
+    // 5. Call BuyService to get payment info (handles fees, rates, IBAN creation, QR codes, etc.)
+    const buyPaymentInfo = await this.buyService.toPaymentInfoDto(user.id, buy, {
+      amount: dto.amount,
+      targetAmount: undefined,
+      currency,
+      asset: realuAsset,
+      paymentMethod: FiatPaymentMethod.BANK,
+      exactPrice: false,
+    });
+
+    // 6. Override recipient info with RealUnit company address
+    const { bank: realunitBank } = GetConfig().blockchain.realunit;
+    const response: RealUnitPaymentInfoDto = {
+      id: buyPaymentInfo.id,
+      routeId: buyPaymentInfo.routeId,
+      timestamp: buyPaymentInfo.timestamp,
+      // Override recipient fields with RealUnit company address
+      name: realunitBank.recipient,
+      street: 'Schochenmühlestrasse',
+      number: '6',
+      zip: '6340',
+      city: 'Baar',
+      country: 'Switzerland',
+      // Bank info from BuyService
+      iban: buyPaymentInfo.iban,
+      bic: buyPaymentInfo.bic,
+      // Amount and currency
+      amount: buyPaymentInfo.amount,
+      currency: buyPaymentInfo.currency.name,
+      // Fee info
+      fees: buyPaymentInfo.fees,
+      minVolume: buyPaymentInfo.minVolume,
+      maxVolume: buyPaymentInfo.maxVolume,
+      minVolumeTarget: buyPaymentInfo.minVolumeTarget,
+      maxVolumeTarget: buyPaymentInfo.maxVolumeTarget,
+      // Rate info
+      exchangeRate: buyPaymentInfo.exchangeRate,
+      rate: buyPaymentInfo.rate,
+      priceSteps: buyPaymentInfo.priceSteps,
+      // RealUnit specific
+      estimatedAmount: buyPaymentInfo.estimatedAmount,
+      paymentRequest: buyPaymentInfo.paymentRequest,
+      isValid: buyPaymentInfo.isValid,
+      error: buyPaymentInfo.error,
+    };
+
+    return response;
+  }
+
   // --- Registration Methods ---
 
   // returns true if registration needs manual review, false if completed
@@ -200,8 +283,10 @@ export class RealUnitService {
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
 
-    if (!userData.mail) throw new BadRequestException('User email not verified');
-    if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+    if (!userData.mail) {
+      // Email not set yet - try to set it (will fail if email already exists for another user)
+      await this.userDataService.trySetUserMail(userData, dto.email);
+    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
       throw new BadRequestException('Email does not match verified email');
     }
 
@@ -339,8 +424,24 @@ export class RealUnitService {
       ],
     };
 
+    const message = {
+      email: data.email,
+      name: data.name,
+      type: data.type,
+      phoneNumber: data.phoneNumber,
+      birthday: data.birthday,
+      nationality: data.nationality,
+      addressStreet: data.addressStreet,
+      addressPostalCode: data.addressPostalCode,
+      addressCity: data.addressCity,
+      addressCountry: data.addressCountry,
+      swissTaxResidence: data.swissTaxResidence,
+      registrationDate: data.registrationDate,
+      walletAddress: data.walletAddress,
+    };
+
     const signatureToUse = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
-    const recoveredAddress = verifyTypedData(domain, types, data, signatureToUse);
+    const recoveredAddress = verifyTypedData(domain, types, message, signatureToUse);
 
     return Util.equalsIgnoreCase(recoveredAddress, data.walletAddress);
   }

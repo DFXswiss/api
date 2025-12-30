@@ -224,7 +224,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       const previousBalance = this.balanceCache.get(asset.id);
       if (previousBalance && !balance) this.logger.error(`Balance for ${asset.uniqueName} went to ${null}`);
 
-      balance != null && this.balanceCache.set(asset.id, balance);
+      if (balance != null) this.balanceCache.set(asset.id, balance);
     }
   }
 

@@ -13,6 +13,7 @@ import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/si
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
 import { GoldskyService } from 'src/integration/goldsky/goldsky.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -53,6 +54,8 @@ export enum Direction {
 }
 
 export abstract class EvmClient extends BlockchainClient {
+  protected readonly logger = new DfxLogger(EvmClient);
+
   readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
   protected readonly goldskyService?: GoldskyService;

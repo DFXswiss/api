@@ -137,15 +137,18 @@ export class Util {
   }
 
   static aggregate<T>(list: T[], key: KeyType<T, string>, value: KeyType<T, number>): { [field: string]: number } {
-    return list.reduce((prev, curr) => {
-      const keyValue = curr[key] as unknown as string;
-      if (prev[keyValue]) {
-        prev[keyValue] += curr[value] as unknown as number;
-      } else {
-        prev[keyValue] = curr[value] as unknown as number;
-      }
-      return prev;
-    }, {} as { [key: string]: number });
+    return list.reduce(
+      (prev, curr) => {
+        const keyValue = curr[key] as unknown as string;
+        if (prev[keyValue]) {
+          prev[keyValue] += curr[value] as unknown as number;
+        } else {
+          prev[keyValue] = curr[value] as unknown as number;
+        }
+        return prev;
+      },
+      {} as { [key: string]: number },
+    );
   }
 
   static groupBy<T, U>(list: T[], key: KeyType<T, U>): Map<U, T[]> {
@@ -203,7 +206,7 @@ export class Util {
       .replace(/[ßșšś]/g, 's')
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
-      .replace(/[\.,’]/g, '')
+      .replace(/[.,']/g, '')
       .replace(/[-‘`´'+&]/g, ' ');
   }
 
@@ -498,21 +501,21 @@ export class Util {
     timeout: number,
     catchErrors?: boolean,
   ): Promise<T | undefined> {
-    return new Promise(async (resolve, reject) => {
-      let abort = false;
+    let abort = false;
 
-      // action/error handling
-      const doAction = async () =>
-        action().catch((e) => {
-          if (catchErrors) return undefined;
+    // action/error handling
+    const doAction = async () =>
+      action().catch((e) => {
+        if (catchErrors) return undefined;
 
-          abort = true;
-          reject(e);
-        });
+        abort = true;
+        throw e;
+      });
 
-      // set timer
-      const timer = setTimeout(() => (abort = true), timeout);
+    // set timer
+    const timer = setTimeout(() => (abort = true), timeout);
 
+    try {
       // poll
       let result = await doAction();
       while (!abort && !verify(result)) {
@@ -520,9 +523,10 @@ export class Util {
         result = await doAction();
       }
 
+      return result;
+    } finally {
       clearTimeout(timer);
-      return resolve(result);
-    });
+    }
   }
 
   static async doInBatches<T, U>(list: T[], action: (batch: T[]) => Promise<U>, batchSize: number): Promise<U[]> {

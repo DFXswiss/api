@@ -24,6 +24,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import {
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
@@ -38,6 +39,8 @@ import {
   HistoricalPriceQueryDto,
   HoldersDto,
   HoldersQueryDto,
+  RealUnitBuyDto,
+  RealUnitPaymentInfoDto,
   TimeFrame,
   TokenInfoDto,
 } from '../dto/realunit.dto';
@@ -46,7 +49,10 @@ import { RealUnitService } from '../realunit.service';
 @ApiTags('Realunit')
 @Controller('realunit')
 export class RealUnitController {
-  constructor(private readonly realunitService: RealUnitService) {}
+  constructor(
+    private readonly realunitService: RealUnitService,
+    private readonly userService: UserService,
+  ) {}
 
   @Get('account/:address')
   @ApiOperation({
@@ -180,6 +186,23 @@ export class RealUnitController {
     return this.realunitService.getBankDetails();
   }
 
+  // --- Buy Payment Info Endpoint ---
+
+  @Put('paymentInfo')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get payment info for RealUnit purchase',
+    description:
+      'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 50 and RealUnit registration.',
+  })
+  @ApiOkResponse({ type: RealUnitPaymentInfoDto })
+  @ApiBadRequestResponse({ description: 'KYC Level 50 required, registration missing, or address not on allowlist' })
+  async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    return this.realunitService.getPaymentInfo(user, dto);
+  }
+
   // --- Registration Endpoint ---
 
   @Post('register')
@@ -187,13 +210,12 @@ export class RealUnitController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOperation({ summary: 'Register for RealUnit' })
   @ApiOkResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration completed successfully' })
-  @ApiAcceptedResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration accepted, pending manual review' })
+  @ApiAcceptedResponse({
+    type: RealUnitRegistrationResponseDto,
+    description: 'Registration accepted, pending manual review',
+  })
   @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
-  async register(
-    @GetJwt() jwt: JwtPayload,
-    @Body() dto: RealUnitRegistrationDto,
-    @Res() res: Response,
-  ): Promise<void> {
+  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto, @Res() res: Response): Promise<void> {
     const needsReview = await this.realunitService.register(jwt.account, dto);
 
     const response: RealUnitRegistrationResponseDto = {

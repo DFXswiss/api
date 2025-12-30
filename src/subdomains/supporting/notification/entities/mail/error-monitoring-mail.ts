@@ -15,7 +15,7 @@ export interface ErrorMonitoringMailParams {
 export class ErrorMonitoringMail extends Mail {
   constructor(params: ErrorMonitoringMailParams) {
     const to = [GetConfig().mail.contact.monitoringMail];
-    params.isLiqMail && to.push(GetConfig().mail.contact.liqMail);
+    if (params.isLiqMail) to.push(GetConfig().mail.contact.liqMail);
 
     const env = GetConfig().environment.toUpperCase();
 

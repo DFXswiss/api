@@ -90,7 +90,9 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
       if (config.binancePayMerchantId || config.binancePaySubMerchantId) {
         return true;
       }
-    } catch (e) {}
+    } catch {
+      // ignore - config may not be parseable
+    }
 
     // Method 2: check configObj if available
     try {
@@ -98,7 +100,9 @@ export class BinancePayService implements C2BPaymentLinkProvider<BinancePayWebho
       if (config.binancePayMerchantId || config.binancePaySubMerchantId) {
         return true;
       }
-    } catch (e) {}
+    } catch {
+      // ignore - config may not be parseable
+    }
 
     // No keys are available
     return false;

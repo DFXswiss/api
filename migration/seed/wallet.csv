@@ -1,0 +1,2 @@
+id,address,name,isKycClient,displayName,autoTradeApproval,usesDummyAddresses,displayFraudWarning
+1,,default,FALSE,,TRUE,FALSE,FALSE

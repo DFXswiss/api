@@ -52,4 +52,5 @@ export enum ComplianceSearchType {
   PHONE = 'Phone',
   NAME = 'Name',
   IBAN = 'Iban',
+  TRANSACTION_UID = 'TransactionUid',
 }

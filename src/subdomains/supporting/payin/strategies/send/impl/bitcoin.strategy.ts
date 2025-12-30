@@ -12,7 +12,10 @@ import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 export class BitcoinStrategy extends BitcoinBasedStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
-  constructor(protected readonly bitcoinService: PayInBitcoinService, protected payInRepo: PayInRepository) {
+  constructor(
+    protected readonly bitcoinService: PayInBitcoinService,
+    protected payInRepo: PayInRepository,
+  ) {
     super(bitcoinService, payInRepo);
   }
 

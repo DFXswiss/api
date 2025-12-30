@@ -16,7 +16,7 @@ interface BaseTransactionReceipt extends ethers.providers.TransactionReceipt {
 }
 
 export class BaseClient extends EvmClient implements L2BridgeEvmClient {
-  private readonly logger = new DfxLogger(BaseClient);
+  protected override readonly logger = new DfxLogger(BaseClient);
 
   private readonly l1Provider: ethers.providers.JsonRpcProvider;
   private readonly l1Wallet: ethers.Wallet;
@@ -136,7 +136,7 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
         default:
           return false;
       }
-    } catch (e) {
+    } catch {
       return false;
     }
   }

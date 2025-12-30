@@ -259,7 +259,7 @@ export class BuyFiatService {
     const extended = await this.extendBuyFiat(buyFiat);
 
     // TODO add fiatFiatUpdate here
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, buyFiat.userData, extended) : undefined;
+    if (buyFiat.sell) await this.webhookService.cryptoFiatUpdate(buyFiat.user, buyFiat.userData, extended);
   }
 
   async refundBuyFiat(buyFiatId: number, dto: RefundInternalDto): Promise<void> {

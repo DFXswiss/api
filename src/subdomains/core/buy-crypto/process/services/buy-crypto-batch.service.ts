@@ -4,6 +4,8 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
+import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import {
   LiquidityManagementPipelineStatus,
   LiquidityManagementRuleStatus,
@@ -142,7 +144,12 @@ export class BuyCryptoBatchService {
             PriceValidity.VALID_ONLY,
           );
 
-          tx.calculateOutputReferenceAmount(price);
+          const exchangeOrders =
+            Config.liquidityManagement.usePipelinePriceForAllAssets && tx.liquidityPipeline
+              ? await this.findAllExchangeOrders(tx.liquidityPipeline)
+              : undefined;
+
+          tx.calculateOutputReferenceAmount(price, exchangeOrders);
         }
       } catch (e) {
         if (e instanceof PriceInvalidException) {
@@ -371,11 +378,10 @@ export class BuyCryptoBatchService {
         const pipeline = await this.liquidityService.buyLiquidity(asset.id, minDeficit, deficit, true);
         this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
 
-        if (Config.exchangeRateFromLiquidityOrder.includes(asset.name))
-          await this.buyCryptoRepo.update(
-            { id: In(batch.transactions.map((b) => b.id)) },
-            { liquidityPipeline: pipeline },
-          );
+        await this.buyCryptoRepo.update(
+          { id: In(batch.transactions.map((b) => b.id)) },
+          { liquidityPipeline: pipeline },
+        );
       } catch (e) {
         this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
 
@@ -429,6 +435,35 @@ export class BuyCryptoBatchService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async findAllExchangeOrders(
+    pipeline: LiquidityManagementPipeline,
+    maxDepth = 5,
+  ): Promise<LiquidityManagementOrder[]> {
+    if (maxDepth <= 0) return [];
+
+    const orders: LiquidityManagementOrder[] = [];
+
+    // Collect exchange orders from this pipeline
+    const exchangeOrders = pipeline.exchangeOrders;
+    orders.push(...exchangeOrders);
+
+    // Recursively collect from sub-pipelines
+    const subPipelineOrders = pipeline.subPipelineOrders;
+    for (const subPipelineOrder of subPipelineOrders) {
+      const subPipelineId = parseInt(subPipelineOrder.correlationId, 10);
+      if (isNaN(subPipelineId)) continue;
+
+      const subPipeline = await this.liquidityService.getPipelineWithOrders(subPipelineId);
+      if (!subPipeline) continue;
+
+      const subOrders = await this.findAllExchangeOrders(subPipeline, maxDepth - 1);
+      orders.push(...subOrders);
+    }
+
+    return orders;
+  }
+
   private async setWaitingForLowerFeeStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
       await this.buyCryptoRepo.update(...tx.waitingForLowerFee());

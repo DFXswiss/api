@@ -265,8 +265,8 @@ export class BuyCryptoPreparationService {
         const bankIn = entity.bankTx
           ? await this.bankService.getBankByIban(entity.bankTx.accountIban).then((b) => b.name)
           : entity.checkoutTx
-          ? CardBankName.CHECKOUT
-          : undefined;
+            ? CardBankName.CHECKOUT
+            : undefined;
 
         const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
@@ -388,6 +388,7 @@ export class BuyCryptoPreparationService {
           conversionPrice.source,
           conversionPrice.target,
           conversionPrice.price,
+          entity.cryptoInput.paymentQuote.created,
         );
 
         const outputStep = PriceStep.create(
@@ -395,7 +396,14 @@ export class BuyCryptoPreparationService {
           outputPrice.source,
           outputPrice.target,
           outputPrice.price,
+          outputPrice.timestamp,
         );
+
+        // create fee constraints
+        const maxNetworkFee = chfPrice.invert().convert(Config.maxBlockchainFee);
+        const maxNetworkFeeInOutAsset = await this.convertNetworkFee(inputCurrency, entity.outputAsset, maxNetworkFee);
+        const feeConstraints = entity.fee ?? (await this.buyCryptoRepo.saveFee(BuyCryptoFee.create(entity)));
+        await this.buyCryptoRepo.updateFee(feeConstraints.id, { allowedTotalFeeAmount: maxNetworkFeeInOutAsset });
 
         await this.buyCryptoRepo.update(
           ...entity.setPaymentLinkPayment(

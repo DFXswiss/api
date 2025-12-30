@@ -79,10 +79,13 @@ export class AmlHelperService {
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (entity.userData.kycLevel < KycLevel.LEVEL_50 && last365dVolume > Config.tradingLimits.yearlyWithoutKyc)
       errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
-    if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate)
-      entity.userData.kycLevel >= KycLevel.LEVEL_50
-        ? errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED)
-        : errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
+    if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate) {
+      if (entity.userData.kycLevel >= KycLevel.LEVEL_50) {
+        errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED);
+      } else {
+        errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
+      }
+    }
     if (last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc) {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -175,6 +178,7 @@ export class AmlHelperService {
       // buyCrypto
       if (entity.userData.isRiskBuyCryptoBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
       if (
+        !entity.cryptoInput &&
         entity.userData.country &&
         !entity.userData.phoneCallIpCountryCheckDate &&
         ipLogCountries.some(

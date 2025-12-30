@@ -60,7 +60,8 @@ export class BitcoinStrategy extends PollingStrategy {
   private async getNewEntries(): Promise<PayInEntry[]> {
     await this.payInBitcoinService.checkHealthOrThrow();
 
-    const utxos = await this.payInBitcoinService.getUtxo();
+    const includeUnconfirmed = Config.blockchain.default.allowUnconfirmedUtxos;
+    const utxos = await this.payInBitcoinService.getUtxo(includeUnconfirmed);
 
     return this.mapUtxosToEntries(utxos);
   }
@@ -78,7 +79,7 @@ export class BitcoinStrategy extends PollingStrategy {
         txType: this.getTxType(u.address),
         txSequence: u.vout,
         blockHeight: null,
-        amount: u.amount.toNumber(),
+        amount: u.amount,
         asset,
       }));
   }

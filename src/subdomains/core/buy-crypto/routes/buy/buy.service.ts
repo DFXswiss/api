@@ -10,6 +10,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
@@ -17,9 +18,11 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -168,7 +171,7 @@ export class BuyService {
     // save
     const entity = await this.buyRepo.save(buy);
 
-    this.cache && this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
+    if (this.cache) this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
 
     return entity;
   }
@@ -240,7 +243,7 @@ export class BuyService {
     return this.buyRepo;
   }
 
-  private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+  async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(userId, {
       userData: { users: true, organization: true },
       wallet: true,
@@ -273,12 +276,17 @@ export class BuyService {
       user,
     );
 
-    const bankInfo = await this.getBankInfo({
-      amount: amount,
-      currency: dto.currency.name,
-      paymentMethod: dto.paymentMethod,
-      userData: user.userData,
-    });
+    const bankInfo = await this.getBankInfo(
+      {
+        amount: amount,
+        currency: dto.currency.name,
+        paymentMethod: dto.paymentMethod,
+        userData: user.userData,
+      },
+      buy,
+      dto.asset,
+      user.wallet,
+    );
 
     const buyDto: BuyPaymentInfoDto = {
       id: 0, // set during request creation
@@ -308,8 +316,8 @@ export class BuyService {
       // bank info
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant,
-      remittanceInfo: buy.active ? buy.bankUsage : undefined,
-      paymentRequest: isValid ? this.generateQRCode(buy, bankInfo, dto, user.userData) : undefined,
+      remittanceInfo: buy.active ? bankInfo.reference : undefined,
+      paymentRequest: isValid ? this.generateQRCode(bankInfo, dto, user.userData) : undefined,
       // card info
       paymentLink:
         isValid && buy.active && dto.paymentMethod === FiatPaymentMethod.CARD
@@ -328,8 +336,49 @@ export class BuyService {
     return buyDto;
   }
 
-  async getBankInfo(selector: BankSelectorInput): Promise<BankInfoDto & { isPersonalIban: boolean }> {
-    // personal IBAN
+  async getBankInfo(
+    selector: BankSelectorInput,
+    buy?: Buy,
+    asset?: Asset,
+    wallet?: Wallet,
+  ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
+    // asset-specific personal IBAN
+    if (
+      buy &&
+      asset?.personalIbanEnabled &&
+      wallet?.buySpecificIbanEnabled &&
+      selector.userData.kycLevel >= KycLevel.LEVEL_50
+    ) {
+      let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, selector.currency);
+
+      if (!virtualIban) {
+        // max 10 vIBANs per user
+        const activeCount = await this.virtualIbanService.countActiveForUser(selector.userData.id);
+        if (activeCount < 10) {
+          virtualIban = await this.virtualIbanService.createForBuy(selector.userData, buy, selector.currency);
+        }
+      }
+
+      if (virtualIban) {
+        const { address } = selector.userData;
+        return {
+          name: selector.userData.completeName,
+          street: address.street,
+          number: address.houseNumber,
+          zip: address.zip,
+          city: address.city,
+          country: address.country?.name,
+          bank: virtualIban.bank.name,
+          iban: virtualIban.iban,
+          bic: virtualIban.bank.bic,
+          sepaInstant: virtualIban.bank.sctInst,
+          isPersonalIban: true,
+          reference: this.getBuyReference(buy?.bankUsage, true),
+        };
+      }
+    }
+
+    // user-level personal IBAN
     const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
 
     if (virtualIban) {
@@ -346,6 +395,7 @@ export class BuyService {
         bic: virtualIban.bank.bic,
         sepaInstant: virtualIban.bank.sctInst,
         isPersonalIban: true,
+        reference: this.getBuyReference(buy?.bankUsage, false),
       };
     }
 
@@ -361,18 +411,30 @@ export class BuyService {
       bic: bank.bic,
       sepaInstant: bank.sctInst,
       isPersonalIban: false,
+      reference: this.getBuyReference(buy?.bankUsage, false),
     };
   }
 
-  private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto, userData: UserData): string {
+  private getBuyReference(bankUsage: string | undefined, isBuySpecificIban: boolean): string | undefined {
+    // for buy-specific IBANs, no reference is needed
+    return isBuySpecificIban ? undefined : bankUsage;
+  }
+
+  private generateQRCode(
+    bankInfo: BankInfoDto & { reference?: string },
+    dto: GetBuyPaymentInfoDto,
+    userData: UserData,
+  ): string {
     if (dto.currency.name === 'CHF') {
-      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, buy.bankUsage, bankInfo, userData);
+      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, bankInfo.reference, bankInfo, userData);
     } else {
-      return this.generateGiroCode(buy, bankInfo, dto);
+      return this.generateGiroCode(bankInfo, dto);
     }
   }
 
-  private generateGiroCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
+  private generateGiroCode(bankInfo: BankInfoDto & { reference?: string }, dto: GetBuyPaymentInfoDto): string {
+    const reference = bankInfo.reference ?? '';
+
     return `
 ${Config.giroCode.service}
 ${Config.giroCode.version}
@@ -384,7 +446,7 @@ ${bankInfo.iban}
 ${dto.currency.name}${dto.amount}
 ${Config.giroCode.char}
 ${Config.giroCode.ref}
-${buy.bankUsage}
+${reference}
 `.trim();
   }
 }

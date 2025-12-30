@@ -276,8 +276,8 @@ export class CryptoInput extends IEntity {
     return direction === PayInConfirmationType.INPUT
       ? this.inTxId
       : direction === PayInConfirmationType.OUTPUT
-      ? this.outTxId
-      : this.returnTxId;
+        ? this.outTxId
+        : this.returnTxId;
   }
 
   designateReturn(): this {

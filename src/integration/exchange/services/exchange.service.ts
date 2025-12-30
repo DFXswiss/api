@@ -132,7 +132,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const order = await this.getTrade(id, from, to);
 
     switch (order.status) {
-      case OrderStatus.OPEN:
+      case OrderStatus.OPEN: {
         const price = await this.fetchCurrentOrderPrice(order.symbol, order.side);
 
         // price changed -> update price
@@ -173,8 +173,9 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
         }
 
         return false;
+      }
 
-      case OrderStatus.CANCELED:
+      case OrderStatus.CANCELED: {
         // check for min. amount
         const minAmount = await this.getMinTradeAmount(order.symbol);
         if (order.remaining < minAmount) {
@@ -188,6 +189,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
         this.logger.verbose(`Order ${order.id} changed to ${id}`);
 
         throw new TradeChangedException(id);
+      }
 
       case OrderStatus.CLOSED:
         this.logger.verbose(`Order ${order.id} closed`);

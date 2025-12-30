@@ -9,6 +9,7 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
@@ -267,30 +268,50 @@ export class BuyCrypto extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  calculateOutputReferenceAmount(price: Price): this {
+  calculateOutputReferenceAmount(price: Price, exchangeOrders?: LiquidityManagementOrder[]): this {
+    // Use pipeline prices only if:
+    // 1. Feature is enabled via config (USE_PIPELINE_PRICE_FOR_ALL_ASSETS=true)
+    // 2. Pipeline exists and is COMPLETE
+    // 3. Exchange orders were found (actual trades happened)
+    // If no exchange orders exist, liquidity was available without trading -> use market price
     if (
-      Config.exchangeRateFromLiquidityOrder.includes(this.outputAsset.name) &&
+      Config.liquidityManagement.usePipelinePriceForAllAssets &&
       this.liquidityPipeline &&
-      ![LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
-        this.liquidityPipeline.status,
-      )
+      this.liquidityPipeline.status === LiquidityManagementPipelineStatus.COMPLETE &&
+      exchangeOrders?.length
     ) {
-      if (
-        this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.COMPLETE ||
-        !this.liquidityPipeline.orders?.length
-      )
-        throw new Error('LiquidityPipeline not completed');
+      // Build aggregated price steps from all exchange orders
+      const pipelinePriceSteps = this.buildAggregatedPriceSteps(exchangeOrders);
 
-      const pipelinePrice = this.liquidityPipeline.orders[0].exchangePrice;
-      const filteredPriceSteps = price.steps.slice(0, -1);
+      // Replace CoinGecko steps with pipeline steps where available
+      // If price.steps is empty (direct conversion), use pipeline steps directly
+      const finalPriceSteps =
+        price.steps.length > 0
+          ? price.steps.map((step) => {
+              const pipelineStep = pipelinePriceSteps.find((ps) => ps.from === step.from && ps.to === step.to);
+              return pipelineStep ?? step;
+            })
+          : pipelinePriceSteps;
 
-      const totalPriceValue = [...filteredPriceSteps, pipelinePrice].reduce((prev, curr) => prev * curr.price, 1);
+      const totalPriceValue = finalPriceSteps.reduce((prev, curr) => prev * curr.price, 1);
       const totalPrice = Price.create(this.inputReferenceAsset, this.outputAsset.name, totalPriceValue);
 
       this.outputReferenceAmount = totalPrice.convert(this.inputReferenceAmountMinusFee, 8);
-      this.priceStepsObject = [...this.inputPriceStep, ...filteredPriceSteps, ...pipelinePrice.steps];
+      this.priceStepsObject = [...this.inputPriceStep, ...finalPriceSteps];
 
       return this;
+    }
+
+    // Pipeline not complete, failed, stopped, or no trade happened -> use market price
+    if (
+      this.liquidityPipeline &&
+      ![
+        LiquidityManagementPipelineStatus.FAILED,
+        LiquidityManagementPipelineStatus.STOPPED,
+        LiquidityManagementPipelineStatus.COMPLETE,
+      ].includes(this.liquidityPipeline.status)
+    ) {
+      throw new Error('LiquidityPipeline not completed');
     }
 
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
@@ -752,7 +773,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get chargebackBankFee(): number {
-    return this.bankTx ? this.bankTx.chargeAmountChf : 0;
+    return this.bankTx ? this.bankTx.chargebackBankFee : 0;
   }
 
   get manualChfPrice(): Price {
@@ -820,6 +841,34 @@ export class BuyCrypto extends IEntity {
   }
 
   // --- HELPER METHODS --- //
+
+  private buildAggregatedPriceSteps(orders: LiquidityManagementOrder[]): PriceStep[] {
+    const pairMap = new Map<
+      string,
+      { inputAmount: number; outputAmount: number; system: string; from: string; to: string }
+    >();
+
+    for (const order of orders) {
+      const key = `${order.inputAsset}->${order.outputAsset}`;
+      const existing = pairMap.get(key);
+      if (existing) {
+        existing.inputAmount += order.inputAmount;
+        existing.outputAmount += order.outputAmount;
+      } else {
+        pairMap.set(key, {
+          inputAmount: order.inputAmount,
+          outputAmount: order.outputAmount,
+          system: order.action.system,
+          from: order.inputAsset,
+          to: order.outputAsset,
+        });
+      }
+    }
+
+    return Array.from(pairMap.values()).map((value) =>
+      PriceStep.create(value.system, value.from, value.to, value.inputAmount / value.outputAmount),
+    );
+  }
 
   private resetTransaction(): Partial<BuyCrypto> {
     const isManualPrice = this.priceStepsObject.some((p) => p.source === Config.priceSourceManual);

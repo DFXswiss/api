@@ -405,8 +405,8 @@ export class UserData extends IEntity {
         this.users.length === 0
           ? UserDataStatus.KYC_ONLY
           : this.users.some((u) => u.status === UserStatus.ACTIVE)
-          ? UserDataStatus.ACTIVE
-          : UserDataStatus.NA,
+            ? UserDataStatus.ACTIVE
+            : UserDataStatus.NA,
       deactivationDate: null,
     };
   }
@@ -757,9 +757,10 @@ export function Blank(value: string, type: BlankType): string {
       return `${createStringOf('*', value.length - numberOfLastVisibleNumbers)}${value.substring(
         value.length - numberOfLastVisibleNumbers,
       )}`;
-    case BlankType.MAIL:
+    case BlankType.MAIL: {
       const [name, domain] = value.split('@');
       return `${name[0]}${createStringOf('*', name.length - 1)}@${domain}`;
+    }
     case BlankType.WALLET_ADDRESS:
       return `${value.substring(0, 4)}${createStringOf('*', 8)}${value.substring(value.length - 4)}`;
   }

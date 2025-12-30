@@ -89,10 +89,16 @@ export class PricingService implements OnModuleInit {
     };
   }
 
-  onModuleInit() {
-    void this.fiatService.getFiatByName('CHF').then((f) => this.fiatMap.set(PriceCurrency.CHF, f));
-    void this.fiatService.getFiatByName('EUR').then((f) => this.fiatMap.set(PriceCurrency.EUR, f));
-    void this.fiatService.getFiatByName('USD').then((f) => this.fiatMap.set(PriceCurrency.USD, f));
+  async onModuleInit() {
+    const [chf, eur, usd] = await Promise.all([
+      this.fiatService.getFiatByName('CHF'),
+      this.fiatService.getFiatByName('EUR'),
+      this.fiatService.getFiatByName('USD'),
+    ]);
+
+    if (chf) this.fiatMap.set(PriceCurrency.CHF, chf);
+    if (eur) this.fiatMap.set(PriceCurrency.EUR, eur);
+    if (usd) this.fiatMap.set(PriceCurrency.USD, usd);
   }
 
   async getPrice(
@@ -226,7 +232,11 @@ export class PricingService implements OnModuleInit {
 
   private async getRuleFor(item: Active): Promise<PriceRule | undefined> {
     const query = this.priceRuleRepo.createQueryBuilder('rule');
-    isFiat(item) ? query.innerJoin('rule.fiats', 'item') : query.innerJoin('rule.assets', 'item');
+    if (isFiat(item)) {
+      query.innerJoin('rule.fiats', 'item');
+    } else {
+      query.innerJoin('rule.assets', 'item');
+    }
 
     return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }

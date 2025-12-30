@@ -380,7 +380,7 @@ export class UserDataService {
             );
             const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
             subFolder.file(filePath, fileData.data);
-          } catch (error) {
+          } catch {
             errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
           }
         }

@@ -54,7 +54,7 @@ export class BuyFiatRegistrationService {
 
     const sellPayIns = await this.filterSellPayIns(newPayIns);
 
-    sellPayIns.length > 0 &&
+    if (sellPayIns.length > 0)
       this.logger.verbose(
         `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s): ${sellPayIns.map(
           (s) => s[0].id,

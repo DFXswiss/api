@@ -83,11 +83,25 @@ export class CardanoStrategy extends RegisterStrategy {
     lastCheckedBlockHeight: number,
   ): Promise<PayInEntry[]> {
     const transactions = await this.payInCardanoService.getHistoryForAddress(depositAddress.address, 50);
-    const relevantTransactions = transactions.filter((t) => t.blockNumber > lastCheckedBlockHeight);
+    const relevantTransactions = this.filterByRelevantTransactions(
+      transactions,
+      depositAddress,
+      lastCheckedBlockHeight,
+    );
 
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
     return this.mapToPayInEntries(depositAddress, relevantTransactions, supportedAssets);
+  }
+
+  private filterByRelevantTransactions(
+    transactions: CardanoTransactionDto[],
+    depositAddress: BlockchainAddress,
+    lastCheckedBlockHeight: number,
+  ): CardanoTransactionDto[] {
+    return transactions
+      .filter((t) => t.to.toLowerCase().includes(depositAddress.address.toLowerCase()))
+      .filter((t) => t.blockNumber > lastCheckedBlockHeight);
   }
 
   private async mapToPayInEntries(

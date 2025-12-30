@@ -85,7 +85,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     routeLabel?: string,
   ) {
-    const link = Boolean(userId)
+    const link = userId
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId).catch(() => undefined)
       : undefined;
 
@@ -115,7 +115,7 @@ export class PaymentLinkService {
     key?: string,
     externalLinkId?: string,
   ): Promise<PaymentLink[]> {
-    const ownerUserId = Boolean(key)
+    const ownerUserId = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId).then((pl) => pl.route.user.id)
       : userId;
 
@@ -206,9 +206,11 @@ export class PaymentLinkService {
     try {
       return await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
     } catch (e) {
-      e instanceof BadRequestException
-        ? this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment: ${e.message}`)
-        : this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}:`, e);
+      if (e instanceof BadRequestException) {
+        this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment: ${e.message}`);
+      } else {
+        this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}:`, e);
+      }
     }
   }
 
@@ -230,7 +232,7 @@ export class PaymentLinkService {
 
     await this.paymentLinkRepo.save(paymentLink);
 
-    dto.payment &&
+    if (dto.payment)
       paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
 
     return paymentLink;
@@ -574,7 +576,7 @@ export class PaymentLinkService {
     key?: string,
     routeLabel?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(key)
+    const paymentLink = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
       : await this.getForUserOrPublic(userId, linkId, externalLinkId, externalPaymentId, routeLabel);
 
@@ -627,7 +629,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(key)
+    const paymentLink = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
       : await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
@@ -646,7 +648,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(key)
+    const paymentLink = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
       : await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
@@ -684,8 +686,8 @@ export class PaymentLinkService {
       scoped == null
         ? paymentLink.configObj
         : scoped
-        ? paymentLink.linkConfigObj
-        : paymentLink.route.userData.paymentLinksConfigObj;
+          ? paymentLink.linkConfigObj
+          : paymentLink.route.userData.paymentLinksConfigObj;
 
     let accessKey = config.accessKeys?.at(0);
     if (!accessKey) {

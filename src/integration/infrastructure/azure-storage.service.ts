@@ -1,5 +1,6 @@
 import { BlobGetPropertiesResponse, BlobServiceClient, ContainerClient } from '@azure/storage-blob';
-import { Config, GetConfig } from 'src/config/config';
+import { Config, Environment, GetConfig } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface BlobMetaData {
   contentType: string;
@@ -17,17 +18,48 @@ export interface BlobContent extends BlobMetaData {
   data: Buffer;
 }
 
+// In-memory storage for local development
+const mockStorage = new Map<string, { data: Buffer; type: string; metadata?: Record<string, string> }>();
+
 export class AzureStorageService {
+  private readonly logger = new DfxLogger(AzureStorageService);
   private readonly client: ContainerClient;
+  private readonly isMockMode: boolean;
 
   constructor(private readonly container: string) {
-    const connectionString = GetConfig().azure.storage.connectionString;
+    const config = GetConfig();
+    this.isMockMode = config.environment === Environment.LOC;
 
+    if (this.isMockMode) {
+      this.logger.verbose(`AzureStorageService [${container}] running in MOCK mode`);
+      return;
+    }
+
+    const connectionString = config.azure.storage.connectionString;
     if (connectionString)
       this.client = BlobServiceClient.fromConnectionString(connectionString).getContainerClient(container);
   }
 
   async listBlobs(prefix?: string): Promise<Blob[]> {
+    if (this.isMockMode) {
+      const blobs: Blob[] = [];
+      const keyPrefix = `${this.container}/${prefix ?? ''}`;
+      for (const [key, value] of mockStorage.entries()) {
+        if (key.startsWith(keyPrefix)) {
+          const name = key.replace(`${this.container}/`, '');
+          blobs.push({
+            name,
+            url: this.blobUrl(name),
+            contentType: value.type,
+            created: new Date(),
+            updated: new Date(),
+            metadata: value.metadata ?? {},
+          });
+        }
+      }
+      return blobs;
+    }
+
     const iterator = this.client.listBlobsFlat({ prefix, includeMetadata: true }).byPage({ maxPageSize: 100 });
 
     const blobs: Blob[] = [];
@@ -51,6 +83,18 @@ export class AzureStorageService {
   }
 
   async getBlob(name: string): Promise<BlobContent> {
+    if (this.isMockMode) {
+      const key = `${this.container}/${name}`;
+      const stored = mockStorage.get(key);
+      return {
+        data: stored?.data ?? Buffer.from(''),
+        contentType: stored?.type ?? 'application/octet-stream',
+        created: new Date(),
+        updated: new Date(),
+        metadata: stored?.metadata ?? {},
+      };
+    }
+
     const blobClient = this.client.getBlockBlobClient(name);
     const properties = await blobClient.getProperties();
     return {
@@ -60,6 +104,13 @@ export class AzureStorageService {
   }
 
   async uploadBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
+    if (this.isMockMode) {
+      const key = `${this.container}/${name}`;
+      mockStorage.set(key, { data, type, metadata });
+      this.logger.verbose(`Mock: Uploaded ${key} (${data.length} bytes)`);
+      return this.blobUrl(name);
+    }
+
     await this.client
       .getBlockBlobClient(name)
       .uploadData(data, { blobHTTPHeaders: { blobContentType: type }, metadata: !metadata ? undefined : metadata });

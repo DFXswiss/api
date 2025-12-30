@@ -7,7 +7,10 @@ import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class ArbitrumCoinStrategy extends EvmCoinStrategy {
-  constructor(protected readonly assetService: AssetService, dexArbitrumService: DexArbitrumService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    dexArbitrumService: DexArbitrumService,
+  ) {
     super(dexArbitrumService);
   }
 

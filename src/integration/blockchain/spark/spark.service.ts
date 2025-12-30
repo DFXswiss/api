@@ -53,7 +53,7 @@ export class SparkService extends BlockchainService {
       const signature = secp256k1.Signature.fromBytes(signatureBytes, 'compact').addRecoveryBit(recovery);
       const recoveredPubKey = signature.recoverPublicKey(messageHash);
       return Buffer.from(recoveredPubKey.toBytes(true));
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }

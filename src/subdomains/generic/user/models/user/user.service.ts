@@ -210,7 +210,7 @@ export class UserService {
     user.usedRef = await this.checkRef(user, data.usedRef);
     user.origin = data.origin;
     user.custodyProvider = data.custodyProvider;
-    userIsActive && (user.status = UserStatus.ACTIVE);
+    if (userIsActive) user.status = UserStatus.ACTIVE;
     user.custodyAddressType = data.custodyAddressType;
     user.custodyAddressIndex = data.custodyAddressIndex;
     user.role = data.role;
