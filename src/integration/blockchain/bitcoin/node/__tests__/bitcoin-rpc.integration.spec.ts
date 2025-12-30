@@ -1,12 +1,12 @@
 /**
  * Bitcoin RPC Integration Tests
  *
- * Diese Tests verifizieren die korrekte Funktionsweise der Bitcoin RPC Integration
- * mit unserem eigenen minimalen BitcoinRpcClient (in src/integration/blockchain/bitcoin/node/rpc/).
+ * These tests verify the correct functionality of the Bitcoin RPC integration
+ * with our own minimal BitcoinRpcClient (in src/integration/blockchain/bitcoin/node/rpc/).
  *
- * WICHTIG: Diese Tests erfordern eine Verbindung zu einem echten Bitcoin Node!
+ * IMPORTANT: These tests require a connection to a real Bitcoin Node!
  *
- * Ausführung:
+ * Usage:
  *   NODE_BTC_INP_URL_ACTIVE=http://localhost:8332 \
  *   NODE_USER=user \
  *   NODE_PASSWORD=pass \
