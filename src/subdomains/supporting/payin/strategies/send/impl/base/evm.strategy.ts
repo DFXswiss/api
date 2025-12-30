@@ -67,7 +67,6 @@ export abstract class EvmStrategy extends SendStrategy {
 
         if (payInGroup.status === PayInStatus.PREPARED) {
           await this.dispatch(payInGroup, type, this.getTotalSendFee(payInGroup));
-        } else {
         }
       } catch (e) {
         if (e.message.includes('No maximum fee provided')) continue;
