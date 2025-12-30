@@ -270,10 +270,12 @@ export class BuyCrypto extends IEntity {
 
   calculateOutputReferenceAmount(price: Price, exchangeOrders?: LiquidityManagementOrder[]): this {
     // Use pipeline prices only if:
-    // 1. Pipeline exists and is COMPLETE
-    // 2. Exchange orders were found (actual trades happened)
+    // 1. Feature is enabled via config (USE_PIPELINE_PRICE_FOR_ALL_ASSETS=true)
+    // 2. Pipeline exists and is COMPLETE
+    // 3. Exchange orders were found (actual trades happened)
     // If no exchange orders exist, liquidity was available without trading -> use market price
     if (
+      Config.liquidityManagement.usePipelinePriceForAllAssets &&
       this.liquidityPipeline &&
       this.liquidityPipeline.status === LiquidityManagementPipelineStatus.COMPLETE &&
       exchangeOrders?.length
