@@ -67,8 +67,13 @@ export class BitcoinRpcClient {
         },
       });
     } catch (e) {
+      // Preserve SyntaxError for retry logic in NodeClient
+      if (e instanceof SyntaxError) {
+        throw e;
+      }
+
       // Extract error details from Axios error response
-      const axiosError = e as { response?: { status?: number; data?: RpcResponse<T> }; message?: string };
+      const axiosError = e as { response?: { status?: number; data?: RpcResponse<T> }; message?: string; code?: number };
       const rpcError = axiosError.response?.data?.error;
 
       if (rpcError) {
@@ -77,8 +82,14 @@ export class BitcoinRpcClient {
         throw error;
       }
 
-      // Re-throw with more context
-      throw new Error(`Bitcoin RPC ${method} failed: ${axiosError.message ?? e}`);
+      // Re-throw with more context, preserving error code if present
+      const error = new Error(`Bitcoin RPC ${method} failed: ${axiosError.message ?? e}`) as Error & { code: number };
+      if (axiosError.code !== undefined) {
+        error.code = axiosError.code;
+      } else if ((e as Error & { code?: number }).code !== undefined) {
+        error.code = (e as Error & { code?: number }).code!;
+      }
+      throw error;
     }
 
     if (response.error) {

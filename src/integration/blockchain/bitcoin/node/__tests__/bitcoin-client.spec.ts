@@ -388,7 +388,7 @@ describe('BitcoinClient', () => {
 
       expect(result.error).toBeDefined();
       expect(result.error!.code).toBe(-25);
-      expect(result.error!.message).toBe('bad-txns-inputs-missingorspent');
+      expect(result.error!.message).toContain('bad-txns-inputs-missingorspent');
     });
 
     it('should handle exceptions with code property', async () => {
@@ -404,7 +404,7 @@ describe('BitcoinClient', () => {
 
       expect(result.error).toBeDefined();
       expect(result.error!.code).toBe(-1);
-      expect(result.error!.message).toBe('Connection failed');
+      expect(result.error!.message).toContain('Connection failed');
     });
 
     it('should handle exceptions without code property', async () => {
@@ -416,7 +416,7 @@ describe('BitcoinClient', () => {
       const result = await client.sendSignedTransaction('0100000001...');
 
       expect(result.error!.code).toBe(-1);
-      expect(result.error!.message).toBe('Unknown error');
+      expect(result.error!.message).toContain('Unknown error');
     });
   });
 

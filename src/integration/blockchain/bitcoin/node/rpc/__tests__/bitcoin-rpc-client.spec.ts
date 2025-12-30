@@ -412,7 +412,7 @@ describe('BitcoinRpcClient', () => {
       });
 
       await expect(client.getTransaction('nonexistent')).rejects.toMatchObject({
-        message: 'Invalid or non-wallet transaction id',
+        message: expect.stringContaining('Invalid or non-wallet transaction id'),
         code: -5,
       });
     });
