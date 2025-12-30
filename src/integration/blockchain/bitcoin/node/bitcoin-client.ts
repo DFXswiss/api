@@ -1,5 +1,4 @@
 import { Currency } from '@uniswap/sdk-core';
-import type { SendResult } from '@btc-vision/bitcoin-rpc/build/rpc/types/NewMethods';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
@@ -40,16 +39,14 @@ export class BitcoinClient extends NodeClient {
     // 135 vByte for a single-input single-output TX
     const feeAmount = (feeRate * 135) / Math.pow(10, 8);
 
-    // Use the 'send' RPC with positional parameters (Bitcoin Core 0.21.0+)
-    // Positional parameters: send [{"address":amount},...] conf_target "estimate_mode" fee_rate options
     const outputs = [{ [addressTo]: this.roundAmount(amount - feeAmount) }];
     const options = {
       inputs: [{ txid: txId, vout }],
       replaceable: true,
     };
 
-    const result = await this.callNode<SendResult>(
-      () => this.callRpcWithPositionalParams<SendResult>('send', [outputs, null, null, feeRate, options]),
+    const result = await this.callNode(
+      () => this.rpc.send(outputs, null, null, feeRate, options),
       true,
     );
 
@@ -59,14 +56,13 @@ export class BitcoinClient extends NodeClient {
   async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
     const outputs = payload.map((p) => ({ [p.addressTo]: p.amount }));
 
-    // Use the 'send' RPC with positional parameters (Bitcoin Core 0.21.0+)
     const options = {
       replaceable: true,
       change_address: Config.blockchain.default.btcOutput.address,
     };
 
-    const result = await this.callNode<SendResult>(
-      () => this.callRpcWithPositionalParams<SendResult>('send', [outputs, null, null, feeRate, options]),
+    const result = await this.callNode(
+      () => this.rpc.send(outputs, null, null, feeRate, options),
       true,
     );
 
@@ -74,16 +70,13 @@ export class BitcoinClient extends NodeClient {
   }
 
   async testMempoolAccept(hex: string): Promise<TestMempoolResult[]> {
-    // Positional parameters: testmempoolaccept ["rawtx",...]
-    const result = await this.callNode(async () => {
-      return this.callRpcWithPositionalParams<TestMempoolResult[]>('testmempoolaccept', [[hex]]);
-    }, true);
+    const result = await this.callNode(() => this.rpc.testMempoolAccept([hex]), true);
 
     if (!result || !Array.isArray(result)) {
       return [{ txid: '', allowed: false, vsize: 0, fees: { base: 0 }, 'reject-reason': 'RPC call failed' }];
     }
 
-    return result.map((r: any) => ({
+    return result.map((r) => ({
       txid: r.txid ?? '',
       allowed: r.allowed ?? false,
       vsize: r.vsize ?? 0,
@@ -94,11 +87,7 @@ export class BitcoinClient extends NodeClient {
 
   async sendSignedTransaction(hex: string): Promise<BlockchainSignedTransactionResponse> {
     try {
-      // Positional parameters: sendrawtransaction "hexstring"
-      const txid = await this.callNode<string>(
-        () => this.callRpcWithPositionalParams<string>('sendrawtransaction', [hex]),
-        true,
-      );
+      const txid = await this.callNode(() => this.rpc.sendRawTransaction(hex), true);
       return { hash: txid ?? '' };
     } catch (e) {
       return {
@@ -111,11 +100,15 @@ export class BitcoinClient extends NodeClient {
   }
 
   async getRecentHistory(txCount = 100): Promise<TransactionHistory[]> {
-    // Positional parameters: listtransactions "label" count
-    return this.callNode(async () => {
-      const result = await this.callRpcWithPositionalParams<TransactionHistory[]>('listtransactions', ['*', txCount]);
-      return result ?? [];
-    }, true);
+    const result = await this.callNode(() => this.rpc.listTransactions('*', txCount), true);
+    return result.map((tx) => ({
+      address: tx.address,
+      category: tx.category,
+      blocktime: tx.blocktime ?? 0,
+      txid: tx.txid,
+      confirmations: tx.confirmations,
+      amount: tx.amount,
+    }));
   }
 
   async isTxComplete(txId: string, minConfirmations?: number): Promise<boolean> {
@@ -129,15 +122,10 @@ export class BitcoinClient extends NodeClient {
     return this.getBalance();
   }
 
-  // Note: This method only works for all addresses of our wallet
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
-    // Positional parameters: listaddressgroupings (no params)
-    const result = await this.callNode(async () => {
-      const groupings = await this.callRpcWithPositionalParams<unknown[][][]>('listaddressgroupings', []);
-      return groupings ?? [];
-    }, true);
+    const groupings = await this.callNode(() => this.rpc.listAddressGroupings(), true);
 
-    for (const outer of result) {
+    for (const outer of groupings) {
       for (const inner of outer) {
         if (inner[0] === address) {
           return inner[1] as number;

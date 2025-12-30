@@ -27,7 +27,6 @@
     "@arbitrum/sdk": "^3.7.3",
     "@azure/storage-blob": "^12.29.1",
     "@blockfrost/blockfrost-js": "^6.1.0",
-    "@btc-vision/bitcoin-rpc": "^1.0.6",
     "@cardano-foundation/cardano-verify-datasignature": "^1.0.11",
     "@deuro/eurocoin": "^1.0.16",
     "@dhedge/v2-sdk": "^1.11.1",
@@ -164,9 +163,7 @@
     ],
     "rootDir": "src",
     "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1",
-      "^@btc-vision/bitcoin-rpc$": "<rootDir>/../test/__mocks__/@btc-vision/bitcoin-rpc.ts",
-      "^@btc-vision/bitcoin-rpc/build/rpc/interfaces/RPCConfig.js$": "<rootDir>/../test/__mocks__/@btc-vision/bitcoin-rpc.ts"
+      "^src/(.*)$": "<rootDir>/$1"
     },
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
