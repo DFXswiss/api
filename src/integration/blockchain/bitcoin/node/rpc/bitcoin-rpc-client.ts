@@ -57,15 +57,32 @@ export class BitcoinRpcClient {
       params,
     };
 
-    const response = await this.http.post<RpcResponse<T>>(this.url, JSON.stringify(body), {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: this.authHeader,
-      },
-    });
+    let response: RpcResponse<T>;
+
+    try {
+      response = await this.http.post<RpcResponse<T>>(this.url, JSON.stringify(body), {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: this.authHeader,
+        },
+      });
+    } catch (e) {
+      // Extract error details from Axios error response
+      const axiosError = e as { response?: { status?: number; data?: RpcResponse<T> }; message?: string };
+      const rpcError = axiosError.response?.data?.error;
+
+      if (rpcError) {
+        const error = new Error(`Bitcoin RPC ${method} failed: ${rpcError.message}`) as Error & { code: number };
+        error.code = rpcError.code;
+        throw error;
+      }
+
+      // Re-throw with more context
+      throw new Error(`Bitcoin RPC ${method} failed: ${axiosError.message ?? e}`);
+    }
 
     if (response.error) {
-      const error = new Error(response.error.message) as Error & { code: number };
+      const error = new Error(`Bitcoin RPC ${method} failed: ${response.error.message}`) as Error & { code: number };
       error.code = response.error.code;
       throw error;
     }
