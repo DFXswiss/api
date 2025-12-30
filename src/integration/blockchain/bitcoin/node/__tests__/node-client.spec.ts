@@ -10,7 +10,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainTokenBalance } from '../../../shared/dto/blockchain-token-balance.dto';
 import { BitcoinRpcClient } from '../rpc/bitcoin-rpc-client';
-import { NodeClient, AddressType, InWalletTransaction, Block } from '../node-client';
+import { NodeClient } from '../node-client';
 
 // Concrete implementation for testing
 class TestNodeClient extends NodeClient {
@@ -23,7 +23,7 @@ class TestNodeClient extends NodeClient {
     return this.getBalance();
   }
 
-  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
+  async getNativeCoinBalanceForAddress(_address: string): Promise<number> {
     // Simple implementation for testing
     return 0;
   }

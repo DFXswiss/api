@@ -5,7 +5,7 @@
  * including fee rate caching, TX fee rate lookup, and batch operations.
  */
 
-import { BitcoinFeeService, TxFeeRateResult, TxFeeRateStatus } from '../bitcoin-fee.service';
+import { BitcoinFeeService } from '../bitcoin-fee.service';
 import { BitcoinService, BitcoinNodeType } from '../../node/bitcoin.service';
 import { BitcoinClient } from '../../node/bitcoin-client';
 
@@ -47,7 +47,7 @@ describe('BitcoinFeeService', () => {
 
       // Since AsyncCache catches the error and may return undefined when fallbackToCache fails,
       // we test that null estimation is handled
-      const result = await service.getRecommendedFeeRate();
+      await service.getRecommendedFeeRate();
 
       // With fallbackToCache=true and no cache, it may return undefined or throw
       // The actual behavior depends on AsyncCache implementation
