@@ -364,7 +364,7 @@ describe('NodeClient', () => {
     it('getBalance() should return wallet balance', async () => {
       mockRpcPost.mockResolvedValueOnce({ result: null, error: null, id: 'test' });
       mockRpcPost.mockResolvedValueOnce({
-        result: { balance: 1.5 },
+        result: { mine: { trusted: 1.5, untrusted_pending: 0, immature: 0 } },
         error: null,
         id: 'test',
       });
@@ -375,13 +375,11 @@ describe('NodeClient', () => {
       expect(typeof result).toBe('number');
     });
 
-    it('getBalance() should return 0 when walletInfo is null', async () => {
+    it('getBalance() should throw when balances.mine.trusted is null', async () => {
       mockRpcPost.mockResolvedValueOnce({ result: null, error: null, id: 'test' });
       mockRpcPost.mockResolvedValueOnce({ result: null, error: null, id: 'test' });
 
-      const result = await client.getBalance();
-
-      expect(result).toBe(0);
+      await expect(client.getBalance()).rejects.toThrow('Failed to get wallet balances');
     });
   });
 

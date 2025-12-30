@@ -99,9 +99,9 @@ describe('BitcoinClient', () => {
           id: 'test',
         });
       }
-      if (parsed.method === 'getwalletinfo') {
+      if (parsed.method === 'getbalances') {
         return Promise.resolve({
-          result: { balance: 5.0 },
+          result: { mine: { trusted: 5.0, untrusted_pending: 0, immature: 0 } },
           error: null,
           id: 'test',
         });
