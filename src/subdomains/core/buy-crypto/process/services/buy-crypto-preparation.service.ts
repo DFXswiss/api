@@ -399,6 +399,12 @@ export class BuyCryptoPreparationService {
           outputPrice.timestamp,
         );
 
+        // create fee constraints
+        const maxNetworkFee = chfPrice.invert().convert(Config.maxBlockchainFee);
+        const maxNetworkFeeInOutAsset = await this.convertNetworkFee(inputCurrency, entity.outputAsset, maxNetworkFee);
+        const feeConstraints = entity.fee ?? (await this.buyCryptoRepo.saveFee(BuyCryptoFee.create(entity)));
+        await this.buyCryptoRepo.updateFee(feeConstraints.id, { allowedTotalFeeAmount: maxNetworkFeeInOutAsset });
+
         await this.buyCryptoRepo.update(
           ...entity.setPaymentLinkPayment(
             eurPrice.convert(entity.inputAmount, 2),
