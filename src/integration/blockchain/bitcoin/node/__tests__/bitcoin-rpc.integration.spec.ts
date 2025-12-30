@@ -2,7 +2,7 @@
  * Bitcoin RPC Integration Tests
  *
  * Diese Tests verifizieren die korrekte Funktionsweise der Bitcoin RPC Integration
- * nach der Migration von @defichain/jellyfish-api-jsonrpc zu @btc-vision/bitcoin-rpc.
+ * mit unserem eigenen minimalen BitcoinRpcClient (in src/integration/blockchain/bitcoin/node/rpc/).
  *
  * WICHTIG: Diese Tests erfordern eine Verbindung zu einem echten Bitcoin Node!
  *
