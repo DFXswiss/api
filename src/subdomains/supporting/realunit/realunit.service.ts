@@ -13,9 +13,7 @@ import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/r
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -33,12 +31,7 @@ import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
-import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
-import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -84,15 +77,9 @@ export class RealUnitService {
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly http: HttpService,
-    private readonly virtualIbanService: VirtualIbanService,
     private readonly fiatService: FiatService,
-    private readonly swissQrService: SwissQRService,
     @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
-    @Inject(forwardRef(() => TransactionHelper))
-    private readonly transactionHelper: TransactionHelper,
-    @Inject(forwardRef(() => TransactionRequestService))
-    private readonly transactionRequestService: TransactionRequestService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -227,161 +214,56 @@ export class RealUnitService {
     const realuAsset = await this.getRealuAsset();
     const buy = await this.buyService.createBuy(user, user.address, { asset: realuAsset }, true);
 
-    // 4. Get currency and calculate fees/rates
+    // 4. Get currency
     const currency = await this.fiatService.getFiatByName(currencyName);
-    const {
-      timestamp,
-      minVolume,
-      maxVolume,
-      minVolumeTarget,
-      maxVolumeTarget,
-      exchangeRate,
-      rate,
-      estimatedAmount,
-      sourceAmount: amount,
-      isValid,
-      error,
-      feeSource,
-      priceSteps,
-    } = await this.transactionHelper.getTxDetails(
-      dto.amount,
-      undefined,
+
+    // 5. Call BuyService to get payment info (handles fees, rates, IBAN creation, QR codes, etc.)
+    const buyPaymentInfo = await this.buyService.toPaymentInfoDto(user.id, buy, {
+      amount: dto.amount,
+      targetAmount: undefined,
       currency,
-      realuAsset,
-      FiatPaymentMethod.BANK,
-      CryptoPaymentMethod.CRYPTO,
-      false,
-      user,
-    );
+      asset: realuAsset,
+      paymentMethod: FiatPaymentMethod.BANK,
+      exactPrice: false,
+    });
 
-    // 5. Get or create vIBAN for this buy
-    let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, currencyName);
-    if (!virtualIban) {
-      virtualIban = await this.virtualIbanService.createForBuy(userData, buy, currencyName);
-    }
-
-    // 6. Recipient info (RealUnit company address)
+    // 6. Override recipient info with RealUnit company address
     const { bank: realunitBank } = GetConfig().blockchain.realunit;
-    const recipientInfo = {
+    const response: RealUnitPaymentInfoDto = {
+      id: buyPaymentInfo.id,
+      routeId: buyPaymentInfo.routeId,
+      timestamp: buyPaymentInfo.timestamp,
+      // Override recipient fields with RealUnit company address
       name: realunitBank.recipient,
       street: 'Schochenmühlestrasse',
       number: '6',
       zip: '6340',
       city: 'Baar',
       country: 'Switzerland',
-    };
-
-    const bankInfo = {
-      ...recipientInfo,
-      iban: virtualIban.iban,
-      bic: virtualIban.bank.bic,
-      bank: virtualIban.bank.name,
-      sepaInstant: false,
-    };
-
-    const paymentRequest = isValid
-      ? currencyName === 'CHF'
-        ? this.swissQrService.createQrCode(amount, currencyName, undefined, bankInfo, userData)
-        : this.generateGiroCode(bankInfo, amount, currencyName)
-      : undefined;
-
-    const response: RealUnitPaymentInfoDto = {
-      id: 0,
-      routeId: buy.id,
-      timestamp,
-      // Bank info
-      iban: virtualIban.iban,
-      bic: virtualIban.bank.bic,
-      name: recipientInfo.name,
-      street: recipientInfo.street,
-      number: recipientInfo.number,
-      zip: recipientInfo.zip,
-      city: recipientInfo.city,
-      country: recipientInfo.country,
-      // Amount info
-      amount,
-      currency: currencyName,
+      // Bank info from BuyService
+      iban: buyPaymentInfo.iban,
+      bic: buyPaymentInfo.bic,
+      // Amount and currency
+      amount: buyPaymentInfo.amount,
+      currency: buyPaymentInfo.currency.name,
       // Fee info
-      fees: feeSource,
-      minVolume,
-      maxVolume,
-      minVolumeTarget,
-      maxVolumeTarget,
+      fees: buyPaymentInfo.fees,
+      minVolume: buyPaymentInfo.minVolume,
+      maxVolume: buyPaymentInfo.maxVolume,
+      minVolumeTarget: buyPaymentInfo.minVolumeTarget,
+      maxVolumeTarget: buyPaymentInfo.maxVolumeTarget,
       // Rate info
-      exchangeRate,
-      rate,
-      priceSteps,
+      exchangeRate: buyPaymentInfo.exchangeRate,
+      rate: buyPaymentInfo.rate,
+      priceSteps: buyPaymentInfo.priceSteps,
       // RealUnit specific
-      estimatedAmount,
-      paymentRequest,
-      isValid,
-      error,
+      estimatedAmount: buyPaymentInfo.estimatedAmount,
+      paymentRequest: buyPaymentInfo.paymentRequest,
+      isValid: buyPaymentInfo.isValid,
+      error: buyPaymentInfo.error,
     };
-
-    // Create TransactionRequest for tracking
-    const request = {
-      currency,
-      asset: realuAsset,
-      amount: dto.amount,
-      paymentMethod: FiatPaymentMethod.BANK,
-      exactPrice: false,
-    };
-
-    const buyResponse = {
-      routeId: buy.id,
-      amount,
-      estimatedAmount,
-      exchangeRate,
-      rate,
-      paymentRequest,
-      isValid,
-      error,
-      exactPrice: false,
-      fees: feeSource,
-      currency: FiatDtoMapper.toDto(currency),
-      asset: AssetDtoMapper.toDto(realuAsset),
-    };
-
-    const transactionRequest = await this.transactionRequestService.create(
-      TransactionRequestType.BUY,
-      request as any,
-      buyResponse as any,
-      user.id,
-    );
-
-    if (transactionRequest) {
-      response.id = transactionRequest.id;
-    }
 
     return response;
-  }
-
-  private generateGiroCode(
-    bankInfo: {
-      name: string;
-      street: string;
-      number: string;
-      zip: string;
-      city: string;
-      country: string;
-      iban: string;
-      bic: string;
-    },
-    amount: number,
-    currency: string,
-  ): string {
-    return `
-${Config.giroCode.service}
-${Config.giroCode.version}
-${Config.giroCode.encoding}
-${Config.giroCode.transfer}
-${bankInfo.bic}
-${bankInfo.name}, ${bankInfo.street} ${bankInfo.number}, ${bankInfo.zip} ${bankInfo.city}, ${bankInfo.country}
-${bankInfo.iban}
-${currency}${amount}
-${Config.giroCode.char}
-${Config.giroCode.ref}
-`.trim();
   }
 
   // --- Registration Methods ---

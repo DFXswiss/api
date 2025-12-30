@@ -243,7 +243,7 @@ export class BuyService {
     return this.buyRepo;
   }
 
-  private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+  async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(userId, {
       userData: { users: true, organization: true },
       wallet: true,
