@@ -257,7 +257,6 @@ export class Configuration {
   };
 
   kyc = {
-    // IDnow integration removed - config keys kept for Sumsub
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
     identFailAfterDays: 30,
     reminderAfterDays: 2,

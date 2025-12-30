@@ -490,24 +490,27 @@ export class TransactionHelper implements OnModuleInit {
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
       const buy = transaction.buyCrypto.buy;
+      const bankInfo =
+        statementType === TxStatementType.INVOICE &&
+        (await this.buyService.getBankInfo(
+          {
+            amount: transaction.buyCrypto.outputAmount,
+            currency: fiat.name,
+            paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
+            userData: transaction.userData,
+          },
+          buy,
+          buy?.asset,
+          buy?.user?.wallet,
+        ));
+
       return {
         statementType,
         transactionType: TransactionType.BUY,
         transaction,
         currency: fiat.name,
-        bankInfo:
-          statementType === TxStatementType.INVOICE &&
-          (await this.buyService.getBankInfo(
-            {
-              amount: transaction.buyCrypto.outputAmount,
-              currency: fiat.name,
-              paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
-              userData: transaction.userData,
-            },
-            buy,
-            buy?.asset,
-            buy?.user?.wallet,
-          )),
+        bankInfo,
+        reference: bankInfo?.reference,
       };
     }
 

@@ -316,11 +316,8 @@ export class BuyService {
       // bank info
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant,
-      // No remittanceInfo needed for buy-specific IBAN (asset is determined by IBAN)
-      remittanceInfo: bankInfo.isBuySpecificIban ? undefined : buy.active ? buy.bankUsage : undefined,
-      paymentRequest: isValid
-        ? this.generateQRCode(buy, bankInfo, dto, user.userData, bankInfo.isBuySpecificIban)
-        : undefined,
+      remittanceInfo: buy.active ? bankInfo.reference : undefined,
+      paymentRequest: isValid ? this.generateQRCode(bankInfo, dto, user.userData) : undefined,
       // card info
       paymentLink:
         isValid && buy.active && dto.paymentMethod === FiatPaymentMethod.CARD
@@ -344,26 +341,24 @@ export class BuyService {
     buy?: Buy,
     asset?: Asset,
     wallet?: Wallet,
-  ): Promise<BankInfoDto & { isPersonalIban: boolean }> {
-    // Asset-specific personal IBAN (auto-created for personalIbanEnabled assets and enabled wallets)
+  ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
+    // asset-specific personal IBAN
     if (
       buy &&
       asset?.personalIbanEnabled &&
       wallet?.buySpecificIbanEnabled &&
       selector.userData.kycLevel >= KycLevel.LEVEL_50
     ) {
-      // Check if vIBAN already exists for this buy
       let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, selector.currency);
 
-      // If no existing vIBAN, check limit before creating new one (max 10 per user)
       if (!virtualIban) {
+        // max 10 vIBANs per user
         const activeCount = await this.virtualIbanService.countActiveForUser(selector.userData.id);
         if (activeCount < 10) {
           virtualIban = await this.virtualIbanService.createForBuy(selector.userData, buy, selector.currency);
         }
       }
 
-      // Return buy-specific IBAN info if available
       if (virtualIban) {
         const { address } = selector.userData;
         return {
@@ -378,13 +373,12 @@ export class BuyService {
           bic: virtualIban.bank.bic,
           sepaInstant: virtualIban.bank.sctInst,
           isPersonalIban: true,
-          isBuySpecificIban: true,
+          reference: this.getBuyReference(buy?.bankUsage, true),
         };
       }
-      // If limit reached, fall through to normal bank selection below
     }
 
-    // User-level personal IBAN
+    // user-level personal IBAN
     const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
 
     if (virtualIban) {
@@ -401,7 +395,7 @@ export class BuyService {
         bic: virtualIban.bank.bic,
         sepaInstant: virtualIban.bank.sctInst,
         isPersonalIban: true,
-        isBuySpecificIban: false,
+        reference: this.getBuyReference(buy?.bankUsage, false),
       };
     }
 
@@ -417,35 +411,29 @@ export class BuyService {
       bic: bank.bic,
       sepaInstant: bank.sctInst,
       isPersonalIban: false,
-      isBuySpecificIban: false,
+      reference: this.getBuyReference(buy?.bankUsage, false),
     };
   }
 
+  private getBuyReference(bankUsage: string | undefined, isBuySpecificIban: boolean): string | undefined {
+    // for buy-specific IBANs, no reference is needed
+    return isBuySpecificIban ? undefined : bankUsage;
+  }
+
   private generateQRCode(
-    buy: Buy,
-    bankInfo: BankInfoDto,
+    bankInfo: BankInfoDto & { reference?: string },
     dto: GetBuyPaymentInfoDto,
     userData: UserData,
-    isBuySpecificIban = false,
   ): string {
-    // For buy-specific IBAN, no reference/bankUsage needed in QR code
-    const reference = isBuySpecificIban ? undefined : buy.bankUsage;
-
     if (dto.currency.name === 'CHF') {
-      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, reference, bankInfo, userData);
+      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, bankInfo.reference, bankInfo, userData);
     } else {
-      return this.generateGiroCode(buy, bankInfo, dto, isBuySpecificIban);
+      return this.generateGiroCode(bankInfo, dto);
     }
   }
 
-  private generateGiroCode(
-    buy: Buy,
-    bankInfo: BankInfoDto,
-    dto: GetBuyPaymentInfoDto,
-    isBuySpecificIban = false,
-  ): string {
-    // For buy-specific IBAN, no reference/bankUsage needed in GiroCode
-    const reference = isBuySpecificIban ? '' : buy.bankUsage;
+  private generateGiroCode(bankInfo: BankInfoDto & { reference?: string }, dto: GetBuyPaymentInfoDto): string {
+    const reference = bankInfo.reference ?? '';
 
     return `
 ${Config.giroCode.service}

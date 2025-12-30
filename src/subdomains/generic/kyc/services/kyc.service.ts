@@ -391,10 +391,6 @@ export class KycService {
     }
   }
 
-  async syncIdentStep(_kycStep: KycStep): Promise<void> {
-    throw new BadRequestException('IDnow integration has been removed. Use Sumsub or Manual ident instead.');
-  }
-
   async getInfo(kycHash: string): Promise<KycLevelDto> {
     const user = await this.getUser(kycHash);
     await this.verifyUserDuplication(user);
@@ -729,11 +725,6 @@ export class KycService {
       data,
       data.contractAccepted ? ReviewStatus.COMPLETED : ReviewStatus.MANUAL_REVIEW,
     );
-  }
-
-  async updateIntrumIdent(_dto: IdNowResult): Promise<void> {
-    this.logger.warn('IDnow webhook called but integration has been removed');
-    throw new BadRequestException('IDnow integration has been removed');
   }
 
   updateSumsubIdent(dto: SumSubWebhookResult): void {
@@ -1135,8 +1126,7 @@ export class KycService {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
           kycStep.sessionId = await this.sumsubService.initiateIdent(user, kycStep);
         } else if (!kycStep.isManual) {
-          // IDnow integration removed - only Sumsub and Manual ident supported
-          throw new BadRequestException('IDnow integration removed. Only Sumsub and Manual ident are supported.');
+          throw new Error(`Invalid ident step type ${kycStep.type}`);
         }
 
         break;
@@ -1530,10 +1520,7 @@ export class KycService {
     const kycStep = await this.kycStepRepo.findOne({ where: { id: stepId }, relations: { userData: true } });
     if (!kycStep || kycStep.name !== KycStepName.IDENT) throw new NotFoundException('Invalid step');
 
-    // IDnow integration removed - only support Sumsub
-    if (!kycStep.isSumsub) {
-      throw new BadRequestException('File sync only available for Sumsub ident steps');
-    }
+    if (!kycStep.isSumsub) throw new Error(`Invalid ident step type ${kycStep.type}`);
 
     const userFiles = await this.documentService.listUserFiles(kycStep.userData.id);
     const documents = await this.sumsubService.getDocuments(kycStep);

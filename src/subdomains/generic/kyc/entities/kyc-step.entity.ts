@@ -109,8 +109,7 @@ export class KycStep extends IEntity {
         } else if (this.isManual) {
           return { url: `${apiUrl}/ident/manual/${this.id}`, type: UrlType.API };
         } else {
-          // IDnow integration removed - old ident steps no longer have active URLs
-          return { url: '', type: UrlType.NONE };
+          throw new Error(`Invalid ident step type ${this.type}`);
         }
       }
 

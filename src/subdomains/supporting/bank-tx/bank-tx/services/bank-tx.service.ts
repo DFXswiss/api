@@ -186,7 +186,7 @@ export class BankTxService implements OnModuleInit {
     for (const tx of unassignedBankTx) {
       try {
         if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
-          // First check if virtualIban is linked to a specific buy
+          // check for dedicated asset vIBAN
           if (tx.virtualIban) {
             const virtualIban = await this.virtualIbanService.getByIbanWithBuy(tx.virtualIban);
             if (virtualIban?.buy) {
@@ -195,7 +195,7 @@ export class BankTxService implements OnModuleInit {
             }
           }
 
-          // Fall back to remittanceInfo (bankUsage) matching
+          // match by remittance info (bankUsage)
           const buy = this.findMatchingBuy(tx, buys);
 
           if (buy) {

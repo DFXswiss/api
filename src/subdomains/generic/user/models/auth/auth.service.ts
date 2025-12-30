@@ -434,7 +434,7 @@ export class AuthService {
     }
 
     if (blockchains.includes(Blockchain.DEFICHAIN)) {
-      // DeFiChain wallet, only comparison check (no new registrations)
+      // DeFiChain wallet, only comparison check
       return dbSignature && signature === dbSignature;
     }
 

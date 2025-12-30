@@ -184,14 +184,11 @@ export class BuyController {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
     }
 
-    // No reference needed for buy-specific IBAN
-    const reference = bankInfo.isBuySpecificIban ? undefined : buy.bankUsage;
-
     return {
       pdfData: await this.swissQrService.createInvoiceFromRequest(
         request.amount,
         currency.name,
-        reference,
+        bankInfo.reference,
         bankInfo,
         request,
       ),

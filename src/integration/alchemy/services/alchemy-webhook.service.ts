@@ -9,7 +9,7 @@ import {
   WebhookType,
 } from 'alchemy-sdk';
 import { Observable, Subject, filter } from 'rxjs';
-import { Config, GetConfig } from 'src/config/config';
+import { Config, Environment, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
@@ -42,7 +42,7 @@ export class AlchemyWebhookService implements OnModuleInit {
     const config = GetConfig();
 
     // Skip webhook initialization in local development mode
-    if (config.environment === 'loc') {
+    if (config.environment === Environment.LOC) {
       this.logger.verbose('Skipping Alchemy webhook initialization in local development mode');
       this.webhookCache = new Map();
       return;
@@ -82,7 +82,7 @@ export class AlchemyWebhookService implements OnModuleInit {
     const config = GetConfig();
 
     // Skip webhook creation in local development mode (localhost is not reachable by Alchemy)
-    if (config.environment === 'loc') {
+    if (config.environment === Environment.LOC) {
       this.logger.verbose(`Skipping Alchemy webhook creation for ${dto.blockchain} in local development mode`);
       return [];
     }

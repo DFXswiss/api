@@ -94,6 +94,7 @@ export class SwissQRService {
     transaction,
     currency,
     bankInfo,
+    reference,
   }: TxStatementDetails): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
     if (!debtor) throw new Error('Debtor is required');
@@ -112,8 +113,7 @@ export class SwissQRService {
       debtor,
       currency,
       amount: bankInfo && transaction.buyCrypto?.inputAmount,
-      // For buy-specific IBANs, no remittance info (bankUsage) is needed
-      message: bankInfo && !bankInfo.isBuySpecificIban ? transaction.buyCrypto?.buy.bankUsage : undefined,
+      message: reference,
     };
 
     return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, transactionType);
