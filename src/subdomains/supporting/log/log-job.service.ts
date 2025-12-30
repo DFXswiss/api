@@ -292,23 +292,23 @@ export class LogJobService {
 
     // fixed sender and receiver data
 
-    // CHF: Kraken -> Maerki
+    // CHF: Kraken -> Yapeal
     const chfSenderExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.WITHDRAWAL &&
-        k.method === 'Bank Frick (SIC) International' && // TODO adapt to yapeal
-        k.address === 'Maerki Baumann', // TODO adapt to yapeal
+        k.method === 'Bank Frick (SIC) International' &&
+        k.address === 'YAPEAL AG',
     );
     const chfReceiverBankTx = recentKrakenBankTx.filter(
       (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
-    // EUR: Kraken -> Maerki
+    // EUR: Kraken -> Yapeal
     const eurSenderExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.WITHDRAWAL &&
-        k.method === 'Bank Frick (SEPA) International' && // TODO adapt to yapeal
-        k.address === 'Maerki Baumann & Co. AG', // TODO adapt to yapeal
+        k.method === 'Bank Frick (SEPA) International' &&
+        k.address === 'YAPEAL AG',
     );
     const eurReceiverBankTx = recentKrakenBankTx.filter(
       (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
@@ -322,7 +322,7 @@ export class LogJobService {
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
         k.method === 'Bank Frick (SIC) International' &&
-        k.address === yapealChfBank.bic,
+        k.address === yapealChfBank.bic.padEnd(11, 'XXX'),
     );
 
     // EUR: Yapeal -> Kraken
@@ -333,7 +333,7 @@ export class LogJobService {
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
         k.method === 'Bank Frick (SEPA) International' &&
-        k.address === yapealEurBank.bic,
+        k.address === yapealEurBank.bic.padEnd(11, 'XXX'),
     );
 
     // sender and receiver data
