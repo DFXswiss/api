@@ -87,7 +87,6 @@ export class VirtualIbanService {
 
     const saved = await this.virtualIbanRepo.save(virtualIban);
 
-    // Invalidate cache after creating new vIBAN
     this.virtualIbanRepo.invalidateCache();
 
     return saved;

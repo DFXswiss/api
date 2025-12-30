@@ -151,8 +151,11 @@ export abstract class NodeClient extends BlockchainClient {
   }
 
   async getBalance(): Promise<number> {
-    const walletInfo = await this.callNode(() => this.rpc.getWalletInfo(), true);
-    return walletInfo?.balance ?? 0;
+    const balances = await this.callNode(() => this.rpc.getBalances(), true);
+    if (balances?.mine?.trusted == null) {
+      throw new Error('Failed to get wallet balances');
+    }
+    return balances.mine.trusted;
   }
 
   async sendUtxoToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {

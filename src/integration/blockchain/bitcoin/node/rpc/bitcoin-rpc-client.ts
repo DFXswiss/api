@@ -14,6 +14,7 @@
 import { HttpService } from 'src/shared/services/http.service';
 import {
   AddressType,
+  Balances,
   BitcoinRpcConfig,
   Block,
   BlockchainInfo,
@@ -154,6 +155,10 @@ export class BitcoinRpcClient {
 
   async getWalletInfo(): Promise<WalletInfo> {
     return this.call<WalletInfo>('getwalletinfo');
+  }
+
+  async getBalances(): Promise<Balances> {
+    return this.call<Balances>('getbalances');
   }
 
   async listTransactions(label = '*', count = 10, skip = 0, includeWatchonly = true): Promise<TransactionHistoryEntry[]> {

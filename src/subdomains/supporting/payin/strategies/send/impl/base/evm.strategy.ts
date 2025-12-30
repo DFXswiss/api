@@ -36,10 +36,6 @@ export abstract class EvmStrategy extends SendStrategy {
 
     for (const payInGroup of [...groups.values()]) {
       try {
-        this.logger.verbose(
-          `DEBUG: payInGroup.status = ${payInGroup.status}, PayInStatus.PREPARED = ${PayInStatus.PREPARED}`,
-        );
-
         if (payInGroup.status === PayInStatus.PREPARING) {
           const isReady = await this.checkPreparation(payInGroup);
 
@@ -70,11 +66,8 @@ export abstract class EvmStrategy extends SendStrategy {
         }
 
         if (payInGroup.status === PayInStatus.PREPARED) {
-          this.logger.verbose(`DEBUG: About to call dispatch for payInGroup ${this.getPayInsIdentityKey(payInGroup)}`);
           await this.dispatch(payInGroup, type, this.getTotalSendFee(payInGroup));
-          this.logger.verbose(`DEBUG: dispatch completed for payInGroup ${this.getPayInsIdentityKey(payInGroup)}`);
         } else {
-          this.logger.verbose(`DEBUG: Skipping dispatch, status is ${payInGroup.status}`);
         }
       } catch (e) {
         if (e.message.includes('No maximum fee provided')) continue;
@@ -182,17 +175,11 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   private async dispatch(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<void> {
-    this.logger.verbose(`DEBUG dispatch: calling dispatchSend...`);
     const outTxId = await this.dispatchSend(payInGroup, type, estimatedNativeFee);
-    this.logger.verbose(`DEBUG dispatch: dispatchSend returned txId: ${outTxId}`);
 
-    this.logger.verbose(`DEBUG dispatch: updating payIns with send data...`);
     const updatedPayIns = await this.updatePayInsWithSendData(payInGroup, outTxId, type);
-    this.logger.verbose(`DEBUG dispatch: ${updatedPayIns.length} payIns updated`);
 
-    this.logger.verbose(`DEBUG dispatch: saving updated payIns...`);
     await this.saveUpdatedPayIns(updatedPayIns);
-    this.logger.verbose(`DEBUG dispatch: payIns saved successfully`);
   }
 
   private async updatePayInsWithSendData(

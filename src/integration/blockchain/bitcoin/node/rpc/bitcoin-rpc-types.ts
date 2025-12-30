@@ -207,6 +207,17 @@ export interface SendResult {
   complete: boolean;
 }
 
+export interface BalanceInfo {
+  trusted: number;
+  untrusted_pending: number;
+  immature: number;
+}
+
+export interface Balances {
+  mine: BalanceInfo;
+  watchonly?: BalanceInfo;
+}
+
 // --- Fee Estimation Types --- //
 
 export interface SmartFeeResult {
