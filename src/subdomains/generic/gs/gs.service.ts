@@ -52,6 +52,9 @@ export class GsService {
   // columns only visible to SUPER_ADMIN
   private readonly RestrictedColumns: Record<string, string[]> = {
     asset: ['ikna'],
+    organization: ['name'],
+    bank_tx: ['name'],
+    kyc_step: ['result'],
   };
   private readonly RestrictedMarker = '[RESTRICTED]';
 
@@ -59,25 +62,35 @@ export class GsService {
 
   // columns blocked for debug queries (personal data)
   private readonly DebugBlockedColumns = [
-    // contact
     'mail',
-    'email',
     'recipientMail',
     'phone',
-    // personal names (specific patterns to avoid blocking assetName, dexName, etc.)
     'firstname',
     'surname',
     'verifiedName',
-    'birthname',
     'organizationName',
+    'organizationStreet',
+    'organizationLocation',
+    'organizationZip',
+    'organizationCountryId',
+    'organizationId',
     'allBeneficialOwnersName',
-    'bankAccountName',
+    'allBeneficialOwnersDomicile',
+    'accountOpenerAuthorization',
+    'complexOrgStructure',
+    'accountOpener',
+    'legalEntity',
+    'signatoryPower',
     'cardName',
     'ultimateName',
     // address
     'street',
     'houseNumber',
+    'location',
     'zip',
+    'countryId',
+    'verifiedCountryId',
+    'nationalityId',
     // identity
     'birthday',
     'tin',
@@ -91,9 +104,15 @@ export class GsService {
     'ipCountry',
     'apiKey',
     'apiKeyCT',
-    'secret',
-    'password',
     'signature',
+    'kycHash',
+    'kycFileId',
+    'internalAmlNote',
+    'blackSquadRecipientMail',
+    'individualFees',
+    'totpSecret',
+    'paymentLinksConfig',
+    'paymentLinksName',
   ];
 
   private readonly DebugMaxResults = 10000;
@@ -690,6 +709,8 @@ export class GsService {
     const hasOrderBy = /\border\s+by\b/i.test(sql);
     const orderByClause = hasOrderBy ? '' : ' ORDER BY (SELECT NULL)';
 
-    return `${sql.trim().replace(/;*$/, '')}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${this.DebugMaxResults} ROWS ONLY`;
+    return `${sql.trim().replace(/;*$/, '')}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${
+      this.DebugMaxResults
+    } ROWS ONLY`;
   }
 }
