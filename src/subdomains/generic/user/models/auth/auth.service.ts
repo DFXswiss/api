@@ -313,7 +313,7 @@ export class AuthService {
 
       if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
 
-      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
+      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/account`);
       url.searchParams.set('session', token);
       return url.toString();
     } catch (e) {
