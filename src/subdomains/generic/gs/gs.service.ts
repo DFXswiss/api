@@ -52,9 +52,6 @@ export class GsService {
   // columns only visible to SUPER_ADMIN
   private readonly RestrictedColumns: Record<string, string[]> = {
     asset: ['ikna'],
-    organization: ['name'],
-    bank_tx: ['name'],
-    kyc_step: ['result'],
   };
   private readonly RestrictedMarker = '[RESTRICTED]';
 
@@ -62,6 +59,9 @@ export class GsService {
 
   // columns blocked for debug queries (personal data)
   private readonly DebugBlockedColumns = [
+    // restricted (for DEBUG only, ADMIN can see via /gs/db)
+    'name',
+    'result',
     'mail',
     'recipientMail',
     'phone',
