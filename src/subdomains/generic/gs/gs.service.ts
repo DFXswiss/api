@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -27,6 +28,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
+import { LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 export enum SupportTable {
@@ -54,6 +56,10 @@ export class GsService {
   };
   private readonly RestrictedMarker = '[RESTRICTED]';
 
+  // blocked KQL management commands
+  private readonly BlockedKqlCommands = ['.set', '.drop', '.create', '.alter', '.execute', '.append', '.ingest'];
+  private readonly LogMaxResults = 10000;
+
   constructor(
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
@@ -76,6 +82,7 @@ export class GsService {
     private readonly supportIssueService: SupportIssueService,
     private readonly swapService: SwapService,
     private readonly virtualIbanService: VirtualIbanService,
+    private readonly appInsightsQueryService: AppInsightsQueryService,
   ) {}
 
   async getDbData(query: DbQueryDto, role: UserRole): Promise<DbReturnData> {
@@ -194,6 +201,40 @@ export class GsService {
       swap: await this.swapService.getAllUserSwaps(userIds),
       virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData),
     };
+  }
+
+  async executeLogQuery(kql: string, timespan: string | undefined, userMail: string): Promise<LogQueryResult> {
+    // 1. Validate KQL - block management commands
+    const normalizedKql = kql.toLowerCase().trim();
+    const blockedCommand = this.BlockedKqlCommands.find((cmd) => normalizedKql.startsWith(cmd));
+    if (blockedCommand) {
+      throw new BadRequestException(`KQL command '${blockedCommand}' is not allowed`);
+    }
+
+    // 2. Ensure result limit
+    const limitedKql = this.ensureKqlResultLimit(kql);
+
+    // 3. Log query for audit trail
+    this.logger.info(`Log query by ${userMail}: ${kql.substring(0, 500)}${kql.length > 500 ? '...' : ''}`);
+
+    // 4. Execute query
+    try {
+      const response = await this.appInsightsQueryService.query(limitedKql, timespan);
+
+      // 5. Return first table result
+      const table = response.tables[0];
+      if (!table) {
+        return { columns: [], rows: [] };
+      }
+
+      return {
+        columns: table.columns,
+        rows: table.rows,
+      };
+    } catch (e) {
+      this.logger.warn(`Log query by ${userMail} failed: ${e.message}`);
+      throw new BadRequestException(`Query execution failed: ${e.message}`);
+    }
   }
 
   //*** HELPER METHODS ***//
@@ -493,5 +534,16 @@ export class GsService {
         }
       }
     }
+  }
+
+  private ensureKqlResultLimit(kql: string): string {
+    // Check if query already has a limit (take or limit operator)
+    const normalizedKql = kql.toLowerCase();
+    if (/\|\s*(take|limit)\s+\d+/i.test(normalizedKql)) {
+      return kql;
+    }
+
+    // Add take limit at the end
+    return `${kql.trim()} | take ${this.LogMaxResults}`;
   }
 }

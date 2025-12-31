@@ -8,6 +8,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
+import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
 
@@ -44,5 +45,18 @@ export class GsController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportData(@Query() query: SupportDataQuery): Promise<SupportReturnData> {
     return this.gsService.getSupportData(query);
+  }
+
+  @Post('debug/logs')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
+  async executeLogQuery(@GetJwt() jwt: JwtPayload, @Body() dto: LogQueryDto): Promise<LogQueryResult> {
+    try {
+      return await this.gsService.executeLogQuery(dto.kql, dto.timespan, jwt.address ?? `account:${jwt.account}`);
+    } catch (e) {
+      this.logger.verbose(`Log query failed:`, e);
+      throw new BadRequestException(e.message);
+    }
   }
 }
