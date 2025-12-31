@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Parser } from 'node-sql-parser';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -53,6 +54,49 @@ export class GsService {
     asset: ['ikna'],
   };
   private readonly RestrictedMarker = '[RESTRICTED]';
+
+  private readonly sqlParser = new Parser();
+
+  // columns blocked for debug queries (personal data)
+  private readonly DebugBlockedColumns = [
+    // contact
+    'mail',
+    'email',
+    'recipientMail',
+    'phone',
+    // personal names (specific patterns to avoid blocking assetName, dexName, etc.)
+    'firstname',
+    'surname',
+    'verifiedName',
+    'birthname',
+    'organizationName',
+    'allBeneficialOwnersName',
+    'bankAccountName',
+    'cardName',
+    'ultimateName',
+    // address
+    'street',
+    'houseNumber',
+    'zip',
+    // identity
+    'birthday',
+    'tin',
+    'identDocumentId',
+    'identDocumentType',
+    // financial
+    'iban',
+    'accountNumber',
+    // network/security
+    'ip',
+    'ipCountry',
+    'apiKey',
+    'apiKeyCT',
+    'secret',
+    'password',
+    'signature',
+  ];
+
+  private readonly DebugMaxResults = 10000;
 
   constructor(
     private readonly userDataService: UserDataService,
@@ -194,6 +238,75 @@ export class GsService {
       swap: await this.swapService.getAllUserSwaps(userIds),
       virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData),
     };
+  }
+
+  async executeDebugQuery(sql: string, userMail: string): Promise<any[]> {
+    // 1. Parse SQL to AST for robust validation
+    let ast;
+    try {
+      ast = this.sqlParser.astify(sql, { database: 'TransactSQL' });
+    } catch (e) {
+      throw new BadRequestException('Invalid SQL syntax');
+    }
+
+    // 2. Only single SELECT statements allowed (array means multiple statements)
+    const statements = Array.isArray(ast) ? ast : [ast];
+    if (statements.length !== 1) {
+      throw new BadRequestException('Only single statements allowed');
+    }
+
+    const stmt = statements[0];
+    if (stmt.type !== 'select') {
+      throw new BadRequestException('Only SELECT queries allowed');
+    }
+
+    // 3. No UNION/INTERSECT/EXCEPT queries (these have _next property)
+    if (stmt._next) {
+      throw new BadRequestException('UNION/INTERSECT/EXCEPT queries not allowed');
+    }
+
+    // 4. No SELECT INTO (creates tables - write operation!)
+    if (stmt.into?.type === 'into' || stmt.into?.expr) {
+      throw new BadRequestException('SELECT INTO not allowed');
+    }
+
+    // 5. No dangerous functions in FROM clause (external connections)
+    this.checkForDangerousFunctions(stmt);
+
+    // 6. No FOR XML/JSON (data exfiltration)
+    const normalizedLower = sql.toLowerCase();
+    if (normalizedLower.includes(' for xml') || normalizedLower.includes(' for json')) {
+      throw new BadRequestException('FOR XML/JSON not allowed');
+    }
+
+    // 7. Check for blocked columns BEFORE execution (prevents alias bypass)
+    const blockedColumn = this.findBlockedColumnInQuery(sql);
+    if (blockedColumn) {
+      throw new BadRequestException(`Access to column '${blockedColumn}' is not allowed`);
+    }
+
+    // 8. Validate TOP value if present
+    const topMatch = normalizedLower.match(/\btop\s+(\d+)/i);
+    if (topMatch && parseInt(topMatch[1]) > this.DebugMaxResults) {
+      throw new BadRequestException(`TOP value exceeds maximum of ${this.DebugMaxResults}`);
+    }
+
+    // 9. Log query for audit trail
+    this.logger.info(`Debug query by ${userMail}: ${sql.substring(0, 500)}${sql.length > 500 ? '...' : ''}`);
+
+    // 10. Execute query with result limit
+    try {
+      const limitedSql = this.ensureResultLimit(sql);
+      const result = await this.dataSource.query(limitedSql);
+
+      // 11. Additional masking for any columns that might have slipped through
+      this.maskDebugBlockedColumns(result);
+
+      return result;
+    } catch (e) {
+      this.logger.warn(`Debug query by ${userMail} failed: ${e.message}`);
+      throw new BadRequestException('Query execution failed');
+    }
   }
 
   //*** HELPER METHODS ***//
@@ -493,5 +606,91 @@ export class GsService {
         }
       }
     }
+  }
+
+  private maskDebugBlockedColumns(data: Record<string, unknown>[]): void {
+    if (!data?.length) return;
+
+    for (const entry of data) {
+      for (const key of Object.keys(entry)) {
+        if (this.isDebugBlockedColumn(key)) {
+          entry[key] = this.RestrictedMarker;
+        }
+      }
+    }
+  }
+
+  private isDebugBlockedColumn(columnName: string): boolean {
+    const lowerKey = columnName.toLowerCase();
+    // Match exact column name or prefixed (e.g., "firstname" or "user_firstname")
+    return this.DebugBlockedColumns.some((blocked) => {
+      const lowerBlocked = blocked.toLowerCase();
+      return lowerKey === lowerBlocked || lowerKey.endsWith('_' + lowerBlocked);
+    });
+  }
+
+  private findBlockedColumnInQuery(sql: string): string | null {
+    try {
+      // columnList returns: ['select::table::column', 'select::null::column', ...]
+      const columns = this.sqlParser.columnList(sql, { database: 'TransactSQL' });
+
+      for (const col of columns) {
+        // Format: 'operation::schema::column' - extract the column part
+        const parts = col.split('::');
+        const columnName = parts[parts.length - 1];
+
+        // Skip wildcard
+        if (columnName === '*' || columnName === '(.*)') continue;
+
+        if (this.isDebugBlockedColumn(columnName)) {
+          return columnName;
+        }
+      }
+
+      return null;
+    } catch {
+      // If column extraction fails, let the query proceed (will be caught by result masking)
+      return null;
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private checkForDangerousFunctions(stmt: any): void {
+    const dangerousFunctions = ['openrowset', 'openquery', 'opendatasource', 'openxml'];
+
+    const checkFromClause = (from: any[]): void => {
+      if (!from) return;
+
+      for (const item of from) {
+        // Check if FROM contains a function call
+        if (item.type === 'expr' && item.expr?.type === 'function') {
+          const funcName = item.expr.name?.name?.[0]?.value?.toLowerCase();
+          if (funcName && dangerousFunctions.includes(funcName)) {
+            throw new BadRequestException(`Function '${funcName.toUpperCase()}' not allowed`);
+          }
+        }
+        // Recursively check subqueries in FROM
+        if (item.expr?.ast) {
+          this.checkForDangerousFunctions(item.expr.ast);
+        }
+      }
+    };
+
+    checkFromClause(stmt.from);
+  }
+
+  private ensureResultLimit(sql: string): string {
+    const normalized = sql.trim().toLowerCase();
+
+    // Check if query already has a LIMIT/TOP clause
+    if (normalized.includes(' top ') || /\blimit\s+\d+/i.test(sql)) {
+      return sql;
+    }
+
+    // MSSQL requires ORDER BY for OFFSET/FETCH - add dummy order if missing
+    const hasOrderBy = /\border\s+by\b/i.test(sql);
+    const orderByClause = hasOrderBy ? '' : ' ORDER BY (SELECT NULL)';
+
+    return `${sql.trim().replace(/;*$/, '')}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${this.DebugMaxResults} ROWS ONLY`;
   }
 }

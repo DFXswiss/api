@@ -103,6 +103,7 @@
     "nestjs-i18n": "^10.5.1",
     "nestjs-real-ip": "^2.2.0",
     "node-2fa": "^2.0.3",
+    "node-sql-parser": "^5.3.13",
     "nodemailer": "^6.10.1",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",

@@ -19,6 +19,7 @@ class RoleGuardClass implements CanActivate {
     [UserRole.COMPLIANCE]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
     [UserRole.BANKING_BOT]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
     [UserRole.ADMIN]: [UserRole.SUPER_ADMIN],
+    [UserRole.DEBUG]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],
   };
 
   constructor(private readonly entryRole: UserRole) {}
