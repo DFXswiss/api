@@ -534,6 +534,12 @@ export class RealUnitService {
       });
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
+
+      // Set KYC Level 20 if not already higher (same as NATIONALITY_DATA step)
+      if (kycStep.userData.kycLevel < KycLevel.LEVEL_20) {
+        await this.userDataService.updateUserDataInternal(kycStep.userData, { kycLevel: KycLevel.LEVEL_20 });
+      }
+
       return true;
     } catch (error) {
       const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
