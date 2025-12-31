@@ -203,12 +203,13 @@ export class FiatOutputJobService {
             updatedFiatOutputAmount += entity.bankAmount;
             const ibanCountry = entity.iban.substring(0, 2);
 
-            // Check for Liechtenstein bank holidays (only for LI IBANs)
+            // Check for Liechtenstein bank holidays (only for LI IBANs with LiqManagement type)
             const isLiIban = ibanCountry === 'LI';
+            const isLiqManagement = entity.type === FiatOutputType.LIQ_MANAGEMENT;
             let isBankHolidayToday = false;
             let isBankHolidayTomorrow = false;
 
-            if (isLiIban) {
+            if (isLiIban && isLiqManagement) {
               const now = new Date();
               const tomorrow = new Date(now);
               tomorrow.setDate(tomorrow.getDate() + 1);
