@@ -245,7 +245,7 @@ export class GsService {
     let ast;
     try {
       ast = this.sqlParser.astify(sql, { database: 'TransactSQL' });
-    } catch (e) {
+    } catch {
       throw new BadRequestException('Invalid SQL syntax');
     }
 
@@ -654,7 +654,6 @@ export class GsService {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private checkForDangerousFunctions(stmt: any): void {
     const dangerousFunctions = ['openrowset', 'openquery', 'opendatasource', 'openxml'];
 
