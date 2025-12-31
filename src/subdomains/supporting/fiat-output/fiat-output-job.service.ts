@@ -1,6 +1,8 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { isBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
+import { isLiechtensteinBankHoliday } from 'src/config/liechtenstein-bank-holiday.config';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
@@ -202,20 +204,33 @@ export class FiatOutputJobService {
             updatedFiatOutputAmount += entity.bankAmount;
             const ibanCountry = entity.iban.substring(0, 2);
 
+            // Check for bank holidays
+            const isLiIban = ibanCountry === 'LI';
+            const isChIban = ibanCountry === 'CH';
+            const now = new Date();
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            const isBankHolidayToday = isLiIban ? isLiechtensteinBankHoliday() : isChIban ? isBankHoliday() : false;
+            const isBankHolidayTomorrow = isLiIban ? isLiechtensteinBankHoliday(tomorrow) : isChIban ? isBankHoliday(tomorrow) : false;
+            const isAfter16 = now.getHours() >= 16;
+
             if (
               !entity.buyFiats.length ||
               (entity.buyFiats?.[0]?.cryptoInput.isConfirmed &&
                 entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
                 (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
             ) {
-              await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
-              this.logger.info(
-                `FiatOutput ${entity.id} ready: LiqBalance ${asset.balance.amount} ${
-                  asset.name
-                }, pendingFiatOutputs ${pendingFiatOutputs
-                  .map((f) => f.id)
-                  .join(';')}, updatedFiatOutputAmount: ${updatedFiatOutputAmount}`,
-              );
+              if (!isBankHolidayToday && !(isBankHolidayTomorrow && isAfter16)) {
+                await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
+                this.logger.info(
+                  `FiatOutput ${entity.id} ready: LiqBalance ${asset.balance.amount} ${
+                    asset.name
+                  }, pendingFiatOutputs ${pendingFiatOutputs
+                    .map((f) => f.id)
+                    .join(';')}, updatedFiatOutputAmount: ${updatedFiatOutputAmount}`,
+                );
+              }
             }
           } else {
             break;
