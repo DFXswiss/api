@@ -358,6 +358,20 @@ describe('BitcoinRpcClient', () => {
       expect(lastPostCall?.body.params[4]).toEqual(options);
     });
 
+    it('send() with include_unsafe option should allow spending unconfirmed UTXOs', async () => {
+      const outputs = [{ bc1qtest: 0.001 }];
+      const options = {
+        replaceable: true,
+        change_address: 'bc1qchange',
+        include_unsafe: true,
+      };
+
+      await client.send(outputs, null, null, 10, options);
+
+      expect(lastPostCall?.body.params[4]).toEqual(options);
+      expect(lastPostCall?.body.params[4].include_unsafe).toBe(true);
+    });
+
     it('sendMany() should pass all 8 parameters in correct order', async () => {
       const amounts = { addr1: 0.001, addr2: 0.002 };
 

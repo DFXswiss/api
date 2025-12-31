@@ -59,6 +59,7 @@ export class BitcoinClient extends NodeClient {
     const options = {
       replaceable: true,
       change_address: Config.blockchain.default.btcOutput.address,
+      ...(Config.blockchain.default.allowUnconfirmedUtxos && { include_unsafe: true }),
     };
 
     const result = await this.callNode(
