@@ -38,6 +38,11 @@ const MOCK_RESPONSES: { pattern: RegExp; response: any }[] = [
       bic_candidates: [{ bic: 'MOCKBIC1XXX' }],
     },
   },
+  { pattern: /login\.microsoftonline\.com/, response: { access_token: 'mock-token', expires_in: 3600 } },
+  {
+    pattern: /api\.applicationinsights\.io/,
+    response: { tables: [{ name: 'PrimaryResult', columns: [], rows: [] }] },
+  },
 ];
 
 @Injectable()
