@@ -8,6 +8,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -48,6 +49,7 @@ export class SupportService {
     private readonly bankDataService: BankDataService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly transactionService: TransactionService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
@@ -62,8 +64,15 @@ export class SupportService {
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     const searchResult = await this.getUserDatasByKey(query.key);
     const bankTx =
-      searchResult.type === ComplianceSearchType.IBAN ? await this.bankTxService.getUnassignedBankTx([query.key]) : [];
-    if (!searchResult.userDatas.length && (!bankTx.length || searchResult.type !== ComplianceSearchType.IBAN))
+      searchResult.type === ComplianceSearchType.IBAN
+        ? await this.bankTxService.getUnassignedBankTx([query.key])
+        : searchResult.type === ComplianceSearchType.VIBAN
+          ? await this.bankTxService.getUnassignedBankTxByVirtualIban(query.key)
+          : [];
+    if (
+      !searchResult.userDatas.length &&
+      (!bankTx.length || (searchResult.type !== ComplianceSearchType.IBAN && searchResult.type !== ComplianceSearchType.VIBAN))
+    )
       throw new NotFoundException('No user or bankTx found');
 
     return {
@@ -93,6 +102,21 @@ export class SupportService {
     if (uniqueSearchResult.userData) return { type: uniqueSearchResult.type, userDatas: [uniqueSearchResult.userData] };
 
     if (IbanTools.validateIBAN(key).valid) {
+      // Check if it's a vIBAN first (priority)
+      const virtualIban = await this.virtualIbanService.getByIban(key);
+      if (virtualIban) {
+        const userDatas = [virtualIban.userData];
+
+        // Add UserDatas from BankTx with this virtualIban
+        const bankTxUserDatas = await this.bankTxService
+          .getBankTxsByVirtualIban(key)
+          .then((txs) => txs.map((tx) => tx.userData).filter(Boolean));
+        userDatas.push(...bankTxUserDatas);
+
+        return { type: ComplianceSearchType.VIBAN, userDatas };
+      }
+
+      // Normal IBAN search
       const userDatas = await Promise.all([
         this.bankDataService.getBankDatasByIban(key),
         this.bankTxReturnService.getBankTxReturnsByIban(key),

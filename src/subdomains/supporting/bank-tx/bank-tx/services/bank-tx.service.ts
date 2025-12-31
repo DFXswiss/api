@@ -500,6 +500,28 @@ export class BankTxService implements OnModuleInit {
     });
   }
 
+  async getBankTxsByVirtualIban(virtualIban: string): Promise<BankTx[]> {
+    return this.bankTxRepo.find({
+      where: { virtualIban },
+      relations: {
+        buyCrypto: { transaction: { user: { userData: true } } },
+        buyCryptoChargeback: { transaction: { user: { userData: true } } },
+        buyFiats: { transaction: { user: { userData: true } } },
+      },
+    });
+  }
+
+  async getUnassignedBankTxByVirtualIban(virtualIban: string): Promise<BankTx[]> {
+    return this.bankTxRepo.find({
+      where: {
+        type: In(BankTxUnassignedTypes),
+        virtualIban,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+      },
+      relations: { transaction: true },
+    });
+  }
+
   async checkAssignAndNotifyUserData(iban: string, userData: UserData): Promise<void> {
     const bankTxs = await this.getUnassignedBankTx([iban], { transaction: { userData: true } });
 
