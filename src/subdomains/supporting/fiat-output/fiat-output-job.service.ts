@@ -1,6 +1,5 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { isBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
 import { isLiechtensteinBankHoliday } from 'src/config/liechtenstein-bank-holiday.config';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
@@ -204,16 +203,21 @@ export class FiatOutputJobService {
             updatedFiatOutputAmount += entity.bankAmount;
             const ibanCountry = entity.iban.substring(0, 2);
 
-            // Check for bank holidays
+            // Check for Liechtenstein bank holidays (only for LI IBANs)
             const isLiIban = ibanCountry === 'LI';
-            const isChIban = ibanCountry === 'CH';
-            const now = new Date();
-            const tomorrow = new Date(now);
-            tomorrow.setDate(tomorrow.getDate() + 1);
+            let isBankHolidayToday = false;
+            let isBankHolidayTomorrow = false;
 
-            const isBankHolidayToday = isLiIban ? isLiechtensteinBankHoliday() : isChIban ? isBankHoliday() : false;
-            const isBankHolidayTomorrow = isLiIban ? isLiechtensteinBankHoliday(tomorrow) : isChIban ? isBankHoliday(tomorrow) : false;
-            const isAfter16 = now.getHours() >= 16;
+            if (isLiIban) {
+              const now = new Date();
+              const tomorrow = new Date(now);
+              tomorrow.setDate(tomorrow.getDate() + 1);
+
+              isBankHolidayToday = isLiechtensteinBankHoliday();
+              isBankHolidayTomorrow = isLiechtensteinBankHoliday(tomorrow);
+            }
+
+            const isAfter16 = new Date().getHours() >= 16;
 
             if (
               !entity.buyFiats.length ||
