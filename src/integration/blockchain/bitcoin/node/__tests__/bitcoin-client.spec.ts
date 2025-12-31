@@ -16,6 +16,7 @@ jest.mock('src/config/config', () => ({
         user: 'testuser',
         password: 'testpass',
         walletPassword: 'walletpass123',
+        allowUnconfirmedUtxos: true,
         btcOutput: {
           address: 'bc1qoutputaddress',
         },

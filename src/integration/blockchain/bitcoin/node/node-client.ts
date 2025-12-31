@@ -151,14 +151,16 @@ export abstract class NodeClient extends BlockchainClient {
   }
 
   async getBalance(): Promise<number> {
-    // Include unconfirmed UTXOs to ensure all available liquidity is counted
-    // Bitcoin Core's getbalances returns: trusted (confirmed), untrusted_pending (unconfirmed), immature (coinbase)
+    // Include unconfirmed UTXOs when configured
+    // Bitcoin Core's getbalances returns: trusted (confirmed + own unconfirmed), untrusted_pending (others' unconfirmed), immature (coinbase)
     const balances = await this.callNode(() => this.rpc.getBalances(), true);
     if (balances?.mine == null) {
       throw new Error('Failed to get wallet balances');
     }
-    // Return both confirmed and unconfirmed balances (excluding immature coinbase rewards)
-    return balances.mine.trusted + balances.mine.untrusted_pending;
+    // Return confirmed + unconfirmed balances when allowUnconfirmedUtxos is enabled
+    const baseBalance = balances.mine.trusted;
+    const unconfirmedBalance = Config.blockchain.default.allowUnconfirmedUtxos ? balances.mine.untrusted_pending : 0;
+    return baseBalance + unconfirmedBalance;
   }
 
   async sendUtxoToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {
