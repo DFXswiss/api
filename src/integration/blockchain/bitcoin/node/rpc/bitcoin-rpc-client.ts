@@ -219,6 +219,18 @@ export class BitcoinRpcClient {
       change_address?: string;
       replaceable?: boolean;
       locktime?: number;
+      include_unsafe?: boolean;
+      add_inputs?: boolean;
+      add_to_wallet?: boolean;
+      change_position?: number;
+      change_type?: string;
+      conf_target?: number;
+      estimate_mode?: string;
+      fee_rate?: number;
+      include_watching?: boolean;
+      lock_unspents?: boolean;
+      psbt?: boolean;
+      subtract_fee_from_outputs?: number[];
     },
   ): Promise<SendResult> {
     const params: unknown[] = [outputs];
