@@ -199,9 +199,23 @@ export class RealUnitService {
     const userData = user.userData;
     const currencyName = dto.currency ?? 'CHF';
 
-    // 1. KYC Level 50 required for RealUnit
-    if (userData.kycLevel < KycLevel.LEVEL_50) {
-      throw new BadRequestException('KYC Level 50 required for RealUnit');
+    // 1. KYC Level check - Level 20 for amounts <= 1000 CHF, Level 50 for higher amounts
+    const currency = await this.fiatService.getFiatByName(currencyName);
+    const amountChf =
+      currencyName === 'CHF'
+        ? dto.amount
+        : (await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY)).convert(dto.amount);
+
+    const maxAmountForLevel20 = Config.tradingLimits.monthlyDefaultWoKyc;
+    const requiresLevel50 = amountChf > maxAmountForLevel20;
+    const requiredLevel = requiresLevel50 ? KycLevel.LEVEL_50 : KycLevel.LEVEL_20;
+
+    if (userData.kycLevel < requiredLevel) {
+      throw new BadRequestException(
+        requiresLevel50
+          ? `KYC Level 50 required for amounts above ${maxAmountForLevel20} CHF`
+          : 'KYC Level 20 required for RealUnit',
+      );
     }
 
     // 2. Registration required
@@ -214,10 +228,7 @@ export class RealUnitService {
     const realuAsset = await this.getRealuAsset();
     const buy = await this.buyService.createBuy(user, user.address, { asset: realuAsset }, true);
 
-    // 4. Get currency
-    const currency = await this.fiatService.getFiatByName(currencyName);
-
-    // 5. Call BuyService to get payment info (handles fees, rates, IBAN creation, QR codes, etc.)
+    // 4. Call BuyService to get payment info (handles fees, rates, IBAN creation, QR codes, etc.)
     const buyPaymentInfo = await this.buyService.toPaymentInfoDto(user.id, buy, {
       amount: dto.amount,
       targetAmount: undefined,
@@ -227,7 +238,7 @@ export class RealUnitService {
       exactPrice: false,
     });
 
-    // 6. Override recipient info with RealUnit company address
+    // 5. Override recipient info with RealUnit company address
     const { bank: realunitBank } = GetConfig().blockchain.realunit;
     const response: RealUnitPaymentInfoDto = {
       id: buyPaymentInfo.id,
