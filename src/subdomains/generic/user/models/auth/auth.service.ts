@@ -276,16 +276,16 @@ export class AuthService {
         texts: [
           { key: MailKey.SPACE, params: { value: '1' } },
           {
+            key: `${MailTranslationKey.GENERAL}.button`,
+            params: { url: loginUrl, button: 'true' },
+          },
+          {
             key: `${MailTranslationKey.LOGIN}.message`,
             params: {
               url: loginUrl,
               urlText: loginUrl,
               expiration: `${Config.auth.mailLoginExpiresIn}`,
             },
-          },
-          {
-            key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url: loginUrl, button: 'true' },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },
