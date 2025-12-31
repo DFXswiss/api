@@ -71,6 +71,7 @@ jest.mock('src/config/config', () => ({
         user: 'testuser',
         password: 'testpass',
         walletPassword: 'walletpass123',
+        allowUnconfirmedUtxos: true,
       },
     },
   },
@@ -361,23 +362,24 @@ describe('NodeClient', () => {
       expect(listunspentCall![1]).toContain('[0,');
     });
 
-    it('getBalance() should return wallet balance', async () => {
+    it('getBalance() should return wallet balance (confirmed + unconfirmed)', async () => {
       mockRpcPost.mockResolvedValueOnce({ result: null, error: null, id: 'test' });
       mockRpcPost.mockResolvedValueOnce({
-        result: { mine: { trusted: 1.5, untrusted_pending: 0, immature: 0 } },
+        result: { mine: { trusted: 1.5, untrusted_pending: 0.8, immature: 0.2 } },
         error: null,
         id: 'test',
       });
 
       const result = await client.getBalance();
 
-      expect(result).toBe(1.5);
+      // Should return trusted + untrusted_pending (excluding immature coinbase)
+      expect(result).toBe(2.3);
       expect(typeof result).toBe('number');
     });
 
-    it('getBalance() should throw when balances.mine.trusted is null', async () => {
+    it('getBalance() should throw when balances.mine is null', async () => {
       mockRpcPost.mockResolvedValueOnce({ result: null, error: null, id: 'test' });
-      mockRpcPost.mockResolvedValueOnce({ result: null, error: null, id: 'test' });
+      mockRpcPost.mockResolvedValueOnce({ result: {}, error: null, id: 'test' });
 
       await expect(client.getBalance()).rejects.toThrow('Failed to get wallet balances');
     });

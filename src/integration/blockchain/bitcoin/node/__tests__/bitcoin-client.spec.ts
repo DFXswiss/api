@@ -16,6 +16,7 @@ jest.mock('src/config/config', () => ({
         user: 'testuser',
         password: 'testpass',
         walletPassword: 'walletpass123',
+        allowUnconfirmedUtxos: true,
         btcOutput: {
           address: 'bc1qoutputaddress',
         },
@@ -254,6 +255,17 @@ describe('BitcoinClient', () => {
       const options = sendCall!.params[4];
 
       expect(options.replaceable).toBe(true);
+    });
+
+    it('should set include_unsafe to true to allow spending unconfirmed UTXOs', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      await client.sendMany(payload, 10);
+
+      const sendCall = lastRpcCalls.find((c) => c.method === 'send');
+      const options = sendCall!.params[4];
+
+      expect(options.include_unsafe).toBe(true);
     });
 
     it('should pass feeRate correctly', async () => {
@@ -554,10 +566,30 @@ describe('BitcoinClient', () => {
   // --- getNativeCoinBalance() Tests --- //
 
   describe('getNativeCoinBalance()', () => {
-    it('should return wallet balance', async () => {
+    it('should return wallet balance (confirmed + unconfirmed)', async () => {
+      // Mock returns trusted: 5.0, untrusted_pending: 0, immature: 0
+      // getBalance() should return 5.0 + 0 = 5.0
       const result = await client.getNativeCoinBalance();
 
       expect(result).toBe(5.0);
+    });
+
+    it('should include unconfirmed balance', async () => {
+      mockRpcPost.mockImplementationOnce(() =>
+        Promise.resolve({ result: null, error: null, id: 'test' }),
+      );
+      mockRpcPost.mockImplementationOnce(() =>
+        Promise.resolve({
+          result: { mine: { trusted: 3.0, untrusted_pending: 1.5, immature: 0.5 } },
+          error: null,
+          id: 'test',
+        }),
+      );
+
+      const result = await client.getNativeCoinBalance();
+
+      // Should return 3.0 + 1.5 = 4.5 (excluding immature)
+      expect(result).toBe(4.5);
     });
   });
 
