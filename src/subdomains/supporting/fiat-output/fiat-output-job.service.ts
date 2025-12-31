@@ -203,39 +203,48 @@ export class FiatOutputJobService {
             updatedFiatOutputAmount += entity.bankAmount;
             const ibanCountry = entity.iban.substring(0, 2);
 
-            // Check for Liechtenstein bank holidays (only for LI IBANs with LiqManagement type)
-            const isLiIban = ibanCountry === 'LI';
-            const isLiqManagement = entity.type === FiatOutputType.LIQ_MANAGEMENT;
-            let isBankHolidayToday = false;
-            let isBankHolidayTomorrow = false;
-
-            if (isLiIban && isLiqManagement) {
-              const now = new Date();
-              const tomorrow = new Date(now);
-              tomorrow.setDate(tomorrow.getDate() + 1);
-
-              isBankHolidayToday = isLiechtensteinBankHoliday();
-              isBankHolidayTomorrow = isLiechtensteinBankHoliday(tomorrow);
-            }
-
-            const isAfter16 = new Date().getHours() >= 16;
-
             if (
               !entity.buyFiats.length ||
               (entity.buyFiats?.[0]?.cryptoInput.isConfirmed &&
                 entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
                 (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
             ) {
-              if (!isBankHolidayToday && !(isBankHolidayTomorrow && isAfter16)) {
-                await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
-                this.logger.info(
-                  `FiatOutput ${entity.id} ready: LiqBalance ${asset.balance.amount} ${
-                    asset.name
-                  }, pendingFiatOutputs ${pendingFiatOutputs
-                    .map((f) => f.id)
-                    .join(';')}, updatedFiatOutputAmount: ${updatedFiatOutputAmount}`,
-                );
+              // Check for Liechtenstein bank holidays (only for LI IBANs with LiqManagement type)
+              const isLiIban = ibanCountry === 'LI';
+              const isLiqManagement = entity.type === FiatOutputType.LIQ_MANAGEMENT;
+
+              if (isLiIban && isLiqManagement) {
+                const now = new Date();
+                const tomorrow = new Date(now);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+
+                const isBankHolidayToday = isLiechtensteinBankHoliday();
+                const isBankHolidayTomorrow = isLiechtensteinBankHoliday(tomorrow);
+                const isAfter16 = now.getHours() >= 16;
+
+                if (isBankHolidayToday) {
+                  this.logger.verbose(
+                    `FiatOutput ${entity.id} blocked: Liechtenstein bank holiday today (${Util.isoDate(now)})`,
+                  );
+                  continue;
+                }
+
+                if (isBankHolidayTomorrow && isAfter16) {
+                  this.logger.verbose(
+                    `FiatOutput ${entity.id} blocked: Liechtenstein bank holiday tomorrow (${Util.isoDate(tomorrow)}) and after 16:00`,
+                  );
+                  continue;
+                }
               }
+
+              await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
+              this.logger.info(
+                `FiatOutput ${entity.id} ready: LiqBalance ${asset.balance.amount} ${
+                  asset.name
+                }, pendingFiatOutputs ${pendingFiatOutputs
+                  .map((f) => f.id)
+                  .join(';')}, updatedFiatOutputAmount: ${updatedFiatOutputAmount}`,
+              );
             }
           } else {
             break;
