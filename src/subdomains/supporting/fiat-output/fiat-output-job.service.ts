@@ -209,13 +209,11 @@ export class FiatOutputJobService {
                 entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
                 (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
             ) {
-              // Check for Liechtenstein bank holidays (only for LI IBANs with LiqManagement type)
               if (ibanCountry === 'LI' && entity.type === FiatOutputType.LIQ_MANAGEMENT) {
-                const now = new Date();
-                const tomorrow = new Date(now);
-                tomorrow.setDate(tomorrow.getDate() + 1);
-
-                if (isLiechtensteinBankHoliday() || (isLiechtensteinBankHoliday(tomorrow) && now.getHours() >= 16)) {
+                if (
+                  isLiechtensteinBankHoliday() ||
+                  (isLiechtensteinBankHoliday(Util.daysAfter(1)) && new Date().getHours() >= 16)
+                ) {
                   this.logger.verbose(`FiatOutput ${entity.id} blocked: Liechtenstein bank holiday`);
                   continue;
                 }
