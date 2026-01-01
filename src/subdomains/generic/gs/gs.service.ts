@@ -71,7 +71,7 @@ export class GsService {
       'accountOpenerAuthorization', 'complexOrgStructure', 'accountOpener', 'legalEntity', 'signatoryPower',
       'kycHash', 'kycFileId', 'apiKeyCT', 'totpSecret',
       'internalAmlNote', 'blackSquadRecipientMail', 'individualFees',
-      'paymentLinksConfig', 'paymentLinksName', 'comment',
+      'paymentLinksConfig', 'paymentLinksName', 'comment', 'relatedUsers',
     ],
     // user
     user: ['ip', 'ipCountry', 'apiKeyCT', 'signature', 'label', 'comment'],
@@ -90,8 +90,11 @@ export class GsService {
       'address', 'houseNumber', 'zip', 'city',
       'remittanceInfo',
     ],
-    // checkout_tx
-    checkout_tx: ['cardName', 'ip'],
+    // checkout_tx - payment card data
+    checkout_tx: [
+      'cardName', 'ip',
+      'cardBin', 'cardLast4', 'cardFingerPrint', 'cardIssuer', 'cardIssuerCountry', 'raw',
+    ],
     // bank_account
     bank_account: ['accountNumber'],
     // virtual_iban
@@ -108,10 +111,10 @@ export class GsService {
       'allBeneficialOwnersName', 'allBeneficialOwnersDomicile',
     ],
     // transactions
-    buy_crypto: ['recipientMail', 'comment', 'chargebackIban'],
-    buy_fiat: ['recipientMail', 'comment'],
+    buy_crypto: ['recipientMail', 'comment', 'chargebackIban', 'chargebackRemittanceInfo', 'siftResponse'],
+    buy_fiat: ['recipientMail', 'comment', 'remittanceInfo', 'usedBank', 'info'],
     transaction: ['recipientMail'],
-    crypto_input: ['recipientMail'],
+    crypto_input: ['recipientMail', 'senderAddresses'],
     // payment_link
     payment_link: ['comment', 'label'],
     // wallet (integration)
@@ -125,13 +128,21 @@ export class GsService {
     // deposit_route - sell routes (Single Table Inheritance for Sell entity)
     deposit_route: ['iban'],
     // bank_tx_return - chargeback returns
-    bank_tx_return: ['chargebackIban', 'recipientMail', 'chargebackRemittanceInfo'],
+    bank_tx_return: ['chargebackIban', 'recipientMail', 'chargebackRemittanceInfo', 'info'],
     // bank_tx_repeat - repeat transactions
     bank_tx_repeat: ['chargebackIban', 'chargebackRemittanceInfo'],
     // limit_request - limit increase requests
-    limit_request: ['recipientMail'],
+    limit_request: ['recipientMail', 'fundOriginText'],
     // ref_reward - referral rewards
     ref_reward: ['recipientMail'],
+    // transaction_risk_assessment - AML/KYC assessments
+    transaction_risk_assessment: ['reason', 'methods', 'summary', 'result'],
+    // support_issue - support tickets with user data
+    support_issue: ['name', 'information'],
+    // support_message - message content and file URLs
+    support_message: ['message', 'fileUrl'],
+    // sift_error_log - Sift API request payloads containing PII
+    sift_error_log: ['requestPayload'],
   };
 
   private readonly DebugMaxResults = 10000;
