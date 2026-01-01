@@ -310,7 +310,6 @@ export class GsService {
 
     // 9. Get tables from query for post-execution masking
     const tables = this.getTablesFromQuery(sql);
-    const hasWildcard = this.hasWildcardSelect(sql);
 
     // 10. Log query for audit trail
     this.logger.info(`Debug query by ${userMail}: ${sql.substring(0, 500)}${sql.length > 500 ? '...' : ''}`);
@@ -320,10 +319,8 @@ export class GsService {
       const limitedSql = this.ensureResultLimit(sql);
       const result = await this.dataSource.query(limitedSql);
 
-      // 12. Post-execution masking for SELECT * queries (we know which tables but not which columns)
-      if (hasWildcard) {
-        this.maskDebugBlockedColumns(result, tables);
-      }
+      // 12. Post-execution masking (defense in depth - also catches pre-execution failures)
+      this.maskDebugBlockedColumns(result, tables);
 
       return result;
     } catch (e) {
@@ -666,11 +663,6 @@ export class GsService {
       }
     }
     return false;
-  }
-
-  private hasWildcardSelect(sql: string): boolean {
-    const columns = this.sqlParser.columnList(sql, { database: 'TransactSQL' });
-    return columns.some((c) => c.includes('(.*)'));
   }
 
   private getTablesFromQuery(sql: string): string[] {
