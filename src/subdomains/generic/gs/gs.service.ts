@@ -63,6 +63,7 @@ export class GsService {
     user_data: [
       'mail', 'phone', 'firstname', 'surname', 'verifiedName',
       'street', 'houseNumber', 'location', 'zip',
+      'countryId', 'verifiedCountryId', 'nationalityId', // Foreign keys to country
       'birthday', 'tin', 'identDocumentId', 'identDocumentType',
       'organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip',
       'organizationCountryId', 'organizationId',
@@ -73,7 +74,7 @@ export class GsService {
       'paymentLinksConfig', 'paymentLinksName', 'comment',
     ],
     // user
-    user: ['ip', 'ipCountry', 'apiKeyCT', 'label', 'comment'],
+    user: ['ip', 'ipCountry', 'apiKeyCT', 'signature', 'label', 'comment'],
     // bank_tx - bank transactions
     bank_tx: [
       'name', 'ultimateName', 'iban', 'accountIban', 'senderAccount', 'bic',
@@ -85,10 +86,14 @@ export class GsService {
     bank_data: ['name', 'iban', 'label', 'comment'],
     // fiat_output
     fiat_output: [
-      'name', 'iban', 'accountIban', 'bic', 'aba',
+      'name', 'iban', 'accountIban', 'accountNumber', 'bic', 'aba',
       'address', 'houseNumber', 'zip', 'city',
       'remittanceInfo',
     ],
+    // checkout_tx
+    checkout_tx: ['cardName'],
+    // bank_account
+    bank_account: ['accountNumber'],
     // virtual_iban
     virtual_iban: ['iban', 'bban', 'label'],
     // kyc_step - KYC steps (result contains names, birthday, document number)
