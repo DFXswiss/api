@@ -25,7 +25,17 @@ import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { DeepPartial, FindOptionsRelations, In, IsNull, LessThan, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
+import {
+  DeepPartial,
+  FindOptionsRelations,
+  FindOptionsWhere,
+  In,
+  IsNull,
+  LessThan,
+  MoreThan,
+  MoreThanOrEqual,
+  Not,
+} from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
@@ -338,22 +348,14 @@ export class BankTxService implements OnModuleInit {
     const query = this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
-      .leftJoinAndSelect('bankTx.buyCrypto', 'buyCrypto')
-      .leftJoinAndSelect('buyCrypto.buy', 'buy')
-      .leftJoinAndSelect('buy.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('bankTx.buyFiats', 'buyFiats')
-      .leftJoinAndSelect('buyFiats.sell', 'sell')
-      .leftJoinAndSelect('sell.user', 'sellUser')
-      .leftJoinAndSelect('sellUser.userData', 'sellUserData')
+      .leftJoinAndSelect('bankTx.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .where(`${key.includes('.') ? key : `bankTx.${key}`} = :param`, { param: value });
 
     if (!onlyDefaultRelation) {
       query
         .leftJoinAndSelect('userData.users', 'users')
         .leftJoinAndSelect('users.wallet', 'wallet')
-        .leftJoinAndSelect('sellUserData.users', 'sellUsers')
-        .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')
         .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
         .leftJoinAndSelect('userData.country', 'country')
         .leftJoinAndSelect('userData.nationality', 'nationality')
@@ -488,14 +490,19 @@ export class BankTxService implements OnModuleInit {
 
   async getUnassignedBankTx(
     accounts: string[],
+    virtualIbans: string[],
     relations: FindOptionsRelations<BankTx> = { transaction: true },
   ): Promise<BankTx[]> {
+    const request: FindOptionsWhere<BankTx> = {
+      type: In(BankTxUnassignedTypes),
+      creditDebitIndicator: BankTxIndicator.CREDIT,
+    };
+
     return this.bankTxRepo.find({
-      where: {
-        type: In(BankTxUnassignedTypes),
-        senderAccount: In(accounts),
-        creditDebitIndicator: BankTxIndicator.CREDIT,
-      },
+      where: [
+        { ...request, senderAccount: In(accounts) },
+        { ...request, virtualIban: In(virtualIbans) },
+      ],
       relations,
     });
   }
@@ -503,27 +510,12 @@ export class BankTxService implements OnModuleInit {
   async getBankTxsByVirtualIban(virtualIban: string): Promise<BankTx[]> {
     return this.bankTxRepo.find({
       where: { virtualIban },
-      relations: {
-        buyCrypto: { transaction: { user: { userData: true } } },
-        buyCryptoChargeback: { transaction: { user: { userData: true } } },
-        buyFiats: { transaction: { user: { userData: true } } },
-      },
-    });
-  }
-
-  async getUnassignedBankTxByVirtualIban(virtualIban: string): Promise<BankTx[]> {
-    return this.bankTxRepo.find({
-      where: {
-        type: In(BankTxUnassignedTypes),
-        virtualIban,
-        creditDebitIndicator: BankTxIndicator.CREDIT,
-      },
-      relations: { transaction: true },
+      relations: { transaction: { userData: true } },
     });
   }
 
   async checkAssignAndNotifyUserData(iban: string, userData: UserData): Promise<void> {
-    const bankTxs = await this.getUnassignedBankTx([iban], { transaction: { userData: true } });
+    const bankTxs = await this.getUnassignedBankTx([iban], [], { transaction: { userData: true } });
 
     for (const bankTx of bankTxs) {
       if (bankTx.transaction.userData) continue;

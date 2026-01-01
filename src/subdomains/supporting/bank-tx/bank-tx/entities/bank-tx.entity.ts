@@ -251,11 +251,11 @@ export class BankTx extends IEntity {
   //*** GETTER METHODS ***//
 
   get user(): User {
-    return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
+    return this.transaction?.user ?? this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
   }
 
   get userData(): UserData {
-    return this.user?.userData;
+    return this.transaction?.userData ?? this.user?.userData;
   }
 
   get paymentMethodIn(): PaymentMethod {
@@ -391,8 +391,8 @@ export class BankTx extends IEntity {
         return this.iban === targetIban && this.accountIban === sourceIban
           ? this.instructedAmount
           : this.iban === sourceIban && this.accountIban === targetIban
-            ? -this.instructedAmount
-            : 0;
+          ? -this.instructedAmount
+          : 0;
 
       case BankTxType.KRAKEN:
         if (

@@ -247,7 +247,10 @@ export class TransactionController {
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
     const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
 
-    const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((b) => b.iban));
+    const txList = await this.bankTxService.getUnassignedBankTx(
+      bankDatas.map((b) => b.iban),
+      [],
+    );
     return Util.asyncMap(txList, async (tx) => {
       const currency = await this.fiatService.getFiatByName(tx.txCurrency);
       return TransactionDtoMapper.mapUnassignedTransaction(tx, currency);
@@ -348,8 +351,8 @@ export class TransactionController {
     const bankIn = transaction.cryptoInput
       ? undefined
       : transaction.checkoutTx
-        ? CardBankName.CHECKOUT
-        : await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name);
+      ? CardBankName.CHECKOUT
+      : await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name);
 
     const refundTarget = await this.getRefundTarget(transaction);
 
