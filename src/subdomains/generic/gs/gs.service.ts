@@ -100,15 +100,15 @@ export class GsService {
     kyc_step: ['result', 'comment'],
     // kyc_file
     kyc_file: ['name'],
-    // kyc_log
-    kyc_log: ['comment'],
+    // kyc_log (includes TfaLog ChildEntity with ipAddress)
+    kyc_log: ['comment', 'ipAddress', 'result'],
     // organization
     organization: [
       'name', 'street', 'houseNumber', 'location', 'zip',
       'allBeneficialOwnersName', 'allBeneficialOwnersDomicile',
     ],
     // transactions
-    buy_crypto: ['recipientMail', 'comment'],
+    buy_crypto: ['recipientMail', 'comment', 'chargebackIban'],
     buy_fiat: ['recipientMail', 'comment'],
     transaction: ['recipientMail'],
     crypto_input: ['recipientMail'],
@@ -124,6 +124,14 @@ export class GsService {
     buy: ['iban'],
     // deposit_route - sell routes (Single Table Inheritance for Sell entity)
     deposit_route: ['iban'],
+    // bank_tx_return - chargeback returns
+    bank_tx_return: ['chargebackIban', 'recipientMail', 'chargebackRemittanceInfo'],
+    // bank_tx_repeat - repeat transactions
+    bank_tx_repeat: ['chargebackIban', 'chargebackRemittanceInfo'],
+    // limit_request - limit increase requests
+    limit_request: ['recipientMail'],
+    // ref_reward - referral rewards
+    ref_reward: ['recipientMail'],
   };
 
   private readonly DebugMaxResults = 10000;
