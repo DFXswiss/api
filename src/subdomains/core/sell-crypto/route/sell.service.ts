@@ -384,7 +384,19 @@ export class SellService {
     );
 
     if (includeTx && isValid) {
-      sellDto.depositTx = await this.createDepositTx(transactionRequest, sell, user.address);
+      try {
+        sellDto.depositTx = await this.createDepositTx(transactionRequest, sell, user.address);
+      } catch (e) {
+        // Only ignore blockchain/RPC errors (e.g., insufficient funds for gas estimation)
+        // These errors mean the TX can't be pre-signed, but user can still send manually
+        // Re-throw validation errors (asset not found, unsupported blockchain, etc.)
+        const isRpcError = e.message?.includes('insufficient funds') || e.reason?.includes('insufficient funds');
+        if (isRpcError) {
+          this.logger.warn(`Failed to create deposit TX (RPC error), user can send manually: ${e.message}`);
+        } else {
+          throw e;
+        }
+      }
     }
 
     return sellDto;
