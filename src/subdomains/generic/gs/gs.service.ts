@@ -91,7 +91,7 @@ export class GsService {
       'remittanceInfo',
     ],
     // checkout_tx
-    checkout_tx: ['cardName'],
+    checkout_tx: ['cardName', 'ip'],
     // bank_account
     bank_account: ['accountNumber'],
     // virtual_iban
@@ -116,6 +116,14 @@ export class GsService {
     payment_link: ['comment', 'label'],
     // wallet (integration)
     wallet: ['apiKey'],
+    // ref - referral tracking
+    ref: ['ip'],
+    // ip_log - IP logging
+    ip_log: ['ip', 'country'],
+    // buy - buy crypto routes
+    buy: ['iban'],
+    // deposit_route - sell routes (Single Table Inheritance for Sell entity)
+    deposit_route: ['iban'],
   };
 
   private readonly DebugMaxResults = 10000;
