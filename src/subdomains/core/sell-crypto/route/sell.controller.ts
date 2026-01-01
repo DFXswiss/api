@@ -170,7 +170,7 @@ export class SellController {
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
-    const route = await this.sellService.getById(request.routeId);
+    const route = await this.sellService.getById(request.routeId, { relations: { deposit: true } });
     if (!route) throw new NotFoundException('Sell route not found');
 
     return this.sellService.createDepositTx(request, route);

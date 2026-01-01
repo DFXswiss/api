@@ -285,18 +285,21 @@ export class SellService {
     }
   }
 
-  async createDepositTx(request: TransactionRequest, route: Sell): Promise<UnsignedTxDto> {
+  async createDepositTx(request: TransactionRequest, route: Sell, userAddress?: string): Promise<UnsignedTxDto> {
     const asset = await this.assetService.getAssetById(request.sourceId);
     if (!asset) throw new BadRequestException('Asset not found');
 
     const client = this.blockchainRegistryService.getEvmClient(asset.blockchain);
     if (!client) throw new BadRequestException(`Unsupported blockchain`);
 
-    const userAddress = request.user.address;
+    const fromAddress = userAddress ?? request.user?.address;
+    if (!fromAddress) throw new BadRequestException('User address not found');
+
+    if (!route.deposit?.address) throw new BadRequestException('Deposit address not found');
     const depositAddress = route.deposit.address;
 
     try {
-      return await client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
+      return await client.prepareTransaction(asset, fromAddress, depositAddress, request.amount);
     } catch (e) {
       this.logger.warn(`Failed to create deposit TX for sell request ${request.id}:`, e);
       throw new BadRequestException(`Failed to create deposit transaction: ${e.reason ?? e.message}`);
@@ -381,7 +384,7 @@ export class SellService {
     );
 
     if (includeTx && isValid) {
-      sellDto.depositTx = await this.createDepositTx(transactionRequest, sell);
+      sellDto.depositTx = await this.createDepositTx(transactionRequest, sell, user.address);
     }
 
     return sellDto;
