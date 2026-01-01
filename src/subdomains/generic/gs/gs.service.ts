@@ -354,11 +354,7 @@ export class GsService {
       case SupportTable.BUY_FIAT:
         return this.buyFiatService.getBuyFiatByKey(query.key, query.value).then((buyFiat) => buyFiat?.userData);
       case SupportTable.BANK_TX:
-        return this.bankTxService
-          .getBankTxByKey(query.key, query.value)
-          .then((bankTx) =>
-            bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiats?.[0]?.sell.user.userData,
-          );
+        return this.bankTxService.getBankTxByKey(query.key, query.value).then((bankTx) => bankTx?.userData);
       case SupportTable.FIAT_OUTPUT:
         return this.fiatOutputService
           .getFiatOutputByKey(query.key, query.value)
