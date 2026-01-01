@@ -210,29 +210,13 @@ export class FiatOutputJobService {
                 (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
             ) {
               // Check for Liechtenstein bank holidays (only for LI IBANs with LiqManagement type)
-              const isLiIban = ibanCountry === 'LI';
-              const isLiqManagement = entity.type === FiatOutputType.LIQ_MANAGEMENT;
-
-              if (isLiIban && isLiqManagement) {
+              if (ibanCountry === 'LI' && entity.type === FiatOutputType.LIQ_MANAGEMENT) {
                 const now = new Date();
                 const tomorrow = new Date(now);
                 tomorrow.setDate(tomorrow.getDate() + 1);
 
-                const isBankHolidayToday = isLiechtensteinBankHoliday();
-                const isBankHolidayTomorrow = isLiechtensteinBankHoliday(tomorrow);
-                const isAfter16 = now.getHours() >= 16;
-
-                if (isBankHolidayToday) {
-                  this.logger.verbose(
-                    `FiatOutput ${entity.id} blocked: Liechtenstein bank holiday today (${Util.isoDate(now)})`,
-                  );
-                  continue;
-                }
-
-                if (isBankHolidayTomorrow && isAfter16) {
-                  this.logger.verbose(
-                    `FiatOutput ${entity.id} blocked: Liechtenstein bank holiday tomorrow (${Util.isoDate(tomorrow)}) and after 16:00`,
-                  );
+                if (isLiechtensteinBankHoliday() || (isLiechtensteinBankHoliday(tomorrow) && now.getHours() >= 16)) {
+                  this.logger.verbose(`FiatOutput ${entity.id} blocked: Liechtenstein bank holiday`);
                   continue;
                 }
               }
