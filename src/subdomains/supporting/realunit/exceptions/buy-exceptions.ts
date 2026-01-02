@@ -1,27 +1,23 @@
-import { BadRequestException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 
-export class RegistrationRequiredException extends BadRequestException {
+export class RegistrationRequiredException extends ForbiddenException {
     constructor(message = 'RealUnit registration required') {
         super({
-            statusCode: 403,
-            error: 'Bad Request',
             code: 'REGISTRATION_REQUIRED',
             message,
         });
     }
 }
 
-export class KycLevelRequiredException extends BadRequestException {
+export class KycLevelRequiredException extends ForbiddenException {
     constructor(
         public readonly requiredLevel: number,
         public readonly currentLevel: number,
-        message: String,
+        message: string,
     ) {
         super({
-            statusCode: 403,
-            error: 'Bad Request',
             code: 'KYC_LEVEL_REQUIRED',
-            message: message,
+            message,
             requiredLevel,
             currentLevel,
         });

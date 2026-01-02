@@ -54,7 +54,7 @@ import {
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
-import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy_exceptions';
+import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
