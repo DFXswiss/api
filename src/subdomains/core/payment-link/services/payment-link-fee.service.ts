@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentLinkBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -36,6 +37,8 @@ export class PaymentLinkFeeService implements OnModuleInit {
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.UPDATE_BLOCKCHAIN_FEE })
   async updateFees(): Promise<void> {
+    if (GetConfig().environment === Environment.LOC) return;
+
     for (const blockchain of PaymentLinkBlockchains) {
       try {
         const fee = await this.calculateFee(blockchain);
