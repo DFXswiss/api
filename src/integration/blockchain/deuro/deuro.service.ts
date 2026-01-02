@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
-import { GetConfig } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -57,7 +57,10 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.DEURO_LOG_INFO })
   async processLogInfo(): Promise<void> {
-    if (!GetConfig().blockchain.deuro.graphUrl) return;
+    if (!Config.blockchain.deuro.graphUrl) {
+      this.logger.warn('DEuro graphUrl not configured - skipping processLogInfo');
+      return;
+    }
 
     const collateralTvl = await this.getCollateralTvl();
     const bridgeTvl = await this.getBridgeTvl();

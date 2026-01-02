@@ -163,7 +163,10 @@ export class BankTxService implements OnModuleInit {
     const newModificationTime = new Date().toISOString();
 
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
-    if (!olkyBank) return;
+    if (!olkyBank) {
+      this.logger.warn('Olky bank not configured - skipping checkTransactions');
+      return;
+    }
 
     // Get bank transactions
     const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
