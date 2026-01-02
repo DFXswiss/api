@@ -54,6 +54,7 @@ import {
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
+import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
@@ -199,7 +200,13 @@ export class RealUnitService {
     const userData = user.userData;
     const currencyName = dto.currency ?? 'CHF';
 
-    // 1. KYC Level check - Level 20 for amounts <= 1000 CHF, Level 50 for higher amounts
+    // 1. Registration required
+    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
+    if (!hasRegistration) {
+      throw new RegistrationRequiredException();
+    }
+
+    // 2. KYC Level check - Level 20 for amounts <= 1000 CHF, Level 50 for higher amounts
     const currency = await this.fiatService.getFiatByName(currencyName);
     const amountChf =
       currencyName === 'CHF'
@@ -211,17 +218,13 @@ export class RealUnitService {
     const requiredLevel = requiresLevel50 ? KycLevel.LEVEL_50 : KycLevel.LEVEL_20;
 
     if (userData.kycLevel < requiredLevel) {
-      throw new BadRequestException(
+      throw new KycLevelRequiredException(
+        requiredLevel,
+        userData.kycLevel,
         requiresLevel50
           ? `KYC Level 50 required for amounts above ${maxAmountForLevel20} CHF`
           : 'KYC Level 20 required for RealUnit',
       );
-    }
-
-    // 2. Registration required
-    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (!hasRegistration) {
-      throw new BadRequestException('RealUnit registration required');
     }
 
     // 3. Get or create Buy route for REALU
