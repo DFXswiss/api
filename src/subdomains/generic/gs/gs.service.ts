@@ -145,6 +145,8 @@ export class GsService {
     sift_error_log: ['requestPayload'],
     // webhook - serialized user/transaction data
     webhook: ['data'],
+    // notification - notification payloads with user data
+    notification: ['data'],
   };
 
   private readonly DebugMaxResults = 10000;
