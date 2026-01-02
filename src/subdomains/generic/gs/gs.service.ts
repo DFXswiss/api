@@ -99,8 +99,8 @@ export class GsService {
     bank_account: ['accountNumber'],
     // virtual_iban
     virtual_iban: ['iban', 'bban', 'label'],
-    // kyc_step - KYC steps (result contains names, birthday, document number)
-    kyc_step: ['result', 'comment'],
+    // kyc_step - KYC steps (result/data contains names, birthday, document number)
+    kyc_step: ['result', 'comment', 'data'],
     // kyc_file
     kyc_file: ['name'],
     // kyc_log (includes TfaLog ChildEntity with ipAddress)
