@@ -57,6 +57,7 @@ export class TransactionHelper implements OnModuleInit {
 
   private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
   private readonly user30dVolumeCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
+  private readonly unavailableClientWarningsLogged = new Set<Blockchain>();
 
   private transactionSpecifications: TransactionSpecification[];
 
@@ -606,7 +607,13 @@ export class TransactionHelper implements OnModuleInit {
 
     try {
       const client = this.blockchainRegistryService.getClient(to.blockchain);
-      if (!client) return 0;
+      if (!client) {
+        if (!this.unavailableClientWarningsLogged.has(to.blockchain)) {
+          this.logger.warn(`Blockchain client not configured for ${to.blockchain} - skipping network start fee`);
+          this.unavailableClientWarningsLogged.add(to.blockchain);
+        }
+        return 0;
+      }
 
       const userBalance = await this.addressBalanceCache.get(`${user.address}-${to.blockchain}`, () =>
         client.getNativeCoinBalanceForAddress(user.address),

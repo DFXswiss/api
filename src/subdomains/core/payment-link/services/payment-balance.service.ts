@@ -20,6 +20,8 @@ import { Util } from 'src/shared/utils/util';
 export class PaymentBalanceService implements OnModuleInit {
   private readonly logger = new DfxLogger(PaymentBalanceService);
 
+  private readonly unavailableWarningsLogged = new Set<Blockchain>();
+
   private readonly chainsWithoutPaymentBalance = [
     Blockchain.LIGHTNING,
     Blockchain.MONERO,
@@ -65,7 +67,13 @@ export class PaymentBalanceService implements OnModuleInit {
     await Promise.all(
       groupedAssets.map(async ([chain, assets]) => {
         const client = this.blockchainRegistryService.getClient(chain);
-        if (!client) return;
+        if (!client) {
+          if (!this.unavailableWarningsLogged.has(chain)) {
+            this.logger.warn(`Blockchain client not configured for ${chain} - skipping payment balance`);
+            this.unavailableWarningsLogged.add(chain);
+          }
+          return;
+        }
 
         const targetAddress = this.getDepositAddress(chain);
         if (!targetAddress) return;
