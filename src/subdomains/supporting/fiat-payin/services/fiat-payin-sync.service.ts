@@ -41,6 +41,7 @@ export class FiatPayInSyncService {
       }
       return;
     }
+
     const syncDate = await this.checkoutTxService.getSyncDate();
     const payments = await this.checkoutService.getPayments(syncDate);
 
