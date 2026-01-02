@@ -313,7 +313,10 @@ export class PayInService {
 
   private async getUnconfirmedNextBlockPayIns(): Promise<CryptoInput[]> {
     if (!Config.blockchain.default.allowUnconfirmedUtxos) return [];
-    if (!this.payInBitcoinService.isAvailable()) return [];
+    if (!this.payInBitcoinService.isAvailable()) {
+      this.logger.warn('Bitcoin service not available - skipping unconfirmed UTXO processing');
+      return [];
+    }
 
     // Only Bitcoin supports unconfirmed UTXO forwarding
     const candidates = await this.payInRepository.find({

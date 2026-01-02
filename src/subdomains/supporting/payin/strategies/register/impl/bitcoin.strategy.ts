@@ -31,7 +31,10 @@ export class BitcoinStrategy extends PollingStrategy {
   //*** JOBS ***//
   @DfxCron(CronExpression.EVERY_SECOND, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
-    if (!this.payInBitcoinService.isAvailable()) return;
+    if (!this.payInBitcoinService.isAvailable()) {
+      this.logger.warn('Bitcoin node not configured - skipping checkPayInEntries');
+      return;
+    }
 
     return super.checkPayInEntries();
   }
