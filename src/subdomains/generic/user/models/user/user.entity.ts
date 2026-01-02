@@ -68,16 +68,25 @@ export class User extends IEntity {
   apiFilterCT?: string;
 
   @Column({ type: 'float', default: 0 })
+  monthlyBuyVolume: number; // CHF
+
+  @Column({ type: 'float', default: 0 })
   annualBuyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
   buyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
+  monthlySellVolume: number; // CHF
+
+  @Column({ type: 'float', default: 0 })
   annualSellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
   sellVolume: number; // CHF
+
+  @Column({ type: 'float', default: 0 })
+  monthlyCryptoVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
   annualCryptoVolume: number; // CHF

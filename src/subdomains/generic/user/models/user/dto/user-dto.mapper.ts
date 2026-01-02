@@ -62,9 +62,9 @@ export class UserDtoMapper {
 
   private static mapVolumes(user: UserData | User): VolumesDto {
     const dto: VolumesDto = {
-      buy: { total: user.buyVolume, annual: user.annualBuyVolume },
-      sell: { total: user.sellVolume, annual: user.annualSellVolume },
-      swap: { total: user.cryptoVolume, annual: user.annualCryptoVolume },
+      buy: { total: user.buyVolume, annual: user.annualBuyVolume, monthly: user.monthlyBuyVolume },
+      sell: { total: user.sellVolume, annual: user.annualSellVolume, monthly: user.monthlySellVolume },
+      swap: { total: user.cryptoVolume, annual: user.annualCryptoVolume, monthly: user.monthlyCryptoVolume },
     };
 
     return Object.assign(new VolumesDto(), dto);
