@@ -52,13 +52,8 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
-  async executeDebugQuery(@GetJwt() jwt: JwtPayload, @Body() dto: DebugQueryDto): Promise<any[]> {
-    try {
-      return await this.gsService.executeDebugQuery(dto.sql, jwt.address ?? `account:${jwt.account}`);
-    } catch (e) {
-      this.logger.verbose(`Debug query failed:`, e);
-      throw new BadRequestException(e.message);
-    }
+  async executeDebugQuery(@GetJwt() jwt: JwtPayload, @Body() dto: DebugQueryDto): Promise<Record<string, unknown>[]> {
+    return this.gsService.executeDebugQuery(dto.sql, jwt.address ?? `account:${jwt.account}`);
   }
 
   @Post('debug/logs')
@@ -66,11 +61,6 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
   async executeLogQuery(@GetJwt() jwt: JwtPayload, @Body() dto: LogQueryDto): Promise<LogQueryResult> {
-    try {
-      return await this.gsService.executeLogQuery(dto, jwt.address ?? `account:${jwt.account}`);
-    } catch (e) {
-      this.logger.verbose(`Log query failed:`, e);
-      throw new BadRequestException(e.message);
-    }
+    return this.gsService.executeLogQuery(dto, jwt.address ?? `account:${jwt.account}`);
   }
 }

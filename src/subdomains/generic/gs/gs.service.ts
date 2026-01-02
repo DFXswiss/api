@@ -328,7 +328,7 @@ export class GsService {
     };
   }
 
-  async executeDebugQuery(sql: string, userMail: string): Promise<any[]> {
+  async executeDebugQuery(sql: string, userIdentifier: string): Promise<Record<string, unknown>[]> {
     // 1. Parse SQL to AST for robust validation
     let ast;
     try {
@@ -382,7 +382,7 @@ export class GsService {
     }
 
     // 10. Log query for audit trail
-    this.logger.info(`Debug query by ${userMail}: ${sql.substring(0, 500)}${sql.length > 500 ? '...' : ''}`);
+    this.logger.info(`Debug query by ${userIdentifier}: ${sql.substring(0, 500)}${sql.length > 500 ? '...' : ''}`);
 
     // 11. Execute query with result limit
     try {
@@ -394,12 +394,12 @@ export class GsService {
 
       return result;
     } catch (e) {
-      this.logger.warn(`Debug query by ${userMail} failed: ${e.message}`);
+      this.logger.warn(`Debug query by ${userIdentifier} failed: ${e.message}`);
       throw new BadRequestException('Query execution failed');
     }
   }
 
-  async executeLogQuery(dto: LogQueryDto, userMail: string): Promise<LogQueryResult> {
+  async executeLogQuery(dto: LogQueryDto, userIdentifier: string): Promise<LogQueryResult> {
     const template = this.LogQueryTemplates[dto.template];
     if (!template) {
       throw new BadRequestException('Unknown template');
@@ -424,7 +424,7 @@ export class GsService {
     kql += `\n| take ${template.defaultLimit}`;
 
     // Log for audit
-    this.logger.info(`Log query by ${userMail}: template=${dto.template}, params=${JSON.stringify(dto)}`);
+    this.logger.info(`Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`);
 
     // Execute
     const timespan = `PT${dto.hours ?? 1}H`;
@@ -441,7 +441,7 @@ export class GsService {
         rows: response.tables[0].rows,
       };
     } catch (e) {
-      this.logger.warn(`Log query by ${userMail} failed: ${e.message}`);
+      this.logger.warn(`Log query by ${userIdentifier} failed: ${e.message}`);
       throw new BadRequestException('Query execution failed');
     }
   }
@@ -451,7 +451,7 @@ export class GsService {
     return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   }
 
-  //*** HELPER METHODS ***//
+  // --- Helper Methods ---
 
   private setJsonData(data: any[], selects: string[]): void {
     const jsonSelects = selects.filter((s) => s.includes('-') && !s.includes('documents'));
@@ -491,13 +491,6 @@ export class GsService {
           [`${curr}`]: entities[searchIndex]?.[`${field}_${prop}`],
         };
       }, {});
-
-      // if (table === 'support_issue' && selects.some((s) => s.includes('messages[max].author')))
-      //   this.logger.info(
-      //     `GS array select log, entities: ${entities.map(
-      //       (e) => `${e['messages_id']}-${e['messages_author']}`,
-      //     )}, selectedData: ${selectedData['messages[max].author']}`,
-      //   );
 
       return selectedData;
     });
