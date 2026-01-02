@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
-import { Config } from 'src/config/config';
+import { Config, GetConfig } from 'src/config/config';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
@@ -48,6 +48,8 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.FRANKENCOIN_LOG_INFO })
   async processLogInfo() {
+    if (!GetConfig().blockchain.frankencoin.contractAddress.xchf) return;
+
     const logMessage: FrankencoinLogDto = {
       swap: await this.getSwap(),
       positionV1s: await this.getPositionV1s(),
