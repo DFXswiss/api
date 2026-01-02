@@ -24,7 +24,7 @@ import { ExchangeRegistryService } from './exchange-registry.service';
 export class ExchangeTxService {
   private readonly logger = new DfxLogger(ExchangeTxService);
 
-  private syncWarningsLogged = new Set<string>();
+  private readonly syncWarningsLogged = new Set<string>();
 
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
