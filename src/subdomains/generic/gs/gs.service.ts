@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Parser } from 'node-sql-parser';
+import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -28,6 +29,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
+import { LogQueryDto, LogQueryResult, LogQueryTemplate } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 export enum SupportTable {
@@ -57,101 +59,128 @@ export class GsService {
 
   private readonly sqlParser = new Parser();
 
-  // Table-specific blocked columns for debug queries (personal data)
-  private readonly TableBlockedColumns: Record<string, string[]> = {
-    // user_data - main table with PII
-    user_data: [
-      'mail', 'phone', 'firstname', 'surname', 'verifiedName',
-      'street', 'houseNumber', 'location', 'zip',
-      'countryId', 'verifiedCountryId', 'nationalityId', // Foreign keys to country
-      'birthday', 'tin', 'identDocumentId', 'identDocumentType',
-      'organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip',
-      'organizationCountryId', 'organizationId',
-      'allBeneficialOwnersName', 'allBeneficialOwnersDomicile',
-      'accountOpenerAuthorization', 'complexOrgStructure', 'accountOpener', 'legalEntity', 'signatoryPower',
-      'kycHash', 'kycFileId', 'apiKeyCT', 'totpSecret',
-      'internalAmlNote', 'blackSquadRecipientMail', 'individualFees',
-      'paymentLinksConfig', 'paymentLinksName', 'comment', 'relatedUsers',
-    ],
-    // user
-    user: ['ip', 'ipCountry', 'apiKeyCT', 'signature', 'label', 'comment'],
-    // bank_tx - bank transactions
-    bank_tx: [
-      'name', 'ultimateName', 'iban', 'accountIban', 'senderAccount', 'bic',
-      'addressLine1', 'addressLine2', 'ultimateAddressLine1', 'ultimateAddressLine2',
-      'bankAddressLine1', 'bankAddressLine2',
-      'remittanceInfo', 'txInfo', 'txRaw',
-    ],
-    // bank_data
-    bank_data: ['name', 'iban', 'label', 'comment'],
-    // fiat_output
-    fiat_output: [
-      'name', 'iban', 'accountIban', 'accountNumber', 'bic', 'aba',
-      'address', 'houseNumber', 'zip', 'city',
-      'remittanceInfo',
-    ],
-    // checkout_tx - payment card data
-    checkout_tx: [
-      'cardName', 'ip',
-      'cardBin', 'cardLast4', 'cardFingerPrint', 'cardIssuer', 'cardIssuerCountry', 'raw',
-    ],
-    // bank_account
-    bank_account: ['accountNumber'],
-    // virtual_iban
-    virtual_iban: ['iban', 'bban', 'label'],
-    // kyc_step - KYC steps (result/data contains names, birthday, document number)
-    kyc_step: ['result', 'comment', 'data'],
-    // kyc_file
-    kyc_file: ['name'],
-    // kyc_log (includes TfaLog ChildEntity with ipAddress)
-    kyc_log: ['comment', 'ipAddress', 'result'],
-    // organization
-    organization: [
-      'name', 'street', 'houseNumber', 'location', 'zip',
-      'allBeneficialOwnersName', 'allBeneficialOwnersDomicile',
-    ],
-    // transactions
-    buy_crypto: ['recipientMail', 'comment', 'chargebackIban', 'chargebackRemittanceInfo', 'siftResponse'],
-    buy_fiat: ['recipientMail', 'comment', 'remittanceInfo', 'usedBank', 'info'],
-    transaction: ['recipientMail'],
-    crypto_input: ['recipientMail', 'senderAddresses'],
-    // payment_link
-    payment_link: ['comment', 'label'],
-    // wallet (integration)
-    wallet: ['apiKey'],
-    // ref - referral tracking
-    ref: ['ip'],
-    // ip_log - IP logging
-    ip_log: ['ip', 'country'],
-    // buy - buy crypto routes
-    buy: ['iban'],
-    // deposit_route - sell routes (Single Table Inheritance for Sell entity)
-    deposit_route: ['iban'],
-    // bank_tx_return - chargeback returns
-    bank_tx_return: ['chargebackIban', 'recipientMail', 'chargebackRemittanceInfo', 'info'],
-    // bank_tx_repeat - repeat transactions
-    bank_tx_repeat: ['chargebackIban', 'chargebackRemittanceInfo'],
-    // limit_request - limit increase requests
-    limit_request: ['recipientMail', 'fundOriginText'],
-    // ref_reward - referral rewards
-    ref_reward: ['recipientMail'],
-    // transaction_risk_assessment - AML/KYC assessments
-    transaction_risk_assessment: ['reason', 'methods', 'summary', 'result'],
-    // support_issue - support tickets with user data
-    support_issue: ['name', 'information'],
-    // support_message - message content and file URLs
-    support_message: ['message', 'fileUrl'],
-    // sift_error_log - Sift API request payloads containing PII
-    sift_error_log: ['requestPayload'],
-    // webhook - serialized user/transaction data
-    webhook: ['data'],
-    // notification - notification payloads with user data
-    notification: ['data'],
-  };
+  // columns blocked for debug queries (personal data)
+  private readonly DebugBlockedColumns = [
+    // restricted (for DEBUG only, ADMIN can see via /gs/db)
+    'name',
+    'result',
+    'mail',
+    'recipientMail',
+    'phone',
+    'firstname',
+    'surname',
+    'verifiedName',
+    'organizationName',
+    'organizationStreet',
+    'organizationLocation',
+    'organizationZip',
+    'organizationCountryId',
+    'organizationId',
+    'allBeneficialOwnersName',
+    'allBeneficialOwnersDomicile',
+    'accountOpenerAuthorization',
+    'complexOrgStructure',
+    'accountOpener',
+    'legalEntity',
+    'signatoryPower',
+    'cardName',
+    'ultimateName',
+    // address
+    'street',
+    'houseNumber',
+    'location',
+    'zip',
+    'countryId',
+    'verifiedCountryId',
+    'nationalityId',
+    // identity
+    'birthday',
+    'tin',
+    'identDocumentId',
+    'identDocumentType',
+    // financial
+    'iban',
+    'accountNumber',
+    // network/security
+    'ip',
+    'ipCountry',
+    'apiKey',
+    'apiKeyCT',
+    'signature',
+    'kycHash',
+    'kycFileId',
+    'internalAmlNote',
+    'blackSquadRecipientMail',
+    'individualFees',
+    'totpSecret',
+    'paymentLinksConfig',
+    'paymentLinksName',
+  ];
 
   private readonly DebugMaxResults = 10000;
 
+  // Log query templates (safe, predefined KQL queries)
+  private readonly LogQueryTemplates: Record<
+    LogQueryTemplate,
+    { kql: string; requiredParams: (keyof LogQueryDto)[]; defaultLimit: number }
+  > = {
+    [LogQueryTemplate.TRACES_BY_OPERATION]: {
+      kql: `traces
+| where operation_Id == "{operationId}"
+| where timestamp > ago({hours}h)
+| project timestamp, severityLevel, message, customDimensions
+| order by timestamp desc`,
+      requiredParams: ['operationId'],
+      defaultLimit: 500,
+    },
+    [LogQueryTemplate.TRACES_BY_MESSAGE]: {
+      kql: `traces
+| where timestamp > ago({hours}h)
+| where message contains "{messageFilter}"
+| project timestamp, severityLevel, message, operation_Id
+| order by timestamp desc`,
+      requiredParams: ['messageFilter'],
+      defaultLimit: 200,
+    },
+    [LogQueryTemplate.EXCEPTIONS_RECENT]: {
+      kql: `exceptions
+| where timestamp > ago({hours}h)
+| project timestamp, problemId, outerMessage, innermostMessage, operation_Id
+| order by timestamp desc`,
+      requiredParams: [],
+      defaultLimit: 500,
+    },
+    [LogQueryTemplate.REQUEST_FAILURES]: {
+      kql: `requests
+| where timestamp > ago({hours}h)
+| where success == false
+| project timestamp, resultCode, duration, operation_Name, operation_Id
+| order by timestamp desc`,
+      requiredParams: [],
+      defaultLimit: 500,
+    },
+    [LogQueryTemplate.DEPENDENCIES_SLOW]: {
+      kql: `dependencies
+| where timestamp > ago({hours}h)
+| where duration > {durationMs}
+| project timestamp, target, type, duration, success, operation_Id
+| order by duration desc`,
+      requiredParams: ['durationMs'],
+      defaultLimit: 200,
+    },
+    [LogQueryTemplate.CUSTOM_EVENTS]: {
+      kql: `customEvents
+| where timestamp > ago({hours}h)
+| where name == "{eventName}"
+| project timestamp, name, customDimensions, operation_Id
+| order by timestamp desc`,
+      requiredParams: ['eventName'],
+      defaultLimit: 500,
+    },
+  };
+
   constructor(
+    private readonly appInsightsQueryService: AppInsightsQueryService,
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
     private readonly buyService: BuyService,
@@ -333,7 +362,7 @@ export class GsService {
     }
 
     // 7. Check for blocked columns BEFORE execution (prevents alias bypass)
-    const blockedColumn = this.findBlockedColumnInQuery(sql, stmt);
+    const blockedColumn = this.findBlockedColumnInQuery(sql);
     if (blockedColumn) {
       throw new BadRequestException(`Access to column '${blockedColumn}' is not allowed`);
     }
@@ -344,25 +373,74 @@ export class GsService {
       throw new BadRequestException(`TOP value exceeds maximum of ${this.DebugMaxResults}`);
     }
 
-    // 9. Get tables from query for post-execution masking
-    const tables = this.getTablesFromQuery(sql);
-
-    // 10. Log query for audit trail
+    // 9. Log query for audit trail
     this.logger.info(`Debug query by ${userMail}: ${sql.substring(0, 500)}${sql.length > 500 ? '...' : ''}`);
 
-    // 11. Execute query with result limit
+    // 10. Execute query with result limit
     try {
       const limitedSql = this.ensureResultLimit(sql);
       const result = await this.dataSource.query(limitedSql);
 
-      // 12. Post-execution masking (defense in depth - also catches pre-execution failures)
-      this.maskDebugBlockedColumns(result, tables);
+      // 11. Additional masking for any columns that might have slipped through
+      this.maskDebugBlockedColumns(result);
 
       return result;
     } catch (e) {
       this.logger.warn(`Debug query by ${userMail} failed: ${e.message}`);
       throw new BadRequestException('Query execution failed');
     }
+  }
+
+  async executeLogQuery(dto: LogQueryDto, userMail: string): Promise<LogQueryResult> {
+    const template = this.LogQueryTemplates[dto.template];
+    if (!template) {
+      throw new BadRequestException('Unknown template');
+    }
+
+    // Validate required params
+    for (const param of template.requiredParams) {
+      if (!dto[param]) {
+        throw new BadRequestException(`Parameter '${param}' is required for template '${dto.template}'`);
+      }
+    }
+
+    // Build KQL with safe parameter substitution
+    let kql = template.kql;
+    kql = kql.replace('{operationId}', dto.operationId ?? '');
+    kql = kql.replace('{messageFilter}', this.escapeKqlString(dto.messageFilter ?? ''));
+    kql = kql.replace(/{hours}/g, String(dto.hours ?? 1));
+    kql = kql.replace('{durationMs}', String(dto.durationMs ?? 1000));
+    kql = kql.replace('{eventName}', this.escapeKqlString(dto.eventName ?? ''));
+
+    // Add limit
+    kql += `\n| take ${template.defaultLimit}`;
+
+    // Log for audit
+    this.logger.info(`Log query by ${userMail}: template=${dto.template}, params=${JSON.stringify(dto)}`);
+
+    // Execute
+    const timespan = `PT${dto.hours ?? 1}H`;
+
+    try {
+      const response = await this.appInsightsQueryService.query(kql, timespan);
+
+      if (!response.tables?.length) {
+        return { columns: [], rows: [] };
+      }
+
+      return {
+        columns: response.tables[0].columns,
+        rows: response.tables[0].rows,
+      };
+    } catch (e) {
+      this.logger.warn(`Log query by ${userMail} failed: ${e.message}`);
+      throw new BadRequestException('Query execution failed');
+    }
+  }
+
+  private escapeKqlString(value: string): string {
+    // Escape quotes and backslashes for KQL string literals
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   }
 
   //*** HELPER METHODS ***//
@@ -664,103 +742,42 @@ export class GsService {
     }
   }
 
-  private maskDebugBlockedColumns(data: Record<string, unknown>[], tables: string[]): void {
-    if (!data?.length || !tables?.length) return;
-
-    // Collect all blocked columns from all tables in the query
-    const blockedColumns = new Set<string>();
-    for (const table of tables) {
-      const tableCols = this.TableBlockedColumns[table];
-      if (tableCols) {
-        for (const col of tableCols) {
-          blockedColumns.add(col.toLowerCase());
-        }
-      }
-    }
-
-    if (blockedColumns.size === 0) return;
+  private maskDebugBlockedColumns(data: Record<string, unknown>[]): void {
+    if (!data?.length) return;
 
     for (const entry of data) {
       for (const key of Object.keys(entry)) {
-        if (this.shouldMaskDebugColumn(key, blockedColumns)) {
+        if (this.isDebugBlockedColumn(key)) {
           entry[key] = this.RestrictedMarker;
         }
       }
     }
   }
 
-  private shouldMaskDebugColumn(columnName: string, blockedColumns: Set<string>): boolean {
-    const lower = columnName.toLowerCase();
-
-    // Check exact match or with table prefix (e.g., "name" or "bank_tx_name")
-    for (const blocked of blockedColumns) {
-      if (lower === blocked || lower.endsWith('_' + blocked)) {
-        return true;
-      }
-    }
-    return false;
+  private isDebugBlockedColumn(columnName: string): boolean {
+    const lowerKey = columnName.toLowerCase();
+    // Match exact column name or prefixed (e.g., "firstname" or "user_firstname")
+    return this.DebugBlockedColumns.some((blocked) => {
+      const lowerBlocked = blocked.toLowerCase();
+      return lowerKey === lowerBlocked || lowerKey.endsWith('_' + lowerBlocked);
+    });
   }
 
-  private getTablesFromQuery(sql: string): string[] {
-    const tableList = this.sqlParser.tableList(sql, { database: 'TransactSQL' });
-    // Format: 'select::null::table_name' → extract table_name
-    return tableList.map((t) => t.split('::')[2]).filter(Boolean);
-  }
-
-  private getAliasToTableMap(ast: any): Map<string, string> {
-    const map = new Map<string, string>();
-    if (!ast.from) return map;
-
-    for (const item of ast.from) {
-      if (item.table) {
-        map.set(item.as || item.table, item.table);
-      }
-    }
-    return map;
-  }
-
-  private isColumnBlockedInTable(columnName: string, table: string | null, allTables: string[]): boolean {
-    const lower = columnName.toLowerCase();
-
-    if (table) {
-      // Explicit table known → check if this column is blocked in this table
-      const blockedCols = this.TableBlockedColumns[table];
-      return blockedCols?.some((b) => b.toLowerCase() === lower) ?? false;
-    } else {
-      // No explicit table → if ANY of the query tables blocks this column, block it
-      return allTables.some((t) => {
-        const blockedCols = this.TableBlockedColumns[t];
-        return blockedCols?.some((b) => b.toLowerCase() === lower) ?? false;
-      });
-    }
-  }
-
-  private findBlockedColumnInQuery(sql: string, ast: any): string | null {
+  private findBlockedColumnInQuery(sql: string): string | null {
     try {
       // columnList returns: ['select::table::column', 'select::null::column', ...]
       const columns = this.sqlParser.columnList(sql, { database: 'TransactSQL' });
-      const tables = this.getTablesFromQuery(sql);
-      const aliasMap = this.getAliasToTableMap(ast);
 
       for (const col of columns) {
+        // Format: 'operation::schema::column' - extract the column part
         const parts = col.split('::');
-        const tableOrAlias = parts[1]; // can be 'null'
-        const columnName = parts[2];
+        const columnName = parts[parts.length - 1];
 
-        // Skip wildcard - handled post-execution
+        // Skip wildcard
         if (columnName === '*' || columnName === '(.*)') continue;
 
-        // Resolve table from alias
-        const resolvedTable =
-          tableOrAlias === 'null'
-            ? tables.length === 1
-              ? tables[0]
-              : null // Single table without alias → use that table
-            : aliasMap.get(tableOrAlias) || tableOrAlias;
-
-        // Check if column is blocked in this table
-        if (this.isColumnBlockedInTable(columnName, resolvedTable, tables)) {
-          return `${resolvedTable || 'unknown'}.${columnName}`;
+        if (this.isDebugBlockedColumn(columnName)) {
+          return columnName;
         }
       }
 
@@ -811,4 +828,5 @@ export class GsService {
       this.DebugMaxResults
     } ROWS ONLY`;
   }
+
 }
