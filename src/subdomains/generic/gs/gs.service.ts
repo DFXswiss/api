@@ -119,6 +119,12 @@ export class GsService {
 
   private readonly DebugMaxResults = 10000;
 
+  // blocked system schemas (prevent access to system tables)
+  private readonly BlockedSchemas = ['sys', 'information_schema', 'master', 'msdb', 'tempdb'];
+
+  // dangerous functions that could be used for data exfiltration or external connections
+  private readonly DangerousFunctions = ['openrowset', 'openquery', 'opendatasource', 'openxml'];
+
   // Log query templates (safe, predefined KQL queries)
   private readonly LogQueryTemplates: Record<
     LogQueryTemplate,
@@ -352,36 +358,38 @@ export class GsService {
       throw new BadRequestException('SELECT INTO not allowed');
     }
 
-    // 5. No dangerous functions in FROM clause (external connections)
-    this.checkForDangerousFunctions(stmt);
+    // 5. No system tables/schemas (prevent access to sys.*, INFORMATION_SCHEMA.*, etc.)
+    this.checkForBlockedSchemas(stmt);
 
-    // 6. No FOR XML/JSON (data exfiltration)
+    // 6. No dangerous functions anywhere in the query (external connections)
+    this.checkForDangerousFunctionsRecursive(stmt);
+
+    // 7. No FOR XML/JSON (data exfiltration)
     const normalizedLower = sql.toLowerCase();
     if (normalizedLower.includes(' for xml') || normalizedLower.includes(' for json')) {
       throw new BadRequestException('FOR XML/JSON not allowed');
     }
 
-    // 7. Check for blocked columns BEFORE execution (prevents alias bypass)
+    // 8. Check for blocked columns BEFORE execution (prevents alias bypass)
     const blockedColumn = this.findBlockedColumnInQuery(sql);
     if (blockedColumn) {
       throw new BadRequestException(`Access to column '${blockedColumn}' is not allowed`);
     }
 
-    // 8. Validate TOP value if present
-    const topMatch = normalizedLower.match(/\btop\s+(\d+)/i);
-    if (topMatch && parseInt(topMatch[1]) > this.DebugMaxResults) {
+    // 9. Validate TOP value if present (use AST for accurate detection including TOP(n) syntax)
+    if (stmt.top?.value > this.DebugMaxResults) {
       throw new BadRequestException(`TOP value exceeds maximum of ${this.DebugMaxResults}`);
     }
 
-    // 9. Log query for audit trail
+    // 10. Log query for audit trail
     this.logger.info(`Debug query by ${userMail}: ${sql.substring(0, 500)}${sql.length > 500 ? '...' : ''}`);
 
-    // 10. Execute query with result limit
+    // 11. Execute query with result limit
     try {
       const limitedSql = this.ensureResultLimit(sql);
       const result = await this.dataSource.query(limitedSql);
 
-      // 11. Additional masking for any columns that might have slipped through
+      // 12. Additional masking for any columns that might have slipped through
       this.maskDebugBlockedColumns(result);
 
       return result;
@@ -788,28 +796,130 @@ export class GsService {
     }
   }
 
-  private checkForDangerousFunctions(stmt: any): void {
-    const dangerousFunctions = ['openrowset', 'openquery', 'opendatasource', 'openxml'];
-
-    const checkFromClause = (from: any[]): void => {
+  private checkForBlockedSchemas(stmt: any): void {
+    const checkTables = (from: any[]): void => {
       if (!from) return;
 
       for (const item of from) {
-        // Check if FROM contains a function call
-        if (item.type === 'expr' && item.expr?.type === 'function') {
-          const funcName = item.expr.name?.name?.[0]?.value?.toLowerCase();
-          if (funcName && dangerousFunctions.includes(funcName)) {
-            throw new BadRequestException(`Function '${funcName.toUpperCase()}' not allowed`);
-          }
+        // Check table schema (e.g., sys.sql_logins, INFORMATION_SCHEMA.TABLES)
+        const schema = item.db?.toLowerCase() || item.schema?.toLowerCase();
+        const table = item.table?.toLowerCase();
+
+        if (schema && this.BlockedSchemas.includes(schema)) {
+          throw new BadRequestException(`Access to schema '${schema}' is not allowed`);
         }
-        // Recursively check subqueries in FROM
+
+        // Also check if table name starts with blocked schema (e.g., "sys.objects" without explicit schema)
+        if (table && this.BlockedSchemas.some((s) => table.startsWith(s + '.'))) {
+          throw new BadRequestException(`Access to system tables is not allowed`);
+        }
+
+        // Recursively check subqueries
         if (item.expr?.ast) {
-          this.checkForDangerousFunctions(item.expr.ast);
+          this.checkForBlockedSchemas(item.expr.ast);
         }
       }
     };
 
-    checkFromClause(stmt.from);
+    checkTables(stmt.from);
+
+    // Also check WHERE clause subqueries
+    this.checkSubqueriesForBlockedSchemas(stmt.where);
+  }
+
+  private checkSubqueriesForBlockedSchemas(node: any): void {
+    if (!node) return;
+
+    if (node.ast) {
+      this.checkForBlockedSchemas(node.ast);
+    }
+
+    if (node.left) this.checkSubqueriesForBlockedSchemas(node.left);
+    if (node.right) this.checkSubqueriesForBlockedSchemas(node.right);
+    if (node.expr) this.checkSubqueriesForBlockedSchemas(node.expr);
+    if (node.args) {
+      const args = Array.isArray(node.args) ? node.args : [node.args];
+      for (const arg of args) {
+        this.checkSubqueriesForBlockedSchemas(arg);
+      }
+    }
+  }
+
+  private checkForDangerousFunctionsRecursive(stmt: any): void {
+    // Check FROM clause for dangerous functions
+    this.checkFromForDangerousFunctions(stmt.from);
+
+    // Check SELECT columns for dangerous functions
+    this.checkExpressionsForDangerousFunctions(stmt.columns);
+
+    // Check WHERE clause for dangerous functions
+    this.checkNodeForDangerousFunctions(stmt.where);
+  }
+
+  private checkFromForDangerousFunctions(from: any[]): void {
+    if (!from) return;
+
+    for (const item of from) {
+      // Check if FROM contains a function call
+      if (item.type === 'expr' && item.expr?.type === 'function') {
+        const funcName = this.extractFunctionName(item.expr);
+        if (funcName && this.DangerousFunctions.includes(funcName)) {
+          throw new BadRequestException(`Function '${funcName.toUpperCase()}' not allowed`);
+        }
+      }
+
+      // Recursively check subqueries in FROM
+      if (item.expr?.ast) {
+        this.checkForDangerousFunctionsRecursive(item.expr.ast);
+      }
+    }
+  }
+
+  private checkExpressionsForDangerousFunctions(columns: any[]): void {
+    if (!columns) return;
+
+    for (const col of columns) {
+      this.checkNodeForDangerousFunctions(col.expr);
+    }
+  }
+
+  private checkNodeForDangerousFunctions(node: any): void {
+    if (!node) return;
+
+    // Check if this node is a function call
+    if (node.type === 'function') {
+      const funcName = this.extractFunctionName(node);
+      if (funcName && this.DangerousFunctions.includes(funcName)) {
+        throw new BadRequestException(`Function '${funcName.toUpperCase()}' not allowed`);
+      }
+    }
+
+    // Check subqueries
+    if (node.ast) {
+      this.checkForDangerousFunctionsRecursive(node.ast);
+    }
+
+    // Recursively check child nodes
+    if (node.left) this.checkNodeForDangerousFunctions(node.left);
+    if (node.right) this.checkNodeForDangerousFunctions(node.right);
+    if (node.expr) this.checkNodeForDangerousFunctions(node.expr);
+    if (node.args) {
+      const args = Array.isArray(node.args) ? node.args : node.args?.value || [];
+      for (const arg of Array.isArray(args) ? args : [args]) {
+        this.checkNodeForDangerousFunctions(arg);
+      }
+    }
+  }
+
+  private extractFunctionName(funcNode: any): string | null {
+    // Handle different AST structures for function names
+    if (funcNode.name?.name?.[0]?.value) {
+      return funcNode.name.name[0].value.toLowerCase();
+    }
+    if (typeof funcNode.name === 'string') {
+      return funcNode.name.toLowerCase();
+    }
+    return null;
   }
 
   private ensureResultLimit(sql: string): string {
