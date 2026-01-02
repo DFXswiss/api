@@ -65,17 +65,21 @@ export class PaymentBalanceService implements OnModuleInit {
     await Promise.all(
       groupedAssets.map(async ([chain, assets]) => {
         const client = this.blockchainRegistryService.getClient(chain);
+        if (!client) return;
 
         const targetAddress = this.getDepositAddress(chain);
+        if (!targetAddress) return;
 
         const coin = assets.find((a) => a.type === AssetType.COIN);
         const tokens = assets.filter((a) => a.type !== AssetType.COIN);
 
-        balanceMap.set(coin.id, {
-          owner: targetAddress,
-          contractAddress: coin.chainId,
-          balance: await client.getNativeCoinBalanceForAddress(targetAddress),
-        });
+        if (coin) {
+          balanceMap.set(coin.id, {
+            owner: targetAddress,
+            contractAddress: coin.chainId,
+            balance: await client.getNativeCoinBalanceForAddress(targetAddress),
+          });
+        }
 
         if (tokens.length) {
           try {

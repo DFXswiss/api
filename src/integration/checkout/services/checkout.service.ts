@@ -37,7 +37,7 @@ export class CheckoutService {
   }
 
   isAvailable(): boolean {
-    return process.env.CKO_SECRET_KEY != null;
+    return process.env.CKO_SECRET_KEY != null && Config.checkout.entityId != null;
   }
 
   async createPaymentLink(
