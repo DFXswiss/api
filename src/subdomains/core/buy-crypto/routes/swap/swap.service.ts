@@ -9,8 +9,11 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -50,6 +53,7 @@ export class SwapService {
     private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly userDataService: UserDataService,
+    private readonly assetService: AssetService,
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     @Inject(forwardRef(() => BuyCryptoService))
@@ -63,6 +67,8 @@ export class SwapService {
     private readonly cryptoService: CryptoService,
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly eip7702DelegationService: Eip7702DelegationService,
   ) {}
 
   async getSwapByAddress(depositAddress: string): Promise<Swap> {
@@ -157,7 +163,7 @@ export class SwapService {
     });
   }
 
-  async createSwapPaymentInfo(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
+  async createSwapPaymentInfo(userId: number, dto: GetSwapPaymentInfoDto, includeTx = true): Promise<SwapPaymentInfoDto> {
     const swap = await Util.retry(
       () => this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true),
       2,
@@ -165,7 +171,7 @@ export class SwapService {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
-    return this.toPaymentInfoDto(userId, swap, dto);
+    return this.toPaymentInfoDto(userId, swap, dto, includeTx);
   }
 
   async getById(id: number): Promise<Swap> {
@@ -230,22 +236,35 @@ export class SwapService {
 
   // --- CONFIRMATION --- //
   async confirmSwap(request: TransactionRequest, dto: ConfirmDto): Promise<BuyCryptoExtended> {
-    try {
-      const route = await this.swapRepo.findOne({
-        where: { id: request.routeId },
-        relations: { deposit: true, user: { wallet: true, userData: true } },
-      });
+    const route = await this.swapRepo.findOne({
+      where: { id: request.routeId },
+      relations: { deposit: true, user: { wallet: true, userData: true } },
+    });
+    if (!route) throw new NotFoundException('Swap route not found');
 
-      const payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
+    let type: string;
+    let payIn;
+
+    try {
+      if (dto.permit) {
+        type = 'permit';
+        payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
+      } else if (dto.signedTxHex) {
+        type = 'signed transaction';
+        payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
+      } else if (dto.eip7702) {
+        type = 'EIP-7702 delegation';
+        payIn = await this.transactionUtilService.handleEip7702Input(route, request, dto.eip7702);
+      } else {
+        throw new BadRequestException('Either permit, signedTxHex, or eip7702 must be provided');
+      }
 
       const buyCrypto = await this.buyCryptoService.createFromCryptoInput(payIn, route, request);
-
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, route);
-
       return await this.buyCryptoWebhookService.extendBuyCrypto(buyCrypto);
     } catch (e) {
-      this.logger.warn(`Failed to execute permit transfer for swap request ${request.id}:`, e);
-      throw new BadRequestException(`Failed to execute permit transfer: ${e.message}`);
+      this.logger.warn(`Failed to execute ${type} transfer for swap request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to confirm request: ${e.message}`);
     }
   }
 
@@ -255,7 +274,93 @@ export class SwapService {
     return this.swapRepo;
   }
 
-  private async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
+  async createDepositTx(request: TransactionRequest, route: Swap): Promise<any> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    const client = this.blockchainRegistryService.getEvmClient(asset.blockchain);
+    if (!client) throw new BadRequestException(`Unsupported blockchain`);
+
+    const userAddress = request.user?.address;
+    if (!userAddress) throw new BadRequestException('User address not found in transaction request');
+
+    const depositAddress = route.deposit.address;
+
+    // Check if EIP-7702 delegation is supported and user has zero native balance
+    const supportsEip7702 = this.eip7702DelegationService.isDelegationSupported(asset.blockchain);
+    let hasZeroGas = false;
+
+    if (supportsEip7702) {
+      try {
+        hasZeroGas = await this.eip7702DelegationService.hasZeroNativeBalance(userAddress, asset.blockchain);
+      } catch (_) {
+        // If balance check fails (RPC error, network issue, etc.), assume user has gas
+        this.logger.verbose(`Balance check failed for ${userAddress} on ${asset.blockchain}, assuming user has gas`);
+        hasZeroGas = false;
+      }
+    }
+
+    try {
+      const unsignedTx = await client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
+
+      // Add EIP-7702 delegation data if user has 0 gas
+      if (hasZeroGas) {
+        this.logger.info(`User ${userAddress} has 0 gas on ${asset.blockchain}, providing EIP-7702 delegation data`);
+        const delegationData = this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
+
+        unsignedTx.eip7702 = {
+          relayerAddress: delegationData.relayerAddress,
+          delegationManagerAddress: delegationData.delegationManagerAddress,
+          delegatorAddress: delegationData.delegatorAddress,
+          domain: delegationData.domain,
+          types: delegationData.types,
+          message: delegationData.message,
+        };
+      }
+
+      return unsignedTx;
+    } catch (e) {
+      // Special handling for INSUFFICIENT_FUNDS error when EIP-7702 is available
+      const isInsufficientFunds = e.code === 'INSUFFICIENT_FUNDS' || e.message?.includes('insufficient funds');
+
+      if (isInsufficientFunds && supportsEip7702) {
+        this.logger.info(
+          `Gas estimation failed due to insufficient funds for user ${userAddress}, creating transaction with EIP-7702 delegation`,
+        );
+
+        // Create a basic unsigned transaction without gas estimation
+        // The actual gas will be paid by the relayer through EIP-7702 delegation
+        const delegationData = this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
+
+        const unsignedTx = {
+          chainId: client.chainId,
+          from: userAddress,
+          to: depositAddress,
+          value: '0', // Will be set based on asset type
+          data: '0x',
+          nonce: 0, // Will be set by frontend/relayer
+          gasPrice: '0', // Will be set by relayer
+          gasLimit: '0', // Will be set by relayer
+          eip7702: {
+            relayerAddress: delegationData.relayerAddress,
+            delegationManagerAddress: delegationData.delegationManagerAddress,
+            delegatorAddress: delegationData.delegatorAddress,
+            domain: delegationData.domain,
+            types: delegationData.types,
+            message: delegationData.message,
+          },
+        };
+
+        return unsignedTx;
+      }
+
+      // For other errors, log and throw
+      this.logger.warn(`Failed to create deposit TX for swap request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to create deposit transaction: ${e.reason ?? e.message}`);
+    }
+  }
+
+  private async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto, includeTx: boolean): Promise<SwapPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
@@ -316,7 +421,19 @@ export class SwapService {
       error,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.SWAP, dto, swapDto, user.id);
+    const transactionRequest = await this.transactionRequestService.create(
+      TransactionRequestType.SWAP,
+      dto,
+      swapDto,
+      user.id,
+    );
+
+    // Assign complete user object to ensure user.address is available for createDepositTx
+    transactionRequest.user = user;
+
+    if (includeTx && isValid) {
+      swapDto.depositTx = await this.createDepositTx(transactionRequest, swap);
+    }
 
     return swapDto;
   }
