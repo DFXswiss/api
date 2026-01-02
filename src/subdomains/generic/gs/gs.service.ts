@@ -143,6 +143,8 @@ export class GsService {
     support_message: ['message', 'fileUrl'],
     // sift_error_log - Sift API request payloads containing PII
     sift_error_log: ['requestPayload'],
+    // webhook - serialized user/transaction data
+    webhook: ['data'],
   };
 
   private readonly DebugMaxResults = 10000;
