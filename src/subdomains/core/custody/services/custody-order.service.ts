@@ -114,6 +114,7 @@ export class CustodyOrderService {
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
           GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+          false,
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
@@ -142,6 +143,7 @@ export class CustodyOrderService {
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           targetUser.id,
           GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+          false,
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
@@ -160,6 +162,7 @@ export class CustodyOrderService {
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
           GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+          false,
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
