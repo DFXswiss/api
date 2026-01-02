@@ -85,6 +85,8 @@ export class BankTxService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankTxService);
   private readonly bankBalanceSubject: Subject<BankBalanceUpdate> = new Subject<BankBalanceUpdate>();
 
+  private olkyUnavailableWarningLogged = false;
+
   constructor(
     private readonly bankTxRepo: BankTxRepository,
     private readonly bankTxBatchRepo: BankTxBatchRepository,
@@ -164,7 +166,10 @@ export class BankTxService implements OnModuleInit {
 
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     if (!olkyBank) {
-      this.logger.warn('Olky bank not configured - skipping checkTransactions');
+      if (!this.olkyUnavailableWarningLogged) {
+        this.logger.warn('Olky bank not configured - skipping checkTransactions');
+        this.olkyUnavailableWarningLogged = true;
+      }
       return;
     }
 

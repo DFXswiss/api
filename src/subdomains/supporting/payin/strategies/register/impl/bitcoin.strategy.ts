@@ -20,6 +20,8 @@ export class BitcoinStrategy extends PollingStrategy {
 
   @Inject() private readonly depositService: DepositService;
 
+  private unavailableWarningLogged = false;
+
   constructor(private readonly payInBitcoinService: PayInBitcoinService) {
     super();
   }
@@ -32,7 +34,10 @@ export class BitcoinStrategy extends PollingStrategy {
   @DfxCron(CronExpression.EVERY_SECOND, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
     if (!this.payInBitcoinService.isAvailable()) {
-      this.logger.warn('Bitcoin node not configured - skipping checkPayInEntries');
+      if (!this.unavailableWarningLogged) {
+        this.logger.warn('Bitcoin node not configured - skipping checkPayInEntries');
+        this.unavailableWarningLogged = true;
+      }
       return;
     }
 

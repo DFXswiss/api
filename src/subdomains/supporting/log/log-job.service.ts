@@ -60,6 +60,8 @@ import { LogService } from './log.service';
 export class LogJobService {
   private readonly logger = new DfxLogger(LogJobService);
 
+  private readonly unavailableClientWarningsLogged = new Set<Blockchain>();
+
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
@@ -218,6 +220,13 @@ export class LogJobService {
       Array.from(customAssetMap.entries()).map(async ([b, a]) => {
         try {
           const client = this.blockchainRegistryService.getClient(b);
+          if (!client) {
+            if (!this.unavailableClientWarningsLogged.has(b)) {
+              this.logger.warn(`Blockchain client not configured for ${b} - skipping custom balances`);
+              this.unavailableClientWarningsLogged.add(b);
+            }
+            return { blockchain: b, balances: [] };
+          }
 
           const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
             b.flat(),
