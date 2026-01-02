@@ -218,6 +218,7 @@ export class LogJobService {
       Array.from(customAssetMap.entries()).map(async ([b, a]) => {
         try {
           const client = this.blockchainRegistryService.getClient(b);
+          if (!client) return { blockchain: b, balances: [] };
 
           const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
             b.flat(),

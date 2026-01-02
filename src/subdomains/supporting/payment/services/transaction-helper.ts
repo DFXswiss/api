@@ -606,6 +606,8 @@ export class TransactionHelper implements OnModuleInit {
 
     try {
       const client = this.blockchainRegistryService.getClient(to.blockchain);
+      if (!client) return 0;
+
       const userBalance = await this.addressBalanceCache.get(`${user.address}-${to.blockchain}`, () =>
         client.getNativeCoinBalanceForAddress(user.address),
       );

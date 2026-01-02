@@ -20,6 +20,8 @@ interface CheckoutData {
 export class CheckoutObserver extends MetricObserver<CheckoutData[]> {
   protected readonly logger = new DfxLogger(CheckoutObserver);
 
+  private unavailableWarningLogged = false;
+
   constructor(
     monitoringService: MonitoringService,
     private readonly checkoutService: CheckoutService,
@@ -30,6 +32,14 @@ export class CheckoutObserver extends MetricObserver<CheckoutData[]> {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.MONITORING, timeout: 1800 })
   async fetch() {
+    if (!this.checkoutService.isAvailable()) {
+      if (!this.unavailableWarningLogged) {
+        this.logger.warn('Checkout not configured - skipping fetch');
+        this.unavailableWarningLogged = true;
+      }
+      return [];
+    }
+
     const data = await this.getCheckout();
 
     this.emit(data);
