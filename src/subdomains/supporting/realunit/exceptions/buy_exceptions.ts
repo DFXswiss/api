@@ -3,7 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 export class RegistrationRequiredException extends BadRequestException {
     constructor(message = 'RealUnit registration required') {
         super({
-            statusCode: 400,
+            statusCode: 403,
             error: 'Bad Request',
             code: 'REGISTRATION_REQUIRED',
             message,
@@ -18,7 +18,7 @@ export class KycLevelRequiredException extends BadRequestException {
         message: String,
     ) {
         super({
-            statusCode: 400,
+            statusCode: 403,
             error: 'Bad Request',
             code: 'KYC_LEVEL_REQUIRED',
             message: message,
