@@ -310,12 +310,13 @@ export class SwapService {
       // Add EIP-7702 delegation data if user has 0 gas
       if (hasZeroGas) {
         this.logger.info(`User ${userAddress} has 0 gas on ${asset.blockchain}, providing EIP-7702 delegation data`);
-        const delegationData = this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
+        const delegationData = await this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
 
         unsignedTx.eip7702 = {
           relayerAddress: delegationData.relayerAddress,
           delegationManagerAddress: delegationData.delegationManagerAddress,
           delegatorAddress: delegationData.delegatorAddress,
+          userNonce: delegationData.userNonce,
           domain: delegationData.domain,
           types: delegationData.types,
           message: delegationData.message,
@@ -334,7 +335,7 @@ export class SwapService {
 
         // Create a basic unsigned transaction without gas estimation
         // The actual gas will be paid by the relayer through EIP-7702 delegation
-        const delegationData = this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
+        const delegationData = await this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
 
         const unsignedTx = {
           chainId: client.chainId,
@@ -349,6 +350,7 @@ export class SwapService {
             relayerAddress: delegationData.relayerAddress,
             delegationManagerAddress: delegationData.delegationManagerAddress,
             delegatorAddress: delegationData.delegatorAddress,
+            userNonce: delegationData.userNonce,
             domain: delegationData.domain,
             types: delegationData.types,
             message: delegationData.message,
