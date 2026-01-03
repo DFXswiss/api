@@ -321,8 +321,10 @@ export class TransactionHelper implements OnModuleInit {
       },
     };
 
-    const sourceSpecs = await this.getSourceSpecs(from, extendedSpecs, priceValidity);
-    const targetSpecs = await this.getTargetSpecs(to, extendedSpecs, priceValidity);
+    const [sourceSpecs, targetSpecs] = await Promise.all([
+      this.getSourceSpecs(from, extendedSpecs, priceValidity),
+      this.getTargetSpecs(to, extendedSpecs, priceValidity),
+    ]);
 
     const target = await this.getTargetEstimation(
       sourceAmount,
