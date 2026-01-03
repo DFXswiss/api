@@ -204,6 +204,16 @@ describe('GsService', () => {
         const sql = 'SELECT * FROM [user] u JOIN [order] o ON o.id = (SELECT 1 FROM sys.sql_logins)';
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
       });
+
+      it('should block linked server access (4-part names)', async () => {
+        const sql = 'SELECT * FROM [LinkedServer].[database].[schema].[table]';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('Linked server access is not allowed');
+      });
+
+      it('should block linked server access even with non-blocked database', async () => {
+        const sql = 'SELECT * FROM [ExternalServer].[otherdb].[dbo].[users]';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('Linked server access is not allowed');
+      });
     });
 
     describe('Dangerous functions', () => {

@@ -883,6 +883,11 @@ export class GsService {
     // Check FROM clause tables
     if (stmt.from) {
       for (const item of stmt.from) {
+        // Block linked server access (4-part names like [Server].[DB].[Schema].[Table])
+        if (item.server) {
+          throw new BadRequestException('Linked server access is not allowed');
+        }
+
         // Check table schema (e.g., sys.sql_logins, INFORMATION_SCHEMA.TABLES)
         const schema = item.db?.toLowerCase() || item.schema?.toLowerCase();
         const table = item.table?.toLowerCase();
