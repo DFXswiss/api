@@ -201,12 +201,8 @@ describe('BitcoinClient', () => {
     });
 
     it('should handle empty result gracefully', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
 
       const result = await client.send('bc1qrecipient', 'inputtxid', 0.5, 0, 10);
 
@@ -308,9 +304,7 @@ describe('BitcoinClient', () => {
     });
 
     it('should handle null/undefined fields in result', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
       mockRpcPost.mockImplementationOnce(() =>
         Promise.resolve({
           result: [{ txid: null, allowed: null, vsize: null, fees: null }],
@@ -328,12 +322,8 @@ describe('BitcoinClient', () => {
     });
 
     it('should return default result when RPC returns null', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
 
       const result = await client.testMempoolAccept('0100000001...');
 
@@ -342,9 +332,7 @@ describe('BitcoinClient', () => {
     });
 
     it('should include reject-reason in result', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
       mockRpcPost.mockImplementationOnce(() =>
         Promise.resolve({
           result: [
@@ -385,9 +373,7 @@ describe('BitcoinClient', () => {
     });
 
     it('should return error object on failure', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
       mockRpcPost.mockImplementationOnce(() =>
         Promise.resolve({
           result: null,
@@ -407,9 +393,7 @@ describe('BitcoinClient', () => {
       const error = new Error('Connection failed') as Error & { code: number };
       error.code = -1;
 
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
       mockRpcPost.mockImplementationOnce(() => Promise.reject(error));
 
       const result = await client.sendSignedTransaction('0100000001...');
@@ -420,9 +404,7 @@ describe('BitcoinClient', () => {
     });
 
     it('should handle exceptions without code property', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
       mockRpcPost.mockImplementationOnce(() => Promise.reject(new Error('Unknown error')));
 
       const result = await client.sendSignedTransaction('0100000001...');
@@ -461,9 +443,7 @@ describe('BitcoinClient', () => {
     });
 
     it('should handle missing blocktime', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
       mockRpcPost.mockImplementationOnce(() =>
         Promise.resolve({
           result: [{ address: 'bc1q', category: 'receive', amount: 0.5, txid: 'tx1', confirmations: 0 }],
@@ -575,9 +555,7 @@ describe('BitcoinClient', () => {
     });
 
     it('should include unconfirmed balance', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
       mockRpcPost.mockImplementationOnce(() =>
         Promise.resolve({
           result: { mine: { trusted: 3.0, untrusted_pending: 1.5, immature: 0.5 } },
@@ -615,12 +593,8 @@ describe('BitcoinClient', () => {
     });
 
     it('should handle empty groupings', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: null, error: null, id: 'test' }),
-      );
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({ result: [], error: null, id: 'test' }),
-      );
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: [], error: null, id: 'test' }));
 
       const result = await client.getNativeCoinBalanceForAddress('bc1qaddr1');
 

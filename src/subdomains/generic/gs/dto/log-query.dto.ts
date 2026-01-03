@@ -20,7 +20,9 @@ export class LogQueryDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^[a-zA-Z0-9_\-.: ()]{1,100}$/, { message: 'messageFilter must be alphanumeric with basic punctuation (max 100 chars)' })
+  @Matches(/^[a-zA-Z0-9_\-.: ()]{1,100}$/, {
+    message: 'messageFilter must be alphanumeric with basic punctuation (max 100 chars)',
+  })
   messageFilter?: string;
 
   @IsOptional()

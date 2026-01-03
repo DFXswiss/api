@@ -197,7 +197,13 @@ describe('BitcoinFeeService', () => {
       mockClient.getMempoolEntry.mockResolvedValueOnce({ feeRate: 10, vsize: 100 });
       mockClient.getMempoolEntry.mockResolvedValueOnce({ feeRate: 20, vsize: 200 });
       mockClient.getMempoolEntry.mockResolvedValueOnce(null);
-      mockClient.getTx.mockResolvedValueOnce({ txid: 'tx3', confirmations: 6, blockhash: '000...', time: 0, amount: 0 });
+      mockClient.getTx.mockResolvedValueOnce({
+        txid: 'tx3',
+        confirmations: 6,
+        blockhash: '000...',
+        time: 0,
+        amount: 0,
+      });
 
       const txids = ['tx1', 'tx2', 'tx3'];
       const result = await service.getTxFeeRates(txids);

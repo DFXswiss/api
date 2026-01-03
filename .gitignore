@@ -45,3 +45,4 @@ placeholder.env
 thunder-tests/env
 .claude/settings.local.json
 .api.pid
+CLAUDE.md
