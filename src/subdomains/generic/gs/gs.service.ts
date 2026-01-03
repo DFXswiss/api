@@ -1069,13 +1069,13 @@ export class GsService {
     const normalized = sql.trim().toLowerCase();
 
     // Check if query already has a LIMIT/TOP clause
-    if (normalized.includes(' top ') || /\blimit\s+\d+/i.test(sql)) {
+    if (normalized.includes(' top ') || normalized.includes(' limit ')) {
       return sql;
     }
 
     // MSSQL requires ORDER BY for OFFSET/FETCH - add dummy order if missing
-    // Using bounded quantifier {1,100} to prevent ReDoS while supporting tabs/multiple spaces
-    const hasOrderBy = /order\s{1,100}by/i.test(sql);
+    // Use string search on normalized input to avoid ReDoS on user-controlled data
+    const hasOrderBy = normalized.includes('order') && normalized.includes('by');
     const orderByClause = hasOrderBy ? '' : ' ORDER BY (SELECT NULL)';
 
     return `${sql.trim().replace(/;*$/, '')}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${

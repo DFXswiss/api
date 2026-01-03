@@ -41,8 +41,9 @@ def main():
     password_hmac = password_to_hmac(salt, args.password)
 
     print('String to be appended to bitcoin.conf:')
-    print('rpcauth={0}:{1}${2}'.format(args.username, salt, password_hmac))
-    print('Your password:\n{0}'.format(args.password))
+    # Intentional: This CLI tool generates credentials and must output them to the user
+    print('rpcauth={0}:{1}${2}'.format(args.username, salt, password_hmac))  # codeql[py/clear-text-logging-sensitive-data]
+    print('Your password:\n{0}'.format(args.password))  # codeql[py/clear-text-logging-sensitive-data]
 
 if __name__ == '__main__':
     main()
