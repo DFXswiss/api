@@ -9,7 +9,10 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { merge } from 'lodash';
 import { Config } from 'src/config/config';
-import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import {
+  DelegationCheckResult,
+  Eip7702DelegationService,
+} from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -306,34 +309,32 @@ export class SellService {
     // For sell flow: Check if EIP-7702 delegation is supported and user has zero native balance
     // The sell flow uses frontend-controlled delegation, not backend-controlled delegation
     const supportsEip7702 = this.eip7702DelegationService.isDelegationSupported(asset.blockchain);
-    let hasZeroGas = false;
+    let delegationResult: DelegationCheckResult | undefined;
 
     if (supportsEip7702) {
-      try {
-        hasZeroGas = await this.eip7702DelegationService.hasZeroNativeBalance(fromAddress, asset.blockchain);
-      } catch (_) {
-        // If balance check fails (RPC error, network issue, etc.), assume user has gas
-        this.logger.verbose(`Balance check failed for ${fromAddress} on ${asset.blockchain}, assuming user has gas`);
-        hasZeroGas = false;
-      }
+      delegationResult = await this.eip7702DelegationService.checkBalanceAndPrepareDelegation(
+        fromAddress,
+        asset.blockchain,
+      );
     }
+
+    const hasZeroGas = delegationResult?.hasZeroBalance ?? false;
 
     try {
       const unsignedTx = await client.prepareTransaction(asset, fromAddress, depositAddress, request.amount);
 
       // Add EIP-7702 delegation data if user has 0 gas
-      if (hasZeroGas) {
+      if (hasZeroGas && delegationResult) {
         this.logger.info(`User ${fromAddress} has 0 gas on ${asset.blockchain}, providing EIP-7702 delegation data`);
-        const delegationData = await this.eip7702DelegationService.prepareDelegationData(fromAddress, asset.blockchain);
 
         unsignedTx.eip7702 = {
-          relayerAddress: delegationData.relayerAddress,
-          delegationManagerAddress: delegationData.delegationManagerAddress,
-          delegatorAddress: delegationData.delegatorAddress,
-          userNonce: delegationData.userNonce,
-          domain: delegationData.domain,
-          types: delegationData.types,
-          message: delegationData.message,
+          relayerAddress: delegationResult.delegationData.relayerAddress,
+          delegationManagerAddress: delegationResult.delegationData.delegationManagerAddress,
+          delegatorAddress: delegationResult.delegationData.delegatorAddress,
+          userNonce: delegationResult.delegationData.userNonce,
+          domain: delegationResult.delegationData.domain,
+          types: delegationResult.delegationData.types,
+          message: delegationResult.delegationData.message,
         };
       }
 
@@ -342,15 +343,13 @@ export class SellService {
       // Special handling for INSUFFICIENT_FUNDS error when EIP-7702 is available
       const isInsufficientFunds = e.code === 'INSUFFICIENT_FUNDS' || e.message?.includes('insufficient funds');
 
-      if (isInsufficientFunds && supportsEip7702) {
+      if (isInsufficientFunds && delegationResult) {
         this.logger.info(
           `Gas estimation failed due to insufficient funds for user ${fromAddress}, creating transaction with EIP-7702 delegation`,
         );
 
         // Create a basic unsigned transaction without gas estimation
         // The actual gas will be paid by the relayer through EIP-7702 delegation
-        const delegationData = await this.eip7702DelegationService.prepareDelegationData(fromAddress, asset.blockchain);
-
         const unsignedTx: UnsignedTxDto = {
           chainId: client.chainId,
           from: fromAddress,
@@ -361,13 +360,13 @@ export class SellService {
           gasPrice: '0', // Will be set by relayer
           gasLimit: '0', // Will be set by relayer
           eip7702: {
-            relayerAddress: delegationData.relayerAddress,
-            delegationManagerAddress: delegationData.delegationManagerAddress,
-            delegatorAddress: delegationData.delegatorAddress,
-            userNonce: delegationData.userNonce,
-            domain: delegationData.domain,
-            types: delegationData.types,
-            message: delegationData.message,
+            relayerAddress: delegationResult.delegationData.relayerAddress,
+            delegationManagerAddress: delegationResult.delegationData.delegationManagerAddress,
+            delegatorAddress: delegationResult.delegationData.delegatorAddress,
+            userNonce: delegationResult.delegationData.userNonce,
+            domain: delegationResult.delegationData.domain,
+            types: delegationResult.delegationData.types,
+            message: delegationResult.delegationData.message,
           },
         };
 

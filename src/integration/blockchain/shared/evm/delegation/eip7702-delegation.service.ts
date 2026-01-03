@@ -61,6 +61,48 @@ interface Delegation {
   signature: Hex;
 }
 
+// EIP-712 typed data structures
+interface Eip712Domain {
+  name: string;
+  version: string;
+  chainId: number;
+  verifyingContract: Address;
+}
+
+interface Eip712TypeField {
+  name: string;
+  type: string;
+}
+
+interface Eip712Types {
+  Delegation: Eip712TypeField[];
+  Caveat: Eip712TypeField[];
+}
+
+interface DelegationMessage {
+  delegate: string;
+  delegator: string;
+  authority: string;
+  caveats: Caveat[];
+  salt: string;
+}
+
+// Public interfaces for delegation data
+export interface Eip7702DelegationData {
+  relayerAddress: string;
+  delegationManagerAddress: string;
+  delegatorAddress: string;
+  userNonce: number;
+  domain: Eip712Domain;
+  types: Eip712Types;
+  message: DelegationMessage;
+}
+
+export interface DelegationCheckResult {
+  hasZeroBalance: boolean;
+  delegationData: Eip7702DelegationData;
+}
+
 @Injectable()
 export class Eip7702DelegationService {
   private readonly logger = new DfxLogger(Eip7702DelegationService);
@@ -80,23 +122,82 @@ export class Eip7702DelegationService {
     const chainConfig = this.getChainConfig(blockchain);
     if (!chainConfig) return false;
 
-    try {
-      const publicClient = createPublicClient({
-        chain: chainConfig.chain,
-        transport: http(chainConfig.rpcUrl),
-      });
+    const publicClient = createPublicClient({
+      chain: chainConfig.chain,
+      transport: http(chainConfig.rpcUrl),
+    });
 
-      const balance = await publicClient.getBalance({ address: userAddress as Address });
-      return balance === 0n;
-    } catch (error) {
-      // If balance check fails (RPC error, network issue, etc.), assume user has gas
-      // This prevents transaction creation from failing completely
-      this.logger.warn(
-        `Failed to check native balance for ${userAddress} on ${blockchain}: ${error.message}. ` +
-          `Assuming user has gas (not using EIP-7702).`,
-      );
-      return false;
-    }
+    const balance = await publicClient.getBalance({ address: userAddress as Address });
+    return balance === 0n;
+  }
+
+  /**
+   * Check balance and prepare delegation data in a single RPC batch.
+   * Combines hasZeroNativeBalance + prepareDelegationData to avoid duplicate RPC calls.
+   */
+  async checkBalanceAndPrepareDelegation(userAddress: string, blockchain: Blockchain): Promise<DelegationCheckResult> {
+    const chainConfig = CHAIN_CONFIG[blockchain];
+    if (!chainConfig) throw new Error(`No chain config found for ${blockchain}`);
+
+    const fullChainConfig = this.getChainConfig(blockchain);
+    const publicClient = createPublicClient({
+      chain: chainConfig.chain,
+      transport: http(fullChainConfig.rpcUrl),
+    });
+
+    // Fetch balance and nonce in parallel with a single client
+    const [balance, userNonce] = await Promise.all([
+      publicClient.getBalance({ address: userAddress as Address }),
+      publicClient.getTransactionCount({ address: userAddress as Address }),
+    ]);
+
+    const hasZeroBalance = balance === 0n;
+
+    const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
+    const relayerAccount = privateKeyToAccount(relayerPrivateKey);
+    const salt = BigInt(Date.now());
+
+    const domain: Eip712Domain = {
+      name: 'DelegationManager',
+      version: '1',
+      chainId: chainConfig.chain.id,
+      verifyingContract: DELEGATION_MANAGER_ADDRESS,
+    };
+
+    const types: Eip712Types = {
+      Delegation: [
+        { name: 'delegate', type: 'address' },
+        { name: 'delegator', type: 'address' },
+        { name: 'authority', type: 'bytes32' },
+        { name: 'caveats', type: 'Caveat[]' },
+        { name: 'salt', type: 'uint256' },
+      ],
+      Caveat: [
+        { name: 'enforcer', type: 'address' },
+        { name: 'terms', type: 'bytes' },
+      ],
+    };
+
+    const message: DelegationMessage = {
+      delegate: relayerAccount.address,
+      delegator: userAddress,
+      authority: ROOT_AUTHORITY,
+      caveats: [],
+      salt: salt.toString(),
+    };
+
+    return {
+      hasZeroBalance,
+      delegationData: {
+        relayerAddress: relayerAccount.address,
+        delegationManagerAddress: DELEGATION_MANAGER_ADDRESS,
+        delegatorAddress: DELEGATOR_ADDRESS,
+        userNonce: Number(userNonce),
+        domain,
+        types,
+        message,
+      },
+    };
   }
 
   /**

@@ -323,6 +323,148 @@ describe('Eip7702DelegationService', () => {
     });
   });
 
+  describe('checkBalanceAndPrepareDelegation', () => {
+    const validUserAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD78';
+
+    const restoreDefaultMock = () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
+        getBalance: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+    };
+
+    beforeEach(() => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(0)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+    });
+
+    afterEach(() => {
+      restoreDefaultMock();
+    });
+
+    it('should return hasZeroBalance true when balance is 0', async () => {
+      const result = await service.checkBalanceAndPrepareDelegation(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.hasZeroBalance).toBe(true);
+    });
+
+    it('should return hasZeroBalance false when balance > 0', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(1000000000000000)), // 0.001 ETH
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+
+      const result = await service.checkBalanceAndPrepareDelegation(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.hasZeroBalance).toBe(false);
+    });
+
+    it('should fetch balance and nonce in parallel', async () => {
+      const mockGetBalance = jest.fn().mockResolvedValue(BigInt(0));
+      const mockGetTransactionCount = jest.fn().mockResolvedValue(BigInt(5));
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: mockGetBalance,
+        getTransactionCount: mockGetTransactionCount,
+      });
+
+      const result = await service.checkBalanceAndPrepareDelegation(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(mockGetBalance).toHaveBeenCalledWith({ address: validUserAddress });
+      expect(mockGetTransactionCount).toHaveBeenCalledWith({ address: validUserAddress });
+      expect(result.delegationData.userNonce).toBe(5);
+    });
+
+    it('should return complete delegation data structure', async () => {
+      const result = await service.checkBalanceAndPrepareDelegation(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.delegationData).toHaveProperty('relayerAddress');
+      expect(result.delegationData).toHaveProperty('delegationManagerAddress');
+      expect(result.delegationData).toHaveProperty('delegatorAddress');
+      expect(result.delegationData).toHaveProperty('userNonce');
+      expect(result.delegationData).toHaveProperty('domain');
+      expect(result.delegationData).toHaveProperty('types');
+      expect(result.delegationData).toHaveProperty('message');
+    });
+
+    it('should propagate RPC errors', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockRejectedValue(new Error('RPC error')),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+
+      await expect(service.checkBalanceAndPrepareDelegation(validUserAddress, Blockchain.ETHEREUM)).rejects.toThrow(
+        'RPC error',
+      );
+    });
+
+    it('should throw error for unsupported blockchain', async () => {
+      await expect(service.checkBalanceAndPrepareDelegation(validUserAddress, Blockchain.BITCOIN)).rejects.toThrow(
+        'No chain config found for Bitcoin',
+      );
+    });
+  });
+
+  describe('hasZeroNativeBalance', () => {
+    const validUserAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD78';
+
+    const restoreDefaultMock = () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
+        getBalance: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+    };
+
+    beforeEach(() => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+    });
+
+    afterEach(() => {
+      restoreDefaultMock();
+    });
+
+    it('should return true when balance is 0', async () => {
+      const result = await service.hasZeroNativeBalance(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false when balance > 0', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(1000000000000000)), // 0.001 ETH
+      });
+
+      const result = await service.hasZeroNativeBalance(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result).toBe(false);
+    });
+
+    it('should propagate RPC errors', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockRejectedValue(new Error('RPC error')),
+      });
+
+      await expect(service.hasZeroNativeBalance(validUserAddress, Blockchain.ETHEREUM)).rejects.toThrow('RPC error');
+    });
+
+    it('should return false for unsupported blockchain', async () => {
+      const result = await service.hasZeroNativeBalance(validUserAddress, Blockchain.BITCOIN);
+
+      expect(result).toBe(false);
+    });
+  });
+
   describe('transferTokenViaDelegation', () => {
     describe('Input Validation', () => {
       it('should throw error for zero amount', async () => {
