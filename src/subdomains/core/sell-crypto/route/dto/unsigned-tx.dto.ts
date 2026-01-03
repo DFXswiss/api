@@ -64,7 +64,17 @@ export class UnsignedTxDto {
 
   @ApiPropertyOptional({
     type: Eip7702DelegationDataDto,
-    description: 'EIP-7702 delegation data (only present if user has 0 native token)',
+    description: 'EIP-7702 delegation data (only present if user has 0 native token) - DEPRECATED: Use usePaymaster instead',
   })
   eip7702?: Eip7702DelegationDataDto;
+
+  @ApiPropertyOptional({
+    description: 'If true, use wallet_sendCalls with Paymaster for gasless transaction',
+  })
+  usePaymaster?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Paymaster service URL for ERC-7677 requests',
+  })
+  paymasterUrl?: string;
 }

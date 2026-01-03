@@ -52,6 +52,11 @@ export class DepositService {
     return this.depositRepo.findOneBy({ address, blockchains: Like(`%${blockchain}%`) });
   }
 
+  async isValidDepositAddress(address: string): Promise<boolean> {
+    const deposit = await this.depositRepo.findOneBy({ address });
+    return deposit != null;
+  }
+
   async getAllDeposits(): Promise<Deposit[]> {
     return this.depositRepo.find();
   }

@@ -307,11 +307,16 @@ export class SwapService {
     try {
       const unsignedTx = await client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
 
-      // Add EIP-7702 delegation data if user has 0 gas
+      // Add Paymaster data if user has 0 gas (for gasless transactions via wallet_sendCalls)
       if (hasZeroGas) {
-        this.logger.info(`User ${userAddress} has 0 gas on ${asset.blockchain}, providing EIP-7702 delegation data`);
-        const delegationData = await this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
+        this.logger.info(`User ${userAddress} has 0 gas on ${asset.blockchain}, enabling Paymaster sponsorship`);
 
+        // New: Use wallet_sendCalls with Paymaster
+        unsignedTx.usePaymaster = true;
+        unsignedTx.paymasterUrl = `${Config.url()}/paymaster/${client.chainId}`;
+
+        // Legacy: Also provide EIP-7702 delegation data for backward compatibility
+        const delegationData = await this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
         unsignedTx.eip7702 = {
           relayerAddress: delegationData.relayerAddress,
           delegationManagerAddress: delegationData.delegationManagerAddress,
@@ -346,6 +351,10 @@ export class SwapService {
           nonce: 0, // Will be set by frontend/relayer
           gasPrice: '0', // Will be set by relayer
           gasLimit: '0', // Will be set by relayer
+          // New: Use wallet_sendCalls with Paymaster
+          usePaymaster: true,
+          paymasterUrl: `${Config.url()}/paymaster/${client.chainId}`,
+          // Legacy: EIP-7702 delegation data for backward compatibility
           eip7702: {
             relayerAddress: delegationData.relayerAddress,
             delegationManagerAddress: delegationData.delegationManagerAddress,
