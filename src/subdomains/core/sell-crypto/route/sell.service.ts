@@ -275,8 +275,12 @@ export class SellService {
         type = 'signed transaction';
         payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
       } else if (dto.eip7702) {
-        type = 'EIP-7702 delegation';
-        payIn = await this.transactionUtilService.handleEip7702Input(route, request, dto.eip7702);
+        // DISABLED: EIP-7702 gasless transactions require Pimlico integration
+        // The manual signing approach doesn't work because eth_sign is disabled in MetaMask
+        // TODO: Re-enable once Pimlico integration is complete
+        throw new BadRequestException(
+          'EIP-7702 delegation is currently not available. Please ensure you have enough gas for the transaction.',
+        );
       } else {
         throw new BadRequestException('Either permit, signedTxHex, or eip7702 must be provided');
       }
