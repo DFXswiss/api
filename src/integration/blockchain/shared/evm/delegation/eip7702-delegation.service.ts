@@ -68,9 +68,15 @@ export class Eip7702DelegationService {
 
   /**
    * Check if delegation is enabled and supported for the given blockchain
+   *
+   * DISABLED: EIP-7702 gasless transactions require Pimlico integration.
+   * The manual signing approach (eth_sign + eth_signTypedData_v4) doesn't work
+   * because eth_sign is disabled by default in MetaMask.
+   * TODO: Re-enable once Pimlico integration is complete.
    */
-  isDelegationSupported(blockchain: Blockchain): boolean {
-    return this.config.evm.delegationEnabled && CHAIN_CONFIG[blockchain] !== undefined;
+  isDelegationSupported(_blockchain: Blockchain): boolean {
+    // Original: return this.config.evm.delegationEnabled && CHAIN_CONFIG[blockchain] !== undefined;
+    return false;
   }
 
   /**
