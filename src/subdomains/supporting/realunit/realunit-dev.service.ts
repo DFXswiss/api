@@ -93,13 +93,15 @@ export class RealUnitDevService {
   private async simulatePaymentForRequest(request: TransactionRequest, sepoliaRealuAsset: Asset): Promise<void> {
     // Get Buy route with user relation
     const buy = await this.buyService.getBuyByKey('id', request.routeId);
-    if (!buy?.bankUsage) {
-      this.logger.warn(`Buy route ${request.routeId} not found or has no bankUsage for TransactionRequest ${request.id}`);
+    if (!buy) {
+      this.logger.warn(`Buy route ${request.routeId} not found for TransactionRequest ${request.id}`);
       return;
     }
 
-    // Check if BankTx already exists (prevent duplicates)
-    const existingBankTx = await this.bankTxService.getBankTxByRemittanceInfo(buy.bankUsage);
+    // Check if this TransactionRequest was already processed (prevent duplicate simulation)
+    // We use the txInfo field to track which TransactionRequest a simulated BankTx belongs to
+    const simulationMarker = `DEV simulation for TransactionRequest ${request.id}`;
+    const existingBankTx = await this.bankTxService.getBankTxByKey('txInfo', simulationMarker);
     if (existingBankTx) {
       return;
     }
