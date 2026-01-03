@@ -756,6 +756,11 @@ export class RealUnitService {
 
     // 3. Execute transfer
     if (dto.eip7702) {
+      // Validate delegator matches user address (defense-in-depth, contract also verifies signature)
+      if (dto.eip7702.delegation.delegator.toLowerCase() !== request.user.address.toLowerCase()) {
+        throw new BadRequestException('Delegation delegator does not match user address');
+      }
+
       // Execute gasless transfer via EIP-7702 delegation (ForRealUnit bypasses global disable)
       txHash = await this.eip7702DelegationService.transferTokenWithUserDelegationForRealUnit(
         request.user.address,
@@ -768,7 +773,12 @@ export class RealUnitService {
 
       this.logger.info(`RealUnit sell confirmed via EIP-7702: ${txHash}`);
     } else if (dto.txHash) {
-      // User sent manually - verify transaction exists
+      // Validate transaction hash format (0x + 64 hex chars)
+      if (!/^0x[a-fA-F0-9]{64}$/.test(dto.txHash)) {
+        throw new BadRequestException('Invalid transaction hash format');
+      }
+
+      // User sent manually
       txHash = dto.txHash;
       this.logger.info(`RealUnit sell confirmed with manual txHash: ${txHash}`);
     } else {
