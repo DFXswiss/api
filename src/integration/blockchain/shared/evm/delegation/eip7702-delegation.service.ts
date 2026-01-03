@@ -103,19 +103,28 @@ export class Eip7702DelegationService {
    * Prepare delegation data for frontend signing
    * Returns EIP-712 data structure that frontend needs to sign
    */
-  prepareDelegationData(
+  async prepareDelegationData(
     userAddress: string,
     blockchain: Blockchain,
-  ): {
+  ): Promise<{
     relayerAddress: string;
     delegationManagerAddress: string;
     delegatorAddress: string;
+    userNonce: number;
     domain: any;
     types: any;
     message: any;
-  } {
+  }> {
     const chainConfig = CHAIN_CONFIG[blockchain];
     if (!chainConfig) throw new Error(`No chain config found for ${blockchain}`);
+
+    // Fetch user's current account nonce for EIP-7702 authorization
+    const fullChainConfig = this.getChainConfig(blockchain);
+    const publicClient = createPublicClient({
+      chain: chainConfig.chain,
+      transport: http(fullChainConfig.rpcUrl),
+    });
+    const userNonce = await publicClient.getTransactionCount({ address: userAddress as Address });
 
     const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
@@ -157,6 +166,7 @@ export class Eip7702DelegationService {
       relayerAddress: relayerAccount.address,
       delegationManagerAddress: DELEGATION_MANAGER_ADDRESS,
       delegatorAddress: DELEGATOR_ADDRESS,
+      userNonce: Number(userNonce),
       domain,
       types,
       message,

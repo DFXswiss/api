@@ -10,6 +10,9 @@ export class Eip7702DelegationDataDto {
   @ApiProperty({ description: 'Delegator contract address (MetaMask delegator)' })
   delegatorAddress: string;
 
+  @ApiProperty({ description: 'User account nonce for EIP-7702 authorization' })
+  userNonce: number;
+
   @ApiProperty({ description: 'EIP-712 domain for delegation signature' })
   domain: {
     name: string;
