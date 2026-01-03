@@ -80,6 +80,14 @@ export class Eip7702DelegationService {
   }
 
   /**
+   * Check if delegation is supported for RealUnit (bypasses global disable)
+   * RealUnit app supports eth_sign (unlike MetaMask), so EIP-7702 works
+   */
+  isDelegationSupportedForRealUnit(blockchain: Blockchain): boolean {
+    return blockchain === Blockchain.BASE && CHAIN_CONFIG[blockchain] !== undefined;
+  }
+
+  /**
    * Check if user has zero native token balance
    */
   async hasZeroNativeBalance(userAddress: string, blockchain: Blockchain): Promise<boolean> {
@@ -110,6 +118,49 @@ export class Eip7702DelegationService {
    * Returns EIP-712 data structure that frontend needs to sign
    */
   async prepareDelegationData(
+    userAddress: string,
+    blockchain: Blockchain,
+  ): Promise<{
+    relayerAddress: string;
+    delegationManagerAddress: string;
+    delegatorAddress: string;
+    userNonce: number;
+    domain: any;
+    types: any;
+    message: any;
+  }> {
+    if (!this.isDelegationSupported(blockchain)) {
+      throw new Error(`EIP-7702 delegation not supported for ${blockchain}`);
+    }
+    return this._prepareDelegationDataInternal(userAddress, blockchain);
+  }
+
+  /**
+   * Prepare delegation data for RealUnit (bypasses global disable)
+   * RealUnit app supports eth_sign, so EIP-7702 works unlike MetaMask
+   */
+  async prepareDelegationDataForRealUnit(
+    userAddress: string,
+    blockchain: Blockchain,
+  ): Promise<{
+    relayerAddress: string;
+    delegationManagerAddress: string;
+    delegatorAddress: string;
+    userNonce: number;
+    domain: any;
+    types: any;
+    message: any;
+  }> {
+    if (!this.isDelegationSupportedForRealUnit(blockchain)) {
+      throw new Error(`EIP-7702 delegation not supported for RealUnit on ${blockchain}`);
+    }
+    return this._prepareDelegationDataInternal(userAddress, blockchain);
+  }
+
+  /**
+   * Internal implementation for preparing delegation data
+   */
+  private async _prepareDelegationDataInternal(
     userAddress: string,
     blockchain: Blockchain,
   ): Promise<{
@@ -198,6 +249,67 @@ export class Eip7702DelegationService {
     },
     authorization: any,
   ): Promise<string> {
+    if (!this.isDelegationSupported(token.blockchain)) {
+      throw new Error(`EIP-7702 delegation not supported for ${token.blockchain}`);
+    }
+    return this._transferTokenWithUserDelegationInternal(
+      userAddress,
+      token,
+      recipient,
+      amount,
+      signedDelegation,
+      authorization,
+    );
+  }
+
+  /**
+   * Execute token transfer for RealUnit (bypasses global disable)
+   * RealUnit app supports eth_sign, so EIP-7702 works unlike MetaMask
+   */
+  async transferTokenWithUserDelegationForRealUnit(
+    userAddress: string,
+    token: Asset,
+    recipient: string,
+    amount: number,
+    signedDelegation: {
+      delegate: string;
+      delegator: string;
+      authority: string;
+      salt: string;
+      signature: string;
+    },
+    authorization: any,
+  ): Promise<string> {
+    if (!this.isDelegationSupportedForRealUnit(token.blockchain)) {
+      throw new Error(`EIP-7702 delegation not supported for RealUnit on ${token.blockchain}`);
+    }
+    return this._transferTokenWithUserDelegationInternal(
+      userAddress,
+      token,
+      recipient,
+      amount,
+      signedDelegation,
+      authorization,
+    );
+  }
+
+  /**
+   * Internal implementation for token transfer with user delegation
+   */
+  private async _transferTokenWithUserDelegationInternal(
+    userAddress: string,
+    token: Asset,
+    recipient: string,
+    amount: number,
+    signedDelegation: {
+      delegate: string;
+      delegator: string;
+      authority: string;
+      salt: string;
+      signature: string;
+    },
+    authorization: any,
+  ): Promise<string> {
     const blockchain = token.blockchain;
 
     // Input validation
@@ -209,10 +321,6 @@ export class Eip7702DelegationService {
     }
     if (!token.chainId || !/^0x[a-fA-F0-9]{40}$/.test(token.chainId)) {
       throw new Error(`Invalid token contract address: ${token.chainId}`);
-    }
-
-    if (!this.isDelegationSupported(blockchain)) {
-      throw new Error(`EIP-7702 delegation not supported for ${blockchain}`);
     }
 
     const chainConfig = this.getChainConfig(blockchain);
