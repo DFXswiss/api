@@ -124,7 +124,8 @@ export class Eip7702DelegationService {
       chain: chainConfig.chain,
       transport: http(fullChainConfig.rpcUrl),
     });
-    const userNonce = await publicClient.getTransactionCount({ address: userAddress as Address });
+
+    const userNonce = Number(await publicClient.getTransactionCount({ address: userAddress as Address }));
 
     const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
@@ -166,7 +167,7 @@ export class Eip7702DelegationService {
       relayerAddress: relayerAccount.address,
       delegationManagerAddress: DELEGATION_MANAGER_ADDRESS,
       delegatorAddress: DELEGATOR_ADDRESS,
-      userNonce: Number(userNonce),
+      userNonce,
       domain,
       types,
       message,
