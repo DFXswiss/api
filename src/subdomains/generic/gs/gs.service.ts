@@ -29,254 +29,24 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
-import { LogQueryDto, LogQueryResult, LogQueryTemplate } from './dto/log-query.dto';
+import {
+  DebugBlockedCols,
+  DebugBlockedSchemas,
+  DebugDangerousFunctions,
+  DebugLogQueryTemplates,
+  DebugMaxResults,
+  GsRestrictedColumns,
+  GsRestrictedMarker,
+  SupportTable,
+} from './dto/gs.dto';
+import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
-
-export enum SupportTable {
-  USER_DATA = 'userData',
-  USER = 'user',
-  BUY = 'buy',
-  SELL = 'sell',
-  SWAP = 'swap',
-  BUY_CRYPTO = 'buyCrypto',
-  BUY_FIAT = 'buyFiat',
-  BANK_TX = 'bankTx',
-  FIAT_OUTPUT = 'fiatOutput',
-  TRANSACTION = 'transaction',
-  BANK_DATA = 'bankData',
-  VIRTUAL_IBAN = 'virtualIban',
-}
 
 @Injectable()
 export class GsService {
   private readonly logger = new DfxLogger(GsService);
 
-  // columns only visible to SUPER_ADMIN
-  private readonly RestrictedColumns: Record<string, string[]> = {
-    asset: ['ikna'],
-  };
-  private readonly RestrictedMarker = '[RESTRICTED]';
-
   private readonly sqlParser = new Parser();
-
-  // Table-specific blocked columns for debug queries (personal data)
-  private readonly TableBlockedColumns: Record<string, string[]> = {
-    // user_data - main table with PII
-    user_data: [
-      'mail',
-      'phone',
-      'firstname',
-      'surname',
-      'verifiedName',
-      'street',
-      'houseNumber',
-      'location',
-      'zip',
-      'countryId',
-      'verifiedCountryId',
-      'nationalityId', // Foreign keys to country
-      'birthday',
-      'tin',
-      'identDocumentId',
-      'identDocumentType',
-      'organizationName',
-      'organizationStreet',
-      'organizationLocation',
-      'organizationZip',
-      'organizationCountryId',
-      'organizationId',
-      'allBeneficialOwnersName',
-      'allBeneficialOwnersDomicile',
-      'accountOpenerAuthorization',
-      'complexOrgStructure',
-      'accountOpener',
-      'legalEntity',
-      'signatoryPower',
-      'kycHash',
-      'kycFileId',
-      'apiKeyCT',
-      'totpSecret',
-      'internalAmlNote',
-      'blackSquadRecipientMail',
-      'individualFees',
-      'paymentLinksConfig',
-      'paymentLinksName',
-      'comment',
-      'relatedUsers',
-    ],
-    // user
-    user: ['ip', 'ipCountry', 'apiKeyCT', 'signature', 'label', 'comment'],
-    // bank_tx - bank transactions
-    bank_tx: [
-      'name',
-      'ultimateName',
-      'iban',
-      'accountIban',
-      'senderAccount',
-      'bic',
-      'addressLine1',
-      'addressLine2',
-      'ultimateAddressLine1',
-      'ultimateAddressLine2',
-      'bankAddressLine1',
-      'bankAddressLine2',
-      'remittanceInfo',
-      'txInfo',
-      'txRaw',
-    ],
-    // bank_data
-    bank_data: ['name', 'iban', 'label', 'comment'],
-    // fiat_output
-    fiat_output: [
-      'name',
-      'iban',
-      'accountIban',
-      'accountNumber',
-      'bic',
-      'aba',
-      'address',
-      'houseNumber',
-      'zip',
-      'city',
-      'remittanceInfo',
-    ],
-    // checkout_tx - payment card data
-    checkout_tx: [
-      'cardName',
-      'ip',
-      'cardBin',
-      'cardLast4',
-      'cardFingerPrint',
-      'cardIssuer',
-      'cardIssuerCountry',
-      'raw',
-    ],
-    // bank_account
-    bank_account: ['accountNumber'],
-    // virtual_iban
-    virtual_iban: ['iban', 'bban', 'label'],
-    // kyc_step - KYC steps (result/data contains names, birthday, document number)
-    kyc_step: ['result', 'comment', 'data'],
-    // kyc_file
-    kyc_file: ['name'],
-    // kyc_log (includes TfaLog ChildEntity with ipAddress)
-    kyc_log: ['comment', 'ipAddress', 'result'],
-    // organization
-    organization: [
-      'name',
-      'street',
-      'houseNumber',
-      'location',
-      'zip',
-      'allBeneficialOwnersName',
-      'allBeneficialOwnersDomicile',
-    ],
-    // transactions
-    buy_crypto: ['recipientMail', 'comment', 'chargebackIban', 'chargebackRemittanceInfo', 'siftResponse'],
-    buy_fiat: ['recipientMail', 'comment', 'remittanceInfo', 'usedBank', 'info'],
-    transaction: ['recipientMail'],
-    crypto_input: ['recipientMail', 'senderAddresses'],
-    // payment_link
-    payment_link: ['comment', 'label'],
-    // wallet (integration)
-    wallet: ['apiKey'],
-    // ref - referral tracking
-    ref: ['ip'],
-    // ip_log - IP logging
-    ip_log: ['ip', 'country'],
-    // buy - buy crypto routes
-    buy: ['iban'],
-    // deposit_route - sell routes (Single Table Inheritance for Sell entity)
-    deposit_route: ['iban'],
-    // bank_tx_return - chargeback returns
-    bank_tx_return: ['chargebackIban', 'recipientMail', 'chargebackRemittanceInfo', 'info'],
-    // bank_tx_repeat - repeat transactions
-    bank_tx_repeat: ['chargebackIban', 'chargebackRemittanceInfo'],
-    // limit_request - limit increase requests
-    limit_request: ['recipientMail', 'fundOriginText'],
-    // ref_reward - referral rewards
-    ref_reward: ['recipientMail'],
-    // transaction_risk_assessment - AML/KYC assessments
-    transaction_risk_assessment: ['reason', 'methods', 'summary', 'result'],
-    // support_issue - support tickets with user data
-    support_issue: ['name', 'information'],
-    // support_message - message content and file URLs
-    support_message: ['message', 'fileUrl'],
-    // sift_error_log - Sift API request payloads containing PII
-    sift_error_log: ['requestPayload'],
-    // webhook - serialized user/transaction data
-    webhook: ['data'],
-    // notification - notification payloads with user data
-    notification: ['data'],
-  };
-
-  private readonly DebugMaxResults = 10000;
-
-  // blocked system schemas (prevent access to system tables)
-  private readonly BlockedSchemas = ['sys', 'information_schema', 'master', 'msdb', 'tempdb'];
-
-  // dangerous functions that could be used for data exfiltration or external connections
-  private readonly DangerousFunctions = ['openrowset', 'openquery', 'opendatasource', 'openxml'];
-
-  // Log query templates (safe, predefined KQL queries)
-  private readonly LogQueryTemplates: Record<
-    LogQueryTemplate,
-    { kql: string; requiredParams: (keyof LogQueryDto)[]; defaultLimit: number }
-  > = {
-    [LogQueryTemplate.TRACES_BY_OPERATION]: {
-      kql: `traces
-| where operation_Id == "{operationId}"
-| where timestamp > ago({hours}h)
-| project timestamp, severityLevel, message, customDimensions
-| order by timestamp desc`,
-      requiredParams: ['operationId'],
-      defaultLimit: 500,
-    },
-    [LogQueryTemplate.TRACES_BY_MESSAGE]: {
-      kql: `traces
-| where timestamp > ago({hours}h)
-| where message contains "{messageFilter}"
-| project timestamp, severityLevel, message, operation_Id
-| order by timestamp desc`,
-      requiredParams: ['messageFilter'],
-      defaultLimit: 200,
-    },
-    [LogQueryTemplate.EXCEPTIONS_RECENT]: {
-      kql: `exceptions
-| where timestamp > ago({hours}h)
-| project timestamp, problemId, outerMessage, innermostMessage, operation_Id
-| order by timestamp desc`,
-      requiredParams: [],
-      defaultLimit: 500,
-    },
-    [LogQueryTemplate.REQUEST_FAILURES]: {
-      kql: `requests
-| where timestamp > ago({hours}h)
-| where success == false
-| project timestamp, resultCode, duration, operation_Name, operation_Id
-| order by timestamp desc`,
-      requiredParams: [],
-      defaultLimit: 500,
-    },
-    [LogQueryTemplate.DEPENDENCIES_SLOW]: {
-      kql: `dependencies
-| where timestamp > ago({hours}h)
-| where duration > {durationMs}
-| project timestamp, target, type, duration, success, operation_Id
-| order by duration desc`,
-      requiredParams: ['durationMs'],
-      defaultLimit: 200,
-    },
-    [LogQueryTemplate.CUSTOM_EVENTS]: {
-      kql: `customEvents
-| where timestamp > ago({hours}h)
-| where name == "{eventName}"
-| project timestamp, name, customDimensions, operation_Id
-| order by timestamp desc`,
-      requiredParams: ['eventName'],
-      defaultLimit: 500,
-    },
-  };
 
   constructor(
     private readonly appInsightsQueryService: AppInsightsQueryService,
@@ -468,8 +238,8 @@ export class GsService {
     }
 
     // 9. Validate TOP value if present (use AST for accurate detection including TOP(n) syntax)
-    if (stmt.top?.value > this.DebugMaxResults) {
-      throw new BadRequestException(`TOP value exceeds maximum of ${this.DebugMaxResults}`);
+    if (stmt.top?.value > DebugMaxResults) {
+      throw new BadRequestException(`TOP value exceeds maximum of ${DebugMaxResults}`);
     }
 
     // 10. Log query for audit trail
@@ -491,7 +261,7 @@ export class GsService {
   }
 
   async executeLogQuery(dto: LogQueryDto, userIdentifier: string): Promise<LogQueryResult> {
-    const template = this.LogQueryTemplates[dto.template];
+    const template = DebugLogQueryTemplates[dto.template];
     if (!template) {
       throw new BadRequestException('Unknown template');
     }
@@ -815,16 +585,16 @@ export class GsService {
   }
 
   private maskRestrictedColumns(data: Record<string, unknown>[], table: string): void {
-    const restrictedColumns = this.RestrictedColumns[table];
+    const restrictedColumns = GsRestrictedColumns[table];
     if (!restrictedColumns?.length) return;
 
     for (const entry of data) {
       for (const column of restrictedColumns) {
         const prefixedKey = `${table}_${column}`;
         if (prefixedKey in entry) {
-          entry[prefixedKey] = this.RestrictedMarker;
+          entry[prefixedKey] = GsRestrictedMarker;
         } else if (column in entry) {
-          entry[column] = this.RestrictedMarker;
+          entry[column] = GsRestrictedMarker;
         }
       }
     }
@@ -836,7 +606,7 @@ export class GsService {
     // Collect all blocked columns from all tables in the query
     const blockedColumns = new Set<string>();
     for (const table of tables) {
-      const tableCols = this.TableBlockedColumns[table];
+      const tableCols = DebugBlockedCols[table];
       if (tableCols) {
         for (const col of tableCols) {
           blockedColumns.add(col.toLowerCase());
@@ -849,7 +619,7 @@ export class GsService {
     for (const entry of data) {
       for (const key of Object.keys(entry)) {
         if (this.shouldMaskDebugColumn(key, blockedColumns)) {
-          entry[key] = this.RestrictedMarker;
+          entry[key] = GsRestrictedMarker;
         }
       }
     }
@@ -890,12 +660,12 @@ export class GsService {
 
     if (table) {
       // Explicit table known → check if this column is blocked in this table
-      const blockedCols = this.TableBlockedColumns[table];
+      const blockedCols = DebugBlockedCols[table];
       return blockedCols?.some((b) => b.toLowerCase() === lower) ?? false;
     } else {
       // No explicit table → if ANY of the query tables blocks this column, block it
       return allTables.some((t) => {
-        const blockedCols = this.TableBlockedColumns[t];
+        const blockedCols = DebugBlockedCols[t];
         return blockedCols?.some((b) => b.toLowerCase() === lower) ?? false;
       });
     }
@@ -951,12 +721,12 @@ export class GsService {
         const schema = item.db?.toLowerCase() || item.schema?.toLowerCase();
         const table = item.table?.toLowerCase();
 
-        if (schema && this.BlockedSchemas.includes(schema)) {
+        if (schema && DebugBlockedSchemas.includes(schema)) {
           throw new BadRequestException(`Access to schema '${schema}' is not allowed`);
         }
 
         // Also check if table name starts with blocked schema (e.g., "sys.objects" without explicit schema)
-        if (table && this.BlockedSchemas.some((s) => table.startsWith(s + '.'))) {
+        if (table && DebugBlockedSchemas.some((s) => table.startsWith(s + '.'))) {
           throw new BadRequestException(`Access to system tables is not allowed`);
         }
 
@@ -1097,7 +867,7 @@ export class GsService {
       // Check if FROM contains a function call
       if (item.type === 'expr' && item.expr?.type === 'function') {
         const funcName = this.extractFunctionName(item.expr);
-        if (funcName && this.DangerousFunctions.includes(funcName)) {
+        if (funcName && DebugDangerousFunctions.includes(funcName)) {
           throw new BadRequestException(`Function '${funcName.toUpperCase()}' not allowed`);
         }
       }
@@ -1126,7 +896,7 @@ export class GsService {
     // Check if this node is a function call
     if (node.type === 'function') {
       const funcName = this.extractFunctionName(node);
-      if (funcName && this.DangerousFunctions.includes(funcName)) {
+      if (funcName && DebugDangerousFunctions.includes(funcName)) {
         throw new BadRequestException(`Function '${funcName.toUpperCase()}' not allowed`);
       }
     }
@@ -1301,8 +1071,6 @@ export class GsService {
     const hasOrderBy = /order\s{1,100}by/i.test(sql);
     const orderByClause = hasOrderBy ? '' : ' ORDER BY (SELECT NULL)';
 
-    return `${sql.trim().replace(/;*$/, '')}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${
-      this.DebugMaxResults
-    } ROWS ONLY`;
+    return `${sql.trim().replace(/;*$/, '')}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${DebugMaxResults} ROWS ONLY`;
   }
 }
