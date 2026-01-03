@@ -97,7 +97,7 @@ export class SparkService extends BlockchainService {
 
   private getAddressPrefix(address: string): string {
     const separatorIndex = address.lastIndexOf('1');
-    if (separatorIndex === -1) return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET);
+    if (separatorIndex === -1) return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET) ?? 'sp';
 
     return address.substring(0, separatorIndex);
   }

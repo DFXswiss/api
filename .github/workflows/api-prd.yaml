@@ -5,6 +5,9 @@ on:
     branches: [master]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   AZURE_WEBAPP_NAME: app-dfx-api-prd
   AZURE_WEBAPP_PACKAGE_PATH: '.'
