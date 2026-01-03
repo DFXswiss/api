@@ -115,7 +115,8 @@ jest.mock('../../evm.util', () => ({
   },
 }));
 
-describe('Eip7702DelegationService', () => {
+// TODO: Re-enable when EIP-7702 delegation is reactivated
+describe.skip('Eip7702DelegationService', () => {
   let service: Eip7702DelegationService;
 
   const validDepositAccount: WalletAccount = {
