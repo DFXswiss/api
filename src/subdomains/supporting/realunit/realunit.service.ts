@@ -1,4 +1,11 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, GetConfig } from 'src/config/config';
@@ -10,6 +17,8 @@ import {
   BrokerbotSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
+import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -21,6 +30,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
@@ -31,7 +41,10 @@ import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -54,6 +67,7 @@ import {
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
+import { RealUnitSellDto, RealUnitSellPaymentInfoDto, RealUnitSellConfirmDto } from './dto/realunit-sell.dto';
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
@@ -66,6 +80,10 @@ export class RealUnitService {
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
   private readonly historicalPriceCache = new AsyncCache<HistoricalPriceDto[]>(CacheItemResetPeriod.EVERY_6_HOURS);
+
+  // RealUnit on Base
+  private readonly REALU_BASE_ADDRESS = '0x553C7f9C780316FC1D34b8e14ac2465Ab22a090B';
+  private readonly BASE_CHAIN_ID = 8453;
 
   constructor(
     private readonly assetPricesService: AssetPricesService,
@@ -81,6 +99,11 @@ export class RealUnitService {
     private readonly fiatService: FiatService,
     @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
+    @Inject(forwardRef(() => SellService))
+    private readonly sellService: SellService,
+    private readonly eip7702DelegationService: Eip7702DelegationService,
+    private readonly transactionHelper: TransactionHelper,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -553,5 +576,208 @@ export class RealUnitService {
       await this.kycService.saveKycStepUpdate(kycStep.manualReview(message));
       return false;
     }
+  }
+
+  // --- Sell Payment Info Methods ---
+
+  private async getBaseRealuAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: this.tokenName,
+      blockchain: Blockchain.BASE,
+      type: AssetType.TOKEN,
+    });
+  }
+
+  async getSellPaymentInfo(user: User, dto: RealUnitSellDto): Promise<RealUnitSellPaymentInfoDto> {
+    const userData = user.userData;
+    const currencyName = dto.currency ?? 'CHF';
+
+    // 1. Registration required
+    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
+    if (!hasRegistration) {
+      throw new RegistrationRequiredException();
+    }
+
+    // 2. KYC Level check - Level 20 minimum
+    const requiredLevel = KycLevel.LEVEL_20;
+    if (userData.kycLevel < requiredLevel) {
+      throw new KycLevelRequiredException(requiredLevel, userData.kycLevel, 'KYC Level 20 required for RealUnit sell');
+    }
+
+    // 3. Get REALU asset on Base
+    const realuAsset = await this.getBaseRealuAsset();
+    if (!realuAsset) throw new NotFoundException('REALU asset not found on Base blockchain');
+
+    // 4. Get currency
+    const currency = await this.fiatService.getFiatByName(currencyName);
+
+    // 5. Get or create Sell route
+    const sell = await this.sellService.createSell(
+      user.id,
+      { iban: dto.iban, currency, blockchain: Blockchain.BASE },
+      true,
+    );
+
+    // 6. Calculate fees and rates using TransactionHelper
+    const txDetails = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      realuAsset,
+      currency,
+      CryptoPaymentMethod.CRYPTO,
+      FiatPaymentMethod.BANK,
+      false,
+      user,
+      undefined,
+      undefined,
+      dto.iban.substring(0, 2),
+    );
+
+    // 7. Prepare EIP-7702 delegation data (ALWAYS for RealUnit - app supports eth_sign)
+    const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
+      user.address,
+      Blockchain.BASE,
+    );
+
+    // 8. Build response with EIP-7702 data AND fallback transfer info
+    const amountWei = EvmUtil.toWeiAmount(txDetails.sourceAmount, realuAsset.decimals);
+
+    const response: RealUnitSellPaymentInfoDto = {
+      // Identification (id will be set by TransactionRequestService.create)
+      id: 0,
+      routeId: sell.id,
+      timestamp: txDetails.timestamp,
+
+      // EIP-7702 Data (ALWAYS present for RealUnit)
+      eip7702: {
+        ...delegationData,
+        tokenAddress: this.REALU_BASE_ADDRESS,
+        amountWei: amountWei.toString(),
+        depositAddress: sell.deposit.address,
+      },
+
+      // Fallback Transfer Info (ALWAYS present)
+      depositAddress: sell.deposit.address,
+      amount: txDetails.sourceAmount,
+      tokenAddress: this.REALU_BASE_ADDRESS,
+      chainId: this.BASE_CHAIN_ID,
+
+      // Fee Info
+      fees: txDetails.feeSource,
+      minVolume: txDetails.minVolume,
+      maxVolume: txDetails.maxVolume,
+      minVolumeTarget: txDetails.minVolumeTarget,
+      maxVolumeTarget: txDetails.maxVolumeTarget,
+
+      // Rate Info
+      exchangeRate: txDetails.exchangeRate,
+      rate: txDetails.rate,
+      priceSteps: txDetails.priceSteps,
+
+      // Result
+      estimatedAmount: txDetails.estimatedAmount,
+      currency: currencyName,
+      beneficiary: {
+        name: userData.verifiedName,
+        iban: dto.iban,
+      },
+
+      isValid: txDetails.isValid,
+      error: txDetails.error,
+    };
+
+    // 9. Create TransactionRequest (sets response.id)
+    // Build compatible objects for TransactionRequestService.create()
+    const sellPaymentRequest = {
+      iban: dto.iban,
+      asset: realuAsset,
+      currency,
+      amount: dto.amount,
+      targetAmount: dto.targetAmount,
+      exactPrice: false,
+    };
+
+    const sellPaymentResponse = {
+      id: 0,
+      routeId: sell.id,
+      timestamp: txDetails.timestamp,
+      depositAddress: sell.deposit.address,
+      blockchain: Blockchain.BASE,
+      minDeposit: { amount: txDetails.minVolume, asset: realuAsset.dexName },
+      fee: Util.round(txDetails.feeSource.rate * 100, Config.defaultPercentageDecimal),
+      minFee: txDetails.feeSource.min,
+      fees: txDetails.feeSource,
+      minVolume: txDetails.minVolume,
+      maxVolume: txDetails.maxVolume,
+      amount: txDetails.sourceAmount,
+      asset: { id: realuAsset.id, name: realuAsset.name, blockchain: Blockchain.BASE },
+      minFeeTarget: txDetails.feeTarget.min,
+      feesTarget: txDetails.feeTarget,
+      minVolumeTarget: txDetails.minVolumeTarget,
+      maxVolumeTarget: txDetails.maxVolumeTarget,
+      exchangeRate: txDetails.exchangeRate,
+      rate: txDetails.rate,
+      exactPrice: txDetails.exactPrice,
+      priceSteps: txDetails.priceSteps,
+      estimatedAmount: txDetails.estimatedAmount,
+      currency: { id: currency.id, name: currency.name },
+      beneficiary: { name: userData.verifiedName, iban: dto.iban },
+      isValid: txDetails.isValid,
+      error: txDetails.error,
+    };
+
+    await this.transactionRequestService.create(
+      TransactionRequestType.SELL,
+      sellPaymentRequest,
+      sellPaymentResponse as any,
+      user.id,
+    );
+
+    // Transfer the generated id back to the response
+    response.id = sellPaymentResponse.id;
+
+    return response;
+  }
+
+  async confirmSell(userId: number, requestId: number, dto: RealUnitSellConfirmDto): Promise<{ txHash: string }> {
+    // 1. Get and validate TransactionRequest (getOrThrow validates ownership and existence)
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    // 2. Get the sell route and REALU asset
+    const sell = await this.sellService.getById(request.routeId, { relations: { deposit: true, user: true } });
+    if (!sell) throw new NotFoundException('Sell route not found');
+
+    const realuAsset = await this.getBaseRealuAsset();
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
+
+    let txHash: string;
+
+    // 3. Execute transfer
+    if (dto.eip7702) {
+      // Execute gasless transfer via EIP-7702 delegation (ForRealUnit bypasses global disable)
+      txHash = await this.eip7702DelegationService.transferTokenWithUserDelegationForRealUnit(
+        request.user.address,
+        realuAsset,
+        sell.deposit.address,
+        request.amount,
+        dto.eip7702.delegation,
+        dto.eip7702.authorization,
+      );
+
+      this.logger.info(`RealUnit sell confirmed via EIP-7702: ${txHash}`);
+    } else if (dto.txHash) {
+      // User sent manually - verify transaction exists
+      txHash = dto.txHash;
+      this.logger.info(`RealUnit sell confirmed with manual txHash: ${txHash}`);
+    } else {
+      throw new BadRequestException('Either eip7702 or txHash must be provided');
+    }
+
+    // 4. Mark request as complete
+    await this.transactionRequestService.complete(request.id);
+
+    return { txHash };
   }
 }
