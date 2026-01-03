@@ -79,6 +79,16 @@ describe('GsService', () => {
 
         expect(result).toBeDefined();
       });
+
+      it('should block FOR XML in subqueries (SELECT column)', async () => {
+        const sql = "SELECT id, (SELECT name FROM items FOR XML PATH('')) as xml FROM [user]";
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
+
+      it('should block FOR XML in derived tables (FROM clause)', async () => {
+        const sql = 'SELECT * FROM (SELECT id FROM [user] FOR XML AUTO) as t';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
     });
 
     describe('Statement type validation', () => {

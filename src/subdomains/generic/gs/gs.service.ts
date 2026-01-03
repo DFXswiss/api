@@ -398,11 +398,8 @@ export class GsService {
     // 6. No dangerous functions anywhere in the query (external connections)
     this.checkForDangerousFunctionsRecursive(stmt);
 
-    // 7. No FOR XML/JSON (data exfiltration) - use AST for accurate detection
-    const forType = stmt.for?.type?.toLowerCase();
-    if (forType?.includes('xml') || forType?.includes('json')) {
-      throw new BadRequestException('FOR XML/JSON not allowed');
-    }
+    // 7. No FOR XML/JSON (data exfiltration) - check recursively including subqueries
+    this.checkForXmlJsonRecursive(stmt);
 
     // 8. Check for blocked columns BEFORE execution (prevents alias bypass)
     const tables = this.getTablesFromQuery(sql);
@@ -1004,6 +1001,66 @@ export class GsService {
       return funcNode.name.toLowerCase();
     }
     return null;
+  }
+
+  private checkForXmlJsonRecursive(stmt: any): void {
+    if (!stmt) return;
+
+    // Check FOR clause on this statement
+    const forType = stmt.for?.type?.toLowerCase();
+    if (forType?.includes('xml') || forType?.includes('json')) {
+      throw new BadRequestException('FOR XML/JSON not allowed');
+    }
+
+    // Check subqueries in SELECT columns
+    if (stmt.columns) {
+      for (const col of stmt.columns) {
+        if (col.expr?.ast) {
+          this.checkForXmlJsonRecursive(col.expr.ast);
+        }
+      }
+    }
+
+    // Check subqueries in FROM clause (derived tables)
+    if (stmt.from) {
+      for (const item of stmt.from) {
+        if (item.expr?.ast) {
+          this.checkForXmlJsonRecursive(item.expr.ast);
+        }
+      }
+    }
+
+    // Check subqueries in WHERE clause
+    this.checkNodeForXmlJson(stmt.where);
+
+    // Check CTEs (WITH clause)
+    if (stmt.with) {
+      for (const cte of stmt.with) {
+        if (cte.stmt?.ast) {
+          this.checkForXmlJsonRecursive(cte.stmt.ast);
+        }
+      }
+    }
+  }
+
+  private checkNodeForXmlJson(node: any): void {
+    if (!node) return;
+
+    // Check if node contains a subquery
+    if (node.ast) {
+      this.checkForXmlJsonRecursive(node.ast);
+    }
+
+    // Recursively check child nodes
+    if (node.left) this.checkNodeForXmlJson(node.left);
+    if (node.right) this.checkNodeForXmlJson(node.right);
+    if (node.expr) this.checkNodeForXmlJson(node.expr);
+    if (node.args) {
+      const args = Array.isArray(node.args) ? node.args : node.args?.value || [];
+      for (const arg of Array.isArray(args) ? args : [args]) {
+        this.checkNodeForXmlJson(arg);
+      }
+    }
   }
 
   private ensureResultLimit(sql: string): string {
