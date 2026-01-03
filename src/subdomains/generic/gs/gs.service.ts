@@ -1074,7 +1074,7 @@ export class GsService {
     }
 
     // MSSQL requires ORDER BY for OFFSET/FETCH - add dummy order if missing
-    const hasOrderBy = /\border\s+by\b/i.test(sql);
+    const hasOrderBy = sql.toLowerCase().includes('order by');
     const orderByClause = hasOrderBy ? '' : ' ORDER BY (SELECT NULL)';
 
     return `${sql.trim().replace(/;*$/, '')}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${
