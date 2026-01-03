@@ -1012,26 +1012,36 @@ export class GsService {
       throw new BadRequestException('FOR XML/JSON not allowed');
     }
 
-    // Check subqueries in SELECT columns
+    // Check subqueries in SELECT columns (including CASE expressions)
     if (stmt.columns) {
       for (const col of stmt.columns) {
-        if (col.expr?.ast) {
-          this.checkForXmlJsonRecursive(col.expr.ast);
-        }
+        this.checkNodeForXmlJson(col.expr);
       }
     }
 
-    // Check subqueries in FROM clause (derived tables)
+    // Check subqueries in FROM clause (derived tables, CROSS/OUTER APPLY, JOIN ON)
     if (stmt.from) {
       for (const item of stmt.from) {
         if (item.expr?.ast) {
           this.checkForXmlJsonRecursive(item.expr.ast);
         }
+        // Check JOIN ON conditions
+        this.checkNodeForXmlJson(item.on);
       }
     }
 
     // Check subqueries in WHERE clause
     this.checkNodeForXmlJson(stmt.where);
+
+    // Check subqueries in HAVING clause
+    this.checkNodeForXmlJson(stmt.having);
+
+    // Check subqueries in ORDER BY clause
+    if (stmt.orderby) {
+      for (const item of stmt.orderby) {
+        this.checkNodeForXmlJson(item.expr);
+      }
+    }
 
     // Check CTEs (WITH clause)
     if (stmt.with) {
@@ -1055,10 +1065,21 @@ export class GsService {
     if (node.left) this.checkNodeForXmlJson(node.left);
     if (node.right) this.checkNodeForXmlJson(node.right);
     if (node.expr) this.checkNodeForXmlJson(node.expr);
+
+    // Check CASE expression branches
+    if (node.result) this.checkNodeForXmlJson(node.result);
+    if (node.condition) this.checkNodeForXmlJson(node.condition);
+
+    // Check function arguments and array values
     if (node.args) {
       const args = Array.isArray(node.args) ? node.args : node.args?.value || [];
       for (const arg of Array.isArray(args) ? args : [args]) {
         this.checkNodeForXmlJson(arg);
+      }
+    }
+    if (node.value && Array.isArray(node.value)) {
+      for (const val of node.value) {
+        this.checkNodeForXmlJson(val);
       }
     }
   }

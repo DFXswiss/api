@@ -89,6 +89,26 @@ describe('GsService', () => {
         const sql = 'SELECT * FROM (SELECT id FROM [user] FOR XML AUTO) as t';
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
       });
+
+      it('should block FOR XML in HAVING clause', async () => {
+        const sql = 'SELECT COUNT(*) FROM [user] GROUP BY status HAVING (SELECT id FROM items FOR XML AUTO) IS NOT NULL';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
+
+      it('should block FOR XML in ORDER BY clause', async () => {
+        const sql = 'SELECT * FROM [user] ORDER BY (SELECT id FROM items FOR XML AUTO)';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
+
+      it('should block FOR XML in JOIN ON condition', async () => {
+        const sql = 'SELECT * FROM [user] u JOIN items i ON i.id = (SELECT id FOR XML AUTO)';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
+
+      it('should block FOR XML in CASE expression', async () => {
+        const sql = 'SELECT CASE WHEN 1=1 THEN (SELECT id FOR XML AUTO) END FROM [user]';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
     });
 
     describe('Statement type validation', () => {
