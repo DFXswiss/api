@@ -66,7 +66,9 @@ export class DfxCronService implements OnModuleInit {
 
     return async (...args: any) => {
       if (data.params.process && DisabledProcess(data.params.process)) {
-        this.logger.verbose(`Skipping ${context.target}::${context.method} - process ${data.params.process} is disabled`);
+        this.logger.verbose(
+          `Skipping ${context.target}::${context.method} - process ${data.params.process} is disabled`,
+        );
         return;
       }
 
