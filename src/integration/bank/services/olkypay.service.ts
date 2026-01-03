@@ -135,7 +135,7 @@ export class OlkypayService {
           name: tx.line1.split(' Recu ')[1]?.split(' [ Adresse débiteur : ')[0],
           addressLine1: tx.line1
             .split(' [ Adresse débiteur : ')[1]
-            ?.replace(/[\[\]]/g, '')
+            ?.replace(/[[\]]/g, '')
             .trim(),
         };
     }
