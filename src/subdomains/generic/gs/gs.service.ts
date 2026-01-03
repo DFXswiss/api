@@ -399,8 +399,9 @@ export class GsService {
     this.checkForDangerousFunctionsRecursive(stmt);
 
     // 7. No FOR XML/JSON (data exfiltration)
-    const normalizedLower = sql.toLowerCase();
-    if (normalizedLower.includes(' for xml') || normalizedLower.includes(' for json')) {
+    // Remove comments and normalize whitespace to prevent bypass via FOR/**/XML or FOR\tXML
+    const normalizedSql = sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\s+/g, ' ').toLowerCase();
+    if (/\bfor\s+(xml|json)\b/.test(normalizedSql)) {
       throw new BadRequestException('FOR XML/JSON not allowed');
     }
 
