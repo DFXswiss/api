@@ -99,10 +99,12 @@ const safetyProcesses: Process[] = [
 
 type ProcessMap = { [p in Process]?: boolean };
 
-let DisabledProcesses: ProcessMap = undefined;
+// Initialize with empty map to ensure processes are ENABLED by default
+// This prevents race conditions where async resync hasn't completed yet
+let DisabledProcesses: ProcessMap = {};
 
 export function DisabledProcess(process: Process): boolean {
-  return !DisabledProcesses || DisabledProcesses[process] === true;
+  return DisabledProcesses[process] === true;
 }
 
 @Injectable()
@@ -112,6 +114,10 @@ export class ProcessService implements OnModuleInit {
   constructor(private readonly settingService: SettingService) {}
 
   onModuleInit() {
+    // Synchronous initialization from config to prevent race conditions
+    // DB settings are loaded async afterwards
+    DisabledProcesses = this.listToMap(Config.disabledProcesses());
+
     void this.resyncDisabledProcesses();
   }
 
