@@ -203,8 +203,9 @@ export class OCPStickerService {
     mode = StickerQrMode.CUSTOMER,
     userId?: number,
   ): Promise<Buffer> {
-    const sanitizedLang = lang.toLowerCase();
-    if (!ALLOWED_LANGUAGES.includes(sanitizedLang)) {
+    // Use find() to get validated language from trusted list, not from user input
+    const validLang = ALLOWED_LANGUAGES.find((l) => l === lang.toLowerCase());
+    if (!validLang) {
       throw new BadRequestException(`Invalid language: ${lang}. Allowed: ${ALLOWED_LANGUAGES.join(', ')}`);
     }
 
@@ -220,11 +221,11 @@ export class OCPStickerService {
       }
     }
 
-    // Bitcoin Focus OCP Sticker
+    // Bitcoin Focus OCP Sticker - validLang comes from ALLOWED_LANGUAGES, not user input
     const stickerFileName =
       mode === StickerQrMode.POS
-        ? `ocp-bitcoin-focus-sticker-pos_${sanitizedLang}.png`
-        : `ocp-bitcoin-focus-sticker_${sanitizedLang}.png`;
+        ? `ocp-bitcoin-focus-sticker-pos_${validLang}.png`
+        : `ocp-bitcoin-focus-sticker_${validLang}.png`;
     const stickerPath = join(process.cwd(), 'assets', stickerFileName);
     const stickerBuffer = readFileSync(stickerPath);
 

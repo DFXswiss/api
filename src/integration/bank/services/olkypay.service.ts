@@ -133,7 +133,7 @@ export class OlkypayService {
       case TransactionType.RECEIVED:
         return {
           name: tx.line1.split(' Recu ')[1]?.split(' [ Adresse débiteur : ')[0],
-          addressLine1: tx.line1.split(' [ Adresse débiteur : ')[1]?.replaceAll(']', ''),
+          addressLine1: tx.line1.split(' [ Adresse débiteur : ')[1]?.replace(/[[\]]/g, '').trim(),
         };
     }
 
