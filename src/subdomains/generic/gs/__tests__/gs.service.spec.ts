@@ -62,13 +62,22 @@ describe('GsService', () => {
       it.each([
         ['SELECT * FROM [user] FOR XML AUTO', 'standard FOR XML'],
         ['SELECT * FROM [user] FOR JSON PATH', 'standard FOR JSON'],
-        ['SELECT * FROM [user] FOR/**/XML AUTO', 'comment bypass attempt'],
+        ['SELECT * FROM [user] FOR/**/XML AUTO', 'block comment bypass attempt'],
         ['SELECT * FROM [user] FOR\tXML AUTO', 'tab bypass attempt'],
         ['SELECT * FROM [user] FOR\nXML AUTO', 'newline bypass attempt'],
         ['SELECT * FROM [user] FOR  XML AUTO', 'double-space bypass attempt'],
+        ['SELECT * FROM [user] FOR -- comment\nXML AUTO', 'inline comment bypass attempt'],
       ])('should block: %s (%s)', async (sql) => {
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
+
+      it('should NOT block FOR XML in string literals (no false positives)', async () => {
+        jest.spyOn(dataSource, 'query').mockResolvedValue([{ label: 'FOR XML' }]);
+
+        const result = await service.executeDebugQuery("SELECT 'FOR XML' as label FROM [user]", 'test-user');
+
+        expect(result).toBeDefined();
       });
     });
 

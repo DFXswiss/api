@@ -398,10 +398,9 @@ export class GsService {
     // 6. No dangerous functions anywhere in the query (external connections)
     this.checkForDangerousFunctionsRecursive(stmt);
 
-    // 7. No FOR XML/JSON (data exfiltration)
-    // Remove comments and normalize whitespace to prevent bypass via FOR/**/XML or FOR\tXML
-    const normalizedSql = sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\s+/g, ' ').toLowerCase();
-    if (/\bfor\s+(xml|json)\b/.test(normalizedSql)) {
+    // 7. No FOR XML/JSON (data exfiltration) - use AST for accurate detection
+    const forType = stmt.for?.type?.toLowerCase();
+    if (forType?.includes('xml') || forType?.includes('json')) {
       throw new BadRequestException('FOR XML/JSON not allowed');
     }
 
