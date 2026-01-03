@@ -1043,6 +1043,13 @@ export class GsService {
       }
     }
 
+    // Check subqueries in GROUP BY clause
+    if (stmt.groupby?.columns) {
+      for (const item of stmt.groupby.columns) {
+        this.checkNodeForXmlJson(item);
+      }
+    }
+
     // Check CTEs (WITH clause)
     if (stmt.with) {
       for (const cte of stmt.with) {
@@ -1080,6 +1087,21 @@ export class GsService {
     if (node.value && Array.isArray(node.value)) {
       for (const val of node.value) {
         this.checkNodeForXmlJson(val);
+      }
+    }
+
+    // Check WINDOW OVER clause (ROW_NUMBER, RANK, etc.)
+    if (node.over?.as_window_specification?.window_specification) {
+      const winSpec = node.over.as_window_specification.window_specification;
+      if (winSpec.orderby) {
+        for (const item of winSpec.orderby) {
+          this.checkNodeForXmlJson(item.expr);
+        }
+      }
+      if (winSpec.partitionby) {
+        for (const item of winSpec.partitionby) {
+          this.checkNodeForXmlJson(item);
+        }
       }
     }
   }

@@ -109,6 +109,26 @@ describe('GsService', () => {
         const sql = 'SELECT CASE WHEN 1=1 THEN (SELECT id FOR XML AUTO) END FROM [user]';
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
       });
+
+      it('should block FOR XML in GROUP BY clause', async () => {
+        const sql = 'SELECT COUNT(*) FROM [user] GROUP BY (SELECT id FOR XML AUTO)';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
+
+      it('should block FOR XML in WINDOW OVER ORDER BY clause', async () => {
+        const sql = 'SELECT id, ROW_NUMBER() OVER (ORDER BY (SELECT id FOR XML AUTO)) FROM [user]';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
+
+      it('should block FOR XML in WINDOW OVER PARTITION BY clause', async () => {
+        const sql = 'SELECT id, ROW_NUMBER() OVER (PARTITION BY (SELECT id FOR XML AUTO) ORDER BY id) FROM [user]';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
+
+      it('should block FOR XML in COALESCE function', async () => {
+        const sql = 'SELECT COALESCE((SELECT id FOR XML AUTO), 1) FROM [user]';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+      });
     });
 
     describe('Statement type validation', () => {
