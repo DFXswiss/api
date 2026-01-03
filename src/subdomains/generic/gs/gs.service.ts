@@ -1071,6 +1071,10 @@ export class GsService {
     const hasOrderBy = /order\s+by/i.test(normalized);
     const orderByClause = hasOrderBy ? '' : ' ORDER BY (SELECT NULL)';
 
-    return `${sql.trim().replace(/;*$/, '')}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${DebugMaxResults} ROWS ONLY`;
+    // Remove trailing semicolons using string operations to avoid CodeQL false positive
+    let trimmed = sql.trim();
+    while (trimmed.endsWith(';')) trimmed = trimmed.slice(0, -1);
+
+    return `${trimmed}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${DebugMaxResults} ROWS ONLY`;
   }
 }
