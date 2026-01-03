@@ -878,10 +878,11 @@ export class GsService {
   }
 
   private checkForBlockedSchemas(stmt: any): void {
-    const checkTables = (from: any[]): void => {
-      if (!from) return;
+    if (!stmt) return;
 
-      for (const item of from) {
+    // Check FROM clause tables
+    if (stmt.from) {
+      for (const item of stmt.from) {
         // Check table schema (e.g., sys.sql_logins, INFORMATION_SCHEMA.TABLES)
         const schema = item.db?.toLowerCase() || item.schema?.toLowerCase();
         const table = item.table?.toLowerCase();
@@ -895,17 +896,51 @@ export class GsService {
           throw new BadRequestException(`Access to system tables is not allowed`);
         }
 
-        // Recursively check subqueries
+        // Recursively check subqueries in FROM (derived tables)
         if (item.expr?.ast) {
           this.checkForBlockedSchemas(item.expr.ast);
         }
+
+        // Check JOIN ON conditions
+        this.checkSubqueriesForBlockedSchemas(item.on);
       }
-    };
+    }
 
-    checkTables(stmt.from);
+    // Check SELECT columns for subqueries
+    if (stmt.columns) {
+      for (const col of stmt.columns) {
+        this.checkSubqueriesForBlockedSchemas(col.expr);
+      }
+    }
 
-    // Also check WHERE clause subqueries
+    // Check WHERE clause subqueries
     this.checkSubqueriesForBlockedSchemas(stmt.where);
+
+    // Check HAVING clause subqueries
+    this.checkSubqueriesForBlockedSchemas(stmt.having);
+
+    // Check ORDER BY clause subqueries
+    if (stmt.orderby) {
+      for (const item of stmt.orderby) {
+        this.checkSubqueriesForBlockedSchemas(item.expr);
+      }
+    }
+
+    // Check GROUP BY clause subqueries
+    if (stmt.groupby?.columns) {
+      for (const item of stmt.groupby.columns) {
+        this.checkSubqueriesForBlockedSchemas(item);
+      }
+    }
+
+    // Check CTEs (WITH clause)
+    if (stmt.with) {
+      for (const cte of stmt.with) {
+        if (cte.stmt?.ast) {
+          this.checkForBlockedSchemas(cte.stmt.ast);
+        }
+      }
+    }
   }
 
   private checkSubqueriesForBlockedSchemas(node: any): void {
@@ -918,15 +953,43 @@ export class GsService {
     if (node.left) this.checkSubqueriesForBlockedSchemas(node.left);
     if (node.right) this.checkSubqueriesForBlockedSchemas(node.right);
     if (node.expr) this.checkSubqueriesForBlockedSchemas(node.expr);
+
+    // Check CASE expression branches
+    if (node.result) this.checkSubqueriesForBlockedSchemas(node.result);
+    if (node.condition) this.checkSubqueriesForBlockedSchemas(node.condition);
+
+    // Check function arguments
     if (node.args) {
-      const args = Array.isArray(node.args) ? node.args : [node.args];
-      for (const arg of args) {
+      const args = Array.isArray(node.args) ? node.args : node.args?.value || [];
+      for (const arg of Array.isArray(args) ? args : [args]) {
         this.checkSubqueriesForBlockedSchemas(arg);
+      }
+    }
+    if (node.value && Array.isArray(node.value)) {
+      for (const val of node.value) {
+        this.checkSubqueriesForBlockedSchemas(val);
+      }
+    }
+
+    // Check WINDOW OVER clause
+    if (node.over?.as_window_specification?.window_specification) {
+      const winSpec = node.over.as_window_specification.window_specification;
+      if (winSpec.orderby) {
+        for (const item of winSpec.orderby) {
+          this.checkSubqueriesForBlockedSchemas(item.expr);
+        }
+      }
+      if (winSpec.partitionby) {
+        for (const item of winSpec.partitionby) {
+          this.checkSubqueriesForBlockedSchemas(item);
+        }
       }
     }
   }
 
   private checkForDangerousFunctionsRecursive(stmt: any): void {
+    if (!stmt) return;
+
     // Check FROM clause for dangerous functions
     this.checkFromForDangerousFunctions(stmt.from);
 
@@ -935,6 +998,32 @@ export class GsService {
 
     // Check WHERE clause for dangerous functions
     this.checkNodeForDangerousFunctions(stmt.where);
+
+    // Check HAVING clause for dangerous functions
+    this.checkNodeForDangerousFunctions(stmt.having);
+
+    // Check ORDER BY clause for dangerous functions
+    if (stmt.orderby) {
+      for (const item of stmt.orderby) {
+        this.checkNodeForDangerousFunctions(item.expr);
+      }
+    }
+
+    // Check GROUP BY clause for dangerous functions
+    if (stmt.groupby?.columns) {
+      for (const item of stmt.groupby.columns) {
+        this.checkNodeForDangerousFunctions(item);
+      }
+    }
+
+    // Check CTEs (WITH clause)
+    if (stmt.with) {
+      for (const cte of stmt.with) {
+        if (cte.stmt?.ast) {
+          this.checkForDangerousFunctionsRecursive(cte.stmt.ast);
+        }
+      }
+    }
   }
 
   private checkFromForDangerousFunctions(from: any[]): void {
@@ -953,6 +1042,9 @@ export class GsService {
       if (item.expr?.ast) {
         this.checkForDangerousFunctionsRecursive(item.expr.ast);
       }
+
+      // Check JOIN ON conditions
+      this.checkNodeForDangerousFunctions(item.on);
     }
   }
 
@@ -984,10 +1076,36 @@ export class GsService {
     if (node.left) this.checkNodeForDangerousFunctions(node.left);
     if (node.right) this.checkNodeForDangerousFunctions(node.right);
     if (node.expr) this.checkNodeForDangerousFunctions(node.expr);
+
+    // Check CASE expression branches
+    if (node.result) this.checkNodeForDangerousFunctions(node.result);
+    if (node.condition) this.checkNodeForDangerousFunctions(node.condition);
+
+    // Check function arguments
     if (node.args) {
       const args = Array.isArray(node.args) ? node.args : node.args?.value || [];
       for (const arg of Array.isArray(args) ? args : [args]) {
         this.checkNodeForDangerousFunctions(arg);
+      }
+    }
+    if (node.value && Array.isArray(node.value)) {
+      for (const val of node.value) {
+        this.checkNodeForDangerousFunctions(val);
+      }
+    }
+
+    // Check WINDOW OVER clause
+    if (node.over?.as_window_specification?.window_specification) {
+      const winSpec = node.over.as_window_specification.window_specification;
+      if (winSpec.orderby) {
+        for (const item of winSpec.orderby) {
+          this.checkNodeForDangerousFunctions(item.expr);
+        }
+      }
+      if (winSpec.partitionby) {
+        for (const item of winSpec.partitionby) {
+          this.checkNodeForDangerousFunctions(item);
+        }
       }
     }
   }

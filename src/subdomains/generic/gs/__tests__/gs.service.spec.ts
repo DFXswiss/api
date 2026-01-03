@@ -174,6 +174,36 @@ describe('GsService', () => {
       ])('should block system schema access: %s (%s)', async (sql) => {
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
       });
+
+      it('should block sys schema in SELECT column subquery', async () => {
+        const sql = 'SELECT (SELECT TOP 1 name FROM sys.sql_logins) FROM [user]';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
+
+      it('should block sys schema in HAVING subquery', async () => {
+        const sql = 'SELECT COUNT(*) FROM [user] GROUP BY status HAVING (SELECT 1 FROM sys.sql_logins) = 1';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
+
+      it('should block sys schema in ORDER BY subquery', async () => {
+        const sql = 'SELECT * FROM [user] ORDER BY (SELECT 1 FROM sys.sql_logins)';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
+
+      it('should block sys schema in GROUP BY subquery', async () => {
+        const sql = 'SELECT COUNT(*) FROM [user] GROUP BY (SELECT 1 FROM sys.sql_logins)';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
+
+      it('should block sys schema in CTE', async () => {
+        const sql = 'WITH cte AS (SELECT * FROM sys.sql_logins) SELECT * FROM cte';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
+
+      it('should block sys schema in JOIN ON subquery', async () => {
+        const sql = 'SELECT * FROM [user] u JOIN [order] o ON o.id = (SELECT 1 FROM sys.sql_logins)';
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
     });
 
     describe('Dangerous functions', () => {
@@ -182,6 +212,26 @@ describe('GsService', () => {
         ["SELECT * FROM OPENQUERY(LinkedServer, 'SELECT 1')", 'OPENQUERY'],
         ["SELECT * FROM OPENDATASOURCE('SQLNCLI', 'Data Source=x;').db.schema.table", 'OPENDATASOURCE'],
       ])('should block dangerous function: %s', async (sql) => {
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
+
+      it('should block OPENROWSET in HAVING subquery', async () => {
+        const sql = "SELECT COUNT(*) FROM [user] GROUP BY status HAVING (SELECT 1 FROM OPENROWSET('a','b','c')) = 1";
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
+
+      it('should block OPENROWSET in ORDER BY subquery', async () => {
+        const sql = "SELECT * FROM [user] ORDER BY (SELECT 1 FROM OPENROWSET('a','b','c'))";
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
+
+      it('should block OPENROWSET in CTE', async () => {
+        const sql = "WITH cte AS (SELECT * FROM OPENROWSET('a','b','c')) SELECT * FROM cte";
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+      });
+
+      it('should block OPENROWSET in GROUP BY subquery', async () => {
+        const sql = "SELECT COUNT(*) FROM [user] GROUP BY (SELECT 1 FROM OPENROWSET('a','b','c'))";
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
       });
     });
