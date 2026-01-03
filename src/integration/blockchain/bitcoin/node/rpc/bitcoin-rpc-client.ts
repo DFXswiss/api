@@ -73,7 +73,11 @@ export class BitcoinRpcClient {
       }
 
       // Extract error details from Axios error response
-      const axiosError = e as { response?: { status?: number; data?: RpcResponse<T> }; message?: string; code?: number };
+      const axiosError = e as {
+        response?: { status?: number; data?: RpcResponse<T> };
+        message?: string;
+        code?: number;
+      };
       const rpcError = axiosError.response?.data?.error;
 
       if (rpcError) {
@@ -189,7 +193,12 @@ export class BitcoinRpcClient {
     return this.call<Balances>('getbalances');
   }
 
-  async listTransactions(label = '*', count = 10, skip = 0, includeWatchonly = true): Promise<TransactionHistoryEntry[]> {
+  async listTransactions(
+    label = '*',
+    count = 10,
+    skip = 0,
+    includeWatchonly = true,
+  ): Promise<TransactionHistoryEntry[]> {
     return this.call<TransactionHistoryEntry[]>('listtransactions', [label, count, skip, includeWatchonly]);
   }
 
@@ -274,7 +283,10 @@ export class BitcoinRpcClient {
 
   // --- Fee Estimation Methods --- //
 
-  async estimateSmartFee(confTarget: number, estimateMode: 'unset' | 'economical' | 'conservative' = 'unset'): Promise<SmartFeeResult> {
+  async estimateSmartFee(
+    confTarget: number,
+    estimateMode: 'unset' | 'economical' | 'conservative' = 'unset',
+  ): Promise<SmartFeeResult> {
     return this.call<SmartFeeResult>('estimatesmartfee', [confTarget, estimateMode]);
   }
 

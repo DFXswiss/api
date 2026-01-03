@@ -63,7 +63,7 @@ export class EvmUtil {
   static toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
     const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
 
-    return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
+    return decimals !== undefined ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
 
   static poolFeeFactor(amount: FeeAmount): number {

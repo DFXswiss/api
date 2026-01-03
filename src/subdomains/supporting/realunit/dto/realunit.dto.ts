@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -272,6 +272,7 @@ export enum RealUnitBuyCurrency {
 export class RealUnitBuyDto {
   @ApiProperty({ description: 'Amount in fiat currency' })
   @IsNumber()
+  @IsPositive()
   @Type(() => Number)
   amount: number;
 

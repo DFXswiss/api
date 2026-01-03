@@ -30,6 +30,7 @@ import {
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
 } from '../dto/realunit-registration.dto';
+import { RealUnitSellDto, RealUnitSellPaymentInfoDto, RealUnitSellConfirmDto } from '../dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
@@ -201,6 +202,44 @@ export class RealUnitController {
   async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
     const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
     return this.realunitService.getPaymentInfo(user, dto);
+  }
+
+  // --- Sell Payment Info Endpoints ---
+
+  @Put('sellPaymentInfo')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get payment info for RealUnit sell',
+    description:
+      'Returns EIP-7702 delegation data for gasless REALU transfer and fallback deposit info. Requires KYC Level 20 and RealUnit registration.',
+  })
+  @ApiOkResponse({ type: RealUnitSellPaymentInfoDto })
+  @ApiBadRequestResponse({ description: 'KYC Level 20 required or registration missing' })
+  async getSellPaymentInfo(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitSellDto,
+  ): Promise<RealUnitSellPaymentInfoDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    return this.realunitService.getSellPaymentInfo(user, dto);
+  }
+
+  @Put('sell/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Confirm RealUnit sell transaction',
+    description: 'Confirms the sell transaction with EIP-7702 signatures or manual transaction hash.',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ description: 'Transaction confirmed', schema: { properties: { txHash: { type: 'string' } } } })
+  @ApiBadRequestResponse({ description: 'Invalid transaction request or signatures' })
+  async confirmSell(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RealUnitSellConfirmDto,
+  ): Promise<{ txHash: string }> {
+    return this.realunitService.confirmSell(jwt.user, +id, dto);
   }
 
   // --- Registration Endpoint ---

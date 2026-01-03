@@ -99,7 +99,11 @@ describe('BuyCrypto', () => {
         await Test.createTestingModule({
           providers: [
             TestUtil.provideConfig({
-              liquidityManagement: { usePipelinePriceForAllAssets: true, bankMinBalance: 100, fiatOutput: { batchAmountLimit: 9500 } },
+              liquidityManagement: {
+                usePipelinePriceForAllAssets: true,
+                bankMinBalance: 100,
+                fiatOutput: { batchAmountLimit: 9500 },
+              },
             }),
           ],
         }).compile();

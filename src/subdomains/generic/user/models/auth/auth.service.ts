@@ -276,16 +276,16 @@ export class AuthService {
         texts: [
           { key: MailKey.SPACE, params: { value: '1' } },
           {
+            key: `${MailTranslationKey.GENERAL}.button`,
+            params: { url: loginUrl, button: 'true' },
+          },
+          {
             key: `${MailTranslationKey.LOGIN}.message`,
             params: {
               url: loginUrl,
               urlText: loginUrl,
               expiration: `${Config.auth.mailLoginExpiresIn}`,
             },
-          },
-          {
-            key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url: loginUrl, button: 'true' },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },
@@ -313,7 +313,7 @@ export class AuthService {
 
       if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
 
-      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
+      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/account`);
       url.searchParams.set('session', token);
       return url.toString();
     } catch (e) {

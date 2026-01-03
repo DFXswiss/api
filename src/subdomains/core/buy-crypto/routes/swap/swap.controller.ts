@@ -4,13 +4,15 @@ import {
   ConflictException,
   Controller,
   Get,
+  NotFoundException,
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -27,6 +29,7 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dto';
 import { TransactionDtoMapper } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { ConfirmDto } from 'src/subdomains/core/sell-crypto/route/dto/confirm.dto';
+import { UnsignedTxDto } from 'src/subdomains/core/sell-crypto/route/dto/unsigned-tx.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -140,13 +143,35 @@ export class SwapController {
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SwapActiveGuard())
+  @ApiQuery({
+    name: 'includeTx',
+    required: false,
+    type: Boolean,
+    description: 'If true, includes depositTx field with unsigned transaction data in the response',
+  })
   @ApiOkResponse({ type: SwapPaymentInfoDto })
   async createSwapWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSwapPaymentInfoDto,
+    @Query('includeTx') includeTx?: string,
   ): Promise<SwapPaymentInfoDto> {
     dto = await this.paymentInfoService.swapCheck(dto, jwt);
-    return this.swapService.createSwapPaymentInfo(jwt.user, dto);
+    return this.swapService.createSwapPaymentInfo(jwt.user, dto, includeTx === 'true');
+  }
+
+  @Get('/paymentInfos/:id/tx')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SwapActiveGuard())
+  @ApiOkResponse({ type: UnsignedTxDto })
+  async depositTx(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<UnsignedTxDto> {
+    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+
+    const route = await this.swapService.getById(request.routeId);
+    if (!route) throw new NotFoundException('Swap route not found');
+
+    return this.swapService.createDepositTx(request, route);
   }
 
   @Put('/paymentInfos/:id/confirm')

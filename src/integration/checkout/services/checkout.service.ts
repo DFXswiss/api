@@ -36,6 +36,10 @@ export class CheckoutService {
     this.checkout = new Checkout();
   }
 
+  isAvailable(): boolean {
+    return process.env.CKO_SECRET_KEY != null && Config.checkout.entityId != null;
+  }
+
   async createPaymentLink(
     remittanceInfo: string,
     fiatAmount: number,

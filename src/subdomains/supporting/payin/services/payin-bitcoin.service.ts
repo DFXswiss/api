@@ -32,6 +32,10 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
     this.client = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
   }
 
+  isAvailable(): boolean {
+    return this.client != null;
+  }
+
   async checkHealthOrThrow(): Promise<void> {
     await this.client.checkSync();
   }

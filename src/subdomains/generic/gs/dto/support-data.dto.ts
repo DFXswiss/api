@@ -17,7 +17,7 @@ import { KycFileBlob } from '../../kyc/dto/kyc-file.dto';
 import { KycStep } from '../../kyc/entities/kyc-step.entity';
 import { BankData } from '../../user/models/bank-data/bank-data.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { SupportTable } from '../gs.service';
+import { SupportTable } from './gs.dto';
 
 export class SupportReturnData {
   userData: UserData;

@@ -1,4 +1,6 @@
 id,name,type,buyable,sellable,chainId,sellCommand,dexName,category,blockchain,uniqueName,description,comingSoon,sortOrder,approxPriceUsd,ikna,priceRuleId,approxPriceChf,cardBuyable,cardSellable,instantBuyable,instantSellable,financialType,decimals,paymentEnabled,amlRuleFrom,amlRuleTo,approxPriceEur,refundEnabled
+408,REALU,Token,FALSE,FALSE,0x0add9824820508dd7992cbebb9f13fbe8e45a30f,,REALU,Public,Sepolia,Sepolia/REALU,RealUnit Shares (Testnet),FALSE,99,1.711564371,FALSE,61,1.349572115,FALSE,FALSE,FALSE,FALSE,Other,0,FALSE,0,0,1.453103607,TRUE
+407,USDT,Token,FALSE,TRUE,0xaa8e23fb1079ea71e0a56f48a2aa51851d8433d0,,USDT,Public,Sepolia,Sepolia/USDT,Tether,FALSE,,1,FALSE,40,0.78851,FALSE,FALSE,FALSE,FALSE,USD,6,FALSE,0,0,0.849,TRUE
 406,ADA,Coin,TRUE,TRUE,,,ADA,Public,Cardano,Cardano/ADA,Cardano,FALSE,,0.3492050313,FALSE,63,0.2753489034,FALSE,FALSE,FALSE,FALSE,Other,6,FALSE,0,0,0.2964721043,TRUE
 405,EUR,Custody,FALSE,FALSE,,,EUR,Private,Yapeal,Yapeal/EUR,,FALSE,,1.17786809,FALSE,39,0.9287514723,FALSE,FALSE,FALSE,FALSE,EUR,,FALSE,0,0,1,TRUE
 404,CHF,Custody,FALSE,FALSE,,,CHF,Private,Yapeal,Yapeal/CHF,,FALSE,,1.268227427,FALSE,37,1,FALSE,FALSE,FALSE,FALSE,CHF,,FALSE,0,0,1.076714309,TRUE

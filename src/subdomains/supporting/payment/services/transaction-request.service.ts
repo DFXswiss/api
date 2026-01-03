@@ -185,10 +185,15 @@ export class TransactionRequestService {
   }
 
   async getOrThrow(id: number, userId: number): Promise<TransactionRequest | undefined> {
-    const request = await this.transactionRequestRepo.findOne({
-      where: { id },
-      relations: { user: { userData: { organization: true } }, custodyOrder: true },
-    });
+    const request = await this.transactionRequestRepo
+      .createQueryBuilder('request')
+      .leftJoinAndSelect('request.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.organization', 'organization')
+      .leftJoinAndSelect('request.custodyOrder', 'custodyOrder')
+      .where('request.id = :id', { id })
+      .getOne();
+
     if (!request) throw new NotFoundException('Transaction request not found');
     if (request.user.id !== userId) throw new ForbiddenException('Not your transaction request');
 

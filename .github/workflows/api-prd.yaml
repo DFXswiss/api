@@ -5,6 +5,9 @@ on:
     branches: [master]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   AZURE_WEBAPP_NAME: app-dfx-api-prd
   AZURE_WEBAPP_PACKAGE_PATH: '.'
@@ -22,6 +25,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
       - name: Install packages
         uses: nick-fields/retry@v3
@@ -36,6 +40,14 @@ jobs:
         run: |
           npm run build
 
+      - name: Type check
+        run: |
+          npm run type-check
+
+      - name: Format check
+        run: |
+          npm run format:check
+
       - name: Run tests
         run: |
           npm run test
@@ -43,6 +55,11 @@ jobs:
       - name: Run linter
         run: |
           npm run lint
+
+      - name: Security audit
+        run: |
+          npm audit --audit-level=high
+        continue-on-error: true
 
       - name: Deploy to Azure App Service (PRD)
         uses: azure/webapps-deploy@v3

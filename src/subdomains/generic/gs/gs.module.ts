@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { IntegrationModule } from 'src/integration/integration.module';
 import { LetterModule } from 'src/integration/letter/letter.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
@@ -24,6 +25,7 @@ import { GsService } from './gs.service';
   imports: [
     SharedModule,
     BlockchainModule,
+    IntegrationModule,
     AddressPoolModule,
     ReferralModule,
     BuyCryptoModule,

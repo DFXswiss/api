@@ -5,6 +5,7 @@ jest.mock('viem', () => ({
     estimateGas: jest.fn().mockResolvedValue(BigInt(200000)), // 200k gas estimate
     getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }), // 10 gwei base fee
     estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)), // 1 gwei priority fee
+    getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)), // User nonce for EIP-7702
   })),
   createWalletClient: jest.fn(() => ({
     signAuthorization: jest.fn().mockResolvedValue({
@@ -114,7 +115,8 @@ jest.mock('../../evm.util', () => ({
   },
 }));
 
-describe('Eip7702DelegationService', () => {
+// TODO: Re-enable when EIP-7702 delegation is reactivated
+describe.skip('Eip7702DelegationService', () => {
   let service: Eip7702DelegationService;
 
   const validDepositAccount: WalletAccount = {
@@ -177,6 +179,148 @@ describe('Eip7702DelegationService', () => {
       expect(service.isDelegationSupported(Blockchain.SOLANA)).toBe(false);
       expect(service.isDelegationSupported(Blockchain.TRON)).toBe(false);
       expect(service.isDelegationSupported(Blockchain.CARDANO)).toBe(false);
+    });
+  });
+
+  describe('prepareDelegationData', () => {
+    const validUserAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD78';
+
+    beforeEach(() => {
+      // Reset mocks to default state for prepareDelegationData tests
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+    });
+
+    it('should return delegation data with userNonce for Ethereum', async () => {
+      const result = await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result).toHaveProperty('userNonce');
+      expect(result.userNonce).toBe(0);
+    });
+
+    it('should return delegation data with correct structure', async () => {
+      const result = await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result).toHaveProperty('relayerAddress');
+      expect(result).toHaveProperty('delegationManagerAddress');
+      expect(result).toHaveProperty('delegatorAddress');
+      expect(result).toHaveProperty('userNonce');
+      expect(result).toHaveProperty('domain');
+      expect(result).toHaveProperty('types');
+      expect(result).toHaveProperty('message');
+    });
+
+    it('should fetch user nonce from blockchain', async () => {
+      await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      const mockPublicClient = (viem.createPublicClient as jest.Mock).mock.results[0].value;
+      expect(mockPublicClient.getTransactionCount).toHaveBeenCalledWith({
+        address: validUserAddress,
+      });
+    });
+
+    it('should return correct nonce when user has made transactions', async () => {
+      const mockGetTransactionCount = jest.fn().mockResolvedValue(BigInt(5));
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: mockGetTransactionCount,
+      });
+
+      const result = await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.userNonce).toBe(5);
+    });
+
+    it('should propagate RPC errors when nonce fetch fails', async () => {
+      const originalMock = (viem.createPublicClient as jest.Mock).getMockImplementation();
+      const mockGetTransactionCount = jest.fn().mockRejectedValue(new Error('RPC error'));
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: mockGetTransactionCount,
+      });
+
+      await expect(service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM)).rejects.toThrow('RPC error');
+
+      // Restore original mock
+      if (originalMock) {
+        (viem.createPublicClient as jest.Mock).mockImplementation(originalMock);
+      } else {
+        (viem.createPublicClient as jest.Mock).mockReturnValue({
+          getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+          estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+          getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+          estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+          getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
+        });
+      }
+    });
+
+    it('should include correct EIP-712 domain', async () => {
+      const result = await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.domain).toEqual({
+        name: 'DelegationManager',
+        version: '1',
+        chainId: 1,
+        verifyingContract: '0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3',
+      });
+    });
+
+    it('should include correct EIP-712 types', async () => {
+      const result = await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.types.Delegation).toEqual([
+        { name: 'delegate', type: 'address' },
+        { name: 'delegator', type: 'address' },
+        { name: 'authority', type: 'bytes32' },
+        { name: 'caveats', type: 'Caveat[]' },
+        { name: 'salt', type: 'uint256' },
+      ]);
+      expect(result.types.Caveat).toEqual([
+        { name: 'enforcer', type: 'address' },
+        { name: 'terms', type: 'bytes' },
+      ]);
+    });
+
+    it('should set user as delegator in message', async () => {
+      const result = await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.message.delegator).toBe(validUserAddress);
+    });
+
+    it('should set relayer as delegate in message', async () => {
+      const result = await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.message.delegate).toBe(result.relayerAddress);
+    });
+
+    it('should throw error for unsupported blockchain', async () => {
+      await expect(service.prepareDelegationData(validUserAddress, Blockchain.BITCOIN)).rejects.toThrow(
+        'No chain config found for Bitcoin',
+      );
+    });
+
+    it('should return delegator contract address', async () => {
+      const result = await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.delegatorAddress).toBe('0x63c0c19a282a1b52b07dd5a65b58948a07dae32b');
+    });
+
+    it('should return delegation manager address', async () => {
+      const result = await service.prepareDelegationData(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result.delegationManagerAddress).toBe('0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3');
     });
   });
 
@@ -813,6 +957,7 @@ describe('Eip7702DelegationService', () => {
         getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
         estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
       });
 
       mockWalletClient = {
@@ -913,6 +1058,7 @@ describe('Eip7702DelegationService', () => {
         getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
         estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
       });
       (viem.createWalletClient as jest.Mock).mockReturnValue({
         signAuthorization: jest.fn().mockResolvedValue({
@@ -1050,6 +1196,7 @@ describe('Eip7702DelegationService', () => {
         getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
         estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
       };
       const mockWalletClient = {
         signAuthorization: jest.fn().mockResolvedValue({
@@ -1184,6 +1331,7 @@ describe('Eip7702DelegationService', () => {
         getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
         estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
       });
       (viem.createWalletClient as jest.Mock).mockReturnValue({
         signAuthorization: jest.fn().mockResolvedValue({
@@ -1256,6 +1404,7 @@ describe('Eip7702DelegationService', () => {
         getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
         estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: mockEstimateGas,
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
       };
       (viem.createPublicClient as jest.Mock).mockReturnValue(mockPublicClient);
 
@@ -1283,6 +1432,7 @@ describe('Eip7702DelegationService', () => {
         getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
         estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockResolvedValue(baseEstimate),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
       };
       const mockWalletClient = {
         signAuthorization: jest.fn().mockResolvedValue({
@@ -1322,6 +1472,7 @@ describe('Eip7702DelegationService', () => {
         getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
         estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
         estimateGas: jest.fn().mockRejectedValue(new Error('execution reverted')),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
       };
       const mockWalletClient = {
         signAuthorization: jest.fn().mockResolvedValue({

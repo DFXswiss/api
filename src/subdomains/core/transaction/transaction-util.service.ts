@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
+import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
@@ -24,7 +25,7 @@ import { CheckStatus } from '../aml/enums/check-status.enum';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { Swap } from '../buy-crypto/routes/swap/swap.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { PermitDto } from '../sell-crypto/route/dto/confirm.dto';
+import { Eip7702ConfirmDto, PermitDto } from '../sell-crypto/route/dto/confirm.dto';
 import { Sell } from '../sell-crypto/route/sell.entity';
 
 export type RefundValidation = {
@@ -43,6 +44,7 @@ export class TransactionUtilService {
     private readonly payInService: PayInService,
     private readonly bankAccountService: BankAccountService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
+    private readonly eip7702DelegationService: Eip7702DelegationService,
   ) {}
 
   static validateRefund(entity: BuyCrypto | BuyFiat | BankTxReturn, dto: RefundValidation): void {
@@ -194,6 +196,49 @@ export class TransactionUtilService {
       asset,
       txId,
       PayInType.SIGNED_TRANSFER,
+      blockHeight,
+      request.amount,
+    );
+  }
+
+  async handleEip7702Input(
+    route: Swap | Sell,
+    request: TransactionRequest,
+    dto: Eip7702ConfirmDto,
+  ): Promise<CryptoInput> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    // Validate delegation
+    if (dto.delegation.delegator.toLowerCase() !== request.user.address.toLowerCase()) {
+      throw new BadRequestException('Delegator address must match user address');
+    }
+
+    // Execute EIP-7702 transfer via delegation service
+    const txId = await this.eip7702DelegationService.transferTokenWithUserDelegation(
+      request.user.address,
+      asset,
+      route.deposit.address,
+      request.amount,
+      {
+        delegate: dto.delegation.delegate,
+        delegator: dto.delegation.delegator,
+        authority: dto.delegation.authority,
+        salt: dto.delegation.salt,
+        signature: dto.delegation.signature,
+      },
+      dto.authorization,
+    );
+
+    const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
+    const blockHeight = await client.getCurrentBlock();
+
+    return this.payInService.createPayIn(
+      request.user.address,
+      route.deposit.address,
+      asset,
+      txId,
+      PayInType.DELEGATION_TRANSFER,
       blockHeight,
       request.amount,
     );

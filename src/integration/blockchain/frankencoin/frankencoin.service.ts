@@ -48,6 +48,11 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.FRANKENCOIN_LOG_INFO })
   async processLogInfo() {
+    if (!Config.blockchain.frankencoin.contractAddress.xchf) {
+      this.logger.warn('Frankencoin xchf contract not configured - skipping processLogInfo');
+      return;
+    }
+
     const logMessage: FrankencoinLogDto = {
       swap: await this.getSwap(),
       positionV1s: await this.getPositionV1s(),

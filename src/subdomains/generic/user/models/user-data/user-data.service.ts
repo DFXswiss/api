@@ -1037,6 +1037,12 @@ export class UserDataService {
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
 
+    // Adapt user used refs
+    for (const user of master.users) {
+      if (master.users.some((u) => u.ref === user.usedRef))
+        await this.userRepo.update(user.id, { usedRef: Config.defaultRef });
+    }
+
     // update slave status
     await this.userDataRepo.update(slave.id, {
       status: UserDataStatus.MERGED,

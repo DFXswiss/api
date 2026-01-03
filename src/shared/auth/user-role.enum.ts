@@ -9,6 +9,7 @@ export enum UserRole {
   SUPPORT = 'Support',
   COMPLIANCE = 'Compliance',
   CUSTODY = 'Custody',
+  DEBUG = 'Debug',
 
   // service roles
   BANKING_BOT = 'BankingBot',

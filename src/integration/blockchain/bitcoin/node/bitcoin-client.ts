@@ -45,10 +45,7 @@ export class BitcoinClient extends NodeClient {
       replaceable: true,
     };
 
-    const result = await this.callNode(
-      () => this.rpc.send(outputs, null, null, feeRate, options),
-      true,
-    );
+    const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
 
     return { outTxId: result?.txid ?? '', feeAmount };
   }
@@ -62,10 +59,7 @@ export class BitcoinClient extends NodeClient {
       ...(Config.blockchain.default.allowUnconfirmedUtxos && { include_unsafe: true }),
     };
 
-    const result = await this.callNode(
-      () => this.rpc.send(outputs, null, null, feeRate, options),
-      true,
-    );
+    const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
 
     return result?.txid ?? '';
   }
