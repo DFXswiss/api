@@ -38,6 +38,14 @@ jobs:
         run: |
           npm run build
 
+      - name: Type check
+        run: |
+          npm run type-check
+
+      - name: Format check
+        run: |
+          npm run format:check
+
       - name: Run tests
         run: |
           npm run test
@@ -45,3 +53,8 @@ jobs:
       - name: Run linter
         run: |
           npm run lint
+
+      - name: Security audit
+        run: |
+          npm audit --audit-level=high
+        continue-on-error: true

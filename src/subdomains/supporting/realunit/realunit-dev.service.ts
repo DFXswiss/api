@@ -15,7 +15,11 @@ import { BankTxIndicator } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
-import { TransactionRequest, TransactionRequestStatus, TransactionRequestType } from '../payment/entities/transaction-request.entity';
+import {
+  TransactionRequest,
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from '../payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from '../payment/entities/transaction.entity';
 import { TransactionRequestRepository } from '../payment/repositories/transaction-request.repository';
 import { SpecialExternalAccountService } from '../payment/services/special-external-account.service';

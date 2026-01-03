@@ -103,7 +103,10 @@ export class Eip7702DelegationService {
    * Prepare delegation data for frontend signing
    * Returns EIP-712 data structure that frontend needs to sign
    */
-  prepareDelegationData(userAddress: string, blockchain: Blockchain): {
+  prepareDelegationData(
+    userAddress: string,
+    blockchain: Blockchain,
+  ): {
     relayerAddress: string;
     delegationManagerAddress: string;
     delegatorAddress: string;
@@ -272,7 +275,7 @@ export class Eip7702DelegationService {
     // Convert authorization to Viem format
     const viemAuthorization = {
       chainId: BigInt(authorization.chainId),
-      address: authorization.address as Address,  // CRITICAL: Must be 'address', not 'contractAddress'
+      address: authorization.address as Address, // CRITICAL: Must be 'address', not 'contractAddress'
       nonce: BigInt(authorization.nonce),
       r: authorization.r as Hex,
       s: authorization.s as Hex,

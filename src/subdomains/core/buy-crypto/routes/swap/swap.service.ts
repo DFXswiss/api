@@ -163,7 +163,11 @@ export class SwapService {
     });
   }
 
-  async createSwapPaymentInfo(userId: number, dto: GetSwapPaymentInfoDto, includeTx = false): Promise<SwapPaymentInfoDto> {
+  async createSwapPaymentInfo(
+    userId: number,
+    dto: GetSwapPaymentInfoDto,
+    includeTx = false,
+  ): Promise<SwapPaymentInfoDto> {
     const swap = await Util.retry(
       () => this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true),
       2,
@@ -360,7 +364,12 @@ export class SwapService {
     }
   }
 
-  private async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto, includeTx: boolean): Promise<SwapPaymentInfoDto> {
+  private async toPaymentInfoDto(
+    userId: number,
+    swap: Swap,
+    dto: GetSwapPaymentInfoDto,
+    includeTx: boolean,
+  ): Promise<SwapPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
