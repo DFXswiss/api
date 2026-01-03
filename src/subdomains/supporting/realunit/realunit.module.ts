@@ -4,10 +4,13 @@ import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
+import { BankTxModule } from '../bank-tx/bank-tx.module';
 import { BankModule } from '../bank/bank.module';
 import { PaymentModule } from '../payment/payment.module';
+import { TransactionModule } from '../payment/transaction.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { RealUnitController } from './controllers/realunit.controller';
+import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitService } from './realunit.service';
 
 @Module({
@@ -18,11 +21,13 @@ import { RealUnitService } from './realunit.service';
     UserModule,
     KycModule,
     BankModule,
+    BankTxModule,
     PaymentModule,
+    TransactionModule,
     forwardRef(() => BuyCryptoModule),
   ],
   controllers: [RealUnitController],
-  providers: [RealUnitService],
+  providers: [RealUnitService, RealUnitDevService],
   exports: [RealUnitService],
 })
 export class RealUnitModule {}
