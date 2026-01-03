@@ -91,7 +91,8 @@ describe('GsService', () => {
       });
 
       it('should block FOR XML in HAVING clause', async () => {
-        const sql = 'SELECT COUNT(*) FROM [user] GROUP BY status HAVING (SELECT id FROM items FOR XML AUTO) IS NOT NULL';
+        const sql =
+          'SELECT COUNT(*) FROM [user] GROUP BY status HAVING (SELECT id FROM items FOR XML AUTO) IS NOT NULL';
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
       });
 
@@ -207,12 +208,16 @@ describe('GsService', () => {
 
       it('should block linked server access (4-part names)', async () => {
         const sql = 'SELECT * FROM [LinkedServer].[database].[schema].[table]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('Linked server access is not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(
+          'Linked server access is not allowed',
+        );
       });
 
       it('should block linked server access even with non-blocked database', async () => {
         const sql = 'SELECT * FROM [ExternalServer].[otherdb].[dbo].[users]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('Linked server access is not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(
+          'Linked server access is not allowed',
+        );
       });
     });
 
