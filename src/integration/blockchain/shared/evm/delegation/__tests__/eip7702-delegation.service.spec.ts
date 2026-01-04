@@ -1863,4 +1863,363 @@ describe('Eip7702DelegationService', () => {
       ).rejects.toThrow('Transaction reverted');
     });
   });
+
+  describe('isDelegationSupportedForRealUnit', () => {
+    it('should return true for Base blockchain', () => {
+      const result = service.isDelegationSupportedForRealUnit(Blockchain.BASE);
+      expect(result).toBe(true);
+    });
+
+    it('should return false for Ethereum blockchain', () => {
+      const result = service.isDelegationSupportedForRealUnit(Blockchain.ETHEREUM);
+      expect(result).toBe(false);
+    });
+
+    it('should return false for Arbitrum blockchain', () => {
+      const result = service.isDelegationSupportedForRealUnit(Blockchain.ARBITRUM);
+      expect(result).toBe(false);
+    });
+
+    it('should return false for Polygon blockchain', () => {
+      const result = service.isDelegationSupportedForRealUnit(Blockchain.POLYGON);
+      expect(result).toBe(false);
+    });
+
+    it('should return false for Bitcoin blockchain', () => {
+      const result = service.isDelegationSupportedForRealUnit(Blockchain.BITCOIN);
+      expect(result).toBe(false);
+    });
+
+    it('should return false for unsupported EVM chains', () => {
+      const result = service.isDelegationSupportedForRealUnit(Blockchain.BINANCE_SMART_CHAIN);
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('prepareDelegationDataForRealUnit', () => {
+    const validUserAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD78';
+
+    beforeEach(() => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(5)),
+      });
+    });
+
+    it('should prepare delegation data for Base blockchain', async () => {
+      const result = await service.prepareDelegationDataForRealUnit(validUserAddress, Blockchain.BASE);
+
+      expect(result).toHaveProperty('relayerAddress');
+      expect(result).toHaveProperty('delegationManagerAddress');
+      expect(result).toHaveProperty('delegatorAddress');
+      expect(result).toHaveProperty('userNonce');
+      expect(result).toHaveProperty('domain');
+      expect(result).toHaveProperty('types');
+      expect(result).toHaveProperty('message');
+    });
+
+    it('should throw error for Ethereum blockchain', async () => {
+      await expect(service.prepareDelegationDataForRealUnit(validUserAddress, Blockchain.ETHEREUM)).rejects.toThrow(
+        'EIP-7702 delegation not supported for RealUnit on Ethereum',
+      );
+    });
+
+    it('should throw error for Arbitrum blockchain', async () => {
+      await expect(service.prepareDelegationDataForRealUnit(validUserAddress, Blockchain.ARBITRUM)).rejects.toThrow(
+        'EIP-7702 delegation not supported for RealUnit on Arbitrum',
+      );
+    });
+
+    it('should throw error for Polygon blockchain', async () => {
+      await expect(service.prepareDelegationDataForRealUnit(validUserAddress, Blockchain.POLYGON)).rejects.toThrow(
+        'EIP-7702 delegation not supported for RealUnit on Polygon',
+      );
+    });
+
+    it('should throw error for Bitcoin blockchain', async () => {
+      await expect(service.prepareDelegationDataForRealUnit(validUserAddress, Blockchain.BITCOIN)).rejects.toThrow(
+        'EIP-7702 delegation not supported for RealUnit on Bitcoin',
+      );
+    });
+
+    it('should include correct domain for Base', async () => {
+      const result = await service.prepareDelegationDataForRealUnit(validUserAddress, Blockchain.BASE);
+
+      expect(result.domain).toHaveProperty('name');
+      expect(result.domain).toHaveProperty('version');
+      expect(result.domain).toHaveProperty('chainId');
+      expect(result.domain).toHaveProperty('verifyingContract');
+    });
+
+    it('should include correct types for EIP-712', async () => {
+      const result = await service.prepareDelegationDataForRealUnit(validUserAddress, Blockchain.BASE);
+
+      expect(result.types).toHaveProperty('Delegation');
+      expect(result.types).toHaveProperty('Caveat');
+    });
+
+    it('should include user nonce from blockchain', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(42)),
+      });
+
+      const result = await service.prepareDelegationDataForRealUnit(validUserAddress, Blockchain.BASE);
+
+      expect(result.userNonce).toBe(42);
+    });
+  });
+
+  describe('transferTokenWithUserDelegationForRealUnit', () => {
+    const validUserAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD78';
+    const validTokenAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    const validRecipient = '0x1234567890123456789012345678901234567890';
+
+    const mockSignedDelegation = {
+      delegate: '0x1234567890123456789012345678901234567890',
+      delegator: validUserAddress,
+      authority: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+      salt: '1234567890',
+      signature: '0xmocksignature',
+    };
+
+    const mockAuthorization = {
+      chainId: 8453, // Base chain ID
+      address: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
+      nonce: 0,
+      r: '0x1234',
+      s: '0x5678',
+      yParity: 0,
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(0)),
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(5)),
+        getChainId: jest.fn().mockResolvedValue(8453),
+      });
+
+      (viem.createWalletClient as jest.Mock).mockReturnValue({
+        signTransaction: jest.fn().mockResolvedValue('0xsignedtx'),
+        sendRawTransaction: jest.fn().mockResolvedValue('0xrealunittxhash'),
+      });
+    });
+
+    it('should successfully transfer tokens on Base for RealUnit', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.BASE,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+        name: 'USDC',
+      });
+
+      const txHash = await service.transferTokenWithUserDelegationForRealUnit(
+        validUserAddress,
+        token,
+        validRecipient,
+        100,
+        mockSignedDelegation,
+        mockAuthorization,
+      );
+
+      expect(txHash).toBe('0xrealunittxhash');
+    });
+
+    it('should throw error for Ethereum token', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegationForRealUnit(
+          validUserAddress,
+          token,
+          validRecipient,
+          100,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('EIP-7702 delegation not supported for RealUnit on Ethereum');
+    });
+
+    it('should throw error for Arbitrum token', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.ARBITRUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegationForRealUnit(
+          validUserAddress,
+          token,
+          validRecipient,
+          100,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('EIP-7702 delegation not supported for RealUnit on Arbitrum');
+    });
+
+    it('should throw error for Polygon token', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.POLYGON,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegationForRealUnit(
+          validUserAddress,
+          token,
+          validRecipient,
+          100,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('EIP-7702 delegation not supported for RealUnit on Polygon');
+    });
+
+    it('should throw error for zero amount', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.BASE,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegationForRealUnit(
+          validUserAddress,
+          token,
+          validRecipient,
+          0,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('Invalid transfer amount: 0');
+    });
+
+    it('should throw error for negative amount', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.BASE,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegationForRealUnit(
+          validUserAddress,
+          token,
+          validRecipient,
+          -50,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('Invalid transfer amount: -50');
+    });
+
+    it('should throw error for invalid recipient address', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.BASE,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegationForRealUnit(
+          validUserAddress,
+          token,
+          '0xinvalid',
+          100,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('Invalid recipient address');
+    });
+
+    it('should handle different token decimals', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.BASE,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 18,
+        name: 'WETH',
+      });
+
+      const txHash = await service.transferTokenWithUserDelegationForRealUnit(
+        validUserAddress,
+        token,
+        validRecipient,
+        1.5,
+        mockSignedDelegation,
+        mockAuthorization,
+      );
+
+      expect(txHash).toBe('0xrealunittxhash');
+    });
+
+    it('should propagate transaction errors', async () => {
+      (viem.createWalletClient as jest.Mock).mockReturnValue({
+        signTransaction: jest.fn().mockResolvedValue('0xsignedtx'),
+        sendRawTransaction: jest.fn().mockRejectedValue(new Error('RealUnit transaction failed')),
+      });
+
+      const token = createCustomAsset({
+        blockchain: Blockchain.BASE,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegationForRealUnit(
+          validUserAddress,
+          token,
+          validRecipient,
+          100,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('RealUnit transaction failed');
+    });
+
+    it('should use Pimlico gas prices when available', async () => {
+      mockPimlicoPaymasterService.getGasPrice.mockResolvedValue({
+        maxFeePerGas: BigInt(30000000000),
+        maxPriorityFeePerGas: BigInt(2000000000),
+      });
+
+      const token = createCustomAsset({
+        blockchain: Blockchain.BASE,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+        name: 'USDC',
+      });
+
+      await service.transferTokenWithUserDelegationForRealUnit(
+        validUserAddress,
+        token,
+        validRecipient,
+        100,
+        mockSignedDelegation,
+        mockAuthorization,
+      );
+
+      expect(mockPimlicoPaymasterService.getGasPrice).toHaveBeenCalledWith(Blockchain.BASE);
+    });
+  });
 });
