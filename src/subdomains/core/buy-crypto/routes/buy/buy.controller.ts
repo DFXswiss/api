@@ -27,6 +27,7 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { CreateVirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/create-virtual-iban.dto';
 import { VirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/virtual-iban.dto';
+import { VirtualIbanMapper } from 'src/subdomains/supporting/bank/virtual-iban/dto/virtual-iban.mapper';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -230,16 +231,7 @@ export class BuyController {
 
     const virtualIban = await this.virtualIbanService.createForUser(user.userData, dto.currency);
 
-    return {
-      id: virtualIban.id,
-      iban: virtualIban.iban,
-      bban: virtualIban.bban,
-      currency: virtualIban.currency.name,
-      active: virtualIban.active,
-      status: virtualIban.status,
-      label: virtualIban.label,
-      activatedAt: virtualIban.activatedAt,
-    };
+    return VirtualIbanMapper.toDto(virtualIban);
   }
 
   @Put(':id')

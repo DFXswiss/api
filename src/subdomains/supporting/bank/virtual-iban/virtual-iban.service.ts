@@ -17,14 +17,14 @@ export class VirtualIbanService {
     private readonly yapealService: YapealService,
   ) {}
 
+  
+
   async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
-    return this.virtualIbanRepo.findOneCached(`${userData.id}-${currencyName}`, {
-      where: {
-        userData: { id: userData.id },
-        currency: { name: currencyName },
-        active: true,
-        status: VirtualIbanStatus.ACTIVE,
-      },
+    return this.virtualIbanRepo.findOneCachedBy(`${userData.id}-${currencyName}`, {
+      userData: { id: userData.id },
+      currency: { name: currencyName },
+      active: true,
+      status: VirtualIbanStatus.ACTIVE,
     });
   }
 
@@ -165,5 +165,9 @@ export class VirtualIbanService {
       bban: result.bban,
       accountUid: result.accountUid,
     };
+  }
+
+  async getVirtualIbanForUser(userDataId: number): Promise<VirtualIban[]> {
+    return this.virtualIbanRepo.findCachedBy(userDataId, { userData: { id: userDataId } });
   }
 }
