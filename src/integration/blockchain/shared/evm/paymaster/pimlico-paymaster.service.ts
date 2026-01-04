@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 // Pimlico chain name mapping
@@ -21,7 +22,11 @@ const PIMLICO_CHAIN_NAMES: Partial<Record<Blockchain, string>> = {
  */
 @Injectable()
 export class PimlicoPaymasterService {
-  private readonly apiKey = process.env.PIMLICO_API_KEY;
+  private readonly config = GetConfig().blockchain;
+
+  private get apiKey(): string | undefined {
+    return this.config.evm.pimlicoApiKey;
+  }
 
   /**
    * Check if paymaster is available for the given blockchain

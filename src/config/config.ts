@@ -713,6 +713,9 @@ export class Configuration {
       delegationEnabled: process.env.EVM_DELEGATION_ENABLED === 'true',
       delegatorAddress: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
 
+      // Pimlico Paymaster for EIP-5792 gasless transactions
+      pimlicoApiKey: process.env.PIMLICO_API_KEY,
+
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.evm.depositSeed,
         index: accountIndex,
