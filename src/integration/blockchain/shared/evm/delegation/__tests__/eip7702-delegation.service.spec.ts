@@ -47,13 +47,15 @@ const mockPimlicoPaymasterService = {
     maxFeePerGas: BigInt(20000000000),
     maxPriorityFeePerGas: BigInt(1000000000),
   }),
-  getSupportedBlockchains: jest.fn().mockReturnValue([
-    Blockchain.ETHEREUM,
-    Blockchain.ARBITRUM,
-    Blockchain.OPTIMISM,
-    Blockchain.POLYGON,
-    Blockchain.BASE,
-  ]),
+  getSupportedBlockchains: jest
+    .fn()
+    .mockReturnValue([
+      Blockchain.ETHEREUM,
+      Blockchain.ARBITRUM,
+      Blockchain.OPTIMISM,
+      Blockchain.POLYGON,
+      Blockchain.BASE,
+    ]),
 };
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { WalletAccount } from '../../domain/wallet-account';
