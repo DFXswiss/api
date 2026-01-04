@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  Matches,
   Validate,
   ValidateIf,
   ValidateNested,
@@ -72,6 +73,7 @@ export class RealUnitSellConfirmDto {
   @ApiPropertyOptional({ description: 'Transaction hash if user sent manually (fallback)' })
   @IsOptional()
   @IsString()
+  @Matches(/^0x[a-fA-F0-9]{64}$/, { message: 'Invalid transaction hash format' })
   txHash?: string;
 }
 
