@@ -1523,4 +1523,344 @@ describe('Eip7702DelegationService', () => {
       );
     });
   });
+
+  describe('hasZeroNativeBalance', () => {
+    const validUserAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD78';
+
+    beforeEach(() => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(0)),
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+    });
+
+    it('should return true when user has zero balance', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+
+      const result = await service.hasZeroNativeBalance(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false when user has balance', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(1000000000000000000)), // 1 ETH
+      });
+
+      const result = await service.hasZeroNativeBalance(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when user has small balance', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(1)), // 1 wei
+      });
+
+      const result = await service.hasZeroNativeBalance(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false for unsupported blockchain', async () => {
+      const result = await service.hasZeroNativeBalance(validUserAddress, Blockchain.BITCOIN);
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when RPC call fails', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockRejectedValue(new Error('RPC error')),
+      });
+
+      const result = await service.hasZeroNativeBalance(validUserAddress, Blockchain.ETHEREUM);
+
+      expect(result).toBe(false);
+    });
+
+    it('should work for different blockchains', async () => {
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(0)),
+      });
+
+      const ethereumResult = await service.hasZeroNativeBalance(validUserAddress, Blockchain.ETHEREUM);
+      const arbitrumResult = await service.hasZeroNativeBalance(validUserAddress, Blockchain.ARBITRUM);
+      const polygonResult = await service.hasZeroNativeBalance(validUserAddress, Blockchain.POLYGON);
+
+      expect(ethereumResult).toBe(true);
+      expect(arbitrumResult).toBe(true);
+      expect(polygonResult).toBe(true);
+    });
+  });
+
+  describe('transferTokenWithUserDelegation', () => {
+    const validUserAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD78';
+    const validTokenAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    const validRecipient = '0x1234567890123456789012345678901234567890';
+
+    const mockSignedDelegation = {
+      delegate: '0x1234567890123456789012345678901234567890',
+      delegator: validUserAddress,
+      authority: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+      salt: '1234567890',
+      signature: '0xmocksignature',
+    };
+
+    const mockAuthorization = {
+      chainId: 1,
+      address: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
+      nonce: 0,
+      r: '0x1234',
+      s: '0x5678',
+      yParity: 0,
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+
+      (viem.createPublicClient as jest.Mock).mockReturnValue({
+        getBalance: jest.fn().mockResolvedValue(BigInt(0)),
+        getGasPrice: jest.fn().mockResolvedValue(BigInt(20000000000)),
+        getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+        estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+        estimateGas: jest.fn().mockResolvedValue(BigInt(200000)),
+        getTransactionCount: jest.fn().mockResolvedValue(BigInt(5)),
+        getChainId: jest.fn().mockResolvedValue(1),
+      });
+
+      (viem.createWalletClient as jest.Mock).mockReturnValue({
+        signTransaction: jest.fn().mockResolvedValue('0xsignedtx'),
+        sendRawTransaction: jest.fn().mockResolvedValue('0xuserdelegationtxhash'),
+      });
+    });
+
+    it('should successfully transfer tokens with user delegation', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+        name: 'USDC',
+      });
+
+      const txHash = await service.transferTokenWithUserDelegation(
+        validUserAddress,
+        token,
+        validRecipient,
+        100,
+        mockSignedDelegation,
+        mockAuthorization,
+      );
+
+      expect(txHash).toBe('0xuserdelegationtxhash');
+    });
+
+    it('should throw error for zero amount', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegation(
+          validUserAddress,
+          token,
+          validRecipient,
+          0,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('Invalid transfer amount: 0');
+    });
+
+    it('should throw error for negative amount', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegation(
+          validUserAddress,
+          token,
+          validRecipient,
+          -100,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('Invalid transfer amount: -100');
+    });
+
+    it('should throw error for invalid recipient address', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegation(
+          validUserAddress,
+          token,
+          '0xinvalid',
+          100,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('Invalid recipient address');
+    });
+
+    it('should throw error for unsupported blockchain', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.BITCOIN,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegation(
+          validUserAddress,
+          token,
+          validRecipient,
+          100,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('EIP-7702 delegation not supported for Bitcoin');
+    });
+
+    it('should encode correct transfer data', async () => {
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+        name: 'USDC',
+      });
+
+      await service.transferTokenWithUserDelegation(
+        validUserAddress,
+        token,
+        validRecipient,
+        100,
+        mockSignedDelegation,
+        mockAuthorization,
+      );
+
+      // Check that encodeFunctionData was called for ERC20 transfer
+      expect(viem.encodeFunctionData).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: 'transfer',
+        }),
+      );
+    });
+
+    it('should use Pimlico gas prices when available', async () => {
+      mockPimlicoPaymasterService.getGasPrice.mockResolvedValue({
+        maxFeePerGas: BigInt(30000000000), // 30 gwei
+        maxPriorityFeePerGas: BigInt(2000000000), // 2 gwei
+      });
+
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+        name: 'USDC',
+      });
+
+      await service.transferTokenWithUserDelegation(
+        validUserAddress,
+        token,
+        validRecipient,
+        100,
+        mockSignedDelegation,
+        mockAuthorization,
+      );
+
+      expect(mockPimlicoPaymasterService.getGasPrice).toHaveBeenCalledWith(Blockchain.ETHEREUM);
+    });
+
+    it('should fall back to on-chain gas when Pimlico fails', async () => {
+      mockPimlicoPaymasterService.getGasPrice.mockRejectedValue(new Error('Pimlico unavailable'));
+
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+        name: 'USDC',
+      });
+
+      const txHash = await service.transferTokenWithUserDelegation(
+        validUserAddress,
+        token,
+        validRecipient,
+        100,
+        mockSignedDelegation,
+        mockAuthorization,
+      );
+
+      // Should still succeed with on-chain gas estimation
+      expect(txHash).toBe('0xuserdelegationtxhash');
+    });
+
+    it('should handle different token decimals', async () => {
+      const token18Decimals = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 18,
+        name: 'WETH',
+      });
+
+      const txHash = await service.transferTokenWithUserDelegation(
+        validUserAddress,
+        token18Decimals,
+        validRecipient,
+        1.5,
+        mockSignedDelegation,
+        mockAuthorization,
+      );
+
+      expect(txHash).toBe('0xuserdelegationtxhash');
+    });
+
+    it('should propagate transaction errors', async () => {
+      (viem.createWalletClient as jest.Mock).mockReturnValue({
+        signTransaction: jest.fn().mockResolvedValue('0xsignedtx'),
+        sendRawTransaction: jest.fn().mockRejectedValue(new Error('Transaction reverted')),
+      });
+
+      const token = createCustomAsset({
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+        chainId: validTokenAddress,
+        decimals: 6,
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegation(
+          validUserAddress,
+          token,
+          validRecipient,
+          100,
+          mockSignedDelegation,
+          mockAuthorization,
+        ),
+      ).rejects.toThrow('Transaction reverted');
+    });
+  });
 });
