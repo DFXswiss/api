@@ -389,15 +389,17 @@ export class Eip7702DelegationService {
       const pimlicoGasPrice = await this.pimlicoPaymasterService.getGasPrice(blockchain);
       maxFeePerGas = pimlicoGasPrice.maxFeePerGas;
       maxPriorityFeePerGas = pimlicoGasPrice.maxPriorityFeePerGas;
-      this.logger.verbose(`Using Pimlico gas prices for ${blockchain}: maxFee=${maxFeePerGas}, priority=${maxPriorityFeePerGas}`);
+      this.logger.verbose(
+        `Using Pimlico gas prices for ${blockchain}: maxFee=${maxFeePerGas}, priority=${maxPriorityFeePerGas}`,
+      );
     } catch {
       // Fall back to on-chain estimation
       const block = await publicClient.getBlock();
       maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
-      maxFeePerGas = block.baseFeePerGas
-        ? block.baseFeePerGas * 2n + maxPriorityFeePerGas
-        : maxPriorityFeePerGas * 2n;
-      this.logger.verbose(`Using on-chain gas prices for ${blockchain}: maxFee=${maxFeePerGas}, priority=${maxPriorityFeePerGas}`);
+      maxFeePerGas = block.baseFeePerGas ? block.baseFeePerGas * 2n + maxPriorityFeePerGas : maxPriorityFeePerGas * 2n;
+      this.logger.verbose(
+        `Using on-chain gas prices for ${blockchain}: maxFee=${maxFeePerGas}, priority=${maxPriorityFeePerGas}`,
+      );
     }
 
     // Use fixed gas limit since estimateGas fails with low-balance relayer account
