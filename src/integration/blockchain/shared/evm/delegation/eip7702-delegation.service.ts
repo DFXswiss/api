@@ -19,6 +19,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { WalletAccount } from '../domain/wallet-account';
 import { EvmUtil } from '../evm.util';
+import { PimlicoPaymasterService } from '../paymaster/pimlico-paymaster.service';
 import DELEGATION_MANAGER_ABI from './delegation-manager.abi.json';
 
 // Contract addresses (same on all EVM chains via CREATE2)
@@ -66,17 +67,22 @@ export class Eip7702DelegationService {
   private readonly logger = new DfxLogger(Eip7702DelegationService);
   private readonly config = GetConfig().blockchain;
 
+  constructor(private readonly pimlicoPaymasterService: PimlicoPaymasterService) {}
+
   /**
    * Check if delegation is enabled and supported for the given blockchain
    *
-   * DISABLED: EIP-7702 gasless transactions require Pimlico integration.
-   * The manual signing approach (eth_sign + eth_signTypedData_v4) doesn't work
-   * because eth_sign is disabled by default in MetaMask.
-   * TODO: Re-enable once Pimlico integration is complete.
+   * EIP-7702 gasless transactions are enabled when:
+   * 1. EVM_DELEGATION_ENABLED is true in config
+   * 2. Pimlico paymaster is configured (PIMLICO_API_KEY set)
+   * 3. The blockchain is supported (has chain config)
    */
-  isDelegationSupported(_blockchain: Blockchain): boolean {
-    // Original: return this.config.evm.delegationEnabled && CHAIN_CONFIG[blockchain] !== undefined;
-    return false;
+  isDelegationSupported(blockchain: Blockchain): boolean {
+    const hasChainConfig = CHAIN_CONFIG[blockchain] !== undefined;
+    const hasPimlicoConfig = this.pimlicoPaymasterService.isPaymasterAvailable(blockchain);
+    const isDelegationEnabled = this.config.evm.delegationEnabled;
+
+    return isDelegationEnabled && hasChainConfig && hasPimlicoConfig;
   }
 
   /**
@@ -375,16 +381,27 @@ export class Eip7702DelegationService {
       args: [[permissionContext], [CALLTYPE_SINGLE], [executionData]],
     });
 
-    // Use EIP-1559 gas parameters with dynamic fee estimation
-    const block = await publicClient.getBlock();
-    const maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
-    const maxFeePerGas = block.baseFeePerGas
-      ? block.baseFeePerGas * 2n + maxPriorityFeePerGas
-      : maxPriorityFeePerGas * 2n;
+    // Use Pimlico for gas price estimation if available, otherwise fall back to on-chain
+    let maxFeePerGas: bigint;
+    let maxPriorityFeePerGas: bigint;
+
+    try {
+      const pimlicoGasPrice = await this.pimlicoPaymasterService.getGasPrice(blockchain);
+      maxFeePerGas = pimlicoGasPrice.maxFeePerGas;
+      maxPriorityFeePerGas = pimlicoGasPrice.maxPriorityFeePerGas;
+      this.logger.verbose(`Using Pimlico gas prices for ${blockchain}: maxFee=${maxFeePerGas}, priority=${maxPriorityFeePerGas}`);
+    } catch {
+      // Fall back to on-chain estimation
+      const block = await publicClient.getBlock();
+      maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
+      maxFeePerGas = block.baseFeePerGas
+        ? block.baseFeePerGas * 2n + maxPriorityFeePerGas
+        : maxPriorityFeePerGas * 2n;
+      this.logger.verbose(`Using on-chain gas prices for ${blockchain}: maxFee=${maxFeePerGas}, priority=${maxPriorityFeePerGas}`);
+    }
 
     // Use fixed gas limit since estimateGas fails with low-balance relayer account
     // Typical EIP-7702 delegation transfer uses ~150k gas
-    // TODO: Implement dynamic gas estimation once relayer has sufficient balance for simulation
     const gasLimit = 200000n;
 
     const estimatedGasCost = (maxFeePerGas * gasLimit) / BigInt(1e18);

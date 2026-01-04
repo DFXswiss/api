@@ -38,6 +38,23 @@ import * as viem from 'viem';
 import * as viemAccounts from 'viem/accounts';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { PimlicoPaymasterService } from '../../paymaster/pimlico-paymaster.service';
+
+// Mock PimlicoPaymasterService
+const mockPimlicoPaymasterService = {
+  isPaymasterAvailable: jest.fn().mockReturnValue(true),
+  getGasPrice: jest.fn().mockResolvedValue({
+    maxFeePerGas: BigInt(20000000000),
+    maxPriorityFeePerGas: BigInt(1000000000),
+  }),
+  getSupportedBlockchains: jest.fn().mockReturnValue([
+    Blockchain.ETHEREUM,
+    Blockchain.ARBITRUM,
+    Blockchain.OPTIMISM,
+    Blockchain.POLYGON,
+    Blockchain.BASE,
+  ]),
+};
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { WalletAccount } from '../../domain/wallet-account';
 import { Eip7702DelegationService } from '../eip7702-delegation.service';
@@ -115,8 +132,7 @@ jest.mock('../../evm.util', () => ({
   },
 }));
 
-// TODO: Re-enable when EIP-7702 delegation is reactivated
-describe.skip('Eip7702DelegationService', () => {
+describe('Eip7702DelegationService', () => {
   let service: Eip7702DelegationService;
 
   const validDepositAccount: WalletAccount = {
@@ -128,8 +144,13 @@ describe.skip('Eip7702DelegationService', () => {
   const validTokenAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'; // USDC
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [Eip7702DelegationService],
+      providers: [
+        Eip7702DelegationService,
+        { provide: PimlicoPaymasterService, useValue: mockPimlicoPaymasterService },
+      ],
     }).compile();
 
     service = module.get<Eip7702DelegationService>(Eip7702DelegationService);
@@ -307,7 +328,7 @@ describe.skip('Eip7702DelegationService', () => {
 
     it('should throw error for unsupported blockchain', async () => {
       await expect(service.prepareDelegationData(validUserAddress, Blockchain.BITCOIN)).rejects.toThrow(
-        'No chain config found for Bitcoin',
+        'EIP-7702 delegation not supported for Bitcoin',
       );
     });
 
