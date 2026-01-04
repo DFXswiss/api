@@ -2,9 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
 import { GetConfig } from 'src/config/config';
-import { Eip7702ConfirmDto } from './eip7702-delegation.dto';
-
-export { Eip7702ConfirmDto };
 
 export class PermitDto {
   @ApiProperty()
@@ -59,9 +56,8 @@ export class ConfirmDto {
   @IsString()
   signedTxHex?: string;
 
-  @ApiPropertyOptional({ type: Eip7702ConfirmDto, description: 'EIP-7702 delegation for gasless transfer' })
+  @ApiPropertyOptional({ description: 'Transaction hash from wallet_sendCalls (EIP-5792 gasless transfer)' })
   @IsOptional()
-  @ValidateNested()
-  @Type(() => Eip7702ConfirmDto)
-  eip7702?: Eip7702ConfirmDto;
+  @IsString()
+  txHash?: string;
 }
