@@ -9,7 +9,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { PimlicoPaymasterService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-paymaster.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -68,7 +68,7 @@ export class SwapService {
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
-    private readonly eip7702DelegationService: Eip7702DelegationService,
+    private readonly pimlicoPaymasterService: PimlicoPaymasterService,
   ) {}
 
   async getSwapByAddress(depositAddress: string): Promise<Swap> {
@@ -256,15 +256,11 @@ export class SwapService {
       } else if (dto.signedTxHex) {
         type = 'signed transaction';
         payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
-      } else if (dto.eip7702) {
-        // DISABLED: EIP-7702 gasless transactions require Pimlico integration
-        // The manual signing approach doesn't work because eth_sign is disabled in MetaMask
-        // TODO: Re-enable once Pimlico integration is complete
-        throw new BadRequestException(
-          'EIP-7702 delegation is currently not available. Please ensure you have enough gas for the transaction.',
-        );
+      } else if (dto.txHash) {
+        type = 'EIP-5792 sponsored transfer';
+        payIn = await this.transactionUtilService.handleTxHashInput(route, request, dto.txHash);
       } else {
-        throw new BadRequestException('Either permit, signedTxHex, or eip7702 must be provided');
+        throw new BadRequestException('Either permit, signedTxHex, or txHash must be provided');
       }
 
       const buyCrypto = await this.buyCryptoService.createFromCryptoInput(payIn, route, request);
@@ -294,77 +290,25 @@ export class SwapService {
 
     const depositAddress = route.deposit.address;
 
-    // Check if EIP-7702 delegation is supported and user has zero native balance
-    const supportsEip7702 = this.eip7702DelegationService.isDelegationSupported(asset.blockchain);
-    let hasZeroGas = false;
-
-    if (supportsEip7702) {
-      try {
-        hasZeroGas = await this.eip7702DelegationService.hasZeroNativeBalance(userAddress, asset.blockchain);
-      } catch (_) {
-        // If balance check fails (RPC error, network issue, etc.), assume user has gas
-        this.logger.verbose(`Balance check failed for ${userAddress} on ${asset.blockchain}, assuming user has gas`);
-        hasZeroGas = false;
-      }
-    }
-
     try {
       const unsignedTx = await client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
 
-      // Add EIP-7702 delegation data if user has 0 gas
-      if (hasZeroGas) {
-        this.logger.info(`User ${userAddress} has 0 gas on ${asset.blockchain}, providing EIP-7702 delegation data`);
-        const delegationData = await this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
+      // Add EIP-5792 wallet_sendCalls data with paymaster for gasless transactions
+      const paymasterAvailable = this.pimlicoPaymasterService.isPaymasterAvailable(asset.blockchain);
+      const paymasterUrl = paymasterAvailable
+        ? this.pimlicoPaymasterService.getBundlerUrl(asset.blockchain)
+        : undefined;
 
-        unsignedTx.eip7702 = {
-          relayerAddress: delegationData.relayerAddress,
-          delegationManagerAddress: delegationData.delegationManagerAddress,
-          delegatorAddress: delegationData.delegatorAddress,
-          userNonce: delegationData.userNonce,
-          domain: delegationData.domain,
-          types: delegationData.types,
-          message: delegationData.message,
+      if (paymasterUrl) {
+        unsignedTx.eip5792 = {
+          paymasterUrl,
+          chainId: client.chainId,
+          calls: [{ to: unsignedTx.to, data: unsignedTx.data, value: unsignedTx.value }],
         };
       }
 
       return unsignedTx;
     } catch (e) {
-      // Special handling for INSUFFICIENT_FUNDS error when EIP-7702 is available
-      const isInsufficientFunds = e.code === 'INSUFFICIENT_FUNDS' || e.message?.includes('insufficient funds');
-
-      if (isInsufficientFunds && supportsEip7702) {
-        this.logger.info(
-          `Gas estimation failed due to insufficient funds for user ${userAddress}, creating transaction with EIP-7702 delegation`,
-        );
-
-        // Create a basic unsigned transaction without gas estimation
-        // The actual gas will be paid by the relayer through EIP-7702 delegation
-        const delegationData = await this.eip7702DelegationService.prepareDelegationData(userAddress, asset.blockchain);
-
-        const unsignedTx = {
-          chainId: client.chainId,
-          from: userAddress,
-          to: depositAddress,
-          value: '0', // Will be set based on asset type
-          data: '0x',
-          nonce: 0, // Will be set by frontend/relayer
-          gasPrice: '0', // Will be set by relayer
-          gasLimit: '0', // Will be set by relayer
-          eip7702: {
-            relayerAddress: delegationData.relayerAddress,
-            delegationManagerAddress: delegationData.delegationManagerAddress,
-            delegatorAddress: delegationData.delegatorAddress,
-            userNonce: delegationData.userNonce,
-            domain: delegationData.domain,
-            types: delegationData.types,
-            message: delegationData.message,
-          },
-        };
-
-        return unsignedTx;
-      }
-
-      // For other errors, log and throw
       this.logger.warn(`Failed to create deposit TX for swap request ${request.id}:`, e);
       throw new BadRequestException(`Failed to create deposit transaction: ${e.reason ?? e.message}`);
     }
