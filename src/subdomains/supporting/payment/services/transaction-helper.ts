@@ -870,8 +870,11 @@ export class TransactionHelper implements OnModuleInit {
       user?.userData &&
       !user.userData.tradeApprovalDate &&
       !user.wallet.autoTradeApproval
-    )
-      return QuoteError.TRADING_NOT_ALLOWED;
+    ) {
+      return user.userData.kycLevel >= KycLevel.LEVEL_10
+        ? QuoteError.RECOMMENDATION_REQUIRED
+        : QuoteError.EMAIL_REQUIRED;
+    }
 
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
