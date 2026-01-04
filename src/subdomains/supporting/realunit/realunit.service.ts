@@ -773,12 +773,7 @@ export class RealUnitService {
 
       this.logger.info(`RealUnit sell confirmed via EIP-7702: ${txHash}`);
     } else if (dto.txHash) {
-      // Validate transaction hash format (0x + 64 hex chars)
-      if (!/^0x[a-fA-F0-9]{64}$/.test(dto.txHash)) {
-        throw new BadRequestException('Invalid transaction hash format');
-      }
-
-      // User sent manually
+      // User sent manually (format validated by DTO)
       txHash = dto.txHash;
       this.logger.info(`RealUnit sell confirmed with manual txHash: ${txHash}`);
     } else {
