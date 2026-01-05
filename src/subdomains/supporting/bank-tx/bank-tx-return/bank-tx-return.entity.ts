@@ -1,6 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { CreditorData } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -62,23 +63,8 @@ export class BankTxReturn extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorName?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorAddress?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorHouseNumber?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorZip?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorCity?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorCountry?: string;
+  @Column({ length: 'MAX', nullable: true })
+  chargebackCreditorData?: string;
 
   // Mail
   @Column({ length: 256, nullable: true })
@@ -98,6 +84,10 @@ export class BankTxReturn extends IEntity {
 
   get chargebackBankRemittanceInfo(): string {
     return `Chargeback ${this.bankTx.id} Zahlung kann keinem Kundenauftrag zugeordnet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
+  get creditorData(): CreditorData | undefined {
+    return this.chargebackCreditorData ? JSON.parse(this.chargebackCreditorData) : undefined;
   }
 
   get paymentMethodIn(): PaymentMethod {
@@ -182,12 +172,7 @@ export class BankTxReturn extends IEntity {
       chargebackOutput,
       chargebackAllowedBy,
       chargebackRemittanceInfo,
-      chargebackCreditorName: creditorData?.name,
-      chargebackCreditorAddress: creditorData?.address,
-      chargebackCreditorHouseNumber: creditorData?.houseNumber,
-      chargebackCreditorZip: creditorData?.zip,
-      chargebackCreditorCity: creditorData?.city,
-      chargebackCreditorCountry: creditorData?.country,
+      chargebackCreditorData: creditorData ? JSON.stringify(creditorData) : undefined,
     };
 
     Object.assign(this, update);
