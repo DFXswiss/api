@@ -83,7 +83,33 @@ export class FiatOutputService {
     originEntityId: number,
     createReport = false,
   ): Promise<FiatOutput> {
-    const entity = this.fiatOutputRepo.create({ type, buyCrypto, buyFiats, bankTxReturn, originEntityId });
+    // For BuyFiat: populate creditor data from seller's UserData
+    let creditorData: Partial<FiatOutput> = {};
+
+    if (type === FiatOutputType.BUY_FIAT && buyFiats?.length > 0) {
+      const userData = buyFiats[0].sell?.user?.userData;
+      if (userData) {
+        creditorData = {
+          currency: buyFiats[0].outputAsset?.name,
+          amount: buyFiats.reduce((sum, bf) => sum + (bf.outputAmount ?? 0), 0),
+          name: userData.completeName,
+          address: userData.address.street,
+          houseNumber: userData.address.houseNumber,
+          zip: userData.address.zip,
+          city: userData.address.city,
+          country: userData.address.country?.symbol,
+        };
+      }
+    }
+
+    const entity = this.fiatOutputRepo.create({
+      type,
+      buyCrypto,
+      buyFiats,
+      bankTxReturn,
+      originEntityId,
+      ...creditorData,
+    });
     if (createReport) entity.reportCreated = false;
 
     return this.fiatOutputRepo.save(entity);
