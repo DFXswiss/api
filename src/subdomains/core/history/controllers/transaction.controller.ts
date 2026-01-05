@@ -562,18 +562,19 @@ export class TransactionController {
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
     if (transaction.refundTargetEntity instanceof BuyFiat) return transaction.refundTargetEntity.chargebackAddress;
 
-    try {
-      if (transaction.bankTx && (await this.validateIban(transaction.bankTx.iban))) return transaction.bankTx.iban;
-    } catch (_) {
-      return transaction.refundTargetEntity instanceof BankTx
-        ? undefined
-        : transaction.refundTargetEntity?.chargebackIban;
-    }
+    // For bank transactions, always return the original IBAN - refund must go to the sender
+    if (transaction.bankTx?.iban) return transaction.bankTx.iban;
 
-    if (transaction.refundTargetEntity instanceof BuyCrypto)
-      return transaction.refundTargetEntity.checkoutTx
-        ? `${transaction.refundTargetEntity.checkoutTx.cardBin}****${transaction.refundTargetEntity.checkoutTx.cardLast4}`
-        : transaction.refundTargetEntity.chargebackIban;
+    // For BuyCrypto with checkout (card), return masked card number
+    if (transaction.refundTargetEntity instanceof BuyCrypto && transaction.refundTargetEntity.checkoutTx)
+      return `${transaction.refundTargetEntity.checkoutTx.cardBin}****${transaction.refundTargetEntity.checkoutTx.cardLast4}`;
+
+    // For other cases, return existing chargeback IBAN
+    if (transaction.refundTargetEntity instanceof BankTx) return transaction.bankTx?.iban;
+    if (transaction.refundTargetEntity instanceof BuyCrypto) return transaction.refundTargetEntity.chargebackIban;
+    if (transaction.refundTargetEntity instanceof BankTxReturn) return transaction.refundTargetEntity.chargebackIban;
+
+    return undefined;
   }
 
   private async validateIban(iban: string): Promise<boolean> {
