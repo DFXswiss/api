@@ -5,6 +5,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { LiquidityManagementModule } from 'src/subdomains/core/liquidity-management/liquidity-management.module';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
 import { BankTxModule } from '../bank-tx/bank-tx.module';
 import { BankModule } from '../bank/bank.module';
 import { FiatOutputController } from '../fiat-output/fiat-output.controller';
@@ -31,6 +32,7 @@ import { FiatOutputJobService } from './fiat-output-job.service';
     FiatOutputRepository,
     BuyFiatRepository,
     BuyCryptoRepository,
+    SellRepository,
     FiatOutputService,
     Ep2ReportService,
     FiatOutputJobService,
