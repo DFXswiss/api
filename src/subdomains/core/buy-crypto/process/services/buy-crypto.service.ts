@@ -571,12 +571,12 @@ export class BuyCryptoService {
         buyCrypto.chargebackBankRemittanceInfo,
         undefined,
         {
-          name: dto.name,
-          address: dto.address,
-          houseNumber: dto.houseNumber,
-          zip: dto.zip,
-          city: dto.city,
-          country: dto.country,
+          name: dto.name ?? buyCrypto.creditorData?.name,
+          address: dto.address ?? buyCrypto.creditorData?.address,
+          houseNumber: dto.houseNumber ?? buyCrypto.creditorData?.houseNumber,
+          zip: dto.zip ?? buyCrypto.creditorData?.zip,
+          city: dto.city ?? buyCrypto.creditorData?.city,
+          country: dto.country ?? buyCrypto.creditorData?.country,
         },
       ),
     );

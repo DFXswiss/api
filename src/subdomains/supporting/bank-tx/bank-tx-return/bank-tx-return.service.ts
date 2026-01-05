@@ -188,12 +188,12 @@ export class BankTxReturnService {
         dto.chargebackOutput,
         bankTxReturn.chargebackBankRemittanceInfo,
         {
-          name: dto.name,
-          address: dto.address,
-          houseNumber: dto.houseNumber,
-          zip: dto.zip,
-          city: dto.city,
-          country: dto.country,
+          name: dto.name ?? bankTxReturn.creditorData?.name,
+          address: dto.address ?? bankTxReturn.creditorData?.address,
+          houseNumber: dto.houseNumber ?? bankTxReturn.creditorData?.houseNumber,
+          zip: dto.zip ?? bankTxReturn.creditorData?.zip,
+          city: dto.city ?? bankTxReturn.creditorData?.city,
+          country: dto.country ?? bankTxReturn.creditorData?.country,
         },
       ),
     );
