@@ -285,12 +285,12 @@ export class BuyCryptoService {
             iban: dto.chargebackIban ?? entity.chargebackIban,
             amount: entity.chargebackAmount ?? entity.bankTx.amount,
             currency: entity.bankTx.currency,
-            name: dto.chargebackCreditorName,
-            address: dto.chargebackCreditorAddress,
-            houseNumber: dto.chargebackCreditorHouseNumber,
-            zip: dto.chargebackCreditorZip,
-            city: dto.chargebackCreditorCity,
-            country: dto.chargebackCreditorCountry,
+            name: dto.chargebackCreditorName ?? entity.chargebackCreditorName,
+            address: dto.chargebackCreditorAddress ?? entity.chargebackCreditorAddress,
+            houseNumber: dto.chargebackCreditorHouseNumber ?? entity.chargebackCreditorHouseNumber,
+            zip: dto.chargebackCreditorZip ?? entity.chargebackCreditorZip,
+            city: dto.chargebackCreditorCity ?? entity.chargebackCreditorCity,
+            country: dto.chargebackCreditorCountry ?? entity.chargebackCreditorCountry,
           },
         );
 
@@ -569,6 +569,15 @@ export class BuyCryptoService {
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
         buyCrypto.chargebackBankRemittanceInfo,
+        undefined,
+        {
+          name: dto.name,
+          address: dto.address,
+          houseNumber: dto.houseNumber,
+          zip: dto.zip,
+          city: dto.city,
+          country: dto.country,
+        },
       ),
     );
   }
