@@ -135,17 +135,7 @@ export class FiatOutputService {
   }
 
   private validateRequiredCreditorFields(data: Partial<FiatOutput>): void {
-    const requiredFields = [
-      'currency',
-      'amount',
-      'name',
-      'address',
-      'houseNumber',
-      'zip',
-      'city',
-      'country',
-      'iban',
-    ] as const;
+    const requiredFields = ['currency', 'amount', 'name', 'address', 'zip', 'city', 'country', 'iban'] as const;
     const missingFields = requiredFields.filter((field) => data[field] == null || data[field] === '');
 
     if (missingFields.length > 0) {

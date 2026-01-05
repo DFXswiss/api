@@ -43,9 +43,9 @@ export class CreateFiatOutputDto {
   @IsString()
   address: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  houseNumber: string;
+  houseNumber?: string;
 
   @IsNotEmpty()
   @IsString()
