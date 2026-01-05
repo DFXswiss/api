@@ -27,37 +27,37 @@ export class CreateFiatOutputDto {
   @IsNumber()
   originEntityId?: number;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsNumber()
-  amount?: number;
+  amount: number;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  currency?: string;
+  currency: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  name?: string;
+  name: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  address?: string;
+  address: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  houseNumber?: string;
+  houseNumber: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  city?: string;
+  city: string;
 
   @IsOptional()
   @IsString()
   remittanceInfo?: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  iban?: string;
+  iban: string;
 
   @IsOptional()
   @IsString()
@@ -72,11 +72,11 @@ export class CreateFiatOutputDto {
   @IsString()
   bic?: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  zip?: string;
+  zip: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  country?: string;
+  country: string;
 }
