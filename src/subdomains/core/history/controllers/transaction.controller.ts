@@ -67,7 +67,6 @@ import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.s
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { PdfDto } from '../../buy-crypto/routes/buy/dto/pdf.dto';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
-import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
@@ -92,7 +91,6 @@ export class TransactionController {
     private readonly transactionService: TransactionService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly refRewardService: RefRewardService,
     private readonly bankDataService: BankDataService,
     private readonly bankTxService: BankTxService,
     private readonly fiatService: FiatService,
