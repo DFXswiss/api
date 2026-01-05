@@ -64,15 +64,15 @@ export class RecommendationService {
     const recommended = mailUser
       ? await this.userDataService.updateUserDataInternal(mailUser, { tradeApprovalDate: new Date() })
       : dto.recommendedMail
-      ? await this.userDataService.createUserData({
-          mail: dto.recommendedMail,
-          status: UserDataStatus.KYC_ONLY,
-          kycType: KycType.DFX,
-          language: userData.language,
-          currency: userData.currency,
-          tradeApprovalDate: new Date(),
-        })
-      : undefined;
+        ? await this.userDataService.createUserData({
+            mail: dto.recommendedMail,
+            status: UserDataStatus.KYC_ONLY,
+            kycType: KycType.DFX,
+            language: userData.language,
+            currency: userData.currency,
+            tradeApprovalDate: new Date(),
+          })
+        : undefined;
 
     const entity = await this.createRecommendationInternal(
       RecommendationType.INVITATION,
@@ -122,8 +122,8 @@ export class RecommendationService {
       const recommender = Config.formats.ref.test(key)
         ? await this.userService.getRefUser(key).then((u) => u?.userData)
         : key.includes('@')
-        ? await this.userDataService.getUsersByMail(key, true).then((u) => u.find((us) => us.tradeApprovalDate))
-        : undefined;
+          ? await this.userDataService.getUsersByMail(key, true).then((u) => u.find((us) => us.tradeApprovalDate))
+          : undefined;
       if (
         !recommender ||
         recommender.isBlocked ||
