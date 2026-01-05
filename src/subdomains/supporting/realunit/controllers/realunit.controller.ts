@@ -13,7 +13,6 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import {
-  AllowlistStatusDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
@@ -35,7 +34,6 @@ import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
   AccountSummaryDto,
-  BankDetailsDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
   HoldersDto,
@@ -164,27 +162,6 @@ export class RealUnitController {
   @ApiOkResponse({ type: BrokerbotSharesDto })
   async getBrokerbotShares(@Query('amount') amount: string): Promise<BrokerbotSharesDto> {
     return this.realunitService.getBrokerbotShares(amount);
-  }
-
-  @Get('allowlist/:address')
-  @ApiOperation({
-    summary: 'Check allowlist status',
-    description: 'Checks if a wallet address is allowed to receive REALU tokens',
-  })
-  @ApiParam({ name: 'address', description: 'Wallet address to check' })
-  @ApiOkResponse({ type: AllowlistStatusDto })
-  async getAllowlistStatus(@Param('address') address: string): Promise<AllowlistStatusDto> {
-    return this.realunitService.getAllowlistStatus(address);
-  }
-
-  @Get('bank')
-  @ApiOperation({
-    summary: 'Get bank details',
-    description: 'Retrieves bank account details for REALU purchases via bank transfer',
-  })
-  @ApiOkResponse({ type: BankDetailsDto })
-  getBankDetails(): BankDetailsDto {
-    return this.realunitService.getBankDetails();
   }
 
   // --- Buy Payment Info Endpoint ---

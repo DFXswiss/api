@@ -10,7 +10,6 @@ import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, GetConfig } from 'src/config/config';
 import {
-  AllowlistStatusDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
@@ -59,7 +58,6 @@ import { AktionariatRegistrationDto, RealUnitRegistrationDto, RealUnitUserType }
 import {
   AccountHistoryDto,
   AccountSummaryDto,
-  BankDetailsDto,
   HistoricalPriceDto,
   HoldersDto,
   RealUnitBuyDto,
@@ -196,25 +194,8 @@ export class RealUnitService {
     return this.blockchainService.getBrokerbotShares(amountChf);
   }
 
-  async getAllowlistStatus(address: string): Promise<AllowlistStatusDto> {
-    return this.blockchainService.getAllowlistStatus(address);
-  }
-
   async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
     return this.blockchainService.getBrokerbotInfo();
-  }
-
-  getBankDetails(): BankDetailsDto {
-    const { bank } = GetConfig().blockchain.realunit;
-
-    return {
-      recipient: bank.recipient,
-      address: bank.address,
-      iban: bank.iban,
-      bic: bank.bic,
-      bankName: bank.name,
-      currency: 'CHF',
-    };
   }
 
   // --- Buy Payment Info Methods ---
