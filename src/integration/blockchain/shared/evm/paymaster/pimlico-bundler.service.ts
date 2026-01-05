@@ -1,18 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi, Hex, Address, Chain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { mainnet, arbitrum, optimism, polygon, base, bsc, gnosis, sepolia } from 'viem/chains';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { EvmUtil } from '../evm.util';
-
-// ERC20 ABI
-const ERC20_ABI = parseAbi([
-  'function transfer(address to, uint256 amount) returns (bool)',
-  'function balanceOf(address account) view returns (uint256)',
-]);
+import {
+  ERC20_ABI,
+  EVM_CHAIN_CONFIG,
+  getEvmChainConfig,
+  getRelayerPrivateKey,
+  isEvmBlockchainSupported,
+} from '../evm-chain.config';
 
 // SimpleDelegation Contract ABI - minimal ERC-7821 BatchExecutor
 // This contract allows executing arbitrary calls when delegated via EIP-7702
@@ -25,20 +25,6 @@ const SIMPLE_DELEGATION_ABI = parseAbi([
 // TODO: Deploy on mainnet and other chains with same bytecode using CREATE2
 // Source: /tmp/SimpleDelegation.sol - executes calls in the context of the delegating EOA
 const SIMPLE_DELEGATION_ADDRESS = '0x824ee1dffe5220dc4dc7c3b82a31c1e86bafd37a' as Address;
-
-// Chain configuration
-const CHAIN_CONFIG: Partial<
-  Record<Blockchain, { chain: Chain; configKey: string; prefix: string; pimlicoName: string }>
-> = {
-  [Blockchain.ETHEREUM]: { chain: mainnet, configKey: 'ethereum', prefix: 'eth', pimlicoName: 'ethereum' },
-  [Blockchain.ARBITRUM]: { chain: arbitrum, configKey: 'arbitrum', prefix: 'arbitrum', pimlicoName: 'arbitrum' },
-  [Blockchain.OPTIMISM]: { chain: optimism, configKey: 'optimism', prefix: 'optimism', pimlicoName: 'optimism' },
-  [Blockchain.POLYGON]: { chain: polygon, configKey: 'polygon', prefix: 'polygon', pimlicoName: 'polygon' },
-  [Blockchain.BASE]: { chain: base, configKey: 'base', prefix: 'base', pimlicoName: 'base' },
-  [Blockchain.BINANCE_SMART_CHAIN]: { chain: bsc, configKey: 'bsc', prefix: 'bsc', pimlicoName: 'binance' },
-  [Blockchain.GNOSIS]: { chain: gnosis, configKey: 'gnosis', prefix: 'gnosis', pimlicoName: 'gnosis' },
-  [Blockchain.SEPOLIA]: { chain: sepolia, configKey: 'sepolia', prefix: 'sepolia', pimlicoName: 'sepolia' },
-};
 
 export interface Eip7702Authorization {
   chainId: number;
@@ -68,14 +54,14 @@ export class PimlicoBundlerService {
    */
   isGaslessSupported(blockchain: Blockchain): boolean {
     if (!this.apiKey) return false;
-    return CHAIN_CONFIG[blockchain] !== undefined;
+    return isEvmBlockchainSupported(blockchain);
   }
 
   /**
    * Check if user has zero native balance (needs gasless)
    */
   async hasZeroNativeBalance(userAddress: string, blockchain: Blockchain): Promise<boolean> {
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) return false;
 
     try {
@@ -115,7 +101,7 @@ export class PimlicoBundlerService {
       message: Record<string, unknown>;
     };
   }> {
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`Blockchain ${blockchain} not supported for gasless transactions`);
     }
@@ -177,7 +163,7 @@ export class PimlicoBundlerService {
       throw new Error(`Gasless transactions not supported for ${blockchain}`);
     }
 
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
@@ -219,7 +205,7 @@ export class PimlicoBundlerService {
     chainConfig: { chain: Chain; rpcUrl: string },
   ): Promise<string> {
     // Get relayer account (pays gas fees)
-    const relayerPrivateKey = this.getRelayerPrivateKey(token.blockchain);
+    const relayerPrivateKey = getRelayerPrivateKey(token.blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
 
     // Create clients
@@ -313,37 +299,11 @@ export class PimlicoBundlerService {
   }
 
   /**
-   * Get chain configuration
-   */
-  private getChainConfig(blockchain: Blockchain): { chain: Chain; rpcUrl: string } | undefined {
-    const config = CHAIN_CONFIG[blockchain];
-    if (!config) return undefined;
-
-    const chainConfig = this.config[config.configKey];
-    const rpcUrl = `${chainConfig[`${config.prefix}GatewayUrl`]}/${chainConfig[`${config.prefix}ApiKey`] ?? ''}`;
-
-    return { chain: config.chain, rpcUrl };
-  }
-
-  /**
    * Get Pimlico bundler URL
    */
   private getPimlicoUrl(blockchain: Blockchain): string {
-    const chainConfig = CHAIN_CONFIG[blockchain];
+    const chainConfig = EVM_CHAIN_CONFIG[blockchain];
     if (!chainConfig) throw new Error(`No chain config for ${blockchain}`);
     return `https://api.pimlico.io/v2/${chainConfig.pimlicoName}/rpc?apikey=${this.apiKey}`;
-  }
-
-  /**
-   * Get relayer private key for the blockchain
-   */
-  private getRelayerPrivateKey(blockchain: Blockchain): Hex {
-    const config = CHAIN_CONFIG[blockchain];
-    if (!config) throw new Error(`No config found for ${blockchain}`);
-
-    const key = this.config[config.configKey][`${config.prefix}WalletPrivateKey`];
-    if (!key) throw new Error(`No relayer private key configured for ${blockchain}`);
-
-    return (key.startsWith('0x') ? key : `0x${key}`) as Hex;
   }
 }

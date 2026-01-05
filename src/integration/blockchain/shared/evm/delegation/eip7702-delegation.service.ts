@@ -5,20 +5,18 @@ import {
   encodeFunctionData,
   encodeAbiParameters,
   http,
-  parseAbi,
   encodePacked,
   Hex,
   Address,
-  Chain,
 } from 'viem';
 import { privateKeyToAccount, signTypedData } from 'viem/accounts';
-import { mainnet, arbitrum, optimism, polygon, base, bsc, gnosis, sepolia } from 'viem/chains';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { WalletAccount } from '../domain/wallet-account';
 import { EvmUtil } from '../evm.util';
+import { ERC20_ABI, getEvmChainConfig, getRelayerPrivateKey, isEvmBlockchainSupported } from '../evm-chain.config';
 import DELEGATION_MANAGER_ABI from './delegation-manager.abi.json';
 
 // Contract addresses (same on all EVM chains via CREATE2)
@@ -30,21 +28,6 @@ const ROOT_AUTHORITY = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 // ERC-7579 execution mode for single call
 const CALLTYPE_SINGLE = '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex;
-
-// ERC20 transfer function
-const ERC20_ABI = parseAbi(['function transfer(address to, uint256 amount) returns (bool)']);
-
-// Unified chain configuration: viem chain + config keys
-const CHAIN_CONFIG: Partial<Record<Blockchain, { chain: Chain; configKey: string; prefix: string }>> = {
-  [Blockchain.ETHEREUM]: { chain: mainnet, configKey: 'ethereum', prefix: 'eth' },
-  [Blockchain.ARBITRUM]: { chain: arbitrum, configKey: 'arbitrum', prefix: 'arbitrum' },
-  [Blockchain.OPTIMISM]: { chain: optimism, configKey: 'optimism', prefix: 'optimism' },
-  [Blockchain.POLYGON]: { chain: polygon, configKey: 'polygon', prefix: 'polygon' },
-  [Blockchain.BASE]: { chain: base, configKey: 'base', prefix: 'base' },
-  [Blockchain.BINANCE_SMART_CHAIN]: { chain: bsc, configKey: 'bsc', prefix: 'bsc' },
-  [Blockchain.GNOSIS]: { chain: gnosis, configKey: 'gnosis', prefix: 'gnosis' },
-  [Blockchain.SEPOLIA]: { chain: sepolia, configKey: 'sepolia', prefix: 'sepolia' },
-};
 
 // Delegation struct type
 interface Caveat {
@@ -75,7 +58,7 @@ export class Eip7702DelegationService {
    * TODO: Re-enable once Pimlico integration is complete.
    */
   isDelegationSupported(_blockchain: Blockchain): boolean {
-    // Original: return this.config.evm.delegationEnabled && CHAIN_CONFIG[blockchain] !== undefined;
+    // Original: return this.config.evm.delegationEnabled && isEvmBlockchainSupported(blockchain);
     return false;
   }
 
@@ -84,14 +67,14 @@ export class Eip7702DelegationService {
    * RealUnit app supports eth_sign (unlike MetaMask), so EIP-7702 works
    */
   isDelegationSupportedForRealUnit(blockchain: Blockchain): boolean {
-    return blockchain === Blockchain.BASE && CHAIN_CONFIG[blockchain] !== undefined;
+    return blockchain === Blockchain.BASE && isEvmBlockchainSupported(blockchain);
   }
 
   /**
    * Check if user has zero native token balance
    */
   async hasZeroNativeBalance(userAddress: string, blockchain: Blockchain): Promise<boolean> {
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) return false;
 
     try {
@@ -172,19 +155,18 @@ export class Eip7702DelegationService {
     types: any;
     message: any;
   }> {
-    const chainConfig = CHAIN_CONFIG[blockchain];
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) throw new Error(`No chain config found for ${blockchain}`);
 
     // Fetch user's current account nonce for EIP-7702 authorization
-    const fullChainConfig = this.getChainConfig(blockchain);
     const publicClient = createPublicClient({
       chain: chainConfig.chain,
-      transport: http(fullChainConfig.rpcUrl),
+      transport: http(chainConfig.rpcUrl),
     });
 
     const userNonce = Number(await publicClient.getTransactionCount({ address: userAddress as Address }));
 
-    const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
+    const relayerPrivateKey = getRelayerPrivateKey(blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
     const salt = BigInt(Date.now());
 
@@ -323,13 +305,13 @@ export class Eip7702DelegationService {
       throw new Error(`Invalid token contract address: ${token.chainId}`);
     }
 
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
 
     // Get relayer account
-    const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
+    const relayerPrivateKey = getRelayerPrivateKey(blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
 
     // Create clients
@@ -463,7 +445,7 @@ export class Eip7702DelegationService {
       throw new Error(`EIP-7702 delegation not supported for ${blockchain}`);
     }
 
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
@@ -475,7 +457,7 @@ export class Eip7702DelegationService {
 
     // Create viem accounts
     const depositViemAccount = privateKeyToAccount(depositPrivateKey);
-    const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
+    const relayerPrivateKey = getRelayerPrivateKey(blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
 
     // Create clients
@@ -667,31 +649,5 @@ export class Eip7702DelegationService {
       ],
       [encodedDelegations],
     );
-  }
-
-  /**
-   * Get chain configuration for viem
-   */
-  private getChainConfig(blockchain: Blockchain): { chain: Chain; rpcUrl: string } | undefined {
-    const config = CHAIN_CONFIG[blockchain];
-    if (!config) return undefined;
-
-    const chainConfig = this.config[config.configKey];
-    const rpcUrl = `${chainConfig[`${config.prefix}GatewayUrl`]}/${chainConfig[`${config.prefix}ApiKey`] ?? ''}`;
-
-    return { chain: config.chain, rpcUrl };
-  }
-
-  /**
-   * Get relayer private key for the blockchain
-   */
-  private getRelayerPrivateKey(blockchain: Blockchain): Hex {
-    const config = CHAIN_CONFIG[blockchain];
-    if (!config) throw new Error(`No config found for ${blockchain}`);
-
-    const key = this.config[config.configKey][`${config.prefix}WalletPrivateKey`];
-    if (!key) throw new Error(`No relayer private key configured for ${blockchain}`);
-
-    return (key.startsWith('0x') ? key : `0x${key}`) as Hex;
   }
 }
