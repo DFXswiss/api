@@ -40,10 +40,8 @@ import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -100,7 +98,6 @@ export class RealUnitService {
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
-    private readonly transactionHelper: TransactionHelper,
     private readonly transactionRequestService: TransactionRequestService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
@@ -599,19 +596,19 @@ export class RealUnitService {
       true,
     );
 
-    // 6. Calculate fees and rates using TransactionHelper
-    const txDetails = await this.transactionHelper.getTxDetails(
-      dto.amount,
-      dto.targetAmount,
-      realuAsset,
-      currency,
-      CryptoPaymentMethod.CRYPTO,
-      FiatPaymentMethod.BANK,
-      false,
-      user,
-      undefined,
-      undefined,
-      dto.iban.substring(0, 2),
+    // 6. Call SellService to get payment info (handles fees, rates, transaction request creation, etc.)
+    const sellPaymentInfo = await this.sellService.toPaymentInfoDto(
+      user.id,
+      sell,
+      {
+        iban: dto.iban,
+        asset: realuAsset,
+        currency,
+        amount: dto.amount,
+        targetAmount: dto.targetAmount,
+        exactPrice: false,
+      },
+      false, // includeTx
     );
 
     // 7. Prepare EIP-7702 delegation data (ALWAYS for RealUnit - app supports eth_sign)
@@ -621,101 +618,51 @@ export class RealUnitService {
     );
 
     // 8. Build response with EIP-7702 data AND fallback transfer info
-    const amountWei = EvmUtil.toWeiAmount(txDetails.sourceAmount, realuAsset.decimals);
+    const amountWei = EvmUtil.toWeiAmount(sellPaymentInfo.amount, realuAsset.decimals);
 
     const response: RealUnitSellPaymentInfoDto = {
-      // Identification (id will be set by TransactionRequestService.create)
-      id: 0,
-      routeId: sell.id,
-      timestamp: txDetails.timestamp,
+      // Identification
+      id: sellPaymentInfo.id,
+      routeId: sellPaymentInfo.routeId,
+      timestamp: sellPaymentInfo.timestamp,
 
       // EIP-7702 Data (ALWAYS present for RealUnit)
       eip7702: {
         ...delegationData,
         tokenAddress: this.REALU_BASE_ADDRESS,
         amountWei: amountWei.toString(),
-        depositAddress: sell.deposit.address,
+        depositAddress: sellPaymentInfo.depositAddress,
       },
 
       // Fallback Transfer Info (ALWAYS present)
-      depositAddress: sell.deposit.address,
-      amount: txDetails.sourceAmount,
+      depositAddress: sellPaymentInfo.depositAddress,
+      amount: sellPaymentInfo.amount,
       tokenAddress: this.REALU_BASE_ADDRESS,
       chainId: this.BASE_CHAIN_ID,
 
       // Fee Info
-      fees: txDetails.feeSource,
-      minVolume: txDetails.minVolume,
-      maxVolume: txDetails.maxVolume,
-      minVolumeTarget: txDetails.minVolumeTarget,
-      maxVolumeTarget: txDetails.maxVolumeTarget,
+      fees: sellPaymentInfo.fees,
+      minVolume: sellPaymentInfo.minVolume,
+      maxVolume: sellPaymentInfo.maxVolume,
+      minVolumeTarget: sellPaymentInfo.minVolumeTarget,
+      maxVolumeTarget: sellPaymentInfo.maxVolumeTarget,
 
       // Rate Info
-      exchangeRate: txDetails.exchangeRate,
-      rate: txDetails.rate,
-      priceSteps: txDetails.priceSteps,
+      exchangeRate: sellPaymentInfo.exchangeRate,
+      rate: sellPaymentInfo.rate,
+      priceSteps: sellPaymentInfo.priceSteps,
 
       // Result
-      estimatedAmount: txDetails.estimatedAmount,
-      currency: currencyName,
+      estimatedAmount: sellPaymentInfo.estimatedAmount,
+      currency: sellPaymentInfo.currency.name,
       beneficiary: {
-        name: userData.verifiedName,
-        iban: dto.iban,
+        name: sellPaymentInfo.beneficiary.name,
+        iban: sellPaymentInfo.beneficiary.iban,
       },
 
-      isValid: txDetails.isValid,
-      error: txDetails.error,
+      isValid: sellPaymentInfo.isValid,
+      error: sellPaymentInfo.error,
     };
-
-    // 9. Create TransactionRequest (sets response.id)
-    // Build compatible objects for TransactionRequestService.create()
-    const sellPaymentRequest = {
-      iban: dto.iban,
-      asset: realuAsset,
-      currency,
-      amount: dto.amount,
-      targetAmount: dto.targetAmount,
-      exactPrice: false,
-    };
-
-    const sellPaymentResponse = {
-      id: 0,
-      routeId: sell.id,
-      timestamp: txDetails.timestamp,
-      depositAddress: sell.deposit.address,
-      blockchain: Blockchain.BASE,
-      minDeposit: { amount: txDetails.minVolume, asset: realuAsset.dexName },
-      fee: Util.round(txDetails.feeSource.rate * 100, Config.defaultPercentageDecimal),
-      minFee: txDetails.feeSource.min,
-      fees: txDetails.feeSource,
-      minVolume: txDetails.minVolume,
-      maxVolume: txDetails.maxVolume,
-      amount: txDetails.sourceAmount,
-      asset: { id: realuAsset.id, name: realuAsset.name, blockchain: Blockchain.BASE },
-      minFeeTarget: txDetails.feeTarget.min,
-      feesTarget: txDetails.feeTarget,
-      minVolumeTarget: txDetails.minVolumeTarget,
-      maxVolumeTarget: txDetails.maxVolumeTarget,
-      exchangeRate: txDetails.exchangeRate,
-      rate: txDetails.rate,
-      exactPrice: txDetails.exactPrice,
-      priceSteps: txDetails.priceSteps,
-      estimatedAmount: txDetails.estimatedAmount,
-      currency: { id: currency.id, name: currency.name },
-      beneficiary: { name: userData.verifiedName, iban: dto.iban },
-      isValid: txDetails.isValid,
-      error: txDetails.error,
-    };
-
-    await this.transactionRequestService.create(
-      TransactionRequestType.SELL,
-      sellPaymentRequest,
-      sellPaymentResponse as any,
-      user.id,
-    );
-
-    // Transfer the generated id back to the response
-    response.id = sellPaymentResponse.id;
 
     return response;
   }

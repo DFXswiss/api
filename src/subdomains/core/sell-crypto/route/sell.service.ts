@@ -330,7 +330,7 @@ export class SellService {
     }
   }
 
-  private async toPaymentInfoDto(
+  async toPaymentInfoDto(
     userId: number,
     sell: Sell,
     dto: GetSellPaymentInfoDto,

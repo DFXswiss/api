@@ -203,7 +203,6 @@ export class OCPStickerService {
     mode = StickerQrMode.CUSTOMER,
     userId?: number,
   ): Promise<Buffer> {
-    // Use find() to get validated language from trusted list, not from user input
     const validLang = ALLOWED_LANGUAGES.find((l) => l === lang.toLowerCase());
     if (!validLang) {
       throw new BadRequestException(`Invalid language: ${lang}. Allowed: ${ALLOWED_LANGUAGES.join(', ')}`);
@@ -221,7 +220,7 @@ export class OCPStickerService {
       }
     }
 
-    // Bitcoin Focus OCP Sticker - validLang comes from ALLOWED_LANGUAGES, not user input
+    // Bitcoin Focus OCP Sticker
     const stickerFileName =
       mode === StickerQrMode.POS
         ? `ocp-bitcoin-focus-sticker-pos_${validLang}.png`

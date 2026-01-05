@@ -29,7 +29,7 @@ import {
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
 } from '../dto/realunit-registration.dto';
-import { RealUnitSellDto, RealUnitSellPaymentInfoDto, RealUnitSellConfirmDto } from '../dto/realunit-sell.dto';
+import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
@@ -166,11 +166,11 @@ export class RealUnitController {
 
   // --- Buy Payment Info Endpoint ---
 
-  @Put('paymentInfo')
+  @Put('buy')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    summary: 'Get payment info for RealUnit purchase',
+    summary: 'Get payment info for RealUnit buy',
     description:
       'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 50 and RealUnit registration.',
   })
@@ -183,7 +183,7 @@ export class RealUnitController {
 
   // --- Sell Payment Info Endpoints ---
 
-  @Put('sellPaymentInfo')
+  @Put('sell')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({

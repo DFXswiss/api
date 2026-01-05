@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { isLiechtensteinBankHoliday } from 'src/config/liechtenstein-bank-holiday.config';
+import { isLiechtensteinBankHoliday } from 'src/config/bank-holiday.config';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
