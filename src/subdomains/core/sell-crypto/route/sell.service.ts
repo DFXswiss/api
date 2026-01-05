@@ -422,7 +422,10 @@ export class SellService {
     // Check if user needs gasless transaction (0 native balance)
     if (isValid && this.pimlicoBundlerService.isGaslessSupported(dto.asset.blockchain)) {
       try {
-        const hasZeroBalance = await this.pimlicoBundlerService.hasZeroNativeBalance(user.address, dto.asset.blockchain);
+        const hasZeroBalance = await this.pimlicoBundlerService.hasZeroNativeBalance(
+          user.address,
+          dto.asset.blockchain,
+        );
         sellDto.gaslessAvailable = hasZeroBalance;
 
         if (hasZeroBalance) {
@@ -441,10 +444,7 @@ export class SellService {
   }
 
   // --- GASLESS TRANSACTIONS --- //
-  async executeGaslessTransfer(
-    request: TransactionRequest,
-    dto: GaslessTransferDto,
-  ): Promise<BuyFiatExtended> {
+  async executeGaslessTransfer(request: TransactionRequest, dto: GaslessTransferDto): Promise<BuyFiatExtended> {
     const route = await this.sellRepo.findOne({
       where: { id: request.routeId },
       relations: { deposit: true, user: { wallet: true, userData: true } },

@@ -46,7 +46,9 @@ const ENTRY_POINT_V07 = '0x0000000071727De22E5E9d8BAf0edAc6f37da032' as Address;
 const SIMPLE_ACCOUNT_FACTORY = '0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985' as Address;
 
 // Chain configuration
-const CHAIN_CONFIG: Partial<Record<Blockchain, { chain: Chain; configKey: string; prefix: string; pimlicoName: string }>> = {
+const CHAIN_CONFIG: Partial<
+  Record<Blockchain, { chain: Chain; configKey: string; prefix: string; pimlicoName: string }>
+> = {
   [Blockchain.ETHEREUM]: { chain: mainnet, configKey: 'ethereum', prefix: 'eth', pimlicoName: 'ethereum' },
   [Blockchain.ARBITRUM]: { chain: arbitrum, configKey: 'arbitrum', prefix: 'arbitrum', pimlicoName: 'arbitrum' },
   [Blockchain.OPTIMISM]: { chain: optimism, configKey: 'optimism', prefix: 'optimism', pimlicoName: 'optimism' },
@@ -199,14 +201,7 @@ export class PimlicoBundlerService {
 
     try {
       // Use the EIP-7702 delegation approach with DFX relayer
-      const txHash = await this.executeViaRelayer(
-        userAddress,
-        token,
-        recipient,
-        amount,
-        authorization,
-        chainConfig,
-      );
+      const txHash = await this.executeViaRelayer(userAddress, token, recipient, amount, authorization, chainConfig);
 
       this.logger.info(
         `Gasless transfer successful on ${blockchain}: ${amount} ${token.name} to ${recipient} | TX: ${txHash}`,
