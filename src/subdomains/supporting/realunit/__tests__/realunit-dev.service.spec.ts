@@ -458,9 +458,7 @@ describe('RealUnitDevService', () => {
       const request2 = { ...mockTransactionRequest, id: 2 };
 
       transactionRequestRepo.find.mockResolvedValue([request1, request2] as any);
-      buyService.getBuyByKey
-        .mockRejectedValueOnce(new Error('Failed'))
-        .mockResolvedValueOnce(mockBuy as any);
+      buyService.getBuyByKey.mockRejectedValueOnce(new Error('Failed')).mockResolvedValueOnce(mockBuy as any);
       bankTxService.getBankTxByKey.mockResolvedValue(null);
       fiatService.getFiat.mockResolvedValue(mockFiat as any);
       bankService.getBankInternal.mockResolvedValue(mockBank as any);
@@ -490,10 +488,7 @@ describe('RealUnitDevService', () => {
       await service.simulateRealuPayments();
 
       // Should check for existing BankTx using txInfo field with TransactionRequest ID
-      expect(bankTxService.getBankTxByKey).toHaveBeenCalledWith(
-        'txInfo',
-        'DEV simulation for TransactionRequest 7',
-      );
+      expect(bankTxService.getBankTxByKey).toHaveBeenCalledWith('txInfo', 'DEV simulation for TransactionRequest 7');
     });
   });
 });
