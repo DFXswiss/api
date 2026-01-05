@@ -1,63 +1,29 @@
 import { Injectable } from '@nestjs/common';
-import {
-  createPublicClient,
-  createWalletClient,
-  encodeFunctionData,
-  http,
-  parseAbi,
-  Hex,
-  Address,
-  Chain,
-  keccak256,
-  concat,
-  toHex,
-  pad,
-  slice,
-  encodeAbiParameters,
-} from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { mainnet, arbitrum, optimism, polygon, base, bsc, gnosis, sepolia } from 'viem/chains';
+import { createPublicClient, encodeFunctionData, http, parseAbi, Hex, Address, toHex, concat, pad } from 'viem';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { EvmUtil } from '../evm.util';
+import { ERC20_ABI, EVM_CHAIN_CONFIG, getEvmChainConfig, isEvmBlockchainSupported } from '../evm-chain.config';
 
-// ERC20 ABI
-const ERC20_ABI = parseAbi([
-  'function transfer(address to, uint256 amount) returns (bool)',
-  'function balanceOf(address account) view returns (uint256)',
-]);
+// MetaMask EIP7702StatelessDeleGator - deployed on ALL major EVM chains
+// This contract implements ERC-7821 execute() with onlyEntryPointOrSelf modifier
+// Source: https://github.com/MetaMask/delegation-framework
+const METAMASK_DELEGATOR_ADDRESS = '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b' as Address;
 
-// SimpleAccount Factory ABI for ERC-4337
-const SIMPLE_ACCOUNT_FACTORY_ABI = parseAbi([
-  'function createAccount(address owner, uint256 salt) returns (address)',
-  'function getAddress(address owner, uint256 salt) view returns (address)',
-]);
-
-// EntryPoint v0.7 ABI
-const ENTRY_POINT_ABI = parseAbi([
-  'function handleOps((address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature)[] ops, address beneficiary)',
-  'function getNonce(address sender, uint192 key) view returns (uint256)',
-]);
-
-// Contract addresses
+// ERC-4337 EntryPoint v0.7 - canonical address on all chains
 const ENTRY_POINT_V07 = '0x0000000071727De22E5E9d8BAf0edAc6f37da032' as Address;
-const SIMPLE_ACCOUNT_FACTORY = '0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985' as Address;
 
-// Chain configuration
-const CHAIN_CONFIG: Partial<
-  Record<Blockchain, { chain: Chain; configKey: string; prefix: string; pimlicoName: string }>
-> = {
-  [Blockchain.ETHEREUM]: { chain: mainnet, configKey: 'ethereum', prefix: 'eth', pimlicoName: 'ethereum' },
-  [Blockchain.ARBITRUM]: { chain: arbitrum, configKey: 'arbitrum', prefix: 'arbitrum', pimlicoName: 'arbitrum' },
-  [Blockchain.OPTIMISM]: { chain: optimism, configKey: 'optimism', prefix: 'optimism', pimlicoName: 'optimism' },
-  [Blockchain.POLYGON]: { chain: polygon, configKey: 'polygon', prefix: 'polygon', pimlicoName: 'polygon' },
-  [Blockchain.BASE]: { chain: base, configKey: 'base', prefix: 'base', pimlicoName: 'base' },
-  [Blockchain.BINANCE_SMART_CHAIN]: { chain: bsc, configKey: 'bsc', prefix: 'bsc', pimlicoName: 'binance' },
-  [Blockchain.GNOSIS]: { chain: gnosis, configKey: 'gnosis', prefix: 'gnosis', pimlicoName: 'gnosis' },
-  [Blockchain.SEPOLIA]: { chain: sepolia, configKey: 'sepolia', prefix: 'sepolia', pimlicoName: 'sepolia' },
-};
+// EIP-7702 factory marker - signals to bundler that this is an EIP-7702 UserOperation
+const EIP7702_FACTORY = '0x0000000000000000000000000000000000007702' as Address;
+
+// MetaMask Delegator ABI - ERC-7821 BatchExecutor interface
+const DELEGATOR_ABI = parseAbi(['function execute((bytes32 mode, bytes executionData) execution) external payable']);
+
+// ERC-7821 execution mode for batch calls
+// BATCH_CALL mode: 0x0100... (first byte = 0x01 for batch)
+const BATCH_CALL_MODE = '0x0100000000000000000000000000000000000000000000000000000000000000' as Hex;
 
 export interface Eip7702Authorization {
   chainId: number;
@@ -71,6 +37,24 @@ export interface Eip7702Authorization {
 export interface GaslessTransferResult {
   txHash: string;
   userOpHash: string;
+}
+
+interface UserOperationV07 {
+  sender: Address;
+  nonce: Hex;
+  factory: Address;
+  factoryData: Hex;
+  callData: Hex;
+  callGasLimit: Hex;
+  verificationGasLimit: Hex;
+  preVerificationGas: Hex;
+  maxFeePerGas: Hex;
+  maxPriorityFeePerGas: Hex;
+  paymaster: Address;
+  paymasterVerificationGasLimit: Hex;
+  paymasterPostOpGasLimit: Hex;
+  paymasterData: Hex;
+  signature: Hex;
 }
 
 @Injectable()
@@ -87,14 +71,14 @@ export class PimlicoBundlerService {
    */
   isGaslessSupported(blockchain: Blockchain): boolean {
     if (!this.apiKey) return false;
-    return CHAIN_CONFIG[blockchain] !== undefined;
+    return isEvmBlockchainSupported(blockchain);
   }
 
   /**
    * Check if user has zero native balance (needs gasless)
    */
   async hasZeroNativeBalance(userAddress: string, blockchain: Blockchain): Promise<boolean> {
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) return false;
 
     try {
@@ -113,6 +97,13 @@ export class PimlicoBundlerService {
 
   /**
    * Prepare EIP-7702 authorization data for frontend signing
+   *
+   * EIP-7702 + ERC-4337 Flow:
+   * 1. User signs authorization to delegate MetaMask Delegator to their EOA
+   * 2. Backend creates UserOperation with the signed authorization
+   * 3. Pimlico Bundler submits via EntryPoint with Paymaster sponsorship
+   * 4. EntryPoint validates authorization and calls execute() on user's EOA
+   * 5. Token transfer happens FROM the user's EOA
    */
   async prepareAuthorizationData(
     userAddress: string,
@@ -128,7 +119,7 @@ export class PimlicoBundlerService {
       message: Record<string, unknown>;
     };
   }> {
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`Blockchain ${blockchain} not supported for gasless transactions`);
     }
@@ -140,8 +131,9 @@ export class PimlicoBundlerService {
 
     const nonce = Number(await publicClient.getTransactionCount({ address: userAddress as Address }));
 
-    // For EIP-7702, we delegate to a SimpleAccount implementation
-    // The user signs an authorization that allows their EOA to execute as a smart account
+    // EIP-7702 Authorization: delegate MetaMask Delegator to user's EOA
+    // The Delegator's execute() function has onlyEntryPointOrSelf modifier
+    // This ensures only EntryPoint (ERC-4337) or the EOA itself can call it
     const typedData = {
       domain: {
         chainId: chainConfig.chain.id,
@@ -156,13 +148,13 @@ export class PimlicoBundlerService {
       primaryType: 'Authorization',
       message: {
         chainId: chainConfig.chain.id,
-        address: SIMPLE_ACCOUNT_FACTORY,
+        address: METAMASK_DELEGATOR_ADDRESS,
         nonce: nonce,
       },
     };
 
     return {
-      contractAddress: SIMPLE_ACCOUNT_FACTORY,
+      contractAddress: METAMASK_DELEGATOR_ADDRESS,
       chainId: chainConfig.chain.id,
       nonce,
       typedData,
@@ -170,12 +162,15 @@ export class PimlicoBundlerService {
   }
 
   /**
-   * Execute gasless transfer using EIP-7702 + Pimlico Paymaster
+   * Execute gasless transfer using EIP-7702 + ERC-4337 via Pimlico
    *
-   * This uses the existing EIP-7702 delegation service approach:
-   * 1. User signs EIP-7702 authorization to delegate to a smart contract
-   * 2. DFX relayer submits the transaction with the authorization
-   * 3. Pimlico-sponsored gas (via DFX's Pimlico account)
+   * Flow:
+   * 1. User has already signed EIP-7702 authorization for MetaMask Delegator
+   * 2. We create an ERC-4337 UserOperation with factory=0x7702
+   * 3. Pimlico Bundler validates and submits to EntryPoint
+   * 4. Pimlico Paymaster sponsors the gas
+   * 5. EntryPoint calls execute() on the user's EOA (via delegation)
+   * 6. Token transfer executes FROM the user's address
    */
   async executeGaslessTransfer(
     userAddress: string,
@@ -190,24 +185,24 @@ export class PimlicoBundlerService {
       throw new Error(`Gasless transactions not supported for ${blockchain}`);
     }
 
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = getEvmChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
 
     this.logger.verbose(
-      `Executing gasless transfer: ${amount} ${token.name} from ${userAddress} to ${recipient} on ${blockchain}`,
+      `Executing gasless transfer via Pimlico: ${amount} ${token.name} from ${userAddress} to ${recipient} on ${blockchain}`,
     );
 
     try {
-      // Use the EIP-7702 delegation approach with DFX relayer
-      const txHash = await this.executeViaRelayer(userAddress, token, recipient, amount, authorization, chainConfig);
+      const result = await this.executeViaPimlico(userAddress, token, recipient, amount, authorization, blockchain);
 
       this.logger.info(
-        `Gasless transfer successful on ${blockchain}: ${amount} ${token.name} to ${recipient} | TX: ${txHash}`,
+        `Gasless transfer successful on ${blockchain}: ${amount} ${token.name} to ${recipient} | ` +
+          `UserOpHash: ${result.userOpHash} | TX: ${result.txHash}`,
       );
 
-      return { txHash, userOpHash: txHash };
+      return result;
     } catch (error) {
       this.logger.error(`Gasless transfer failed on ${blockchain}:`, error);
       throw new Error(`Gasless transfer failed: ${error.message}`);
@@ -215,33 +210,19 @@ export class PimlicoBundlerService {
   }
 
   /**
-   * Execute transfer via DFX relayer with EIP-7702 authorization
+   * Execute transfer via Pimlico Bundler with EIP-7702 + ERC-4337
    */
-  private async executeViaRelayer(
+  private async executeViaPimlico(
     userAddress: string,
     token: Asset,
     recipient: string,
     amount: number,
     authorization: Eip7702Authorization,
-    chainConfig: { chain: Chain; rpcUrl: string },
-  ): Promise<string> {
-    // Get relayer account
-    const relayerPrivateKey = this.getRelayerPrivateKey(token.blockchain);
-    const relayerAccount = privateKeyToAccount(relayerPrivateKey);
+    blockchain: Blockchain,
+  ): Promise<GaslessTransferResult> {
+    const pimlicoUrl = this.getPimlicoUrl(blockchain);
 
-    // Create clients
-    const publicClient = createPublicClient({
-      chain: chainConfig.chain,
-      transport: http(chainConfig.rpcUrl),
-    });
-
-    const walletClient = createWalletClient({
-      account: relayerAccount,
-      chain: chainConfig.chain,
-      transport: http(chainConfig.rpcUrl),
-    });
-
-    // Encode ERC20 transfer
+    // 1. Encode the ERC20 transfer call
     const amountWei = BigInt(EvmUtil.toWeiAmount(amount, token.decimals).toString());
     const transferData = encodeFunctionData({
       abi: ERC20_ABI,
@@ -249,83 +230,279 @@ export class PimlicoBundlerService {
       args: [recipient as Address, amountWei],
     });
 
-    // Convert authorization to viem format
-    const viemAuthorization = {
-      chainId: BigInt(authorization.chainId),
-      address: authorization.address as Address,
-      nonce: BigInt(authorization.nonce),
-      r: authorization.r as Hex,
-      s: authorization.s as Hex,
-      yParity: authorization.yParity,
-    };
+    // 2. Encode the execute() call for MetaMask Delegator (ERC-7821 format)
+    const callData = this.encodeExecuteCall(token.chainId as Address, transferData);
 
-    // Estimate gas
-    const block = await publicClient.getBlock();
-    const maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
-    const maxFeePerGas = block.baseFeePerGas
-      ? block.baseFeePerGas * 2n + maxPriorityFeePerGas
-      : maxPriorityFeePerGas * 2n;
+    // 3. Encode the EIP-7702 authorization as factoryData
+    const factoryData = this.encodeAuthorizationAsFactoryData(authorization);
 
-    // Use fixed gas limit for EIP-7702 transactions
-    const gasLimit = 200000n;
+    // 4. Build the UserOperation
+    const userOp = await this.buildUserOperation(userAddress as Address, callData, factoryData, pimlicoUrl);
 
-    // Get nonce
-    const nonce = await publicClient.getTransactionCount({ address: relayerAccount.address });
+    // 5. Sponsor the UserOperation via Pimlico Paymaster
+    const sponsoredUserOp = await this.sponsorUserOperation(userOp, pimlicoUrl);
 
-    // Build and sign EIP-7702 transaction
-    const transaction = {
-      from: relayerAccount.address as Address,
-      to: token.chainId as Address,
-      data: transferData,
-      value: 0n,
-      nonce,
-      chainId: chainConfig.chain.id,
-      gas: gasLimit,
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-      authorizationList: [viemAuthorization],
-      type: 'eip7702' as const,
-    };
+    // 6. Submit the UserOperation via Pimlico Bundler
+    const userOpHash = await this.sendUserOperation(sponsoredUserOp, pimlicoUrl);
 
-    // Sign and broadcast
-    const signedTx = await walletClient.signTransaction(transaction as any);
-    const txHash = await walletClient.sendRawTransaction({ serializedTransaction: signedTx as `0x${string}` });
+    // 7. Wait for the transaction to be mined
+    const txHash = await this.waitForUserOperation(userOpHash, pimlicoUrl);
 
-    return txHash;
+    return { txHash, userOpHash };
   }
 
   /**
-   * Get chain configuration
+   * Encode execute() call for MetaMask Delegator (ERC-7821 format)
    */
-  private getChainConfig(blockchain: Blockchain): { chain: Chain; rpcUrl: string } | undefined {
-    const config = CHAIN_CONFIG[blockchain];
-    if (!config) return undefined;
+  private encodeExecuteCall(tokenAddress: Address, transferData: Hex): Hex {
+    // ERC-7821 executionData format for batch calls:
+    // abi.encode(Call[]) where Call = (address target, uint256 value, bytes data)
+    const calls = [
+      {
+        target: tokenAddress,
+        value: 0n,
+        data: transferData,
+      },
+    ];
 
-    const chainConfig = this.config[config.configKey];
-    const rpcUrl = `${chainConfig[`${config.prefix}GatewayUrl`]}/${chainConfig[`${config.prefix}ApiKey`] ?? ''}`;
+    // Encode calls array
+    const encodedCalls = this.encodeCalls(calls);
 
-    return { chain: config.chain, rpcUrl };
+    // Encode full execute() call with mode and executionData
+    return encodeFunctionData({
+      abi: DELEGATOR_ABI,
+      functionName: 'execute',
+      args: [{ mode: BATCH_CALL_MODE, executionData: encodedCalls }],
+    });
+  }
+
+  /**
+   * Encode calls array for ERC-7821
+   */
+  private encodeCalls(calls: Array<{ target: Address; value: bigint; data: Hex }>): Hex {
+    // Manual ABI encoding for Call[] since viem doesn't have a direct method
+    // Format: abi.encode((address,uint256,bytes)[])
+    const call = calls[0];
+    const encoded = concat([
+      pad(toHex(32n), { size: 32 }), // offset to array
+      pad(toHex(BigInt(calls.length)), { size: 32 }), // array length
+      pad(call.target, { size: 32 }), // target address
+      pad(toHex(call.value), { size: 32 }), // value
+      pad(toHex(96n), { size: 32 }), // offset to bytes data
+      pad(toHex(BigInt((call.data.length - 2) / 2)), { size: 32 }), // bytes length
+      call.data as Hex, // actual data
+    ]);
+
+    return encoded;
+  }
+
+  /**
+   * Encode EIP-7702 authorization as factoryData for UserOperation
+   *
+   * When factory = 0x7702, the bundler expects factoryData to contain
+   * the signed EIP-7702 authorization that delegates the smart account
+   * implementation to the EOA.
+   */
+  private encodeAuthorizationAsFactoryData(authorization: Eip7702Authorization): Hex {
+    // factoryData format for EIP-7702:
+    // abi.encodePacked(address delegatee, uint256 nonce, bytes signature)
+    // where signature = abi.encodePacked(r, s, yParity)
+    const signature = concat([
+      authorization.r as Hex,
+      authorization.s as Hex,
+      toHex(authorization.yParity, { size: 1 }),
+    ]);
+
+    return concat([
+      authorization.address as Hex, // delegatee (MetaMask Delegator)
+      pad(toHex(BigInt(authorization.nonce)), { size: 32 }), // nonce
+      signature, // signature (r, s, yParity)
+    ]);
+  }
+
+  /**
+   * Build UserOperation v0.7 structure
+   */
+  private async buildUserOperation(
+    sender: Address,
+    callData: Hex,
+    factoryData: Hex,
+    pimlicoUrl: string,
+  ): Promise<UserOperationV07> {
+    // Get current gas prices from Pimlico
+    const gasPrice = await this.getGasPrice(pimlicoUrl);
+
+    // Get sender nonce from EntryPoint
+    const nonce = await this.getSenderNonce(sender, pimlicoUrl);
+
+    const userOp: UserOperationV07 = {
+      sender,
+      nonce: toHex(nonce),
+      factory: EIP7702_FACTORY,
+      factoryData,
+      callData,
+      callGasLimit: toHex(200000n),
+      verificationGasLimit: toHex(500000n),
+      preVerificationGas: toHex(100000n),
+      maxFeePerGas: toHex(gasPrice.maxFeePerGas),
+      maxPriorityFeePerGas: toHex(gasPrice.maxPriorityFeePerGas),
+      paymaster: '0x' as Address,
+      paymasterVerificationGasLimit: toHex(0n),
+      paymasterPostOpGasLimit: toHex(0n),
+      paymasterData: '0x' as Hex,
+      signature: '0x' as Hex, // Will be filled by sponsorship or left empty for EIP-7702
+    };
+
+    // Estimate gas limits
+    const estimated = await this.estimateUserOperationGas(userOp, pimlicoUrl);
+    userOp.callGasLimit = estimated.callGasLimit;
+    userOp.verificationGasLimit = estimated.verificationGasLimit;
+    userOp.preVerificationGas = estimated.preVerificationGas;
+
+    return userOp;
+  }
+
+  /**
+   * Sponsor UserOperation via Pimlico Paymaster
+   */
+  private async sponsorUserOperation(userOp: UserOperationV07, pimlicoUrl: string): Promise<UserOperationV07> {
+    const response = await this.jsonRpc(pimlicoUrl, 'pm_sponsorUserOperation', [userOp, ENTRY_POINT_V07]);
+
+    return {
+      ...userOp,
+      paymaster: response.paymaster,
+      paymasterVerificationGasLimit: response.paymasterVerificationGasLimit,
+      paymasterPostOpGasLimit: response.paymasterPostOpGasLimit,
+      paymasterData: response.paymasterData,
+      callGasLimit: response.callGasLimit ?? userOp.callGasLimit,
+      verificationGasLimit: response.verificationGasLimit ?? userOp.verificationGasLimit,
+      preVerificationGas: response.preVerificationGas ?? userOp.preVerificationGas,
+    };
+  }
+
+  /**
+   * Submit UserOperation to Pimlico Bundler
+   */
+  private async sendUserOperation(userOp: UserOperationV07, pimlicoUrl: string): Promise<string> {
+    return this.jsonRpc(pimlicoUrl, 'eth_sendUserOperation', [userOp, ENTRY_POINT_V07]);
+  }
+
+  /**
+   * Wait for UserOperation to be mined and get transaction hash
+   */
+  private async waitForUserOperation(userOpHash: string, pimlicoUrl: string): Promise<string> {
+    const maxAttempts = 60;
+    const delayMs = 2000;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const receipt = await this.jsonRpc(pimlicoUrl, 'eth_getUserOperationReceipt', [userOpHash]);
+
+        if (receipt && receipt.receipt && receipt.receipt.transactionHash) {
+          return receipt.receipt.transactionHash;
+        }
+      } catch {
+        // Not mined yet, continue polling
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    throw new Error(`UserOperation ${userOpHash} not mined after ${(maxAttempts * delayMs) / 1000}s`);
+  }
+
+  /**
+   * Get gas prices from Pimlico
+   */
+  private async getGasPrice(pimlicoUrl: string): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }> {
+    const response = await this.jsonRpc(pimlicoUrl, 'pimlico_getUserOperationGasPrice', []);
+    return {
+      maxFeePerGas: BigInt(response.fast.maxFeePerGas),
+      maxPriorityFeePerGas: BigInt(response.fast.maxPriorityFeePerGas),
+    };
+  }
+
+  /**
+   * Get sender nonce from EntryPoint
+   */
+  private async getSenderNonce(sender: Address, pimlicoUrl: string): Promise<bigint> {
+    // For EIP-7702, we use a special key that includes the authorization
+    // The nonce format is: key (192 bits) | sequence (64 bits)
+    // For simplicity, we use key = 0
+    const key = 0n;
+
+    try {
+      const response = await this.jsonRpc(pimlicoUrl, 'eth_call', [
+        {
+          to: ENTRY_POINT_V07,
+          data: encodeFunctionData({
+            abi: parseAbi(['function getNonce(address sender, uint192 key) view returns (uint256)']),
+            functionName: 'getNonce',
+            args: [sender, key],
+          }),
+        },
+        'latest',
+      ]);
+      return BigInt(response);
+    } catch {
+      return 0n;
+    }
+  }
+
+  /**
+   * Estimate gas for UserOperation
+   */
+  private async estimateUserOperationGas(
+    userOp: UserOperationV07,
+    pimlicoUrl: string,
+  ): Promise<{ callGasLimit: Hex; verificationGasLimit: Hex; preVerificationGas: Hex }> {
+    try {
+      const response = await this.jsonRpc(pimlicoUrl, 'eth_estimateUserOperationGas', [userOp, ENTRY_POINT_V07]);
+      return {
+        callGasLimit: response.callGasLimit,
+        verificationGasLimit: response.verificationGasLimit,
+        preVerificationGas: response.preVerificationGas,
+      };
+    } catch {
+      // Return defaults if estimation fails
+      return {
+        callGasLimit: toHex(200000n),
+        verificationGasLimit: toHex(500000n),
+        preVerificationGas: toHex(100000n),
+      };
+    }
+  }
+
+  /**
+   * Make JSON-RPC call to Pimlico
+   */
+  private async jsonRpc(url: string, method: string, params: unknown[]): Promise<any> {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method,
+        params,
+        id: Date.now(),
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(`${method} failed: ${data.error.message || JSON.stringify(data.error)}`);
+    }
+
+    return data.result;
   }
 
   /**
    * Get Pimlico bundler URL
    */
   private getPimlicoUrl(blockchain: Blockchain): string {
-    const chainConfig = CHAIN_CONFIG[blockchain];
+    const chainConfig = EVM_CHAIN_CONFIG[blockchain];
     if (!chainConfig) throw new Error(`No chain config for ${blockchain}`);
     return `https://api.pimlico.io/v2/${chainConfig.pimlicoName}/rpc?apikey=${this.apiKey}`;
-  }
-
-  /**
-   * Get relayer private key for the blockchain
-   */
-  private getRelayerPrivateKey(blockchain: Blockchain): Hex {
-    const config = CHAIN_CONFIG[blockchain];
-    if (!config) throw new Error(`No config found for ${blockchain}`);
-
-    const key = this.config[config.configKey][`${config.prefix}WalletPrivateKey`];
-    if (!key) throw new Error(`No relayer private key configured for ${blockchain}`);
-
-    return (key.startsWith('0x') ? key : `0x${key}`) as Hex;
   }
 }
