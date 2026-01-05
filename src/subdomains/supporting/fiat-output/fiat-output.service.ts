@@ -100,6 +100,7 @@ export class FiatOutputService {
           zip: userData.address.zip,
           city: userData.address.city,
           country: userData.address.country?.symbol,
+          iban: buyFiats[0].sell?.iban,
         };
       }
     }
@@ -121,7 +122,7 @@ export class FiatOutputService {
   }
 
   private validateRequiredCreditorFields(data: Partial<FiatOutput>): void {
-    const requiredFields = ['currency', 'amount', 'name', 'address', 'houseNumber', 'zip', 'city', 'country'] as const;
+    const requiredFields = ['currency', 'amount', 'name', 'address', 'houseNumber', 'zip', 'city', 'country', 'iban'] as const;
     const missingFields = requiredFields.filter((field) => data[field] == null || data[field] === '');
 
     if (missingFields.length > 0) {
