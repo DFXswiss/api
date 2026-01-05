@@ -57,6 +57,15 @@ export enum BuyCryptoStatus {
   STOPPED = 'Stopped',
 }
 
+export interface CreditorData {
+  name?: string;
+  address?: string;
+  houseNumber?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
+}
+
 @Entity()
 export class BuyCrypto extends IEntity {
   // References
@@ -217,23 +226,8 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorName?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorAddress?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorHouseNumber?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorZip?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorCity?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCreditorCountry?: string;
+  @Column({ length: 'MAX', nullable: true })
+  chargebackCreditorData?: string;
 
   @OneToOne(() => FiatOutput, { nullable: true })
   @JoinColumn()
@@ -562,12 +556,7 @@ export class BuyCrypto extends IEntity {
       blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
       status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
-      chargebackCreditorName: creditorData?.name,
-      chargebackCreditorAddress: creditorData?.address,
-      chargebackCreditorHouseNumber: creditorData?.houseNumber,
-      chargebackCreditorZip: creditorData?.zip,
-      chargebackCreditorCity: creditorData?.city,
-      chargebackCreditorCountry: creditorData?.country,
+      chargebackCreditorData: creditorData ? JSON.stringify(creditorData) : undefined,
     };
 
     Object.assign(this, update);
@@ -753,6 +742,10 @@ export class BuyCrypto extends IEntity {
 
   get chargebackBankRemittanceInfo(): string {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
+  get creditorData(): CreditorData | undefined {
+    return this.chargebackCreditorData ? JSON.parse(this.chargebackCreditorData) : undefined;
   }
 
   get networkStartCorrelationId(): string {

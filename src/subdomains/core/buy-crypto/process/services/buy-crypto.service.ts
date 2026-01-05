@@ -285,12 +285,12 @@ export class BuyCryptoService {
             iban: dto.chargebackIban ?? entity.chargebackIban,
             amount: entity.chargebackAmount ?? entity.bankTx.amount,
             currency: entity.bankTx.currency,
-            name: dto.chargebackCreditorName ?? entity.chargebackCreditorName,
-            address: dto.chargebackCreditorAddress ?? entity.chargebackCreditorAddress,
-            houseNumber: dto.chargebackCreditorHouseNumber ?? entity.chargebackCreditorHouseNumber,
-            zip: dto.chargebackCreditorZip ?? entity.chargebackCreditorZip,
-            city: dto.chargebackCreditorCity ?? entity.chargebackCreditorCity,
-            country: dto.chargebackCreditorCountry ?? entity.chargebackCreditorCountry,
+            name: dto.chargebackCreditorName ?? entity.creditorData?.name,
+            address: dto.chargebackCreditorAddress ?? entity.creditorData?.address,
+            houseNumber: dto.chargebackCreditorHouseNumber ?? entity.creditorData?.houseNumber,
+            zip: dto.chargebackCreditorZip ?? entity.creditorData?.zip,
+            city: dto.chargebackCreditorCity ?? entity.creditorData?.city,
+            country: dto.chargebackCreditorCountry ?? entity.creditorData?.country,
           },
         );
 
