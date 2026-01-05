@@ -77,7 +77,7 @@ import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { RefundDataDto } from '../dto/refund-data.dto';
 import { TransactionFilter } from '../dto/transaction-filter.dto';
-import { TransactionRefundDto } from '../dto/transaction-refund.dto';
+import { BankRefundDto, TransactionRefundDto } from '../dto/transaction-refund.dto';
 import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
 import { ExportType, HistoryService } from '../services/history.service';
 
@@ -456,6 +456,96 @@ export class TransactionController {
 
     return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
+      ...refundDto,
+    });
+  }
+
+  @Put(':id/bank-refund')
+  @ApiBearerAuth()
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.ACCOUNT),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
+  @ApiOkResponse()
+  async setBankRefundTarget(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: BankRefundDto,
+  ): Promise<void> {
+    const transaction = await this.transactionService.getTransactionById(+id, {
+      bankTxReturn: { bankTx: true, chargebackOutput: true },
+      userData: true,
+      refReward: true,
+    });
+
+    if ([TransactionTypeInternal.BUY_CRYPTO, TransactionTypeInternal.CRYPTO_CRYPTO].includes(transaction.type))
+      transaction.buyCrypto = await this.buyCryptoService.getBuyCryptoByTransactionId(transaction.id, {
+        cryptoInput: true,
+        bankTx: true,
+        checkoutTx: true,
+        transaction: { userData: true },
+      });
+
+    transaction.bankTx = await this.bankTxService.getBankTxByTransactionId(transaction.id, {
+      transaction: { userData: true },
+    });
+
+    if (!transaction || transaction.targetEntity instanceof RefReward)
+      throw new NotFoundException('Transaction not found');
+    if (transaction.userData && jwt.account !== transaction.userData.id)
+      throw new ForbiddenException('You can only refund your own transaction');
+    if (!transaction.targetEntity && !transaction.userData) {
+      const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account);
+      if (txOwner.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
+    }
+
+    const refundData = this.refundList.get(transaction.id);
+    if (!refundData) throw new BadRequestException('Request refund data first');
+    if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data request invalid');
+    this.refundList.delete(transaction.id);
+
+    const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
+    if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
+
+    if (!transaction.targetEntity?.bankTx && !transaction.bankTx)
+      throw new BadRequestException('This endpoint is only for bank transaction refunds');
+
+    const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
+
+    if (!transaction.targetEntity) {
+      transaction.bankTxReturn = await this.bankTxService
+        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
+        .then((b) => b.bankTxReturn);
+    }
+
+    if (transaction.targetEntity instanceof BankTxReturn) {
+      return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
+        refundIban: refundData.refundTarget ?? dto.refundTarget,
+        name: dto.name,
+        address: dto.address,
+        houseNumber: dto.houseNumber,
+        zip: dto.zip,
+        city: dto.city,
+        country: dto.country,
+        ...refundDto,
+      });
+    }
+
+    if (NotRefundableAmlReasons.includes(transaction.targetEntity.amlReason))
+      throw new BadRequestException('You cannot refund with this reason');
+
+    if (!(transaction.targetEntity instanceof BuyCrypto))
+      throw new BadRequestException('This endpoint is only for BuyCrypto bank refunds');
+
+    return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
+      refundIban: refundData.refundTarget ?? dto.refundTarget,
+      name: dto.name,
+      address: dto.address,
+      houseNumber: dto.houseNumber,
+      zip: dto.zip,
+      city: dto.city,
+      country: dto.country,
       ...refundDto,
     });
   }

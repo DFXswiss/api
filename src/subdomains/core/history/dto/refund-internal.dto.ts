@@ -41,6 +41,14 @@ export class BaseRefund {
 export class BankTxRefund extends BaseRefund {
   refundIban?: string;
   chargebackOutput?: FiatOutput;
+
+  // Creditor data for FiatOutput
+  name?: string;
+  address?: string;
+  houseNumber?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
 }
 
 export class CheckoutTxRefund extends BaseRefund {

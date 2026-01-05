@@ -86,11 +86,12 @@ export class FiatOutputService {
     { buyCrypto, buyFiats, bankTxReturn }: { buyCrypto?: BuyCrypto; buyFiats?: BuyFiat[]; bankTxReturn?: BankTxReturn },
     originEntityId: number,
     createReport = false,
+    inputCreditorData?: Partial<FiatOutput>,
   ): Promise<FiatOutput> {
-    // For BuyFiat: populate creditor data from seller's UserData
-    let creditorData: Partial<FiatOutput> = {};
+    let creditorData: Partial<FiatOutput> = inputCreditorData ?? {};
 
-    if (type === FiatOutputType.BUY_FIAT && buyFiats?.length > 0) {
+    // For BuyFiat without inputCreditorData: auto-populate from seller's UserData
+    if (type === FiatOutputType.BUY_FIAT && buyFiats?.length > 0 && !inputCreditorData) {
       const userData = buyFiats[0].sell?.user?.userData;
       if (userData) {
         // Determine IBAN: from payoutRoute (PaymentLink) or sell route
