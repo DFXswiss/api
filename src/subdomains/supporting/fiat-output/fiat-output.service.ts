@@ -29,6 +29,8 @@ export class FiatOutputService {
   ) {}
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
+    this.validateRequiredCreditorFields(dto);
+
     if (dto.buyCryptoId || dto.buyFiatId || dto.bankTxReturnId || dto.bankTxRepeatId) {
       const existing = await this.fiatOutputRepo.exists({
         where: dto.buyCryptoId
@@ -110,9 +112,21 @@ export class FiatOutputService {
       originEntityId,
       ...creditorData,
     });
+
+    this.validateRequiredCreditorFields(entity);
+
     if (createReport) entity.reportCreated = false;
 
     return this.fiatOutputRepo.save(entity);
+  }
+
+  private validateRequiredCreditorFields(data: Partial<FiatOutput>): void {
+    const requiredFields = ['currency', 'amount', 'name', 'address', 'houseNumber', 'zip', 'city', 'country'] as const;
+    const missingFields = requiredFields.filter((field) => data[field] == null || data[field] === '');
+
+    if (missingFields.length > 0) {
+      throw new BadRequestException(`Missing required creditor fields: ${missingFields.join(', ')}`);
+    }
   }
 
   async update(id: number, dto: UpdateFiatOutputDto): Promise<FiatOutput> {
