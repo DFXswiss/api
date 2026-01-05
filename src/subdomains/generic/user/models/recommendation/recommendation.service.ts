@@ -3,6 +3,9 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -25,6 +28,8 @@ export class RecommendationService {
     @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
+    @Inject(forwardRef(() => KycService))
+    private readonly kycService: KycService,
   ) {}
 
   async createRecommendationByRecommender(userDataId: number, dto: CreateRecommendationDto): Promise<Recommendation> {
@@ -59,15 +64,15 @@ export class RecommendationService {
     const recommended = mailUser
       ? await this.userDataService.updateUserDataInternal(mailUser, { tradeApprovalDate: new Date() })
       : dto.recommendedMail
-        ? await this.userDataService.createUserData({
-            mail: dto.recommendedMail,
-            status: UserDataStatus.KYC_ONLY,
-            kycType: KycType.DFX,
-            language: userData.language,
-            currency: userData.currency,
-            tradeApprovalDate: new Date(),
-          })
-        : undefined;
+      ? await this.userDataService.createUserData({
+          mail: dto.recommendedMail,
+          status: UserDataStatus.KYC_ONLY,
+          kycType: KycType.DFX,
+          language: userData.language,
+          currency: userData.currency,
+          tradeApprovalDate: new Date(),
+        })
+      : undefined;
 
     const entity = await this.createRecommendationInternal(
       RecommendationType.INVITATION,
@@ -78,6 +83,19 @@ export class RecommendationService {
       dto.recommendedAlias,
       dto.recommendedMail,
     );
+
+    if (recommended) {
+      const { step } = await this.kycService.getOrCreateStepInternal(
+        KycStepName.RECOMMENDATION,
+        recommended,
+        undefined,
+      );
+      await this.kycService.updateKycStepAndLog(step, recommended, { key: entity.code }, ReviewStatus.COMPLETED);
+      await this.updateRecommendationInternal(entity, {
+        isConfirmed: true,
+        confirmationDate: new Date(),
+      });
+    }
 
     if (dto.recommendedMail) await this.sendInvitationMail(entity);
 
@@ -104,8 +122,8 @@ export class RecommendationService {
       const recommender = Config.formats.ref.test(key)
         ? await this.userService.getRefUser(key).then((u) => u?.userData)
         : key.includes('@')
-          ? await this.userDataService.getUsersByMail(key, true).then((u) => u.find((us) => us.tradeApprovalDate))
-          : undefined;
+        ? await this.userDataService.getUsersByMail(key, true).then((u) => u.find((us) => us.tradeApprovalDate))
+        : undefined;
       if (
         !recommender ||
         recommender.isBlocked ||
