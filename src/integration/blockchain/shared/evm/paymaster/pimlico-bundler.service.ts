@@ -1,20 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  createPublicClient,
-  createWalletClient,
-  encodeFunctionData,
-  http,
-  parseAbi,
-  Hex,
-  Address,
-  Chain,
-  keccak256,
-  concat,
-  toHex,
-  pad,
-  slice,
-  encodeAbiParameters,
-} from 'viem';
+import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi, Hex, Address, Chain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { mainnet, arbitrum, optimism, polygon, base, bsc, gnosis, sepolia } from 'viem/chains';
 import { GetConfig } from 'src/config/config';
@@ -29,21 +14,17 @@ const ERC20_ABI = parseAbi([
   'function balanceOf(address account) view returns (uint256)',
 ]);
 
-// SimpleAccount Factory ABI for ERC-4337
-const SIMPLE_ACCOUNT_FACTORY_ABI = parseAbi([
-  'function createAccount(address owner, uint256 salt) returns (address)',
-  'function getAddress(address owner, uint256 salt) view returns (address)',
+// SimpleDelegation Contract ABI - minimal ERC-7821 BatchExecutor
+// This contract allows executing arbitrary calls when delegated via EIP-7702
+const SIMPLE_DELEGATION_ABI = parseAbi([
+  'function execute((address to, uint256 value, bytes data)[] calls) external payable',
 ]);
 
-// EntryPoint v0.7 ABI
-const ENTRY_POINT_ABI = parseAbi([
-  'function handleOps((address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature)[] ops, address beneficiary)',
-  'function getNonce(address sender, uint192 key) view returns (uint256)',
-]);
-
-// Contract addresses
-const ENTRY_POINT_V07 = '0x0000000071727De22E5E9d8BAf0edAc6f37da032' as Address;
-const SIMPLE_ACCOUNT_FACTORY = '0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985' as Address;
+// SimpleDelegation Contract - minimal EIP-7702 batch executor without access control
+// Deployed on Sepolia: 0x824ee1dffe5220dc4dc7c3b82a31c1e86bafd37a
+// TODO: Deploy on mainnet and other chains with same bytecode using CREATE2
+// Source: /tmp/SimpleDelegation.sol - executes calls in the context of the delegating EOA
+const SIMPLE_DELEGATION_ADDRESS = '0x824ee1dffe5220dc4dc7c3b82a31c1e86bafd37a' as Address;
 
 // Chain configuration
 const CHAIN_CONFIG: Partial<
@@ -113,6 +94,12 @@ export class PimlicoBundlerService {
 
   /**
    * Prepare EIP-7702 authorization data for frontend signing
+   *
+   * EIP-7702 Flow:
+   * 1. User signs authorization to delegate SimpleDelegation contract to their EOA
+   * 2. Relayer sends TX to USER's EOA (not token contract!)
+   * 3. The delegated contract's execute() function runs in EOA's context
+   * 4. Token transfer happens FROM the user's EOA
    */
   async prepareAuthorizationData(
     userAddress: string,
@@ -140,8 +127,8 @@ export class PimlicoBundlerService {
 
     const nonce = Number(await publicClient.getTransactionCount({ address: userAddress as Address }));
 
-    // For EIP-7702, we delegate to a SimpleAccount implementation
-    // The user signs an authorization that allows their EOA to execute as a smart account
+    // EIP-7702 Authorization: delegate SimpleDelegation contract to user's EOA
+    // When TX is sent to the EOA, it executes the delegated contract's code
     const typedData = {
       domain: {
         chainId: chainConfig.chain.id,
@@ -156,13 +143,13 @@ export class PimlicoBundlerService {
       primaryType: 'Authorization',
       message: {
         chainId: chainConfig.chain.id,
-        address: SIMPLE_ACCOUNT_FACTORY,
+        address: SIMPLE_DELEGATION_ADDRESS,
         nonce: nonce,
       },
     };
 
     return {
-      contractAddress: SIMPLE_ACCOUNT_FACTORY,
+      contractAddress: SIMPLE_DELEGATION_ADDRESS,
       chainId: chainConfig.chain.id,
       nonce,
       typedData,
@@ -216,6 +203,12 @@ export class PimlicoBundlerService {
 
   /**
    * Execute transfer via DFX relayer with EIP-7702 authorization
+   *
+   * CRITICAL: EIP-7702 Transaction Structure
+   * - `to` field MUST be the USER's EOA address (not the token contract!)
+   * - `data` field calls the delegated contract's execute() function
+   * - The execute() function runs in the EOA's context via delegation
+   * - Token transfer happens FROM the user because msg.sender = EOA
    */
   private async executeViaRelayer(
     userAddress: string,
@@ -225,7 +218,7 @@ export class PimlicoBundlerService {
     authorization: Eip7702Authorization,
     chainConfig: { chain: Chain; rpcUrl: string },
   ): Promise<string> {
-    // Get relayer account
+    // Get relayer account (pays gas fees)
     const relayerPrivateKey = this.getRelayerPrivateKey(token.blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
 
@@ -241,12 +234,29 @@ export class PimlicoBundlerService {
       transport: http(chainConfig.rpcUrl),
     });
 
-    // Encode ERC20 transfer
+    // Encode ERC20 transfer call
     const amountWei = BigInt(EvmUtil.toWeiAmount(amount, token.decimals).toString());
     const transferData = encodeFunctionData({
       abi: ERC20_ABI,
       functionName: 'transfer',
       args: [recipient as Address, amountWei],
+    });
+
+    // Build the call for SimpleDelegation.execute()
+    // This is an array of (to, value, data) tuples
+    const calls = [
+      {
+        to: token.chainId as Address, // Token contract address
+        value: 0n,
+        data: transferData,
+      },
+    ];
+
+    // Encode the execute() call that will run on the user's EOA
+    const executeData = encodeFunctionData({
+      abi: SIMPLE_DELEGATION_ABI,
+      functionName: 'execute',
+      args: [calls],
     });
 
     // Convert authorization to viem format
@@ -269,14 +279,17 @@ export class PimlicoBundlerService {
     // Use fixed gas limit for EIP-7702 transactions
     const gasLimit = 200000n;
 
-    // Get nonce
+    // Get relayer's nonce
     const nonce = await publicClient.getTransactionCount({ address: relayerAccount.address });
 
-    // Build and sign EIP-7702 transaction
+    // Build EIP-7702 transaction
+    // CRITICAL: 'to' is the USER's EOA, not the token contract!
+    // The authorizationList delegates SimpleDelegation to the EOA
+    // The 'data' (execute call) runs in the EOA's context
     const transaction = {
       from: relayerAccount.address as Address,
-      to: token.chainId as Address,
-      data: transferData,
+      to: userAddress as Address, // ✅ CORRECT: Target is USER's EOA
+      data: executeData, // ✅ CORRECT: execute([{to: token, data: transfer(...)}])
       value: 0n,
       nonce,
       chainId: chainConfig.chain.id,
@@ -286,6 +299,11 @@ export class PimlicoBundlerService {
       authorizationList: [viemAuthorization],
       type: 'eip7702' as const,
     };
+
+    this.logger.verbose(
+      `EIP-7702 TX: from=${relayerAccount.address} to=${userAddress} (EOA) | ` +
+        `Token transfer: ${amount} ${token.name} to ${recipient}`,
+    );
 
     // Sign and broadcast
     const signedTx = await walletClient.signTransaction(transaction as any);
