@@ -50,7 +50,6 @@ export enum PayInStatus {
 export enum PayInType {
   PERMIT_TRANSFER = 'PermitTransfer',
   SIGNED_TRANSFER = 'SignedTransfer',
-  DELEGATION_TRANSFER = 'DelegationTransfer',
   SPONSORED_TRANSFER = 'SponsoredTransfer', // EIP-5792 wallet_sendCalls with paymaster
   DEPOSIT = 'Deposit',
   PAYMENT = 'Payment',

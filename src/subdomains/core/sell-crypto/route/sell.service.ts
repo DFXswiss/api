@@ -42,7 +42,6 @@ import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
-import { GaslessTransferDto } from './dto/gasless-transfer.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { UnsignedTxDto } from './dto/unsigned-tx.dto';
@@ -271,7 +270,25 @@ export class SellService {
     let payIn: CryptoInput;
 
     try {
-      if (dto.permit) {
+      if (dto.authorization) {
+        type = 'gasless transfer';
+        const asset = await this.assetService.getAssetById(request.sourceId);
+        if (!asset) throw new BadRequestException('Asset not found');
+
+        if (!this.pimlicoBundlerService.isGaslessSupported(asset.blockchain)) {
+          throw new BadRequestException(`Gasless transactions not supported for ${asset.blockchain}`);
+        }
+
+        const result = await this.pimlicoBundlerService.executeGaslessTransfer(
+          request.user.address,
+          asset,
+          route.deposit.address,
+          request.amount,
+          dto.authorization,
+        );
+
+        payIn = await this.transactionUtilService.handleTxHashInput(route, request, result.txHash);
+      } else if (dto.permit) {
         type = 'permit';
         payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
       } else if (dto.signedTxHex) {
@@ -281,7 +298,7 @@ export class SellService {
         type = 'EIP-5792 sponsored transfer';
         payIn = await this.transactionUtilService.handleTxHashInput(route, request, dto.txHash);
       } else {
-        throw new BadRequestException('Either permit, signedTxHex, or txHash must be provided');
+        throw new BadRequestException('Either permit, signedTxHex, txHash, or authorization must be provided');
       }
 
       const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
@@ -441,41 +458,5 @@ export class SellService {
     }
 
     return sellDto;
-  }
-
-  // --- GASLESS TRANSACTIONS --- //
-  async executeGaslessTransfer(request: TransactionRequest, dto: GaslessTransferDto): Promise<BuyFiatExtended> {
-    const route = await this.sellRepo.findOne({
-      where: { id: request.routeId },
-      relations: { deposit: true, user: { wallet: true, userData: true } },
-    });
-    if (!route) throw new NotFoundException('Sell route not found');
-
-    const asset = await this.assetService.getAssetById(request.sourceId);
-    if (!asset) throw new BadRequestException('Asset not found');
-
-    if (!this.pimlicoBundlerService.isGaslessSupported(asset.blockchain)) {
-      throw new BadRequestException(`Gasless transactions not supported for ${asset.blockchain}`);
-    }
-
-    try {
-      const result = await this.pimlicoBundlerService.executeGaslessTransfer(
-        request.user.address,
-        asset,
-        route.deposit.address,
-        request.amount,
-        dto.authorization,
-      );
-
-      // Create PayIn with the transaction hash
-      const payIn = await this.transactionUtilService.handleTxHashInput(route, request, result.txHash);
-      const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
-      await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);
-
-      return await this.buyFiatService.extendBuyFiat(buyFiat);
-    } catch (e) {
-      this.logger.warn(`Failed to execute gasless transfer for sell request ${request.id}:`, e);
-      throw new BadRequestException(`Failed to execute gasless transfer: ${e.message}`);
-    }
   }
 }

@@ -74,7 +74,7 @@ export class AppInsightsQueryService {
       this.accessToken = access_token;
       this.tokenExpiresAt = Date.now() + expires_in * 1000;
     } catch (e) {
-      this.logger.error('Failed to refresh App Insights access token', e);
+      this.logger.error('Failed to refresh App Insights access token:', e);
       throw new Error('Failed to authenticate with App Insights');
     }
   }

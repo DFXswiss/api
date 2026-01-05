@@ -5,7 +5,8 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { EvmUtil } from '../evm.util';
-import { ERC20_ABI, EVM_CHAIN_CONFIG, getEvmChainConfig, isEvmBlockchainSupported } from '../evm-chain.config';
+import ERC20_ABI from '../abi/erc20.abi.json';
+import { EVM_CHAIN_CONFIG, getEvmChainConfig, isEvmBlockchainSupported } from '../evm-chain.config';
 
 // MetaMask EIP7702StatelessDeleGator - deployed on ALL major EVM chains
 // This contract implements ERC-7821 execute() with onlyEntryPointOrSelf modifier

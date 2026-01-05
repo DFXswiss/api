@@ -1,14 +1,7 @@
-import { Chain, parseAbi } from 'viem';
+import { Chain } from 'viem';
 import { mainnet, arbitrum, optimism, polygon, base, bsc, gnosis, sepolia } from 'viem/chains';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-
-// ERC20 ABI - common across all EVM services
-export const ERC20_ABI = parseAbi([
-  'function transfer(address to, uint256 amount) returns (bool)',
-  'function balanceOf(address account) view returns (uint256)',
-  'function approve(address spender, uint256 amount) returns (bool)',
-]);
 
 // Chain configuration mapping
 export interface EvmChainConfig {
