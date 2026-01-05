@@ -19,9 +19,7 @@ const ENTRY_POINT_V07 = '0x0000000071727De22E5E9d8BAf0edAc6f37da032' as Address;
 const EIP7702_FACTORY = '0x0000000000000000000000000000000000007702' as Address;
 
 // MetaMask Delegator ABI - ERC-7821 BatchExecutor interface
-const DELEGATOR_ABI = parseAbi([
-  'function execute((bytes32 mode, bytes executionData) execution) external payable',
-]);
+const DELEGATOR_ABI = parseAbi(['function execute((bytes32 mode, bytes executionData) execution) external payable']);
 
 // ERC-7821 execution mode for batch calls
 // BATCH_CALL mode: 0x0100... (first byte = 0x01 for batch)
@@ -284,30 +282,6 @@ export class PimlicoBundlerService {
   private encodeCalls(calls: Array<{ target: Address; value: bigint; data: Hex }>): Hex {
     // Manual ABI encoding for Call[] since viem doesn't have a direct method
     // Format: abi.encode((address,uint256,bytes)[])
-    const abiCoder = {
-      encode: (types: string[], values: unknown[]) => {
-        // Simple encoding for our specific case
-        const encoded = calls
-          .map((call) => {
-            const targetPadded = pad(call.target as Hex, { size: 32 });
-            const valuePadded = pad(toHex(call.value), { size: 32 });
-            // For bytes, we need offset, length, and data
-            const dataLength = pad(toHex(BigInt((call.data.length - 2) / 2)), { size: 32 });
-            const dataPadded = call.data as Hex;
-            return { targetPadded, valuePadded, dataLength, dataPadded };
-          })
-          .reduce(
-            (acc, curr) => {
-              return concat([acc, curr.targetPadded, curr.valuePadded, curr.dataLength, curr.dataPadded]);
-            },
-            '0x' as Hex,
-          );
-        return encoded;
-      },
-    };
-
-    // For simplicity, use the standard encoding pattern
-    // This is a simplified version - in production use a proper ABI encoder
     const call = calls[0];
     const encoded = concat([
       pad(toHex(32n), { size: 32 }), // offset to array
@@ -333,7 +307,11 @@ export class PimlicoBundlerService {
     // factoryData format for EIP-7702:
     // abi.encodePacked(address delegatee, uint256 nonce, bytes signature)
     // where signature = abi.encodePacked(r, s, yParity)
-    const signature = concat([authorization.r as Hex, authorization.s as Hex, toHex(authorization.yParity, { size: 1 })]);
+    const signature = concat([
+      authorization.r as Hex,
+      authorization.s as Hex,
+      toHex(authorization.yParity, { size: 1 }),
+    ]);
 
     return concat([
       authorization.address as Hex, // delegatee (MetaMask Delegator)
@@ -406,7 +384,7 @@ export class PimlicoBundlerService {
    * Submit UserOperation to Pimlico Bundler
    */
   private async sendUserOperation(userOp: UserOperationV07, pimlicoUrl: string): Promise<string> {
-    return await this.jsonRpc(pimlicoUrl, 'eth_sendUserOperation', [userOp, ENTRY_POINT_V07]);
+    return this.jsonRpc(pimlicoUrl, 'eth_sendUserOperation', [userOp, ENTRY_POINT_V07]);
   }
 
   /**
