@@ -551,12 +551,12 @@ export class BuyCryptoService {
           iban: chargebackIban,
           amount: chargebackAmount,
           currency: buyCrypto.bankTx?.currency,
-          name: dto.name ?? buyCrypto.bankTx?.name,
-          address: dto.address ?? buyCrypto.bankTx?.addressLine1,
+          name: dto.name,
+          address: dto.address,
           houseNumber: dto.houseNumber,
           zip: dto.zip,
-          city: dto.city ?? buyCrypto.bankTx?.addressLine2,
-          country: dto.country ?? buyCrypto.bankTx?.country,
+          city: dto.city,
+          country: dto.country,
         },
       );
 

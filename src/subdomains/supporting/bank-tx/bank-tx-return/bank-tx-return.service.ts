@@ -168,12 +168,12 @@ export class BankTxReturnService {
           iban: chargebackIban,
           amount: chargebackAmount,
           currency: bankTxReturn.bankTx?.currency,
-          name: dto.name ?? bankTxReturn.bankTx?.name,
-          address: dto.address ?? bankTxReturn.bankTx?.addressLine1,
+          name: dto.name,
+          address: dto.address,
           houseNumber: dto.houseNumber,
           zip: dto.zip,
-          city: dto.city ?? bankTxReturn.bankTx?.addressLine2,
-          country: dto.country ?? bankTxReturn.bankTx?.country,
+          city: dto.city,
+          country: dto.country,
         },
       );
     }
