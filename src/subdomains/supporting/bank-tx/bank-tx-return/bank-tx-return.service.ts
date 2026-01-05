@@ -163,6 +163,18 @@ export class BankTxReturnService {
         FiatOutputType.BANK_TX_RETURN,
         { bankTxReturn },
         bankTxReturn.id,
+        false,
+        {
+          iban: chargebackIban,
+          amount: chargebackAmount,
+          currency: bankTxReturn.bankTx?.currency,
+          name: dto.name,
+          address: dto.address,
+          houseNumber: dto.houseNumber,
+          zip: dto.zip,
+          city: dto.city,
+          country: dto.country,
+        },
       );
     }
 

@@ -3,6 +3,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
@@ -26,9 +27,12 @@ export class FiatOutputService {
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly bankService: BankService,
+    private readonly sellRepo: SellRepository,
   ) {}
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
+    this.validateRequiredCreditorFields(dto);
+
     if (dto.buyCryptoId || dto.buyFiatId || dto.bankTxReturnId || dto.bankTxRepeatId) {
       const existing = await this.fiatOutputRepo.exists({
         where: dto.buyCryptoId
@@ -82,11 +86,65 @@ export class FiatOutputService {
     { buyCrypto, buyFiats, bankTxReturn }: { buyCrypto?: BuyCrypto; buyFiats?: BuyFiat[]; bankTxReturn?: BankTxReturn },
     originEntityId: number,
     createReport = false,
+    inputCreditorData?: Partial<FiatOutput>,
   ): Promise<FiatOutput> {
-    const entity = this.fiatOutputRepo.create({ type, buyCrypto, buyFiats, bankTxReturn, originEntityId });
+    let creditorData: Partial<FiatOutput> = inputCreditorData ?? {};
+
+    // For BuyFiat without inputCreditorData: auto-populate from seller's UserData
+    if (type === FiatOutputType.BUY_FIAT && buyFiats?.length > 0 && !inputCreditorData) {
+      const userData = buyFiats[0].sell?.user?.userData;
+      if (userData) {
+        // Determine IBAN: from payoutRoute (PaymentLink) or sell route
+        let iban = buyFiats[0].sell?.iban;
+
+        const payoutRouteId = buyFiats[0].cryptoInput?.paymentLinkPayment?.link?.linkConfigObj?.payoutRouteId;
+        if (payoutRouteId) {
+          const payoutRoute = await this.sellRepo.findOneBy({ id: payoutRouteId });
+          if (payoutRoute) {
+            iban = payoutRoute.iban;
+          }
+        }
+
+        creditorData = {
+          currency: buyFiats[0].outputAsset?.name,
+          amount: buyFiats.reduce((sum, bf) => sum + (bf.outputAmount ?? 0), 0),
+          name: userData.completeName,
+          address: userData.address.street,
+          houseNumber: userData.address.houseNumber,
+          zip: userData.address.zip,
+          city: userData.address.city,
+          country: userData.address.country?.symbol,
+          iban,
+        };
+      }
+    }
+
+    const entity = this.fiatOutputRepo.create({
+      type,
+      buyCrypto,
+      buyFiats,
+      bankTxReturn,
+      originEntityId,
+      ...creditorData,
+    });
+
+    // TODO: BANK_TX_RETURN should also require creditor fields - admin must provide them via DTO
+    if (type !== FiatOutputType.BANK_TX_RETURN) {
+      this.validateRequiredCreditorFields(entity);
+    }
+
     if (createReport) entity.reportCreated = false;
 
     return this.fiatOutputRepo.save(entity);
+  }
+
+  private validateRequiredCreditorFields(data: Partial<FiatOutput>): void {
+    const requiredFields = ['currency', 'amount', 'name', 'address', 'zip', 'city', 'country', 'iban'] as const;
+    const missingFields = requiredFields.filter((field) => data[field] == null || data[field] === '');
+
+    if (missingFields.length > 0) {
+      throw new BadRequestException(`Missing required creditor fields: ${missingFields.join(', ')}`);
+    }
   }
 
   async update(id: number, dto: UpdateFiatOutputDto): Promise<FiatOutput> {

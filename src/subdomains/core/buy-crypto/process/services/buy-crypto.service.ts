@@ -280,6 +280,18 @@ export class BuyCryptoService {
           FiatOutputType.BUY_CRYPTO_FAIL,
           { buyCrypto: entity },
           entity.id,
+          false,
+          {
+            iban: dto.chargebackIban ?? entity.chargebackIban,
+            amount: entity.chargebackAmount ?? entity.bankTx.amount,
+            currency: entity.bankTx.currency,
+            name: dto.chargebackCreditorName,
+            address: dto.chargebackCreditorAddress,
+            houseNumber: dto.chargebackCreditorHouseNumber,
+            zip: dto.chargebackCreditorZip,
+            city: dto.chargebackCreditorCity,
+            country: dto.chargebackCreditorCountry,
+          },
         );
 
       if (entity.checkoutTx) {
@@ -534,6 +546,18 @@ export class BuyCryptoService {
         FiatOutputType.BUY_CRYPTO_FAIL,
         { buyCrypto },
         buyCrypto.id,
+        false,
+        {
+          iban: chargebackIban,
+          amount: chargebackAmount,
+          currency: buyCrypto.bankTx?.currency,
+          name: dto.name,
+          address: dto.address,
+          houseNumber: dto.houseNumber,
+          zip: dto.zip,
+          city: dto.city,
+          country: dto.country,
+        },
       );
 
     await this.buyCryptoRepo.update(

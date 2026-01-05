@@ -377,9 +377,10 @@ export class BuyFiatPreparationService {
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: {
         fiatOutput: true,
-        sell: true,
+        sell: { user: { userData: { country: true } } },
         transaction: { userData: true },
         cryptoInput: { paymentLinkPayment: { link: true } },
+        outputAsset: true,
       },
       where: {
         amlCheck: CheckStatus.PASS,
