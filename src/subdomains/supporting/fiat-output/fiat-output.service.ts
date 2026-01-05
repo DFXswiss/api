@@ -92,12 +92,12 @@ export class FiatOutputService {
 
     // For BuyFiat without inputCreditorData: auto-populate from seller's UserData
     if (type === FiatOutputType.BUY_FIAT && buyFiats?.length > 0 && !inputCreditorData) {
-      const userData = buyFiats[0].sell?.user?.userData;
+      const userData = buyFiats[0].userData;
       if (userData) {
         // Determine IBAN: from payoutRoute (PaymentLink) or sell route
         let iban = buyFiats[0].sell?.iban;
 
-        const payoutRouteId = buyFiats[0].cryptoInput?.paymentLinkPayment?.link?.linkConfigObj?.payoutRouteId;
+        const payoutRouteId = buyFiats[0].paymentLinkPayment?.link?.linkConfigObj?.payoutRouteId;
         if (payoutRouteId) {
           const payoutRoute = await this.sellRepo.findOneBy({ id: payoutRouteId });
           if (payoutRoute) {
