@@ -62,6 +62,24 @@ export class BankTxReturn extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorName?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorAddress?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorHouseNumber?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorZip?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorCity?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorCountry?: string;
+
   // Mail
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
@@ -146,6 +164,14 @@ export class BankTxReturn extends IEntity {
     chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
+    creditorData?: {
+      name?: string;
+      address?: string;
+      houseNumber?: string;
+      zip?: string;
+      city?: string;
+      country?: string;
+    },
   ): UpdateResult<BankTxReturn> {
     const update: Partial<BankTxReturn> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -156,6 +182,12 @@ export class BankTxReturn extends IEntity {
       chargebackOutput,
       chargebackAllowedBy,
       chargebackRemittanceInfo,
+      chargebackCreditorName: creditorData?.name,
+      chargebackCreditorAddress: creditorData?.address,
+      chargebackCreditorHouseNumber: creditorData?.houseNumber,
+      chargebackCreditorZip: creditorData?.zip,
+      chargebackCreditorCity: creditorData?.city,
+      chargebackCreditorCountry: creditorData?.country,
     };
 
     Object.assign(this, update);

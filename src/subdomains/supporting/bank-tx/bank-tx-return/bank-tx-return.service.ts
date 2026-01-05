@@ -187,6 +187,14 @@ export class BankTxReturnService {
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
         bankTxReturn.chargebackBankRemittanceInfo,
+        {
+          name: dto.name,
+          address: dto.address,
+          houseNumber: dto.houseNumber,
+          zip: dto.zip,
+          city: dto.city,
+          country: dto.country,
+        },
       ),
     );
   }

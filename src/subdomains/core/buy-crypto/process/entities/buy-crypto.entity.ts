@@ -217,6 +217,24 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorName?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorAddress?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorHouseNumber?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorZip?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorCity?: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCreditorCountry?: string;
+
   @OneToOne(() => FiatOutput, { nullable: true })
   @JoinColumn()
   chargebackOutput?: FiatOutput;
@@ -521,6 +539,14 @@ export class BuyCrypto extends IEntity {
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
     blockchainFee?: number,
+    creditorData?: {
+      name?: string;
+      address?: string;
+      houseNumber?: string;
+      zip?: string;
+      city?: string;
+      country?: string;
+    },
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -536,6 +562,12 @@ export class BuyCrypto extends IEntity {
       blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
       status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
+      chargebackCreditorName: creditorData?.name,
+      chargebackCreditorAddress: creditorData?.address,
+      chargebackCreditorHouseNumber: creditorData?.houseNumber,
+      chargebackCreditorZip: creditorData?.zip,
+      chargebackCreditorCity: creditorData?.city,
+      chargebackCreditorCountry: creditorData?.country,
     };
 
     Object.assign(this, update);
