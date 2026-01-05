@@ -17,8 +17,6 @@ export class VirtualIbanService {
     private readonly yapealService: YapealService,
   ) {}
 
-  
-
   async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOneCachedBy(`${userData.id}-${currencyName}`, {
       userData: { id: userData.id },
