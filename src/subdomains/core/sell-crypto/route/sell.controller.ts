@@ -35,6 +35,7 @@ import { TransactionDtoMapper } from '../../history/mappers/transaction-dto.mapp
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
 import { CreateSellDto } from './dto/create-sell.dto';
+import { GaslessTransferDto } from './dto/gasless-transfer.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
 import { SellHistoryDto } from './dto/sell-history.dto';
@@ -195,6 +196,30 @@ export class SellController {
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
     return this.sellService.confirmSell(request, dto).then((tx) => TransactionDtoMapper.mapBuyFiatTransaction(tx));
+  }
+
+  @Post('/paymentInfos/:id/gasless')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
+  @ApiOperation({
+    summary: 'Execute gasless sell transaction',
+    description:
+      'Executes a gasless sell transaction using EIP-7702 + ERC-4337. ' +
+      'User signs EIP-7702 authorization, backend sponsors gas via Pimlico paymaster.',
+  })
+  @ApiOkResponse({ type: TransactionDto })
+  async executeGaslessTransfer(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: GaslessTransferDto,
+  ): Promise<TransactionDto> {
+    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+
+    return this.sellService
+      .executeGaslessTransfer(request, dto)
+      .then((tx) => TransactionDtoMapper.mapBuyFiatTransaction(tx));
   }
 
   @Put(':id')

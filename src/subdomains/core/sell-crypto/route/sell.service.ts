@@ -9,6 +9,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { merge } from 'lodash';
 import { Config } from 'src/config/config';
+import { PimlicoBundlerService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-bundler.service';
 import { PimlicoPaymasterService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-paymaster.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -41,6 +42,7 @@ import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
+import { GaslessTransferDto } from './dto/gasless-transfer.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { UnsignedTxDto } from './dto/unsigned-tx.dto';
@@ -71,6 +73,7 @@ export class SellService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly pimlicoPaymasterService: PimlicoPaymasterService,
+    private readonly pimlicoBundlerService: PimlicoBundlerService,
   ) {}
 
   // --- SELLS --- //
@@ -416,6 +419,63 @@ export class SellService {
       }
     }
 
+    // Check if user needs gasless transaction (0 native balance)
+    if (isValid && this.pimlicoBundlerService.isGaslessSupported(dto.asset.blockchain)) {
+      try {
+        const hasZeroBalance = await this.pimlicoBundlerService.hasZeroNativeBalance(user.address, dto.asset.blockchain);
+        sellDto.gaslessAvailable = hasZeroBalance;
+
+        if (hasZeroBalance) {
+          sellDto.eip7702Authorization = await this.pimlicoBundlerService.prepareAuthorizationData(
+            user.address,
+            dto.asset.blockchain,
+          );
+        }
+      } catch (e) {
+        this.logger.warn(`Could not prepare gasless data for sell request ${sell.id}:`, e);
+        sellDto.gaslessAvailable = false;
+      }
+    }
+
     return sellDto;
+  }
+
+  // --- GASLESS TRANSACTIONS --- //
+  async executeGaslessTransfer(
+    request: TransactionRequest,
+    dto: GaslessTransferDto,
+  ): Promise<BuyFiatExtended> {
+    const route = await this.sellRepo.findOne({
+      where: { id: request.routeId },
+      relations: { deposit: true, user: { wallet: true, userData: true } },
+    });
+    if (!route) throw new NotFoundException('Sell route not found');
+
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    if (!this.pimlicoBundlerService.isGaslessSupported(asset.blockchain)) {
+      throw new BadRequestException(`Gasless transactions not supported for ${asset.blockchain}`);
+    }
+
+    try {
+      const result = await this.pimlicoBundlerService.executeGaslessTransfer(
+        request.user.address,
+        asset,
+        route.deposit.address,
+        request.amount,
+        dto.authorization,
+      );
+
+      // Create PayIn with the transaction hash
+      const payIn = await this.transactionUtilService.handleTxHashInput(route, request, result.txHash);
+      const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
+      await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);
+
+      return await this.buyFiatService.extendBuyFiat(buyFiat);
+    } catch (e) {
+      this.logger.warn(`Failed to execute gasless transfer for sell request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to execute gasless transfer: ${e.message}`);
+    }
   }
 }
