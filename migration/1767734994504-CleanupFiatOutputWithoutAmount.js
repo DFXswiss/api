@@ -15,7 +15,8 @@ module.exports = class CleanupFiatOutputWithoutAmount1767734994504 {
    */
   async up(queryRunner) {
     // Reset chargebackAllowedDate and chargebackOutputId in buy_crypto
-    // so the chargebackTx job can recreate fiat_output with correct amount
+    // Customers must manually restart the refund process with address data
+    // (automatic job will fail due to missing creditor fields)
     await queryRunner.query(`
             UPDATE buy_crypto
             SET chargebackOutputId = NULL, chargebackAllowedDate = NULL
@@ -25,7 +26,7 @@ module.exports = class CleanupFiatOutputWithoutAmount1767734994504 {
         `);
 
     // Reset chargebackAllowedDate and chargebackOutputId in bank_tx_return
-    // so the chargeback job can recreate fiat_output with correct amount
+    // Customers must manually restart the refund process with address data
     await queryRunner.query(`
             UPDATE bank_tx_return
             SET chargebackOutputId = NULL, chargebackAllowedDate = NULL
@@ -35,7 +36,7 @@ module.exports = class CleanupFiatOutputWithoutAmount1767734994504 {
         `);
 
     // Reset chargebackAllowedDate and chargebackOutputId in bank_tx_repeat
-    // so the chargeback job can recreate fiat_output with correct amount
+    // (included for completeness, currently 0 affected entries)
     await queryRunner.query(`
             UPDATE bank_tx_repeat
             SET chargebackOutputId = NULL, chargebackAllowedDate = NULL
