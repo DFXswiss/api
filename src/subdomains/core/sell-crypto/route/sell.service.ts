@@ -310,7 +310,12 @@ export class SellService {
     }
   }
 
-  async createDepositTx(request: TransactionRequest, route: Sell, userAddress?: string): Promise<UnsignedTxDto> {
+  async createDepositTx(
+    request: TransactionRequest,
+    route: Sell,
+    userAddress?: string,
+    includeEip5792 = false,
+  ): Promise<UnsignedTxDto> {
     const asset = await this.assetService.getAssetById(request.sourceId);
     if (!asset) throw new BadRequestException('Asset not found');
 
@@ -330,8 +335,8 @@ export class SellService {
     try {
       const unsignedTx = await client.prepareTransaction(asset, fromAddress, depositAddress, request.amount);
 
-      // Add EIP-5792 paymaster data if available (enables gasless transactions)
-      if (paymasterUrl) {
+      // Add EIP-5792 paymaster data only if user has 0 native balance (needs gasless)
+      if (includeEip5792 && paymasterUrl) {
         unsignedTx.eip5792 = {
           paymasterUrl,
           chainId: client.chainId,
@@ -341,7 +346,6 @@ export class SellService {
 
       return unsignedTx;
     } catch (e) {
-      // For errors, log and throw
       this.logger.warn(`Failed to create deposit TX for sell request ${request.id}:`, e);
       throw new BadRequestException(`Failed to create deposit transaction: ${e.reason ?? e.message}`);
     }
@@ -427,22 +431,11 @@ export class SellService {
     // Assign complete user object to ensure user.address is available for createDepositTx
     transactionRequest.user = user;
 
-    if (includeTx && isValid) {
-      try {
-        sellDto.depositTx = await this.createDepositTx(transactionRequest, sell, user.address);
-      } catch (e) {
-        this.logger.warn(`Could not create deposit transaction for sell request ${sell.id}, continuing without it:`, e);
-        sellDto.depositTx = undefined;
-      }
-    }
-
-    // Check if user needs gasless transaction (0 native balance)
+    // Check if user needs gasless transaction (0 native balance) - must be done BEFORE createDepositTx
+    let hasZeroBalance = false;
     if (isValid && this.pimlicoBundlerService.isGaslessSupported(dto.asset.blockchain)) {
       try {
-        const hasZeroBalance = await this.pimlicoBundlerService.hasZeroNativeBalance(
-          user.address,
-          dto.asset.blockchain,
-        );
+        hasZeroBalance = await this.pimlicoBundlerService.hasZeroNativeBalance(user.address, dto.asset.blockchain);
         sellDto.gaslessAvailable = hasZeroBalance;
 
         if (hasZeroBalance) {
@@ -454,6 +447,16 @@ export class SellService {
       } catch (e) {
         this.logger.warn(`Could not prepare gasless data for sell request ${sell.id}:`, e);
         sellDto.gaslessAvailable = false;
+      }
+    }
+
+    // Create deposit transaction - only include EIP-5792 data if user has 0 native balance
+    if (includeTx && isValid) {
+      try {
+        sellDto.depositTx = await this.createDepositTx(transactionRequest, sell, user.address, hasZeroBalance);
+      } catch (e) {
+        this.logger.warn(`Could not create deposit transaction for sell request ${sell.id}, continuing without it:`, e);
+        sellDto.depositTx = undefined;
       }
     }
 

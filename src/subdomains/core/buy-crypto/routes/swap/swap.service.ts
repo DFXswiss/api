@@ -278,7 +278,7 @@ export class SwapService {
     return this.swapRepo;
   }
 
-  async createDepositTx(request: TransactionRequest, route: Swap): Promise<any> {
+  async createDepositTx(request: TransactionRequest, route: Swap, includeEip5792 = false): Promise<any> {
     const asset = await this.assetService.getAssetById(request.sourceId);
     if (!asset) throw new BadRequestException('Asset not found');
 
@@ -293,18 +293,20 @@ export class SwapService {
     try {
       const unsignedTx = await client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
 
-      // Add EIP-5792 wallet_sendCalls data with paymaster for gasless transactions
-      const paymasterAvailable = this.pimlicoPaymasterService.isPaymasterAvailable(asset.blockchain);
-      const paymasterUrl = paymasterAvailable
-        ? this.pimlicoPaymasterService.getBundlerUrl(asset.blockchain)
-        : undefined;
+      // Add EIP-5792 wallet_sendCalls data with paymaster only if user has 0 native balance
+      if (includeEip5792) {
+        const paymasterAvailable = this.pimlicoPaymasterService.isPaymasterAvailable(asset.blockchain);
+        const paymasterUrl = paymasterAvailable
+          ? this.pimlicoPaymasterService.getBundlerUrl(asset.blockchain)
+          : undefined;
 
-      if (paymasterUrl) {
-        unsignedTx.eip5792 = {
-          paymasterUrl,
-          chainId: client.chainId,
-          calls: [{ to: unsignedTx.to, data: unsignedTx.data, value: unsignedTx.value }],
-        };
+        if (paymasterUrl) {
+          unsignedTx.eip5792 = {
+            paymasterUrl,
+            chainId: client.chainId,
+            calls: [{ to: unsignedTx.to, data: unsignedTx.data, value: unsignedTx.value }],
+          };
+        }
       }
 
       return unsignedTx;
