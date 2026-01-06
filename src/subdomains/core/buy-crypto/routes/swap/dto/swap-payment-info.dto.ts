@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
+import { Eip7702AuthorizationDataDto } from 'src/subdomains/core/sell-crypto/route/dto/gasless-transfer.dto';
 import { UnsignedTxDto } from 'src/subdomains/core/sell-crypto/route/dto/unsigned-tx.dto';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
@@ -91,4 +92,15 @@ export class SwapPaymentInfoDto {
 
   @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
   error?: QuoteError;
+
+  @ApiPropertyOptional({
+    type: Eip7702AuthorizationDataDto,
+    description: 'EIP-7702 authorization data for gasless transactions (user has 0 native balance)',
+  })
+  eip7702Authorization?: Eip7702AuthorizationDataDto;
+
+  @ApiPropertyOptional({
+    description: 'Whether gasless transaction is available for this request',
+  })
+  gaslessAvailable?: boolean;
 }

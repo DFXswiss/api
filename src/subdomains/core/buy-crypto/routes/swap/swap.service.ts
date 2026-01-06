@@ -9,6 +9,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PimlicoBundlerService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-bundler.service';
 import { PimlicoPaymasterService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-paymaster.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -69,6 +70,7 @@ export class SwapService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly pimlicoPaymasterService: PimlicoPaymasterService,
+    private readonly pimlicoBundlerService: PimlicoBundlerService,
   ) {}
 
   async getSwapByAddress(depositAddress: string): Promise<Swap> {
@@ -250,7 +252,25 @@ export class SwapService {
     let payIn;
 
     try {
-      if (dto.permit) {
+      if (dto.authorization) {
+        type = 'gasless transfer';
+        const asset = await this.assetService.getAssetById(request.sourceId);
+        if (!asset) throw new BadRequestException('Asset not found');
+
+        if (!this.pimlicoBundlerService.isGaslessSupported(asset.blockchain)) {
+          throw new BadRequestException(`Gasless transactions not supported for ${asset.blockchain}`);
+        }
+
+        const result = await this.pimlicoBundlerService.executeGaslessTransfer(
+          request.user.address,
+          asset,
+          route.deposit.address,
+          request.amount,
+          dto.authorization,
+        );
+
+        payIn = await this.transactionUtilService.handleTxHashInput(route, request, result.txHash);
+      } else if (dto.permit) {
         type = 'permit';
         payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
       } else if (dto.signedTxHex) {
@@ -260,7 +280,7 @@ export class SwapService {
         type = 'EIP-5792 sponsored transfer';
         payIn = await this.transactionUtilService.handleTxHashInput(route, request, dto.txHash);
       } else {
-        throw new BadRequestException('Either permit, signedTxHex, or txHash must be provided');
+        throw new BadRequestException('Either permit, signedTxHex, txHash, or authorization must be provided');
       }
 
       const buyCrypto = await this.buyCryptoService.createFromCryptoInput(payIn, route, request);
@@ -392,8 +412,36 @@ export class SwapService {
     // Assign complete user object to ensure user.address is available for createDepositTx
     transactionRequest.user = user;
 
+    // Check if user needs gasless transaction (0 native balance) - must be done BEFORE createDepositTx
+    let hasZeroBalance = false;
+    if (isValid && this.pimlicoBundlerService.isGaslessSupported(dto.sourceAsset.blockchain)) {
+      try {
+        hasZeroBalance = await this.pimlicoBundlerService.hasZeroNativeBalance(
+          user.address,
+          dto.sourceAsset.blockchain,
+        );
+        swapDto.gaslessAvailable = hasZeroBalance;
+
+        if (hasZeroBalance) {
+          swapDto.eip7702Authorization = await this.pimlicoBundlerService.prepareAuthorizationData(
+            user.address,
+            dto.sourceAsset.blockchain,
+          );
+        }
+      } catch (e) {
+        this.logger.warn(`Could not prepare gasless data for swap request ${swap.id}:`, e);
+        swapDto.gaslessAvailable = false;
+      }
+    }
+
+    // Create deposit transaction - only include EIP-5792 data if user has 0 native balance
     if (includeTx && isValid) {
-      swapDto.depositTx = await this.createDepositTx(transactionRequest, swap);
+      try {
+        swapDto.depositTx = await this.createDepositTx(transactionRequest, swap, hasZeroBalance);
+      } catch (e) {
+        this.logger.warn(`Could not create deposit transaction for swap request ${swap.id}, continuing without it:`, e);
+        swapDto.depositTx = undefined;
+      }
     }
 
     return swapDto;
