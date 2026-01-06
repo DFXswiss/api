@@ -117,26 +117,39 @@ jobs:
 
       - name: Post PR comment
         uses: actions/github-script@v7
+        env:
+          UNVERIFIED: ${{ steps.verify-commits.outputs.unverified }}
+          UNVERIFIED_LIST: ${{ steps.verify-commits.outputs.unverified_list }}
+          UNVERIFIED_COUNT: ${{ steps.verify-commits.outputs.unverified_count }}
+          ESLINT_WARNINGS: ${{ steps.eslint.outputs.warnings }}
+          ESLINT_ERRORS: ${{ steps.eslint.outputs.errors }}
+          TSC_ERRORS: ${{ steps.typescript.outputs.errors }}
+          AUDIT_HIGH: ${{ steps.audit.outputs.high }}
+          AUDIT_CRITICAL: ${{ steps.audit.outputs.critical }}
+          TODO_COUNT: ${{ steps.todos.outputs.count }}
+          INVALID_COMMITS: ${{ steps.commits-format.outputs.invalid }}
+          INVALID_LIST: ${{ steps.commits-format.outputs.invalid_list }}
+          INVALID_COUNT: ${{ steps.commits-format.outputs.invalid_count }}
         with:
           script: |
             const fs = require('fs');
 
-            const unverified = '${{ steps.verify-commits.outputs.unverified }}' === 'true';
-            const unverifiedList = `${{ steps.verify-commits.outputs.unverified_list }}`;
-            const unverifiedCount = '${{ steps.verify-commits.outputs.unverified_count }}';
+            const unverified = process.env.UNVERIFIED === 'true';
+            const unverifiedList = process.env.UNVERIFIED_LIST || '';
+            const unverifiedCount = process.env.UNVERIFIED_COUNT || '0';
 
-            const eslintWarnings = parseInt('${{ steps.eslint.outputs.warnings }}') || 0;
-            const eslintErrors = parseInt('${{ steps.eslint.outputs.errors }}') || 0;
-            const tscErrors = parseInt('${{ steps.typescript.outputs.errors }}') || 0;
+            const eslintWarnings = parseInt(process.env.ESLINT_WARNINGS) || 0;
+            const eslintErrors = parseInt(process.env.ESLINT_ERRORS) || 0;
+            const tscErrors = parseInt(process.env.TSC_ERRORS) || 0;
 
-            const auditHigh = parseInt('${{ steps.audit.outputs.high }}') || 0;
-            const auditCritical = parseInt('${{ steps.audit.outputs.critical }}') || 0;
+            const auditHigh = parseInt(process.env.AUDIT_HIGH) || 0;
+            const auditCritical = parseInt(process.env.AUDIT_CRITICAL) || 0;
 
-            const todoCount = parseInt('${{ steps.todos.outputs.count }}') || 0;
+            const todoCount = parseInt(process.env.TODO_COUNT) || 0;
 
-            const invalidCommits = '${{ steps.commits-format.outputs.invalid }}' === 'true';
-            const invalidList = `${{ steps.commits-format.outputs.invalid_list }}`;
-            const invalidCount = '${{ steps.commits-format.outputs.invalid_count }}';
+            const invalidCommits = process.env.INVALID_COMMITS === 'true';
+            const invalidList = process.env.INVALID_LIST || '';
+            const invalidCount = process.env.INVALID_COUNT || '0';
 
             let comments = [];
 
