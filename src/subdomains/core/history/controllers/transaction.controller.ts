@@ -44,6 +44,7 @@ import {
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TxStatementType } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-statement-details.dto';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -103,6 +104,7 @@ export class TransactionController {
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
     private readonly swissQrService: SwissQRService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   // --- JOBS --- //
@@ -244,11 +246,13 @@ export class TransactionController {
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
     const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
+    const virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(jwt.account);
 
     const txList = await this.bankTxService.getUnassignedBankTx(
       bankDatas.map((b) => b.iban),
-      [],
+      virtualIbans.map((vI) => vI.iban),
     );
+
     return Util.asyncMap(txList, async (tx) => {
       const currency = await this.fiatService.getFiatByName(tx.txCurrency);
       return TransactionDtoMapper.mapUnassignedTransaction(tx, currency);
