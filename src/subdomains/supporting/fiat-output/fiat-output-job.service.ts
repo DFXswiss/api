@@ -358,9 +358,19 @@ export class FiatOutputJobService {
           endToEndId,
           isTransmittedDate: new Date(),
           isApprovedDate: new Date(),
+          ...(entity.info?.startsWith('YAPEAL error') && { info: null }),
         });
       } catch (e) {
         this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
+
+        if (!entity.info) {
+          try {
+            const errorMsg = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || String(e);
+            await this.fiatOutputRepo.update(entity.id, { info: `YAPEAL error: ${errorMsg}`.substring(0, 256) });
+          } catch (updateError) {
+            this.logger.error(`Failed to persist YAPEAL error for fiat output ${entity.id}:`, updateError);
+          }
+        }
       }
     }
   }
