@@ -436,18 +436,16 @@ export class TransactionController {
         .then((b) => b.bankTxReturn);
     }
 
-    // Build refund data with optional bank fields
+    // Build refund data with optional bank fields (include all provided fields)
     const bankDto = dto as BankRefundDto;
-    const bankFields = bankDto.name
-      ? {
-          name: bankDto.name,
-          address: bankDto.address,
-          houseNumber: bankDto.houseNumber,
-          zip: bankDto.zip,
-          city: bankDto.city,
-          country: bankDto.country,
-        }
-      : {};
+    const bankFields = {
+      name: bankDto.name || undefined,
+      address: bankDto.address || undefined,
+      houseNumber: bankDto.houseNumber || undefined,
+      zip: bankDto.zip || undefined,
+      city: bankDto.city || undefined,
+      country: bankDto.country || undefined,
+    };
 
     if (transaction.targetEntity instanceof BankTxReturn) {
       return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
@@ -586,7 +584,7 @@ export class TransactionController {
   }
 
   private isRefundDataValid(refundData: RefundDataDto): boolean {
-    return Util.secondsDiff(refundData.expiryDate) <= 0;
+    return Util.secondsDiff(refundData.expiryDate) > 0;
   }
 
   public async getHistoryData<T extends ExportType>(

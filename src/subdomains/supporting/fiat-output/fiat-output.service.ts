@@ -138,7 +138,9 @@ export class FiatOutputService {
 
   private validateRequiredCreditorFields(data: Partial<FiatOutput>): void {
     const requiredFields = ['currency', 'amount', 'name', 'address', 'zip', 'city', 'country', 'iban'] as const;
-    const missingFields = requiredFields.filter((field) => data[field] == null || data[field] === '');
+    const missingFields = requiredFields.filter(
+      (field) => data[field] == null || (typeof data[field] === 'string' && data[field].trim() === ''),
+    );
 
     if (missingFields.length > 0) {
       throw new BadRequestException(`Missing required creditor fields: ${missingFields.join(', ')}`);
