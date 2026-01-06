@@ -327,6 +327,10 @@ export class UserData extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   paymentLinksConfig?: string; // PaymentLinkConfig
 
+  // Referral trust
+  @Column({ default: false })
+  isTrustedReferrer: boolean;
+
   // References
   @ManyToOne(() => Wallet, { nullable: true })
   wallet?: Wallet;
