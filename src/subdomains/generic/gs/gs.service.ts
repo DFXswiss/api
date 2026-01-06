@@ -619,7 +619,7 @@ export class GsService {
     for (const entry of data) {
       for (const key of Object.keys(entry)) {
         if (this.shouldMaskDebugColumn(key, blockedColumns)) {
-          entry[key] = GsRestrictedMarker;
+          entry[key] = entry[key] == null ? '[RESTRICTED:NULL]' : '[RESTRICTED:SET]';
         }
       }
     }
