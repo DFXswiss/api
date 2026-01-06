@@ -128,10 +128,8 @@ export class FiatOutputService {
       ...creditorData,
     });
 
-    // TODO: BANK_TX_RETURN should also require creditor fields - admin must provide them via DTO
-    if (type !== FiatOutputType.BANK_TX_RETURN) {
-      this.validateRequiredCreditorFields(entity);
-    }
+    // Validate creditor fields for all types - data comes from frontend or admin DTO
+    this.validateRequiredCreditorFields(entity);
 
     if (createReport) entity.reportCreated = false;
 

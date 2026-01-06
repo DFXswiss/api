@@ -87,7 +87,12 @@ export class BankTxReturn extends IEntity {
   }
 
   get creditorData(): CreditorData | undefined {
-    return this.chargebackCreditorData ? JSON.parse(this.chargebackCreditorData) : undefined;
+    if (!this.chargebackCreditorData) return undefined;
+    try {
+      return JSON.parse(this.chargebackCreditorData);
+    } catch {
+      return undefined;
+    }
   }
 
   get paymentMethodIn(): PaymentMethod {
