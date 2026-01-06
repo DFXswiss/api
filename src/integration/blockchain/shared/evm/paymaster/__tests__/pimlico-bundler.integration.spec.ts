@@ -6,6 +6,7 @@
  *
  * Skip in CI by default (no API key), run locally for verification.
  */
+import { encodeFunctionData, parseAbi } from 'viem';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 // Real Pimlico API key from environment
@@ -167,10 +168,7 @@ describeIfApiKey('PimlicoBundlerService Integration (Real API)', () => {
 
       // getNonce(address sender, uint192 key) - key=0 for default
       // Function selector: 0x35567e1a
-      const data =
-        '0x35567e1a' +
-        TEST_WALLET.slice(2).toLowerCase().padStart(64, '0') +
-        '0'.padStart(64, '0'); // key = 0
+      const data = '0x35567e1a' + TEST_WALLET.slice(2).toLowerCase().padStart(64, '0') + '0'.padStart(64, '0'); // key = 0
 
       const result = await jsonRpc(publicRpc, 'eth_call', [{ to: ENTRY_POINT_V07, data }, 'latest']);
 
@@ -194,8 +192,6 @@ describeIfApiKey('PimlicoBundlerService Integration (Real API)', () => {
 });
 
 describeIfApiKey('PimlicoBundlerService UserOperation Building', () => {
-  const ENTRY_POINT_V07 = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
-  const METAMASK_DELEGATOR = '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b';
   const EIP7702_FACTORY = '0x0000000000000000000000000000000000007702';
 
   it('should build a valid UserOperation structure for EIP-7702', () => {
@@ -230,8 +226,6 @@ describeIfApiKey('PimlicoBundlerService UserOperation Building', () => {
   });
 
   it('should encode ERC-7821 execute call data correctly', () => {
-    const { encodeFunctionData, parseAbi } = require('viem');
-
     // MetaMask Delegator uses ERC-7821 execute()
     const DELEGATOR_ABI = parseAbi([
       'function execute((bytes32 mode, bytes executionData) execution) external payable',
