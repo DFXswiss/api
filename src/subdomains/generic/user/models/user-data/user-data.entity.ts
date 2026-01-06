@@ -235,6 +235,9 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   phoneCallCheckDate?: Date;
 
+  @Column({ default: false })
+  phoneVerificationExempt: boolean;
+
   @Column({ type: 'datetime2', nullable: true })
   phoneCallIpCheckDate?: Date;
 

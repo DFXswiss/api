@@ -205,6 +205,7 @@ export class AmlHelperService {
 
       if (
         !entity.userData.phoneCallCheckDate &&
+        !entity.userData.phoneVerificationExempt &&
         !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_14) &&
         (entity.bankTx || entity.checkoutTx) &&
         entity.userData.phone &&

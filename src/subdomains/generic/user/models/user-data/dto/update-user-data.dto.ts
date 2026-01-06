@@ -287,6 +287,10 @@ export class UpdateUserDataDto {
   phoneCallCheckDate?: Date;
 
   @IsOptional()
+  @IsBoolean()
+  phoneVerificationExempt?: boolean;
+
+  @IsOptional()
   @IsDate()
   @Type(() => Date)
   phoneCallIpCheckDate?: Date;
