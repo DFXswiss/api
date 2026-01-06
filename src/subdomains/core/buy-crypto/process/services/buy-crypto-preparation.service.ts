@@ -455,7 +455,7 @@ export class BuyCryptoPreparationService {
       isComplete: false,
       transaction: {
         userData: {
-          kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
+          kycStatus: In([KycStatus.NA, KycStatus.CHECK, KycStatus.COMPLETED]),
           status: Not(UserDataStatus.BLOCKED),
           riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
         },
