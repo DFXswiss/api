@@ -57,6 +57,7 @@ export class TransactionHelper implements OnModuleInit {
 
   private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
   private readonly user30dVolumeCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
+  private readonly unavailableClientWarningsLogged = new Set<Blockchain>();
 
   private transactionSpecifications: TransactionSpecification[];
 
@@ -320,8 +321,10 @@ export class TransactionHelper implements OnModuleInit {
       },
     };
 
-    const sourceSpecs = await this.getSourceSpecs(from, extendedSpecs, priceValidity);
-    const targetSpecs = await this.getTargetSpecs(to, extendedSpecs, priceValidity);
+    const [sourceSpecs, targetSpecs] = await Promise.all([
+      this.getSourceSpecs(from, extendedSpecs, priceValidity),
+      this.getTargetSpecs(to, extendedSpecs, priceValidity),
+    ]);
 
     const target = await this.getTargetEstimation(
       sourceAmount,
@@ -606,6 +609,14 @@ export class TransactionHelper implements OnModuleInit {
 
     try {
       const client = this.blockchainRegistryService.getClient(to.blockchain);
+      if (!client) {
+        if (!this.unavailableClientWarningsLogged.has(to.blockchain)) {
+          this.logger.warn(`Blockchain client not configured for ${to.blockchain} - skipping network start fee`);
+          this.unavailableClientWarningsLogged.add(to.blockchain);
+        }
+        return 0;
+      }
+
       const userBalance = await this.addressBalanceCache.get(`${user.address}-${to.blockchain}`, () =>
         client.getNativeCoinBalanceForAddress(user.address),
       );
@@ -859,8 +870,11 @@ export class TransactionHelper implements OnModuleInit {
       user?.userData &&
       !user.userData.tradeApprovalDate &&
       !user.wallet.autoTradeApproval
-    )
-      return QuoteError.TRADING_NOT_ALLOWED;
+    ) {
+      return user.userData.kycLevel >= KycLevel.LEVEL_10
+        ? QuoteError.RECOMMENDATION_REQUIRED
+        : QuoteError.EMAIL_REQUIRED;
+    }
 
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 

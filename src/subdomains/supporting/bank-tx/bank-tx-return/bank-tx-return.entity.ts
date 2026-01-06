@@ -1,6 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { CreditorData } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -62,6 +63,9 @@ export class BankTxReturn extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  chargebackCreditorData?: string;
+
   // Mail
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
@@ -80,6 +84,15 @@ export class BankTxReturn extends IEntity {
 
   get chargebackBankRemittanceInfo(): string {
     return `Chargeback ${this.bankTx.id} Zahlung kann keinem Kundenauftrag zugeordnet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
+  get creditorData(): CreditorData | undefined {
+    if (!this.chargebackCreditorData) return undefined;
+    try {
+      return JSON.parse(this.chargebackCreditorData);
+    } catch {
+      return undefined;
+    }
   }
 
   get paymentMethodIn(): PaymentMethod {
@@ -146,6 +159,14 @@ export class BankTxReturn extends IEntity {
     chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
+    creditorData?: {
+      name?: string;
+      address?: string;
+      houseNumber?: string;
+      zip?: string;
+      city?: string;
+      country?: string;
+    },
   ): UpdateResult<BankTxReturn> {
     const update: Partial<BankTxReturn> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -156,6 +177,7 @@ export class BankTxReturn extends IEntity {
       chargebackOutput,
       chargebackAllowedBy,
       chargebackRemittanceInfo,
+      chargebackCreditorData: creditorData ? JSON.stringify(creditorData) : undefined,
     };
 
     Object.assign(this, update);

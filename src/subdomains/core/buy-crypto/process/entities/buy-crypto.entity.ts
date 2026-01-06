@@ -57,6 +57,15 @@ export enum BuyCryptoStatus {
   STOPPED = 'Stopped',
 }
 
+export interface CreditorData {
+  name?: string;
+  address?: string;
+  houseNumber?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
+}
+
 @Entity()
 export class BuyCrypto extends IEntity {
   // References
@@ -216,6 +225,9 @@ export class BuyCrypto extends IEntity {
 
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  chargebackCreditorData?: string;
 
   @OneToOne(() => FiatOutput, { nullable: true })
   @JoinColumn()
@@ -521,6 +533,14 @@ export class BuyCrypto extends IEntity {
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
     blockchainFee?: number,
+    creditorData?: {
+      name?: string;
+      address?: string;
+      houseNumber?: string;
+      zip?: string;
+      city?: string;
+      country?: string;
+    },
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
@@ -536,6 +556,7 @@ export class BuyCrypto extends IEntity {
       blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
       status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
+      chargebackCreditorData: creditorData ? JSON.stringify(creditorData) : undefined,
     };
 
     Object.assign(this, update);
@@ -721,6 +742,10 @@ export class BuyCrypto extends IEntity {
 
   get chargebackBankRemittanceInfo(): string {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
+  get creditorData(): CreditorData | undefined {
+    return this.chargebackCreditorData ? JSON.parse(this.chargebackCreditorData) : undefined;
   }
 
   get networkStartCorrelationId(): string {

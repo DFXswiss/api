@@ -13,7 +13,6 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import {
-  AllowlistStatusDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
@@ -30,11 +29,11 @@ import {
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
 } from '../dto/realunit-registration.dto';
+import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
   AccountSummaryDto,
-  BankDetailsDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
   HoldersDto,
@@ -165,34 +164,13 @@ export class RealUnitController {
     return this.realunitService.getBrokerbotShares(amount);
   }
 
-  @Get('allowlist/:address')
-  @ApiOperation({
-    summary: 'Check allowlist status',
-    description: 'Checks if a wallet address is allowed to receive REALU tokens',
-  })
-  @ApiParam({ name: 'address', description: 'Wallet address to check' })
-  @ApiOkResponse({ type: AllowlistStatusDto })
-  async getAllowlistStatus(@Param('address') address: string): Promise<AllowlistStatusDto> {
-    return this.realunitService.getAllowlistStatus(address);
-  }
-
-  @Get('bank')
-  @ApiOperation({
-    summary: 'Get bank details',
-    description: 'Retrieves bank account details for REALU purchases via bank transfer',
-  })
-  @ApiOkResponse({ type: BankDetailsDto })
-  getBankDetails(): BankDetailsDto {
-    return this.realunitService.getBankDetails();
-  }
-
   // --- Buy Payment Info Endpoint ---
 
-  @Put('paymentInfo')
+  @Put('buy')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    summary: 'Get payment info for RealUnit purchase',
+    summary: 'Get payment info for RealUnit buy',
     description:
       'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 50 and RealUnit registration.',
   })
@@ -201,6 +179,44 @@ export class RealUnitController {
   async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
     const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
     return this.realunitService.getPaymentInfo(user, dto);
+  }
+
+  // --- Sell Payment Info Endpoints ---
+
+  @Put('sell')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get payment info for RealUnit sell',
+    description:
+      'Returns EIP-7702 delegation data for gasless REALU transfer and fallback deposit info. Requires KYC Level 20 and RealUnit registration.',
+  })
+  @ApiOkResponse({ type: RealUnitSellPaymentInfoDto })
+  @ApiBadRequestResponse({ description: 'KYC Level 20 required or registration missing' })
+  async getSellPaymentInfo(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitSellDto,
+  ): Promise<RealUnitSellPaymentInfoDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    return this.realunitService.getSellPaymentInfo(user, dto);
+  }
+
+  @Put('sell/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Confirm RealUnit sell transaction',
+    description: 'Confirms the sell transaction with EIP-7702 signatures or manual transaction hash.',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ description: 'Transaction confirmed', schema: { properties: { txHash: { type: 'string' } } } })
+  @ApiBadRequestResponse({ description: 'Invalid transaction request or signatures' })
+  async confirmSell(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RealUnitSellConfirmDto,
+  ): Promise<{ txHash: string }> {
+    return this.realunitService.confirmSell(jwt.user, +id, dto);
   }
 
   // --- Registration Endpoint ---

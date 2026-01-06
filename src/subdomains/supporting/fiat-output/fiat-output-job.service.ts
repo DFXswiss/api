@@ -1,6 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { isLiechtensteinBankHoliday } from 'src/config/bank-holiday.config';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
@@ -208,6 +209,16 @@ export class FiatOutputJobService {
                 entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
                 (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
             ) {
+              if (ibanCountry === 'LI' && entity.type === FiatOutputType.LIQ_MANAGEMENT) {
+                if (
+                  isLiechtensteinBankHoliday() ||
+                  (isLiechtensteinBankHoliday(Util.daysAfter(1)) && new Date().getHours() >= 16)
+                ) {
+                  this.logger.verbose(`FiatOutput ${entity.id} blocked: Liechtenstein bank holiday`);
+                  continue;
+                }
+              }
+
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
               this.logger.info(
                 `FiatOutput ${entity.id} ready: LiqBalance ${asset.balance.amount} ${

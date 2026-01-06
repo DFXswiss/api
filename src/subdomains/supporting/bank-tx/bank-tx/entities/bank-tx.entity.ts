@@ -251,11 +251,11 @@ export class BankTx extends IEntity {
   //*** GETTER METHODS ***//
 
   get user(): User {
-    return this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
+    return this.transaction?.user ?? this.buyCrypto?.user ?? this.buyCryptoChargeback?.user ?? this.buyFiats?.[0]?.user;
   }
 
   get userData(): UserData {
-    return this.user?.userData;
+    return this.transaction?.userData ?? this.user?.userData;
   }
 
   get paymentMethodIn(): PaymentMethod {

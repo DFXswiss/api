@@ -198,4 +198,28 @@ export class TransactionUtilService {
       request.amount,
     );
   }
+
+  /**
+   * Handle transaction hash from EIP-5792 wallet_sendCalls (gasless/sponsored transfer)
+   * The frontend sends the transaction via wallet_sendCalls and provides the txHash
+   */
+  async handleTxHashInput(route: Swap | Sell, request: TransactionRequest, txHash: string): Promise<CryptoInput> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
+    const blockHeight = await client.getCurrentBlock();
+
+    // The transaction was already sent by the frontend via wallet_sendCalls
+    // We just need to create a PayIn record to track it
+    return this.payInService.createPayIn(
+      request.user.address,
+      route.deposit.address,
+      asset,
+      txHash,
+      PayInType.SPONSORED_TRANSFER,
+      blockHeight,
+      request.amount,
+    );
+  }
 }

@@ -189,6 +189,7 @@ export class TransactionRequestService {
       where: { id },
       relations: { user: { userData: { organization: true } }, custodyOrder: true },
     });
+
     if (!request) throw new NotFoundException('Transaction request not found');
     if (request.user.id !== userId) throw new ForbiddenException('Not your transaction request');
 

@@ -11,6 +11,7 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { KycFileService } from '../kyc/services/kyc-file.service';
@@ -48,6 +49,7 @@ export class SupportService {
     private readonly bankDataService: BankDataService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly transactionService: TransactionService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
@@ -61,9 +63,14 @@ export class SupportService {
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     const searchResult = await this.getUserDatasByKey(query.key);
-    const bankTx =
-      searchResult.type === ComplianceSearchType.IBAN ? await this.bankTxService.getUnassignedBankTx([query.key]) : [];
-    if (!searchResult.userDatas.length && (!bankTx.length || searchResult.type !== ComplianceSearchType.IBAN))
+    const bankTx = [ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN].includes(searchResult.type)
+      ? await this.bankTxService.getUnassignedBankTx([query.key], [query.key])
+      : [];
+
+    if (
+      !searchResult.userDatas.length &&
+      (!bankTx.length || ![ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN].includes(searchResult.type))
+    )
       throw new NotFoundException('No user or bankTx found');
 
     return {
@@ -93,6 +100,16 @@ export class SupportService {
     if (uniqueSearchResult.userData) return { type: uniqueSearchResult.type, userDatas: [uniqueSearchResult.userData] };
 
     if (IbanTools.validateIBAN(key).valid) {
+      const virtualIban = await this.virtualIbanService.getByIban(key);
+      if (virtualIban) {
+        const bankTxUserDatas = await this.bankTxService
+          .getBankTxsByVirtualIban(key)
+          .then((txs) => txs.map((tx) => tx.userData));
+
+        return { type: ComplianceSearchType.VIRTUAL_IBAN, userDatas: [...bankTxUserDatas, virtualIban.userData] };
+      }
+
+      // Normal IBAN search
       const userDatas = await Promise.all([
         this.bankDataService.getBankDatasByIban(key),
         this.bankTxReturnService.getBankTxReturnsByIban(key),

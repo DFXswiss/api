@@ -68,6 +68,14 @@ export class LiquidityManagementPipeline extends IEntity {
 
   //*** GETTERS ***//
 
+  get isDone(): boolean {
+    return [
+      LiquidityManagementPipelineStatus.FAILED,
+      LiquidityManagementPipelineStatus.STOPPED,
+      LiquidityManagementPipelineStatus.COMPLETE,
+    ].includes(this.status);
+  }
+
   get exchangeOrders(): LiquidityManagementOrder[] {
     return (
       this.orders?.filter(

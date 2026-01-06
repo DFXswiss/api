@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -242,26 +242,6 @@ export class HistoricalPriceDto {
   usd?: number;
 }
 
-export class BankDetailsDto {
-  @ApiProperty({ description: 'Bank account recipient name' })
-  recipient: string;
-
-  @ApiProperty({ description: 'Recipient address' })
-  address: string;
-
-  @ApiProperty({ description: 'IBAN' })
-  iban: string;
-
-  @ApiProperty({ description: 'BIC/SWIFT code' })
-  bic: string;
-
-  @ApiProperty({ description: 'Bank name' })
-  bankName: string;
-
-  @ApiProperty({ description: 'Currency (always CHF)' })
-  currency: string;
-}
-
 // --- Buy Payment Info DTOs ---
 
 export enum RealUnitBuyCurrency {
@@ -272,6 +252,7 @@ export enum RealUnitBuyCurrency {
 export class RealUnitBuyDto {
   @ApiProperty({ description: 'Amount in fiat currency' })
   @IsNumber()
+  @IsPositive()
   @Type(() => Number)
   amount: number;
 

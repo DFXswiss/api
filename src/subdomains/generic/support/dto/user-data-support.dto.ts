@@ -52,5 +52,6 @@ export enum ComplianceSearchType {
   PHONE = 'Phone',
   NAME = 'Name',
   IBAN = 'Iban',
+  VIRTUAL_IBAN = 'VirtualIban',
   TRANSACTION_UID = 'TransactionUid',
 }

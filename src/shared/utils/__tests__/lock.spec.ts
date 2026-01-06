@@ -23,19 +23,31 @@ describe('Lock', () => {
   });
 
   it('should lock', async () => {
-    let hasRun = false;
     let hasUpdated = false;
+    let resolveLockHeld: () => void;
+    const lockHeld = new Promise<void>((r) => (resolveLockHeld = r));
+    let releaseFirstLock: () => void;
+    const waitForRelease = new Promise<void>((r) => (releaseFirstLock = r));
 
-    setTimeout(async () => {
-      hasRun = true;
-      await lock(async () => {
-        hasUpdated = true;
-      });
+    // Start first lock and signal when acquired
+    const firstLockPromise = lock(async () => {
+      resolveLockHeld();
+      await waitForRelease;
     });
-    await lock(() => Util.delay(2));
 
-    expect(hasRun).toBeTruthy();
+    // Wait until first lock is definitely held
+    await lockHeld;
+
+    // Try to acquire second lock while first is held - should be rejected
+    await lock(async () => {
+      hasUpdated = true;
+    });
+
     expect(hasUpdated).toBeFalsy();
+
+    // Release first lock and wait for completion
+    releaseFirstLock();
+    await firstLockPromise;
   });
 
   it('should unlock on completion', async () => {
