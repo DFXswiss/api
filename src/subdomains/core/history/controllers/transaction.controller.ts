@@ -323,9 +323,15 @@ export class TransactionController {
     if (transaction.refundTargetEntity instanceof BankTx) {
       // Unassigned transaction
       if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new NotFoundException('Transaction not found');
-      const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account);
-      if (jwt.account !== transaction.userData?.id || txOwner.id !== jwt.account)
+
+      // Check ownership (consistent with requestRefund logic)
+      if (transaction.userData && jwt.account !== transaction.userData.id)
         throw new ForbiddenException('You can only refund your own transaction');
+      if (!transaction.userData) {
+        const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account);
+        if (txOwner?.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
+      }
+
       if (transaction.refundTargetEntity.bankTxReturn)
         throw new BadRequestException('You can only refund a transaction once');
 
@@ -421,7 +427,7 @@ export class TransactionController {
       throw new ForbiddenException('You can only refund your own transaction');
     if (!transaction.targetEntity && !transaction.userData) {
       const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account);
-      if (txOwner.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
+      if (txOwner?.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
     }
 
     const refundData = this.refundList.get(transaction.id);
