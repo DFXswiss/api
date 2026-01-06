@@ -347,7 +347,7 @@ export class PimlicoBundlerService {
       preVerificationGas: toHex(100000n),
       maxFeePerGas: toHex(gasPrice.maxFeePerGas),
       maxPriorityFeePerGas: toHex(gasPrice.maxPriorityFeePerGas),
-      paymaster: '0x' as Address,
+      paymaster: '0x0000000000000000000000000000000000000000' as Address,
       paymasterVerificationGasLimit: toHex(0n),
       paymasterPostOpGasLimit: toHex(0n),
       paymasterData: '0x' as Hex,
