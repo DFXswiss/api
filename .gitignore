@@ -38,6 +38,7 @@ lerna-debug.log*
 ormconfig.json
 dev-data-source.ts
 .env
+scripts/.env.db-debug
 placeholder.env
 placeholder.env
 
