@@ -1010,6 +1010,7 @@ export class Configuration {
     },
     appInsights: {
       appId: process.env.APPINSIGHTS_APP_ID,
+      apiKey: process.env.APPINSIGHTS_API_KEY,
     },
   };
 

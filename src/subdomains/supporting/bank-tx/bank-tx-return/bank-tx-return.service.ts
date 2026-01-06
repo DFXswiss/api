@@ -7,7 +7,9 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
-import { IsNull, Not } from 'typeorm';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
+import { In, IsNull, Not } from 'typeorm';
 import { FiatOutputType } from '../../fiat-output/fiat-output.entity';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -36,7 +38,40 @@ export class BankTxReturnService {
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX_RETURN, timeout: 1800 })
   async fillBankTxReturn() {
+    await this.chargebackTx();
     await this.setFiatAmounts();
+  }
+
+  async chargebackTx(): Promise<void> {
+    const entities = await this.bankTxReturnRepo.find({
+      where: {
+        chargebackAllowedDate: IsNull(),
+        chargebackAllowedDateUser: Not(IsNull()),
+        chargebackAmount: Not(IsNull()),
+        chargebackIban: Not(IsNull()),
+        chargebackOutput: IsNull(),
+        transaction: {
+          user: { status: In([UserStatus.NA, UserStatus.ACTIVE]) },
+        },
+        userData: {
+          kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
+          status: Not(UserDataStatus.BLOCKED),
+          riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
+        },
+      },
+      relations: { bankTx: true, userData: true, transaction: { user: true } },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.refundBankTx(entity, {
+          chargebackAllowedDate: new Date(),
+          chargebackAllowedBy: 'API',
+        });
+      } catch (e) {
+        this.logger.error(`Failed to chargeback bank-tx-return ${entity.id}:`, e);
+      }
+    }
   }
 
   async setFiatAmounts(): Promise<void> {

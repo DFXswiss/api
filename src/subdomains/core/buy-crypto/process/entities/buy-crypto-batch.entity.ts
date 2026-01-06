@@ -189,15 +189,13 @@ export class BuyCryptoBatch extends IEntity {
     let requiredLiquidity = 0;
 
     for (const tx of currentTransactions) {
-      requiredLiquidity += tx.outputReferenceAmount;
+      const newRequiredLiquidity = requiredLiquidity + tx.outputReferenceAmount;
 
       // configurable reserve cap, because purchasable amounts are indicative and may be different on actual purchase
-      if (requiredLiquidity <= liquidityLimit * (1 - bufferCap)) {
+      if (newRequiredLiquidity <= liquidityLimit * (1 - bufferCap)) {
         reBatchTransactions.push(tx);
-        continue;
+        requiredLiquidity = newRequiredLiquidity;
       }
-
-      break;
     }
 
     if (reBatchTransactions.length === 0) {
