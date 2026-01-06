@@ -324,8 +324,7 @@ export class TransactionController {
       // Unassigned transaction
       if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new NotFoundException('Transaction not found');
       const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account);
-      if (jwt.account !== transaction.userData?.id || txOwner.id !== jwt.account)
-        throw new ForbiddenException('You can only refund your own transaction');
+      if (txOwner?.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
       if (transaction.refundTargetEntity.bankTxReturn)
         throw new BadRequestException('You can only refund a transaction once');
 
