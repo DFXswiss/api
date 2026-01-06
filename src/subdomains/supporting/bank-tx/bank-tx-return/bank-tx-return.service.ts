@@ -8,6 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { In, IsNull, Not } from 'typeorm';
 import { FiatOutputType } from '../../fiat-output/fiat-output.entity';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
@@ -49,13 +50,16 @@ export class BankTxReturnService {
         chargebackAmount: Not(IsNull()),
         chargebackIban: Not(IsNull()),
         chargebackOutput: IsNull(),
+        transaction: {
+          user: { status: In([UserStatus.NA, UserStatus.ACTIVE]) },
+        },
         userData: {
           kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
           status: Not(UserDataStatus.BLOCKED),
           riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
         },
       },
-      relations: { bankTx: true, userData: true },
+      relations: { bankTx: true, userData: true, transaction: { user: true } },
     });
 
     for (const entity of entities) {
