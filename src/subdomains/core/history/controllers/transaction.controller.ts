@@ -584,7 +584,7 @@ export class TransactionController {
   }
 
   private isRefundDataValid(refundData: RefundDataDto): boolean {
-    return Util.secondsDiff(refundData.expiryDate) > 0;
+    return Util.secondsDiff(refundData.expiryDate) <= 0;
   }
 
   public async getHistoryData<T extends ExportType>(
