@@ -420,7 +420,7 @@ export class TransactionController {
       throw new ForbiddenException('You can only refund your own transaction');
     if (!transaction.targetEntity && !transaction.userData) {
       const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account);
-      if (txOwner.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
+      if (txOwner?.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
     }
 
     const refundData = this.refundList.get(transaction.id);
