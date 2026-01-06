@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsDate, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsDate, IsIBAN, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { CheckoutReverse } from 'src/integration/checkout/services/checkout.service';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Util } from 'src/shared/utils/util';
@@ -14,6 +14,7 @@ export class RefundInternalDto {
 
   @IsOptional()
   @IsString()
+  @IsIBAN()
   @Transform(Util.trimAll)
   refundIban: string;
 
