@@ -56,6 +56,15 @@ interface UserOperationV07 {
   paymasterPostOpGasLimit: Hex;
   paymasterData: Hex;
   signature: Hex;
+  // EIP-7702 authorization - separate field per ERC-7769
+  eip7702Auth?: {
+    chainId: Hex;
+    address: Address;
+    nonce: Hex;
+    r: Hex;
+    s: Hex;
+    yParity: Hex;
+  };
 }
 
 @Injectable()
@@ -234,11 +243,19 @@ export class PimlicoBundlerService {
     // 2. Encode the execute() call for MetaMask Delegator (ERC-7821 format)
     const callData = this.encodeExecuteCall(token.chainId as Address, transferData);
 
-    // 3. Encode the EIP-7702 authorization as factoryData
-    const factoryData = this.encodeAuthorizationAsFactoryData(authorization);
+    // 3. Build the UserOperation with eip7702Auth as separate field (per ERC-7769)
+    // factoryData is '0x' for EIP-7702 - it's passed to sender for storage init, not for auth
+    const userOp = await this.buildUserOperation(userAddress as Address, callData, '0x' as Hex, pimlicoUrl);
 
-    // 4. Build the UserOperation
-    const userOp = await this.buildUserOperation(userAddress as Address, callData, factoryData, pimlicoUrl);
+    // 4. Add EIP-7702 authorization as separate field
+    userOp.eip7702Auth = {
+      chainId: toHex(authorization.chainId),
+      address: authorization.address as Address,
+      nonce: toHex(authorization.nonce),
+      r: authorization.r as Hex,
+      s: authorization.s as Hex,
+      yParity: toHex(authorization.yParity),
+    };
 
     // 5. Sponsor the UserOperation via Pimlico Paymaster
     const sponsoredUserOp = await this.sponsorUserOperation(userOp, pimlicoUrl);
