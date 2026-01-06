@@ -14,28 +14,31 @@ module.exports = class CleanupFiatOutputWithoutAmount1767734994504 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
-    // Remove reference from buy_crypto to fiat_output entries without amount
+    // Reset chargebackAllowedDate and chargebackOutputId in buy_crypto
+    // so the chargebackTx job can recreate fiat_output with correct amount
     await queryRunner.query(`
             UPDATE buy_crypto
-            SET chargebackOutputId = NULL
+            SET chargebackOutputId = NULL, chargebackAllowedDate = NULL
             WHERE chargebackOutputId IN (
                 SELECT id FROM fiat_output WHERE amount IS NULL AND isComplete = 0
             )
         `);
 
-    // Remove reference from bank_tx_return to fiat_output entries without amount
+    // Reset chargebackAllowedDate and chargebackOutputId in bank_tx_return
+    // so the chargeback job can recreate fiat_output with correct amount
     await queryRunner.query(`
             UPDATE bank_tx_return
-            SET chargebackOutputId = NULL
+            SET chargebackOutputId = NULL, chargebackAllowedDate = NULL
             WHERE chargebackOutputId IN (
                 SELECT id FROM fiat_output WHERE amount IS NULL AND isComplete = 0
             )
         `);
 
-    // Remove reference from bank_tx_repeat to fiat_output entries without amount
+    // Reset chargebackAllowedDate and chargebackOutputId in bank_tx_repeat
+    // so the chargeback job can recreate fiat_output with correct amount
     await queryRunner.query(`
             UPDATE bank_tx_repeat
-            SET chargebackOutputId = NULL
+            SET chargebackOutputId = NULL, chargebackAllowedDate = NULL
             WHERE chargebackOutputId IN (
                 SELECT id FROM fiat_output WHERE amount IS NULL AND isComplete = 0
             )
