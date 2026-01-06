@@ -32,6 +32,15 @@ module.exports = class CleanupFiatOutputWithoutAmount1767734994504 {
             )
         `);
 
+    // Remove reference from bank_tx_repeat to fiat_output entries without amount
+    await queryRunner.query(`
+            UPDATE bank_tx_repeat
+            SET chargebackOutputId = NULL
+            WHERE chargebackOutputId IN (
+                SELECT id FROM fiat_output WHERE amount IS NULL AND isComplete = 0
+            )
+        `);
+
     // Delete fiat_output entries without amount
     await queryRunner.query(`
             DELETE FROM fiat_output WHERE amount IS NULL AND isComplete = 0
