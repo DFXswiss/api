@@ -1,0 +1,258 @@
+name: PR Review Bot
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for unverified commits
+        id: verify-commits
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commits = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            const unverified = commits.data.filter(c => !c.commit.verification?.verified);
+
+            if (unverified.length > 0) {
+              const list = unverified.map(c =>
+                `- \`${c.sha.substring(0,7)}\` ${c.commit.message.split('\n')[0]} (${c.commit.author?.name || 'unknown'})`
+              ).join('\n');
+
+              core.setOutput('unverified', 'true');
+              core.setOutput('unverified_list', list);
+              core.setOutput('unverified_count', unverified.length);
+            } else {
+              core.setOutput('unverified', 'false');
+            }
+
+      - name: Run ESLint
+        id: eslint
+        continue-on-error: true
+        run: |
+          npm run lint 2>&1 | tee eslint-output.txt || true
+          WARNINGS=$(grep -c "warning" eslint-output.txt || echo "0")
+          ERRORS=$(grep -c "error" eslint-output.txt || echo "0")
+          echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+
+      - name: Run TypeScript check
+        id: typescript
+        continue-on-error: true
+        run: |
+          npx tsc --noEmit 2>&1 | tee tsc-output.txt || true
+          ERRORS=$(grep -c "error TS" tsc-output.txt || echo "0")
+          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+
+      - name: Security Audit
+        id: audit
+        continue-on-error: true
+        run: |
+          npm audit --json > audit-output.json 2>/dev/null || true
+          HIGH=$(jq '.metadata.vulnerabilities.high // 0' audit-output.json)
+          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' audit-output.json)
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+
+      - name: Check for new TODOs/FIXMEs
+        id: todos
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD -- '*.ts' | grep -E '^\+.*\b(TODO|FIXME|HACK|XXX)\b' | head -20 > new-todos.txt || true
+          COUNT=$(wc -l < new-todos.txt | tr -d ' ')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Check commit message format
+        id: commits-format
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const conventionalPattern = /^(feat|fix|refactor|test|ci|docs|chore|perf|style|build|revert)(\(.+\))?: .+/;
+
+            const commits = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            const badCommits = commits.data.filter(c => {
+              const firstLine = c.commit.message.split('\n')[0];
+              return !conventionalPattern.test(firstLine);
+            });
+
+            if (badCommits.length > 0) {
+              const list = badCommits.map(c =>
+                `- \`${c.sha.substring(0,7)}\` ${c.commit.message.split('\n')[0]}`
+              ).join('\n');
+
+              core.setOutput('invalid', 'true');
+              core.setOutput('invalid_list', list);
+              core.setOutput('invalid_count', badCommits.length);
+            } else {
+              core.setOutput('invalid', 'false');
+            }
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        env:
+          UNVERIFIED: ${{ steps.verify-commits.outputs.unverified }}
+          UNVERIFIED_LIST: ${{ steps.verify-commits.outputs.unverified_list }}
+          UNVERIFIED_COUNT: ${{ steps.verify-commits.outputs.unverified_count }}
+          ESLINT_WARNINGS: ${{ steps.eslint.outputs.warnings }}
+          ESLINT_ERRORS: ${{ steps.eslint.outputs.errors }}
+          TSC_ERRORS: ${{ steps.typescript.outputs.errors }}
+          AUDIT_HIGH: ${{ steps.audit.outputs.high }}
+          AUDIT_CRITICAL: ${{ steps.audit.outputs.critical }}
+          TODO_COUNT: ${{ steps.todos.outputs.count }}
+          INVALID_COMMITS: ${{ steps.commits-format.outputs.invalid }}
+          INVALID_LIST: ${{ steps.commits-format.outputs.invalid_list }}
+          INVALID_COUNT: ${{ steps.commits-format.outputs.invalid_count }}
+        with:
+          script: |
+            const fs = require('fs');
+
+            const unverified = process.env.UNVERIFIED === 'true';
+            const unverifiedList = process.env.UNVERIFIED_LIST || '';
+            const unverifiedCount = process.env.UNVERIFIED_COUNT || '0';
+
+            const eslintWarnings = parseInt(process.env.ESLINT_WARNINGS) || 0;
+            const eslintErrors = parseInt(process.env.ESLINT_ERRORS) || 0;
+            const tscErrors = parseInt(process.env.TSC_ERRORS) || 0;
+
+            const auditHigh = parseInt(process.env.AUDIT_HIGH) || 0;
+            const auditCritical = parseInt(process.env.AUDIT_CRITICAL) || 0;
+
+            const todoCount = parseInt(process.env.TODO_COUNT) || 0;
+
+            const invalidCommits = process.env.INVALID_COMMITS === 'true';
+            const invalidList = process.env.INVALID_LIST || '';
+            const invalidCount = process.env.INVALID_COUNT || '0';
+
+            let comments = [];
+
+            // Unverified commits warning
+            if (unverified) {
+              comments.push(`## ⚠️ Unverified Commits (${unverifiedCount})
+
+            The following commits are not signed/verified:
+
+            ${unverifiedList}
+
+            <details>
+            <summary>How to sign commits</summary>
+
+            \`\`\`bash
+            # SSH signing (recommended)
+            git config --global gpg.format ssh
+            git config --global user.signingkey ~/.ssh/id_ed25519.pub
+            git config --global commit.gpgsign true
+
+            # Re-sign last commit
+            git commit --amend -S --no-edit
+            git push --force-with-lease
+            \`\`\`
+            </details>`);
+            }
+
+            // Invalid commit message format
+            if (invalidCommits) {
+              comments.push(`## ⚠️ Non-Conventional Commits (${invalidCount})
+
+            The following commits don't follow conventional commit format:
+
+            ${invalidList}
+
+            Expected: \`type(scope): description\`
+            Types: feat, fix, refactor, test, ci, docs, chore, perf, style, build, revert`);
+            }
+
+            // ESLint warnings
+            if (eslintWarnings > 0 || eslintErrors > 0) {
+              comments.push(`## ${eslintErrors > 0 ? '❌' : '⚠️'} ESLint: ${eslintErrors} errors, ${eslintWarnings} warnings`);
+            }
+
+            // TypeScript errors
+            if (tscErrors > 0) {
+              comments.push(`## ❌ TypeScript: ${tscErrors} errors`);
+            }
+
+            // Security audit
+            if (auditCritical > 0 || auditHigh > 0) {
+              comments.push(`## ${auditCritical > 0 ? '❌' : '⚠️'} Security: ${auditCritical} critical, ${auditHigh} high vulnerabilities`);
+            }
+
+            // New TODOs
+            if (todoCount > 0) {
+              let todoList = '';
+              try {
+                todoList = fs.readFileSync('new-todos.txt', 'utf8').trim();
+              } catch (e) {}
+              comments.push(`## ℹ️ New TODOs/FIXMEs (${todoCount})
+
+            \`\`\`diff
+            ${todoList}
+            \`\`\``);
+            }
+
+            // Only post if there are issues
+            if (comments.length === 0) {
+              console.log('No issues found, skipping comment');
+              return;
+            }
+
+            const body = `# 🤖 PR Review Bot
+
+            ${comments.join('\n\n---\n\n')}
+
+            ---
+            <sub>This is an automated review. Please address the issues above.</sub>`;
+
+            // Find existing bot comment
+            const existingComments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const botComment = existingComments.data.find(c =>
+              c.user?.type === 'Bot' && c.body?.includes('🤖 PR Review Bot')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
