@@ -11,7 +11,11 @@ import { BankRefundDto } from 'src/subdomains/core/history/dto/transaction-refun
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
-import { BankTx, BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import {
+  BankTx,
+  BankTxType,
+  BankTxTypeUnassigned,
+} from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
@@ -266,7 +270,9 @@ export class SupportService {
     // Create BankTxReturn if not exists
     if (!transaction.bankTxReturn) {
       // Load bankTx with transaction relation for the create method
-      const bankTxWithRelations = await this.bankTxService.getBankTxById(transaction.bankTx.id, { transaction: { userData: true } });
+      const bankTxWithRelations = await this.bankTxService.getBankTxById(transaction.bankTx.id, {
+        transaction: { userData: true },
+      });
 
       transaction.bankTxReturn = await this.bankTxService
         .updateInternal(bankTxWithRelations, { type: BankTxType.BANK_TX_RETURN })
