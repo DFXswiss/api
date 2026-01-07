@@ -544,7 +544,7 @@ export class BankTxService implements OnModuleInit {
     const candidates = [tx.remittanceInfo, tx.endToEndId].filter((c) => c && c !== '-');
 
     for (const candidate of candidates) {
-      const normalized = candidate.replace(/[ -]/g, '').replace(/O/g, '0');
+      const normalized = candidate.replace(/[ -]/g, '').replace(/O/g, '0').toUpperCase();
       const buy = buys.find((b) => normalized.includes(b.bankUsage.replace(/-/g, '')));
       if (buy) return buy;
     }
