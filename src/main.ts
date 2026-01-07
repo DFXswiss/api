@@ -29,9 +29,9 @@ async function bootstrap() {
 
     // Don't mark 4xx client errors as failures - only 5xx are real server errors
     AppInsights.defaultClient.addTelemetryProcessor((envelope) => {
-      const data = envelope.data as { baseType?: string; baseData?: { responseCode?: number; success?: boolean } };
-      if (data.baseType === 'RequestData' && data.baseData) {
-        const responseCode = data.baseData.responseCode ?? 0;
+      const data = envelope.data as { baseType?: string; baseData?: { responseCode?: string; success?: boolean } };
+      if (data.baseType === 'RequestData' && data.baseData?.responseCode) {
+        const responseCode = parseInt(data.baseData.responseCode, 10);
         if (responseCode >= 400 && responseCode < 500) {
           data.baseData.success = true;
         }
