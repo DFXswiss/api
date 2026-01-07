@@ -75,11 +75,8 @@ export class RealUnitService {
   private readonly ponderUrl: string;
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
+  private readonly tokenBlockchain = Blockchain.ETHEREUM;
   private readonly historicalPriceCache = new AsyncCache<HistoricalPriceDto[]>(CacheItemResetPeriod.EVERY_6_HOURS);
-
-  // RealUnit on Ethereum
-  private readonly REALU_ETHEREUM_ADDRESS = '0x553C7f9C780316FC1D34b8e14ac2465Ab22a090B';
-  private readonly ETHEREUM_CHAIN_ID = 1;
 
   constructor(
     private readonly assetPricesService: AssetPricesService,
@@ -130,7 +127,7 @@ export class RealUnitService {
   private async getRealuAsset(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
       name: this.tokenName,
-      blockchain: Blockchain.ETHEREUM,
+      blockchain: this.tokenBlockchain,
       type: AssetType.TOKEN,
     });
   }
@@ -574,9 +571,9 @@ export class RealUnitService {
       throw new KycLevelRequiredException(requiredLevel, userData.kycLevel, 'KYC Level 20 required for RealUnit sell');
     }
 
-    // 3. Get REALU asset on Ethereum
+    // 3. Get REALU asset
     const realuAsset = await this.getRealuAsset();
-    if (!realuAsset) throw new NotFoundException('REALU asset not found on Ethereum blockchain');
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
 
     // 4. Get currency
     const currency = await this.fiatService.getFiatByName(currencyName);
@@ -584,7 +581,7 @@ export class RealUnitService {
     // 5. Get or create Sell route
     const sell = await this.sellService.createSell(
       user.id,
-      { iban: dto.iban, currency, blockchain: Blockchain.ETHEREUM },
+      { iban: dto.iban, currency, blockchain: realuAsset.blockchain },
       true,
     );
 
@@ -606,7 +603,7 @@ export class RealUnitService {
     // 7. Prepare EIP-7702 delegation data (ALWAYS for RealUnit - app supports eth_sign)
     const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
       user.address,
-      Blockchain.ETHEREUM,
+      realuAsset.blockchain,
     );
 
     // 8. Build response with EIP-7702 data AND fallback transfer info
@@ -621,7 +618,7 @@ export class RealUnitService {
       // EIP-7702 Data (ALWAYS present for RealUnit)
       eip7702: {
         ...delegationData,
-        tokenAddress: this.REALU_ETHEREUM_ADDRESS,
+        tokenAddress: realuAsset.chainId,
         amountWei: amountWei.toString(),
         depositAddress: sellPaymentInfo.depositAddress,
       },
@@ -629,8 +626,8 @@ export class RealUnitService {
       // Fallback Transfer Info (ALWAYS present)
       depositAddress: sellPaymentInfo.depositAddress,
       amount: sellPaymentInfo.amount,
-      tokenAddress: this.REALU_ETHEREUM_ADDRESS,
-      chainId: this.ETHEREUM_CHAIN_ID,
+      tokenAddress: realuAsset.chainId,
+      chainId: EvmUtil.getChainId(realuAsset.blockchain),
 
       // Fee Info
       fees: sellPaymentInfo.fees,
