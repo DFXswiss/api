@@ -114,7 +114,7 @@ export class KycAdminService {
 
   async triggerVideoIdentInternal(userData: UserData): Promise<void> {
     try {
-      await this.kycService.getOrCreateStepInternal(userData.kycHash, KycStepName.IDENT, KycStepType.SUMSUB_VIDEO);
+      await this.kycService.getOrCreateStepInternal(KycStepName.IDENT, userData, undefined, KycStepType.SUMSUB_VIDEO);
     } catch (e) {
       this.logger.error(`Failed to trigger video ident internal for userData ${userData.id}:`, e);
     }
