@@ -42,19 +42,30 @@ export class BankTxReturnService {
   }
 
   async chargebackTx(): Promise<void> {
+    const baseWhere = {
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: Not(IsNull()),
+      chargebackAmount: Not(IsNull()),
+      chargebackIban: Not(IsNull()),
+      chargebackCreditorData: Not(IsNull()),
+      chargebackOutput: IsNull(),
+    };
+
     const entities = await this.bankTxReturnRepo.find({
-      where: {
-        chargebackAllowedDate: IsNull(),
-        chargebackAllowedDateUser: Not(IsNull()),
-        chargebackAmount: Not(IsNull()),
-        chargebackIban: Not(IsNull()),
-        chargebackOutput: IsNull(),
-        userData: {
-          kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
-          status: Not(UserDataStatus.BLOCKED),
-          riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
+      where: [
+        {
+          ...baseWhere,
+          userData: IsNull(),
         },
-      },
+        {
+          ...baseWhere,
+          userData: {
+            kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
+            status: Not(UserDataStatus.BLOCKED),
+            riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
+          },
+        },
+      ],
       relations: { bankTx: true, userData: true },
     });
 
