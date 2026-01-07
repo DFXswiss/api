@@ -42,13 +42,19 @@ export class BankTxReturnService {
   }
 
   async chargebackTx(): Promise<void> {
-    const entities = await this.bankTxReturnRepo.find({
+    const baseWhere = {
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: Not(IsNull()),
+      chargebackAmount: Not(IsNull()),
+      chargebackIban: Not(IsNull()),
+      chargebackCreditorData: Not(IsNull()),
+      chargebackOutput: IsNull(),
+    };
+
+    // Entries with userData: check KYC/risk status
+    const entitiesWithUserData = await this.bankTxReturnRepo.find({
       where: {
-        chargebackAllowedDate: IsNull(),
-        chargebackAllowedDateUser: Not(IsNull()),
-        chargebackAmount: Not(IsNull()),
-        chargebackIban: Not(IsNull()),
-        chargebackOutput: IsNull(),
+        ...baseWhere,
         userData: {
           kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
           status: Not(UserDataStatus.BLOCKED),
@@ -57,6 +63,17 @@ export class BankTxReturnService {
       },
       relations: { bankTx: true, userData: true },
     });
+
+    // Entries without userData: no KYC/risk check needed
+    const entitiesWithoutUserData = await this.bankTxReturnRepo.find({
+      where: {
+        ...baseWhere,
+        userData: IsNull(),
+      },
+      relations: { bankTx: true },
+    });
+
+    const entities = [...entitiesWithUserData, ...entitiesWithoutUserData];
 
     for (const entity of entities) {
       try {
