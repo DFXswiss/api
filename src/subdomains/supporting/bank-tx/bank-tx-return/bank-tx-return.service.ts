@@ -47,6 +47,7 @@ export class BankTxReturnService {
       chargebackAllowedDateUser: Not(IsNull()),
       chargebackAmount: Not(IsNull()),
       chargebackIban: Not(IsNull()),
+      chargebackCreditorData: Not(IsNull()),
       chargebackOutput: IsNull(),
     };
 
