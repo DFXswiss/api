@@ -67,7 +67,7 @@ export class Util {
   }
 
   static roundByPrecision(amount: number, precision: number): number {
-    return new BigNumber(amount).precision(precision).toNumber();
+    return new BigNumber(amount).precision(precision, BigNumber.ROUND_HALF_UP).toNumber();
   }
 
   static floorByPrecision(amount: number, precision: number): number {

@@ -457,9 +457,12 @@ export class TransactionController {
       country: bankDto.country || undefined,
     };
 
+    const chargebackCurrency = refundData.refundAsset.name;
+
     if (transaction.targetEntity instanceof BankTxReturn) {
       return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
         refundIban: refundData.refundTarget ?? dto.refundTarget,
+        chargebackCurrency,
         ...bankFields,
         ...refundDto,
       });
@@ -478,6 +481,7 @@ export class TransactionController {
 
       return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
         refundIban: refundData.refundTarget ?? dto.refundTarget,
+        chargebackCurrency,
         ...bankFields,
         ...refundDto,
       });
@@ -501,6 +505,7 @@ export class TransactionController {
 
     return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
+      chargebackCurrency,
       ...refundDto,
     });
   }

@@ -550,7 +550,7 @@ export class BuyCryptoService {
         {
           iban: chargebackIban,
           amount: chargebackAmount,
-          currency: buyCrypto.bankTx?.currency,
+          currency: dto.chargebackCurrency ?? buyCrypto.bankTx?.currency,
           name: dto.name ?? buyCrypto.creditorData?.name,
           address: dto.address ?? buyCrypto.creditorData?.address,
           houseNumber: dto.houseNumber ?? buyCrypto.creditorData?.houseNumber,

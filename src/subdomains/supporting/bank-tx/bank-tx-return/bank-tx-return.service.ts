@@ -209,7 +209,7 @@ export class BankTxReturnService {
         {
           iban: chargebackIban,
           amount: chargebackAmount,
-          currency: bankTxReturn.bankTx?.currency,
+          currency: dto.chargebackCurrency ?? bankTxReturn.bankTx?.currency,
           name: dto.name ?? bankTxReturn.creditorData?.name,
           address: dto.address ?? bankTxReturn.creditorData?.address,
           houseNumber: dto.houseNumber ?? bankTxReturn.creditorData?.houseNumber,
