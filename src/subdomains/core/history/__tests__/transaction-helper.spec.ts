@@ -130,6 +130,9 @@ describe('TransactionHelper', () => {
 
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
     jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+    jest
+      .spyOn(pricingService, 'getPrice')
+      .mockResolvedValue(createCustomPrice({ source: 'CHF', target: 'CHF', price: 1 }));
 
     await expect(
       txHelper.getRefundData(
@@ -141,7 +144,7 @@ describe('TransactionHelper', () => {
       ),
     ).resolves.toMatchObject({
       fee: { network: 0, bank: 1.13 },
-      refundAmount: 99.87,
+      refundAmount: 99.88,
       refundTarget: 'DE12500105170648489890',
     });
   });
