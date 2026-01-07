@@ -26,6 +26,19 @@ async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
     AppInsights.setup().setAutoDependencyCorrelation(true).setAutoCollectConsole(true, true);
     AppInsights.defaultClient.context.tags[AppInsights.defaultClient.context.keys.cloudRole] = 'dfx-api';
+
+    // Don't mark 4xx client errors as failures - only 5xx are real server errors
+    AppInsights.defaultClient.addTelemetryProcessor((envelope) => {
+      const data = envelope.data as { baseType?: string; baseData?: { responseCode?: number; success?: boolean } };
+      if (data.baseType === 'RequestData' && data.baseData) {
+        const responseCode = data.baseData.responseCode ?? 0;
+        if (responseCode >= 400 && responseCode < 500) {
+          data.baseData.success = true;
+        }
+      }
+      return true;
+    });
+
     AppInsights.start();
   }
 
