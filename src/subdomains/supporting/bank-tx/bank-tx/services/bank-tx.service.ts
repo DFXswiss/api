@@ -392,8 +392,8 @@ export class BankTxService implements OnModuleInit {
     return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
-  async getBankTxById(id: number): Promise<BankTx> {
-    return this.bankTxRepo.findOneBy({ id });
+  async getBankTxById(id: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
+    return this.bankTxRepo.findOne({ where: { id }, relations });
   }
 
   async getPendingTx(): Promise<BankTx[]> {
