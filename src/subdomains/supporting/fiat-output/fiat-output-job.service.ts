@@ -205,9 +205,7 @@ export class FiatOutputJobService {
 
             if (
               !entity.buyFiats.length ||
-              (entity.buyFiats?.[0]?.cryptoInput.isConfirmed &&
-                entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
-                (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
+              (entity.buyFiats?.[0]?.cryptoInput.isConfirmed && entity.buyFiats?.[0]?.cryptoInput.asset.blockchain)
             ) {
               if (ibanCountry === 'LI' && entity.type === FiatOutputType.LIQ_MANAGEMENT) {
                 if (

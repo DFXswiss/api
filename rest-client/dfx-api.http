@@ -151,6 +151,18 @@ Authorization: Bearer {{authToken}}
 // BUY CRYPTO
 @authToken = {{login.response.body.accessToken}}
 
+PUT {{url}}/v1/buyCrypto/xxx
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "buyId": xxx
+}
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
 POST {{url}}/v1/buyCrypto/xxx/webhook
 Authorization: Bearer {{authToken}}
 
@@ -331,6 +343,19 @@ Authorization: Bearer {{authToken}}
   "asset": {
     "id": 1
   }
+}
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/payIn/poll
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "address": "xxx",
+  "blockchain": "Cardano"
 }
 
 ###

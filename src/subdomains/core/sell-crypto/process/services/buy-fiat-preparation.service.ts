@@ -378,7 +378,7 @@ export class BuyFiatPreparationService {
       relations: {
         fiatOutput: true,
         sell: { user: { userData: { country: true } } },
-        transaction: { userData: true },
+        transaction: { userData: { organization: true } },
         cryptoInput: { paymentLinkPayment: { link: true } },
         outputAsset: true,
       },
