@@ -1,4 +1,5 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -47,6 +48,7 @@ export class FiatOutputService {
     }
 
     const entity = this.fiatOutputRepo.create(dto);
+    if (entity.amount != null) entity.amount = Util.round(entity.amount, 2);
 
     if (dto.buyFiatId) {
       entity.buyFiats = [await this.buyFiatRepo.findOneBy({ id: dto.buyFiatId })];
@@ -107,7 +109,10 @@ export class FiatOutputService {
 
         creditorData = {
           currency: buyFiats[0].outputAsset?.name,
-          amount: buyFiats.reduce((sum, bf) => sum + (bf.outputAmount ?? 0), 0),
+          amount: Util.round(
+            buyFiats.reduce((sum, bf) => sum + (bf.outputAmount ?? 0), 0),
+            2,
+          ),
           name: userData.completeName,
           address: userData.address.street,
           houseNumber: userData.address.houseNumber,
@@ -127,6 +132,8 @@ export class FiatOutputService {
       originEntityId,
       ...creditorData,
     });
+
+    if (entity.amount != null) entity.amount = Util.round(entity.amount, 2);
 
     // Validate creditor fields for all types - data comes from frontend or admin DTO
     this.validateRequiredCreditorFields(entity);
@@ -155,6 +162,8 @@ export class FiatOutputService {
       entity.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: dto.bankTxId });
       if (!entity.bankTx) throw new NotFoundException('BankTx not found');
     }
+
+    if (dto.amount != null) dto.amount = Util.round(dto.amount, 2);
 
     return this.fiatOutputRepo.save({ ...entity, ...dto });
   }
