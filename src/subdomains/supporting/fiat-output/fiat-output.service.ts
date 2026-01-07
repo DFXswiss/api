@@ -143,7 +143,7 @@ export class FiatOutputService {
     );
 
     if (missingFields.length > 0) {
-      throw new BadRequestException(`Missing required creditor fields: ${missingFields.join(', ')}`);
+      throw new Error(`Missing required creditor fields: ${missingFields.join(', ')}`);
     }
   }
 
