@@ -16,9 +16,9 @@ import {
   BrokerbotSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -53,6 +53,7 @@ import {
 } from './dto/client.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import { AktionariatRegistrationDto, RealUnitRegistrationDto, RealUnitUserType } from './dto/realunit-registration.dto';
+import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from './dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountSummaryDto,
@@ -63,7 +64,6 @@ import {
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
-import { RealUnitSellDto, RealUnitSellPaymentInfoDto, RealUnitSellConfirmDto } from './dto/realunit-sell.dto';
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
@@ -75,11 +75,8 @@ export class RealUnitService {
   private readonly ponderUrl: string;
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
+  private readonly tokenBlockchain = Blockchain.ETHEREUM;
   private readonly historicalPriceCache = new AsyncCache<HistoricalPriceDto[]>(CacheItemResetPeriod.EVERY_6_HOURS);
-
-  // RealUnit on Base
-  private readonly REALU_BASE_ADDRESS = '0x553C7f9C780316FC1D34b8e14ac2465Ab22a090B';
-  private readonly BASE_CHAIN_ID = 8453;
 
   constructor(
     private readonly assetPricesService: AssetPricesService,
@@ -130,7 +127,7 @@ export class RealUnitService {
   private async getRealuAsset(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
       name: this.tokenName,
-      blockchain: Blockchain.ETHEREUM,
+      blockchain: this.tokenBlockchain,
       type: AssetType.TOKEN,
     });
   }
@@ -558,14 +555,6 @@ export class RealUnitService {
 
   // --- Sell Payment Info Methods ---
 
-  private async getBaseRealuAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      name: this.tokenName,
-      blockchain: Blockchain.BASE,
-      type: AssetType.TOKEN,
-    });
-  }
-
   async getSellPaymentInfo(user: User, dto: RealUnitSellDto): Promise<RealUnitSellPaymentInfoDto> {
     const userData = user.userData;
     const currencyName = dto.currency ?? 'CHF';
@@ -582,9 +571,9 @@ export class RealUnitService {
       throw new KycLevelRequiredException(requiredLevel, userData.kycLevel, 'KYC Level 20 required for RealUnit sell');
     }
 
-    // 3. Get REALU asset on Base
-    const realuAsset = await this.getBaseRealuAsset();
-    if (!realuAsset) throw new NotFoundException('REALU asset not found on Base blockchain');
+    // 3. Get REALU asset
+    const realuAsset = await this.getRealuAsset();
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
 
     // 4. Get currency
     const currency = await this.fiatService.getFiatByName(currencyName);
@@ -592,7 +581,7 @@ export class RealUnitService {
     // 5. Get or create Sell route
     const sell = await this.sellService.createSell(
       user.id,
-      { iban: dto.iban, currency, blockchain: Blockchain.BASE },
+      { iban: dto.iban, currency, blockchain: realuAsset.blockchain },
       true,
     );
 
@@ -614,7 +603,7 @@ export class RealUnitService {
     // 7. Prepare EIP-7702 delegation data (ALWAYS for RealUnit - app supports eth_sign)
     const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
       user.address,
-      Blockchain.BASE,
+      realuAsset.blockchain,
     );
 
     // 8. Build response with EIP-7702 data AND fallback transfer info
@@ -629,7 +618,7 @@ export class RealUnitService {
       // EIP-7702 Data (ALWAYS present for RealUnit)
       eip7702: {
         ...delegationData,
-        tokenAddress: this.REALU_BASE_ADDRESS,
+        tokenAddress: realuAsset.chainId,
         amountWei: amountWei.toString(),
         depositAddress: sellPaymentInfo.depositAddress,
       },
@@ -637,8 +626,8 @@ export class RealUnitService {
       // Fallback Transfer Info (ALWAYS present)
       depositAddress: sellPaymentInfo.depositAddress,
       amount: sellPaymentInfo.amount,
-      tokenAddress: this.REALU_BASE_ADDRESS,
-      chainId: this.BASE_CHAIN_ID,
+      tokenAddress: realuAsset.chainId,
+      chainId: EvmUtil.getChainId(realuAsset.blockchain),
 
       // Fee Info
       fees: sellPaymentInfo.fees,
@@ -677,7 +666,7 @@ export class RealUnitService {
     const sell = await this.sellService.getById(request.routeId, { relations: { deposit: true, user: true } });
     if (!sell) throw new NotFoundException('Sell route not found');
 
-    const realuAsset = await this.getBaseRealuAsset();
+    const realuAsset = await this.getRealuAsset();
     if (!realuAsset) throw new NotFoundException('REALU asset not found');
 
     let txHash: string;

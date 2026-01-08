@@ -275,7 +275,10 @@ export class BuyCryptoService {
       });
 
     if (dto.chargebackAllowedDate) {
-      if (entity.bankTx && !entity.chargebackOutput)
+      if (entity.bankTx && !entity.chargebackOutput) {
+        if (!dto.chargebackCreditorName && !entity.creditorData)
+          throw new BadRequestException('Creditor data is required for chargeback');
+
         update.chargebackOutput = await this.fiatOutputService.createInternal(
           FiatOutputType.BUY_CRYPTO_FAIL,
           { buyCrypto: entity },
@@ -293,6 +296,7 @@ export class BuyCryptoService {
             country: dto.chargebackCreditorCountry ?? entity.creditorData?.country,
           },
         );
+      }
 
       if (entity.checkoutTx) {
         await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
@@ -541,6 +545,10 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
+    const creditorData = dto.creditorData ?? buyCrypto.creditorData;
+    if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
+      throw new BadRequestException('Creditor data is required for chargeback');
+
     if (dto.chargebackAllowedDate && chargebackAmount)
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
@@ -551,12 +559,7 @@ export class BuyCryptoService {
           iban: chargebackIban,
           amount: chargebackAmount,
           currency: dto.chargebackCurrency ?? buyCrypto.bankTx?.currency,
-          name: dto.name ?? buyCrypto.creditorData?.name,
-          address: dto.address ?? buyCrypto.creditorData?.address,
-          houseNumber: dto.houseNumber ?? buyCrypto.creditorData?.houseNumber,
-          zip: dto.zip ?? buyCrypto.creditorData?.zip,
-          city: dto.city ?? buyCrypto.creditorData?.city,
-          country: dto.country ?? buyCrypto.creditorData?.country,
+          ...creditorData,
         },
       );
 
@@ -570,14 +573,7 @@ export class BuyCryptoService {
         dto.chargebackOutput,
         buyCrypto.chargebackBankRemittanceInfo,
         undefined,
-        {
-          name: dto.name,
-          address: dto.address,
-          houseNumber: dto.houseNumber,
-          zip: dto.zip,
-          city: dto.city,
-          country: dto.country,
-        },
+        creditorData,
       ),
     );
   }

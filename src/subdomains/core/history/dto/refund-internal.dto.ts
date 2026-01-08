@@ -3,6 +3,7 @@ import { IsDate, IsIBAN, IsNumber, IsOptional, IsString, ValidateNested } from '
 import { CheckoutReverse } from 'src/integration/checkout/services/checkout.service';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Util } from 'src/shared/utils/util';
+import { CreditorData } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 
@@ -43,14 +44,7 @@ export class BankTxRefund extends BaseRefund {
   refundIban?: string;
   chargebackCurrency?: string;
   chargebackOutput?: FiatOutput;
-
-  // Creditor data for FiatOutput
-  name?: string;
-  address?: string;
-  houseNumber?: string;
-  zip?: string;
-  city?: string;
-  country?: string;
+  creditorData?: CreditorData;
 }
 
 export class CheckoutTxRefund extends BaseRefund {
