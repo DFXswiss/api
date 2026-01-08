@@ -1,4 +1,5 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -47,6 +48,7 @@ export class FiatOutputService {
     }
 
     const entity = this.fiatOutputRepo.create(dto);
+    if (entity.amount != null) entity.amount = Util.roundReadable(entity.amount, AmountType.FIAT);
 
     if (dto.buyFiatId) {
       entity.buyFiats = [await this.buyFiatRepo.findOneBy({ id: dto.buyFiatId })];
@@ -126,6 +128,7 @@ export class FiatOutputService {
       bankTxReturn,
       originEntityId,
       ...creditorData,
+      amount: Util.roundReadable(creditorData.amount, AmountType.FIAT),
     });
 
     // Validate creditor fields for all types - data comes from frontend or admin DTO
@@ -155,6 +158,8 @@ export class FiatOutputService {
       entity.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: dto.bankTxId });
       if (!entity.bankTx) throw new NotFoundException('BankTx not found');
     }
+
+    if (dto.amount != null) dto.amount = Util.roundReadable(dto.amount, AmountType.FIAT);
 
     return this.fiatOutputRepo.save({ ...entity, ...dto });
   }

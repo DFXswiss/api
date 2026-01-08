@@ -285,12 +285,14 @@ export class SupportService {
       chargebackAmount: refundData.refundAmount,
       chargebackAllowedDate: new Date(),
       chargebackAllowedBy: 'Compliance',
-      name: dto.name,
-      address: dto.address,
-      houseNumber: dto.houseNumber,
-      zip: dto.zip,
-      city: dto.city,
-      country: dto.country,
+      creditorData: {
+        name: dto.name,
+        address: dto.address,
+        houseNumber: dto.houseNumber,
+        zip: dto.zip,
+        city: dto.city,
+        country: dto.country,
+      },
     });
 
     return true;
