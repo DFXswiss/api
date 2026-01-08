@@ -211,6 +211,14 @@ export class PayInService {
 
   async returnPayIn(payIn: CryptoInput, returnAddress: string, chargebackAmount: number): Promise<void> {
     if (payIn.action === PayInAction.FORWARD) throw new BadRequestException('CryptoInput already forwarded');
+
+    // Check if funds have been forwarded to liquidity - use returnPayInFromLiquidity instead
+    if ([PayInStatus.FORWARDED, PayInStatus.FORWARD_CONFIRMED].includes(payIn.status)) {
+      throw new BadRequestException(
+        'CryptoInput funds have been forwarded to liquidity. Use returnPayInFromLiquidity() instead.',
+      );
+    }
+
     if ([PayInStatus.RETURN_CONFIRMED, PayInStatus.RETURNED].includes(payIn.status) || payIn.returnTxId)
       throw new BadRequestException('CryptoInput already returned');
 
@@ -221,6 +229,38 @@ export class PayInService {
         type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
         user: payIn.route.user,
       });
+
+    await this.payInRepository.save(payIn);
+  }
+
+  async returnPayInFromLiquidity(payIn: CryptoInput, returnAddress: string, chargebackAmount: number): Promise<void> {
+    // Only for PayIns that have been forwarded to liquidity
+    if (![PayInStatus.FORWARDED, PayInStatus.FORWARD_CONFIRMED].includes(payIn.status)) {
+      throw new BadRequestException('CryptoInput has not been forwarded to liquidity. Use returnPayIn() instead.');
+    }
+
+    // No double returns
+    if (
+      [
+        PayInStatus.RETURN_CONFIRMED,
+        PayInStatus.RETURNED,
+        PayInStatus.TO_RETURN,
+        PayInStatus.TO_RETURN_FROM_LIQ,
+        PayInStatus.RETURN_FROM_LIQ_PENDING,
+      ].includes(payIn.status) ||
+      payIn.returnTxId
+    ) {
+      throw new BadRequestException('Return already in progress or completed');
+    }
+
+    payIn.triggerReturnFromLiquidity(BlockchainAddress.create(returnAddress, payIn.asset.blockchain), chargebackAmount);
+
+    if (payIn.transaction) {
+      await this.transactionService.updateInternal(payIn.transaction, {
+        type: TransactionTypeInternal.CRYPTO_INPUT_RETURN,
+        user: payIn.route.user,
+      });
+    }
 
     await this.payInRepository.save(payIn);
   }
@@ -243,6 +283,12 @@ export class PayInService {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async returnPayInEntries(): Promise<void> {
     await this.returnPayIns();
+  }
+
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
+  async returnPayInFromLiquidityEntries(): Promise<void> {
+    await this.returnPayInsFromLiquidity();
+    await this.checkReturnFromLiquidityConfirmations();
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
@@ -469,5 +515,57 @@ export class PayInService {
     }
 
     return groups;
+  }
+
+  private async returnPayInsFromLiquidity(): Promise<void> {
+    const payIns = await this.payInRepository.find({
+      where: {
+        status: PayInStatus.TO_RETURN_FROM_LIQ,
+        action: PayInAction.RETURN,
+        returnTxId: IsNull(),
+        asset: Not(IsNull()),
+        chargebackAmount: Not(IsNull()),
+      },
+      relations: { buyCrypto: true, buyFiat: true },
+    });
+
+    if (payIns.length === 0) return;
+
+    const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
+
+    for (const [strategy, strategyPayIns] of groups.entries()) {
+      try {
+        await strategy.doSendFromLiquidity(strategyPayIns, SendType.RETURN);
+      } catch (e) {
+        this.logger.error(
+          `Failed to return from liquidity for ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`,
+          e,
+        );
+        continue;
+      }
+    }
+  }
+
+  private async checkReturnFromLiquidityConfirmations(): Promise<void> {
+    const payIns = await this.payInRepository.find({
+      where: { status: PayInStatus.RETURN_FROM_LIQ_PENDING },
+      take: 10000,
+    });
+
+    if (payIns.length === 0) return;
+
+    const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
+
+    for (const [strategy, strategyPayIns] of groups.entries()) {
+      try {
+        await strategy.checkConfirmations(strategyPayIns, PayInConfirmationType.RETURN);
+      } catch (e) {
+        this.logger.error(
+          `Failed to check return from liquidity confirmations for ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`,
+          e,
+        );
+        continue;
+      }
+    }
   }
 }

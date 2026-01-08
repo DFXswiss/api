@@ -129,4 +129,8 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
       this.getTotalGroupAmount(payInGroup, type),
     );
   }
+
+  protected sendReturnFromLiquidity(payIn: CryptoInput): Promise<string> {
+    return this.payInEvmService.sendTokenFromDex(payIn.destinationAddress.address, payIn.asset, payIn.chargebackAmount);
+  }
 }

@@ -1,6 +1,6 @@
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
-import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -49,5 +49,9 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
     const amount = type === SendType.FORWARD ? Util.round(groupAmount - estimatedNativeFee * 1.00001, 12) : groupAmount;
 
     return this.payInEvmService.sendNativeCoin(account, destinationAddress, amount);
+  }
+
+  protected sendReturnFromLiquidity(payIn: CryptoInput): Promise<string> {
+    return this.payInEvmService.sendNativeCoinFromDex(payIn.destinationAddress.address, payIn.chargebackAmount);
   }
 }

@@ -67,4 +67,12 @@ export class SolanaTokenStrategy extends SolanaStrategy {
       payIn.sendingAmount,
     );
   }
+
+  protected sendReturnFromLiquidity(payIn: CryptoInput): Promise<string> {
+    return this.payInSolanaService.sendTokenFromDex(
+      payIn.destinationAddress.address,
+      payIn.asset,
+      payIn.chargebackAmount,
+    );
+  }
 }

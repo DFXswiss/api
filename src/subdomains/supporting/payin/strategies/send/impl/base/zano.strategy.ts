@@ -58,4 +58,10 @@ export abstract class ZanoStrategy extends BitcoinBasedStrategy {
   async checkTransactionCompletion(txId: string, minConfirmations: number): Promise<boolean> {
     return this.payInZanoService.checkTransactionCompletion(txId, minConfirmations);
   }
+
+  protected sendReturnFromLiquidity(_payIn: CryptoInput): Promise<string> {
+    // Zano PayIns are never forwarded to liquidity (forwardRequired = false).
+    // This method should never be called.
+    throw new Error('Zano does not support return from liquidity');
+  }
 }

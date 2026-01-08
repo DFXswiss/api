@@ -35,6 +35,10 @@ export class PayInTronService {
     return this.tronService.sendTokenFromAccount(account, addressTo, token, amount);
   }
 
+  async sendTokenFromDex(addressTo: string, token: Asset, amount: number): Promise<string> {
+    return this.tronService.sendTokenFromDex(addressTo, token, amount);
+  }
+
   async checkTransactionCompletion(txHash: string, minConfirmations: number): Promise<boolean> {
     return this.tronService.isTxComplete(txHash, minConfirmations);
   }
