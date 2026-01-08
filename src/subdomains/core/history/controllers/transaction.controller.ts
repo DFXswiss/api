@@ -441,13 +441,25 @@ export class TransactionController {
         .then((b) => b.bankTxReturn);
     }
 
+    // Build creditorData from BankRefundDto (for backwards compatibility)
+    const bankDto = dto as BankRefundDto;
+    const creditorData = bankDto.name
+      ? {
+          name: bankDto.name,
+          address: bankDto.address,
+          houseNumber: bankDto.houseNumber,
+          zip: bankDto.zip,
+          city: bankDto.city,
+          country: bankDto.country,
+        }
+      : undefined;
+
     if (transaction.targetEntity instanceof BankTxReturn) {
-      if (!dto.creditorData)
-        throw new BadRequestException('Creditor data is required for bank refunds');
+      if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
       return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
         refundIban: refundData.refundTarget ?? dto.refundTarget,
-        ...dto.creditorData,
+        creditorData,
         ...refundDto,
       });
     }
@@ -471,12 +483,11 @@ export class TransactionController {
       return this.buyCryptoService.refundCheckoutTx(transaction.targetEntity, { ...refundDto });
 
     // BuyCrypto bank refund
-    if (!dto.creditorData)
-      throw new BadRequestException('Creditor data is required for bank refunds');
+    if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
     return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
-      ...dto.creditorData,
+      creditorData,
       ...refundDto,
     });
   }

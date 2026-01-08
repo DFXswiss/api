@@ -50,7 +50,6 @@ export class TransactionRefundDto {
   creditorData?: CreditorDataDto;
 }
 
-// Deprecated - use TransactionRefundDto with creditorData instead
 export class BankRefundDto extends TransactionRefundDto {
   @ApiProperty({ description: 'Creditor name for bank transfer' })
   @IsNotEmpty()

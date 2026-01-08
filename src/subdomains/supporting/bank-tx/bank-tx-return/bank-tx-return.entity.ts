@@ -159,15 +159,10 @@ export class BankTxReturn extends IEntity {
     chargebackAllowedBy: string,
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
-    creditorData?: {
-      name?: string;
-      address?: string;
-      houseNumber?: string;
-      zip?: string;
-      city?: string;
-      country?: string;
-    },
+    creditorData?: CreditorData,
   ): UpdateResult<BankTxReturn> {
+    const hasCreditorData = creditorData && Object.values(creditorData).some((v) => v != null);
+
     const update: Partial<BankTxReturn> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
       chargebackAllowedDate,
@@ -177,7 +172,7 @@ export class BankTxReturn extends IEntity {
       chargebackOutput,
       chargebackAllowedBy,
       chargebackRemittanceInfo,
-      chargebackCreditorData: creditorData ? JSON.stringify(creditorData) : undefined,
+      chargebackCreditorData: hasCreditorData ? JSON.stringify(creditorData) : undefined,
     };
 
     Object.assign(this, update);
