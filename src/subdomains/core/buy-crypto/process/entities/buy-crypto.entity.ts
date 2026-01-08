@@ -533,15 +533,10 @@ export class BuyCrypto extends IEntity {
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
     blockchainFee?: number,
-    creditorData?: {
-      name?: string;
-      address?: string;
-      houseNumber?: string;
-      zip?: string;
-      city?: string;
-      country?: string;
-    },
+    creditorData?: CreditorData,
   ): UpdateResult<BuyCrypto> {
+    const hasCreditorData = creditorData && Object.values(creditorData).some((v) => v != null);
+
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
       chargebackAllowedDate,
@@ -556,7 +551,7 @@ export class BuyCrypto extends IEntity {
       blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
       status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
-      chargebackCreditorData: creditorData ? JSON.stringify(creditorData) : undefined,
+      chargebackCreditorData: hasCreditorData ? JSON.stringify(creditorData) : undefined,
     };
 
     Object.assign(this, update);

@@ -108,12 +108,14 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       const dto = {
         chargebackAllowedDate: new Date(),
         chargebackAllowedBy: 'Admin',
-        name: 'Override Name',
-        address: 'Override Address',
-        houseNumber: '99',
-        zip: '9999',
-        city: 'Override City',
-        country: 'DE',
+        creditorData: {
+          name: 'Override Name',
+          address: 'Override Address',
+          houseNumber: '99',
+          zip: '9999',
+          city: 'Override City',
+          country: 'DE',
+        },
       };
 
       await service.refundBankTx(mockBankTxReturn, dto);
@@ -134,7 +136,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       );
     });
 
-    it('should handle missing creditorData in entity gracefully', async () => {
+    it('should throw error when creditorData is missing and chargebackAllowedDate is set', async () => {
       const bankTxReturnWithoutCreditor = {
         ...mockBankTxReturn,
         chargebackCreditorData: null,
@@ -150,21 +152,8 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
         chargebackAllowedBy: 'BatchJob',
       };
 
-      await service.refundBankTx(bankTxReturnWithoutCreditor, dto);
-
-      expect(fiatOutputService.createInternal).toHaveBeenCalledWith(
-        FiatOutputType.BANK_TX_RETURN,
-        { bankTxReturn: bankTxReturnWithoutCreditor },
-        bankTxReturnWithoutCreditor.id,
-        false,
-        expect.objectContaining({
-          name: undefined,
-          address: undefined,
-          houseNumber: undefined,
-          zip: undefined,
-          city: undefined,
-          country: undefined,
-        }),
+      await expect(service.refundBankTx(bankTxReturnWithoutCreditor, dto)).rejects.toThrow(
+        'Creditor data is required for chargeback',
       );
     });
   });

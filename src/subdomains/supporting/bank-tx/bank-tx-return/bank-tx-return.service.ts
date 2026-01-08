@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -200,6 +200,10 @@ export class BankTxReturnService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
+    const creditorData = dto.creditorData ?? bankTxReturn.creditorData;
+    if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
+      throw new BadRequestException('Creditor data is required for chargeback');
+
     if (dto.chargebackAllowedDate && chargebackAmount) {
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BANK_TX_RETURN,
@@ -210,12 +214,7 @@ export class BankTxReturnService {
           iban: chargebackIban,
           amount: chargebackAmount,
           currency: bankTxReturn.bankTx?.currency,
-          name: dto.name ?? bankTxReturn.creditorData?.name,
-          address: dto.address ?? bankTxReturn.creditorData?.address,
-          houseNumber: dto.houseNumber ?? bankTxReturn.creditorData?.houseNumber,
-          zip: dto.zip ?? bankTxReturn.creditorData?.zip,
-          city: dto.city ?? bankTxReturn.creditorData?.city,
-          country: dto.country ?? bankTxReturn.creditorData?.country,
+          ...creditorData,
         },
       );
     }
@@ -229,14 +228,7 @@ export class BankTxReturnService {
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
         bankTxReturn.chargebackBankRemittanceInfo,
-        {
-          name: dto.name,
-          address: dto.address,
-          houseNumber: dto.houseNumber,
-          zip: dto.zip,
-          city: dto.city,
-          country: dto.country,
-        },
+        creditorData,
       ),
     );
   }
