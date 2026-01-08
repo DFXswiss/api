@@ -207,7 +207,7 @@ export class BankTxService implements OnModuleInit {
         if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
           // check for dedicated asset vIBAN
           if (tx.virtualIban) {
-            const virtualIban = await this.virtualIbanService.getByIbanWithBuy(tx.virtualIban);
+            const virtualIban = await this.virtualIbanService.getByIban(tx.virtualIban);
             if (virtualIban?.buy) {
               await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: virtualIban.buy.id });
               continue;
