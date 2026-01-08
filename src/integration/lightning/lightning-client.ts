@@ -8,6 +8,7 @@ import {
   LndChannelBalanceDto,
   LndChannelDto,
   LndInfoDto,
+  LndInvoiceDto,
   LndPaymentDto,
   LndRouteDto,
   LndSendPaymentResponseDto,
@@ -113,6 +114,13 @@ export class LightningClient {
     return this.http
       .get<{ payments: LndPaymentDto[] }>(`${Config.blockchain.lightning.lnd.apiUrl}/payments`, httpConfig)
       .then((p) => p.payments);
+  }
+
+  async lookupInvoice(paymentHashHex: string): Promise<LndInvoiceDto> {
+    return this.http.get<LndInvoiceDto>(
+      `${Config.blockchain.lightning.lnd.apiUrl}/invoice/${paymentHashHex}`,
+      this.httpLndConfig(),
+    );
   }
 
   async sendPaymentByInvoice(invoice: string): Promise<LndSendPaymentResponseDto> {

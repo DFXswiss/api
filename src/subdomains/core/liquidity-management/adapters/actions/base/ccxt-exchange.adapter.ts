@@ -36,7 +36,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
   constructor(
     system: LiquidityManagementSystem,
-    private readonly exchangeService: ExchangeService,
+    protected readonly exchangeService: ExchangeService,
     private readonly exchangeRegistry: ExchangeRegistryService,
     private readonly dexService: DexService,
     private readonly orderRepo: LiquidityManagementOrderRepository,
