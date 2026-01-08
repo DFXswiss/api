@@ -200,7 +200,11 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
   },
-  [AmlError.BANK_DATA_USER_MISMATCH]: null,
+  [AmlError.BANK_DATA_USER_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.USER_DATA_MISMATCH,
+  },
   [AmlError.VIRTUAL_IBAN_USER_MISMATCH]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
