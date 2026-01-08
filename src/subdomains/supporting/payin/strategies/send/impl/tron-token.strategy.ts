@@ -59,4 +59,12 @@ export class TronTokenStrategy extends TronStrategy {
 
     return this.payInTronService.sendToken(account, payIn.destinationAddress.address, payIn.asset, payIn.sendingAmount);
   }
+
+  protected sendReturnFromLiquidity(payIn: CryptoInput): Promise<string> {
+    return this.payInTronService.sendTokenFromDex(
+      payIn.destinationAddress.address,
+      payIn.asset,
+      payIn.chargebackAmount,
+    );
+  }
 }

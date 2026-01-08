@@ -71,4 +71,8 @@ export class CardanoCoinStrategy extends CardanoStrategy {
 
     return Math.min(payIn.sendingAmount, balance) - payIn.forwardFeeAmount;
   }
+
+  protected sendReturnFromLiquidity(payIn: CryptoInput): Promise<string> {
+    return this.payInCardanoService.sendNativeCoinFromDex(payIn.destinationAddress.address, payIn.chargebackAmount);
+  }
 }

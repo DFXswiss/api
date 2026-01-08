@@ -14,7 +14,7 @@ import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -298,11 +298,18 @@ export class BuyFiatService {
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
       blockchainFee = await this.transactionHelper.getBlockchainFee(buyFiat.cryptoInput.asset, true);
-      await this.payInService.returnPayIn(
-        buyFiat.cryptoInput,
-        refundUser.address ?? buyFiat.chargebackAddress,
-        chargebackAmount,
-      );
+
+      const returnAddress = refundUser.address ?? buyFiat.chargebackAddress;
+      const cryptoInputStatus = buyFiat.cryptoInput.status;
+
+      // Choose return method based on CryptoInput status
+      if ([PayInStatus.FORWARDED, PayInStatus.FORWARD_CONFIRMED].includes(cryptoInputStatus)) {
+        // Funds have been forwarded to liquidity → return from liquidity
+        await this.payInService.returnPayInFromLiquidity(buyFiat.cryptoInput, returnAddress, chargebackAmount);
+      } else {
+        // Funds are still on deposit address → normal return
+        await this.payInService.returnPayIn(buyFiat.cryptoInput, returnAddress, chargebackAmount);
+      }
     }
 
     await this.buyFiatRepo.update(

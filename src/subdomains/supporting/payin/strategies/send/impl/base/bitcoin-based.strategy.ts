@@ -86,4 +86,29 @@ export abstract class BitcoinBasedStrategy extends SendStrategy {
       }
     }
   }
+
+  async doSendFromLiquidity(payIns: CryptoInput[], type: SendType): Promise<void> {
+    if (type !== SendType.RETURN) {
+      throw new Error('doSendFromLiquidity only supports RETURN type');
+    }
+
+    await this.payInService.checkHealthOrThrow();
+
+    for (const payIn of payIns) {
+      try {
+        const returnTxId = await this.sendReturnFromLiquidity(payIn);
+
+        payIn.pendingReturnFromLiquidity(returnTxId);
+        await this.payInRepo.save(payIn);
+
+        this.logger.verbose(`Returned pay-in ${payIn.id} from liquidity, txId: ${returnTxId}`);
+      } catch (e) {
+        this.logger.error(`Failed to return ${this.blockchain} pay-in ${payIn.id} from liquidity:`, e);
+        // Status remains TO_RETURN_FROM_LIQ, retry in next cron iteration
+        continue;
+      }
+    }
+  }
+
+  protected abstract sendReturnFromLiquidity(payIn: CryptoInput): Promise<string>;
 }

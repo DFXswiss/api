@@ -39,6 +39,10 @@ export class PayInSolanaService {
     return this.solanaService.sendTokenFromAccount(account, addressTo, token, amount);
   }
 
+  async sendTokenFromDex(addressTo: string, token: Asset, amount: number): Promise<string> {
+    return this.solanaService.sendTokenFromDex(addressTo, token, amount);
+  }
+
   async checkTransactionCompletion(txHash: string, minConfirmations: number): Promise<boolean> {
     return this.solanaService.isTxComplete(txHash, minConfirmations);
   }

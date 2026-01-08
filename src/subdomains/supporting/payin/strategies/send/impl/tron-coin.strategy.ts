@@ -71,4 +71,8 @@ export class TronCoinStrategy extends TronStrategy {
 
     return Math.min(payIn.sendingAmount, balance) - payIn.forwardFeeAmount;
   }
+
+  protected sendReturnFromLiquidity(payIn: CryptoInput): Promise<string> {
+    return this.payInTronService.sendNativeCoinFromDex(payIn.destinationAddress.address, payIn.chargebackAmount);
+  }
 }

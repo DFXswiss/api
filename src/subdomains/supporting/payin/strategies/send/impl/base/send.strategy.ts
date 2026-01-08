@@ -60,6 +60,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   abstract get forwardRequired(): boolean;
 
   abstract doSend(payIns: CryptoInput[], type: SendType): Promise<void>;
+  abstract doSendFromLiquidity(payIns: CryptoInput[], type: SendType): Promise<void>;
   abstract checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void>;
 
   protected abstract getForwardAddress(): BlockchainAddress;

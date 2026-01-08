@@ -39,6 +39,12 @@ export class BinancePayStrategy extends SendStrategy {
     }
   }
 
+  async doSendFromLiquidity(_payIns: CryptoInput[], _type: SendType): Promise<void> {
+    // Binance Pay PayIns are never forwarded to liquidity (forwardRequired = false).
+    // This method should never be called.
+    throw new Error('Binance Pay does not support return from liquidity');
+  }
+
   protected getForwardAddress(): BlockchainAddress {
     throw new Error('Method not implemented.');
   }

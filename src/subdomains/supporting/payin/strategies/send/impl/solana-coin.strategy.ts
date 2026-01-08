@@ -71,4 +71,8 @@ export class SolanaCoinStrategy extends SolanaStrategy {
       Math.min(payIn.sendingAmount, balance - Config.blockchain.solana.createTokenAccountFee) - payIn.forwardFeeAmount
     );
   }
+
+  protected sendReturnFromLiquidity(payIn: CryptoInput): Promise<string> {
+    return this.payInSolanaService.sendNativeCoinFromDex(payIn.destinationAddress.address, payIn.chargebackAmount);
+  }
 }

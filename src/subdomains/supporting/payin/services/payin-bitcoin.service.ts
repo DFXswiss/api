@@ -19,6 +19,7 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
   private readonly logger = new DfxLogger(PayInBitcoinService);
 
   private readonly client: BitcoinClient;
+  private readonly liqClient: BitcoinClient;
 
   // Limit parallel Bitcoin node calls to prevent overload
   private readonly nodeCallQueue = QueueHandler.createParallelQueueHandler(5);
@@ -30,6 +31,7 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
     super();
 
     this.client = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
+    this.liqClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
   }
 
   isAvailable(): boolean {
@@ -104,6 +106,11 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
       input.txSequence,
       await this.feeService.getRecommendedFeeRate(),
     );
+  }
+
+  async sendFromLiquidity(addressTo: string, amount: number): Promise<string> {
+    const feeRate = await this.feeService.getRecommendedFeeRate();
+    return this.liqClient.sendMany([{ addressTo, amount }], feeRate);
   }
 
   /**

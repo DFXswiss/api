@@ -23,6 +23,10 @@ export abstract class PayInEvmService {
     return this.#client.sendTokenFromAccount(account, addressTo, tokenName, amount);
   }
 
+  async sendTokenFromDex(addressTo: string, token: Asset, amount: number): Promise<string> {
+    return this.#client.sendTokenFromDex(addressTo, token, amount);
+  }
+
   async checkTransactionCompletion(txHash: string, minConfirmations: number): Promise<boolean> {
     return this.#client.isTxComplete(txHash, minConfirmations);
   }

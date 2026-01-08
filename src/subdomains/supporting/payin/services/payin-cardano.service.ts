@@ -36,6 +36,10 @@ export class PayInCardanoService {
     return this.cardanoService.sendTokenFromAccount(account, addressTo, token, amount);
   }
 
+  async sendTokenFromDex(addressTo: string, token: Asset, amount: number): Promise<string> {
+    return this.cardanoService.sendTokenFromDex(addressTo, token, amount);
+  }
+
   async checkTransactionCompletion(txHash: string, minConfirmations: number): Promise<boolean> {
     return this.cardanoService.isTxComplete(txHash, minConfirmations);
   }

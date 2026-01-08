@@ -65,4 +65,12 @@ export class CardanoTokenStrategy extends CardanoStrategy {
       payIn.sendingAmount,
     );
   }
+
+  protected sendReturnFromLiquidity(payIn: CryptoInput): Promise<string> {
+    return this.payInCardanoService.sendTokenFromDex(
+      payIn.destinationAddress.address,
+      payIn.asset,
+      payIn.chargebackAmount,
+    );
+  }
 }

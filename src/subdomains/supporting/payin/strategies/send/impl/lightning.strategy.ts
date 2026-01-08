@@ -76,6 +76,19 @@ export class LightningStrategy extends SendStrategy {
     }
   }
 
+  async doSendFromLiquidity(payIns: CryptoInput[], type: SendType): Promise<void> {
+    // Lightning PayIns are never forwarded to liquidity (forwardRequired = false).
+    // This method should never be called. If it is, fall back to normal return flow.
+    for (const payIn of payIns) {
+      this.logger.warn(
+        `Lightning pay-in ${payIn.id} marked for return from liquidity - unexpected state. Using normal return flow.`,
+      );
+    }
+
+    // Fall back to normal return
+    await this.doSend(payIns, type);
+  }
+
   protected getForwardAddress(): BlockchainAddress {
     throw new Error('Method not implemented.');
   }

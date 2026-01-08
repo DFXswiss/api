@@ -39,6 +39,8 @@ export enum PayInStatus {
   TO_RETURN = 'ToReturn',
   RETURNED = 'Returned',
   RETURN_CONFIRMED = 'ReturnConfirmed',
+  TO_RETURN_FROM_LIQ = 'ToReturnFromLiq',
+  RETURN_FROM_LIQ_PENDING = 'ReturnFromLiqPending',
   ACKNOWLEDGED = 'Acknowledged',
   FORWARDED = 'Forwarded',
   FORWARD_CONFIRMED = 'ForwardConfirmed',
@@ -211,6 +213,29 @@ export class CryptoInput extends IEntity {
     this.action = PayInAction.RETURN;
     this.destinationAddress = returnAddress;
     this.chargebackAmount = chargebackAmount;
+
+    return this;
+  }
+
+  triggerReturnFromLiquidity(returnAddress: BlockchainAddress, chargebackAmount: number): this {
+    this.status = PayInStatus.TO_RETURN_FROM_LIQ;
+    this.action = PayInAction.RETURN;
+    this.destinationAddress = returnAddress;
+    this.chargebackAmount = chargebackAmount;
+
+    return this;
+  }
+
+  pendingReturnFromLiquidity(returnTxId: string): this {
+    this.returnTxId = returnTxId;
+    this.status = PayInStatus.RETURN_FROM_LIQ_PENDING;
+
+    return this;
+  }
+
+  rollbackReturnFromLiquidity(): this {
+    this.status = PayInStatus.TO_RETURN_FROM_LIQ;
+    this.returnTxId = null;
 
     return this;
   }
