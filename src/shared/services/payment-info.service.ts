@@ -29,12 +29,10 @@ export class PaymentInfoService {
     if (!dto.asset) throw new NotFoundException('Asset not found');
     if (jwt && !dto.asset.isBuyableOn(jwt.blockchains)) throw new BadRequestException('Asset blockchain mismatch');
 
-    // Credit card payments disabled
     if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD) {
-      throw new BadRequestException('Credit card payments are currently disabled');
-    }
-
-    if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.INSTANT) {
+      if (!dto.currency.cardSellable) throw new BadRequestException('Currency not sellable via Card');
+      if (!dto.asset.cardBuyable) throw new BadRequestException('Asset not buyable via Card');
+    } else if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.INSTANT) {
       if (!dto.currency.instantSellable) throw new BadRequestException('Currency not sellable via Instant');
       if (!dto.asset.instantBuyable) throw new BadRequestException('Asset not buyable via Instant');
     } else {
