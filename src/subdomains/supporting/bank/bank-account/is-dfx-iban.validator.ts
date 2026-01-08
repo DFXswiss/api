@@ -7,6 +7,7 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import * as IbanTools from 'ibantools';
+import { Config } from 'src/config/config';
 import { SpecialExternalAccountType } from '../../payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from '../../payment/services/special-external-account.service';
 import { Bank } from '../bank/bank.entity';
@@ -79,8 +80,7 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
     if (!valid) return `${args.property} not valid`;
 
     // BIC lookup required for non-CH/LI IBANs
-    if (!this.currentBIC && !iban.startsWith('CH') && !iban.startsWith('LI'))
-      return `${args.property} BIC could not be determined`;
+    if (!this.currentBIC && !Config.isDomesticIban(iban)) return `${args.property} BIC could not be determined`;
 
     // check blocked IBANs
     const isBlocked = this.blockedIbans.some((i) => new RegExp(i.toLowerCase()).test(iban.toLowerCase()));
@@ -92,8 +92,8 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
     if (this.dfxBanks.some((b) => b.iban.toLowerCase() === iban.toLowerCase()))
       return `${args.property} DFX IBAN not allowed`;
 
-    // check if QR IBAN
-    if (iban.startsWith('CH') || iban.startsWith('LI')) {
+    // check if QR IBAN (CH/LI only)
+    if (Config.isDomesticIban(iban)) {
       const iid = +iban.substring(4, 9);
       if (iid >= 30000 && iid <= 31999) return `${args.property} QR IBAN not allowed`;
     }

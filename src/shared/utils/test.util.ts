@@ -4,7 +4,7 @@ import { DeepPartial } from 'typeorm';
 
 export class TestUtil {
   static provideConfig(config: DeepPartial<Configuration> = {}): Provider {
-    const conf = { ...new Configuration(), ...config } as Configuration;
+    const conf = Object.assign(new Configuration(), config);
     return { provide: ConfigService, useValue: new ConfigService(conf) };
   }
 }
