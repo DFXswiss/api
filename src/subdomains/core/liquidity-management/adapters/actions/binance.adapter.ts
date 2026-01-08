@@ -4,8 +4,8 @@ import { ExchangeRegistryService } from 'src/integration/exchange/services/excha
 import { LndInvoiceState } from 'src/integration/lightning/dto/lnd.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -21,7 +21,6 @@ export enum BinanceAdapterCommands {
   LIGHTNING_WITHDRAW = 'lightning-withdraw',
 }
 
-// Binance Lightning withdrawal limit
 const BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC = 0.00999;
 
 @Injectable()
@@ -35,7 +34,7 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     liquidityOrderRepo: LiquidityManagementOrderRepository,
     pricingService: PricingService,
     assetService: AssetService,
-    private readonly http: HttpService,
+    lightningService: LightningService,
   ) {
     super(
       LiquidityManagementSystem.BINANCE,
@@ -47,24 +46,22 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
       assetService,
     );
 
-    this.lightningClient = new LightningClient(http);
+    this.lightningClient = lightningService.getDefaultClient();
     this.commands.set(BinanceAdapterCommands.LIGHTNING_WITHDRAW, this.lightningWithdraw.bind(this));
   }
 
   // --- LIGHTNING WITHDRAW --- //
 
   private async lightningWithdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const balance = await this.exchangeService.getAvailableBalance('BTC');
+    const asset = order.pipeline.rule.targetAsset.dexName;
+    const balance = await this.exchangeService.getAvailableBalance(asset);
 
-    // Calculate amount respecting Binance Lightning limit (0.00999 BTC max per withdrawal)
-    // If more is needed, subsequent cronjob runs will handle the rest
     const amount = Util.floor(Math.min(order.maxAmount, balance, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC), 8);
 
-    if (amount <= 0) {
+    if (amount <= 0)
       throw new OrderNotProcessableException(
-        `Binance: not enough BTC balance for Lightning withdraw (balance: ${balance})`,
+        `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
-    }
     const amountSats = LightningHelper.btcToSat(amount);
 
     // Generate invoice via LnBits
@@ -75,11 +72,11 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     });
 
     order.inputAmount = amount;
-    order.inputAsset = 'BTC';
-    order.outputAsset = 'BTC';
+    order.inputAsset = asset;
+    order.outputAsset = asset;
 
     // Send invoice to Binance for withdrawal
-    const response = await this.exchangeService.withdrawFunds('BTC', amount, invoice.pr, undefined, 'LIGHTNING');
+    const response = await this.exchangeService.withdrawFunds(asset, amount, invoice.pr, undefined, 'LIGHTNING');
 
     return response.id;
   }
@@ -94,7 +91,8 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
   }
 
   private async checkLightningWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const withdrawal = await this.exchangeService.getWithdraw(order.correlationId, 'BTC');
+    const asset = order.pipeline.rule.targetAsset.dexName;
+    const withdrawal = await this.exchangeService.getWithdraw(order.correlationId, asset);
     if (!withdrawal) return false;
 
     if (withdrawal.status === 'failed') {
