@@ -47,6 +47,7 @@ import { LiquidityManagementBalanceService } from './services/liquidity-manageme
 import { LiquidityManagementPipelineService } from './services/liquidity-management-pipeline.service';
 import { LiquidityManagementRuleService } from './services/liquidity-management-rule.service';
 import { LiquidityManagementService } from './services/liquidity-management.service';
+import { OrderCompletionService } from './services/order-completion.service';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     LiquidityManagementRuleService,
     LiquidityManagementPipelineService,
     LiquidityManagementBalanceService,
+    OrderCompletionService,
     LiquidityActionIntegrationFactory,
     LiquidityBalanceIntegrationFactory,
     BlockchainAdapter,
