@@ -329,7 +329,7 @@ export class BuyFiatService {
   async resetAmlCheck(id: number): Promise<void> {
     const entity = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: { fiatOutput: true, transaction: { userData: true } },
+      relations: { fiatOutput: true, transaction: { userData: true }, outputAsset: true },
     });
     if (!entity) throw new NotFoundException('BuyFiat not found');
     if (entity.isComplete || entity.fiatOutput?.isComplete)
