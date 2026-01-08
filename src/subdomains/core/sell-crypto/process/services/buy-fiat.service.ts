@@ -352,11 +352,13 @@ export class BuyFiatService {
     await this.buyFiatRepo.update(...entity.resetAmlCheck());
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
 
-    await this.supportLogService.createSupportLog(entity.transaction.userData, {
-      type: SupportLogType.SUPPORT,
-      message: `BuyFiat ${entity.id} reset`,
-      comment: `AML check reset. Previous state: ${JSON.stringify(resetDetails)}`,
-    });
+    if (entity.transaction.userData) {
+      await this.supportLogService.createSupportLog(entity.transaction.userData, {
+        type: SupportLogType.SUPPORT,
+        message: `BuyFiat ${entity.id} reset`,
+        comment: `AML check reset. Previous state: ${JSON.stringify(resetDetails)}`,
+      });
+    }
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {
