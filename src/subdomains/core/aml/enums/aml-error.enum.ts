@@ -26,6 +26,7 @@ export enum AmlError {
   INVALID_KYC_TYPE = 'InvalidKycType',
   NO_VERIFIED_NAME = 'NoVerifiedName',
   NAME_MISSING = 'NameMissing',
+  NAME_TOO_SHORT = 'NameTooShort',
   VERIFIED_COUNTRY_NOT_ALLOWED = 'VerifiedCountryNotAllowed',
   IBAN_COUNTRY_FATF_NOT_ALLOWED = 'IbanCountryFatfNotAllowed',
   TX_COUNTRY_NOT_ALLOWED = 'TxCountryNotAllowed',
@@ -150,6 +151,11 @@ export const AmlErrorResult: {
     type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.KYC_DATA_NEEDED,
+  },
+  [AmlError.NAME_TOO_SHORT]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.NAME_TOO_SHORT,
   },
   [AmlError.VERIFIED_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
