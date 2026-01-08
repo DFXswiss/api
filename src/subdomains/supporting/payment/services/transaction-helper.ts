@@ -446,7 +446,7 @@ export class TransactionHelper implements OnModuleInit {
       refundCurrency instanceof Asset ? AssetDtoMapper.toDto(refundCurrency) : FiatDtoMapper.toDto(refundCurrency);
 
     // convert to refund currency
-    const refundPrice = await this.pricingService.getPrice(inputCurrency, refundCurrency, PriceValidity.PREFER_VALID);
+    const refundPrice = await this.pricingService.getPrice(inputCurrency, refundCurrency, PriceValidity.VALID_ONLY);
 
     const refundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
     const feeDfx = Util.roundReadable(refundPrice.convert(dfxFeeAmount), feeAmountType);
