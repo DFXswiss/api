@@ -14,12 +14,7 @@ import { EVM_CHAIN_CONFIG, getEvmChainConfig, isEvmBlockchainSupported } from '.
 const METAMASK_DELEGATOR_ADDRESS = '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b' as Address;
 
 // ERC-4337 EntryPoint v0.8 - required for EIP-7702 support
-// v0.8 address: 0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108
 const ENTRY_POINT_V08 = '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108' as Address;
-
-// EIP-7702 factory marker - signals to bundler that this is an EIP-7702 UserOperation
-// MUST be right-padded: 0x7702 + 18 trailing zeros (NOT leading zeros!)
-const EIP7702_FACTORY = '0x7702000000000000000000000000000000000000' as Address;
 
 // MetaMask Delegator ABI - ERC-7821 BatchExecutor interface
 const DELEGATOR_ABI = parseAbi(['function execute((bytes32 mode, bytes executionData) execution) external payable']);
@@ -345,11 +340,7 @@ export class PimlicoBundlerService {
    * Build UserOperation v0.8 structure for EIP-7702
    * Note: factory is intentionally left null/undefined - Pimlico expects this for EIP-7702
    */
-  private async buildUserOperation(
-    sender: Address,
-    callData: Hex,
-    pimlicoUrl: string,
-  ): Promise<UserOperationV07> {
+  private async buildUserOperation(sender: Address, callData: Hex, pimlicoUrl: string): Promise<UserOperationV07> {
     // Get current gas prices from Pimlico
     const gasPrice = await this.getGasPrice(pimlicoUrl);
 
