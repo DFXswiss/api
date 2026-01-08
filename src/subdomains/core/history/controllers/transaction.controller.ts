@@ -390,15 +390,10 @@ export class TransactionController {
     @Param('id') id: string,
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
-    return this.processRefund(+id, jwt, dto, false);
+    return this.processRefund(+id, jwt, dto);
   }
 
-  private async processRefund(
-    transactionId: number,
-    jwt: JwtPayload,
-    dto: TransactionRefundDto,
-    bankOnly: boolean,
-  ): Promise<void> {
+  private async processRefund(transactionId: number, jwt: JwtPayload, dto: TransactionRefundDto): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(transactionId, {
       bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
@@ -412,7 +407,7 @@ export class TransactionController {
         checkoutTx: true,
         transaction: { userData: true },
       });
-    if (!bankOnly && transaction.type === TransactionTypeInternal.BUY_FIAT)
+    if (transaction.type === TransactionTypeInternal.BUY_FIAT)
       transaction.buyFiat = await this.buyFiatService.getBuyFiatByTransactionId(transaction.id, {
         cryptoInput: true,
         transaction: { userData: true },
@@ -446,21 +441,13 @@ export class TransactionController {
         .then((b) => b.bankTxReturn);
     }
 
-    // Build refund data with optional bank fields (include all provided fields)
-    const bankDto = dto as BankRefundDto;
-    const bankFields = {
-      name: bankDto.name || undefined,
-      address: bankDto.address || undefined,
-      houseNumber: bankDto.houseNumber || undefined,
-      zip: bankDto.zip || undefined,
-      city: bankDto.city || undefined,
-      country: bankDto.country || undefined,
-    };
-
     if (transaction.targetEntity instanceof BankTxReturn) {
+      if (!dto.creditorData)
+        throw new BadRequestException('Creditor data is required for bank refunds');
+
       return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
         refundIban: refundData.refundTarget ?? dto.refundTarget,
-        ...bankFields,
+        ...dto.creditorData,
         ...refundDto,
       });
     }
@@ -468,22 +455,6 @@ export class TransactionController {
     if (NotRefundableAmlReasons.includes(transaction.targetEntity.amlReason))
       throw new BadRequestException('You cannot refund with this reason');
 
-    // Bank-only endpoint restrictions
-    if (bankOnly) {
-      if (!(transaction.targetEntity instanceof BuyCrypto))
-        throw new BadRequestException('This endpoint is only for BuyCrypto bank refunds');
-
-      if (!transaction.targetEntity.bankTx && !transaction.bankTx)
-        throw new BadRequestException('This endpoint is only for bank transaction refunds');
-
-      return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
-        refundIban: refundData.refundTarget ?? dto.refundTarget,
-        ...bankFields,
-        ...refundDto,
-      });
-    }
-
-    // General refund endpoint - handles all types
     if (transaction.targetEntity instanceof BuyFiat)
       return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
         refundUserAddress: dto.refundTarget,
@@ -499,12 +470,18 @@ export class TransactionController {
     if (transaction.targetEntity.checkoutTx)
       return this.buyCryptoService.refundCheckoutTx(transaction.targetEntity, { ...refundDto });
 
+    // BuyCrypto bank refund
+    if (!dto.creditorData)
+      throw new BadRequestException('Creditor data is required for bank refunds');
+
     return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
+      ...dto.creditorData,
       ...refundDto,
     });
   }
 
+  // Deprecated - use PUT :id/refund with creditorData instead
   @Put(':id/refund/bank')
   @ApiBearerAuth()
   @UseGuards(
@@ -518,7 +495,18 @@ export class TransactionController {
     @Param('id') id: string,
     @Body() dto: BankRefundDto,
   ): Promise<void> {
-    return this.processRefund(+id, jwt, dto, true);
+    const refundDto: TransactionRefundDto = {
+      refundTarget: dto.refundTarget,
+      creditorData: {
+        name: dto.name,
+        address: dto.address,
+        houseNumber: dto.houseNumber,
+        zip: dto.zip,
+        city: dto.city,
+        country: dto.country,
+      },
+    };
+    return this.processRefund(+id, jwt, refundDto);
   }
 
   @Put(':id/invoice')
