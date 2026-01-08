@@ -9,7 +9,6 @@ export enum QuoteError {
   LIMIT_EXCEEDED = 'LimitExceeded',
   NATIONALITY_NOT_ALLOWED = 'NationalityNotAllowed',
   NAME_REQUIRED = 'NameRequired',
-  VIDEO_IDENT_REQUIRED = 'VideoIdentRequired',
   IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
   RECOMMENDATION_REQUIRED = 'RecommendationRequired',
   EMAIL_REQUIRED = 'EmailRequired',

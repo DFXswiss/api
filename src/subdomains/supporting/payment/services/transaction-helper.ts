@@ -25,8 +25,6 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -927,13 +925,6 @@ export class TransactionHelper implements OnModuleInit {
       !user.userData.verifiedName
     )
       return QuoteError.NAME_REQUIRED;
-
-    if (
-      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc &&
-      user?.userData?.accountType === AccountType.ORGANIZATION &&
-      user?.userData?.identificationType === KycIdentificationType.ONLINE_ID
-    )
-      return QuoteError.VIDEO_IDENT_REQUIRED;
 
     if (
       ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
