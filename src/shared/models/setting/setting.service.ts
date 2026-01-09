@@ -3,7 +3,6 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { Process } from 'src/shared/services/process.service';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
-import { ExchangeTradingFeeDto } from './dto/exchange-trading-fee.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
 import { SettingRepository } from './setting.repository';
@@ -162,10 +161,6 @@ export class SettingService {
   async getCustomSignUpFees(ref?: string | undefined, walletId?: number | undefined): Promise<number[]> {
     const customSignUpFees = await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees');
     return customSignUpFees?.find((fee) => fee.ref === ref || fee.wallet === walletId)?.fees ?? [];
-  }
-
-  async getKrakenTradingFee(): Promise<ExchangeTradingFeeDto | undefined> {
-    return this.getObjCached<ExchangeTradingFeeDto>('krakenTradingFee');
   }
 
   async getObj<T>(key: string, defaultValue?: T): Promise<T | undefined> {
