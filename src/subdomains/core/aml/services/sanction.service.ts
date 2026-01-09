@@ -34,7 +34,10 @@ export class SanctionService {
   private readonly fileUrl = 'https://www.treasury.gov/ofac/downloads/sanctions/1.0/sdn_advanced.xml';
   private readonly fileName = 'sdn_advanced.xml';
 
-  constructor(private readonly http: HttpService, private readonly sanctionRepo: SanctionRepository) {}
+  constructor(
+    private readonly http: HttpService,
+    private readonly sanctionRepo: SanctionRepository,
+  ) {}
 
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_WEEKEND, { process: Process.SANCTION_SYNC })

@@ -71,7 +71,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     feeAmount: number = null,
   ): Promise<CryptoInput | null> {
     switch (type) {
-      case SendType.FORWARD:
+      case SendType.FORWARD: {
         const feeAsset = await this.assetService.getNativeAsset(payIn.asset.blockchain);
         const feeAmountChf = feeAmount
           ? await this.pricingService
@@ -80,6 +80,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
           : null;
 
         return payIn.forward(outTxId, feeAmount, feeAmountChf);
+      }
 
       case SendType.RETURN:
         return payIn.return(outTxId, feeAmount);

@@ -36,8 +36,8 @@ export class NameCheckService implements OnModuleInit {
 
     const updatedEntity = await this.nameCheckLogRepo.save({ ...entity, ...dto, riskEvaluationDate: new Date() });
 
-    !(await this.hasOpenNameChecks(entity.userData)) &&
-      (await this.userDataService.refreshLastNameCheckDate(entity.userData));
+    if (!(await this.hasOpenNameChecks(entity.userData)))
+      await this.userDataService.refreshLastNameCheckDate(entity.userData);
 
     return updatedEntity;
   }
@@ -130,7 +130,7 @@ export class NameCheckService implements OnModuleInit {
     return NameCheckRiskStatus.SANCTIONED;
   }
 
-  async getRiskDataAndUploadPdf(
+  private async getRiskDataAndUploadPdf(
     userData: UserData,
     isBusiness: boolean,
     name: string,
@@ -214,8 +214,8 @@ export class NameCheckService implements OnModuleInit {
 
     await this.nameCheckLogRepo.save(entity);
 
-    !(await this.hasOpenNameChecks(entity.userData)) &&
-      (await this.userDataService.refreshLastNameCheckDate(bankData.userData));
+    if (!(await this.hasOpenNameChecks(entity.userData)))
+      await this.userDataService.refreshLastNameCheckDate(bankData.userData);
   }
 
   // TODO Dilisense JSON solution

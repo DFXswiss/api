@@ -1,7 +1,8 @@
 import { Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { CoinGeckoClient } from 'coingecko-api-v3';
-import { GetConfig } from 'src/config/config';
+import { Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Price } from '../../domain/entities/price';
 import { PricingProvider } from './pricing-provider';
@@ -42,6 +43,11 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
   }
 
   onModuleInit() {
+    if (GetConfig().environment === Environment.LOC) {
+      this.currencies = ['usd', 'eur', 'chf', 'btc', 'eth'];
+      this.logger.verbose('Using mock currencies for local development');
+      return;
+    }
     void this.client.simpleSupportedCurrencies().then((cs) => (this.currencies = cs));
   }
 
@@ -121,16 +127,15 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
   }
 
   async getHistoricalPriceForAsset(
-    blockchain: Blockchain,
-    chainId: string | undefined,
+    asset: Asset,
     date: Date,
     currency: 'usd' | 'eur' | 'chf',
   ): Promise<number | undefined> {
-    const platform = COINGECKO_PLATFORMS[blockchain];
+    const platform = COINGECKO_PLATFORMS[asset.blockchain];
 
     // For native coins, use coin ID
-    if (!chainId) {
-      const coinId = NATIVE_COIN_IDS[blockchain];
+    if (asset.type === AssetType.COIN) {
+      const coinId = NATIVE_COIN_IDS[asset.blockchain];
       if (coinId) {
         return this.getHistoricalPrice(coinId, date, currency);
       }
@@ -139,17 +144,13 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
 
     // For tokens, use contract address
     if (platform) {
-      return this.getHistoricalPriceByContract(platform, chainId, date, currency);
+      return this.getHistoricalPriceByContract(platform, asset.chainId, date, currency);
     }
 
     return undefined;
   }
 
-  async getHistoricalPrice(
-    coinId: string,
-    date: Date,
-    currency: 'usd' | 'eur' | 'chf',
-  ): Promise<number | undefined> {
+  async getHistoricalPrice(coinId: string, date: Date, currency: 'usd' | 'eur' | 'chf'): Promise<number | undefined> {
     try {
       const dateStr = this.formatDateForCoinGecko(date);
       const data = await this.client.coinIdHistory({ id: coinId, date: dateStr, localization: false });

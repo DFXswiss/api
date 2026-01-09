@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -20,6 +21,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     private readonly bankTxBatchService: BankTxBatchService,
     private readonly olkypayService: OlkypayService,
     private readonly checkoutService: CheckoutService,
+    private readonly yapealService: YapealService,
   ) {}
 
   async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
@@ -54,13 +56,25 @@ export class BankAdapter implements LiquidityBalanceIntegration {
 
     try {
       switch (bankName) {
-        case IbanBankName.OLKY:
-          const balance = await this.olkypayService.getBalance().then((b) => b.balance);
-          assets.forEach((asset) => balances.push(LiquidityBalance.create(asset, balance)));
+        case IbanBankName.OLKY: {
+          const olkyBalance = await this.olkypayService.getBalance().then((b) => b.balance);
+          assets.forEach((asset) => balances.push(LiquidityBalance.create(asset, olkyBalance)));
 
           break;
+        }
 
-        case CardBankName.CHECKOUT:
+        case IbanBankName.YAPEAL: {
+          const yapealBalances = await this.yapealService.getBalances();
+
+          for (const balance of yapealBalances) {
+            const matchingAssets = assets.filter((asset) => asset.dexName === balance.currency);
+            matchingAssets.forEach((asset) => balances.push(LiquidityBalance.create(asset, balance.availableBalance)));
+          }
+
+          break;
+        }
+
+        case CardBankName.CHECKOUT: {
           const checkoutBalances = await this.checkoutService.getBalances();
 
           assets.forEach((asset) => {
@@ -71,6 +85,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
           });
 
           break;
+        }
 
         default:
           for (const asset of assets) {

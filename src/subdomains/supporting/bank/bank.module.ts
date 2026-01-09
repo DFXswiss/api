@@ -13,18 +13,29 @@ import { BankController } from './bank/bank.controller';
 import { Bank } from './bank/bank.entity';
 import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
+import { VirtualIban } from './virtual-iban/virtual-iban.entity';
+import { VirtualIbanRepository } from './virtual-iban/virtual-iban.repository';
+import { VirtualIbanService } from './virtual-iban/virtual-iban.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BankAccount, Bank]),
+    TypeOrmModule.forFeature([BankAccount, Bank, VirtualIban]),
     SharedModule,
     BankIntegrationModule,
     forwardRef(() => UserModule),
-    TransactionModule,
+    forwardRef(() => TransactionModule),
   ],
 
   controllers: [BankController, BankAccountController],
-  providers: [BankAccountRepository, BankRepository, BankAccountService, BankService, IsDfxIbanValidator],
-  exports: [BankAccountService, BankService],
+  providers: [
+    BankAccountRepository,
+    BankRepository,
+    VirtualIbanRepository,
+    BankAccountService,
+    BankService,
+    VirtualIbanService,
+    IsDfxIbanValidator,
+  ],
+  exports: [BankAccountService, BankService, VirtualIbanService],
 })
 export class BankModule {}

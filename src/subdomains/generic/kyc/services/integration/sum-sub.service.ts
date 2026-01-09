@@ -139,7 +139,7 @@ export class SumsubService {
     const videoData = await this.getVideoData(applicantId);
 
     const identDocuments = [];
-    for (const composition of videoData.videoIdentData?.compositions) {
+    for (const composition of videoData.videoIdentData?.compositions ?? []) {
       const content = await this.callApi<string>(
         `/resources/videoIdent/applicant/${applicantId}/media/${composition.compositionMediaId}`,
         'GET',
@@ -237,7 +237,7 @@ export class SumsubService {
     const ts = Math.floor(Date.now() / 1000);
     const signature = crypto.createHmac('sha256', Config.kyc.secretKey);
     signature.update(ts + method.toUpperCase() + url);
-    data && signature.update(data);
+    if (data) signature.update(data);
     return { ts, signature: signature.digest('hex') };
   }
 

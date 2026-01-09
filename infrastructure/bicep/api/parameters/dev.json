@@ -431,6 +431,15 @@
     "mexcSecret": {
       "value": "xxx"
     },
+    "scryptWsUrl": {
+      "value": "xxx"
+    },
+    "scryptApiKey": {
+      "value": "xxx"
+    },
+    "scryptApiSecret": {
+      "value": "xxx"
+    },
     "olkyClient": {
       "value": "xxx"
     },
@@ -441,24 +450,6 @@
       "value": "xxx"
     },
     "olkyPassword": {
-      "value": "xxx"
-    },
-    "frickUrl": {
-      "value": "https://olbtest.bankfrick.li/webapi/v2"
-    },
-    "frickKey": {
-      "value": "xxx"
-    },
-    "frickPassword": {
-      "value": "xxx"
-    },
-    "frickPrivateKey": {
-      "value": "xxx"
-    },
-    "revolutRefreshToken": {
-      "value": "xxx"
-    },
-    "revolutClientAssertion": {
       "value": "xxx"
     },
     "letterUrl": {

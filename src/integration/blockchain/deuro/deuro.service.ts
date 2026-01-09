@@ -2,6 +2,8 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
 import { Contract } from 'ethers';
+import { Config } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
@@ -35,7 +37,10 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
 
   private frankencoinService: FrankencoinService;
 
-  constructor(private readonly moduleRef: ModuleRef, private readonly logService: LogService) {
+  constructor(
+    private readonly moduleRef: ModuleRef,
+    private readonly logService: LogService,
+  ) {
     super();
   }
 
@@ -52,6 +57,11 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.DEURO_LOG_INFO })
   async processLogInfo(): Promise<void> {
+    if (!Config.blockchain.deuro.graphUrl) {
+      this.logger.warn('DEuro graphUrl not configured - skipping processLogInfo');
+      return;
+    }
+
     const collateralTvl = await this.getCollateralTvl();
     const bridgeTvl = await this.getBridgeTvl();
     const totalValueLocked = collateralTvl + bridgeTvl;
@@ -271,6 +281,10 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     } else if (collateral.symbol === 'DEPS') {
       return this.getCoinGeckoPrice(this.deuroClient.getEquityContract().address);
     }
+  }
+
+  async bridgeToDeuro(asset: Asset, amount: number): Promise<string> {
+    return this.deuroClient.bridgeToDeuro(asset, amount);
   }
 
   async getDEuroInfo(): Promise<DEuroInfoDto> {

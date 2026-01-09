@@ -9,7 +9,7 @@ import { PaymentQuote } from 'src/subdomains/core/payment-link/entities/payment-
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
@@ -49,6 +49,8 @@ export enum PayInStatus {
 
 export enum PayInType {
   PERMIT_TRANSFER = 'PermitTransfer',
+  SIGNED_TRANSFER = 'SignedTransfer',
+  SPONSORED_TRANSFER = 'SponsoredTransfer', // EIP-5792 wallet_sendCalls with paymaster
   DEPOSIT = 'Deposit',
   PAYMENT = 'Payment',
 }
@@ -117,7 +119,7 @@ export class CryptoInput extends IEntity {
   purpose?: PayInPurpose;
 
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
-  route?: DepositRouteType;
+  route?: DepositRoute;
 
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
@@ -186,7 +188,7 @@ export class CryptoInput extends IEntity {
 
   //*** PUBLIC API ***//
 
-  acknowledge(purpose: PayInPurpose, route: DepositRouteType, isForwardRequired: boolean): this {
+  acknowledge(purpose: PayInPurpose, route: DepositRoute, isForwardRequired: boolean): this {
     if (!route) throw new Error('Missing route');
 
     this.purpose = purpose;
@@ -196,7 +198,7 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  ignore(purpose: PayInPurpose, route: DepositRouteType): this {
+  ignore(purpose: PayInPurpose, route: DepositRoute): this {
     this.purpose = purpose;
     this.route = route;
     this.status = PayInStatus.IGNORED;
@@ -275,8 +277,8 @@ export class CryptoInput extends IEntity {
     return direction === PayInConfirmationType.INPUT
       ? this.inTxId
       : direction === PayInConfirmationType.OUTPUT
-      ? this.outTxId
-      : this.returnTxId;
+        ? this.outTxId
+        : this.returnTxId;
   }
 
   designateReturn(): this {

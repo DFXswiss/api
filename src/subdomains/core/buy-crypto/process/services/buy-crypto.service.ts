@@ -275,12 +275,28 @@ export class BuyCryptoService {
       });
 
     if (dto.chargebackAllowedDate) {
-      if (entity.bankTx && !entity.chargebackOutput)
+      if (entity.bankTx && !entity.chargebackOutput) {
+        if (!dto.chargebackCreditorName && !entity.creditorData)
+          throw new BadRequestException('Creditor data is required for chargeback');
+
         update.chargebackOutput = await this.fiatOutputService.createInternal(
           FiatOutputType.BUY_CRYPTO_FAIL,
           { buyCrypto: entity },
           entity.id,
+          false,
+          {
+            iban: dto.chargebackIban ?? entity.chargebackIban,
+            amount: entity.chargebackAmount ?? entity.bankTx.amount,
+            currency: entity.bankTx.currency,
+            name: dto.chargebackCreditorName ?? entity.creditorData?.name,
+            address: dto.chargebackCreditorAddress ?? entity.creditorData?.address,
+            houseNumber: dto.chargebackCreditorHouseNumber ?? entity.creditorData?.houseNumber,
+            zip: dto.chargebackCreditorZip ?? entity.creditorData?.zip,
+            city: dto.chargebackCreditorCity ?? entity.creditorData?.city,
+            country: dto.chargebackCreditorCountry ?? entity.creditorData?.country,
+          },
         );
+      }
 
       if (entity.checkoutTx) {
         await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
@@ -390,7 +406,11 @@ export class BuyCryptoService {
 
     // update/reset fields
     const update: Partial<BuyCrypto> = {};
-    route instanceof Buy ? (update.buy = route) : (update.cryptoRoute = route);
+    if (route instanceof Buy) {
+      update.buy = route;
+    } else {
+      update.cryptoRoute = route;
+    }
 
     update.outputAsset = route.asset;
     update.outputReferenceAsset = route.asset;
@@ -525,11 +545,22 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
+    const creditorData = dto.creditorData ?? buyCrypto.creditorData;
+    if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
+      throw new BadRequestException('Creditor data is required for chargeback');
+
     if (dto.chargebackAllowedDate && chargebackAmount)
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
         { buyCrypto },
         buyCrypto.id,
+        false,
+        {
+          iban: chargebackIban,
+          amount: chargebackAmount,
+          currency: dto.chargebackCurrency ?? buyCrypto.bankTx?.currency,
+          ...creditorData,
+        },
       );
 
     await this.buyCryptoRepo.update(
@@ -541,6 +572,8 @@ export class BuyCryptoService {
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
         buyCrypto.chargebackBankRemittanceInfo,
+        undefined,
+        creditorData,
       ),
     );
   }
@@ -569,6 +602,7 @@ export class BuyCryptoService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }

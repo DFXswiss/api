@@ -172,6 +172,8 @@ export class AuthService {
 
     if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, user.userData);
 
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, wallet);
+
     await this.checkIpBlacklistFor(user.userData, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
@@ -207,7 +209,7 @@ export class AuthService {
       }
     }
 
-    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData);
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, user.wallet);
 
     try {
       if (dto.specialCode || dto.discountCode)
@@ -227,14 +229,8 @@ export class AuthService {
   }
 
   async signInByMail(dto: AuthMailDto, url: string, userIp: string): Promise<void> {
-    if (dto.redirectUri) {
-      try {
-        const redirectUrl = new URL(dto.redirectUri);
-        if (!Config.frontend.allowedUrls.includes(redirectUrl.origin)) throw new Error('Redirect URL not allowed');
-      } catch (e) {
-        throw new BadRequestException(e.message);
-      }
-    }
+    if (dto.redirectUri && !Config.frontend.isRedirectUrlAllowed(dto.redirectUri))
+      throw new BadRequestException('Redirect URL not allowed');
 
     const ipCountry = this.geoLocationService.getCountry(userIp);
     const language = await this.languageService.getLanguageByCountry(ipCountry);
@@ -280,16 +276,16 @@ export class AuthService {
         texts: [
           { key: MailKey.SPACE, params: { value: '1' } },
           {
+            key: `${MailTranslationKey.GENERAL}.button`,
+            params: { url: loginUrl, button: 'true' },
+          },
+          {
             key: `${MailTranslationKey.LOGIN}.message`,
             params: {
               url: loginUrl,
               urlText: loginUrl,
               expiration: `${Config.auth.mailLoginExpiresIn}`,
             },
-          },
-          {
-            key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url: loginUrl, button: 'true' },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },
@@ -317,7 +313,7 @@ export class AuthService {
 
       if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
 
-      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
+      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/account`);
       url.searchParams.set('session', token);
       return url.toString();
     } catch (e) {
@@ -351,6 +347,9 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new BadRequestException('User is deactivated or blocked');
+
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, user.wallet);
+
     return { accessToken: this.generateUserToken(user, ip) };
   }
 
@@ -382,8 +381,8 @@ export class AuthService {
 
   // --- HELPER METHODS --- //
 
-  private async checkPendingRecommendation(userData: UserData): Promise<void> {
-    if (userData.wallet?.autoTradeApproval)
+  private async checkPendingRecommendation(userData: UserData, userWallet?: Wallet): Promise<void> {
+    if (userData.wallet?.autoTradeApproval || userWallet?.autoTradeApproval)
       await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
 
     await this.recommendationService.checkAndConfirmRecommendInvitation(userData.id);
@@ -432,6 +431,11 @@ export class AuthService {
     if (blockchains.includes(Blockchain.LIGHTNING) && (isCustodial || /^[a-z0-9]{140,146}$/.test(signature))) {
       // custodial Lightning wallet, only comparison check
       return !dbSignature || signature === dbSignature;
+    }
+
+    if (blockchains.includes(Blockchain.DEFICHAIN)) {
+      // DeFiChain wallet, only comparison check
+      return dbSignature && signature === dbSignature;
     }
 
     let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);

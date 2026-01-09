@@ -36,7 +36,7 @@ import { SupportIssueController } from './support-issue.controller';
       SupportIssueLog,
       LimitRequestLog,
     ]),
-    TransactionModule,
+    forwardRef(() => TransactionModule),
     forwardRef(() => KycModule),
     forwardRef(() => UserModule),
     forwardRef(() => PaymentModule),
@@ -55,6 +55,6 @@ import { SupportIssueController } from './support-issue.controller';
     SupportLogRepository,
     SupportLogService,
   ],
-  exports: [SupportIssueService, LimitRequestService],
+  exports: [SupportIssueService, LimitRequestService, SupportLogService],
 })
 export class SupportIssueModule {}

@@ -19,6 +19,8 @@ import { CheckoutTxService } from './checkout-tx.service';
 export class FiatPayInSyncService {
   private readonly logger = new DfxLogger(FiatPayInSyncService);
 
+  private unavailableWarningLogged = false;
+
   constructor(
     private readonly checkoutService: CheckoutService,
     private readonly checkoutTxRepo: CheckoutTxRepository,
@@ -32,6 +34,14 @@ export class FiatPayInSyncService {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_PAY_IN, timeout: 1800 })
   async syncCheckout() {
+    if (!this.checkoutService.isAvailable()) {
+      if (!this.unavailableWarningLogged) {
+        this.logger.warn('Checkout not configured - skipping syncCheckout');
+        this.unavailableWarningLogged = true;
+      }
+      return;
+    }
+
     const syncDate = await this.checkoutTxService.getSyncDate();
     const payments = await this.checkoutService.getPayments(syncDate);
 

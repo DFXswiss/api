@@ -27,6 +27,24 @@ export enum LndPaymentStatus {
   FAILED = 'FAILED',
 }
 
+export enum LndInvoiceState {
+  OPEN = 'OPEN',
+  SETTLED = 'SETTLED',
+  CANCELED = 'CANCELED',
+  ACCEPTED = 'ACCEPTED',
+}
+
+export interface LndInvoiceDto {
+  memo: string;
+  r_hash: string;
+  payment_request: string;
+  value_sat: string;
+  state: LndInvoiceState;
+  settled: boolean;
+  settle_date: string;
+  amt_paid_sat: string;
+}
+
 export interface LndPaymentDto {
   payment_hash: string;
   value_sat: number;

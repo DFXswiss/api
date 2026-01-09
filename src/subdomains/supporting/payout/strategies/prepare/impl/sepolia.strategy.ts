@@ -7,7 +7,10 @@ import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class SepoliaStrategy extends EvmStrategy {
-  constructor(private readonly assetService: AssetService, payoutOrderRepo: PayoutOrderRepository) {
+  constructor(
+    private readonly assetService: AssetService,
+    payoutOrderRepo: PayoutOrderRepository,
+  ) {
     super(payoutOrderRepo);
   }
 

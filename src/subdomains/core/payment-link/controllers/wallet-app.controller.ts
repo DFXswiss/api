@@ -10,7 +10,10 @@ import { WalletAppService } from '../services/wallet-app.service';
 @ApiTags('Payment Link')
 @Controller('paymentLink/walletApp')
 export class WalletAppController {
-  constructor(private readonly walletAppService: WalletAppService, private readonly assetService: AssetService) {}
+  constructor(
+    private readonly walletAppService: WalletAppService,
+    private readonly assetService: AssetService,
+  ) {}
 
   @Get()
   @ApiOkResponse({ type: WalletAppDto, isArray: true })

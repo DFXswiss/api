@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { Config, Environment } from 'src/config/config';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -18,7 +19,7 @@ export class PayoutController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async doPayout(@Body() dto: PayoutRequest): Promise<void> {
-    if (process.env.ENVIRONMENT === 'test') {
+    if (Config.environment !== Environment.PRD) {
       return this.payoutService.doPayout(dto);
     }
   }
@@ -31,7 +32,7 @@ export class PayoutController {
     @Query('context') context: PayoutOrderContext,
     @Query('correlationId') correlationId: string,
   ): Promise<{ isComplete: boolean; payoutTxId: string }> {
-    if (process.env.ENVIRONMENT === 'test') {
+    if (Config.environment !== Environment.PRD) {
       return this.payoutService.checkOrderCompletion(context, correlationId);
     }
   }

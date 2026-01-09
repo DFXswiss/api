@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -16,7 +16,9 @@ import { SpecialExternalAccountService } from './special-external-account.servic
 export class TransactionService {
   constructor(
     private readonly repo: TransactionRepository,
+    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
   ) {}
@@ -24,7 +26,7 @@ export class TransactionService {
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
 
-    entity.uid = `${Config.prefixes.transactionUidPrefix}${Util.randomString(16)}`;
+    entity.uid = Util.createUid(Config.prefixes.transactionUidPrefix);
 
     return this.repo.save(entity);
   }
@@ -188,6 +190,7 @@ export class TransactionService {
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.nationality', 'nationality')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .where(`${key.includes('.') ? key : `transaction.${key}`} = :param`, { param: value })
       .getOne();

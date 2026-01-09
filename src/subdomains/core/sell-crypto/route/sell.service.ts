@@ -9,7 +9,9 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { merge } from 'lodash';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PimlicoBundlerService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-bundler.service';
+import { PimlicoPaymasterService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-paymaster.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
@@ -24,7 +26,7 @@ import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
@@ -36,13 +38,13 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { FindOneOptions, In, IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
-import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
 import { RouteService } from '../../route/route.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmDto } from './dto/confirm.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
+import { UnsignedTxDto } from './dto/unsigned-tx.dto';
 import { Sell } from './sell.entity';
 
 @Injectable()
@@ -68,77 +70,24 @@ export class SellService {
     private readonly cryptoService: CryptoService,
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly pimlicoPaymasterService: PimlicoPaymasterService,
+    private readonly pimlicoBundlerService: PimlicoBundlerService,
   ) {}
 
   // --- SELLS --- //
   async get(userId: number, id: number): Promise<Sell> {
     const sell = await this.sellRepo.findOne({
       where: { id, user: { id: userId } },
-      relations: { user: { userData: true } },
+      relations: { user: { userData: { organization: true } } },
     });
     if (!sell) throw new NotFoundException('Sell not found');
     return sell;
   }
 
   async getById(id: number, options?: FindOneOptions<Sell>): Promise<Sell> {
-    const defaultOptions = { where: { id }, relations: { user: { userData: true } } };
+    const defaultOptions = { where: { id }, relations: { user: { userData: { organization: true } } } };
     return this.sellRepo.findOne(merge(defaultOptions, options));
-  }
-
-  async getLatest(userId: number): Promise<Sell | null> {
-    return this.sellRepo.findOne({
-      where: { user: { id: userId } },
-      relations: { user: { userData: true } },
-      order: { created: 'DESC' },
-    });
-  }
-
-  async getByLabel(userId: number, label: string, options?: FindOneOptions<Sell>): Promise<Sell> {
-    const defaultOptions = {
-      where: { route: { label }, user: { id: userId } },
-      relations: { user: { userData: true } },
-    };
-    return this.sellRepo.findOne(merge(defaultOptions, options));
-  }
-
-  validateLightningRoute(route: Sell): void {
-    if (!route) throw new NotFoundException('Sell route not found');
-    if (route.deposit.blockchains !== Blockchain.LIGHTNING)
-      throw new BadRequestException('Only Lightning routes are allowed');
-  }
-
-  async getPaymentRoute(idOrLabel: string, options?: FindOneOptions<Sell>): Promise<Sell> {
-    const isRouteId = !isNaN(+idOrLabel);
-    const sellRoute = isRouteId
-      ? await this.getById(+idOrLabel, options)
-      : await this.getByLabel(undefined, idOrLabel, options);
-
-    try {
-      this.validateLightningRoute(sellRoute);
-    } catch (e) {
-      this.logger.verbose(`Failed to validate sell route ${idOrLabel}:`, e);
-      throw new NotFoundException(`Payment route not found`);
-    }
-    return sellRoute;
-  }
-
-  async getPaymentLinksFromRoute(
-    routeIdOrLabel: string,
-    externalIds?: string[],
-    ids?: number[],
-  ): Promise<PaymentLink[]> {
-    const route = await this.getPaymentRoute(routeIdOrLabel, {
-      relations: { paymentLinks: true },
-      where: {
-        paymentLinks: [
-          ...(externalIds?.length ? [{ externalId: In(externalIds) }] : []),
-          ...(ids?.length ? [{ id: In(ids) }] : []),
-        ],
-      },
-      order: { paymentLinks: { created: 'ASC' } },
-    });
-
-    return Array.from(new Map((route.paymentLinks || []).map((l) => [l.id, l])).values());
   }
 
   async getSellByKey(key: string, value: any, onlyDefaultRelation = false): Promise<Sell> {
@@ -156,6 +105,7 @@ export class SellService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }
@@ -186,7 +136,11 @@ export class SellService {
     return this.sellRepo.findBy({ route: { id: IsNull() } });
   }
 
-  async createSellPaymentInfo(userId: number, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
+  async createSellPaymentInfo(
+    userId: number,
+    dto: GetSellPaymentInfoDto,
+    includeTx: boolean,
+  ): Promise<SellPaymentInfoDto> {
     const sell = await Util.retry(
       () => this.createSell(userId, { ...dto, blockchain: dto.asset.blockchain }, true),
       2,
@@ -194,7 +148,7 @@ export class SellService {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
-    return this.toPaymentInfoDto(userId, sell, dto);
+    return this.toPaymentInfoDto(userId, sell, dto, includeTx);
   }
 
   async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
@@ -306,25 +260,103 @@ export class SellService {
 
   // --- CONFIRMATION --- //
   async confirmSell(request: TransactionRequest, dto: ConfirmDto): Promise<BuyFiatExtended> {
+    const route = await this.sellRepo.findOne({
+      where: { id: request.routeId },
+      relations: { deposit: true, user: { wallet: true, userData: true } },
+    });
+    if (!route) throw new NotFoundException('Sell route not found');
+
+    let type: string;
+    let payIn: CryptoInput;
+
     try {
-      const route = await this.sellRepo.findOne({
-        where: { id: request.routeId },
-        relations: { deposit: true, user: { wallet: true, userData: true } },
-      });
+      if (dto.authorization) {
+        type = 'gasless transfer';
+        const asset = await this.assetService.getAssetById(request.sourceId);
+        if (!asset) throw new BadRequestException('Asset not found');
 
-      const payIn = await this.transactionUtilService.handlePermitInput(route, request, dto);
+        if (!this.pimlicoBundlerService.isGaslessSupported(asset.blockchain)) {
+          throw new BadRequestException(`Gasless transactions not supported for ${asset.blockchain}`);
+        }
+
+        const result = await this.pimlicoBundlerService.executeGaslessTransfer(
+          request.user.address,
+          asset,
+          route.deposit.address,
+          request.amount,
+          dto.authorization,
+        );
+
+        payIn = await this.transactionUtilService.handleTxHashInput(route, request, result.txHash);
+      } else if (dto.permit) {
+        type = 'permit';
+        payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
+      } else if (dto.signedTxHex) {
+        type = 'signed transaction';
+        payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
+      } else if (dto.txHash) {
+        type = 'EIP-5792 sponsored transfer';
+        payIn = await this.transactionUtilService.handleTxHashInput(route, request, dto.txHash);
+      } else {
+        throw new BadRequestException('Either permit, signedTxHex, txHash, or authorization must be provided');
+      }
+
       const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
-
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);
-
       return await this.buyFiatService.extendBuyFiat(buyFiat);
     } catch (e) {
-      this.logger.warn(`Failed to execute permit transfer for sell request ${request.id}:`, e);
-      throw new BadRequestException(`Failed to execute permit transfer: ${e.message}`);
+      this.logger.warn(`Failed to execute ${type} transfer for sell request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to confirm request: ${e.message}`);
     }
   }
 
-  private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
+  async createDepositTx(
+    request: TransactionRequest,
+    route: Sell,
+    userAddress?: string,
+    includeEip5792 = false,
+  ): Promise<UnsignedTxDto> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    const client = this.blockchainRegistryService.getEvmClient(asset.blockchain);
+    if (!client) throw new BadRequestException(`Unsupported blockchain`);
+
+    const fromAddress = userAddress ?? request.user?.address;
+    if (!fromAddress) throw new BadRequestException('User address not found');
+
+    if (!route.deposit?.address) throw new BadRequestException('Deposit address not found');
+    const depositAddress = route.deposit.address;
+
+    // Check if Pimlico paymaster is available for this blockchain
+    const paymasterAvailable = this.pimlicoPaymasterService.isPaymasterAvailable(asset.blockchain);
+    const paymasterUrl = paymasterAvailable ? this.pimlicoPaymasterService.getBundlerUrl(asset.blockchain) : undefined;
+
+    try {
+      const unsignedTx = await client.prepareTransaction(asset, fromAddress, depositAddress, request.amount);
+
+      // Add EIP-5792 paymaster data only if user has 0 native balance (needs gasless)
+      if (includeEip5792 && paymasterUrl) {
+        unsignedTx.eip5792 = {
+          paymasterUrl,
+          chainId: client.chainId,
+          calls: [{ to: unsignedTx.to, data: unsignedTx.data, value: unsignedTx.value }],
+        };
+      }
+
+      return unsignedTx;
+    } catch (e) {
+      this.logger.warn(`Failed to create deposit TX for sell request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to create deposit transaction: ${e.reason ?? e.message}`);
+    }
+  }
+
+  async toPaymentInfoDto(
+    userId: number,
+    sell: Sell,
+    dto: GetSellPaymentInfoDto,
+    includeTx: boolean,
+  ): Promise<SellPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
@@ -389,34 +421,45 @@ export class SellService {
       error,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.SELL, dto, sellDto, user.id);
+    const transactionRequest = await this.transactionRequestService.create(
+      TransactionRequestType.SELL,
+      dto,
+      sellDto,
+      user.id,
+    );
+
+    // Assign complete user object to ensure user.address is available for createDepositTx
+    transactionRequest.user = user;
+
+    // Check if user needs gasless transaction (0 native balance) - must be done BEFORE createDepositTx
+    let hasZeroBalance = false;
+    if (isValid && this.pimlicoBundlerService.isGaslessSupported(dto.asset.blockchain)) {
+      try {
+        hasZeroBalance = await this.pimlicoBundlerService.hasZeroNativeBalance(user.address, dto.asset.blockchain);
+        sellDto.gaslessAvailable = hasZeroBalance;
+
+        if (hasZeroBalance) {
+          sellDto.eip7702Authorization = await this.pimlicoBundlerService.prepareAuthorizationData(
+            user.address,
+            dto.asset.blockchain,
+          );
+        }
+      } catch (e) {
+        this.logger.warn(`Could not prepare gasless data for sell request ${sell.id}:`, e);
+        sellDto.gaslessAvailable = false;
+      }
+    }
+
+    // Create deposit transaction - only include EIP-5792 data if user has 0 native balance
+    if (includeTx && isValid) {
+      try {
+        sellDto.depositTx = await this.createDepositTx(transactionRequest, sell, user.address, hasZeroBalance);
+      } catch (e) {
+        this.logger.warn(`Could not create deposit transaction for sell request ${sell.id}, continuing without it:`, e);
+        sellDto.depositTx = undefined;
+      }
+    }
 
     return sellDto;
-  }
-
-  async getPaymentRoutesForPublicName(publicName: string): Promise<Sell[]> {
-    return this.sellRepo.find({
-      where: {
-        active: true,
-        deposit: { blockchains: Blockchain.LIGHTNING },
-        user: { userData: { paymentLinksName: publicName } },
-      },
-      relations: { user: { userData: true } },
-    });
-  }
-
-  async getPaymentRouteForKey(key: string): Promise<Sell | undefined> {
-    return this.sellRepo
-      .createQueryBuilder('sell')
-      .innerJoin('sell.deposit', 'deposit')
-      .innerJoinAndSelect('sell.user', 'user')
-      .innerJoinAndSelect('user.userData', 'userData')
-      .where(
-        `EXISTS (SELECT 1 FROM OPENJSON(userdata.paymentLinksConfig, '$.accessKeys') AS k WHERE k.value = :key )`,
-        { key },
-      )
-      .andWhere('sell.active = 1')
-      .andWhere('deposit.blockchains = :chain', { chain: Blockchain.LIGHTNING })
-      .getOne();
   }
 }

@@ -27,8 +27,10 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
+import {
+  DefaultPaymentLinkConfig,
+  PaymentLinkConfig,
+} from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
@@ -56,6 +58,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
+import { UpdateMailStatus } from '../user/dto/verify-mail.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
@@ -221,6 +224,7 @@ export class UserDataService {
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.nationality', 'nationality')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `userData.${key}`} = :param`, { param: value })
@@ -376,7 +380,7 @@ export class UserDataService {
             );
             const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
             subFolder.file(filePath, fileData.data);
-          } catch (error) {
+          } catch {
             errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
           }
         }
@@ -559,15 +563,18 @@ export class UserDataService {
 
   // --- MAIL UPDATE --- //
 
-  async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<void> {
-    if (userData.mail == null) await this.trySetUserMail(userData, dto.mail);
+  async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<UpdateMailStatus> {
+    if (userData.mail == null) {
+      await this.trySetUserMail(userData, dto.mail);
+      return UpdateMailStatus.Ok;
+    }
 
     await this.checkMail(userData, dto.mail);
 
     await this.tfaService.checkVerification(userData, ip, TfaLevel.BASIC);
 
     // mail verification
-    const secret = Util.randomId().toString().slice(0, 6);
+    const secret = Util.randomIdString(6);
     const codeExpiryMinutes = 30;
 
     this.secretCache.set(userData.id, {
@@ -577,12 +584,14 @@ export class UserDataService {
     });
 
     // send mail
-    return this.tfaService.sendVerificationMail(
+    await this.tfaService.sendVerificationMail(
       { ...userData, mail: dto.mail } as UserData,
       secret,
       codeExpiryMinutes,
       MailContext.EMAIL_VERIFICATION,
     );
+
+    return UpdateMailStatus.Accepted;
   }
 
   async verifyUserMail(userData: UserData, token: string): Promise<UserData> {
@@ -681,12 +690,11 @@ export class UserDataService {
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
     const defaultIdent =
       userData.accountType === AccountType.ORGANIZATION
-        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_VIDEO)
+        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_AUTO)
         : await this.settingService.get('defaultIdentMethod', KycStepType.SUMSUB_AUTO);
     const customIdent = await this.customIdentMethod(userData.id);
-    const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
-    return isVipUser ? KycStepType.SUMSUB_VIDEO : customIdent ?? (defaultIdent as KycStepType);
+    return customIdent ?? (defaultIdent as KycStepType);
   }
 
   private async customIdentMethod(userDataId: number): Promise<KycStepType | undefined> {
@@ -1028,6 +1036,12 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
+
+    // Adapt user used refs
+    for (const user of master.users) {
+      if (master.users.some((u) => u.ref === user.usedRef))
+        await this.userRepo.update(user.id, { usedRef: Config.defaultRef });
+    }
 
     // update slave status
     await this.userDataRepo.update(slave.id, {

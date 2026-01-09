@@ -8,8 +8,10 @@ import { Util } from 'src/shared/utils/util';
 import { AmlListStatus } from 'src/subdomains/core/aml/enums/aml-list-status.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { FaucetRequest } from 'src/subdomains/core/faucet-request/entities/faucet-request.entity';
-import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
+import {
+  DefaultPaymentLinkConfig,
+  PaymentLinkConfig,
+} from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -17,6 +19,7 @@ import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
@@ -101,6 +104,9 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   birthday?: Date;
+
+  @Column({ length: 256, nullable: true })
+  tin?: string;
 
   // --- ORGANIZATION DATA --- //
   // TODO remove after sync
@@ -321,6 +327,10 @@ export class UserData extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   paymentLinksConfig?: string; // PaymentLinkConfig
 
+  // Referral trust
+  @Column({ default: false })
+  isTrustedReferrer: boolean;
+
   // References
   @ManyToOne(() => Wallet, { nullable: true })
   wallet?: Wallet;
@@ -344,6 +354,9 @@ export class UserData extends IEntity {
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas?: BankData[];
+
+  @OneToMany(() => VirtualIban, (virtualIban) => virtualIban.userData)
+  virtualIbans?: VirtualIban[];
 
   @OneToMany(() => BankTxReturn, (bankTxReturn) => bankTxReturn.userData)
   bankTxReturns?: BankTxReturn[];
@@ -396,8 +409,8 @@ export class UserData extends IEntity {
         this.users.length === 0
           ? UserDataStatus.KYC_ONLY
           : this.users.some((u) => u.status === UserStatus.ACTIVE)
-          ? UserDataStatus.ACTIVE
-          : UserDataStatus.NA,
+            ? UserDataStatus.ACTIVE
+            : UserDataStatus.NA,
       deactivationDate: null,
     };
   }
@@ -584,11 +597,11 @@ export class UserData extends IEntity {
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
-          street: this.organizationStreet,
-          houseNumber: this.organizationHouseNumber,
-          city: this.organizationLocation,
-          zip: this.organizationZip,
-          country: this.organizationCountry,
+          street: this.organization.street,
+          houseNumber: this.organization.houseNumber,
+          city: this.organization.location,
+          zip: this.organization.zip,
+          country: this.organization.country,
         }
       : {
           street: this.street,
@@ -635,6 +648,10 @@ export class UserData extends IEntity {
 
   getCompletedStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
     return this.getStepsWith(name, type, sequenceNumber).find((s) => s.isCompleted);
+  }
+
+  getNonFailedStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
+    return this.getStepsWith(name, type, sequenceNumber).find((s) => !(s.isFailed || s.isCanceled));
   }
 
   getPendingStepOrThrow(stepId: number): KycStep {
@@ -744,9 +761,10 @@ export function Blank(value: string, type: BlankType): string {
       return `${createStringOf('*', value.length - numberOfLastVisibleNumbers)}${value.substring(
         value.length - numberOfLastVisibleNumbers,
       )}`;
-    case BlankType.MAIL:
+    case BlankType.MAIL: {
       const [name, domain] = value.split('@');
       return `${name[0]}${createStringOf('*', name.length - 1)}@${domain}`;
+    }
     case BlankType.WALLET_ADDRESS:
       return `${value.substring(0, 4)}${createStringOf('*', 8)}${value.substring(value.length - 4)}`;
   }

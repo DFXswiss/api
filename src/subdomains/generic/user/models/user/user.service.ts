@@ -41,8 +41,10 @@ import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
+import { UserProfileDto } from './dto/user-profile.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
+import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserStatus } from './user.enum';
@@ -94,6 +96,7 @@ export class UserService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }
@@ -182,6 +185,17 @@ export class UserService {
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
+  async getUserProfile(userDataId: number): Promise<UserProfileDto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { organization: true },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
+
+    return UserDtoMapper.mapProfile(userData);
+  }
+
   async createUser(data: Partial<User>, specialCode: string, moderator?: Moderator): Promise<User> {
     let user = this.userRepo.create({
       address: data.address,
@@ -196,7 +210,7 @@ export class UserService {
     user.usedRef = await this.checkRef(user, data.usedRef);
     user.origin = data.origin;
     user.custodyProvider = data.custodyProvider;
-    userIsActive && (user.status = UserStatus.ACTIVE);
+    if (userIsActive) user.status = UserStatus.ACTIVE;
     user.custodyAddressType = data.custodyAddressType;
     user.custodyAddressIndex = data.custodyAddressIndex;
     user.role = data.role;
@@ -257,14 +271,14 @@ export class UserService {
     return UserDtoMapper.mapUser(update, userId);
   }
 
-  async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<void> {
+  async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<UpdateMailStatus> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
 
-    await this.userDataService.updateUserMail(userData, dto, ip);
+    return this.userDataService.updateUserMail(userData, dto, ip);
   }
 
   async verifyMail(userDataId: number, token: string, userId: number): Promise<UserV2Dto> {

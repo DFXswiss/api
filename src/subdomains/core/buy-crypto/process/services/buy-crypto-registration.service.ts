@@ -50,7 +50,7 @@ export class BuyCryptoRegistrationService {
     try {
       const buyCryptoPayIns = await this.filterBuyCryptoPayIns(newPayIns);
 
-      buyCryptoPayIns.length > 0 &&
+      if (buyCryptoPayIns.length > 0)
         this.logger.verbose(
           `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s): ${buyCryptoPayIns.map(
             (s) => s[0].id,
@@ -78,17 +78,26 @@ export class BuyCryptoRegistrationService {
     const result = [];
 
     for (const payIn of allPayIns) {
-      const relevantRoute = routes.find(
-        (r) =>
-          (payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
-            r.deposit.blockchainList.includes(payIn.address.blockchain)) ||
-          (payIn.isPayment && payIn.paymentLinkPayment?.link.route.id === r.id),
-      );
-
-      relevantRoute && result.push([payIn, relevantRoute]);
+      const relevantRoute = this.findMatchingRoute(payIn, routes);
+      if (relevantRoute) result.push([payIn, relevantRoute]);
     }
 
     return result;
+  }
+
+  private findMatchingRoute(payIn: CryptoInput, routes: Swap[]): Swap | undefined {
+    if (payIn.isPayment) {
+      const paymentRouteId =
+        payIn.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? payIn.paymentLinkPayment?.link.route.id;
+
+      return routes.find((r) => paymentRouteId === r.id);
+    } else {
+      return routes.find(
+        (r) =>
+          payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
+          r.deposit.blockchainList.includes(payIn.address.blockchain),
+      );
+    }
   }
 
   private async createBuyCryptosAndAckPayIns(payInsPairs: [CryptoInput, Swap][]): Promise<void> {

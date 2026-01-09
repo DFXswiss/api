@@ -15,9 +15,10 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
 import { In, Not } from 'typeorm';
-import { Sell } from '../../sell-crypto/route/sell.entity';
-import { SellService } from '../../sell-crypto/route/sell.service';
+import { isSellRoute } from '../../sell-crypto/route/sell.entity';
 import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
@@ -51,7 +52,7 @@ export class PaymentLinkService {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly paymentQuoteService: PaymentQuoteService,
     private readonly userDataService: UserDataService,
-    private readonly sellService: SellService,
+    private readonly depositRouteService: DepositRouteService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
   ) {}
 
@@ -84,7 +85,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     routeLabel?: string,
   ) {
-    const link = Boolean(userId)
+    const link = userId
       ? await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId).catch(() => undefined)
       : undefined;
 
@@ -114,7 +115,7 @@ export class PaymentLinkService {
     key?: string,
     externalLinkId?: string,
   ): Promise<PaymentLink[]> {
-    const ownerUserId = Boolean(key)
+    const ownerUserId = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId).then((pl) => pl.route.user.id)
       : userId;
 
@@ -133,12 +134,13 @@ export class PaymentLinkService {
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const route = dto.route
-      ? await this.sellService.getByLabel(userId, dto.route)
+      ? await this.depositRouteService.getByLabel(userId, dto.route)
       : dto.routeId
-      ? await this.sellService.get(userId, dto.routeId)
-      : await this.sellService.getLatest(userId);
+        ? await this.depositRouteService.get(userId, dto.routeId)
+        : await this.depositRouteService.getLatest(userId);
 
-    this.sellService.validateLightningRoute(route);
+    if (route?.deposit.blockchains !== Blockchain.LIGHTNING)
+      throw new BadRequestException('Only Lightning routes are allowed');
 
     if (dto.externalId) {
       const exists = await this.paymentLinkRepo.existsBy({
@@ -154,10 +156,11 @@ export class PaymentLinkService {
 
   async createInvoice(dto: CreateInvoicePaymentDto): Promise<PaymentLink> {
     const route = dto.route
-      ? await this.sellService.getByLabel(undefined, dto.route)
-      : await this.sellService.getById(+dto.routeId);
+      ? await this.depositRouteService.getByLabel(undefined, dto.route)
+      : await this.depositRouteService.getById(+dto.routeId);
 
-    this.sellService.validateLightningRoute(route);
+    if (route?.deposit.blockchains !== Blockchain.LIGHTNING)
+      throw new BadRequestException('Only Lightning routes are allowed');
 
     const existingLinks = await this.paymentLinkRepo.find({
       where: {
@@ -203,20 +206,22 @@ export class PaymentLinkService {
     try {
       return await this.c2bPaymentLinkService.enrollPaymentLink(paymentLink, provider);
     } catch (e) {
-      e instanceof BadRequestException
-        ? this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment: ${e.message}`)
-        : this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}:`, e);
+      if (e instanceof BadRequestException) {
+        this.logger.info(`C2B payment link ${paymentLink.uniqueId} is not eligible for enrollment: ${e.message}`);
+      } else {
+        this.logger.error(`Failed to enroll C2B payment link ${paymentLink.uniqueId}:`, e);
+      }
     }
   }
 
-  private async createForRoute(route: Sell, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
+  private async createForRoute(route: DepositRoute, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
     const paymentLink = this.paymentLinkRepo.create({
       route,
       externalId: dto.externalId,
       label: dto.label,
       status: PaymentLinkStatus.ACTIVE,
       mode: dto.mode,
-      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix, 16),
+      uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkUidPrefix),
       webhookUrl: dto.webhookUrl,
       payments: [],
       config: JSON.stringify(Util.removeDefaultFields(dto.config, route.userData.paymentLinksConfigObj)),
@@ -227,7 +232,7 @@ export class PaymentLinkService {
 
     await this.paymentLinkRepo.save(paymentLink);
 
-    dto.payment &&
+    if (dto.payment)
       paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
 
     return paymentLink;
@@ -342,7 +347,7 @@ export class PaymentLinkService {
       standard: usedStandard,
       possibleStandards: standards,
       route: paymentLink.route.route.label,
-      currency: paymentLink.route.fiat?.name,
+      currency: isSellRoute(paymentLink.route) ? paymentLink.route.fiat?.name : undefined,
       displayQr,
       recipient: paymentLink.configObj.recipient,
       mode: paymentLink.mode,
@@ -404,7 +409,7 @@ export class PaymentLinkService {
   async updatePaymentLinkAdmin(id: number, dto: UpdatePaymentLinkInternalDto): Promise<PaymentLink> {
     const entity = await this.paymentLinkRepo.findOne({
       where: { id },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
     if (!entity) throw new NotFoundException('Payment link not found');
 
@@ -459,7 +464,7 @@ export class PaymentLinkService {
   private async getActivePaymentLink(uniqueId: string): Promise<PaymentLink> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { uniqueId, status: Not(PaymentLinkStatus.INACTIVE) },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
@@ -473,11 +478,11 @@ export class PaymentLinkService {
   ): Promise<PaymentLink> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { id, externalId, status: PaymentLinkStatus.UNASSIGNED },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
-    const route = await this.sellService.getPaymentRoutesForPublicName(dto.publicName).then((l) => l.at(0));
+    const route = await this.depositRouteService.getPaymentRoutesForPublicName(dto.publicName).then((l) => l.at(0));
     if (!route) throw new NotFoundException('No matching payment route found');
 
     await this.updatePaymentLinkInternal(paymentLink, { status: PaymentLinkStatus.ACTIVE, route });
@@ -486,10 +491,10 @@ export class PaymentLinkService {
   }
 
   async getLocations(publicName: string): Promise<PaymentLinkRecipientAddressDto[]> {
-    const routes = await this.sellService.getPaymentRoutesForPublicName(publicName);
+    const routes = await this.depositRouteService.getPaymentRoutesForPublicName(publicName);
     const paymentLinks = await this.paymentLinkRepo.find({
       where: { route: { id: In(routes.map((r) => r.id)) } },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
 
     const locations = paymentLinks.map((pl) => pl.configObj.recipient?.address);
@@ -522,7 +527,7 @@ export class PaymentLinkService {
     const existingPaymentLink = await this.getPaymentLinkByAccessKey(key, externalLinkId).catch(() => null);
     if (!existingPaymentLink && !routeLabel) throw new BadRequestException('Route label is required');
 
-    const route = existingPaymentLink?.route ?? (await this.sellService.getByLabel(undefined, routeLabel));
+    const route = existingPaymentLink?.route ?? (await this.depositRouteService.getByLabel(undefined, routeLabel));
     if (!route) throw new NotFoundException('Route not found');
 
     const plAccessKeys = existingPaymentLink?.linkConfigObj?.accessKeys ?? [];
@@ -544,7 +549,7 @@ export class PaymentLinkService {
   }
 
   async getPublicPaymentLink(routeLabel: string, externalLinkId: string): Promise<PaymentLink> {
-    const route = await this.sellService.getByLabel(undefined, routeLabel);
+    const route = await this.depositRouteService.getByLabel(undefined, routeLabel);
     if (!route) throw new NotFoundException('Route not found');
 
     const paymentLink = await this.getOrThrow(route.user.id, undefined, externalLinkId);
@@ -571,7 +576,7 @@ export class PaymentLinkService {
     key?: string,
     routeLabel?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(key)
+    const paymentLink = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
       : await this.getForUserOrPublic(userId, linkId, externalLinkId, externalPaymentId, routeLabel);
 
@@ -624,7 +629,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(key)
+    const paymentLink = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
       : await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
@@ -643,7 +648,7 @@ export class PaymentLinkService {
     externalPaymentId?: string,
     key?: string,
   ): Promise<PaymentLink> {
-    const paymentLink = Boolean(key)
+    const paymentLink = key
       ? await this.getPaymentLinkByAccessKey(key, externalLinkId, externalPaymentId)
       : await this.getOrThrow(userId, linkId, externalLinkId, externalPaymentId);
 
@@ -669,7 +674,7 @@ export class PaymentLinkService {
   async createPosLinkAdmin(paymentLinkId: number, scoped?: boolean): Promise<string> {
     const paymentLink = await this.paymentLinkRepo.findOne({
       where: { id: paymentLinkId },
-      relations: { route: { user: { userData: true } } },
+      relations: { route: { user: { userData: { organization: true } } } },
     });
     if (!paymentLink) throw new NotFoundException('Payment link not found');
 
@@ -681,8 +686,8 @@ export class PaymentLinkService {
       scoped == null
         ? paymentLink.configObj
         : scoped
-        ? paymentLink.linkConfigObj
-        : paymentLink.route.userData.paymentLinksConfigObj;
+          ? paymentLink.linkConfigObj
+          : paymentLink.route.userData.paymentLinksConfigObj;
 
     let accessKey = config.accessKeys?.at(0);
     if (!accessKey) {

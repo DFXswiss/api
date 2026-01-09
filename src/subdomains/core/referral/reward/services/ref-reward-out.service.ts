@@ -50,7 +50,7 @@ export class RefRewardOutService {
         try {
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
-        } catch (e) {
+        } catch {
           this.logger.error(`Failed to initiate ref-reward payout. Transaction ID: ${transaction.id}`);
           // continue with next transaction in case payout initiation failed
           continue;
@@ -110,7 +110,7 @@ export class RefRewardOutService {
   private logTransactionsPayouts(transactions: RefReward[]): void {
     const transactionsLogs = transactions.map((tx) => tx.id);
 
-    transactions.length &&
+    if (transactions.length)
       this.logger.info(
         `Paying out ${transactionsLogs.length} reward transaction(s). Transaction ID(s): ${transactionsLogs}`,
       );

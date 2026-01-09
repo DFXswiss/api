@@ -4,16 +4,16 @@
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Bei Fragen stehen wir dir<br>gerne unter [url:https://app.dfx.swiss/support] zur Seite.",
         "thanks": "Herzlichen Dank für dein entgegengebrachtes Vertrauen",
-        "welcome": "Hi {name},",
+        "welcome": "Hi {name}",
         "team_questions": "Bei Fragen zögere bitte nicht, uns anzusprechen.",
         "personal_closing": "Freundliche Grüsse,<br>{closingName}",
-        "button": "oder<br>[url:Klick hier]",
+        "button": "[url:Klick hier]",
         "link": "oder<br>[url:{urlText}]"
     },
     "login": {
         "title": "DFX Login",
         "salutation": "DFX Login",
-        "message": "Klicke den nachfolgenden Link innerhalb von {expiration} Minuten um dich bei DFX einzuloggen:<br>[url:{urlText}]"
+        "message": "oder klicke den nachfolgenden Link innerhalb von {expiration} Minuten um dich bei DFX einzuloggen:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -94,7 +94,8 @@
                 "manual_check_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "manual_check_ip_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "manual_check_ip_country_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
-                "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert"
+                "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert",
+                "intermediary_without_sender": "Die Absenderbank (Wise/Revolut) hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. DFX kann daher den tatsächlichen Absender nicht verifizieren und die Transaktion nicht verarbeiten."
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
@@ -272,8 +273,7 @@
         "confirmation": {
             "title": "DFX-Empfehlung bestätigen",
             "salutation": "Du hast eine ausstehende DFX-Empfehlung",
-            "message": "Kannst du {name} ({mail}) für die Nutzug von DFX bestätigen und für ihn bürgen?",
-            "warning": "Bestätige nur Personen die du wirklich persönlich kennst und für die du bürgen kannst. Wenn die Person in einen Betrugsfall involviert ist kannst auch du eine Kontosperrung bekommen, wenn du diese Person bestätigt und für sie gebürgt hast.",
+            "message": "Kannst du {name} ({mail}) für die Nutzung von DFX bestätigen?",
             "button": "Du kannst ganz einfach den nachfolgenden Button anklicken, um die Einladung zu bestätigen oder abzulehnen:<br>[url:Klick hier]",
             "link": "Oder du benutzt den nachfolgenden Link:<br>[url:{urlText}]"
         }
@@ -331,7 +331,7 @@
             "salutation": "Forderungsabtretungsvertrag (Zession)",
             "message": "DFX bietet seinen Kunden die Möglichkeit, offene Forderungen aus dem Verkauf von Waren und Dienstleistungen an DFX abzutreten, um eine Bezahlung mittels Kryptowährungen zu ermöglichen. Der Kunde hat die Möglichkeit, eine offene Forderung über unsere API (api.dfx.swiss) oder über das Frontend auf app.dfx.swiss zu übermitteln.<br>Der geschuldete Betrag wird nach Abzug einer Bearbeitungsgebühr von 0.2% an den Kunden ausbezahlt. Die Auszahlung kann, entsprechend der kundenspezifischen Konfiguration, entweder in Kryptowährungen oder als Fiat-Währung per Banktransaktion erfolgen.<br>Für alle Transaktionen gelten die AGB der DFX. Die Zession endet automatisch mit der Schliessung des DFX-Kontos oder kann bei Vertragsverstössen oder Zahlungsunfähigkeit sofort durch DFX oder den Kunden beendet werden.<br><br>Zugestimmt am {date}"
         },
-        "retry": "Bitte versuche es über die folgende URL erneut:<br>[url:{urlText}]",
+        "retry": "oder versuche es über die folgende URL erneut:<br>[url:{urlText}]",
         "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]",
         "step_names": {
             "ident": "Identifikation",
@@ -354,8 +354,7 @@
         "request": {
             "title": "E-Mail bestätigen",
             "salutation": "Bestätige deine E-Mail",
-            "message": "Klicke den nachfolgenden Link, um deine E-Mail für einen anderen Account zu bestätigen:<br>[url:{urlText}]",
-            "closing": "Wenn du du deine Mail nicht in einem anderen DFX Account eingegeben hast, kontaktiere bitte unverzüglich den Support unter [url:https://app.dfx.swiss/support]."
+            "message": "oder klicke den nachfolgenden Link, um deine E-Mail für einen anderen Account zu bestätigen:<br>[url:{urlText}]"
         },
         "added_address": {
             "title": "Adresse zu Account hinzugefügt",

@@ -18,6 +18,7 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
@@ -55,6 +56,7 @@ describe('BuyFiatService', () => {
   let amlService: AmlService;
   let transactionHelper: TransactionHelper;
   let custodyOrderService: CustodyOrderService;
+  let supportLogService: SupportLogService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -75,6 +77,7 @@ describe('BuyFiatService', () => {
     amlService = createMock<AmlService>();
     transactionHelper = createMock<TransactionHelper>();
     custodyOrderService = createMock<CustodyOrderService>();
+    supportLogService = createMock<SupportLogService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -98,6 +101,7 @@ describe('BuyFiatService', () => {
         { provide: AmlService, useValue: amlService },
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: CustodyOrderService, useValue: custodyOrderService },
+        { provide: SupportLogService, useValue: supportLogService },
       ],
     }).compile();
 

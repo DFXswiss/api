@@ -9,7 +9,10 @@ import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends CheckLiquidityStrategy {
-  constructor(protected readonly assetService: AssetService, private readonly dexBitcoinService: DexBitcoinService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    private readonly dexBitcoinService: DexBitcoinService,
+  ) {
     super();
   }
 

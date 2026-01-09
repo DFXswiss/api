@@ -12,7 +12,6 @@ import { IdDocTypeMap, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepType, UrlType } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
-import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycFile } from './kyc-file.entity';
 import { StepLog } from './step-log.entity';
@@ -110,7 +109,7 @@ export class KycStep extends IEntity {
         } else if (this.isManual) {
           return { url: `${apiUrl}/ident/manual/${this.id}`, type: UrlType.API };
         } else {
-          return { url: IdentService.identUrl(this), type: UrlType.BROWSER };
+          throw new Error(`Invalid ident step type ${this.type}`);
         }
       }
 
@@ -338,7 +337,9 @@ export class KycStep extends IEntity {
     if (!this.result) return undefined;
     try {
       return JSON.parse(this.result);
-    } catch {}
+    } catch {
+      // ignore - return raw result if not valid JSON
+    }
 
     return this.result as T;
   }
@@ -371,7 +372,7 @@ export class KycStep extends IEntity {
         kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
         ipCountry: identResultData.data.ipCountry,
-        country: identResultData.data.info.country,
+        country: identResultData.data.fixedInfo?.country,
       };
     } else if (this.isManual) {
       const identResultData = this.getResult<ManualIdentResult>();

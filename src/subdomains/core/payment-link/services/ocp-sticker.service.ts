@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { I18nService } from 'nestjs-i18n';
 import { join } from 'path';
@@ -6,15 +6,17 @@ import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
-import { SellService } from '../../sell-crypto/route/sell.service';
+import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
 import { PaymentLink } from '../entities/payment-link.entity';
 import { StickerQrMode, StickerType } from '../enums';
 import { PaymentLinkService } from './payment-link.service';
 
+const ALLOWED_LANGUAGES = ['en', 'de', 'fr', 'it'];
+
 @Injectable()
 export class OCPStickerService {
   constructor(
-    private readonly sellService: SellService,
+    private readonly depositRouteService: DepositRouteService,
     private readonly i18n: I18nService,
     private readonly paymentLinkService: PaymentLinkService,
   ) {}
@@ -82,7 +84,24 @@ export class OCPStickerService {
     const imgAspect = 1;
     const ratioSum = imgAspect + 1;
 
-    return new Promise<Buffer>(async (resolve, reject) => {
+    // Pre-generate all QR codes before entering the Promise
+    const qrBuffers: Map<string, Buffer> = new Map();
+    for (const link of links) {
+      let qrCodeUrl: string;
+      if (mode === StickerQrMode.POS) {
+        qrCodeUrl = posUrls.get(link.uniqueId);
+      } else {
+        const lnurl = LightningHelper.createEncodedLnurlp(link.uniqueId);
+        qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
+      }
+      const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
+        width: 400,
+        margin: 0,
+      });
+      qrBuffers.set(link.uniqueId, Buffer.from(qrCodeDataUrl.split(',')[1], 'base64'));
+    }
+
+    return new Promise<Buffer>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A3', margin: 0 });
         const chunks: Buffer[] = [];
@@ -120,19 +139,7 @@ export class OCPStickerService {
           const x = startX + col * (stickerWidth + stickerSpacing);
           const y = startY + row * (stickerHeight + stickerSpacing);
 
-          // Generate QR code URL based on mode
-          let qrCodeUrl: string;
-          if (mode === StickerQrMode.POS) {
-            qrCodeUrl = posUrls.get(uniqueId);
-          } else {
-            const lnurl = LightningHelper.createEncodedLnurlp(uniqueId);
-            qrCodeUrl = `${Config.frontend.services}/pl?lightning=${lnurl}`;
-          }
-          const qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
-            width: 400,
-            margin: 0,
-          });
-          const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+          const qrBuffer = qrBuffers.get(uniqueId);
 
           // Add Classic (blue) OCP Sticker
           pdf.image(stickerBuffer, x, y, { width: pngWidth, height: stickerHeight + 1 });
@@ -196,6 +203,11 @@ export class OCPStickerService {
     mode = StickerQrMode.CUSTOMER,
     userId?: number,
   ): Promise<Buffer> {
+    const validLang = ALLOWED_LANGUAGES.find((l) => l === lang.toLowerCase());
+    if (!validLang) {
+      throw new BadRequestException(`Invalid language: ${lang}. Allowed: ${ALLOWED_LANGUAGES.join(', ')}`);
+    }
+
     const links = await this.fetchPaymentLinks(routeIdOrLabel, externalIds, ids);
 
     const posUrls: Map<string, string> = new Map();
@@ -211,8 +223,8 @@ export class OCPStickerService {
     // Bitcoin Focus OCP Sticker
     const stickerFileName =
       mode === StickerQrMode.POS
-        ? `ocp-bitcoin-focus-sticker-pos_${lang.toLowerCase()}.png`
-        : `ocp-bitcoin-focus-sticker_${lang.toLowerCase()}.png`;
+        ? `ocp-bitcoin-focus-sticker-pos_${validLang}.png`
+        : `ocp-bitcoin-focus-sticker_${validLang}.png`;
     const stickerPath = join(process.cwd(), 'assets', stickerFileName);
     const stickerBuffer = readFileSync(stickerPath);
 
@@ -231,7 +243,7 @@ export class OCPStickerService {
     const ocpLogoAspect = 1.31590909; // width / height ratio of the OCP logo
     const leftPartition = 0.532; // Left partition of the sticker
 
-    return new Promise<Buffer>(async (resolve, reject) => {
+    return new Promise<Buffer>((resolve, reject) => {
       try {
         const pdf = new PDFDocument({ size: 'A3', margin: 0 });
         const chunks: Buffer[] = [];
@@ -350,7 +362,7 @@ export class OCPStickerService {
     externalIds?: string[],
     ids?: number[],
   ): Promise<PaymentLink[]> {
-    const linksFromDb = await this.sellService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
+    const linksFromDb = await this.depositRouteService.getPaymentLinksFromRoute(routeIdOrLabel, externalIds, ids);
     const linkMapByExternalId = new Map(linksFromDb.map((link) => [link.externalId, link]));
     const linkMapById = new Map(linksFromDb.map((link) => [link.id, link]));
     const linksByExternalId = externalIds?.map((extId) => linkMapByExternalId.get(extId)).filter(Boolean) || [];

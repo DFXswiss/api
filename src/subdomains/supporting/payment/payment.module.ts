@@ -36,7 +36,7 @@ import { TransactionModule } from './transaction.module';
     forwardRef(() => UserModule),
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
-    TransactionModule,
+    forwardRef(() => TransactionModule),
     SiftModule,
     BlockchainModule,
     BankModule,
@@ -54,6 +54,13 @@ import { TransactionModule } from './transaction.module';
     SpecialExternalAccountService,
     SpecialExternalAccountRepository,
   ],
-  exports: [TransactionHelper, FeeService, SwissQRService, TransactionRequestService, SpecialExternalAccountService],
+  exports: [
+    TransactionHelper,
+    FeeService,
+    SwissQRService,
+    TransactionRequestService,
+    TransactionRequestRepository,
+    SpecialExternalAccountService,
+  ],
 })
 export class PaymentModule {}

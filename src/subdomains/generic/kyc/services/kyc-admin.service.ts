@@ -71,12 +71,13 @@ export class KycAdminService {
           await this.kycService.completeCommercialRegister(kycStep.userData);
           break;
 
-        case KycStepName.IDENT:
+        case KycStepName.IDENT: {
           const nationalityData = kycStep.userData
             .getCompletedStepWith(KycStepName.NATIONALITY_DATA)
             ?.getResult<KycNationalityData>();
           await this.kycService.completeIdent(kycStep, undefined, nationalityData);
           break;
+        }
 
         case KycStepName.FINANCIAL_DATA:
           await this.kycService.completeFinancialData(kycStep);
@@ -98,13 +99,6 @@ export class KycAdminService {
 
   async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {
     await this.kycStepRepo.update(...dto);
-  }
-
-  async syncIdentStep(stepId: number): Promise<void> {
-    const kycStep = await this.kycStepRepo.findOneBy({ id: stepId });
-    if (!kycStep) throw new NotFoundException('KYC step not found');
-
-    await this.kycService.syncIdentStep(kycStep);
   }
 
   async resetKyc(userData: UserData, comment: KycError): Promise<void> {

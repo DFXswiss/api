@@ -20,7 +20,7 @@ export class Staking extends DepositRoute {
   paybackAsset?: Asset;
 
   @ManyToOne(() => User, (user) => user.stakingRoutes, { nullable: false })
-  user: User;
+  declare user: User;
 
   @Column({ type: 'float', default: 0 })
   rewardVolume: number; // EUR

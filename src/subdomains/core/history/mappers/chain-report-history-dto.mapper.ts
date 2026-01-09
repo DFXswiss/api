@@ -570,8 +570,8 @@ export class ChainReportHistoryDtoMapper {
         return assetName === 'DUSD'
           ? 'DUSD4'
           : ['DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(assetName)
-          ? assetName
-          : `d${assetName}`;
+            ? assetName
+            : `d${assetName}`;
 
       default:
         return assetName;

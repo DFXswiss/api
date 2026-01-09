@@ -159,10 +159,13 @@ export class BankDataService {
         errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
       if (existingActive.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN)
         errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
-      if (pendingMergeRequest)
-        pendingMergeRequest.isExpired
-          ? errors.push(BankDataVerificationError.MERGE_EXPIRED)
-          : errors.push(BankDataVerificationError.MERGE_PENDING);
+      if (pendingMergeRequest) {
+        if (pendingMergeRequest.isExpired) {
+          errors.push(BankDataVerificationError.MERGE_EXPIRED);
+        } else {
+          errors.push(BankDataVerificationError.MERGE_PENDING);
+        }
+      }
     }
 
     return errors;
@@ -283,6 +286,7 @@ export class BankDataService {
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.nationality', 'nationality')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .where(`${key.includes('.') ? key : `bankData.${key}`} = :param`, { param: value })
       .getOne();
@@ -323,12 +327,12 @@ export class BankDataService {
     return this.bankDataRepo.existsBy({ iban, type: BankDataType.USER });
   }
 
-  async getValidBankDatasForUser(userDataId: number, ibansOnly = true): Promise<BankData[]> {
+  async getValidBankDatasForUser(userDataId: number, ibansOnly = true, iban?: string): Promise<BankData[]> {
     return this.bankDataRepo
       .find({
         where: [
-          { userData: { id: userDataId }, approved: true },
-          { userData: { id: userDataId }, approved: IsNull() },
+          { userData: { id: userDataId }, approved: true, iban },
+          { userData: { id: userDataId }, approved: IsNull(), iban },
         ],
         relations: { userData: true },
       })
@@ -370,10 +374,10 @@ export class BankDataService {
     const bankData =
       entity.type === BankDataType.USER
         ? entity
-        : (await this.bankDataRepo.findOne({
+        : ((await this.bankDataRepo.findOne({
             where: { userData: { id: userDataId }, iban: entity.iban },
             relations: { userData: true },
-          })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER }));
+          })) ?? (await this.createBankDataInternal(entity.userData, { iban: entity.iban, type: BankDataType.USER })));
 
     return this.updateBankDataInternal(bankData, dto);
   }
@@ -384,13 +388,26 @@ export class BankDataService {
     sendMergeRequest = true,
     type?: BankDataType,
   ): Promise<BankData> {
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
+    if (!userData) throw new NotFoundException('UserData not found');
+    if (userData.status === UserDataStatus.KYC_ONLY)
+      throw new BadRequestException('You cannot add an IBAN to a KYC only account');
+
+    return this.createIbanForUserInternal(userData, dto, sendMergeRequest, type);
+  }
+
+  async createIbanForUserInternal(
+    userData: UserData,
+    dto: CreateBankAccountDto,
+    sendMergeRequest = true,
+    type?: BankDataType,
+  ): Promise<BankData> {
     const multiIbans = await this.specialAccountService.getMultiAccountIbans();
     if (multiIbans.includes(dto.iban)) throw new BadRequestException('Multi-account IBANs not allowed');
 
     if (!(await this.isValidIbanCountry(dto.iban)))
       throw new BadRequestException('IBAN country is currently not supported');
 
-    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
     if (userData.status === UserDataStatus.KYC_ONLY)
       throw new BadRequestException('You cannot add an IBAN to a KYC only account');
 
@@ -402,7 +419,7 @@ export class BankDataService {
         ],
         relations: { userData: true },
       })
-      .then((b) => b.find((b) => b.userData.id === userDataId) ?? b[0]);
+      .then((b) => b.find((b) => b.userData.id === userData.id) ?? b[0]);
 
     if (existing) {
       if (userData.id === existing.userData.id) {

@@ -32,9 +32,11 @@ export class BuyCryptoWebhookService {
   async triggerWebhook(buyCrypto: BuyCrypto): Promise<void> {
     const extended = await this.extendBuyCrypto(buyCrypto);
 
-    buyCrypto.isCryptoCryptoTransaction
-      ? await this.webhookService.cryptoCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended)
-      : await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended);
+    if (buyCrypto.isCryptoCryptoTransaction) {
+      await this.webhookService.cryptoCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended);
+    } else {
+      await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto.userData, extended);
+    }
   }
 
   async extendBuyCrypto(buyCrypto: BuyCrypto): Promise<BuyCryptoExtended> {
@@ -44,7 +46,7 @@ export class BuyCryptoWebhookService {
     const inputReferenceAssetEntity =
       buyCrypto.inputAsset === buyCrypto.inputReferenceAsset
         ? inputAssetEntity
-        : buyCrypto.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(buyCrypto.inputReferenceAsset));
+        : (buyCrypto.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(buyCrypto.inputReferenceAsset)));
     return Object.assign(buyCrypto, { inputAssetEntity, inputReferenceAssetEntity });
   }
 }

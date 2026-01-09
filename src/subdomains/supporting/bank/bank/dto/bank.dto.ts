@@ -15,12 +15,10 @@ export class BankDto {
 }
 
 export enum IbanBankName {
-  FRICK = 'Bank Frick',
   OLKY = 'Olkypay',
   MAERKI = 'Maerki Baumann',
-  REVOLUT = 'Revolut',
-  KALEIDO = 'Kaleido',
   RAIFFEISEN = 'Raiffeisen',
+  YAPEAL = 'Yapeal',
 }
 
 export enum CardBankName {

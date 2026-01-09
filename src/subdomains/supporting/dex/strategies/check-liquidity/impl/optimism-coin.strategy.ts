@@ -7,7 +7,10 @@ import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class OptimismCoinStrategy extends EvmCoinStrategy {
-  constructor(protected readonly assetService: AssetService, dexOptimismService: DexOptimismService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    dexOptimismService: DexOptimismService,
+  ) {
     super(dexOptimismService);
   }
 

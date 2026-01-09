@@ -1,8 +1,9 @@
 import { Transform, Type } from 'class-transformer';
-import { IsDate, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsDate, IsIBAN, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { CheckoutReverse } from 'src/integration/checkout/services/checkout.service';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Util } from 'src/shared/utils/util';
+import { CreditorData } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 
@@ -14,6 +15,7 @@ export class RefundInternalDto {
 
   @IsOptional()
   @IsString()
+  @IsIBAN()
   @Transform(Util.trimAll)
   refundIban: string;
 
@@ -40,7 +42,9 @@ export class BaseRefund {
 
 export class BankTxRefund extends BaseRefund {
   refundIban?: string;
+  chargebackCurrency?: string;
   chargebackOutput?: FiatOutput;
+  creditorData?: CreditorData;
 }
 
 export class CheckoutTxRefund extends BaseRefund {

@@ -1,10 +1,15 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
+import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
+import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
+import { BankService } from '../bank/bank/bank.service';
 import { PayInStatus } from '../payin/entities/crypto-input.entity';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from './dto/update-fiat-output.dto';
@@ -19,21 +24,31 @@ export class FiatOutputService {
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly buyCryptoRepo: BuyCryptoRepository,
+    @Inject(forwardRef(() => BankTxReturnService))
+    private readonly bankTxReturnService: BankTxReturnService,
+    private readonly bankTxRepeatService: BankTxRepeatService,
+    private readonly bankService: BankService,
+    private readonly sellRepo: SellRepository,
   ) {}
 
   async create(dto: CreateFiatOutputDto): Promise<FiatOutput> {
-    if (dto.buyCryptoId || dto.buyFiatId || dto.bankTxReturnId) {
+    this.validateRequiredCreditorFields(dto);
+
+    if (dto.buyCryptoId || dto.buyFiatId || dto.bankTxReturnId || dto.bankTxRepeatId) {
       const existing = await this.fiatOutputRepo.exists({
         where: dto.buyCryptoId
           ? { buyCrypto: { id: dto.buyCryptoId }, type: dto.type }
           : dto.buyFiatId
-          ? { buyFiats: { id: dto.buyFiatId }, type: dto.type }
-          : { bankTxReturn: { id: dto.bankTxReturnId }, type: dto.type },
+            ? { buyFiats: { id: dto.buyFiatId }, type: dto.type }
+            : dto.bankTxReturnId
+              ? { bankTxReturn: { id: dto.bankTxReturnId }, type: dto.type }
+              : { bankTxRepeat: { id: dto.bankTxRepeatId }, type: dto.type },
       });
       if (existing) throw new BadRequestException('FiatOutput already exists');
     }
 
     const entity = this.fiatOutputRepo.create(dto);
+    if (entity.amount != null) entity.amount = Util.roundReadable(entity.amount, AmountType.FIAT);
 
     if (dto.buyFiatId) {
       entity.buyFiats = [await this.buyFiatRepo.findOneBy({ id: dto.buyFiatId })];
@@ -50,6 +65,21 @@ export class FiatOutputService {
       if (!entity.buyCrypto) throw new NotFoundException('BuyCrypto not found');
     }
 
+    if (dto.bankTxReturnId) {
+      entity.bankTxReturn = await this.bankTxReturnService.getBankTxReturn(dto.bankTxReturnId);
+      if (!entity.bankTxReturn) throw new NotFoundException('BankTxReturn not found');
+    }
+
+    if (dto.bankTxRepeatId) {
+      entity.bankTxRepeat = await this.bankTxRepeatService.getBankTxRepeat(dto.bankTxRepeatId);
+      if (!entity.bankTxRepeat) throw new NotFoundException('BankTxRepeat not found');
+    }
+
+    if (entity.accountIban && !entity.bank) {
+      const bank = await this.bankService.getBankByIban(entity.accountIban);
+      if (bank) entity.bank = bank;
+    }
+
     return this.fiatOutputRepo.save(entity);
   }
 
@@ -58,11 +88,66 @@ export class FiatOutputService {
     { buyCrypto, buyFiats, bankTxReturn }: { buyCrypto?: BuyCrypto; buyFiats?: BuyFiat[]; bankTxReturn?: BankTxReturn },
     originEntityId: number,
     createReport = false,
+    inputCreditorData?: Partial<FiatOutput>,
   ): Promise<FiatOutput> {
-    const entity = this.fiatOutputRepo.create({ type, buyCrypto, buyFiats, bankTxReturn, originEntityId });
+    let creditorData: Partial<FiatOutput> = inputCreditorData ?? {};
+
+    // For BuyFiat without inputCreditorData: auto-populate from seller's UserData
+    if (type === FiatOutputType.BUY_FIAT && buyFiats?.length > 0 && !inputCreditorData) {
+      const userData = buyFiats[0].userData;
+      if (userData) {
+        // Determine IBAN: from payoutRoute (PaymentLink) or sell route
+        let iban = buyFiats[0].sell?.iban;
+
+        const payoutRouteId = buyFiats[0].paymentLinkPayment?.link?.linkConfigObj?.payoutRouteId;
+        if (payoutRouteId) {
+          const payoutRoute = await this.sellRepo.findOneBy({ id: payoutRouteId });
+          if (payoutRoute) {
+            iban = payoutRoute.iban;
+          }
+        }
+
+        creditorData = {
+          currency: buyFiats[0].outputAsset?.name,
+          amount: buyFiats.reduce((sum, bf) => sum + (bf.outputAmount ?? 0), 0),
+          name: userData.completeName,
+          address: userData.address.street,
+          houseNumber: userData.address.houseNumber,
+          zip: userData.address.zip,
+          city: userData.address.city,
+          country: userData.address.country?.symbol,
+          iban,
+        };
+      }
+    }
+
+    const entity = this.fiatOutputRepo.create({
+      type,
+      buyCrypto,
+      buyFiats,
+      bankTxReturn,
+      originEntityId,
+      ...creditorData,
+      amount: Util.roundReadable(creditorData.amount, AmountType.FIAT),
+    });
+
+    // Validate creditor fields for all types - data comes from frontend or admin DTO
+    this.validateRequiredCreditorFields(entity);
+
     if (createReport) entity.reportCreated = false;
 
     return this.fiatOutputRepo.save(entity);
+  }
+
+  private validateRequiredCreditorFields(data: Partial<FiatOutput>): void {
+    const requiredFields = ['currency', 'amount', 'name', 'address', 'zip', 'city', 'country', 'iban'] as const;
+    const missingFields = requiredFields.filter(
+      (field) => data[field] == null || (typeof data[field] === 'string' && data[field].trim() === ''),
+    );
+
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required creditor fields: ${missingFields.join(', ')}`);
+    }
   }
 
   async update(id: number, dto: UpdateFiatOutputDto): Promise<FiatOutput> {
@@ -73,6 +158,8 @@ export class FiatOutputService {
       entity.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: dto.bankTxId });
       if (!entity.bankTx) throw new NotFoundException('BankTx not found');
     }
+
+    if (dto.amount != null) dto.amount = Util.roundReadable(dto.amount, AmountType.FIAT);
 
     return this.fiatOutputRepo.save({ ...entity, ...dto });
   }
@@ -98,6 +185,7 @@ export class FiatOutputService {
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.nationality', 'nationality')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `fiatOutput.${key}`} = :param`, { param: value })

@@ -15,7 +15,10 @@ export class DexSolanaService {
   private readonly nativeCoin = 'SOL';
   private readonly blockchain = Blockchain.SOLANA;
 
-  constructor(private readonly liquidityOrderRepo: LiquidityOrderRepository, solanaService: SolanaService) {
+  constructor(
+    private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    solanaService: SolanaService,
+  ) {
     this.solanaClient = solanaService.getDefaultClient();
   }
 
