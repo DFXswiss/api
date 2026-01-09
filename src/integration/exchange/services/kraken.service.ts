@@ -87,12 +87,12 @@ export class KrakenService extends ExchangeService {
 
   // Ensures trading fee is up-to-date (max 60 minutes old) before trade execution
   private async ensureTradingFeeUpToDate(from: string, to: string): Promise<void> {
-    // Determine relevant symbols based on trade pair
-    const symbolsToCheck = KrakenService.TRACKED_SYMBOLS.filter((s) => s.includes(from) || s.includes(to));
+    // Only check symbols that exactly match the trade pair (e.g., BTC/CHF for from=BTC, to=CHF)
+    const tradePair = `${from}/${to}`;
+    const reversePair = `${to}/${from}`;
+    const symbolsToCheck = KrakenService.TRACKED_SYMBOLS.filter((s) => s === tradePair || s === reversePair);
 
-    for (const symbol of symbolsToCheck) {
-      await this.refreshTradingFeeIfStale(symbol);
-    }
+    await Promise.all(symbolsToCheck.map((symbol) => this.refreshTradingFeeIfStale(symbol)));
   }
 
   private async refreshTradingFeeIfStale(symbol: string): Promise<ExchangeTradingFeeDto | undefined> {
