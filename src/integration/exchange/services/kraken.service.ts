@@ -95,7 +95,7 @@ export class KrakenService extends ExchangeService {
     }
   }
 
-  private async refreshTradingFeeIfStale(symbol: string): Promise<ExchangeTradingFeeDto> {
+  private async refreshTradingFeeIfStale(symbol: string): Promise<ExchangeTradingFeeDto | undefined> {
     const key = this.getTradingFeeKey(symbol);
     const current = await this.settingService.getObj<ExchangeTradingFeeDto>(key);
 
@@ -103,26 +103,30 @@ export class KrakenService extends ExchangeService {
       return current;
     }
 
-    // Fetch and store
-    const fee = await this.getTradingFee(symbol);
-    const newFee: ExchangeTradingFeeDto = {
-      exchange: ExchangeName.KRAKEN,
-      symbol: fee.symbol,
-      maker: fee.maker,
-      taker: fee.taker,
-      percentage: fee.percentage,
-      tierBased: fee.tierBased,
-      updated: new Date().toISOString(),
-    };
+    try {
+      const fee = await this.getTradingFee(symbol);
+      const newFee: ExchangeTradingFeeDto = {
+        exchange: ExchangeName.KRAKEN,
+        symbol: fee.symbol,
+        maker: fee.maker,
+        taker: fee.taker,
+        percentage: fee.percentage,
+        tierBased: fee.tierBased,
+        updated: new Date().toISOString(),
+      };
 
-    if (current?.maker !== newFee.maker || current?.taker !== newFee.taker) {
-      this.logger.info(
-        `Kraken trading fee for ${symbol} changed: maker ${current?.maker ?? 'N/A'} -> ${newFee.maker}, taker ${current?.taker ?? 'N/A'} -> ${newFee.taker}`,
-      );
+      if (current?.maker !== newFee.maker || current?.taker !== newFee.taker) {
+        this.logger.info(
+          `Kraken trading fee for ${symbol} changed: maker ${current?.maker ?? 'N/A'} -> ${newFee.maker}, taker ${current?.taker ?? 'N/A'} -> ${newFee.taker}`,
+        );
+      }
+
+      await this.settingService.setObj(key, newFee);
+      return newFee;
+    } catch (e) {
+      this.logger.warn(`Failed to refresh trading fee for ${symbol}, using cached value:`, e);
+      return current;
     }
-
-    await this.settingService.setObj(key, newFee);
-    return newFee;
   }
 
   private getTradingFeeKey(symbol: string): string {
