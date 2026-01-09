@@ -890,14 +890,12 @@ export class TransactionHelper implements OnModuleInit {
         : QuoteError.EMAIL_REQUIRED;
     }
 
+    // Credit card payments disabled
+    if (paymentMethodIn === FiatPaymentMethod.CARD) return QuoteError.PAYMENT_METHOD_NOT_ALLOWED;
+
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
-    if (
-      nationality &&
-      ((isBuy && !nationality.bankEnable) ||
-        (paymentMethodIn === FiatPaymentMethod.CARD && !nationality.checkoutEnable) ||
-        ((isSell || isSwap) && !nationality.cryptoEnable))
-    )
+    if (nationality && ((isBuy && !nationality.bankEnable) || ((isSell || isSwap) && !nationality.cryptoEnable)))
       return QuoteError.NATIONALITY_NOT_ALLOWED;
 
     // KYC checks
@@ -935,15 +933,7 @@ export class TransactionHelper implements OnModuleInit {
 
     // verification checks
     if (
-      paymentMethodIn === FiatPaymentMethod.CARD &&
-      user &&
-      !user.userData.completeName &&
-      !user.userData.verifiedName
-    )
-      return QuoteError.NAME_REQUIRED;
-
-    if (
-      ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
+      ((isSell && to.name !== 'CHF') || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
