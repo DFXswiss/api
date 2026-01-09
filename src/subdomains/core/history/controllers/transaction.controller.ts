@@ -454,11 +454,14 @@ export class TransactionController {
         }
       : undefined;
 
+    const chargebackCurrency = refundData.refundAsset.name;
+
     if (transaction.targetEntity instanceof BankTxReturn) {
       if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
       return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
         refundIban: refundData.refundTarget ?? dto.refundTarget,
+        chargebackCurrency,
         creditorData,
         ...refundDto,
       });
@@ -487,6 +490,7 @@ export class TransactionController {
 
     return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
+      chargebackCurrency,
       creditorData,
       ...refundDto,
     });

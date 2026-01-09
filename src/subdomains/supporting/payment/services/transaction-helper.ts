@@ -401,6 +401,12 @@ export class TransactionHelper implements OnModuleInit {
     const inputCurrency = await this.getRefundActive(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
+    // CHF refunds only to domestic IBANs
+    const refundCurrency =
+      isFiat && inputCurrency.name === 'CHF' && refundTarget && !Config.isDomesticIban(refundTarget)
+        ? await this.fiatService.getFiatByName('EUR')
+        : inputCurrency;
+
     const price =
       refundEntity.manualChfPrice ??
       (await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.PREFER_VALID));
@@ -429,11 +435,21 @@ export class TransactionHelper implements OnModuleInit {
           )
         : 0; // Bank fee buffer 1%
 
-    const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
+    const totalFeeAmount = dfxFeeAmount + networkFeeAmount + bankFeeAmount;
     if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
 
-    const refundAsset =
+    const inputAsset =
       inputCurrency instanceof Asset ? AssetDtoMapper.toDto(inputCurrency) : FiatDtoMapper.toDto(inputCurrency);
+    const refundAsset =
+      refundCurrency instanceof Asset ? AssetDtoMapper.toDto(refundCurrency) : FiatDtoMapper.toDto(refundCurrency);
+
+    // convert to refund currency
+    const refundPrice = await this.pricingService.getPrice(inputCurrency, refundCurrency, PriceValidity.VALID_ONLY);
+
+    const refundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
+    const feeDfx = Util.roundReadable(refundPrice.convert(dfxFeeAmount), feeAmountType);
+    const feeNetwork = Util.roundReadable(refundPrice.convert(networkFeeAmount), feeAmountType);
+    const feeBank = Util.roundReadable(refundPrice.convert(bankFeeAmount), feeAmountType);
 
     // Get bank details from the refund entity
     const bankTx = this.getBankTxFromRefundEntity(refundEntity);
@@ -441,12 +457,12 @@ export class TransactionHelper implements OnModuleInit {
     return {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       inputAmount: Util.roundReadable(inputAmount, amountType),
-      inputAsset: refundAsset,
-      refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, amountType),
+      inputAsset,
+      refundAmount,
       fee: {
-        dfx: Util.roundReadable(dfxFeeAmount, feeAmountType),
-        network: Util.roundReadable(networkFeeAmount, feeAmountType),
-        bank: Util.roundReadable(bankFeeAmount, feeAmountType),
+        dfx: feeDfx,
+        network: feeNetwork,
+        bank: feeBank,
       },
       refundAsset,
       refundTarget,
@@ -742,7 +758,7 @@ export class TransactionHelper implements OnModuleInit {
   static getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
     switch (paymentMethod) {
       case FiatPaymentMethod.BANK:
-        return IbanBankName.MAERKI;
+        return IbanBankName.YAPEAL;
       case FiatPaymentMethod.CARD:
         return CardBankName.CHECKOUT;
       case FiatPaymentMethod.INSTANT:

@@ -60,7 +60,7 @@ export class AmlService {
       if (
         !entity.userData.bankTransactionVerification &&
         entity instanceof BuyFiat &&
-        (entity.sell.iban.startsWith('LI') || entity.sell.iban.startsWith('CH'))
+        Config.isDomesticIban(entity.sell.iban)
       )
         entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
           bankTransactionVerification: CheckStatus.GSHEET,

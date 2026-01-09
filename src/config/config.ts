@@ -56,6 +56,10 @@ export class Configuration {
   priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
   priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
 
+  isDomesticIban(iban: string): boolean {
+    return ['CH', 'LI'].includes(iban?.substring(0, 2));
+  }
+
   defaults = {
     currency: 'EUR',
     language: 'EN',

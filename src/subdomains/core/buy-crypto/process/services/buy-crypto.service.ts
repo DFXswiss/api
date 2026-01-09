@@ -558,7 +558,7 @@ export class BuyCryptoService {
         {
           iban: chargebackIban,
           amount: chargebackAmount,
-          currency: buyCrypto.bankTx?.currency,
+          currency: dto.chargebackCurrency ?? buyCrypto.bankTx?.currency,
           ...creditorData,
         },
       );

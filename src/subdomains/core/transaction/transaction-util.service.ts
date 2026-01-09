@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
+import { Config } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
@@ -122,9 +123,7 @@ export class TransactionUtilService {
       throw new BadRequestException('BIC not allowed');
 
     return (
-      bankAccount &&
-      (bankAccount.bic || iban.startsWith('CH') || iban.startsWith('LI')) &&
-      IbanTools.validateIBAN(bankAccount.iban).valid
+      bankAccount && (bankAccount.bic || Config.isDomesticIban(iban)) && IbanTools.validateIBAN(bankAccount.iban).valid
     );
   }
 

@@ -103,10 +103,10 @@ export class VirtualIbanService {
     });
   }
 
-  async getByIbanWithBuy(iban: string): Promise<VirtualIban | null> {
-    return this.virtualIbanRepo.findOne({
+  async getByIban(iban: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOneCached(iban, {
       where: { iban },
-      relations: { userData: true, bank: true, buy: { user: { userData: true } } },
+      relations: { userData: true, bank: true, buy: true },
     });
   }
 
@@ -119,13 +119,6 @@ export class VirtualIbanService {
       userData: { id: userDataId },
       active: true,
       status: VirtualIbanStatus.ACTIVE,
-    });
-  }
-
-  async getByIban(iban: string): Promise<VirtualIban | null> {
-    return this.virtualIbanRepo.findOneCached(iban, {
-      where: { iban },
-      relations: { userData: true, bank: true },
     });
   }
 

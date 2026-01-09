@@ -90,7 +90,7 @@ export class PaymentInfoService {
     if (!dto.currency) throw new NotFoundException('Currency not found');
     if (!dto.currency.buyable) throw new BadRequestException('Currency not buyable');
 
-    if ('iban' in dto && dto.currency?.name === 'CHF' && !dto.iban.startsWith('CH') && !dto.iban.startsWith('LI'))
+    if ('iban' in dto && dto.currency?.name === 'CHF' && !Config.isDomesticIban(dto.iban))
       throw new BadRequestException(
         'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
       );

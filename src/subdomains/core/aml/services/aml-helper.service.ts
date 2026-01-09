@@ -305,7 +305,7 @@ export class AmlHelperService {
       if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
         errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
-      if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
+      if (entity.sell.fiat.name === 'CHF' && !Config.isDomesticIban(entity.sell.iban))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (
         blacklist.some((b) =>
