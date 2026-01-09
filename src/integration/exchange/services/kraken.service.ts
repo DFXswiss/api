@@ -58,15 +58,10 @@ export class KrakenService extends ExchangeService {
     super(kraken, GetConfig().kraken);
   }
 
-  // Override buy/sell to ensure ALL trading fees are up-to-date before each trade
-  async buy(from: string, to: string, amount: number): Promise<string> {
+  // Override trade to ensure ALL trading fees are up-to-date before each trade
+  protected async trade(from: string, to: string, amount: number): Promise<string> {
     await this.ensureAllTradingFeesUpToDate();
-    return super.buy(from, to, amount);
-  }
-
-  async sell(from: string, to: string, amount: number): Promise<string> {
-    await this.ensureAllTradingFeesUpToDate();
-    return super.sell(from, to, amount);
+    return super.trade(from, to, amount);
   }
 
   protected async updateOrderPrice(order: Order, amount: number, price: number): Promise<string> {
@@ -85,7 +80,6 @@ export class KrakenService extends ExchangeService {
     return this.settingService.getObjCached<ExchangeTradingFeeDto>(this.getTradingFeeKey(symbol));
   }
 
-  // Ensures ALL tracked trading fees are up-to-date (max 60 minutes old) before any trade execution
   private async ensureAllTradingFeesUpToDate(): Promise<void> {
     await Promise.all(KrakenService.TRACKED_SYMBOLS.map((symbol) => this.refreshTradingFeeIfStale(symbol)));
   }
