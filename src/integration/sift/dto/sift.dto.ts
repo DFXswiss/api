@@ -1037,6 +1037,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.BANK_RELEASE_PENDING]: DeclineCategory.OTHER,
   [AmlReason.VIRTUAL_IBAN_USER_MISMATCH]: DeclineCategory.RISKY,
   [AmlReason.INTERMEDIARY_WITHOUT_SENDER]: DeclineCategory.RISKY,
+  [AmlReason.NAME_TOO_SHORT]: DeclineCategory.OTHER,
 };
 
 export interface ScoreRsponse {
