@@ -3,7 +3,7 @@ name: API PR CI
 on:
   pull_request:
     branches:
-      - master
+      - main
       - develop
   workflow_dispatch:
 
