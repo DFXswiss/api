@@ -117,9 +117,7 @@ describe('FiatOutputJobService', () => {
         }),
       ]);
 
-      jest
-        .spyOn(countryService, 'getCountryWithSymbol')
-        .mockResolvedValue(createCustomCountry({ yapealEnable: true }));
+      jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createCustomCountry({ yapealEnable: true }));
 
       jest.spyOn(bankService, 'getSenderBank').mockResolvedValue(yapealEUR);
 
@@ -145,9 +143,7 @@ describe('FiatOutputJobService', () => {
         }),
       ]);
 
-      jest
-        .spyOn(countryService, 'getCountryWithSymbol')
-        .mockResolvedValue(createCustomCountry({ yapealEnable: true }));
+      jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createCustomCountry({ yapealEnable: true }));
 
       // Mock virtual IBAN for user
       jest
@@ -173,9 +169,7 @@ describe('FiatOutputJobService', () => {
         }),
       ]);
 
-      jest
-        .spyOn(countryService, 'getCountryWithSymbol')
-        .mockResolvedValue(createCustomCountry({ yapealEnable: true }));
+      jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createCustomCountry({ yapealEnable: true }));
 
       // Mock virtual IBAN for user
       jest
