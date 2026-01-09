@@ -3,6 +3,8 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { ExchangeTradingFeeDto } from 'src/shared/models/setting/dto/exchange-trading-fee.dto';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -19,6 +21,7 @@ import { ExchangeName } from '../enums/exchange.enum';
 import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
+import { KrakenService } from './kraken.service';
 
 @Injectable()
 export class ExchangeTxService {
@@ -32,6 +35,8 @@ export class ExchangeTxService {
     private readonly assetService: AssetService,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
+    private readonly settingService: SettingService,
+    private readonly krakenService: KrakenService,
   ) {}
 
   //*** JOBS ***//
@@ -39,6 +44,39 @@ export class ExchangeTxService {
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.EXCHANGE_TX_SYNC, timeout: 1800 })
   async syncExchangeJob() {
     await this.syncExchanges();
+  }
+
+  @DfxCron(CronExpression.EVERY_DAY_AT_6AM)
+  async syncKrakenTradingFeeJob() {
+    await this.syncKrakenTradingFee();
+  }
+
+  async syncKrakenTradingFee(): Promise<void> {
+    try {
+      const fee = await this.krakenService.getTradingFee('BTC/CHF');
+
+      const currentFee = await this.settingService.getObj<ExchangeTradingFeeDto>('krakenTradingFee');
+
+      const newFee: ExchangeTradingFeeDto = {
+        exchange: ExchangeName.KRAKEN,
+        symbol: fee.symbol,
+        maker: fee.maker,
+        taker: fee.taker,
+        percentage: fee.percentage,
+        tierBased: fee.tierBased,
+        updated: new Date().toISOString(),
+      };
+
+      if (currentFee?.maker !== newFee.maker || currentFee?.taker !== newFee.taker) {
+        this.logger.info(
+          `Kraken trading fee changed: maker ${currentFee?.maker ?? 'N/A'} -> ${newFee.maker}, taker ${currentFee?.taker ?? 'N/A'} -> ${newFee.taker}`,
+        );
+      }
+
+      await this.settingService.setObj('krakenTradingFee', newFee);
+    } catch (e) {
+      this.logger.error('Failed to sync Kraken trading fee:', e);
+    }
   }
 
   async syncExchanges(from?: Date, exchange?: ExchangeName) {
