@@ -130,6 +130,7 @@ export class KrakenService extends ExchangeService {
 
   private isStale(updated: string): boolean {
     const updatedDate = new Date(updated);
+    if (isNaN(updatedDate.getTime())) return true; // Treat invalid date as stale
     const ageMinutes = (Date.now() - updatedDate.getTime()) / 1000 / 60;
     return ageMinutes > KrakenService.FEE_MAX_AGE_MINUTES;
   }
