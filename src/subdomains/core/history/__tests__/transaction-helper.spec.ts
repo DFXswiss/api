@@ -106,7 +106,7 @@ describe('TransactionHelper', () => {
       txHelper.getRefundData(
         transaction.refundTargetEntity,
         defaultUserData,
-        IbanBankName.MAERKI,
+        IbanBankName.YAPEAL,
         'DE12500105170648489890',
         !transaction.cryptoInput,
       ),
@@ -138,7 +138,7 @@ describe('TransactionHelper', () => {
       txHelper.getRefundData(
         transaction.refundTargetEntity,
         defaultUserData,
-        IbanBankName.MAERKI,
+        IbanBankName.YAPEAL,
         'DE12500105170648489890',
         !transaction.cryptoInput,
       ),
