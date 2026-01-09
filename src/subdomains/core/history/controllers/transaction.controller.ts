@@ -441,19 +441,6 @@ export class TransactionController {
         .then((b) => b.bankTxReturn);
     }
 
-    // Build creditorData from BankRefundDto (for backwards compatibility)
-    const bankDto = dto as BankRefundDto;
-    const creditorData = bankDto.name
-      ? {
-          name: bankDto.name,
-          address: bankDto.address,
-          houseNumber: bankDto.houseNumber,
-          zip: bankDto.zip,
-          city: bankDto.city,
-          country: bankDto.country,
-        }
-      : undefined;
-
     const chargebackCurrency = refundData.refundAsset.name;
 
     if (transaction.targetEntity instanceof BankTxReturn) {
@@ -462,7 +449,7 @@ export class TransactionController {
       return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
         refundIban: refundData.refundTarget ?? dto.refundTarget,
         chargebackCurrency,
-        creditorData,
+        creditorData: dto.creditorData,
         ...refundDto,
       });
     }
@@ -491,7 +478,7 @@ export class TransactionController {
     return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
       chargebackCurrency,
-      creditorData,
+      creditorData: dto.creditorData,
       ...refundDto,
     });
   }
