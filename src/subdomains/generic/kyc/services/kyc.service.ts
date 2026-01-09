@@ -430,6 +430,15 @@ export class KycService {
     );
   }
 
+  /**
+   * Initialize KYC progress for a user (e.g., after mail login).
+   * This auto-completes CONTACT_DATA if mail exists and sets kycLevel to 10.
+   */
+  async initializeProgress(userData: UserData): Promise<UserData> {
+    const user = await this.getUser(userData.kycHash);
+    return this.updateProgress(user, true, true);
+  }
+
   public getMailFailedReason(comment: string, language: string): string {
     return `<ul>${comment
       ?.split(';')

@@ -1,9 +1,11 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  forwardRef,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { CronExpression } from '@nestjs/schedule';
@@ -25,6 +27,7 @@ import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -87,6 +90,7 @@ export class AuthService {
     private readonly settingService: SettingService,
     private readonly recommendationService: RecommendationService,
     private readonly kycAdminService: KycAdminService,
+    @Inject(forwardRef(() => KycService)) private readonly kycService: KycService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE)
@@ -312,6 +316,9 @@ export class AuthService {
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
       if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
+
+      // Initialize KYC progress to auto-complete CONTACT_DATA and set kycLevel to 10
+      await this.kycService.initializeProgress(account);
 
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/account`);
       url.searchParams.set('session', token);
