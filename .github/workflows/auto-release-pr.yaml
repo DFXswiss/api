@@ -23,15 +23,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch master branch
-        run: git fetch origin master
+      - name: Fetch main branch
+        run: git fetch origin main
 
       - name: Check for existing PR
         id: check-pr
         run: |
-          PR_COUNT=$(gh pr list --base master --head develop --state open --json number --jq 'length')
+          PR_COUNT=$(gh pr list --base main --head develop --state open --json number --jq 'length')
           echo "pr_exists=$([[ $PR_COUNT -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
-          echo "::notice::Open PRs from develop to master: $PR_COUNT"
+          echo "::notice::Open PRs from develop to main: $PR_COUNT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -39,10 +39,10 @@ jobs:
         id: check-diff
         if: steps.check-pr.outputs.pr_exists == 'false'
         run: |
-          DIFF_COUNT=$(git rev-list --count origin/master..origin/develop)
+          DIFF_COUNT=$(git rev-list --count origin/main..origin/develop)
           echo "has_changes=$([[ $DIFF_COUNT -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
           echo "commit_count=$DIFF_COUNT" >> $GITHUB_OUTPUT
-          echo "::notice::Commits ahead of master: $DIFF_COUNT"
+          echo "::notice::Commits ahead of main: $DIFF_COUNT"
 
       - name: Create Release PR
         if: steps.check-pr.outputs.pr_exists == 'false' && steps.check-diff.outputs.has_changes == 'true'
@@ -64,7 +64,7 @@ jobs:
             > /tmp/pr-body.md
 
           gh pr create \
-            --base master \
+            --base main \
             --head develop \
-            --title "Release: develop -> master" \
+            --title "Release: develop -> main" \
             --body-file /tmp/pr-body.md

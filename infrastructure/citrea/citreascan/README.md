@@ -26,7 +26,7 @@
 1. Create the file `docker-compose-blockscout-citrea-testnet.frontend.env` in `/home/{user}`
 1. Copy the content of the github repo file `https://github.com/CitreaScan/frontend/blob/develop/.env.dev` in `docker-compose-blockscout-citrea-testnet.frontend.env`
 
-The `docker-compose-blockscout-citrea-testnet.backend.env` and `docker-compose-blockscout-citrea-testnet.frontend.env` files are also located in the corresponding github repos. They will be overwritten by github workflows in case of changes in the `develop` or in the `master` branch.
+The `docker-compose-blockscout-citrea-testnet.backend.env` and `docker-compose-blockscout-citrea-testnet.frontend.env` files are also located in the corresponding github repos. They will be overwritten by github workflows in case of changes in the `develop` or in the `main` branch.
 
 # Start Docker Containers
 
