@@ -46,7 +46,7 @@ export class ExchangeTxService {
     await this.syncExchanges();
   }
 
-  @DfxCron(CronExpression.EVERY_DAY_AT_6AM)
+  @DfxCron(CronExpression.EVERY_DAY_AT_6AM, { process: Process.EXCHANGE_TRADING_FEE_SYNC })
   async syncKrakenTradingFeeJob() {
     await this.syncKrakenTradingFee();
   }
@@ -67,13 +67,16 @@ export class ExchangeTxService {
         updated: new Date().toISOString(),
       };
 
-      if (currentFee?.maker !== newFee.maker || currentFee?.taker !== newFee.taker) {
-        this.logger.info(
-          `Kraken trading fee changed: maker ${currentFee?.maker ?? 'N/A'} -> ${newFee.maker}, taker ${currentFee?.taker ?? 'N/A'} -> ${newFee.taker}`,
-        );
-      }
+      const hasChanged = currentFee?.maker !== newFee.maker || currentFee?.taker !== newFee.taker;
 
-      await this.settingService.setObj('krakenTradingFee', newFee);
+      if (hasChanged || !currentFee) {
+        if (currentFee) {
+          this.logger.info(
+            `Kraken trading fee changed: maker ${currentFee.maker} -> ${newFee.maker}, taker ${currentFee.taker} -> ${newFee.taker}`,
+          );
+        }
+        await this.settingService.setObj('krakenTradingFee', newFee);
+      }
     } catch (e) {
       this.logger.error('Failed to sync Kraken trading fee:', e);
     }
