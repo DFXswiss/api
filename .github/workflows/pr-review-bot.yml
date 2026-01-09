@@ -225,10 +225,7 @@ jobs:
 
             const body = `# 🤖 PR Review Bot
 
-            ${comments.join('\n\n---\n\n')}
-
-            ---
-            <sub>This is an automated review. Please address the issues above.</sub>`;
+            ${comments.join('\n\n---\n\n')}`;
 
             // Find existing bot comment
             const existingComments = await github.rest.issues.listComments({
