@@ -233,7 +233,14 @@ jobs:
             });
 
             const botComment = existingComments.data.find(c =>
-              c.user?.login === 'github-actions[bot]' && (c.body?.includes('Unverified Commits') || c.body?.includes('ESLint:') || c.body?.includes('Security:'))
+              c.user?.login === 'github-actions[bot]' && (
+                c.body?.includes('Unverified Commits') ||
+                c.body?.includes('Non-Conventional Commits') ||
+                c.body?.includes('ESLint:') ||
+                c.body?.includes('TypeScript:') ||
+                c.body?.includes('Security:') ||
+                c.body?.includes('TODOs/FIXMEs')
+              )
             );
 
             if (botComment) {
