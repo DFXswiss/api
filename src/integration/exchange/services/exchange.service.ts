@@ -296,7 +296,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   // orders
 
-  private async trade(from: string, to: string, amount: number): Promise<string> {
+  protected async trade(from: string, to: string, amount: number): Promise<string> {
     // place the order
     const { pair, direction } = await this.getTradePair(from, to);
     const { amount: amountPrecision } = await this.getPrecision(pair);
