@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
@@ -19,6 +20,7 @@ export enum DfxDexAdapterCommands {
   PURCHASE = 'purchase',
   SELL = 'sell',
   WITHDRAW = 'withdraw',
+  SWAP = 'swap',
 }
 
 @Injectable()
@@ -35,6 +37,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     this.commands.set(DfxDexAdapterCommands.PURCHASE, this.purchase.bind(this));
     this.commands.set(DfxDexAdapterCommands.SELL, this.sell.bind(this));
     this.commands.set(DfxDexAdapterCommands.WITHDRAW, this.withdraw.bind(this));
+    this.commands.set(DfxDexAdapterCommands.SWAP, this.swap.bind(this));
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
@@ -43,6 +46,9 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
         return this.checkSellPurchaseCompletion(order);
 
       case DfxDexAdapterCommands.SELL:
+        return this.checkSellPurchaseCompletion(order);
+
+      case DfxDexAdapterCommands.SWAP:
         return this.checkSellPurchaseCompletion(order);
 
       case DfxDexAdapterCommands.WITHDRAW:
@@ -57,6 +63,9 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     switch (command) {
       case DfxDexAdapterCommands.WITHDRAW:
         return this.validateWithdrawParams(params);
+
+      case DfxDexAdapterCommands.SWAP:
+        return this.validateSwapParams(params);
 
       case DfxDexAdapterCommands.PURCHASE:
         return true;
@@ -118,6 +127,69 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     };
 
     await this.dexService.sellLiquidity(request);
+
+    return correlationId.toString();
+  }
+
+  /**
+   * @note
+   * Swaps sourceAsset (from params) to targetAsset (from rule) via DEX.
+   * Used for cross-asset liquidity acquisition, e.g., USDC → EURC.
+   */
+  private async swap(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const { sourceAsset: sourceAssetName } = this.parseSwapParams(order.action.paramMap);
+    const {
+      pipeline: {
+        rule: { targetAsset },
+      },
+      minAmount,
+      maxAmount,
+      id: correlationId,
+    } = order;
+
+    const sourceAsset = await this.assetService.getAssetByQuery({
+      name: sourceAssetName,
+      blockchain: targetAsset.blockchain,
+      type: AssetType.TOKEN,
+    });
+
+    if (!sourceAsset) {
+      throw new OrderNotProcessableException(`Source asset ${sourceAssetName} not found on ${targetAsset.blockchain}`);
+    }
+
+    // Check available source liquidity
+    const checkRequest = {
+      context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+      correlationId: correlationId.toString(),
+      referenceAsset: sourceAsset,
+      referenceAmount: minAmount,
+      targetAsset: sourceAsset,
+    };
+
+    const {
+      reference: { availableAmount },
+    } = await this.dexService.checkLiquidity(checkRequest);
+
+    if (availableAmount < minAmount) {
+      throw new OrderNotProcessableException(
+        `Not enough ${sourceAsset.name} liquidity for swap (balance: ${availableAmount}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
+      );
+    }
+
+    const amount = Math.min(maxAmount, availableAmount);
+
+    order.inputAmount = amount;
+    order.inputAsset = sourceAsset.name;
+
+    const request = {
+      context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+      correlationId: correlationId.toString(),
+      referenceAsset: sourceAsset,
+      referenceAmount: amount,
+      targetAsset: targetAsset,
+    };
+
+    await this.dexService.purchaseLiquidity(request);
 
     return correlationId.toString();
   }
@@ -234,5 +306,24 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
       Object.values(LiquidityManagementSystem).includes(system) &&
       this.exchangeRegistry.get(system)
     );
+  }
+
+  private validateSwapParams(params: Record<string, unknown>): boolean {
+    try {
+      this.parseSwapParams(params);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private parseSwapParams(params: Record<string, unknown>): { sourceAsset: string } {
+    const sourceAsset = params.sourceAsset as string;
+
+    if (!sourceAsset) {
+      throw new Error('sourceAsset parameter is required for swap command');
+    }
+
+    return { sourceAsset };
   }
 }
