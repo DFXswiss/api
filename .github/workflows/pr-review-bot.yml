@@ -223,12 +223,7 @@ jobs:
               return;
             }
 
-            const body = `# 🤖 PR Review Bot
-
-            ${comments.join('\n\n---\n\n')}
-
-            ---
-            <sub>This is an automated review. Please address the issues above.</sub>`;
+            const body = comments.join('\n\n---\n\n');
 
             // Find existing bot comment
             const existingComments = await github.rest.issues.listComments({
@@ -238,7 +233,14 @@ jobs:
             });
 
             const botComment = existingComments.data.find(c =>
-              c.user?.type === 'Bot' && c.body?.includes('🤖 PR Review Bot')
+              c.user?.login === 'github-actions[bot]' && (
+                c.body?.includes('Unverified Commits') ||
+                c.body?.includes('Non-Conventional Commits') ||
+                c.body?.includes('ESLint:') ||
+                c.body?.includes('TypeScript:') ||
+                c.body?.includes('Security:') ||
+                c.body?.includes('TODOs/FIXMEs')
+              )
             );
 
             if (botComment) {
