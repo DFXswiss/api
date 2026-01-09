@@ -433,10 +433,19 @@ export class KycService {
   /**
    * Initialize KYC progress for a user (e.g., after mail login).
    * This auto-completes CONTACT_DATA if mail exists and sets kycLevel to 10.
+   * Does not initiate next steps (shouldContinue=false) - only sets the level.
    */
   async initializeProgress(userData: UserData): Promise<UserData> {
-    const user = await this.getUser(userData.kycHash);
-    return this.updateProgress(user, true, true);
+    return Util.retry(
+      async () => {
+        const user = await this.getUser(userData.kycHash);
+        return this.updateProgress(user, false, true);
+      },
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    );
   }
 
   public getMailFailedReason(comment: string, language: string): string {
