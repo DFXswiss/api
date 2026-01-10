@@ -299,7 +299,7 @@ export class AuthService {
       const entry = this.mailKeyList.get(code);
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
 
-      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
+      const account = await this.userDataService.getUserData(entry.userDataId, { users: true, wallet: true });
 
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail, undefined, account);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
@@ -311,7 +311,7 @@ export class AuthService {
       if (account.isDeactivated)
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
-      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
+      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account, account.wallet);
 
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/account`);
       url.searchParams.set('session', token);
