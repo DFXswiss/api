@@ -864,34 +864,26 @@ export class BuyCryptoService {
   async updateBuyVolume(buyIds: number[]): Promise<void> {
     buyIds = buyIds.filter((u, j) => buyIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
+    const startOfYear = Util.startOfYear();
+    const startOfMonth = Util.startOfMonth();
+
     for (const id of buyIds) {
-      const { volume } = await this.buyCryptoRepo
+      const { volume, annualVolume, monthlyVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'volume')
-        .where('buyId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
-        .getRawOne<{ volume: number }>();
-
-      const newYear = new Date(new Date().getFullYear(), 0, 1);
-      const { annualVolume } = await this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'annualVolume')
+        .select('SUM(buyCrypto.amountInChf)', 'volume')
+        .addSelect(
+          'SUM(CASE WHEN bankTx.bookingDate >= :startOfYear THEN buyCrypto.amountInChf ELSE 0 END)',
+          'annualVolume',
+        )
+        .addSelect(
+          'SUM(CASE WHEN bankTx.bookingDate >= :startOfMonth THEN buyCrypto.amountInChf ELSE 0 END)',
+          'monthlyVolume',
+        )
         .leftJoin('buyCrypto.bankTx', 'bankTx')
-        .where('buyCrypto.buyId = :id', { id: id })
+        .where('buyCrypto.buyId = :id', { id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('bankTx.bookingDate >= :year', { year: newYear })
-        .getRawOne<{ annualVolume: number }>();
-
-      const { monthlyVolume } = await this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'monthlyVolume')
-        .leftJoin('buyCrypto.bankTx', 'bankTx')
-        .where('buyCrypto.buyId = :id', { id: id })
-        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('bankTx.bookingDate >= :startOfMonth', {
-          startOfMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        })
-        .getRawOne<{ monthlyVolume: number }>();
+        .setParameters({ startOfYear, startOfMonth })
+        .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
 
       await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }
@@ -900,34 +892,26 @@ export class BuyCryptoService {
   async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
     cryptoRouteIds = cryptoRouteIds.filter((u, j) => cryptoRouteIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
+    const startOfYear = Util.startOfYear();
+    const startOfMonth = Util.startOfMonth();
+
     for (const id of cryptoRouteIds) {
-      const { volume } = await this.buyCryptoRepo
+      const { volume, annualVolume, monthlyVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'volume')
-        .where('cryptoRouteId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
-        .getRawOne<{ volume: number }>();
-
-      const newYear = new Date(new Date().getFullYear(), 0, 1);
-      const { annualVolume } = await this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'annualVolume')
+        .select('SUM(buyCrypto.amountInChf)', 'volume')
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfYear THEN buyCrypto.amountInChf ELSE 0 END)',
+          'annualVolume',
+        )
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfMonth THEN buyCrypto.amountInChf ELSE 0 END)',
+          'monthlyVolume',
+        )
         .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
-        .where('buyCrypto.cryptoRouteId = :id', { id: id })
+        .where('buyCrypto.cryptoRouteId = :id', { id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('cryptoInput.created >= :year', { year: newYear })
-        .getRawOne<{ annualVolume: number }>();
-
-      const { monthlyVolume } = await this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'monthlyVolume')
-        .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
-        .where('buyCrypto.cryptoRouteId = :id', { id: id })
-        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('cryptoInput.created >= :startOfMonth', {
-          startOfMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        })
-        .getRawOne<{ monthlyVolume: number }>();
+        .setParameters({ startOfYear, startOfMonth })
+        .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
 
       await this.swapService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }

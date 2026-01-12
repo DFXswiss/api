@@ -481,34 +481,26 @@ export class BuyFiatService {
   async updateSellVolume(sellIds: number[]): Promise<void> {
     sellIds = sellIds.filter((u, j) => sellIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
+    const startOfYear = Util.startOfYear();
+    const startOfMonth = Util.startOfMonth();
+
     for (const id of sellIds) {
-      const { volume } = await this.buyFiatRepo
+      const { volume, annualVolume, monthlyVolume } = await this.buyFiatRepo
         .createQueryBuilder('buyFiat')
-        .select('SUM(amountInChf)', 'volume')
-        .where('sellId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
-        .getRawOne<{ volume: number }>();
-
-      const newYear = new Date(new Date().getFullYear(), 0, 1);
-      const { annualVolume } = await this.buyFiatRepo
-        .createQueryBuilder('buyFiat')
-        .select('SUM(amountInChf)', 'annualVolume')
+        .select('SUM(buyFiat.amountInChf)', 'volume')
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfYear THEN buyFiat.amountInChf ELSE 0 END)',
+          'annualVolume',
+        )
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfMonth THEN buyFiat.amountInChf ELSE 0 END)',
+          'monthlyVolume',
+        )
         .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
-        .where('buyFiat.sellId = :id', { id: id })
+        .where('buyFiat.sellId = :id', { id })
         .andWhere('buyFiat.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('cryptoInput.created >= :year', { year: newYear })
-        .getRawOne<{ annualVolume: number }>();
-
-      const { monthlyVolume } = await this.buyFiatRepo
-        .createQueryBuilder('buyFiat')
-        .select('SUM(amountInChf)', 'monthlyVolume')
-        .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
-        .where('buyFiat.sellId = :id', { id: id })
-        .andWhere('buyFiat.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('cryptoInput.created >= :startOfMonth', {
-          startOfMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        })
-        .getRawOne<{ monthlyVolume: number }>();
+        .setParameters({ startOfYear, startOfMonth })
+        .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
 
       await this.sellService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }

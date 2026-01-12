@@ -350,6 +350,16 @@ export class Util {
     return this.daysAfter(-days, from);
   }
 
+  static startOfMonth(from?: Date): Date {
+    const date = from ?? new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  static startOfYear(from?: Date): Date {
+    const date = from ?? new Date();
+    return new Date(date.getFullYear(), 0, 1);
+  }
+
   static sameDay(a: Date, b: Date): boolean {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   }

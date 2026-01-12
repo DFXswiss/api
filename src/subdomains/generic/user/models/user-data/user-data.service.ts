@@ -856,15 +856,18 @@ export class UserDataService {
   // --- VOLUMES --- //
   @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
-    await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
+    await this.userDataRepo.update(
+      [{ annualBuyVolume: Not(0) }, { annualSellVolume: Not(0) }, { annualCryptoVolume: Not(0) }],
+      { annualBuyVolume: 0, annualSellVolume: 0, annualCryptoVolume: 0 },
+    );
   }
 
   @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
   async resetMonthlyVolumes(): Promise<void> {
-    await this.userDataRepo.update({ monthlyBuyVolume: Not(0) }, { monthlyBuyVolume: 0 });
-    await this.userDataRepo.update({ monthlySellVolume: Not(0) }, { monthlySellVolume: 0 });
-    await this.userDataRepo.update({ monthlyCryptoVolume: Not(0) }, { monthlyCryptoVolume: 0 });
+    await this.userDataRepo.update(
+      [{ monthlyBuyVolume: Not(0) }, { monthlySellVolume: Not(0) }, { monthlyCryptoVolume: Not(0) }],
+      { monthlyBuyVolume: 0, monthlySellVolume: 0, monthlyCryptoVolume: 0 },
+    );
   }
 
   async updateVolumes(userDataId: number): Promise<void> {
