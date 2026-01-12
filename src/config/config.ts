@@ -889,6 +889,9 @@ export class Configuration {
       coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
       fee: 0.01,
     },
+    spark: {
+      sparkWalletSeed: process.env.SPARK_WALLET_SEED,
+    },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {
