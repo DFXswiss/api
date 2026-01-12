@@ -144,7 +144,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity, maxPriceDeviation);
 
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
-    let maxSellAmount = Util.floor(maxAmount * price, 6);
+    const maxSellAmount = Util.floor(maxAmount * price, 6);
 
     const availableBalance = await this.getAvailableTradeBalance(tradeAsset, targetAssetEntity.name);
     let effectiveMax = Math.min(maxSellAmount, availableBalance);
