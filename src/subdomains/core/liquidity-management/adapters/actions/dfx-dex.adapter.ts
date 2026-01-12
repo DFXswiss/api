@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
@@ -59,8 +59,10 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
         return this.validateWithdrawParams(params);
 
       case DfxDexAdapterCommands.PURCHASE:
-      case DfxDexAdapterCommands.SELL:
         return this.validateTradeAssetParams(params);
+
+      case DfxDexAdapterCommands.SELL:
+        return true;
 
       default:
         throw new Error(`Command ${command} not supported by DfxDexAdapter`);
@@ -100,25 +102,22 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
   /**
    * @note
-   * correlationId is the orderId and set by liquidity management.
-   * Supports optional tradeAsset parameter for cross-asset sales.
+   * correlationId is the orderId and set by liquidity management
    */
   private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
       pipeline: {
-        rule: { targetAsset },
+        rule: { targetAsset: asset },
       },
       maxAmount: amount,
       id: correlationId,
     } = order;
 
-    const tradeAssetInfo = await this.resolveTradeAsset(order, targetAsset);
-
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
       correlationId: correlationId.toString(),
-      sellAsset: tradeAssetInfo?.asset ?? targetAsset,
-      sellAmount: tradeAssetInfo?.amount ?? amount,
+      sellAsset: asset,
+      sellAmount: amount,
     };
 
     await this.dexService.sellLiquidity(request);
@@ -243,7 +242,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   // --- TRADE ASSET HELPERS --- //
 
   /**
-   * Validates optional tradeAsset parameter for PURCHASE/SELL commands.
+   * Validates optional tradeAsset parameter for PURCHASE command.
    * tradeAsset is optional - if not provided, the command uses targetAsset.
    */
   private validateTradeAssetParams(params: Record<string, unknown>): boolean {
@@ -254,12 +253,12 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   /**
    * Resolves optional tradeAsset parameter and checks available liquidity.
    * Returns null if no tradeAsset is specified (use targetAsset instead).
-   * Used for cross-asset operations like USDC → EURC.
+   * Used for cross-asset purchases like USDC → EURC.
    */
   private async resolveTradeAsset(
     order: LiquidityManagementOrder,
     targetAsset: { blockchain: Blockchain },
-  ): Promise<{ asset: Awaited<ReturnType<AssetService['getAssetByQuery']>>; amount: number } | null> {
+  ): Promise<{ asset: Asset; amount: number } | null> {
     const tradeAssetName = order.action.paramMap?.tradeAsset as string | undefined;
     if (!tradeAssetName) return null;
 
