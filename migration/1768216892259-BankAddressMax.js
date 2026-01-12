@@ -14,15 +14,13 @@ module.exports = class BankAddressMax1768216892259 {
      * @param {QueryRunner} queryRunner
      */
     async up(queryRunner) {
-        await queryRunner.query(`ALTER TABLE "bank_account" DROP COLUMN "bankAddress"`);
-        await queryRunner.query(`ALTER TABLE "bank_account" ADD "bankAddress" nvarchar(MAX)`);
+        await queryRunner.query(`ALTER TABLE "bank_account" ALTER COLUMN "bankAddress" nvarchar(MAX)`);
     }
 
     /**
      * @param {QueryRunner} queryRunner
      */
     async down(queryRunner) {
-        await queryRunner.query(`ALTER TABLE "bank_account" DROP COLUMN "bankAddress"`);
-        await queryRunner.query(`ALTER TABLE "bank_account" ADD "bankAddress" nvarchar(256)`);
+        await queryRunner.query(`ALTER TABLE "bank_account" ALTER COLUMN "bankAddress" nvarchar(256)`);
     }
 }
