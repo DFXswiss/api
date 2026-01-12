@@ -203,6 +203,14 @@ export class AssetService {
     });
   }
 
+  async getSparkCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'BTC',
+      blockchain: Blockchain.SPARK,
+      type: AssetType.COIN,
+    });
+  }
+
   async getMoneroCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'XMR',
