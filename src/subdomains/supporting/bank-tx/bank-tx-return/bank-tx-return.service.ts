@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -7,7 +7,8 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BankTxRefund, RefundInternalDto } from 'src/subdomains/core/history/dto/refund-internal.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
-import { IsNull, Not } from 'typeorm';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { In, IsNull, Not } from 'typeorm';
 import { FiatOutputType } from '../../fiat-output/fiat-output.entity';
 import { FiatOutputService } from '../../fiat-output/fiat-output.service';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -24,8 +25,11 @@ export class BankTxReturnService {
 
   constructor(
     private readonly bankTxReturnRepo: BankTxReturnRepository,
+    @Inject(forwardRef(() => TransactionService))
     private readonly transactionService: TransactionService,
+    @Inject(forwardRef(() => TransactionUtilService))
     private readonly transactionUtilService: TransactionUtilService,
+    @Inject(forwardRef(() => FiatOutputService))
     private readonly fiatOutputService: FiatOutputService,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
@@ -33,7 +37,48 @@ export class BankTxReturnService {
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX_RETURN, timeout: 1800 })
   async fillBankTxReturn() {
+    await this.chargebackTx();
     await this.setFiatAmounts();
+  }
+
+  async chargebackTx(): Promise<void> {
+    const baseWhere = {
+      chargebackAllowedDate: IsNull(),
+      chargebackAllowedDateUser: Not(IsNull()),
+      chargebackAmount: Not(IsNull()),
+      chargebackIban: Not(IsNull()),
+      chargebackCreditorData: Not(IsNull()),
+      chargebackOutput: IsNull(),
+    };
+
+    const entities = await this.bankTxReturnRepo.find({
+      where: [
+        {
+          ...baseWhere,
+          userData: IsNull(),
+        },
+        {
+          ...baseWhere,
+          userData: {
+            kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
+            status: Not(UserDataStatus.BLOCKED),
+            riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
+          },
+        },
+      ],
+      relations: { bankTx: true, userData: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        await this.refundBankTx(entity, {
+          chargebackAllowedDate: new Date(),
+          chargebackAllowedBy: 'API',
+        });
+      } catch (e) {
+        this.logger.error(`Failed to chargeback bank-tx-return ${entity.id}:`, e);
+      }
+    }
   }
 
   async setFiatAmounts(): Promise<void> {
@@ -102,6 +147,17 @@ export class BankTxReturnService {
     return this.bankTxReturnRepo.save({ ...update, ...Util.removeNullFields(entity) });
   }
 
+  async getBankTxReturn(id: number): Promise<BankTxReturn> {
+    return this.bankTxReturnRepo.findOneBy({ id });
+  }
+
+  async getBankTxReturnsByIban(iban: string): Promise<BankTxReturn[]> {
+    return this.bankTxReturnRepo.find({
+      where: { chargebackIban: iban },
+      relations: { userData: true },
+    });
+  }
+
   async getPendingTx(): Promise<BankTxReturn[]> {
     return this.bankTxReturnRepo.find({
       where: { chargebackBankTx: { id: IsNull() } },
@@ -144,11 +200,22 @@ export class BankTxReturnService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
+    const creditorData = dto.creditorData ?? bankTxReturn.creditorData;
+    if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
+      throw new BadRequestException('Creditor data is required for chargeback');
+
     if (dto.chargebackAllowedDate && chargebackAmount) {
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BANK_TX_RETURN,
         { bankTxReturn },
         bankTxReturn.id,
+        false,
+        {
+          iban: chargebackIban,
+          amount: chargebackAmount,
+          currency: dto.chargebackCurrency ?? bankTxReturn.bankTx?.currency,
+          ...creditorData,
+        },
       );
     }
 
@@ -161,6 +228,7 @@ export class BankTxReturnService {
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
         bankTxReturn.chargebackBankRemittanceInfo,
+        creditorData,
       ),
     );
   }

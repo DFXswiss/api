@@ -3,6 +3,7 @@ export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
   NATIONALITY_DATA = 'NationalityData',
+  RECOMMENDATION = 'Recommendation',
   OWNER_DIRECTORY = 'OwnerDirectory',
   COMMERCIAL_REGISTER = 'CommercialRegister', // deprecated
   LEGAL_ENTITY = 'LegalEntity',
@@ -20,4 +21,8 @@ export enum KycStepName {
 
   // additional features
   PAYMENT_AGREEMENT = 'PaymentAgreement',
+  RECALL_AGREEMENT = 'RecallAgreement',
+
+  // external registrations
+  REALUNIT_REGISTRATION = 'RealUnitRegistration',
 }

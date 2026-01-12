@@ -3,6 +3,7 @@ import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } 
 import { GetConfig } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { Moderator } from '../../user-data/user-data.enum';
+import { WalletType } from '../../user/user.enum';
 
 export class SignInDto {
   @ApiProperty()
@@ -44,6 +45,11 @@ export class SignInDto {
   @ApiPropertyOptional({ description: 'IP region filter' })
   @IsOptional()
   region?: string | number;
+
+  @ApiPropertyOptional({ description: 'Wallet type' })
+  @IsOptional()
+  @IsEnum(WalletType)
+  walletType?: WalletType;
 }
 
 export class OptionalSignUpDto {
@@ -76,6 +82,12 @@ export class OptionalSignUpDto {
   @IsOptional()
   @IsEnum(Moderator)
   moderator?: Moderator;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(GetConfig().formats.recommendationCode)
+  recommendationCode?: string;
 }
 
 export class SignUpDto extends SignInDto {
@@ -93,4 +105,10 @@ export class SignUpDto extends SignInDto {
   @IsOptional()
   @IsString()
   wallet?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(GetConfig().formats.recommendationCode)
+  recommendationCode?: string;
 }

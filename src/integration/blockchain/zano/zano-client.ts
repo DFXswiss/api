@@ -66,10 +66,6 @@ export class ZanoClient extends BlockchainClient {
     return Config.blockchain.zano.fee;
   }
 
-  async getToken(asset: Asset): Promise<BlockchainToken> {
-    return this.getTokenByAssetId(asset.chainId);
-  }
-
   private async getTokenByAssetId(assetId: string): Promise<BlockchainToken> {
     return this.tokens.get(assetId, async () => {
       const params = this.httpParams('get_asset_info', {
@@ -276,15 +272,20 @@ export class ZanoClient extends BlockchainClient {
     });
 
     return this.http
-      .post<{ result: { tx_details: { tx_hash: string } } }>(
-        `${Config.blockchain.zano.wallet.url}/json_rpc`,
-        transferParams,
-      )
-      .then((r) => ({
-        txId: r.result.tx_details.tx_hash,
-        amount: payoutAmount,
-        fee: Config.blockchain.zano.fee,
-      }));
+      .post<{
+        result: { tx_details: { tx_hash: string } };
+      }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, transferParams)
+      .then((r) => this.createSendTransferResult(payoutAmount, r));
+  }
+
+  private createSendTransferResult(payoutAmount: number, response?: any): ZanoSendTransferResultDto {
+    if (!response.result?.tx_details) throw new Error(`Transfer not sent: response was ${JSON.stringify(response)}`);
+
+    return {
+      txId: response.result.tx_details.tx_hash,
+      amount: payoutAmount,
+      fee: Config.blockchain.zano.fee,
+    };
   }
 
   async getTransactionHistory(blockHeight: number): Promise<ZanoTransferDto[]> {
@@ -302,10 +303,9 @@ export class ZanoClient extends BlockchainClient {
     });
 
     return this.http
-      .post<{ result: { transfers: ZanoGetTransferResultDto[] } }>(
-        `${Config.blockchain.zano.wallet.url}/json_rpc`,
-        params,
-      )
+      .post<{
+        result: { transfers: ZanoGetTransferResultDto[] };
+      }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, params)
       .then((r) => (r.result.transfers ? this.mapTransfer(r.result.transfers) : []));
   }
 

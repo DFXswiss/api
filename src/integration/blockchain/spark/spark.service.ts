@@ -66,7 +66,7 @@ export class SparkService extends BlockchainService {
       const signature = secp256k1.Signature.fromBytes(signatureBytes, 'compact').addRecoveryBit(recovery);
       const recoveredPubKey = signature.recoverPublicKey(messageHash);
       return Buffer.from(recoveredPubKey.toBytes(true));
-    } catch (error) {
+    } catch {
       return undefined;
     }
   }
@@ -101,8 +101,13 @@ export class SparkService extends BlockchainService {
 
   // --- HELPER METHODS --- //
   private getAddressPrefix(address: string): string {
+    // Type guard against parameter tampering
+    if (typeof address !== 'string' || address.length === 0) {
+      return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET) ?? 'sp';
+    }
+
     const separatorIndex = address.lastIndexOf('1');
-    if (separatorIndex === -1) return 'sp'; // default mainnet prefix
+    if (separatorIndex === -1) return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET) ?? 'sp';
 
     return address.substring(0, separatorIndex);
   }

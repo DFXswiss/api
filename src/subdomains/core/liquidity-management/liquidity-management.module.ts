@@ -21,9 +21,11 @@ import { LiquidityPipelineAdapter } from './adapters/actions/liquidity-pipeline.
 import { MexcAdapter } from './adapters/actions/mexc.adapter';
 import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.adapter';
 import { PolygonL2BridgeAdapter } from './adapters/actions/polygon-l2-bridge.adapter';
+import { ScryptAdapter } from './adapters/actions/scrypt.adapter';
 import { XtAdapter } from './adapters/actions/xt.adapter';
 import { BankAdapter } from './adapters/balances/bank.adapter';
 import { BlockchainAdapter } from './adapters/balances/blockchain.adapter';
+import { CustomAdapter } from './adapters/balances/custom.adapter';
 import { ExchangeAdapter } from './adapters/balances/exchange.adapter';
 import { LiquidityBalanceController } from './controllers/balance.controller';
 import { LiquidityManagementOrderController } from './controllers/order.controller';
@@ -87,6 +89,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BlockchainAdapter,
     ExchangeAdapter,
     BankAdapter,
+    CustomAdapter,
     DfxDexAdapter,
     ArbitrumL2BridgeAdapter,
     OptimismL2BridgeAdapter,
@@ -94,6 +97,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BaseL2BridgeAdapter,
     BinanceAdapter,
     MexcAdapter,
+    ScryptAdapter,
     XtAdapter,
     KrakenAdapter,
     LiquidityPipelineAdapter,

@@ -4,16 +4,16 @@
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [url:https://app.dfx.swiss/support].",
         "thanks": "Merci beaucoup pour votre confiance",
-        "welcome": "Bonjour {name},",
+        "welcome": "Bonjour {name}",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
-        "button": "ou<br>[url:Cliquez ici]",
+        "button": "[url:Cliquez ici]",
         "link": "ou<br>[url:{urlText}]"
     },
     "login": {
         "title": "Connexion DFX",
         "salutation": "Connexion DFX",
-        "message": "Cliquez sur le lien suivant dans les {expiration} minutes pour vous connecter à DFX:<br>[url:{urlText}]"
+        "message": "ou cliquez sur le lien suivant dans les {expiration} minutes pour vous connecter à DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -93,7 +93,9 @@
                 "bank_tx_needed": "Une transaction bancaire est nécessaire pour que cette opération puisse être effectuée",
                 "manual_check_phone": "Nous n'avons pas réussi à vous joindre au numéro de téléphone que vous avez fourni",
                 "manual_check_ip_phone": "Nous n'avons pas réussi à vous joindre au numéro de téléphone que vous avez fourni",
-                "merge_incomplete": "L'e-mail de confirmation n'a pas été accepté"
+                "manual_check_ip_country_phone": "Nous n'avons pas réussi à vous joindre au numéro de téléphone que vous avez fourni",
+                "merge_incomplete": "L'e-mail de confirmation n'a pas été accepté",
+                "intermediary_without_sender": "La banque émettrice (Wise/Revolut) n'a transmis que le nom de la banque, et non le nom du titulaire du compte. DFX ne peut donc pas vérifier l'expéditeur réel et ne peut pas traiter la transaction."
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -241,6 +243,15 @@
                 "line3": "Une fois toutes les questions clarifiées, votre transaction sera traitée automatiquement.",
                 "line4": "",
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
+            },
+            "manual_check_ip_country_phone": {
+                "title": "Appel téléphonique requis",
+                "salutation": "Une vérification manuelle par téléphone est requise",
+                "line1": "Nous avons bien reçu votre acompte.",
+                "line2": "Nous vous contacterons sous peu au {phone}.",
+                "line3": "Une fois toutes les questions clarifiées, votre transaction sera traitée automatiquement.",
+                "line4": "",
+                "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             }
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]"
@@ -250,6 +261,22 @@
         "salutation": "Votre prime de parrainage a été versée",
         "transaction_button": "Cliquez sur le bouton ci-dessous pour plus de détails sur votre récompense de parrainage:<br>[url:cliquez ici]",
         "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
+    },
+    "recommendation": {
+        "recommended": {
+            "title": "Invitation DFX",
+            "salutation": "Vous avez été invité à DFX!",
+            "message": "{name} ({mail}) vous a invité à utiliser DFX",
+            "registration_button": "Il vous suffit de cliquer sur le bouton ci-dessous et de créer un compte avec cette adresse e-mail.:<br>[url:cliquez ici]",
+            "registration_link": "Ou vous pouvez utiliser le lien suivant:<br>[url:{urlText}]"
+        },
+        "confirmation": {
+            "title": "Confirmer la recommandation DFX",
+            "salutation": "Vous avez une recommandation DFX en attente",
+            "message": "Pouvez-vous confirmer {name} ({mail}) pour l'utilisation de DFX ?",
+            "button": "Il vous suffit de cliquer sur le bouton ci-dessous pour accepter ou refuser l'invitation:<br>[url:cliquez ici]",
+            "link": "Ou vous pouvez utiliser le lien suivant:<br>[url:{urlText}]"
+        }
     },
     "kyc": {
         "success": {
@@ -263,19 +290,36 @@
             "message": "L'étape '{stepName}' n'a pas pu être achevée pour la raison suivante:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Votre compte est fusionné",
+                "user_data_merge_requested": "Confirmation par e-mail en attente",
+                "user_data_existing": "Erreur inconnue",
                 "user_data_blocked": "Erreur inconnue",
-                "first_name_not_matching": "Votre prénom ne correspond pas",
-                "last_name_not_matching": "Votre nom de famille ne correspond pas",
+                "first_name_not_matching": "Incohérence avec votre prénom",
+                "last_name_not_matching": "Incohérence avec votre nom de famille",
                 "nationality_not_matching": "Votre nationalité ne correspond pas",
                 "nationality_missing": "La nationalité n'est pas mentionnée",
-                "invalid_document_type": "Votre type de document n'est pas valide",
+                "nationality_not_allowed": "Votre nationalité n'est pas autorisée",
+                "invalid_document_type": "Le type de document d'identité n'est pas valide",
+                "document_type_not_allowed": "Le type de document d'identité n'est pas autorisé pour votre pays",
                 "identification_number_missing": "Votre numéro d'identification est manquant",
                 "invalid_result": "Erreur inconnue",
                 "verified_name_missing": "Le nom du compte est manquant",
-                "first_name_not_matching_verified_name": "Votre prénom ne correspond pas au nom de votre compte",
-                "last_name_not_matching_verified_name": "Votre nom de famille ne correspond pas au nom de votre compte",
-                "organization_name_not_matching_verified_name": "Le nom de votre organisation ne correspond pas au nom de votre compte"
+                "first_name_not_matching_verified_name": "Incohérence entre votre prénom et le nom du compte",
+                "last_name_not_matching_verified_name": "Incohérence entre votre nom de famille et le nom du compte",
+                "organization_name_not_matching_verified_name": "Incohérence entre le nom de votre organisation et le nom du compte",
+                "country_not_allowed": "Votre pays n'est pas autorisé",
+                "blocked": "Erreur inconnue",
+                "personal_data_not_matching": "Incohérence dans vos données personnelles",
+                "ip_country_mismatch": "Exigences réglementaires non respectées",
+                "country_ip_country_mismatch": "Exigences réglementaires non respectées",
+                "missing_response": "Données manquantes",
+                "risky_business": "Votre entreprise est impliquée dans des activités risquées",
+                "bank_recall_fee_not_paid": "Frais de rappel non payés"
             }
+        },
+        "missing_data": {
+            "title": "Données manquantes lors de la vérification",
+            "salutation": "Il manque des données dans votre vérification",
+            "message": "Il manque encore des données à l'étape '{stepName}' que vous devez ajouter pour compléter votre vérification."
         },
         "reminder": {
             "title": "Terminez votre vérification",
@@ -287,7 +331,7 @@
             "salutation": "Accord de cession",
             "message": "DFX offre à ses clients la possibilité de lui céder des créances impayées résultant de la vente de biens et de services afin de permettre le paiement au moyen de crypto-monnaiesAccord de cession. Le client a la possibilité de soumettre une réclamation en suspens via notre API (api.dfx.swiss) ou via le front-end sur app.dfx.swiss.<br>Le montant dû est versé au client après déduction d'une commission de traitement de 0,2 %. Selon la configuration propre au client, le paiement peut être effectué soit en crypto-monnaies, soit en monnaie fiduciaire par le biais d'une transaction bancaire.<br>Les conditions générales de DFX s'appliquent à toutes les transactions. La cession prend fin automatiquement à la clôture du compte DFX ou peut être résiliée immédiatement par DFX ou le client en cas de rupture de contrat ou d'insolvabilité.<br><br>D'accord sur {date}"
         },
-        "retry": "Veuillez réessayer avec l'URL suivante:<br>[url:{urlText}]",
+        "retry": "ou réessayez avec l'URL suivante:<br>[url:{urlText}]",
         "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]",
         "step_names": {
             "ident": "Identification",
@@ -310,8 +354,7 @@
         "request": {
             "title": "Confirmer l'e-mail",
             "salutation": "Confirmez votre e-mail",
-            "message": "Cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]",
-            "closing": "Si vous n'avez pas saisi votre courrier dans un autre compte DFX, veuillez contacter immédiatement le service d'assistance à l'adresse [url:https://app.dfx.swiss/support]."
+            "message": "ou cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]"
         },
         "added_address": {
             "title": "Adresse ajoutée au compte",

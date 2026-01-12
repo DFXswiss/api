@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -39,10 +41,13 @@ import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
+import { UserProfileDto } from './dto/user-profile.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
+import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { User, UserStatus } from './user.entity';
+import { User } from './user.entity';
+import { UserStatus } from './user.enum';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -52,6 +57,7 @@ export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
+    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
     private readonly geoLocationService: GeoLocationService,
@@ -77,20 +83,32 @@ export class UserService {
     return this.userRepo.findOne({ where: { address }, relations });
   }
 
-  async getUserByKey(key: string, value: any): Promise<User> {
-    return this.userRepo
+  async getUserByKey(key: string, value: any, onlyDefaultRelation = false): Promise<User> {
+    const query = this.userRepo
       .createQueryBuilder('user')
       .select('user')
       .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `user.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `user.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
+  }
+
+  async getUsersByIp(ip: string): Promise<User[]> {
+    return this.userRepo.find({
+      where: { ip },
+      relations: { userData: true },
+    });
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
@@ -127,7 +145,7 @@ export class UserService {
   async getOpenRefCreditUser(): Promise<User[]> {
     return this.userRepo
       .createQueryBuilder('user')
-      .leftJoin('user.userData', 'userData')
+      .leftJoinAndSelect('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
       .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
@@ -167,6 +185,17 @@ export class UserService {
     return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
+  async getUserProfile(userDataId: number): Promise<UserProfileDto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { organization: true },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User is merged');
+
+    return UserDtoMapper.mapProfile(userData);
+  }
+
   async createUser(data: Partial<User>, specialCode: string, moderator?: Moderator): Promise<User> {
     let user = this.userRepo.create({
       address: data.address,
@@ -181,7 +210,7 @@ export class UserService {
     user.usedRef = await this.checkRef(user, data.usedRef);
     user.origin = data.origin;
     user.custodyProvider = data.custodyProvider;
-    userIsActive && (user.status = UserStatus.ACTIVE);
+    if (userIsActive) user.status = UserStatus.ACTIVE;
     user.custodyAddressType = data.custodyAddressType;
     user.custodyAddressIndex = data.custodyAddressIndex;
     user.role = data.role;
@@ -197,15 +226,16 @@ export class UserService {
         language,
         currency,
         wallet: user.wallet,
+        tradeApprovalDate: user.wallet?.autoTradeApproval ? new Date() : undefined,
       }));
 
     if (user.userData.status === UserDataStatus.KYC_ONLY)
       await this.userDataService.updateUserDataInternal(user.userData, { status: UserDataStatus.NA });
 
-    if (moderator) await this.setModerator(user, moderator);
+    if (moderator) await this.updateUserInternal(user, { moderator });
 
     user = await this.userRepo.save(user);
-    userIsActive && (await this.userRepo.setUserRef(user, data.userData?.kycLevel));
+    if (data.userData?.kycLevel >= KycLevel.LEVEL_50) await this.userRepo.setUserRef(user, data.userData.kycLevel);
 
     this.siftService.createAccount(user);
 
@@ -217,11 +247,6 @@ export class UserService {
     }
 
     return user;
-  }
-
-  async setModerator(user: User, moderator: Moderator): Promise<void> {
-    if (!user.usedRef) await this.userRepo.update(user.id, { usedRef: Config.moderators[moderator] });
-    await this.userDataService.updateUserDataInternal(user.userData, { moderator });
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
@@ -246,14 +271,14 @@ export class UserService {
     return UserDtoMapper.mapUser(update, userId);
   }
 
-  async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<void> {
+  async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<UpdateMailStatus> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
 
-    await this.userDataService.updateUserMail(userData, dto, ip);
+    return this.userDataService.updateUserMail(userData, dto, ip);
   }
 
   async verifyMail(userDataId: number, token: string, userId: number): Promise<UserV2Dto> {
@@ -289,17 +314,25 @@ export class UserService {
     return this.toDto(user, true);
   }
 
-  async updateUserInternal(id: number, update: UpdateUserInternalDto): Promise<User> {
+  async updateUserAdmin(id: number, update: UpdateUserInternalDto): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id }, relations: { userData: true } });
     if (!user) throw new NotFoundException('User not found');
 
+    return this.updateUserInternal(user, update);
+  }
+
+  async updateUserInternal(user: User, update: UpdateUserInternalDto): Promise<User> {
     if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user, user.userData);
 
-    if (update.status && update.status === UserStatus.BLOCKED)
-      await this.siftService.sendUserBlocked(user, update.comment);
+    if (update.status && update.status === UserStatus.BLOCKED) this.siftService.sendUserBlocked(user, update.comment);
 
     if (update.setRef) await this.userRepo.setUserRef(user, KycLevel.LEVEL_50);
+
+    if (update.moderator) {
+      if (!user.usedRef) await this.userRepo.update(user.id, { usedRef: Config.moderators[update.moderator] });
+      await this.userDataService.updateUserDataInternal(user.userData, { moderator: update.moderator });
+    }
 
     return this.userRepo.save({ ...user, ...update });
   }
@@ -504,7 +537,7 @@ export class UserService {
   }
 
   async activateUser(user: User, userData: UserData): Promise<void> {
-    await this.userRepo.update(...user.activateUser());
+    if (!user.isBlockedOrDeleted) await this.userRepo.update(...user.activateUser());
     await this.userDataRepo.activateUserData(userData);
   }
 

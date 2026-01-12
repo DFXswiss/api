@@ -4,12 +4,12 @@ import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
-import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
-import { KycStatus, RiskStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
@@ -25,6 +25,7 @@ import {
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
+import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 import { BuyFiatService } from './buy-fiat.service';
@@ -46,7 +47,7 @@ export class BuyFiatPreparationService {
   ) {}
 
   async doAmlCheck(): Promise<void> {
-    const request: FindOptionsWhere<BuyCrypto> = {
+    const request: FindOptionsWhere<BuyFiat> = {
       inputAmount: Not(IsNull()),
       inputAsset: Not(IsNull()),
       chargebackAllowedDateUser: IsNull(),
@@ -60,7 +61,7 @@ export class BuyFiatPreparationService {
           amlReason: IsNull(),
           ...request,
         },
-        { amlCheck: CheckStatus.PENDING, amlReason: Not(AmlReason.MANUAL_CHECK), ...request },
+        { amlCheck: CheckStatus.PENDING, amlReason: Not(In(BlockAmlReasons)), ...request },
       ],
       relations: {
         cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
@@ -93,7 +94,7 @@ export class BuyFiatPreparationService {
         );
 
         const { users, refUser, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
-        if (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW) continue;
+        if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(
           inputReferenceCurrency,
@@ -200,7 +201,7 @@ export class BuyFiatPreparationService {
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
           undefined,
-          IbanBankName.MAERKI,
+          IbanBankName.YAPEAL,
           entity.user,
         );
 
@@ -231,7 +232,10 @@ export class BuyFiatPreparationService {
       },
       relations: {
         sell: true,
-        cryptoInput: { paymentLinkPayment: { link: { route: { user: { userData: true } } } }, paymentQuote: true },
+        cryptoInput: {
+          paymentLinkPayment: { link: { route: { user: { userData: { organization: true } } } } },
+          paymentQuote: true,
+        },
       },
     });
 
@@ -264,7 +268,7 @@ export class BuyFiatPreparationService {
           inputReferenceAmountMinusFee / outputReferenceAmount,
         );
         const priceStep = PriceStep.create(
-          'Payment',
+          Config.priceSourcePayment,
           conversionPrice.source,
           conversionPrice.target,
           conversionPrice.price,
@@ -314,7 +318,7 @@ export class BuyFiatPreparationService {
           : undefined;
         const priceSteps = price?.steps ?? [
           PriceStep.create(
-            'DFX',
+            Config.priceSourceManual,
             entity.inputReferenceAsset,
             entity.outputReferenceAsset.name,
             entity.inputReferenceAmountMinusFee / entity.outputReferenceAmount,
@@ -373,9 +377,10 @@ export class BuyFiatPreparationService {
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: {
         fiatOutput: true,
-        sell: true,
-        transaction: { userData: true },
+        sell: { user: { userData: { country: true } } },
+        transaction: { userData: { organization: true } },
         cryptoInput: { paymentLinkPayment: { link: true } },
+        outputAsset: true,
       },
       where: {
         amlCheck: CheckStatus.PASS,
@@ -403,27 +408,39 @@ export class BuyFiatPreparationService {
       await this.fiatOutputService.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat] }, buyFiat.id);
     }
 
-    // daily payouts
+    // batched payouts (business days only)
     if (!isBankHoliday()) {
+      // daily
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
-      const dailyOutputs = buyFiatsToPayout.filter(
-        (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === PayoutFrequency.DAILY && bf.created < startOfDay,
-      );
-      const sellGroups = Util.groupByAccessor(
-        dailyOutputs,
-        (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
-      );
+      await this.processBatchedPayout(buyFiatsToPayout, PayoutFrequency.DAILY, startOfDay);
 
-      for (const buyFiats of sellGroups.values()) {
-        await this.fiatOutputService.createInternal(
-          FiatOutputType.BUY_FIAT,
-          { buyFiats },
-          buyFiats[0].id,
-          buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
-        );
-      }
+      // weekly
+      const startOfWeek = new Date();
+      startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      await this.processBatchedPayout(buyFiatsToPayout, PayoutFrequency.WEEKLY, startOfWeek);
+    }
+  }
+
+  private async processBatchedPayout(buyFiats: BuyFiat[], frequency: PayoutFrequency, cutoffDate: Date): Promise<void> {
+    const outputs = buyFiats.filter(
+      (bf) => bf.userData.paymentLinksConfigObj.payoutFrequency === frequency && bf.created < cutoffDate,
+    );
+    const sellGroups = Util.groupByAccessor(
+      outputs,
+      (bf) => `${bf.sell.id}-${bf.paymentLinkPayment?.link.linkConfigObj.payoutRouteId ?? 0}`,
+    );
+
+    for (const buyFiats of sellGroups.values()) {
+      await this.fiatOutputService.createInternal(
+        FiatOutputType.BUY_FIAT,
+        { buyFiats },
+        buyFiats[0].id,
+        buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+      );
     }
   }
 
@@ -434,7 +451,14 @@ export class BuyFiatPreparationService {
         chargebackAllowedDateUser: Not(IsNull()),
         chargebackAmount: Not(IsNull()),
         isComplete: false,
-        transaction: { userData: { kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]) } },
+        transaction: {
+          userData: {
+            kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
+            status: Not(UserDataStatus.BLOCKED),
+            riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
+          },
+          user: { status: In([UserStatus.NA, UserStatus.ACTIVE]) },
+        },
         chargebackAddress: Not(IsNull()),
       },
       relations: { cryptoInput: true, transaction: { userData: true } },

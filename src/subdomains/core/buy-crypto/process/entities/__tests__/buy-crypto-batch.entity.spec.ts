@@ -189,6 +189,83 @@ describe('BuyCryptoBatch', () => {
 
       expect(isPurchaseRequired).toBe(true);
     });
+
+    it('prioritizes transactions with liquidityPipeline over transactions without', () => {
+      const batch = createBatchWithPipelinePriority();
+      // Batch has: TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline), TX3 (0.5, pipeline 3)
+      // Total: 1.9, Available: 0.6
+
+      batch.optimizeByLiquidity(0.6, 0);
+
+      // TX3 (0.5, pipeline 3) should be selected - it has pipeline and fits
+      // TX1 (1.0, pipeline 5) has pipeline but doesn't fit alone
+      // TX2 (0.4, no pipeline) is skipped because TX3 with pipeline takes priority
+      expect(batch.transactions.length).toBe(1);
+      expect(batch.transactions[0].id).toBe(3);
+      expect(batch.transactions[0].outputReferenceAmount).toBe(0.5);
+      expect(batch.outputReferenceAmount).toBe(0.5);
+    });
+
+    it('prioritizes smaller pipeline ID when multiple transactions have pipelines', () => {
+      const batch = createBatchWithPipelinePriority();
+      // Batch has: TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline), TX3 (0.5, pipeline 3)
+      // Total: 1.9, Available: 1.6
+
+      batch.optimizeByLiquidity(1.6, 0);
+
+      // Both pipeline TXs fit together (0.5 + 1.0 = 1.5 <= 1.6)
+      // TX3 (pipeline 3) comes first, then TX1 (pipeline 5)
+      expect(batch.transactions.length).toBe(2);
+      expect(batch.transactions[0].id).toBe(3); // pipeline 3 first
+      expect(batch.transactions[1].id).toBe(1); // pipeline 5 second
+      expect(batch.outputReferenceAmount).toBe(1.5);
+    });
+
+    it('does not re-batch when liquidity is sufficient for entire batch', () => {
+      const batch = createBatchWithPipelinePriority();
+      // Batch has: TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline), TX3 (0.5, pipeline 3)
+      // Total: 1.9, Available: 2.0
+
+      batch.optimizeByLiquidity(2.0, 0);
+
+      // When enough liquidity available, all transactions are kept (no re-batching needed)
+      // Order is preserved from creation
+      expect(batch.transactions.length).toBe(3);
+      expect(batch.outputReferenceAmount).toBe(1.9);
+    });
+
+    it('continues checking remaining transactions when higher priority transaction exceeds limit', () => {
+      const batch = createBatchWithPipelinePriority();
+      // Batch has: TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline), TX3 (0.5, pipeline 3)
+      // Total: 1.9, Available: 0.95
+
+      batch.optimizeByLiquidity(0.95, 0);
+
+      // Sorted order: TX3 (0.5, pipeline 3), TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline)
+      // TX3 (0.5) fits, running total = 0.5
+      // TX1 (1.0) would make total 1.5 > 0.95, skip it but continue
+      // TX2 (0.4) fits! Total 0.9 <= 0.95, so it gets added
+      expect(batch.transactions.length).toBe(2);
+      expect(batch.transactions[0].id).toBe(3); // pipeline TX
+      expect(batch.transactions[1].id).toBe(2); // no pipeline but fits
+      expect(batch.outputReferenceAmount).toBe(0.9);
+    });
+
+    it('processes non-pipeline transactions when all pipeline transactions exceed limit', () => {
+      const batch = createBatchWithPipelinePriority();
+      // Batch has: TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline), TX3 (0.5, pipeline 3)
+      // Total: 1.9, Available: 0.45
+
+      batch.optimizeByLiquidity(0.45, 0);
+
+      // Sorted order: TX3 (0.5, pipeline 3), TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline)
+      // TX3 (0.5) exceeds 0.45, skip but continue
+      // TX1 (1.0) exceeds 0.45, skip but continue
+      // TX2 (0.4) fits! This is the critical case that would have failed with old logic
+      expect(batch.transactions.length).toBe(1);
+      expect(batch.transactions[0].id).toBe(2); // non-pipeline TX is processed
+      expect(batch.outputReferenceAmount).toBe(0.4);
+    });
   });
 
   describe('#optimizeByPayoutFeeEstimation(...)', () => {
@@ -400,6 +477,34 @@ function createDiverseBuyCryptoBatch(): BuyCryptoBatch {
         id: 3,
         outputReferenceAmount: 1,
         fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.01 }),
+      }),
+    ],
+  });
+}
+
+function createBatchWithPipelinePriority(): BuyCryptoBatch {
+  return createCustomBuyCryptoBatch({
+    id: undefined,
+    created: undefined,
+    outputReferenceAmount: 1.9,
+    transactions: [
+      createCustomBuyCrypto({
+        id: 1,
+        outputReferenceAmount: 1,
+        liquidityPipeline: { id: 5 } as any,
+        fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
+      }),
+      createCustomBuyCrypto({
+        id: 2,
+        outputReferenceAmount: 0.4,
+        liquidityPipeline: undefined,
+        fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
+      }),
+      createCustomBuyCrypto({
+        id: 3,
+        outputReferenceAmount: 0.5,
+        liquidityPipeline: { id: 3 } as any,
+        fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
       }),
     ],
   });

@@ -16,6 +16,7 @@ import {
   AuthLnurlSignupDto,
   AuthLnurlStatusResponseDto,
 } from 'src/subdomains/generic/user/models/auth/dto/auth-lnurl.dto';
+import { WalletType } from '../user/user.enum';
 
 export interface AuthCacheDto {
   servicesIp: string;
@@ -30,7 +31,10 @@ export interface AuthCacheDto {
 export class AuthLnUrlService {
   private readonly authCache: Map<string, AuthCacheDto> = new Map();
 
-  constructor(private readonly authService: AuthService, private readonly ipLogService: IpLogService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly ipLogService: IpLogService,
+  ) {}
 
   @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.LNURL_AUTH_CACHE })
   processCleanupAccessToken() {
@@ -85,7 +89,7 @@ export class AuthLnUrlService {
     const authCacheEntry = this.authCache.get(k1);
     const { servicesIp, servicesUrl } = authCacheEntry;
 
-    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address);
+    const ipLog = await this.ipLogService.create(servicesIp, servicesUrl, address, WalletType.DFX_TARO);
 
     if (!ipLog.result) {
       this.authCache.delete(k1);
@@ -122,12 +126,17 @@ export class AuthLnUrlService {
   }
 
   async signIn(signupDto: AuthLnurlSignupDto, servicesIp: string, userIp: string): Promise<string> {
-    const session = { address: signupDto.address, signature: signupDto.signature };
+    const session = { address: signupDto.address, signature: signupDto.signature, walletType: WalletType.DFX_TARO };
 
     const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
       if (e instanceof NotFoundException)
         return this.authService.signUp(
-          { ...session, usedRef: signupDto.usedRef, wallet: signupDto.wallet ?? 'DFX Bitcoin' },
+          {
+            ...session,
+            usedRef: signupDto.usedRef,
+            wallet: signupDto.wallet ?? 'DFX Bitcoin',
+            recommendationCode: signupDto.recommendationCode,
+          },
           servicesIp,
         );
       throw e;

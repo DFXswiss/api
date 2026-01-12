@@ -5,9 +5,11 @@ export enum UserRole {
   VIP = 'VIP',
   BETA = 'Beta',
   ADMIN = 'Admin',
+  SUPER_ADMIN = 'SuperAdmin',
   SUPPORT = 'Support',
   COMPLIANCE = 'Compliance',
   CUSTODY = 'Custody',
+  DEBUG = 'Debug',
 
   // service roles
   BANKING_BOT = 'BankingBot',

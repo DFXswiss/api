@@ -4,7 +4,7 @@ import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
 import { KycLevel, KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.enum';
-import { UserStatus } from '../user.entity';
+import { UserStatus } from '../user.enum';
 import { LinkedUserOutDto } from './linked-user.dto';
 
 export class VolumeInformation {

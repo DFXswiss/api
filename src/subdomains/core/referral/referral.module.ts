@@ -31,7 +31,7 @@ import { RefRewardService } from './reward/services/ref-reward.service';
     PayoutModule,
     NotificationModule,
     PricingModule,
-    TransactionModule,
+    forwardRef(() => TransactionModule),
   ],
   controllers: [RefController, RefRewardController],
   providers: [

@@ -10,6 +10,7 @@ import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -20,6 +21,8 @@ import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entit
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
+import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -64,6 +67,7 @@ export class BuyFiatService {
     private readonly transactionHelper: TransactionHelper,
     @Inject(forwardRef(() => CustodyOrderService))
     private readonly custodyOrderService: CustodyOrderService,
+    private readonly supportLogService: SupportLogService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -89,13 +93,24 @@ export class BuyFiatService {
     });
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(sell.iban, sell.userData.id);
-      if (!bankData && sell.userData.completeName)
-        await this.bankDataService.createVerifyBankData(sell.userData, {
-          name: sell.userData.completeName,
-          iban: sell.iban,
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+        sell.iban,
+        sell.userData.id,
+        BankDataType.BANK_OUT,
+      );
+      if ((!bankData || bankData.type !== BankDataType.BANK_OUT) && sell.userData.completeName) {
+        const createDto: CreateBankDataDto = {
           type: BankDataType.BANK_OUT,
-        });
+          iban: sell.iban,
+          name: sell.userData.completeName,
+        };
+
+        if (bankData) {
+          await this.bankDataService.replaceBankDataWithNewType(bankData, createDto);
+        } else {
+          await this.bankDataService.createVerifyBankData(sell.userData, createDto);
+        }
+      }
     }
 
     entity = await this.buyFiatRepo.save(entity);
@@ -197,22 +212,31 @@ export class BuyFiatService {
     return entity;
   }
 
-  async getBuyFiatByKey(key: string, value: any): Promise<BuyFiat> {
-    return this.buyFiatRepo
+  async getBuyFiatByKey(key: string, value: any, onlyDefaultRelation = false): Promise<BuyFiat> {
+    const query = this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('buyFiat')
-      .leftJoinAndSelect('buyFiat.sell', 'sell')
       .leftJoinAndSelect('buyFiat.transaction', 'transaction')
       .leftJoinAndSelect('transaction.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'users')
-      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.nationality', 'nationality')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`${key.includes('.') ? key : `buyFiat.${key}`} = :param`, { param: value })
-      .getOne();
+      .where(`${key.includes('.') ? key : `buyFiat.${key}`} = :param`, { param: value });
+
+    if (!onlyDefaultRelation) {
+      query.leftJoinAndSelect('buyFiat.sell', 'sell');
+      query.leftJoinAndSelect('userData.users', 'users');
+      query.leftJoinAndSelect('userData.kycSteps', 'kycSteps');
+      query.leftJoinAndSelect('userData.country', 'country');
+      query.leftJoinAndSelect('userData.nationality', 'nationality');
+      query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
+      query.leftJoinAndSelect('userData.language', 'language');
+      query.leftJoinAndSelect('users.wallet', 'wallet');
+    }
+
+    return query.getOne();
+  }
+
+  async getBuyFiatByTransactionId(transactionId: number, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat> {
+    return this.buyFiatRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
   async getBuyFiat(from: Date, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat[]> {
@@ -238,7 +262,7 @@ export class BuyFiatService {
     const extended = await this.extendBuyFiat(buyFiat);
 
     // TODO add fiatFiatUpdate here
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, buyFiat.userData, extended) : undefined;
+    if (buyFiat.sell) await this.webhookService.cryptoFiatUpdate(buyFiat.user, buyFiat.userData, extended);
   }
 
   async refundBuyFiat(buyFiatId: number, dto: RefundInternalDto): Promise<void> {
@@ -303,7 +327,10 @@ export class BuyFiatService {
   }
 
   async resetAmlCheck(id: number): Promise<void> {
-    const entity = await this.buyFiatRepo.findOne({ where: { id }, relations: { fiatOutput: true } });
+    const entity = await this.buyFiatRepo.findOne({
+      where: { id },
+      relations: { fiatOutput: true, transaction: { userData: true }, outputAsset: true },
+    });
     if (!entity) throw new NotFoundException('BuyFiat not found');
     if (entity.isComplete || entity.fiatOutput?.isComplete)
       throw new BadRequestException('BuyFiat is already complete');
@@ -311,8 +338,27 @@ export class BuyFiatService {
 
     const fiatOutputId = entity.fiatOutput?.id;
 
+    const resetDetails = {
+      buyFiatId: entity.id,
+      amlCheck: entity.amlCheck,
+      amlReason: entity.amlReason,
+      outputAmount: entity.outputAmount,
+      outputAsset: entity.outputAsset?.name,
+      fiatOutputId: fiatOutputId,
+      fiatOutputTransmitted: entity.fiatOutput?.isTransmittedDate,
+      priceDefinitionAllowedDate: entity.priceDefinitionAllowedDate,
+    };
+
     await this.buyFiatRepo.update(...entity.resetAmlCheck());
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
+
+    if (entity.transaction.userData) {
+      await this.supportLogService.createSupportLog(entity.transaction.userData, {
+        type: SupportLogType.SUPPORT,
+        message: `BuyFiat ${entity.id} reset`,
+        comment: `AML check reset. Previous state: ${JSON.stringify(resetDetails)}`,
+      });
+    }
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {
@@ -388,7 +434,7 @@ export class BuyFiatService {
   async getPendingTransactions(): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({
       where: { isComplete: false },
-      relations: { cryptoInput: true, sell: true },
+      relations: { cryptoInput: true, sell: true, fiatOutput: { bank: true } },
     });
   }
 

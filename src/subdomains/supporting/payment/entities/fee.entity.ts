@@ -16,7 +16,10 @@ export enum FeeType {
   DISCOUNT = 'Discount', // Single use only, absolute discount
   RELATIVE_DISCOUNT = 'RelativeDiscount', // Single use only, relative discount
   ADDITION = 'Addition', // Multiple use possible, additive fee
-  CHARGEBACK = 'Chargeback', // Multiple use possible, additive fee
+  CHARGEBACK_BASE = 'ChargebackBase', // Single use only, absolute base fee
+  CHARGEBACK_SPECIAL = 'ChargebackSpecial', // Single use only, highest prio applies to all
+  CHARGEBACK_CUSTOM = 'ChargebackCustom', // Single use only, second highest prio
+  CHARGEBACK_ADDITION = 'ChargebackAddition', // Multiple use possible, additive fee
   CHARGEBACK_BANK = 'ChargebackBank', // Bank fee for chargebacks, multiple use possible, additive fee
   BANK = 'Bank', // Multiple use possible, additive fee
 }
@@ -217,7 +220,7 @@ export class Fee extends IEntity {
   //*** GETTER METHODS ***//
 
   get assetList(): number[] {
-    return this.assets?.split(';')?.map(Number);
+    return this.assets ? this.assets.split(';')?.map(Number) : undefined;
   }
 
   get excludedAssetList(): number[] {
@@ -225,7 +228,7 @@ export class Fee extends IEntity {
   }
 
   get fiatList(): number[] {
-    return this.fiats?.split(';')?.map(Number);
+    return this.fiats ? this.fiats.split(';')?.map(Number) : undefined;
   }
 
   get excludedUserDataList(): number[] {

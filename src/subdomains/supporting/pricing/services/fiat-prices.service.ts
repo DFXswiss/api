@@ -10,7 +10,10 @@ import { PriceCurrency, PriceValidity, PricingService } from './pricing.service'
 export class FiatPricesService {
   private readonly logger = new DfxLogger(FiatPricesService);
 
-  constructor(private readonly fiatService: FiatService, private readonly pricingService: PricingService) {}
+  constructor(
+    private readonly fiatService: FiatService,
+    private readonly pricingService: PricingService,
+  ) {}
 
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.PRICING, timeout: 3600 })

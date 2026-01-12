@@ -10,6 +10,7 @@ export enum Process {
   FIAT_PAY_IN = 'FiatPayIn',
   BUY_FIAT = 'BuyFiat',
   BUY_CRYPTO = 'BuyCrypto',
+  BUY_CRYPTO_AGGREGATION = 'BuyCryptoAggregation',
   LIMIT_REQUEST_MAIL = 'LimitRequestMail',
   BLACK_SQUAD_MAIL = 'BlackSquadMail',
   PAY_IN_MAIL = 'PayInMail',
@@ -25,6 +26,8 @@ export enum Process {
   KYC = 'Kyc',
   KYC_IDENT_REVIEW = 'KycIdentReview',
   KYC_NATIONALITY_REVIEW = 'KycNationalityReview',
+  KYC_FINANCIAL_REVIEW = 'KycFinancialReview',
+  KYC_RECOMMENDATION_REVIEW = 'KycRecommendationReview',
   KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
@@ -63,8 +66,10 @@ export enum Process {
   FIAT_OUTPUT_BATCH_ID_UPDATE_JOB = 'FiatOutputBatchIdUpdateJob',
   FIAT_OUTPUT_TRANSMISSION_CHECK = 'FiatOutputTransmissionCheck',
   FIAT_OUTPUT_BANK_TX_SEARCH = 'FiatOutputBankTxSearch',
+  FIAT_OUTPUT_YAPEAL_TRANSMISSION = 'FiatOutputYapealTransmission',
+  FIAT_OUTPUT_YAPEAL_STATUS_CHECK = 'FiatOutputYapealStatusCheck',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
-  TX_REQUEST_STATUS_SYNC = 'TxRequestStatusSync',
+  TX_REQUEST = 'TxRequest',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
@@ -80,6 +85,7 @@ export enum Process {
   BINANCE_PAY_CERTIFICATES_UPDATE = 'BinancePayCertificatesUpdate',
   AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
   ZANO_ASSET_WHITELIST = 'ZanoAssetWhitelist',
+  TRADE_APPROVAL_DATE = 'TradeApprovalDate',
 }
 
 const safetyProcesses: Process[] = [

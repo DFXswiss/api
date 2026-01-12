@@ -3,6 +3,8 @@ import { KycStepReason } from './output/kyc-info.dto';
 export enum KycError {
   // General errors
   RESTARTED_STEP = 'RestartedStep',
+  BLOCKED = 'Blocked',
+  RELEASED = 'Released',
 
   // Ident errors
   USER_DATA_MERGED = 'UserDataMerged',
@@ -23,8 +25,17 @@ export enum KycError {
   LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
   ORGANIZATION_NAME_NOT_MATCHING_VERIFIED_NAME = 'OrganizationNameNotMatchingVerifiedName',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
-  BLOCKED = 'Blocked',
-  RELEASED = 'Released',
+  IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
+  COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
+
+  // Recommendation errors
+  EXPIRED_RECOMMENDATION = 'ExpiredRecommendation',
+  DENIED_RECOMMENDATION = 'DeniedRecommendation',
+  RECOMMENDER_BLOCKED = 'RecommenderBlocked',
+
+  // FinancialData errors
+  MISSING_RESPONSE = 'MissingResponse',
+  RISKY_BUSINESS = 'RiskyBusiness',
 
   // NationalityData errors
   NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
@@ -32,9 +43,14 @@ export enum KycError {
   // PersonalData errors
   PERSONAL_DATA_NOT_MATCHING = 'PersonalDataNotMatching',
 
+  // DfxApproval errors
+  BANK_RECALL_FEE_NOT_PAID = 'BankRecallFeeNotPaid',
+
   // Deactivated userData errors
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
 }
+
+export const KycStepIgnoringErrors = [KycError.USER_DATA_MERGED, KycError.USER_DATA_BLOCKED];
 
 export const KycErrorMap: Record<KycError, string> = {
   [KycError.USER_DATA_MERGED]: 'Your account is merged',
@@ -61,6 +77,14 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.RELEASED]: undefined,
   [KycError.RESTARTED_STEP]: undefined,
   [KycError.USER_DATA_DEACTIVATED]: 'Account deactivated',
+  [KycError.IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
+  [KycError.COUNTRY_IP_COUNTRY_MISMATCH]: 'Regulatory requirements not met',
+  [KycError.MISSING_RESPONSE]: 'Missing data',
+  [KycError.RISKY_BUSINESS]: 'Your business is involved in risky business',
+  [KycError.DENIED_RECOMMENDATION]: 'Your recommendation request was denied',
+  [KycError.EXPIRED_RECOMMENDATION]: 'Your recommendation request is expired',
+  [KycError.RECOMMENDER_BLOCKED]: 'Unknown error',
+  [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee not paid',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

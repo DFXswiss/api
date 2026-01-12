@@ -15,8 +15,8 @@ export interface LnBitsWalletPaymentParamsDto {
   amount: number;
   memo: string;
   expirySec: number;
-  webhook: string;
-  extra: {
+  webhook?: string;
+  extra?: {
     link: string;
     signature: string;
   };

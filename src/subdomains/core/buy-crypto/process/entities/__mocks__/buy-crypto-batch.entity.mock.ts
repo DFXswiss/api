@@ -10,7 +10,7 @@ const defaultBatch: Partial<BuyCryptoBatch> = {
   outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
   outputAmount: 1,
   status: BuyCryptoBatchStatus.CREATED,
-  blockchain: Blockchain.DEFICHAIN,
+  blockchain: Blockchain.BITCOIN,
 };
 
 export function createDefaultBuyCryptoBatch(): BuyCryptoBatch {

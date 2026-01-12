@@ -42,6 +42,11 @@ export class UpdatePaymentLinkConfigDto {
   @IsOptional()
   @IsNumber()
   paymentTimeout?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  cancellable?: boolean;
 }
 
 export class PaymentLinkConfigDto extends UpdatePaymentLinkConfigDto {

@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, OneToMany } from 'typeorm';
-import { BankTx } from './bank-tx.entity';
+import { BankTx, BankTxIndicator } from './bank-tx.entity';
 
 @Entity()
 export class BankTxBatch extends IEntity {
@@ -72,10 +72,10 @@ export class BankTxBatch extends IEntity {
   //*** GETTER METHODS ***//
 
   get bankBalanceBefore(): number {
-    return this.balanceBeforeCdi === 'CRDT' ? this.balanceBeforeAmount : -this.balanceBeforeAmount;
+    return this.balanceBeforeCdi === BankTxIndicator.CREDIT ? this.balanceBeforeAmount : -this.balanceBeforeAmount;
   }
 
   get bankBalanceAfter(): number {
-    return this.balanceAfterCdi === 'CRDT' ? this.balanceAfterAmount : -this.balanceAfterAmount;
+    return this.balanceAfterCdi === BankTxIndicator.CREDIT ? this.balanceAfterAmount : -this.balanceAfterAmount;
   }
 }

@@ -9,18 +9,25 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
+import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto, CustodyHistoryDto } from '../dto/output/custody-balance.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyOrderService } from '../services/custody-order.service';
+import { CustodyPdfService } from '../services/custody-pdf.service';
 import { CustodyService } from '../services/custody.service';
 
 @ApiTags('Custody')
 @Controller('custody')
 export class CustodyController {
-  constructor(private readonly service: CustodyService, private readonly custodyOrderService: CustodyOrderService) {}
+  constructor(
+    private readonly service: CustodyService,
+    private readonly custodyOrderService: CustodyOrderService,
+    private readonly custodyPdfService: CustodyPdfService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -36,6 +43,15 @@ export class CustodyController {
   @ApiOkResponse({ type: CustodyHistoryDto })
   async getUserCustodyHistory(@GetJwt() jwt: JwtPayload): Promise<CustodyHistoryDto> {
     return this.service.getUserCustodyHistory(jwt.account);
+  }
+
+  @Get('pdf')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: PdfDto, description: 'Custody balance PDF report (base64 encoded)' })
+  async getCustodyPdf(@GetJwt() jwt: JwtPayload, @Query() dto: GetCustodyPdfDto): Promise<PdfDto> {
+    const pdfData = await this.custodyPdfService.generateCustodyPdf(jwt.account, dto);
+    return { pdfData };
   }
 
   @Post()

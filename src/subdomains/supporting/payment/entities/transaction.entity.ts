@@ -35,7 +35,6 @@ export enum TransactionTypeInternal {
   REF_REWARD = 'RefReward',
   CHECKOUT_LTD = 'CheckoutLtd',
   SCB = 'SCB',
-  REVOLUT_CARD_PAYMENT = 'RevolutCardPayment',
   BANK_ACCOUNT_FEE = 'BankAccountFee',
   EXTRAORDINARY_EXPENSES = 'ExtraordinaryExpenses',
 }
@@ -107,6 +106,9 @@ export class Transaction extends IEntity {
   @OneToOne(() => RefReward, (refReward) => refReward.transaction, { nullable: true })
   refReward?: RefReward;
 
+  @OneToOne(() => RefReward, (refReward) => refReward.sourceTransaction, { nullable: true })
+  targetRefReward?: RefReward;
+
   @OneToOne(() => BankTx, (bankTx) => bankTx.transaction, { nullable: true })
   bankTx?: BankTx;
 
@@ -175,8 +177,8 @@ export class Transaction extends IEntity {
     return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? this.bankTxReturn ?? undefined;
   }
 
-  get refundTargetEntity(): BuyCrypto | BuyFiat | BankTx | undefined {
-    return this.buyCrypto ?? this.buyFiat ?? (!this.type && this.bankTx) ?? undefined;
+  get refundTargetEntity(): BuyCrypto | BuyFiat | BankTxReturn | BankTx | undefined {
+    return this.buyCrypto ?? this.buyFiat ?? this.bankTxReturn ?? (!this.type && this.bankTx) ?? undefined;
   }
 
   get completionDate(): Date | undefined {

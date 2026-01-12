@@ -7,6 +7,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { PaymentLinkPaymentModule } from 'src/subdomains/core/payment-link/payment-link-payment.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { AddressPoolModule } from '../address-pool/address-pool.module';
 import { DexModule } from '../dex/dex.module';
 import { NotificationModule } from '../notification/notification.module';
 import { TransactionModule } from '../payment/transaction.module';
@@ -30,6 +31,7 @@ import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInPolygonService } from './services/payin-polygon.service';
 import { PayInSepoliaService } from './services/payin-sepolia.service';
 import { PayInSolanaService } from './services/payin-solana.service';
+import { PayInCardanoService } from './services/payin-cardano.service';
 import { PayInTronService } from './services/payin-tron.service';
 import { PayInZanoService } from './services/payin-zano.service';
 import { PayInService } from './services/payin.service';
@@ -39,6 +41,7 @@ import { RegisterStrategyRegistry } from './strategies/register/impl/base/regist
 import { BinancePayStrategy as BinancePayStrategyR } from './strategies/register/impl/binance-pay.strategy';
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
+import { CardanoStrategy as CardanoStrategyR } from './strategies/register/impl/cardano.strategy';
 import { CitreaTestnetStrategy as CitreaTestnetStrategyR } from './strategies/register/impl/citrea-testnet.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
 import { GnosisStrategy as GnosisStrategyR } from './strategies/register/impl/gnosis.strategy';
@@ -60,6 +63,8 @@ import { BinancePayStrategy as BinancePayStrategyS } from './strategies/send/imp
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/send/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
+import { CardanoCoinStrategy as CardanoCoinStrategyS } from './strategies/send/impl/cardano-coin.strategy';
+import { CardanoTokenStrategy as CardanoTokenStrategyS } from './strategies/send/impl/cardano-token.strategy';
 import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyS } from './strategies/send/impl/citrea-testnet-coin.strategy';
 import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyS } from './strategies/send/impl/citrea-testnet-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send/impl/ethereum-coin.strategy';
@@ -96,8 +101,9 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     NotificationModule,
     AlchemyModule,
     TatumModule,
-    TransactionModule,
+    forwardRef(() => TransactionModule),
     PaymentLinkPaymentModule,
+    AddressPoolModule,
   ],
   controllers: [PayInController],
   providers: [
@@ -118,6 +124,7 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     PayInSolanaService,
     PayInGnosisService,
     PayInTronService,
+    PayInCardanoService,
     PayInCitreaTestnetService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
@@ -160,6 +167,9 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     TronStrategyR,
     TronCoinStrategyS,
     TronTokenStrategyS,
+    CardanoStrategyR,
+    CardanoCoinStrategyS,
+    CardanoTokenStrategyS,
     CitreaTestnetStrategyR,
     CitreaTestnetCoinStrategyS,
     CitreaTestnetTokenStrategyS,

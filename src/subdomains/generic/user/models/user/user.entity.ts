@@ -17,33 +17,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { CustodyProvider } from '../custody-provider/custody-provider.entity';
-
-export enum UserStatus {
-  NA = 'NA',
-  ACTIVE = 'Active',
-  BLOCKED = 'Blocked',
-  DELETED = 'Deleted',
-}
-
-export enum UserAddressType {
-  BITCOIN_LEGACY = 'BitcoinLegacy',
-  BITCOIN_BECH32 = 'BitcoinBech32',
-  EVM = 'EVM',
-  LN_URL = 'LNURL',
-  LN_NID = 'LNNID',
-  LND_HUB = 'LNDHUB',
-  UMA = 'UMA',
-  SPARK = 'Spark',
-  MONERO = 'Monero',
-  LIQUID = 'Liquid',
-  ARWEAVE = 'Arweave',
-  RAILGUN = 'Railgun',
-  CARDANO = 'Cardano',
-  SOLANA = 'Solana',
-  TRON = 'Tron',
-  ZANO = 'Zano',
-  OTHER = 'Other',
-}
+import { UserAddressType, UserStatus, WalletType } from './user.enum';
 
 @Entity()
 export class User extends IEntity {
@@ -55,6 +29,9 @@ export class User extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   signature?: string;
+
+  @Column({ length: 256, nullable: true })
+  walletType?: WalletType;
 
   @Column({ length: 256, nullable: true })
   label?: string;
@@ -241,3 +218,5 @@ export class User extends IEntity {
     return this.status === UserStatus.DELETED;
   }
 }
+
+export const UserSupportUpdateCols = ['status', 'setRef'];

@@ -18,13 +18,14 @@ import { CustodyOrderStepRepository } from './repositories/custody-order-step.re
 import { CustodyOrderRepository } from './repositories/custody-order.repository';
 import { CustodyJobService } from './services/custody-job.service';
 import { CustodyOrderService } from './services/custody-order.service';
+import { CustodyPdfService } from './services/custody-pdf.service';
 import { CustodyService } from './services/custody.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([CustodyOrder, CustodyOrderStep]),
     forwardRef(() => UserModule),
-    ReferralModule,
+    forwardRef(() => ReferralModule),
     SharedModule,
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
@@ -40,6 +41,7 @@ import { CustodyService } from './services/custody.service';
     DfxOrderStepAdapter,
     CustodyOrderService,
     CustodyJobService,
+    CustodyPdfService,
     CustodyBalance,
     CustodyBalanceRepository,
   ],

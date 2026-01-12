@@ -31,9 +31,9 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
-import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { DepositRouteService } from 'src/subdomains/supporting/address-pool/route/deposit-route.service';
 import { AssignPaymentLinkDto } from '../dto/assign-payment-link.dto';
 import { CreateInvoicePaymentDto } from '../dto/create-invoice-payment.dto';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
@@ -69,7 +69,7 @@ export class PaymentLinkController {
     private readonly userDataService: UserDataService,
     private readonly paymentLinkService: PaymentLinkService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
-    private readonly sellService: SellService,
+    private readonly depositRouteService: DepositRouteService,
     private readonly paymentLinkStickerService: OCPStickerService,
     private readonly paymentMerchantService: PaymentMerchantService,
   ) {}
@@ -207,7 +207,7 @@ export class PaymentLinkController {
   @ApiExcludeEndpoint()
   @ApiQuery({ name: 'id', description: 'Route ID or label', required: true })
   async getPaymentRecipient(@Query('id') id: string): Promise<PaymentRecipientDto> {
-    const sellRoute = await this.sellService.getPaymentRoute(id);
+    const sellRoute = await this.depositRouteService.getPaymentRoute(id);
     return PaymentRecipientMapper.toDto(sellRoute);
   }
 
@@ -245,16 +245,16 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   @ApiQuery({ name: 'route', description: 'Route label', required: false })
   async createPayment(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('key') key: string,
     @Query('route') route: string,
     @Body() dto: CreatePaymentLinkPaymentDto,
   ): Promise<PaymentLinkDto> {
-    const link = Boolean(key)
+    const link = key
       ? await this.paymentLinkService.createPaymentForRouteWithAccessKey(dto, key, externalLinkId, route)
-      : await this.paymentLinkService.createPayment(dto, +jwt.user, +linkId, externalLinkId, route);
+      : await this.paymentLinkService.createPayment(dto, jwt && +jwt.user, +linkId, externalLinkId, route);
 
     return PaymentLinkDtoMapper.toLinkDto(link);
   }
@@ -309,7 +309,7 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'key', description: 'Payment link access key', required: false })
   @ApiQuery({ name: 'route', description: 'Route label', required: false })
   async cancelPayment(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query('linkId') linkId: string,
     @Query('externalLinkId') externalLinkId: string,
     @Query('externalPaymentId') externalPaymentId: string,
@@ -317,7 +317,7 @@ export class PaymentLinkController {
     @Query('route') route: string,
   ): Promise<PaymentLinkDto> {
     return this.paymentLinkService
-      .cancelPayment(+jwt?.user, +linkId, externalLinkId, externalPaymentId, key, route)
+      .cancelPayment(jwt && +jwt.user, +linkId, externalLinkId, externalPaymentId, key, route)
       .then(PaymentLinkDtoMapper.toLinkDto);
   }
 
@@ -391,7 +391,7 @@ export class PaymentLinkController {
   @ApiQuery({ name: 'lang', description: 'Language code', required: false })
   @ApiQuery({ name: 'mode', description: 'QR code mode', required: false, enum: StickerQrMode })
   async generateOcpStickers(
-    @GetJwt() jwt: JwtPayload,
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query('route') route: string,
     @Query('externalIds') externalIds: string,
     @Query('ids') ids: string,
@@ -434,7 +434,7 @@ export class PaymentLinkController {
 
   private async getAndCheckUserId(jwt?: JwtPayload, key?: string): Promise<number> {
     if (key) {
-      const route = await this.sellService.getPaymentRouteForKey(key);
+      const route = await this.depositRouteService.getPaymentRouteForKey(key);
       if (!route) throw new BadRequestException('Invalid access key');
 
       await this.checkPaymentLinksAllowed(route.user.userData);

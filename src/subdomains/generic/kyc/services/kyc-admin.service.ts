@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
@@ -27,7 +27,6 @@ export class KycAdminService {
     private readonly webhookService: WebhookService,
     private readonly kycService: KycService,
     private readonly kycNotificationService: KycNotificationService,
-    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
   ) {}
 
@@ -38,7 +37,7 @@ export class KycAdminService {
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({
       where: { id: stepId },
-      relations: { userData: { bankDatas: true, wallet: true, kycSteps: true } },
+      relations: { userData: { bankDatas: true, wallet: true, kycSteps: true, users: true } },
     });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
@@ -53,52 +52,53 @@ export class KycAdminService {
           : kycStep.comment,
       );
 
-    switch (kycStep.name) {
-      case KycStepName.AUTHORITY:
-        if (kycStep.isCompleted)
+    if (kycStep.isCompleted) {
+      switch (kycStep.name) {
+        case KycStepName.RECOMMENDATION:
+          await this.kycService.completeRecommendation(kycStep.userData);
+          break;
+
+        case KycStepName.AUTHORITY:
           await this.kycService.completeReferencedSteps(kycStep.userData, KycStepName.SIGNATORY_POWER);
-        break;
+          break;
 
-      case KycStepName.RESIDENCE_PERMIT:
-        if (kycStep.isCompleted)
+        case KycStepName.RESIDENCE_PERMIT:
           await this.kycService.completeReferencedSteps(kycStep.userData, KycStepName.NATIONALITY_DATA);
-        break;
+          break;
 
-      case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
-      case KycStepName.LEGAL_ENTITY:
-        if (kycStep.isCompleted) await this.kycService.completeCommercialRegister(kycStep.userData);
-        break;
+        case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
+        case KycStepName.LEGAL_ENTITY:
+          await this.kycService.completeCommercialRegister(kycStep.userData);
+          break;
 
-      case KycStepName.IDENT:
-        if (kycStep.isCompleted) {
+        case KycStepName.IDENT: {
           const nationalityData = kycStep.userData
             .getCompletedStepWith(KycStepName.NATIONALITY_DATA)
             ?.getResult<KycNationalityData>();
           await this.kycService.completeIdent(kycStep, undefined, nationalityData);
+          break;
         }
-        break;
 
-      case KycStepName.DFX_APPROVAL:
-        if (kycStep.isCompleted && kycStep.userData.kycLevel < KycLevel.LEVEL_50)
-          await this.userDataService.updateUserDataInternal(kycStep.userData, {
-            kycLevel: KycLevel.LEVEL_50,
-            kycStatus: KycStatus.COMPLETED,
-          });
-        break;
+        case KycStepName.FINANCIAL_DATA:
+          await this.kycService.completeFinancialData(kycStep);
+          break;
+
+        case KycStepName.DFX_APPROVAL:
+          if (kycStep.userData.kycLevel < KycLevel.LEVEL_50)
+            await this.userDataService.updateUserDataInternal(kycStep.userData, {
+              kycLevel: KycLevel.LEVEL_50,
+              kycStatus: KycStatus.COMPLETED,
+            });
+          await this.kycService.createKycLevelLog(kycStep.userData, KycLevel.LEVEL_50);
+          break;
+      }
+
+      await this.kycService.checkDfxApproval(kycStep);
     }
-
-    if (kycStep.isCompleted) await this.kycService.checkDfxApproval(kycStep);
   }
 
   async updateKycStepInternal(dto: UpdateResult<KycStep>): Promise<void> {
     await this.kycStepRepo.update(...dto);
-  }
-
-  async syncIdentStep(stepId: number): Promise<void> {
-    const kycStep = await this.kycStepRepo.findOneBy({ id: stepId });
-    if (!kycStep) throw new NotFoundException('KYC step not found');
-
-    await this.kycService.syncIdentStep(kycStep);
   }
 
   async resetKyc(userData: UserData, comment: KycError): Promise<void> {

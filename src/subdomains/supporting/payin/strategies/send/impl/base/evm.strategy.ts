@@ -14,7 +14,10 @@ import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy
 export abstract class EvmStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(EvmStrategy);
 
-  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
+  constructor(
+    protected readonly payInEvmService: PayInEvmService,
+    protected readonly payInRepo: PayInRepository,
+  ) {
     super();
   }
 
@@ -111,7 +114,7 @@ export abstract class EvmStrategy extends SendStrategy {
   private logInput(payIns: CryptoInput[], type: SendType): void {
     const newPayIns = payIns.filter((p) => p.status !== PayInStatus.PREPARING);
 
-    newPayIns.length > 0 &&
+    if (newPayIns.length > 0)
       this.logger.verbose(
         `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${newPayIns.length} ${this.blockchain} ${
           payIns[0].asset.type
@@ -119,7 +122,7 @@ export abstract class EvmStrategy extends SendStrategy {
       );
   }
 
-  private groupPayIns(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
+  protected groupPayIns(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
     const groups = new Map<SendGroupKey, SendGroup>();
 
     for (const payIn of payIns) {
@@ -152,7 +155,7 @@ export abstract class EvmStrategy extends SendStrategy {
     return `${payIn.address.address}&${payIn.destinationAddress.address}&&${payIn.asset.dexName}&${payIn.asset.type}&${payIn.status}`;
   }
 
-  private getPayInsIdentityKey(payInGroup: SendGroup): string {
+  protected getPayInsIdentityKey(payInGroup: SendGroup): string {
     return payInGroup.payIns.reduce((acc, t) => acc + `|${t.id}|`, '');
   }
 

@@ -62,21 +62,19 @@ export class DfxCronService implements OnModuleInit {
   }
 
   private wrapFunction(data: CronJobData) {
+    const context = { target: data.instance.constructor.name, method: data.methodName };
+
     return async (...args: any) => {
-      if (data.params.process && DisabledProcess(data.params.process)) return;
+      if (data.params.process && DisabledProcess(data.params.process)) {
+        this.logger.verbose(
+          `Skipping ${context.target}::${context.method} - process ${data.params.process} is disabled`,
+        );
+        return;
+      }
 
       if (data.params.useDelay ?? true) await this.cronJobDelay(data.params.expression);
 
-      const starttime = Date.now();
-
       await data.methodRef.apply(data.instance, args);
-
-      const runtime = Date.now() - starttime;
-
-      if (runtime > 500) {
-        const cronJobName = `${data.instance.constructor.name}::${data.methodName}`;
-        this.logger.info(`Cron Job: ${cronJobName} / Runtime: ${runtime}`);
-      }
     };
   }
 

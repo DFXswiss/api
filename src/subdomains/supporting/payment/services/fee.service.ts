@@ -1,4 +1,11 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -69,6 +76,7 @@ export class FeeService {
     private readonly feeRepo: FeeRepository,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
+    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
     private readonly walletService: WalletService,
@@ -202,6 +210,13 @@ export class FeeService {
     if (cachedFee.maxUserTxUsages) await this.feeRepo.update(...cachedFee.increaseUserTxUsage(userData.id));
     if (cachedFee.maxAnnualUserTxVolume)
       await this.feeRepo.update(...cachedFee.increaseAnnualUserTxVolume(userData.id, txVolume));
+
+    if (
+      (cachedFee.maxUserTxUsages || cachedFee.maxAnnualUserTxVolume) &&
+      userData.individualFeeList?.includes(cachedFee.id) &&
+      cachedFee.isExpired
+    )
+      await this.userDataService.removeFee(userData, cachedFee.id);
   }
 
   async getFeeBySpecialCode(specialCode: string): Promise<Fee> {
@@ -308,9 +323,11 @@ export class FeeService {
     paymentMethodIn: PaymentMethod,
     userDataId?: number,
   ): Promise<InternalFeeDto> {
-    const blockchainFee =
-      (await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee)) +
-      (await this.getBlockchainFeeInChf(to, allowCachedBlockchainFee));
+    const [fromFee, toFee] = await Promise.all([
+      this.getBlockchainFeeInChf(from, allowCachedBlockchainFee),
+      this.getBlockchainFeeInChf(to, allowCachedBlockchainFee),
+    ]);
+    const blockchainFee = fromFee + toFee;
 
     // get min special fee
     const specialFee = Util.minObj(
@@ -419,9 +436,47 @@ export class FeeService {
   ): Promise<InternalChargebackFeeDto> {
     const blockchainFee = await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee);
 
+    // get min special fee
+    const specialFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.CHARGEBACK_SPECIAL),
+      'rate',
+    );
+
+    if (specialFee)
+      return {
+        fees: [specialFee],
+        rate: specialFee.rate,
+        fixed: specialFee.fixed ?? 0,
+        bankRate: 0,
+        bankFixed: 0,
+        network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+      };
+
+    // get min custom fee
+    const customFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.CHARGEBACK_CUSTOM),
+      'rate',
+    );
+
+    if (customFee)
+      return {
+        fees: [customFee],
+        rate: customFee.rate,
+        fixed: customFee.fixed ?? 0,
+        bankRate: 0,
+        bankFixed: 0,
+        network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+      };
+
     // get chargeback fees
-    const chargebackFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK);
-    const chargebackMinFee = Util.minObj(chargebackFees, 'rate');
+    // get min chargeback base fee
+    const baseFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.CHARGEBACK_BASE),
+      'rate',
+    );
+
+    // get addition fees
+    const additiveFees = fees.filter((fee) => fee.type === FeeType.CHARGEBACK_ADDITION);
 
     // get bank fees
     const bankFees =
@@ -431,17 +486,21 @@ export class FeeService {
     const combinedBankFeeRate = Util.sumObjValue(bankFees, 'rate');
     const combinedBankFixedFee = Util.sumObjValue(bankFees, 'fixed');
 
-    const combinedChargebackFeeRate = Util.sumObjValue(chargebackFees, 'rate');
-    const combinedChargebackFixedFee = Util.sumObjValue(chargebackFees, 'fixed');
+    const combinedAdditiveChargebackFeeRate = Util.sumObjValue(additiveFees, 'rate');
+    const combinedAdditiveChargebackFixedFee = Util.sumObjValue(additiveFees, 'fixed');
+    const combinedAdditiveChargebackBlockchainFee = Util.sumObjValue(additiveFees, 'blockchainFactor');
 
-    if (!chargebackFees.length) throw new InternalServerErrorException('Chargeback fee is missing');
+    if (!baseFee) throw new InternalServerErrorException('Chargeback base fee is missing');
     return {
-      fees: chargebackFees,
-      rate: combinedChargebackFeeRate,
-      fixed: combinedChargebackFixedFee ?? 0,
+      fees: [baseFee, ...additiveFees],
+      rate: baseFee.rate + combinedAdditiveChargebackFeeRate,
+      fixed: (baseFee.fixed ?? 0) + (combinedAdditiveChargebackFixedFee ?? 0),
       bankRate: combinedBankFeeRate,
       bankFixed: combinedBankFixedFee ?? 0,
-      network: Math.min(chargebackMinFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+      network: Math.min(
+        (baseFee.blockchainFactor + combinedAdditiveChargebackBlockchainFee) * blockchainFee,
+        Config.maxBlockchainFee,
+      ),
     };
   }
 
@@ -475,15 +534,16 @@ export class FeeService {
     const userFees = await this.getAllFees().then((fees) =>
       fees.filter(
         (f) =>
-          [FeeType.BASE].includes(f.type) ||
+          [FeeType.BASE, FeeType.CHARGEBACK_BASE].includes(f.type) ||
           ([
             FeeType.DISCOUNT,
             FeeType.ADDITION,
             FeeType.RELATIVE_DISCOUNT,
-            FeeType.CHARGEBACK,
+            FeeType.CHARGEBACK_ADDITION,
             FeeType.CHARGEBACK_BANK,
             FeeType.BANK,
             FeeType.SPECIAL,
+            FeeType.CHARGEBACK_SPECIAL,
           ].includes(f.type) &&
             !f.specialCode) ||
           discountFeeIds.includes(f.id) ||

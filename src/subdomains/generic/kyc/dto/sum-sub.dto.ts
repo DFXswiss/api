@@ -59,7 +59,13 @@ export interface SumSubDataResult {
     ];
   };
   requiredIdDocs?: string;
-  fixedInfo?: string;
+  fixedInfo?: {
+    firstName?: string;
+    firstNameEn?: string;
+    lastName?: string;
+    lastNameEn?: string;
+    country?: string;
+  };
   email?: string;
   phone?: string;
   applicantPlatform?: string;
@@ -390,8 +396,8 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
           return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
             ? IdentShortResult.SUCCESS
             : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY
-            ? IdentShortResult.RETRY
-            : IdentShortResult.FAIL;
+              ? IdentShortResult.RETRY
+              : IdentShortResult.FAIL;
         }
 
         case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED: {
@@ -419,7 +425,7 @@ export const IdDocTypeMap: { [t in IdDocType]: IdentDocumentType } = {
   [IdDocType.CONTRACT]: undefined,
   [IdDocType.COVID_VACCINATION_FORM]: undefined,
   [IdDocType.DRIVERS]: IdentDocumentType.DRIVERS_LICENSE,
-  [IdDocType.DRIVERS_TRANSLATION]: IdentDocumentType.DRIVERS_LICENSE,
+  [IdDocType.DRIVERS_TRANSLATION]: IdentDocumentType.DRIVERS_TRANSLATION,
   [IdDocType.FILE_ATTACHMENT]: undefined,
   [IdDocType.ID_CARD]: IdentDocumentType.IDCARD,
   [IdDocType.ID_DOC_PHOTO]: undefined,

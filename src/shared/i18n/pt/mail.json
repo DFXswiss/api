@@ -4,16 +4,16 @@
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "If you have any questions,<br>we are happy to help you at [url:https://app.dfx.swiss/support].",
         "thanks": "Thank you very much for your trust",
-        "welcome": "Hi {name},",
+        "welcome": "Hi {name}",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
-        "button": "or<br>[url:Click here]",
+        "button": "[url:Click here]",
         "link": "or<br>[url:{urlText}]"
     },
     "login": {
         "title": "DFX Login",
         "salutation": "DFX Login",
-        "message": "Click the following link within {expiration} minutes to log in to DFX:<br>[url:{urlText}]"
+        "message": "or click the following link within {expiration} minutes to log in to DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -93,7 +93,9 @@
                 "bank_tx_needed": "A bank transaction is required before this transaction can be carried out",
                 "manual_check_phone": "We were unable to reach you at the phone number you provided",
                 "manual_check_ip_phone": "We were unable to reach you at the phone number you provided",
-                "merge_incomplete": "The email confirmation was not accepted"
+                "manual_check_ip_country_phone": "We were unable to reach you at the phone number you provided",
+                "merge_incomplete": "The email confirmation was not accepted",
+                "intermediary_without_sender": "O banco remetente (Wise/Revolut) transmitiu apenas o nome do banco, não o nome do titular da conta. Portanto, a DFX não pode verificar o remetente real e não pode processar a transação."
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -241,6 +243,15 @@
                 "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
                 "line4": "",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
+            },
+            "manual_check_ip_country_phone": {
+                "title": "Phone call required",
+                "salutation": "A manual verification by phone is required",
+                "line1": "We have received your deposit.",
+                "line2": "We will contact you shortly at {phone}.",
+                "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
+                "line4": "",
+                "line5": "If you would like to request a refund instead:<br>[url:click here]"
             }
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]"
@@ -250,6 +261,22 @@
         "salutation": "Your referral rewards have been paid out",
         "transaction_button": "Click the button below for more details about your referral reward:<br>[url:click here]",
         "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
+    },
+    "recommendation": {
+        "recommended": {
+            "title": "DFX invitation",
+            "salutation": "You have been invited to DFX!",
+            "message": "{name} ({mail}) has invited you to use DFX",
+            "registration_button": "You can simply click on the button below and set up an account with this email address:<br>[url:Click here]",
+            "registration_link": "Or you can use the following link:<br>[url:{urlText}]"
+        },
+        "confirmation": {
+            "title": "Confirm DFX recommendation",
+            "salutation": "You have a pending DFX recommendation",
+            "message": "Can you confirm {name} ({mail}) for the use of DFX?",
+            "button": "You can simply click on the button below to accept or decline the invitation:<br>[url:Click here]",
+            "link": "Or you can use the following link:<br>[url:{urlText}]"
+        }
     },
     "kyc": {
         "success": {
@@ -263,19 +290,36 @@
             "message": "The step '{stepName}' could not be completed for the following reason:<br>{reason}",
             "reasons": {
                 "user_data_merged": "Your account is merged",
+                "user_data_merge_requested": "Email confirmation pending",
+                "user_data_existing": "Unknown error",
                 "user_data_blocked": "Unknown error",
-                "first_name_not_matching": "Your first name is not matching",
-                "last_name_not_matching": "Your last name is not matching",
+                "first_name_not_matching": "Inconsistency with your first name",
+                "last_name_not_matching": "Inconsistency with your last name",
                 "nationality_not_matching": "Your nationality is not matching",
                 "nationality_missing": "Nationality is missing",
-                "invalid_document_type": "Your document type is invalid",
+                "nationality_not_allowed": "Your nationality is not allowed",
+                "invalid_document_type": "The type of identification document is invalid",
+                "document_type_not_allowed": "The type of identification document is not allowed for your country",
                 "identification_number_missing": "Your identification number is missing",
                 "invalid_result": "Unknown error",
                 "verified_name_missing": "Account name is missing",
-                "first_name_not_matching_verified_name": "Your first name does not match your account name",
-                "last_name_not_matching_verified_name": "Your last name does not match your account name",
-                "organization_name_not_matching_verified_name": "Your organization name does not match your account name"
+                "first_name_not_matching_verified_name": "Inconsistency between your first name and the account name",
+                "last_name_not_matching_verified_name": "Inconsistency between your last name and the account name",
+                "organization_name_not_matching_verified_name": "Inconsistency between your organization name and the account name",
+                "country_not_allowed": "Your country is not allowed",
+                "blocked": "Unknown error",
+                "personal_data_not_matching": "Inconsistency in your personal data",
+                "ip_country_mismatch": "Regulatory requirements not met",
+                "country_ip_country_mismatch": "Regulatory requirements not met",
+                "missing_response": "Missing data",
+                "risky_business": "Your business is involved in risky business",
+                "bank_recall_fee_not_paid": "Recall fee not paid"
             }
+        },
+        "missing_data": {
+            "title": "Missing data during verification",
+            "salutation": "There is missing data in your verification",
+            "message": "The step '{stepName}' is still missing data that you need to add to complete your verification."
         },
         "reminder": {
             "title": "Complete verification",
@@ -287,7 +331,7 @@
             "salutation": "Assignment agreement",
             "message": "DFX offers its customers the option of assigning outstanding receivables from the sale of goods and services to DFX to enable payment using cryptocurrencies. The customer has the option of submitting an outstanding claim via our API (api.dfx.swiss) or via the front end on app.dfx.swiss.<br>The amount owed is paid out to the customer after deduction of a processing fee of 0.2%. Depending on the customer-specific configuration, the payout can be made either in cryptocurrencies or as fiat currency via bank transaction.<br>The DFX General Terms and Conditions apply to all transactions. The assignment ends automatically when the DFX account is closed or can be terminated immediately by DFX or the customer in the event of breaches of contract or insolvency.<br><br>Agreed on {date}"
         },
-        "retry": "Please try it again with the following URL:<br>[url:{urlText}]",
+        "retry": "or try it again with the following URL:<br>[url:{urlText}]",
         "next_step": "To proceed with your verification, click on the menu item at the top right of the DFX-Services website<br> and then on \"KYC\"<br> and click the \"Continue\" button or use the following link:<br>[url:{urlText}]",
         "step_names": {
             "ident": "Identification",
@@ -310,8 +354,7 @@
         "request": {
             "title": "Confirm mail",
             "salutation": "Confirm your mail",
-            "message": "Click the following link to confirm your mail for another account:<br>[url:{urlText}]",
-            "closing": "If you have not entered your mail in another DFX account, please contact support immediately at [url:https://app.dfx.swiss/support]."
+            "message": "or click the following link to confirm your mail for another account:<br>[url:{urlText}]"
         },
         "added_address": {
             "title": "Address added to account",

@@ -73,9 +73,9 @@ describe('LiquidityOrder', () => {
       expect(entity.swapAsset).toBeUndefined();
       expect(entity.swapAmount).toBeUndefined();
 
-      entity.addBlockchainTransactionMetadata('PID_01', createCustomAsset({ dexName: 'DFI' }), 20);
+      entity.addBlockchainTransactionMetadata('PID_01', createCustomAsset({ dexName: 'ETH' }), 20);
 
-      expect(entity.swapAsset.dexName).toBe('DFI');
+      expect(entity.swapAsset.dexName).toBe('ETH');
       expect(entity.swapAmount).toBe(20);
     });
   });
@@ -155,7 +155,6 @@ describe('LiquidityOrder', () => {
       expect(LiquidityOrder.getIsReferenceAsset('BNB')).toBe(true);
     });
     it('returns false if input asset is not in reference assets list list', () => {
-      expect(LiquidityOrder.getIsReferenceAsset('DFI')).toBe(false);
       expect(LiquidityOrder.getIsReferenceAsset('GOOGL')).toBe(false);
     });
   });
@@ -169,7 +168,6 @@ describe('LiquidityOrder', () => {
       expect(LiquidityOrder.getMaxPriceSlippage('BNB')).toBe(0.005);
     });
     it('returns 0.03 if input asset is not in reference assets list list', () => {
-      expect(LiquidityOrder.getMaxPriceSlippage('DFI')).toBe(0.03);
       expect(LiquidityOrder.getMaxPriceSlippage('GOOGL')).toBe(0.03);
     });
   });

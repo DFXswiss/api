@@ -21,7 +21,7 @@ export class LockClass {
     try {
       await task();
     } catch (e) {
-      context && new DfxLogger(context.target).error(`Error during ${context.method}:`, e);
+      if (context) new DfxLogger(context.target).error(`Error during ${context.method}:`, e);
     } finally {
       this.release();
     }

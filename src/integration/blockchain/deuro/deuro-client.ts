@@ -7,19 +7,52 @@ import {
   PositionV2ABI,
   StablecoinBridgeABI,
 } from '@deuro/eurocoin';
-import { Contract } from 'ethers';
+import { Contract, ethers } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { EvmClient } from '../shared/evm/evm-client';
 import { DEuroDepsGraphDto, DEuroPositionGraphDto, DEuroSavingsInfoDto } from './dto/deuro.dto';
+
+interface GraphQLPageInfo {
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  startCursor: string;
+  endCursor: string;
+}
 
 export class DEuroClient {
   constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV2s(): Promise<DEuroPositionGraphDto[]> {
-    const document = gql`
-      {
-        positionV2s {
+    let gqlResult = await request<{ positionV2s: { items: [DEuroPositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
+      Config.blockchain.deuro.graphUrl,
+      gql`
+        ${this.createGQLPositionV2s()}
+      `,
+    );
+
+    const positionV2s: DEuroPositionGraphDto[] = gqlResult.positionV2s.items;
+
+    while (gqlResult.positionV2s.pageInfo.hasNextPage) {
+      gqlResult = await request<{ positionV2s: { items: [DEuroPositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
+        Config.blockchain.deuro.graphUrl,
+        gql`
+          ${this.createGQLPositionV2s(gqlResult.positionV2s.pageInfo.endCursor)}
+        `,
+      );
+
+      positionV2s.push(...gqlResult.positionV2s.items);
+    }
+
+    return positionV2s;
+  }
+
+  private createGQLPositionV2s(after?: string): string {
+    const gqlParams = after ? `(after: "${after}")` : '';
+
+    return `{
+        positionV2s${gqlParams} {
           items {
             id
             position
@@ -38,14 +71,14 @@ export class DEuroClient {
             closed
             denied
           }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
         }
-      }
-    `;
-
-    return request<{ positionV2s: { items: [DEuroPositionGraphDto] } }>(
-      Config.blockchain.deuro.graphUrl,
-      document,
-    ).then((r) => r.positionV2s.items);
+      }`;
   }
 
   async getSavingsInfo(): Promise<DEuroSavingsInfoDto> {
@@ -105,7 +138,33 @@ export class DEuroClient {
       this.getBridgeEUROPContract(),
       this.getBridgeEURIContract(),
       this.getBridgeEUREContract(),
+      this.getBridgeEURAContract(),
     ];
+  }
+
+  getBridgeContract(assetName: string): Contract {
+    switch (assetName) {
+      case 'EURT':
+        return this.getBridgeEURTContract();
+      case 'EURC':
+        return this.getBridgeEURCContract();
+      case 'EURS':
+        return this.getBridgeEURSContract();
+      case 'VEUR':
+        return this.getBridgeVEURContract();
+      case 'EURR':
+        return this.getBridgeEURRContract();
+      case 'EUROP':
+        return this.getBridgeEUROPContract();
+      case 'EURI':
+        return this.getBridgeEURIContract();
+      case 'EURE':
+        return this.getBridgeEUREContract();
+      case 'EURA':
+        return this.getBridgeEURAContract();
+      default:
+        throw new Error(`No bridge contract found for asset: ${assetName}`);
+    }
   }
 
   getBridgeEURTContract(): Contract {
@@ -138,5 +197,45 @@ export class DEuroClient {
 
   getBridgeEUREContract(): Contract {
     return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURE, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  getBridgeEURAContract(): Contract {
+    return new Contract(ADDRESS[this.evmClient.chainId].bridgeEURA, StablecoinBridgeABI, this.evmClient.wallet);
+  }
+
+  async bridgeToDeuro(asset: Asset, amount: number): Promise<string> {
+    const bridgeContract = this.getBridgeContract(asset.name);
+
+    if (!asset.decimals) throw new Error(`Asset ${asset.name} has no decimals`);
+    if (!asset.chainId) throw new Error(`Asset ${asset.name} has no chainId`);
+
+    const weiAmount = ethers.utils.parseUnits(amount.toString(), asset.decimals);
+
+    const remainingCapacity = await this.getBridgeRemainingCapacity(asset.name);
+    if (remainingCapacity.lt(weiAmount)) {
+      throw new Error(
+        `Bridge capacity exceeded for ${
+          asset.name
+        } (remaining: ${remainingCapacity.toString()}, requested: ${weiAmount.toString()})`,
+      );
+    }
+
+    const eurTokenContract = this.getErc20Contract(asset.chainId);
+
+    const allowance = await eurTokenContract.allowance(this.evmClient.wallet.address, bridgeContract.address);
+    if (allowance.lt(weiAmount)) {
+      const approveTx = await eurTokenContract.approve(bridgeContract.address, ethers.constants.MaxUint256);
+      await approveTx.wait();
+    }
+
+    const tx = await bridgeContract.mint(weiAmount);
+    return tx.hash;
+  }
+
+  private async getBridgeRemainingCapacity(assetName: string): Promise<ethers.BigNumber> {
+    const bridgeContract = this.getBridgeContract(assetName);
+    const limit = await bridgeContract.limit();
+    const minted = await bridgeContract.minted();
+    return limit.sub(minted);
   }
 }

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
-import { RevolutService } from 'src/integration/bank/services/revolut.service';
+import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -31,7 +31,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
     private readonly olkypayService: OlkypayService,
     private readonly bankService: BankService,
     private readonly repos: RepositoryFactory,
-    private readonly revolutService: RevolutService,
+    private readonly yapealService: YapealService,
   ) {
     super(monitoringService, 'bank', 'balance');
   }
@@ -41,7 +41,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
     let data = [];
 
     if (Config.bank.olkypay.credentials.clientId) data = data.concat(await this.getOlkypay());
-    if (Config.bank.revolut.clientAssertion) data = data.concat(await this.getRevolut());
+    if (this.yapealService.isAvailable()) data = data.concat(await this.getYapeal());
     this.emit(data);
 
     return data;
@@ -64,22 +64,23 @@ export class BankObserver extends MetricObserver<BankData[]> {
     };
   }
 
-  private async getRevolut(): Promise<BankData[]> {
-    const revolutBalances = await this.revolutService.getBalances();
-    const revolutBank = await this.bankService.getBankInternal(IbanBankName.REVOLUT, 'EUR');
+  private async getYapeal(): Promise<BankData[]> {
+    const yapealBalances = await this.yapealService.getBalances();
 
-    const revolutBankData = [];
-    for (const balance of revolutBalances) {
-      const dbBalance = await this.getDbBalance(revolutBank.iban, balance.currency);
-      revolutBankData.push({
-        name: 'Revolut',
+    const yapealBankData = [];
+    for (const balance of yapealBalances) {
+      const dbBalance = await this.getDbBalance(balance.iban, balance.currency);
+
+      yapealBankData.push({
+        name: 'Yapeal',
         currency: balance.currency,
-        balance: balance.balance,
+        balance: balance.availableBalance,
         dbBalance: Util.round(dbBalance, 2),
-        difference: balance.balance - Util.round(dbBalance, 2),
+        difference: balance.availableBalance - Util.round(dbBalance, 2),
       });
     }
-    return revolutBankData;
+
+    return yapealBankData;
   }
 
   private async getDbBalance(iban: string, currency: string): Promise<number> {

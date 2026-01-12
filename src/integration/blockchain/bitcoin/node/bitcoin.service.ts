@@ -1,7 +1,6 @@
-import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { BlockchainInfo } from './node-client';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainService } from '../../shared/util/blockchain.service';
@@ -24,8 +23,6 @@ interface BitcoinCheckResult {
 
 @Injectable()
 export class BitcoinService extends BlockchainService {
-  private readonly logger = new DfxLogger(BitcoinService);
-
   private readonly allNodes: Map<BitcoinNodeType, BitcoinClient> = new Map();
 
   constructor(private readonly http: HttpService) {

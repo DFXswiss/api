@@ -124,6 +124,20 @@ Authorization: Bearer {{authToken}}
 GET {{url}}/v1/exchange/trade/xxx
 Authorization: Bearer {{authToken}}
 
+
+###
+
+POST {{url}}/v1/exchange/binance/withdraw
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "address": "xxx",
+  "key": "xxx",
+  "network": "Ethereum",
+  "token": "ETH",
+  "amount": 0.1
+}
 ###
 
 PUT {{url}}/v1/exchange/kraken/sync?from=2025-08-26
@@ -135,6 +149,18 @@ Authorization: Bearer {{authToken}}
 ###
 
 // BUY CRYPTO
+@authToken = {{login.response.body.accessToken}}
+
+PUT {{url}}/v1/buyCrypto/xxx
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "buyId": xxx
+}
+
+###
+
 @authToken = {{login.response.body.accessToken}}
 
 POST {{url}}/v1/buyCrypto/xxx/webhook
@@ -281,6 +307,18 @@ Authorization: Bearer {{authToken}}
 
 ###
 
+@authToken = {{login.response.body.accessToken}}
+
+PUT {{url}}/v1/kyc/admin/blacklist/ip
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "ip": "xxx"
+}
+
+###
+
 
 
 // Pay-In
@@ -305,6 +343,19 @@ Authorization: Bearer {{authToken}}
   "asset": {
     "id": 1
   }
+}
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
+POST {{url}}/v1/payIn/poll
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "address": "xxx",
+  "blockchain": "Cardano"
 }
 
 ###
@@ -428,7 +479,7 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-GET {{url}}/v1/pricing/price?fromType=Fiat&fromId=1&toType=Asset&toId=264&allowExpired=false
+GET {{url}}/v1/pricing/price?fromType=Fiat&fromId=1&toType=Asset&toId=264&validity=ValidOnly
 Authorization: Bearer {{authToken}}
 
 

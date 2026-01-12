@@ -1,0 +1,82 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 1
+    },
+    "containerImage": {
+      "value": "dfxswiss/deuro-dapp:beta"
+    },
+    "containerVolumeMounts": {
+      "value": []
+    },
+    "containerCPU": {
+      "value": "0.5"
+    },
+    "containerMemory": {
+      "value": "1Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 3000
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "NEXT_PUBLIC_LANDINGPAGE_URL",
+          "value": "https://juicedollar.com"
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_URL",
+          "value": "https://app.testnet.juicedollar.com"
+        },
+        {
+          "name": "NEXT_PUBLIC_API_URL",
+          "value": "https://api.testnet.juicedollar.com"
+        },
+        {
+          "name": "NEXT_PUBLIC_PONDER_URL",
+          "value": "https://ponder.testnet.juicedollar.com"
+        },
+        {
+          "name": "NEXT_PUBLIC_WAGMI_ID",
+          "value": "[API-KEY]"
+        },
+        {
+          "name": "NEXT_PUBLIC_ALCHEMY_API_KEY",
+          "value": "[API-KEY]"
+        },
+        {
+          "name": "NEXT_PUBLIC_CHAIN_NAME",
+          "value": "mainnet"
+        },
+        {
+          "name": "NEXT_PUBLIC_RPC_URL_MAINNET",
+          "value": "https://eth-mainnet.g.alchemy.com/v2"
+        },
+        {
+          "name": "NEXT_PUBLIC_RPC_URL_POLYGON",
+          "value": "https://polygon-mainnet.g.alchemy.com/v2"
+        }
+      ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": []
+    }
+  }
+}

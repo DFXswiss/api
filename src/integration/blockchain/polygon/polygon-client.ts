@@ -11,7 +11,7 @@ import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
-  private readonly logger = new DfxLogger(PolygonClient);
+  protected override readonly logger = new DfxLogger(PolygonClient);
 
   private readonly l1Provider: ethers.providers.JsonRpcProvider;
   private readonly l1Wallet: ethers.Wallet;

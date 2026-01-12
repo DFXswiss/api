@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext } from '@nestjs/common';
 import { RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 
 class UserActiveGuardClass implements CanActivate {
   constructor(
@@ -31,4 +31,28 @@ export function UserActiveGuard(
   blockedUserDataRiskStatus: RiskStatus[] = [],
 ): UserActiveGuardClass {
   return new UserActiveGuardClass(blockedUserStatus, blockedUserDataStatus, blockedUserDataRiskStatus);
+}
+
+export function BuyActiveGuard(): UserActiveGuardClass {
+  return new UserActiveGuardClass(
+    [UserStatus.BLOCKED, UserStatus.DELETED],
+    [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+    [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
+  );
+}
+
+export function SwapActiveGuard(): UserActiveGuardClass {
+  return new UserActiveGuardClass(
+    [UserStatus.BLOCKED, UserStatus.DELETED],
+    [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+    [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_CRYPTO],
+  );
+}
+
+export function SellActiveGuard(): UserActiveGuardClass {
+  return new UserActiveGuardClass(
+    [UserStatus.BLOCKED, UserStatus.DELETED],
+    [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+    [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS, RiskStatus.BLOCKED_BUY_FIAT],
+  );
 }

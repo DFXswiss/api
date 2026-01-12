@@ -60,6 +60,7 @@ export enum TransactionReason {
   MERGE_INCOMPLETE = 'MergeIncomplete',
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
   BANK_RELEASE_PENDING = 'BankReleasePending',
+  INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
 }
 
 export const KycRequiredReason = [
@@ -109,7 +110,10 @@ export const TransactionReasonMapper: {
   [AmlReason.MERGE_INCOMPLETE]: TransactionReason.MERGE_INCOMPLETE,
   [AmlReason.MANUAL_CHECK_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
   [AmlReason.MANUAL_CHECK_IP_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
+  [AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
   [AmlReason.BANK_RELEASE_PENDING]: TransactionReason.BANK_RELEASE_PENDING,
+  [AmlReason.VIRTUAL_IBAN_USER_MISMATCH]: TransactionReason.UNKNOWN,
+  [AmlReason.INTERMEDIARY_WITHOUT_SENDER]: TransactionReason.BANK_NOT_ALLOWED,
 };
 
 export class UnassignedTransactionDto {
@@ -174,6 +178,23 @@ export class UnassignedTransactionDto {
   date: Date;
 }
 
+export class NetworkStartTxDto {
+  @ApiProperty()
+  txId: string;
+
+  @ApiProperty()
+  txUrl: string;
+
+  @ApiProperty()
+  amount: number;
+
+  @ApiProperty()
+  exchangeRate: number;
+
+  @ApiProperty()
+  asset: string;
+}
+
 export class TransactionDto extends UnassignedTransactionDto {
   @ApiPropertyOptional({ enum: TransactionReason })
   reason?: TransactionReason;
@@ -222,6 +243,9 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   externalTransactionId?: string;
+
+  @ApiPropertyOptional({ type: NetworkStartTxDto })
+  networkStartTx?: NetworkStartTxDto;
 }
 
 export class TransactionDetailDto extends TransactionDto {

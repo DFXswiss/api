@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ArweaveService } from 'src/integration/blockchain/arweave/services/arweave.service';
+import { CardanoService } from 'src/integration/blockchain/cardano/services/cardano.service';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -11,7 +12,7 @@ import { ZanoService } from 'src/integration/blockchain/zano/services/zano.servi
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BitcoinService } from '../../node/bitcoin.service';
 
 describe('CryptoService', () => {
@@ -24,6 +25,7 @@ describe('CryptoService', () => {
   let zanoService: ZanoService;
   let solanaService: SolanaService;
   let tronService: TronService;
+  let cardanoService: CardanoService;
   let arweaveService: ArweaveService;
   let railgunService: RailgunService;
 
@@ -35,6 +37,7 @@ describe('CryptoService', () => {
     zanoService = createMock<ZanoService>();
     solanaService = createMock<SolanaService>();
     tronService = createMock<TronService>();
+    cardanoService = createMock<CardanoService>();
     arweaveService = createMock<ArweaveService>();
     railgunService = createMock<RailgunService>();
 
@@ -48,6 +51,7 @@ describe('CryptoService', () => {
         { provide: ZanoService, useValue: zanoService },
         { provide: SolanaService, useValue: solanaService },
         { provide: TronService, useValue: tronService },
+        { provide: CardanoService, useValue: cardanoService },
         { provide: ArweaveService, useValue: arweaveService },
         { provide: RailgunService, useValue: railgunService },
         TestUtil.provideConfig(),

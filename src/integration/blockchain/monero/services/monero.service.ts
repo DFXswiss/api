@@ -31,6 +31,10 @@ export class MoneroService extends BlockchainService {
     }
   }
 
+  async getBlockHeight(): Promise<number> {
+    return this.client.getBlockHeight();
+  }
+
   async verifySignature(message: string, address: string, signature: string): Promise<boolean> {
     return this.client.verifySignature(message, address, signature).then((v) => v.good);
   }

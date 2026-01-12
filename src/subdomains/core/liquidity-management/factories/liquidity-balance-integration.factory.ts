@@ -6,6 +6,7 @@ import { Util } from 'src/shared/utils/util';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { BankAdapter } from '../adapters/balances/bank.adapter';
 import { BlockchainAdapter } from '../adapters/balances/blockchain.adapter';
+import { CustomAdapter } from '../adapters/balances/custom.adapter';
 import { ExchangeAdapter } from '../adapters/balances/exchange.adapter';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityBalanceIntegration } from '../interfaces';
@@ -14,6 +15,7 @@ enum AdapterType {
   BLOCKCHAIN = 'Blockchain',
   EXCHANGE = 'Exchange',
   BANK = 'Bank',
+  CUSTOM = 'Custom',
 }
 
 @Injectable()
@@ -24,10 +26,12 @@ export class LiquidityBalanceIntegrationFactory {
     readonly blockchainAdapter: BlockchainAdapter,
     readonly exchangeAdapter: ExchangeAdapter,
     readonly bankAdapter: BankAdapter,
+    readonly customAdapter: CustomAdapter,
   ) {
     this.adapters.set(AdapterType.BLOCKCHAIN, blockchainAdapter);
     this.adapters.set(AdapterType.EXCHANGE, exchangeAdapter);
     this.adapters.set(AdapterType.BANK, bankAdapter);
+    this.adapters.set(AdapterType.CUSTOM, customAdapter);
   }
 
   getIntegration(rule: LiquidityManagementRule): LiquidityBalanceIntegration {
@@ -42,6 +46,8 @@ export class LiquidityBalanceIntegrationFactory {
   }
 
   private getAdapterType(rule: LiquidityManagementRule): AdapterType {
+    if (rule.context === 'Custom') return AdapterType.CUSTOM;
+
     if (isAsset(rule.target)) {
       if (this.matchesContext(IbanBankName, rule) || this.matchesContext(CardBankName, rule)) return AdapterType.BANK;
 
