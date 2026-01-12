@@ -85,7 +85,9 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
       id: correlationId,
     } = order;
 
-    const tradeAssetInfo = await this.resolveTradeAsset(order, targetAsset);
+    // Only resolve tradeAsset if parameter is provided (avoids unnecessary async call)
+    const hasTradeAsset = typeof order.action.paramMap?.tradeAsset === 'string';
+    const tradeAssetInfo = hasTradeAsset ? await this.resolveTradeAsset(order, targetAsset) : null;
 
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
