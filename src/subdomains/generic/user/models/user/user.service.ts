@@ -375,32 +375,45 @@ export class UserService {
   // --- VOLUMES --- //
   @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    await this.userRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
-    await this.userRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
+    await this.userRepo.update(
+      [{ annualBuyVolume: Not(0) }, { annualSellVolume: Not(0) }, { annualCryptoVolume: Not(0) }],
+      { annualBuyVolume: 0, annualSellVolume: 0, annualCryptoVolume: 0 },
+    );
   }
 
-  async updateBuyVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async resetMonthlyVolumes(): Promise<void> {
+    await this.userRepo.update(
+      [{ monthlyBuyVolume: Not(0) }, { monthlySellVolume: Not(0) }, { monthlyCryptoVolume: Not(0) }],
+      { monthlyBuyVolume: 0, monthlySellVolume: 0, monthlyCryptoVolume: 0 },
+    );
+  }
+
+  async updateBuyVolume(userId: number, volume: number, annualVolume: number, monthlyVolume: number): Promise<void> {
     await this.userRepo.update(userId, {
       buyVolume: Util.round(volume, Config.defaultVolumeDecimal),
       annualBuyVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+      monthlyBuyVolume: Util.round(monthlyVolume, Config.defaultVolumeDecimal),
     });
 
     await this.updateUserDataVolume(userId);
   }
 
-  async updateCryptoVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
+  async updateCryptoVolume(userId: number, volume: number, annualVolume: number, monthlyVolume: number): Promise<void> {
     await this.userRepo.update(userId, {
       cryptoVolume: Util.round(volume, Config.defaultVolumeDecimal),
       annualCryptoVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+      monthlyCryptoVolume: Util.round(monthlyVolume, Config.defaultVolumeDecimal),
     });
 
     await this.updateUserDataVolume(userId);
   }
 
-  async updateSellVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
+  async updateSellVolume(userId: number, volume: number, annualVolume: number, monthlyVolume: number): Promise<void> {
     await this.userRepo.update(userId, {
       sellVolume: Util.round(volume, Config.defaultVolumeDecimal),
       annualSellVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+      monthlySellVolume: Util.round(monthlyVolume, Config.defaultVolumeDecimal),
     });
 
     await this.updateUserDataVolume(userId);
@@ -615,9 +628,9 @@ export class UserService {
         user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
           ? Config.support.blackSquad.link
           : undefined,
-      buyVolume: { total: user.buyVolume, annual: user.annualBuyVolume },
-      sellVolume: { total: user.sellVolume, annual: user.annualSellVolume },
-      cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume },
+      buyVolume: { total: user.buyVolume, annual: user.annualBuyVolume, monthly: user.monthlyBuyVolume },
+      sellVolume: { total: user.sellVolume, annual: user.annualSellVolume, monthly: user.monthlySellVolume },
+      cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume, monthly: user.monthlyCryptoVolume },
       stakingBalance: 0,
     };
   }

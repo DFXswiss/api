@@ -20,6 +20,9 @@ export class Sell extends DepositRoute {
   @Column({ type: 'float', default: 0 })
   annualVolume: number; // CHF
 
+  @Column({ type: 'float', default: 0 })
+  monthlyVolume: number; // CHF
+
   @ManyToOne(() => User, (user) => user.sells, { nullable: false })
   declare user: User;
 
