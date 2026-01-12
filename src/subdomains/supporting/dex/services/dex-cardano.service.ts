@@ -15,7 +15,10 @@ export class DexCardanoService {
   private readonly nativeCoin = 'ADA';
   private readonly blockchain = Blockchain.CARDANO;
 
-  constructor(private readonly liquidityOrderRepo: LiquidityOrderRepository, cardanoService: CardanoService) {
+  constructor(
+    private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    cardanoService: CardanoService,
+  ) {
     this.cardanoClient = cardanoService.getDefaultClient();
   }
 

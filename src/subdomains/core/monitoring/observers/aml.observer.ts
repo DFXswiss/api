@@ -24,7 +24,10 @@ interface AmlDetails {
 export class AmlObserver extends MetricObserver<AmlData> {
   protected readonly logger = new DfxLogger(AmlObserver);
 
-  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
+  constructor(
+    monitoringService: MonitoringService,
+    private readonly repos: RepositoryFactory,
+  ) {
     super(monitoringService, 'payment', 'aml');
   }
 

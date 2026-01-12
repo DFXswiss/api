@@ -27,8 +27,10 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
+import {
+  DefaultPaymentLinkConfig,
+  PaymentLinkConfig,
+} from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
@@ -378,7 +380,7 @@ export class UserDataService {
             );
             const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
             subFolder.file(filePath, fileData.data);
-          } catch (error) {
+          } catch {
             errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
           }
         }
@@ -1034,6 +1036,12 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
+
+    // Adapt user used refs
+    for (const user of master.users) {
+      if (master.users.some((u) => u.ref === user.usedRef))
+        await this.userRepo.update(user.id, { usedRef: Config.defaultRef });
+    }
 
     // update slave status
     await this.userDataRepo.update(slave.id, {

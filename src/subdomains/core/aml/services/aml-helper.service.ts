@@ -79,10 +79,13 @@ export class AmlHelperService {
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (entity.userData.kycLevel < KycLevel.LEVEL_50 && last365dVolume > Config.tradingLimits.yearlyWithoutKyc)
       errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
-    if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate)
-      entity.userData.kycLevel >= KycLevel.LEVEL_50
-        ? errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED)
-        : errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
+    if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate) {
+      if (entity.userData.kycLevel >= KycLevel.LEVEL_50) {
+        errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED);
+      } else {
+        errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
+      }
+    }
     if (last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc) {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -175,6 +178,7 @@ export class AmlHelperService {
       // buyCrypto
       if (entity.userData.isRiskBuyCryptoBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
       if (
+        !entity.cryptoInput &&
         entity.userData.country &&
         !entity.userData.phoneCallIpCountryCheckDate &&
         ipLogCountries.some(
@@ -202,6 +206,7 @@ export class AmlHelperService {
       if (
         !entity.userData.phoneCallCheckDate &&
         !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_14) &&
+        !refUser?.userData?.isTrustedReferrer &&
         (entity.bankTx || entity.checkoutTx) &&
         entity.userData.phone &&
         entity.userData.birthday &&
@@ -300,7 +305,7 @@ export class AmlHelperService {
       if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
         errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
-      if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
+      if (entity.sell.fiat.name === 'CHF' && !Config.isDomesticIban(entity.sell.iban))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (
         blacklist.some((b) =>

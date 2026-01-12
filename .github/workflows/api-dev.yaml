@@ -5,6 +5,9 @@ on:
     branches: [develop]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   AZURE_WEBAPP_NAME: app-dfx-api-dev
   AZURE_WEBAPP_PACKAGE_PATH: '.'
@@ -22,6 +25,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
       - name: Install packages
         uses: nick-fields/retry@v3
@@ -29,20 +33,23 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_on: error
-          command: |
-            npm ci
-
-      - name: Build code
-        run: |
-          npm run build
-
-      - name: Run tests
-        run: |
-          npm run test
+          command: npm ci
 
       - name: Run linter
-        run: |
-          npm run lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Build code
+        run: npm run build
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
 
       - name: Deploy to Azure App Service (DEV)
         uses: azure/webapps-deploy@v3

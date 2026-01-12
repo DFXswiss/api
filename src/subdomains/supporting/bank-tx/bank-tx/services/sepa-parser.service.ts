@@ -18,7 +18,10 @@ import { BankTx } from '../entities/bank-tx.entity';
 export class SepaParser {
   private readonly logger = new DfxLogger(SepaParser);
 
-  constructor(private readonly pricingService: PricingService, private readonly fiatService: FiatService) {}
+  constructor(
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
+  ) {}
 
   parseSepaFile(xmlFile: string): SepaFile {
     return Util.parseXml<{ Document: SepaFile }>(xmlFile).Document;

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { BigNumber } from 'ethers/lib/ethers';
 import * as IbanTools from 'ibantools';
+import { Config } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
@@ -122,9 +123,7 @@ export class TransactionUtilService {
       throw new BadRequestException('BIC not allowed');
 
     return (
-      bankAccount &&
-      (bankAccount.bic || iban.startsWith('CH') || iban.startsWith('LI')) &&
-      IbanTools.validateIBAN(bankAccount.iban).valid
+      bankAccount && (bankAccount.bic || Config.isDomesticIban(iban)) && IbanTools.validateIBAN(bankAccount.iban).valid
     );
   }
 
@@ -194,6 +193,30 @@ export class TransactionUtilService {
       asset,
       txId,
       PayInType.SIGNED_TRANSFER,
+      blockHeight,
+      request.amount,
+    );
+  }
+
+  /**
+   * Handle transaction hash from EIP-5792 wallet_sendCalls (gasless/sponsored transfer)
+   * The frontend sends the transaction via wallet_sendCalls and provides the txHash
+   */
+  async handleTxHashInput(route: Swap | Sell, request: TransactionRequest, txHash: string): Promise<CryptoInput> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
+    const blockHeight = await client.getCurrentBlock();
+
+    // The transaction was already sent by the frontend via wallet_sendCalls
+    // We just need to create a PayIn record to track it
+    return this.payInService.createPayIn(
+      request.user.address,
+      route.deposit.address,
+      asset,
+      txHash,
+      PayInType.SPONSORED_TRANSFER,
       blockHeight,
       request.amount,
     );

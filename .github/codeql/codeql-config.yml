@@ -1,0 +1,6 @@
+name: "DFX API CodeQL Config"
+
+# Exclude infrastructure scripts that intentionally handle sensitive data
+# rpcauth.py is a CLI tool that generates Bitcoin RPC credentials and must output them
+paths-ignore:
+  - infrastructure/scripts/rpcauth.py

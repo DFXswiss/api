@@ -9,7 +9,7 @@ import {
   WebhookType,
 } from 'alchemy-sdk';
 import { Observable, Subject, filter } from 'rxjs';
-import { Config, GetConfig } from 'src/config/config';
+import { Config, Environment, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
@@ -39,6 +39,22 @@ export class AlchemyWebhookService implements OnModuleInit {
   }
 
   onModuleInit() {
+    const config = GetConfig();
+
+    // Skip webhook initialization in local development mode
+    if (config.environment === Environment.LOC) {
+      this.logger.verbose('Skipping Alchemy webhook initialization in local development mode');
+      this.webhookCache = new Map();
+      return;
+    }
+
+    // Skip if credentials are not configured
+    if (!config.alchemy.apiKey || !config.alchemy.authToken) {
+      this.logger.warn('Alchemy credentials not configured, skipping webhook initialization');
+      this.webhookCache = new Map();
+      return;
+    }
+
     void this.getAllWebhooks().then((l) => (this.webhookCache = new Map(l.map((w) => [w.id, w.signingKey]))));
   }
 
@@ -63,6 +79,20 @@ export class AlchemyWebhookService implements OnModuleInit {
   }
 
   async createAddressWebhook(dto: CreateWebhookDto): Promise<AddressActivityWebhook[]> {
+    const config = GetConfig();
+
+    // Skip webhook creation in local development mode (localhost is not reachable by Alchemy)
+    if (config.environment === Environment.LOC) {
+      this.logger.verbose(`Skipping Alchemy webhook creation for ${dto.blockchain} in local development mode`);
+      return [];
+    }
+
+    // Skip if Alchemy credentials are not configured
+    if (!config.alchemy.authToken) {
+      this.logger.warn(`Skipping Alchemy webhook creation for ${dto.blockchain} - auth token not configured`);
+      return [];
+    }
+
     const network = AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(dto.blockchain);
     if (!network) return;
 

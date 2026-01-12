@@ -41,7 +41,6 @@ export class KucoinService extends ExchangeService {
     MaerkiBaumann: undefined,
     Olkypay: undefined,
     Checkout: undefined,
-    Kaleido: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
   };

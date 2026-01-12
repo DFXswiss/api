@@ -31,7 +31,7 @@ export class WebhookNotificationService {
   async sendOpenWebhooks(): Promise<void> {
     const entities = await this.webhookRepo.find({ where: { lastTryDate: IsNull() } });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'webhooks`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} 'webhooks`);
 
     for (const entity of entities) {
       try {

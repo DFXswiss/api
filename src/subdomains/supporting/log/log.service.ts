@@ -9,7 +9,10 @@ import { LogRepository } from './log.repository';
 
 @Injectable()
 export class LogService {
-  constructor(private readonly logRepo: LogRepository, private readonly settingService: SettingService) {}
+  constructor(
+    private readonly logRepo: LogRepository,
+    private readonly settingService: SettingService,
+  ) {}
 
   @DfxCron(CronExpression.EVERY_DAY_AT_11PM, { process: Process.LOG_CLEANUP })
   async cleanup(): Promise<void> {

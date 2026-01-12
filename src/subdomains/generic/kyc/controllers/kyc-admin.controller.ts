@@ -48,14 +48,6 @@ export class KycAdminController {
     await this.kycAdminService.updateKycStep(+id, dto);
   }
 
-  @Put('step/:id/ident')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async syncIdentStep(@Param('id') id: string): Promise<void> {
-    await this.kycAdminService.syncIdentStep(+id);
-  }
-
   @Put('blacklist/ip')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

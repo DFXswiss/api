@@ -3,36 +3,12 @@ import { IbanBankName } from '../dto/bank.dto';
 
 const defaultBank: Partial<Bank> = {
   iban: 'AT00 0000 0000 0000 0000',
-  name: IbanBankName.FRICK,
+  name: IbanBankName.OLKY,
   bic: 'ABCDE',
   currency: 'EUR',
   receive: true,
   send: true,
 };
-
-export const frickEUR = createCustomBank({
-  name: IbanBankName.FRICK,
-  currency: 'EUR',
-  iban: 'LI95088110104693K000E',
-  bic: 'BFRILI22',
-  receive: true,
-});
-
-export const frickCHF = createCustomBank({
-  name: IbanBankName.FRICK,
-  currency: 'CHF',
-  iban: 'LI52088110104693K000C',
-  bic: 'BFRILI22',
-  receive: true,
-});
-
-export const frickUSD = createCustomBank({
-  name: IbanBankName.FRICK,
-  currency: 'USD',
-  iban: 'LI51088110104693K000U',
-  bic: 'BFRILI22',
-  receive: true,
-});
 
 export const olkyEUR = createCustomBank({
   name: IbanBankName.OLKY,
@@ -43,19 +19,19 @@ export const olkyEUR = createCustomBank({
   sctInst: true,
 });
 
-export const maerkiEUR = createCustomBank({
-  name: IbanBankName.MAERKI,
+export const yapealEUR = createCustomBank({
+  name: IbanBankName.YAPEAL,
   currency: 'EUR',
-  iban: 'CH6808573177975201814',
-  bic: 'MAEBCHZZ',
+  iban: 'CH1234567890123456789',
+  bic: 'YAPECHCHXXX',
   receive: true,
 });
 
-export const maerkiCHF = createCustomBank({
-  name: IbanBankName.MAERKI,
+export const yapealCHF = createCustomBank({
+  name: IbanBankName.YAPEAL,
   currency: 'CHF',
-  iban: 'CH3408573177975200001',
-  bic: 'MAEBCHZZ',
+  iban: 'CH9876543210987654321',
+  bic: 'YAPECHCHXXX',
   receive: true,
 });
 
@@ -68,10 +44,10 @@ export function createCustomBank(customValues: Partial<Bank>): Bank {
 }
 
 export function createDefaultBanks(): Bank[] {
-  return [frickEUR, frickCHF, frickUSD, olkyEUR, maerkiEUR, maerkiCHF];
+  return [olkyEUR, yapealEUR, yapealCHF];
 }
 
 export function createDefaultDisabledBanks(): Bank[] {
   olkyEUR.receive = false;
-  return [frickEUR, frickCHF, frickUSD, olkyEUR, maerkiEUR, maerkiCHF];
+  return [olkyEUR, yapealEUR, yapealCHF];
 }

@@ -11,7 +11,11 @@ export abstract class MetricObserver<T> {
 
   protected $data = new BehaviorSubject<T>(null);
 
-  constructor(protected monitoringService: MonitoringService, subsystemName: string, metricName: string) {
+  constructor(
+    protected monitoringService: MonitoringService,
+    subsystemName: string,
+    metricName: string,
+  ) {
     this.#subsystemName = subsystemName;
     this.#metricName = metricName;
 

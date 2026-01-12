@@ -181,7 +181,7 @@ export class BuyCryptoNotificationService {
       relations: { transaction: { userData: true, user: { wallet: true } } },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -265,7 +265,7 @@ export class BuyCryptoNotificationService {
       },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} chargeback email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} chargeback email(s)`);
 
     for (const entity of entities) {
       try {
@@ -342,7 +342,7 @@ export class BuyCryptoNotificationService {
       relations: { transaction: { userData: true, user: { wallet: true } } },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'chargebackUnconfirmed' email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} 'chargebackUnconfirmed' email(s)`);
 
     for (const entity of entities) {
       try {

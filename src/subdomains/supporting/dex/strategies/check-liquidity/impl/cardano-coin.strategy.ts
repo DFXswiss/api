@@ -9,7 +9,10 @@ import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
 export class CardanoCoinStrategy extends CheckLiquidityStrategy {
-  constructor(protected readonly assetService: AssetService, private readonly dexCardanoService: DexCardanoService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    private readonly dexCardanoService: DexCardanoService,
+  ) {
     super();
   }
 
@@ -29,7 +32,8 @@ export class CardanoCoinStrategy extends CheckLiquidityStrategy {
     const { referenceAsset, referenceAmount: nativeCoinAmount, context, correlationId } = request;
 
     if (referenceAsset.dexName === this.dexCardanoService.getNativeCoin()) {
-      const [targetAmount, availableAmount] = await this.dexCardanoService.checkNativeCoinAvailability(nativeCoinAmount);
+      const [targetAmount, availableAmount] =
+        await this.dexCardanoService.checkNativeCoinAvailability(nativeCoinAmount);
 
       return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
         request,

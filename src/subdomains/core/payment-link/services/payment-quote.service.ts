@@ -74,7 +74,7 @@ export class PaymentQuoteService {
   // --- CRUD --- //
   async getActualQuote(payment: PaymentLinkPayment, transferInfo: TransferInfo): Promise<PaymentQuote | undefined> {
     return transferInfo.quoteUniqueId
-      ? this.getActualQuoteByUniqueId(transferInfo.quoteUniqueId) ?? undefined
+      ? (this.getActualQuoteByUniqueId(transferInfo.quoteUniqueId) ?? undefined)
       : this.getActualQuoteByPaymentId(payment, transferInfo); // fallback for Lightning
   }
 
@@ -439,9 +439,11 @@ export class PaymentQuoteService {
 
       const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
 
-      transactionResponse.error
-        ? quote.txFailed(transactionResponse.error.message)
-        : quote.txInMempool(transactionResponse.response.hash);
+      if (transactionResponse.error) {
+        quote.txFailed(transactionResponse.error.message);
+      } else {
+        quote.txInMempool(transactionResponse.response.hash);
+      }
     } catch (e) {
       quote.txFailed(e.message);
     }
@@ -485,9 +487,11 @@ export class PaymentQuoteService {
 
       const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
 
-      transactionResponse.error
-        ? quote.txFailed(transactionResponse.error.message)
-        : quote.txInMempool(transactionResponse.hash);
+      if (transactionResponse.error) {
+        quote.txFailed(transactionResponse.error.message);
+      } else {
+        quote.txInMempool(transactionResponse.hash);
+      }
     } catch (e) {
       quote.txFailed(e.message);
     }
@@ -495,7 +499,11 @@ export class PaymentQuoteService {
 
   private async doTxIdPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      transferInfo.tx ? quote.txInMempool(transferInfo.tx) : quote.txFailed('Transaction Id not found');
+      if (transferInfo.tx) {
+        quote.txInMempool(transferInfo.tx);
+      } else {
+        quote.txFailed('Transaction Id not found');
+      }
     } catch (e) {
       quote.txFailed(e.message);
     }

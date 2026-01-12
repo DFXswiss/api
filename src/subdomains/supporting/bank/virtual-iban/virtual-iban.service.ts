@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
@@ -51,17 +52,73 @@ export class VirtualIbanService {
       activatedAt: new Date(),
     });
 
-    return this.virtualIbanRepo.save(virtualIban);
+    const saved = await this.virtualIbanRepo.save(virtualIban);
+
+    this.virtualIbanRepo.invalidateCache();
+
+    return saved;
   }
 
-  async getVirtualIbansForAccount(userData: UserData): Promise<VirtualIban[]> {
-    return this.virtualIbanRepo.findCachedBy(`user-${userData.id}`, { userData: { id: userData.id } });
+  async createForBuy(userData: UserData, buy: Buy, currencyName: string): Promise<VirtualIban> {
+    const existingForBuy = await this.getActiveForBuyAndCurrency(buy.id, currencyName);
+    if (existingForBuy) throw new ConflictException('Buy already has an active personal IBAN for this currency');
+
+    const currency = await this.fiatService.getFiatByName(currencyName);
+    if (!currency) throw new BadRequestException('Currency not found');
+
+    const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
+    if (!bank) throw new BadRequestException('No bank available for this currency');
+
+    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal(bank.iban);
+
+    const virtualIban = this.virtualIbanRepo.create({
+      userData,
+      bank,
+      currency,
+      iban,
+      bban,
+      yapealAccountUid: accountUid,
+      status: VirtualIbanStatus.ACTIVE,
+      active: true,
+      activatedAt: new Date(),
+      buy,
+      label: buy.asset?.name,
+    });
+
+    const saved = await this.virtualIbanRepo.save(virtualIban);
+
+    this.virtualIbanRepo.invalidateCache();
+
+    return saved;
+  }
+
+  async getActiveForBuyAndCurrency(buyId: number, currencyName: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOneCached(`buy-${buyId}-${currencyName}`, {
+      where: {
+        buy: { id: buyId },
+        currency: { name: currencyName },
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      },
+    });
   }
 
   async getByIban(iban: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOneCached(iban, {
       where: { iban },
-      relations: { userData: true, bank: true },
+      relations: { userData: true, bank: true, buy: true },
+    });
+  }
+
+  async getVirtualIbansForAccount(userDataId: number): Promise<VirtualIban[]> {
+    return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
+  }
+
+  async countActiveForUser(userDataId: number): Promise<number> {
+    return this.virtualIbanRepo.countBy({
+      userData: { id: userDataId },
+      active: true,
+      status: VirtualIbanStatus.ACTIVE,
     });
   }
 

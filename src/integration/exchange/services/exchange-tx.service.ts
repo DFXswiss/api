@@ -24,6 +24,8 @@ import { ExchangeRegistryService } from './exchange-registry.service';
 export class ExchangeTxService {
   private readonly logger = new DfxLogger(ExchangeTxService);
 
+  private readonly syncWarningsLogged = new Set<string>();
+
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
     private readonly registryService: ExchangeRegistryService,
@@ -171,7 +173,10 @@ export class ExchangeTxService {
 
       return transactions;
     } catch (e) {
-      this.logger.error(`Failed to synchronize transactions from ${sync.exchange}:`, e);
+      if (!this.syncWarningsLogged.has(sync.exchange)) {
+        this.logger.warn(`Failed to synchronize transactions from ${sync.exchange}:`, e);
+        this.syncWarningsLogged.add(sync.exchange);
+      }
     }
 
     return [];

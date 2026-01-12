@@ -1,5 +1,5 @@
-import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { BlockchainInfo } from './node-client';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';

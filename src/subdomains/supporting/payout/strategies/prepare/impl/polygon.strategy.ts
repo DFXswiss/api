@@ -7,7 +7,10 @@ import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class PolygonStrategy extends EvmStrategy {
-  constructor(private readonly assetService: AssetService, payoutOrderRepo: PayoutOrderRepository) {
+  constructor(
+    private readonly assetService: AssetService,
+    payoutOrderRepo: PayoutOrderRepository,
+  ) {
     super(payoutOrderRepo);
   }
 

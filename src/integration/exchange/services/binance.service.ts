@@ -13,7 +13,7 @@ export class BinanceService extends ExchangeService {
     Arbitrum: 'ARBITRUM',
     BinanceSmartChain: 'BSC',
     Bitcoin: 'BTC',
-    Lightning: undefined,
+    Lightning: 'LIGHTNING',
     Spark: undefined,
     Monero: 'XMR',
     Zano: undefined,
@@ -41,7 +41,6 @@ export class BinanceService extends ExchangeService {
     MaerkiBaumann: undefined,
     Olkypay: undefined,
     Checkout: undefined,
-    Kaleido: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
   };

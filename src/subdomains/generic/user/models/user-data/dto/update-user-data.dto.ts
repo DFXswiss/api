@@ -274,6 +274,10 @@ export class UpdateUserDataDto {
   paymentLinksConfig?: string;
 
   @IsOptional()
+  @IsBoolean()
+  isTrustedReferrer?: boolean;
+
+  @IsOptional()
   @IsString()
   postAmlCheck?: string;
 

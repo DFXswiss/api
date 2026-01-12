@@ -1,6 +1,7 @@
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { IEntity } from '../../../../shared/models/entity';
 import { Fiat } from '../../../../shared/models/fiat/fiat.entity';
+import { Buy } from '../../../core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from '../../../generic/user/models/user-data/user-data.entity';
 import { Bank } from '../bank/bank.entity';
 
@@ -12,6 +13,10 @@ export enum VirtualIbanStatus {
 }
 
 @Entity()
+@Index((vi: VirtualIban) => [vi.currency, vi.buy], {
+  unique: true,
+  where: 'buyId IS NOT NULL',
+})
 export class VirtualIban extends IEntity {
   @Column({ length: 34, unique: true })
   iban: string;
@@ -48,4 +53,7 @@ export class VirtualIban extends IEntity {
 
   @Column({ length: 256, nullable: true })
   label?: string;
+
+  @ManyToOne(() => Buy, { nullable: true, eager: true })
+  buy?: Buy;
 }
