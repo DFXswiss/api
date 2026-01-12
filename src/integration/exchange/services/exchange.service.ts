@@ -233,7 +233,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.markets;
   }
 
-  private async getMinTradeAmount(pair: string): Promise<number> {
+  async getMinTradeAmount(pair: string): Promise<number> {
     return this.getMarket(pair).then((m) => m.limits.amount.min);
   }
 
@@ -292,6 +292,28 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const price = direction === OrderSide.BUY ? orderBook.asks[0][0] - priceOffset : orderBook.bids[0][0] + priceOffset;
 
     return Util.roundToValue(price, pricePrecision);
+  }
+
+  async getBestBidLiquidity(from: string, to: string): Promise<{ price: number; amount: number } | undefined> {
+    const { pair, direction } = await this.getTradePair(from, to);
+
+    const minAmount = await this.getMinTradeAmount(pair);
+    const orderBook = await this.callApi((e) => e.fetchOrderBook(pair));
+    const { price: pricePrecision } = await this.getPrecision(pair);
+
+    const orders = direction === OrderSide.SELL ? orderBook.bids : orderBook.asks;
+
+    // Find first order that meets minimum amount requirement
+    const validOrder = orders.find(([, amount]) => amount >= minAmount);
+
+    if (!validOrder) return undefined;
+
+    const [price, amount] = validOrder;
+
+    return {
+      price: Util.roundToValue(price, pricePrecision),
+      amount,
+    };
   }
 
   // orders
