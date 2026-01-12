@@ -11,6 +11,8 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxIndicator } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../bank/bank/bank.service';
@@ -20,7 +22,7 @@ import {
   TransactionRequestStatus,
   TransactionRequestType,
 } from '../payment/entities/transaction-request.entity';
-import { TransactionTypeInternal } from '../payment/entities/transaction.entity';
+import { TransactionSourceType, TransactionTypeInternal } from '../payment/entities/transaction.entity';
 import { TransactionRequestRepository } from '../payment/repositories/transaction-request.repository';
 import { SpecialExternalAccountService } from '../payment/services/special-external-account.service';
 import { TransactionService } from '../payment/services/transaction.service';
@@ -34,11 +36,13 @@ export class RealUnitDevService {
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly buyService: BuyService,
+    private readonly sellService: SellService,
     private readonly bankTxService: BankTxService,
     private readonly bankService: BankService,
     private readonly specialAccountService: SpecialExternalAccountService,
     private readonly transactionService: TransactionService,
     private readonly buyCryptoRepo: BuyCryptoRepository,
+    private readonly buyFiatRepo: BuyFiatRepository,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -69,7 +73,7 @@ export class RealUnitDevService {
     });
 
     if (!mainnetRealuAsset || !sepoliaRealuAsset) {
-      this.logger.warn('REALU asset not found (mainnet or sepolia) - skipping simulation');
+      this.logger.warn('REALU asset not found (mainnet or sepolia) - skipping buy simulation');
       return;
     }
 
@@ -181,6 +185,114 @@ export class RealUnitDevService {
 
     this.logger.info(
       `DEV simulation complete for TransactionRequest ${request.id}: ${request.amount} ${fiat.name} -> REALU (BuyCrypto created with amlCheck: PASS)`,
+    );
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(60)
+  async simulateRealuSellPayments(): Promise<void> {
+    if (![Environment.DEV, Environment.LOC].includes(Config.environment)) return;
+
+    try {
+      await this.processCompletedRealuSellRequests();
+    } catch (e) {
+      this.logger.error('Error in REALU sell payment simulation:', e);
+    }
+  }
+
+  private async processCompletedRealuSellRequests(): Promise<void> {
+    const mainnetRealuAsset = await this.assetService.getAssetByQuery({
+      name: 'REALU',
+      blockchain: Blockchain.ETHEREUM,
+      type: AssetType.TOKEN,
+    });
+
+    const sepoliaRealuAsset = await this.assetService.getAssetByQuery({
+      name: 'REALU',
+      blockchain: Blockchain.SEPOLIA,
+      type: AssetType.TOKEN,
+    });
+
+    if (!mainnetRealuAsset || !sepoliaRealuAsset) {
+      this.logger.warn('REALU asset not found (mainnet or sepolia) - skipping sell simulation');
+      return;
+    }
+
+    const completedSellRequests = await this.transactionRequestRepo.find({
+      where: {
+        status: TransactionRequestStatus.COMPLETED,
+        type: TransactionRequestType.SELL,
+        sourceId: mainnetRealuAsset.id,
+        isComplete: true,
+      },
+      relations: { user: { userData: true } },
+    });
+
+    if (completedSellRequests.length === 0) return;
+
+    this.logger.info(`Found ${completedSellRequests.length} completed REALU sell requests to simulate`);
+
+    for (const request of completedSellRequests) {
+      try {
+        await this.simulateSellPaymentForRequest(request, sepoliaRealuAsset);
+      } catch (e) {
+        this.logger.error(`Failed to simulate sell payment for TransactionRequest ${request.id}:`, e);
+      }
+    }
+  }
+
+  private async simulateSellPaymentForRequest(request: TransactionRequest, sepoliaRealuAsset: Asset): Promise<void> {
+    const sell = await this.sellService.getSellByKey('id', request.routeId);
+    if (!sell) {
+      this.logger.warn(`Sell route ${request.routeId} not found for TransactionRequest ${request.id}`);
+      return;
+    }
+
+    // Check if BuyFiat already exists for this TransactionRequest (prevent duplicate simulation)
+    const existingBuyFiat = await this.buyFiatRepo.findOne({
+      where: { transaction: { request: { id: request.id } } },
+      relations: { transaction: { request: true } },
+    });
+    if (existingBuyFiat) {
+      return;
+    }
+
+    const fiat = await this.fiatService.getFiat(request.targetId);
+    if (!fiat) {
+      this.logger.warn(`Fiat ${request.targetId} not found for TransactionRequest ${request.id}`);
+      return;
+    }
+
+    // Create simulated Transaction for BuyFiat
+    const transaction = await this.transactionService.create({
+      sourceType: TransactionSourceType.CRYPTO_INPUT,
+      type: TransactionTypeInternal.BUY_FIAT,
+      user: sell.user,
+      userData: sell.user.userData,
+    });
+
+    // Update transaction with request reference
+    await this.transactionService.updateInternal(transaction, {
+      request,
+    });
+
+    // Create BuyFiat with amlCheck: PASS
+    const buyFiat = this.buyFiatRepo.create({
+      sell,
+      inputAmount: request.amount,
+      inputAsset: sepoliaRealuAsset.name,
+      inputReferenceAmount: request.amount,
+      inputReferenceAsset: sepoliaRealuAsset.name,
+      outputAsset: fiat,
+      outputReferenceAsset: fiat,
+      amlCheck: CheckStatus.PASS,
+      transaction: { id: transaction.id } as any,
+    });
+
+    await this.buyFiatRepo.save(buyFiat);
+
+    this.logger.info(
+      `DEV sell simulation complete for TransactionRequest ${request.id}: ${request.amount} REALU -> ${fiat.name} (BuyFiat created with amlCheck: PASS)`,
     );
   }
 }

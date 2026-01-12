@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
-import { Config, GetConfig } from 'src/config/config';
+import { Config, Environment, GetConfig } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
@@ -672,7 +672,13 @@ export class RealUnitService {
     let txHash: string;
 
     // 3. Execute transfer
-    if (dto.eip7702) {
+    const isDevEnvironment = [Environment.DEV, Environment.LOC].includes(Config.environment);
+
+    if (isDevEnvironment) {
+      // In DEV: Skip actual EIP-7702 transfer, return simulated txHash
+      txHash = `0xDEV_SIMULATION_${Date.now()}_${request.id}`.padEnd(66, '0');
+      this.logger.info(`RealUnit sell confirmed (DEV simulation): ${txHash}`);
+    } else if (dto.eip7702) {
       // Validate delegator matches user address (defense-in-depth, contract also verifies signature)
       if (dto.eip7702.delegation.delegator.toLowerCase() !== request.user.address.toLowerCase()) {
         throw new BadRequestException('Delegation delegator does not match user address');
