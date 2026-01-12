@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -20,7 +21,6 @@ export enum DfxDexAdapterCommands {
   PURCHASE = 'purchase',
   SELL = 'sell',
   WITHDRAW = 'withdraw',
-  SWAP = 'swap',
 }
 
 @Injectable()
@@ -37,18 +37,12 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     this.commands.set(DfxDexAdapterCommands.PURCHASE, this.purchase.bind(this));
     this.commands.set(DfxDexAdapterCommands.SELL, this.sell.bind(this));
     this.commands.set(DfxDexAdapterCommands.WITHDRAW, this.withdraw.bind(this));
-    this.commands.set(DfxDexAdapterCommands.SWAP, this.swap.bind(this));
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     switch (order.action.command) {
       case DfxDexAdapterCommands.PURCHASE:
-        return this.checkSellPurchaseCompletion(order);
-
       case DfxDexAdapterCommands.SELL:
-        return this.checkSellPurchaseCompletion(order);
-
-      case DfxDexAdapterCommands.SWAP:
         return this.checkSellPurchaseCompletion(order);
 
       case DfxDexAdapterCommands.WITHDRAW:
@@ -64,14 +58,9 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
       case DfxDexAdapterCommands.WITHDRAW:
         return this.validateWithdrawParams(params);
 
-      case DfxDexAdapterCommands.SWAP:
-        return this.validateSwapParams(params);
-
       case DfxDexAdapterCommands.PURCHASE:
-        return true;
-
       case DfxDexAdapterCommands.SELL:
-        return true;
+        return this.validateTradeAssetParams(params);
 
       default:
         throw new Error(`Command ${command} not supported by DfxDexAdapter`);
@@ -82,23 +71,26 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
   /**
    * @note
-   * correlationId is the orderId and set by liquidity management
+   * correlationId is the orderId and set by liquidity management.
+   * Supports optional tradeAsset parameter for cross-asset purchases (e.g., USDC → EURC).
    */
   private async purchase(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
       pipeline: {
-        rule: { targetAsset: asset },
+        rule: { targetAsset },
       },
       maxAmount: amount,
       id: correlationId,
     } = order;
 
+    const tradeAssetInfo = await this.resolveTradeAsset(order, targetAsset);
+
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
       correlationId: correlationId.toString(),
-      referenceAsset: asset,
-      referenceAmount: amount,
-      targetAsset: asset,
+      referenceAsset: tradeAssetInfo?.asset ?? targetAsset,
+      referenceAmount: tradeAssetInfo?.amount ?? amount,
+      targetAsset,
     };
 
     await this.dexService.purchaseLiquidity(request);
@@ -108,88 +100,28 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
   /**
    * @note
-   * correlationId is the orderId and set by liquidity management
+   * correlationId is the orderId and set by liquidity management.
+   * Supports optional tradeAsset parameter for cross-asset sales.
    */
   private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
       pipeline: {
-        rule: { targetAsset: asset },
+        rule: { targetAsset },
       },
       maxAmount: amount,
       id: correlationId,
     } = order;
 
+    const tradeAssetInfo = await this.resolveTradeAsset(order, targetAsset);
+
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
       correlationId: correlationId.toString(),
-      sellAsset: asset,
-      sellAmount: amount,
+      sellAsset: tradeAssetInfo?.asset ?? targetAsset,
+      sellAmount: tradeAssetInfo?.amount ?? amount,
     };
 
     await this.dexService.sellLiquidity(request);
-
-    return correlationId.toString();
-  }
-
-  /**
-   * @note
-   * Swaps sourceAsset (from params) to targetAsset (from rule) via DEX.
-   * Used for cross-asset liquidity acquisition, e.g., USDC → EURC.
-   */
-  private async swap(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { sourceAsset: sourceAssetName } = this.parseSwapParams(order.action.paramMap);
-    const {
-      pipeline: {
-        rule: { targetAsset },
-      },
-      minAmount,
-      maxAmount,
-      id: correlationId,
-    } = order;
-
-    const sourceAsset = await this.assetService.getAssetByQuery({
-      name: sourceAssetName,
-      blockchain: targetAsset.blockchain,
-      type: AssetType.TOKEN,
-    });
-
-    if (!sourceAsset) {
-      throw new OrderNotProcessableException(`Source asset ${sourceAssetName} not found on ${targetAsset.blockchain}`);
-    }
-
-    // Check available source liquidity
-    const checkRequest = {
-      context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
-      correlationId: correlationId.toString(),
-      referenceAsset: sourceAsset,
-      referenceAmount: minAmount,
-      targetAsset: sourceAsset,
-    };
-
-    const {
-      reference: { availableAmount },
-    } = await this.dexService.checkLiquidity(checkRequest);
-
-    if (availableAmount < minAmount) {
-      throw new OrderNotProcessableException(
-        `Not enough ${sourceAsset.name} liquidity for swap (balance: ${availableAmount}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
-      );
-    }
-
-    const amount = Math.min(maxAmount, availableAmount);
-
-    order.inputAmount = amount;
-    order.inputAsset = sourceAsset.name;
-
-    const request = {
-      context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
-      correlationId: correlationId.toString(),
-      referenceAsset: sourceAsset,
-      referenceAmount: amount,
-      targetAsset: targetAsset,
-    };
-
-    await this.dexService.purchaseLiquidity(request);
 
     return correlationId.toString();
   }
@@ -308,22 +240,68 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     );
   }
 
-  private validateSwapParams(params: Record<string, unknown>): boolean {
-    try {
-      this.parseSwapParams(params);
-      return true;
-    } catch {
-      return false;
-    }
+  // --- TRADE ASSET HELPERS --- //
+
+  /**
+   * Validates optional tradeAsset parameter for PURCHASE/SELL commands.
+   * tradeAsset is optional - if not provided, the command uses targetAsset.
+   */
+  private validateTradeAssetParams(params: Record<string, unknown>): boolean {
+    const tradeAsset = params?.tradeAsset;
+    return tradeAsset === undefined || typeof tradeAsset === 'string';
   }
 
-  private parseSwapParams(params: Record<string, unknown>): { sourceAsset: string } {
-    const sourceAsset = params.sourceAsset as string;
+  /**
+   * Resolves optional tradeAsset parameter and checks available liquidity.
+   * Returns null if no tradeAsset is specified (use targetAsset instead).
+   * Used for cross-asset operations like USDC → EURC.
+   */
+  private async resolveTradeAsset(
+    order: LiquidityManagementOrder,
+    targetAsset: { blockchain: Blockchain },
+  ): Promise<{ asset: Awaited<ReturnType<AssetService['getAssetByQuery']>>; amount: number } | null> {
+    const tradeAssetName = order.action.paramMap?.tradeAsset as string | undefined;
+    if (!tradeAssetName) return null;
 
-    if (!sourceAsset) {
-      throw new Error('sourceAsset parameter is required for swap command');
+    const tradeAsset = await this.assetService.getAssetByQuery({
+      name: tradeAssetName,
+      blockchain: targetAsset.blockchain,
+      type: AssetType.TOKEN,
+    });
+
+    if (!tradeAsset) {
+      throw new OrderNotProcessableException(
+        `Trade asset ${tradeAssetName} not found on ${targetAsset.blockchain}`,
+      );
     }
 
-    return { sourceAsset };
+    const { minAmount, maxAmount, id: correlationId } = order;
+
+    // Check available trade asset liquidity
+    const checkRequest = {
+      context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+      correlationId: correlationId.toString(),
+      referenceAsset: tradeAsset,
+      referenceAmount: minAmount,
+      targetAsset: tradeAsset,
+    };
+
+    const {
+      reference: { availableAmount },
+    } = await this.dexService.checkLiquidity(checkRequest);
+
+    if (availableAmount < minAmount) {
+      throw new OrderNotProcessableException(
+        `Not enough ${tradeAsset.name} liquidity (balance: ${availableAmount}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
+      );
+    }
+
+    const amount = Math.min(maxAmount, availableAmount);
+
+    // Track input for order
+    order.inputAmount = amount;
+    order.inputAsset = tradeAsset.name;
+
+    return { asset: tradeAsset, amount };
   }
 }
