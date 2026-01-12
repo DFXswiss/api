@@ -8,7 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
@@ -254,6 +254,11 @@ export class AuthService {
     // create random key
     const key = randomUUID();
     const loginUrl = `${Config.frontend.services}/mail-login?otp=${key}`;
+
+    // Log login URL in local environment for testing
+    if (Config.environment === Environment.LOC) {
+      this.logger.info(`[LOCAL DEV] Mail login URL for ${dto.mail}: ${loginUrl}`);
+    }
 
     this.mailKeyList.set(key, {
       created: new Date(),
