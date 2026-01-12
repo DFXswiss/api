@@ -14,13 +14,15 @@ import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
@@ -68,6 +70,7 @@ export class BuyFiatService {
     @Inject(forwardRef(() => CustodyOrderService))
     private readonly custodyOrderService: CustodyOrderService,
     private readonly supportLogService: SupportLogService,
+    private readonly payoutService: PayoutService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -301,11 +304,22 @@ export class BuyFiatService {
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
       blockchainFee = await this.transactionHelper.getBlockchainFee(buyFiat.cryptoInput.asset, true);
-      await this.payInService.returnPayIn(
-        buyFiat.cryptoInput,
-        refundUser.address ?? buyFiat.chargebackAddress,
-        chargebackAmount,
-      );
+
+      const returnAddress = refundUser.address ?? buyFiat.chargebackAddress;
+
+      if (buyFiat.cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
+        // Funds already forwarded to liquidity - use PayoutOrder to return
+        await this.payoutService.doPayout({
+          context: PayoutOrderContext.BUY_FIAT_RETURN,
+          correlationId: `${buyFiat.id}`,
+          asset: buyFiat.cryptoInput.asset,
+          amount: chargebackAmount,
+          destinationAddress: returnAddress,
+        });
+      } else {
+        // Funds still on deposit address - use PayIn return
+        await this.payInService.returnPayIn(buyFiat.cryptoInput, returnAddress, chargebackAmount);
+      }
     }
 
     await this.buyFiatRepo.update(
