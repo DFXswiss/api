@@ -317,12 +317,10 @@ export class AuthService {
 
       if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
 
-      // Initialize KYC progress to auto-complete CONTACT_DATA and set kycLevel to 10
-      // Non-blocking: login should succeed even if KYC initialization fails
       try {
-        await this.kycService.initializeProgress(account);
+        await this.kycService.initializeProcess(account);
       } catch (e) {
-        this.logger.error(`Failed to initialize KYC progress for account ${account.id}:`, e);
+        this.logger.error(`Failed to initialize KYC process for account ${account.id}:`, e);
       }
 
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/account`);
