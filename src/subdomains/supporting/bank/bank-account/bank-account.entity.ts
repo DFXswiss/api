@@ -55,7 +55,7 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ length: 256, nullable: true })
   bankName?: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   bankAddress?: string;
 
   @Column({ length: 256, nullable: true })
