@@ -647,6 +647,12 @@ export class UserDataService {
 
     await this.kycLogService.createMailChangeLog(userData, userData.mail, mail);
 
+    try {
+      await this.kycService.initializeProcess(userData);
+    } catch (e) {
+      this.logger.error(`Failed to initialize KYC process for account ${userData.id}:`, e);
+    }
+
     return userData;
   }
 

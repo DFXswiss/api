@@ -1,14 +1,16 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  forwardRef,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
@@ -25,6 +27,7 @@ import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -87,6 +90,7 @@ export class AuthService {
     private readonly settingService: SettingService,
     private readonly recommendationService: RecommendationService,
     private readonly kycAdminService: KycAdminService,
+    @Inject(forwardRef(() => KycService)) private readonly kycService: KycService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE)
@@ -255,6 +259,11 @@ export class AuthService {
     const key = randomUUID();
     const loginUrl = `${Config.frontend.services}/mail-login?otp=${key}`;
 
+    // Log login URL in local environment for testing
+    if (Config.environment === Environment.LOC) {
+      this.logger.info(`[LOCAL DEV] Mail login URL for ${dto.mail}: ${loginUrl}`);
+    }
+
     this.mailKeyList.set(key, {
       created: new Date(),
       key,
@@ -299,7 +308,7 @@ export class AuthService {
       const entry = this.mailKeyList.get(code);
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
 
-      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
+      const account = await this.userDataService.getUserData(entry.userDataId, { users: true, wallet: true });
 
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail, undefined, account);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
@@ -311,7 +320,13 @@ export class AuthService {
       if (account.isDeactivated)
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
-      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
+      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account, account.wallet);
+
+      try {
+        await this.kycService.initializeProcess(account);
+      } catch (e) {
+        this.logger.error(`Failed to initialize KYC process for account ${account.id}:`, e);
+      }
 
       const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/account`);
       url.searchParams.set('session', token);

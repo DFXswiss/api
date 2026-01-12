@@ -430,6 +430,13 @@ export class KycService {
     );
   }
 
+  async initializeProcess(userData: UserData): Promise<UserData> {
+    const user = await this.getUser(userData.kycHash);
+    if (user.hasDoneStep(KycStepName.CONTACT_DATA)) return user;
+
+    return this.updateProgress(user, true, false);
+  }
+
   public getMailFailedReason(comment: string, language: string): string {
     return `<ul>${comment
       ?.split(';')
