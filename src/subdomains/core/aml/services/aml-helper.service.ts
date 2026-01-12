@@ -615,6 +615,6 @@ export class AmlHelperService {
   }
 
   private static countLetters(str: string): number {
-    return str.replace(/[^a-zA-ZäöüÄÖÜàáâãéèêëìíîïòóôõùúûüñçßÀÁÂÃÈÉÊËÌÍÎÏÒÓÔÕÙÚÛÜÑÇ]/g, '').length;
+    return str.replace(/[^\p{L}]/gu, '').length;
   }
 }
