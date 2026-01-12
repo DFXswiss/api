@@ -146,50 +146,24 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const minSellAmount = minTradeAmount ?? Util.floor(minAmount * price, 6);
     let maxSellAmount = Util.floor(maxAmount * price, 6);
 
-    // For illiquid markets: limit order size to available liquidity at best price
-    if (liquidityLimited) {
-      // Get exchange minimum trade amount (in base currency = targetAsset)
-      const pair = await this.exchangeService.getPair(tradeAsset, targetAssetEntity.name);
-      const exchangeMinAmount = await this.exchangeService.getMinTradeAmount(pair);
+    const availableBalance = await this.getAvailableTradeBalance(tradeAsset, targetAssetEntity.name);
+    let effectiveMax = Math.min(maxSellAmount, availableBalance);
 
-      // Get liquidity on the ask side (sellers of targetAsset), skipping orders below minimum
-      const liquidity = await this.exchangeService.getBestBidLiquidity(
+    if (liquidityLimited) {
+      const { amount: liquidity, price: liquidityPrice } = await this.getBestPriceLiquidity(
         tradeAsset,
         targetAssetEntity.name,
-        exchangeMinAmount,
       );
-
-      if (!liquidity) {
-        throw new OrderNotProcessableException(
-          `${this.exchangeService.name}: no order in orderbook meets exchange minimum (${exchangeMinAmount}) for ${targetAssetEntity.name}`,
-        );
-      }
-
-      const { amount: liquidityAtBestPrice, price: bestPrice } = liquidity;
-
-      // Convert liquidity from targetAsset to tradeAsset
-      const liquidityInTradeAsset = Util.floor(liquidityAtBestPrice * bestPrice, 6);
-
-      this.logger.verbose(
-        `Liquidity-limited buy: requested ${maxSellAmount} ${tradeAsset}, liquidity at valid price ${liquidityAtBestPrice} ${targetAssetEntity.name} (= ${liquidityInTradeAsset} ${tradeAsset}), exchange min ${exchangeMinAmount}, using min of both`,
-      );
-
-      if (liquidityInTradeAsset < minSellAmount) {
-        throw new OrderNotProcessableException(
-          `${this.exchangeService.name}: not enough liquidity for ${targetAssetEntity.name} at best price (liquidity: ${liquidityAtBestPrice}, min. requested in ${tradeAsset}: ${minSellAmount})`,
-        );
-      }
-
-      maxSellAmount = Math.min(maxSellAmount, liquidityInTradeAsset);
+      effectiveMax = Math.min(effectiveMax, Util.floor(liquidity * liquidityPrice, 6));
     }
 
-    const availableBalance = await this.getAvailableTradeBalance(tradeAsset, targetAssetEntity.name);
-    if (minSellAmount > availableBalance)
+    if (effectiveMax < minSellAmount) {
       throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance for ${tradeAsset} (balance: ${availableBalance}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
+        `${this.exchangeService.name}: not enough balance/liquidity for ${tradeAsset} (balance: ${effectiveMax}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
       );
+    }
 
-    const amount = Math.min(maxSellAmount, availableBalance);
+    const amount = effectiveMax;
 
     order.inputAmount = amount;
     order.inputAsset = tradeAsset;
@@ -221,43 +195,20 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     await this.getAndCheckTradePrice(order.pipeline.rule.targetAsset, tradeAssetEntity, maxPriceDeviation);
 
     const availableBalance = await this.getAvailableTradeBalance(asset, tradeAsset);
-    if (order.minAmount > availableBalance)
-      throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
-      );
+    let effectiveMax = Math.min(order.maxAmount, availableBalance);
 
-    let amount = Math.min(order.maxAmount, availableBalance);
-
-    // For illiquid markets: limit order size to available liquidity at best price
     if (liquidityLimited) {
-      // Get exchange minimum trade amount
-      const pair = await this.exchangeService.getPair(asset, tradeAsset);
-      const exchangeMinAmount = await this.exchangeService.getMinTradeAmount(pair);
-
-      // Get liquidity on the bid side, skipping orders below minimum
-      const liquidity = await this.exchangeService.getBestBidLiquidity(asset, tradeAsset, exchangeMinAmount);
-
-      if (!liquidity) {
-        throw new OrderNotProcessableException(
-          `${this.exchangeService.name}: no order in orderbook meets exchange minimum (${exchangeMinAmount}) for ${asset}`,
-        );
-      }
-
-      const { amount: liquidityAtBestPrice } = liquidity;
-      const limitedAmount = Math.min(amount, liquidityAtBestPrice);
-
-      this.logger.verbose(
-        `Liquidity-limited sell: requested ${amount}, liquidity at valid price ${liquidityAtBestPrice}, exchange min ${exchangeMinAmount}, using ${limitedAmount}`,
-      );
-
-      if (limitedAmount < order.minAmount) {
-        throw new OrderNotProcessableException(
-          `${this.exchangeService.name}: not enough liquidity for ${asset} at best price (liquidity: ${liquidityAtBestPrice}, min. requested: ${order.minAmount})`,
-        );
-      }
-
-      amount = limitedAmount;
+      const { amount: liquidity } = await this.getBestPriceLiquidity(asset, tradeAsset);
+      effectiveMax = Math.min(effectiveMax, liquidity);
     }
+
+    if (effectiveMax < order.minAmount) {
+      throw new OrderNotProcessableException(
+        `${this.exchangeService.name}: not enough balance/liquidity for ${asset} (balance: ${effectiveMax}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+      );
+    }
+
+    const amount = effectiveMax;
 
     order.inputAmount = amount;
     order.inputAsset = asset;
@@ -595,5 +546,17 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     return ['Insufficient funds', 'insufficient balance', 'Insufficient position', 'not enough balance'].some((m) =>
       e.message?.includes(m),
     );
+  }
+
+  private async getBestPriceLiquidity(from: string, to: string): Promise<{ amount: number; price: number }> {
+    const liquidity = await this.exchangeService.getBestBidLiquidity(from, to);
+
+    if (!liquidity) {
+      throw new OrderNotProcessableException(
+        `${this.exchangeService.name}: not enough liquidity for ${from} (no order in orderbook meets exchange minimum)`,
+      );
+    }
+
+    return liquidity;
   }
 }
