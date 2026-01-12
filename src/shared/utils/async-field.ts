@@ -2,7 +2,10 @@ export class AsyncField<T> implements Promise<T> {
   private internalPromise?: Promise<T>;
   private resolvedValue?: T;
 
-  constructor(private readonly executor: () => Promise<T>, readonly eager = false) {
+  constructor(
+    private readonly executor: () => Promise<T>,
+    readonly eager = false,
+  ) {
     if (eager) void this.promise.catch(() => undefined);
   }
 

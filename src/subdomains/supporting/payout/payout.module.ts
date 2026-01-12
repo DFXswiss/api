@@ -160,6 +160,13 @@ import { SparkStrategy as SparkStrategyPR } from './strategies/prepare/impl/spar
     CitreaTestnetTokenStrategyPO,
     SparkStrategyPR,
   ],
-  exports: [PayoutService, PayoutBitcoinService, PayoutMoneroService, PayoutZanoService, PayoutSparkService, PayoutSolanaService],
+  exports: [
+    PayoutService,
+    PayoutBitcoinService,
+    PayoutMoneroService,
+    PayoutZanoService,
+    PayoutSparkService,
+    PayoutSolanaService,
+  ],
 })
 export class PayoutModule {}
