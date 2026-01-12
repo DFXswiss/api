@@ -158,6 +158,7 @@ import { SparkStrategy as SparkStrategyPR } from './strategies/prepare/impl/spar
     CitreaTestnetStrategyPR,
     CitreaTestnetCoinStrategyPO,
     CitreaTestnetTokenStrategyPO,
+    SparkStrategyPR,
   ],
   exports: [PayoutService, PayoutBitcoinService, PayoutMoneroService, PayoutZanoService, PayoutSparkService, PayoutSolanaService],
 })

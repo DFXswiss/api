@@ -103,11 +103,11 @@ export class SparkService extends BlockchainService {
   private getAddressPrefix(address: string): string {
     // Type guard against parameter tampering
     if (typeof address !== 'string' || address.length === 0) {
-      return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET) ?? 'sp';
+      return 'sp';
     }
 
     const separatorIndex = address.lastIndexOf('1');
-    if (separatorIndex === -1) return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET) ?? 'sp';
+    if (separatorIndex === -1) return 'sp';
 
     return address.substring(0, separatorIndex);
   }
