@@ -5,7 +5,7 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { In, IsNull, Not } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { SellRepository } from '../../route/sell.repository';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -37,7 +37,7 @@ export class BuyFiatRegistrationService {
         // PayIn returned
         { ...baseWhere, cryptoInput: { status: PayInStatus.RETURN_CONFIRMED, returnTxId: Not(IsNull()) } },
         // Payout forwarded
-        { ...baseWhere, cryptoInput: { status: In([PayInStatus.FORWARDED, PayInStatus.FORWARD_CONFIRMED]) } },
+        { ...baseWhere, cryptoInput: { status: PayInStatus.FORWARD_CONFIRMED } },
       ],
       relations: { cryptoInput: true, sell: true, transaction: { user: { wallet: true }, userData: true } },
     });
