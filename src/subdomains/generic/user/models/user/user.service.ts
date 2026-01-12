@@ -380,7 +380,7 @@ export class UserService {
   }
 
   @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
-  async resetMonthVolumes(): Promise<void> {
+  async resetMonthlyVolumes(): Promise<void> {
     await this.userRepo.update({ monthlyBuyVolume: Not(0) }, { monthlyBuyVolume: 0 });
     await this.userRepo.update({ monthlySellVolume: Not(0) }, { monthlySellVolume: 0 });
     await this.userRepo.update({ monthlyCryptoVolume: Not(0) }, { monthlyCryptoVolume: 0 });

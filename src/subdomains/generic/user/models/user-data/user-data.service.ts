@@ -860,32 +860,49 @@ export class UserDataService {
     await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
   }
 
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async resetMonthlyVolumes(): Promise<void> {
+    await this.userDataRepo.update({ monthlyBuyVolume: Not(0) }, { monthlyBuyVolume: 0 });
+    await this.userDataRepo.update({ monthlySellVolume: Not(0) }, { monthlySellVolume: 0 });
+    await this.userDataRepo.update({ monthlyCryptoVolume: Not(0) }, { monthlyCryptoVolume: 0 });
+  }
+
   async updateVolumes(userDataId: number): Promise<void> {
     const volumes = await this.userRepo
       .createQueryBuilder('user')
       .select('SUM(buyVolume)', 'buyVolume')
       .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
+      .addSelect('SUM(monthlyBuyVolume)', 'monthlyBuyVolume')
       .addSelect('SUM(sellVolume)', 'sellVolume')
       .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
+      .addSelect('SUM(monthlySellVolume)', 'monthlySellVolume')
       .addSelect('SUM(cryptoVolume)', 'cryptoVolume')
       .addSelect('SUM(annualCryptoVolume)', 'annualCryptoVolume')
+      .addSelect('SUM(monthlyCryptoVolume)', 'monthlyCryptoVolume')
+
       .where('userDataId = :id', { id: userDataId })
       .getRawOne<{
         buyVolume: number;
         annualBuyVolume: number;
+        monthlyBuyVolume: number;
         sellVolume: number;
         annualSellVolume: number;
+        monthlySellVolume: number;
         cryptoVolume: number;
         annualCryptoVolume: number;
+        monthlyCryptoVolume: number;
       }>();
 
     await this.userDataRepo.update(userDataId, {
       buyVolume: Util.round(volumes.buyVolume, Config.defaultVolumeDecimal),
       annualBuyVolume: Util.round(volumes.annualBuyVolume, Config.defaultVolumeDecimal),
+      monthlyBuyVolume: Util.round(volumes.monthlyBuyVolume, Config.defaultVolumeDecimal),
       sellVolume: Util.round(volumes.sellVolume, Config.defaultVolumeDecimal),
       annualSellVolume: Util.round(volumes.annualSellVolume, Config.defaultVolumeDecimal),
+      monthlySellVolume: Util.round(volumes.monthlySellVolume, Config.defaultVolumeDecimal),
       cryptoVolume: Util.round(volumes.cryptoVolume, Config.defaultVolumeDecimal),
       annualCryptoVolume: Util.round(volumes.annualCryptoVolume, Config.defaultVolumeDecimal),
+      monthlyCryptoVolume: Util.round(volumes.monthlyCryptoVolume, Config.defaultVolumeDecimal),
     });
   }
 

@@ -882,7 +882,18 @@ export class BuyCryptoService {
         .andWhere('bankTx.bookingDate >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
-      await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      const { monthlyVolume } = await this.buyCryptoRepo
+        .createQueryBuilder('buyCrypto')
+        .select('SUM(amountInChf)', 'monthlyVolume')
+        .leftJoin('buyCrypto.bankTx', 'bankTx')
+        .where('buyCrypto.buyId = :id', { id: id })
+        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
+        .andWhere('bankTx.bookingDate >= :startOfMonth', {
+          startOfMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        })
+        .getRawOne<{ monthlyVolume: number }>();
+
+      await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }
   }
 
@@ -907,7 +918,18 @@ export class BuyCryptoService {
         .andWhere('cryptoInput.created >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
-      await this.swapService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      const { monthlyVolume } = await this.buyCryptoRepo
+        .createQueryBuilder('buyCrypto')
+        .select('SUM(amountInChf)', 'monthlyVolume')
+        .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
+        .where('buyCrypto.cryptoRouteId = :id', { id: id })
+        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
+        .andWhere('cryptoInput.created >= :startOfMonth', {
+          startOfMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        })
+        .getRawOne<{ monthlyVolume: number }>();
+
+      await this.swapService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }
   }
 

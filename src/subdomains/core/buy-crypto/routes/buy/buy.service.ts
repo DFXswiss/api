@@ -63,10 +63,16 @@ export class BuyService {
     await this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
-  async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async resetMonthlyVolumes(): Promise<void> {
+    await this.buyRepo.update({ monthlyVolume: Not(0) }, { monthlyVolume: 0 });
+  }
+
+  async updateVolume(buyId: number, volume: number, annualVolume: number, monthlyVolume: number): Promise<void> {
     await this.buyRepo.update(buyId, {
       volume: Util.round(volume, Config.defaultVolumeDecimal),
       annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+      monthlyVolume: Util.round(monthlyVolume, Config.defaultVolumeDecimal),
     });
 
     // update user volume
@@ -76,29 +82,23 @@ export class BuyService {
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
-    const monthlyVolume = await this.getMonthlyVolume(user.id);
 
-    await this.userService.updateBuyVolume(user.id, userVolume.volume, userVolume.annualVolume, monthlyVolume.volume);
+    await this.userService.updateBuyVolume(
+      user.id,
+      userVolume.volume,
+      userVolume.annualVolume,
+      userVolume.monthlyVolume,
+    );
   }
 
-  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
+  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number; monthlyVolume: number }> {
     return this.buyRepo
       .createQueryBuilder('buy')
       .select('SUM(volume)', 'volume')
       .addSelect('SUM(annualVolume)', 'annualVolume')
+      .addSelect('SUM(monthlyVolume)', 'monthlyVolume')
       .where('userId = :id', { id: userId })
-      .getRawOne<{ volume: number; annualVolume: number }>();
-  }
-
-  async getMonthlyVolume(userId: number): Promise<{ volume: number }> {
-    return this.buyRepo
-      .createQueryBuilder('buy')
-      .select('SUM(volume)', 'volume')
-      .where('userId = :id', { id: userId })
-      .andWhere('buy.created >= :startOfMonth', {
-        startOfMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-      })
-      .getRawOne<{ volume: number }>();
+      .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {

@@ -499,7 +499,18 @@ export class BuyFiatService {
         .andWhere('cryptoInput.created >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
-      await this.sellService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      const { monthlyVolume } = await this.buyFiatRepo
+        .createQueryBuilder('buyFiat')
+        .select('SUM(amountInChf)', 'monthlyVolume')
+        .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
+        .where('buyFiat.sellId = :id', { id: id })
+        .andWhere('buyFiat.amlCheck = :check', { check: CheckStatus.PASS })
+        .andWhere('cryptoInput.created >= :startOfMonth', {
+          startOfMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        })
+        .getRawOne<{ monthlyVolume: number }>();
+
+      await this.sellService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }
   }
 
