@@ -271,9 +271,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     });
 
     if (!tradeAsset) {
-      throw new OrderNotProcessableException(
-        `Trade asset ${tradeAssetName} not found on ${targetAsset.blockchain}`,
-      );
+      throw new OrderNotProcessableException(`Trade asset ${tradeAssetName} not found on ${targetAsset.blockchain}`);
     }
 
     const { minAmount, maxAmount, id: correlationId } = order;
