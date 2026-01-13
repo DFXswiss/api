@@ -11,6 +11,7 @@ export enum RewardStatus {
   CREATED = 'Created',
   MANUAL_CHECK = 'ManualCheck',
   PREPARED = 'Prepared',
+  PENDING_LIQUIDITY = 'PendingLiquidity',
   READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',

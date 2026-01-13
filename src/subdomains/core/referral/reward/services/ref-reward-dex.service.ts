@@ -33,12 +33,12 @@ export class RefRewardDexService {
   ) {}
 
   async secureLiquidity(): Promise<void> {
-    const allRewards = await this.refRewardRepo.find({
+    const newRefRewards = await this.refRewardRepo.find({
       where: { status: RewardStatus.PREPARED },
       relations: { liquidityPipeline: true },
     });
 
-    const groupedRewards = Util.groupByAccessor<RefReward, number>(allRewards, (r) => r.outputAsset.id);
+    const groupedRewards = Util.groupByAccessor<RefReward, number>(newRefRewards, (r) => r.outputAsset.id);
 
     for (const rewards of groupedRewards.values()) {
       const asset = rewards[0].outputAsset;
