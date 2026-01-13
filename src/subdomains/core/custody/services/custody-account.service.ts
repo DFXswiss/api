@@ -8,7 +8,9 @@ import { CustodyAccessLevel, CustodyAccountStatus } from '../enums/custody';
 import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
 import { CustodyAccountAccessRepository } from '../repositories/custody-account-access.repository';
 import { CustodyAccountRepository } from '../repositories/custody-account.repository';
-import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
+
+export const LegacyAccountId = 'legacy';
+export type CustodyAccountId = number | typeof LegacyAccountId;
 
 @Injectable()
 export class CustodyAccountService {
@@ -16,28 +18,26 @@ export class CustodyAccountService {
     private readonly custodyAccountRepo: CustodyAccountRepository,
     private readonly custodyAccountAccessRepo: CustodyAccountAccessRepository,
     private readonly userDataService: UserDataService,
-    private readonly custodyBalanceRepo: CustodyBalanceRepository,
   ) {}
 
   // --- GET CUSTODY ACCOUNTS --- //
   async getCustodyAccountsForUser(accountId: number): Promise<CustodyAccountDto[]> {
-    const account = await this.userDataService.getUserData(accountId, { users: true });
+    const account = await this.userDataService.getUserData(accountId, {
+      users: true,
+      custodyAccountAccesses: { account: { owner: true } },
+    });
     if (!account) throw new NotFoundException('User not found');
 
-    // 1. Check for explicit CustodyAccounts (owned or shared)
+    // owned accounts (via direct ownership)
     const ownedAccounts = await this.custodyAccountRepo.find({
       where: { owner: { id: accountId }, status: CustodyAccountStatus.ACTIVE },
-      relations: ['owner'],
+      relations: { owner: true },
     });
 
-    const accessGrants = await this.custodyAccountAccessRepo.find({
-      where: { userData: { id: accountId } },
-      relations: ['custodyAccount', 'custodyAccount.owner'],
-    });
-
-    const sharedAccounts = accessGrants
+    // shared accounts (via access grants, excluding owned)
+    const sharedAccounts = (account.custodyAccountAccesses ?? [])
       .filter((a) => a.account.status === CustodyAccountStatus.ACTIVE)
-      .filter((a) => a.account.owner.id !== accountId); // exclude owned
+      .filter((a) => a.account.owner.id !== accountId);
 
     const custodyAccounts: CustodyAccountDto[] = [
       ...ownedAccounts.map((ca) => CustodyAccountDtoMapper.toDto(ca, CustodyAccessLevel.WRITE)),
@@ -48,9 +48,9 @@ export class CustodyAccountService {
       return custodyAccounts;
     }
 
-    // 2. Fallback: Aggregate all CUSTODY users as one "Legacy"
-    const custodyUsers = account.users.filter((u) => u.role === UserRole.CUSTODY);
-    if (custodyUsers.length > 0) {
+    // fallback to legacy custody account
+    const hasCustody = account.users.some((u) => u.role === UserRole.CUSTODY);
+    if (hasCustody) {
       return [CustodyAccountDtoMapper.toLegacyDto(account)];
     }
 
@@ -60,22 +60,22 @@ export class CustodyAccountService {
   async getCustodyAccountById(custodyAccountId: number): Promise<CustodyAccount> {
     const custodyAccount = await this.custodyAccountRepo.findOne({
       where: { id: custodyAccountId },
-      relations: ['owner', 'accessGrants', 'accessGrants.userData'],
+      relations: { owner: true, accessGrants: { userData: true } },
     });
 
-    if (!custodyAccount) throw new NotFoundException('CustodyAccount not found');
+    if (!custodyAccount) throw new NotFoundException('Custody account not found');
 
     return custodyAccount;
   }
 
   // --- ACCESS CHECK --- //
   async checkAccess(
-    custodyAccountId: number | null,
+    custodyAccountId: CustodyAccountId,
     accountId: number,
     requiredLevel: CustodyAccessLevel,
   ): Promise<{ custodyAccount: CustodyAccount | null; isLegacy: boolean }> {
     // Legacy mode
-    if (custodyAccountId === null) {
+    if (custodyAccountId === LegacyAccountId) {
       return { custodyAccount: null, isLegacy: true };
     }
 
@@ -89,7 +89,7 @@ export class CustodyAccountService {
     // Check access grants
     const access = custodyAccount.accessGrants.find((a) => a.userData.id === accountId);
     if (!access) {
-      throw new ForbiddenException('No access to this CustodyAccount');
+      throw new ForbiddenException('No access to this custody account');
     }
 
     // Check if access level is sufficient
@@ -136,8 +136,7 @@ export class CustodyAccountService {
     const { custodyAccount } = await this.checkAccess(custodyAccountId, accountId, CustodyAccessLevel.WRITE);
     if (!custodyAccount) throw new ForbiddenException('Cannot update legacy account');
 
-    if (title) custodyAccount.title = title;
-    if (description !== undefined) custodyAccount.description = description;
+    Object.assign(custodyAccount, { title, description });
 
     return this.custodyAccountRepo.save(custodyAccount);
   }
@@ -148,7 +147,7 @@ export class CustodyAccountService {
 
     return this.custodyAccountAccessRepo.find({
       where: { account: { id: custodyAccountId } },
-      relations: ['userData'],
+      relations: { userData: true },
     });
   }
 }

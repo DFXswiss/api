@@ -12,7 +12,7 @@ import { CustodyAccountAccessDto, CustodyAccountDto } from '../dto/output/custod
 import { CustodyAccessLevel } from '../enums/custody';
 import { CustodyAccountReadGuard, CustodyAccountWriteGuard } from '../guards/custody-account-access.guard';
 import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
-import { CustodyAccountService } from '../services/custody-account.service';
+import { CustodyAccountService, LegacyAccountId } from '../services/custody-account.service';
 
 @ApiTags('Custody')
 @Controller('custody/account')
@@ -34,7 +34,7 @@ export class CustodyAccountController {
   async getCustodyAccount(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyAccountDto> {
     const custodyAccounts = await this.custodyAccountService.getCustodyAccountsForUser(jwt.account);
 
-    const isLegacy = id === 'legacy';
+    const isLegacy = id === LegacyAccountId;
     const account = isLegacy ? custodyAccounts.find((ca) => ca.isLegacy) : custodyAccounts.find((ca) => ca.id === +id);
     if (!account) throw new NotFoundException(`${isLegacy ? 'Legacy' : 'Custody'} account not found`);
 

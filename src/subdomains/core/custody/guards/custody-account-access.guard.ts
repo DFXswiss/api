@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { CustodyAccessLevel } from '../enums/custody';
-import { CustodyAccountService } from '../services/custody-account.service';
+import { CustodyAccountId, CustodyAccountService, LegacyAccountId } from '../services/custody-account.service';
 
 abstract class CustodyAccountAccessGuard implements CanActivate {
   protected abstract readonly requiredLevel: CustodyAccessLevel;
@@ -24,12 +24,16 @@ abstract class CustodyAccountAccessGuard implements CanActivate {
     }
   }
 
-  private getCustodyAccountId(request: any): number | null {
+  private getCustodyAccountId(request: any): CustodyAccountId {
     const id = request.params?.custodyAccountId || request.params?.id;
-    if (id === 'legacy' || id == null) {
-      return null;
-    }
-    return parseInt(id, 10);
+    if (id == null) throw new ForbiddenException('Custody account ID required');
+
+    if (id === LegacyAccountId) return id;
+
+    const parsed = +id;
+    if (isNaN(parsed)) throw new ForbiddenException('Invalid custody account ID');
+
+    return parsed;
   }
 }
 

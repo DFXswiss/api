@@ -7,6 +7,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlListStatus } from 'src/subdomains/core/aml/enums/aml-list-status.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { CustodyAccountAccess } from 'src/subdomains/core/custody/entities/custody-account-access.entity';
 import { FaucetRequest } from 'src/subdomains/core/faucet-request/entities/faucet-request.entity';
 import {
   DefaultPaymentLinkConfig,
@@ -376,6 +377,9 @@ export class UserData extends IEntity {
 
   @OneToMany(() => User, (user) => user.userData)
   users?: User[];
+
+  @OneToMany(() => CustodyAccountAccess, (access) => access.userData)
+  custodyAccountAccesses?: CustodyAccountAccess[];
 
   // --- ENTITY METHODS --- //
   sendMail(): UpdateResult<UserData> {
