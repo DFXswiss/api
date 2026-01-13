@@ -134,8 +134,17 @@ export class RealUnitService {
     });
   }
 
+  // Prices are always fetched from Mainnet asset (price data is only available there)
+  private async getMainnetRealuAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: this.tokenName,
+      blockchain: Blockchain.ETHEREUM,
+      type: AssetType.TOKEN,
+    });
+  }
+
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
-    const realuAsset = await this.getRealuAsset();
+    const realuAsset = await this.getMainnetRealuAsset();
 
     const [chfPrice, eurPrice, usdPrice] = await Promise.all([
       this.pricingService.getPrice(realuAsset, PriceCurrency.CHF, PriceValidity.ANY).catch(() => null),
@@ -164,7 +173,7 @@ export class RealUnitService {
   async getHistoricalPrice(timeFrame: TimeFrame): Promise<HistoricalPriceDto[]> {
     return this.historicalPriceCache.get(timeFrame, async () => {
       const startDate = await this.getHistoricalPriceStartDate(timeFrame);
-      const prices = await this.assetPricesService.getAssetPrices([await this.getRealuAsset()], startDate);
+      const prices = await this.assetPricesService.getAssetPrices([await this.getMainnetRealuAsset()], startDate);
       const filledPrices = TimeseriesUtils.fillMissingDates(prices);
       return RealUnitDtoMapper.assetPricesToHistoricalPricesDto(filledPrices);
     });
