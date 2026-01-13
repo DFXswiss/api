@@ -68,7 +68,9 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
           );
         }
 
-        this.logger.verbose(`Paying out ${affordableOrders.length} XMR order(s). Order ID(s): ${affordableOrders.map((o) => o.id)}`);
+        this.logger.verbose(
+          `Paying out ${affordableOrders.length} XMR order(s). Order ID(s): ${affordableOrders.map((o) => o.id)}`,
+        );
 
         await this.sendXMR(context, affordableOrders);
       } catch (e) {
