@@ -42,7 +42,7 @@ async function bootstrap() {
     AppInsights.start();
   }
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
 
   app.use(morgan('dev'));
   app.use(helmet());
