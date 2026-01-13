@@ -14,7 +14,7 @@ import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -227,6 +227,13 @@ export class BuyFiatService {
 
     if (!chargebackAddress || !chargebackAmount || !cryptoInput) return;
 
+    // Skip if return already in progress or completed
+    if (
+      [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(cryptoInput.status) ||
+      cryptoInput.returnTxId
+    )
+      return;
+
     if (cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
       // Funds already forwarded to liquidity - use PayoutOrder to return
       await this.payoutService.doPayout({
@@ -236,7 +243,7 @@ export class BuyFiatService {
         amount: chargebackAmount,
         destinationAddress: chargebackAddress,
       });
-    } else if (cryptoInput.status === PayInStatus.COMPLETED) {
+    } else if (cryptoInput.status === PayInStatus.COMPLETED && cryptoInput.action !== PayInAction.FORWARD) {
       // Funds still on deposit address - use PayIn return
       await this.payInService.returnPayIn(cryptoInput, chargebackAddress, chargebackAmount);
     }
