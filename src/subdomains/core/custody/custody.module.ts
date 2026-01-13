@@ -32,7 +32,7 @@ import { SafeAccountReadGuard, SafeAccountWriteGuard } from './guards/safe-accou
   imports: [
     TypeOrmModule.forFeature([CustodyOrder, CustodyOrderStep, SafeAccount, SafeAccountAccess]),
     forwardRef(() => UserModule),
-    ReferralModule,
+    forwardRef(() => ReferralModule),
     SharedModule,
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),

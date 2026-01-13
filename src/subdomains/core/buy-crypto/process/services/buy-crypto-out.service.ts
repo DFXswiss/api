@@ -85,7 +85,7 @@ export class BuyCryptoOutService {
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
 
-          for (const feeId of transaction.usedFees?.split(';')) {
+          for (const feeId of transaction.usedFees?.split(';') ?? []) {
             await this.feeService.increaseTxUsages(
               transaction.amountInChf,
               Number.parseInt(feeId),
@@ -243,7 +243,7 @@ export class BuyCryptoOutService {
   private logTransactionsPayouts(transactions: BuyCrypto[]): void {
     const transactionsIds = transactions.map((tx) => tx.id);
 
-    transactions.length &&
+    if (transactions.length)
       this.logger.verbose(`Paying out ${transactionsIds.length} transaction(s). Transaction ID(s): ${transactionsIds}`);
   }
 }

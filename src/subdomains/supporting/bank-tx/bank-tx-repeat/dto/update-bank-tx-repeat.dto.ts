@@ -46,4 +46,13 @@ export class UpdateBankTxRepeatDto {
   @IsOptional()
   @IsString()
   chargebackIban?: string;
+
+  @IsOptional()
+  @IsString()
+  chargebackRemittanceInfo?: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackDate?: Date;
 }

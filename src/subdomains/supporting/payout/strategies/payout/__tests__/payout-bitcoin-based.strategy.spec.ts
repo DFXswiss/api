@@ -71,7 +71,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(Array.isArray(groups[0])).toBe(true);
     });
 
-    it('distributes payouts to same address to different payout groups', () => {
+    it('groups payouts to same address in same payout group', () => {
       const orders = [
         createCustomPayoutOrder({ destinationAddress: 'ADDR_01' }),
         createCustomPayoutOrder({ destinationAddress: 'ADDR_01' }),
@@ -80,10 +80,11 @@ describe('PayoutBitcoinBasedStrategy', () => {
 
       const groups = strategy.createPayoutGroupsWrapper(orders, 10);
 
-      expect(groups.length).toBe(2);
+      expect(groups.length).toBe(1);
+      expect(groups[0].length).toBe(3);
     });
 
-    it('limits maximum amount of orders per group', () => {
+    it('limits maximum amount of unique addresses per group', () => {
       const orders = [
         createCustomPayoutOrder({ destinationAddress: 'ADDR_01' }),
         createCustomPayoutOrder({ destinationAddress: 'ADDR_02' }),
@@ -97,8 +98,39 @@ describe('PayoutBitcoinBasedStrategy', () => {
       const groups = strategy.createPayoutGroupsWrapper(orders, 4);
 
       expect(groups.length).toBe(2);
-      expect(groups[0].length).toBe(4);
-      expect(groups[1].length).toBe(3);
+      expect(groups[0].length).toBe(4); // 4 unique addresses
+      expect(groups[1].length).toBe(3); // 3 unique addresses
+    });
+
+    it('allows multiple orders to same address in one group', () => {
+      const orders = [
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_01' }),
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_01' }),
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_01' }),
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_02' }),
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_02' }),
+      ];
+
+      const groups = strategy.createPayoutGroupsWrapper(orders, 2);
+
+      expect(groups.length).toBe(1); // Only 2 unique addresses, fits in one group
+      expect(groups[0].length).toBe(5); // All 5 orders in one group
+    });
+
+    it('splits groups when unique address limit is reached', () => {
+      const orders = [
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_01' }),
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_01' }), // duplicate
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_02' }),
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_03' }),
+        createCustomPayoutOrder({ destinationAddress: 'ADDR_04' }), // 4th unique address, exceeds limit
+      ];
+
+      const groups = strategy.createPayoutGroupsWrapper(orders, 3);
+
+      expect(groups.length).toBe(2);
+      expect(groups[0].length).toBe(4); // ADDR_01 (x2), ADDR_02, ADDR_03
+      expect(groups[1].length).toBe(1); // ADDR_04
     });
   });
 

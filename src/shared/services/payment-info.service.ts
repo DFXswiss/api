@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Config, Environment } from 'src/config/config';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { CreateBuyDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/create-buy.dto';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-quote.dto';
@@ -9,17 +11,27 @@ import { NoSwapBlockchains } from 'src/subdomains/core/buy-crypto/routes/swap/sw
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { JwtPayload } from '../auth/jwt-payload.interface';
 import { Asset } from '../models/asset/asset.entity';
 import { AssetService } from '../models/asset/asset.service';
 import { FiatService } from '../models/fiat/fiat.service';
+import { DisabledProcess, Process } from './process.service';
 
 @Injectable()
 export class PaymentInfoService {
-  constructor(private readonly fiatService: FiatService, private readonly assetService: AssetService) {}
+  constructor(
+    private readonly fiatService: FiatService,
+    private readonly assetService: AssetService,
+  ) {}
 
-  async buyCheck<T extends GetBuyPaymentInfoDto | GetBuyQuoteDto | CreateBuyDto>(dto: T, jwt?: JwtPayload): Promise<T> {
+  async buyCheck<T extends GetBuyPaymentInfoDto | GetBuyQuoteDto | CreateBuyDto>(
+    dto: T,
+    jwt?: JwtPayload,
+    user?: User,
+  ): Promise<T> {
     if ('currency' in dto) {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new NotFoundException('Currency not found');
@@ -43,6 +55,19 @@ export class PaymentInfoService {
 
     if ('discountCode' in dto) dto.specialCode = dto.discountCode;
 
+    if (
+      user &&
+      (!user.wallet?.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) ||
+        ![Environment.LOC, Environment.DEV].includes(Config.environment)) &&
+      !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
+      !user.userData.tradeApprovalDate &&
+      !user.wallet?.autoTradeApproval
+    ) {
+      throw new BadRequestException(
+        user.userData.kycLevel >= KycLevel.LEVEL_10 ? 'RecommendationRequired' : 'EmailRequired',
+      );
+    }
+
     return dto;
   }
 
@@ -65,7 +90,7 @@ export class PaymentInfoService {
     if (!dto.currency) throw new NotFoundException('Currency not found');
     if (!dto.currency.buyable) throw new BadRequestException('Currency not buyable');
 
-    if ('iban' in dto && dto.currency?.name === 'CHF' && !dto.iban.startsWith('CH') && !dto.iban.startsWith('LI'))
+    if ('iban' in dto && dto.currency?.name === 'CHF' && !Config.isDomesticIban(dto.iban))
       throw new BadRequestException(
         'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
       );

@@ -56,13 +56,14 @@ export class BankAdapter implements LiquidityBalanceIntegration {
 
     try {
       switch (bankName) {
-        case IbanBankName.OLKY:
+        case IbanBankName.OLKY: {
           const olkyBalance = await this.olkypayService.getBalance().then((b) => b.balance);
           assets.forEach((asset) => balances.push(LiquidityBalance.create(asset, olkyBalance)));
 
           break;
+        }
 
-        case IbanBankName.YAPEAL:
+        case IbanBankName.YAPEAL: {
           const yapealBalances = await this.yapealService.getBalances();
 
           for (const balance of yapealBalances) {
@@ -71,8 +72,9 @@ export class BankAdapter implements LiquidityBalanceIntegration {
           }
 
           break;
+        }
 
-        case CardBankName.CHECKOUT:
+        case CardBankName.CHECKOUT: {
           const checkoutBalances = await this.checkoutService.getBalances();
 
           assets.forEach((asset) => {
@@ -83,6 +85,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
           });
 
           break;
+        }
 
         default:
           for (const asset of assets) {

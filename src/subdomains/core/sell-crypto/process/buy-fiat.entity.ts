@@ -11,6 +11,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -468,6 +469,10 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDateUser: null,
       chargebackAmount: null,
       chargebackAllowedBy: null,
+      priceSteps: null,
+      priceDefinitionAllowedDate: null,
+      usedFees: null,
+      bankFeeAmount: null,
     };
 
     Object.assign(this, update);
@@ -480,9 +485,11 @@ export class BuyFiat extends IEntity {
   }
 
   pendingOutputAmount(asset: Asset): number {
-    return this.outputAmount &&
-      asset.dexName === this.sell.fiat.name &&
-      (asset.blockchain as string) === 'MaerkiBaumann'
+    const payoutBankName = this.fiatOutput?.bank?.name ?? IbanBankName.YAPEAL;
+
+    if (payoutBankName === IbanBankName.YAPEAL && this.fiatOutput?.isTransmittedDate) return 0;
+
+    return this.outputAmount && asset.dexName === this.sell.fiat.name && asset.bank?.name === payoutBankName
       ? this.outputAmount
       : 0;
   }

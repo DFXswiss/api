@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
-import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
+import { NotEnoughLiquidityException } from 'src/subdomains/supporting/dex/exceptions/not-enough-liquidity.exception';
+import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import {
   PriceCurrency,
@@ -27,45 +29,78 @@ export class RefRewardDexService {
     private readonly refRewardRepo: RefRewardRepository,
     private readonly dexService: DexService,
     private readonly priceService: PricingService,
+    private readonly liquidityService: LiquidityManagementService,
   ) {}
 
   async secureLiquidity(): Promise<void> {
     const newRefRewards = await this.refRewardRepo.find({
       where: { status: RewardStatus.PREPARED },
+      relations: { liquidityPipeline: true },
     });
 
     const groupedRewards = Util.groupByAccessor<RefReward, number>(newRefRewards, (r) => r.outputAsset.id);
 
     for (const rewards of groupedRewards.values()) {
+      const asset = rewards[0].outputAsset;
+
+      // Skip if any pipeline is running for this asset
+      if (rewards.some((r) => r.liquidityPipeline && !r.liquidityPipeline.isDone)) {
+        continue;
+      }
+
       try {
-        // payout asset price
-        const asset = rewards[0].outputAsset;
         const assetPrice = await this.priceService.getPrice(PriceCurrency.EUR, asset, PriceValidity.VALID_ONLY);
 
         for (const reward of rewards) {
-          const outputAmount = assetPrice.convert(reward.amountInEur, 8);
+          try {
+            const outputAmount = assetPrice.convert(reward.amountInEur, 8);
 
-          await this.checkLiquidity({
-            amount: outputAmount,
-            asset,
-            rewardId: reward.id.toString(),
-          });
+            await this.reserveLiquidity({
+              amount: outputAmount,
+              asset,
+              rewardId: reward.id.toString(),
+            });
 
-          await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
+            await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
+          } catch (e) {
+            if (e instanceof NotEnoughLiquidityException) {
+              // Start ONE pipeline for ALL remaining rewards
+              const remainingRewards = rewards.filter((r) => r.status === RewardStatus.PREPARED);
+              const totalAmount = Util.round(
+                remainingRewards.reduce((sum, r) => sum + assetPrice.convert(r.amountInEur, 8), 0),
+                8,
+              );
+              await this.startLiquidityPipeline(remainingRewards, asset, totalAmount);
+              break;
+            }
+
+            this.logger.error(`Error in processing ref reward ${reward.id}:`, e);
+          }
         }
       } catch (e) {
-        this.logger.error(`Error in processing ref rewards for ${rewards[0].outputAsset.uniqueName}:`, e);
+        this.logger.error(`Error in processing ref rewards for ${asset.uniqueName}:`, e);
       }
     }
   }
 
-  private async checkLiquidity(request: RefLiquidityRequest): Promise<number> {
-    const reserveRequest = this.createLiquidityRequest(request);
+  private async startLiquidityPipeline(rewards: RefReward[], asset: Asset, amount: number): Promise<void> {
+    try {
+      const pipeline = await this.liquidityService.buyLiquidity(asset.id, amount, amount, true);
+      this.logger.info(`Missing ref-reward liquidity. Liquidity management order created: ${pipeline.id}`);
 
-    return this.dexService.reserveLiquidity(reserveRequest);
+      for (const reward of rewards) {
+        await this.refRewardRepo.update(reward.id, { liquidityPipeline: pipeline });
+      }
+    } catch (e) {
+      this.logger.error(`Failed to start liquidity pipeline for ref rewards (${asset.uniqueName}):`, e);
+    }
   }
 
-  private createLiquidityRequest(request: RefLiquidityRequest): PurchaseLiquidityRequest | ReserveLiquidityRequest {
+  private async reserveLiquidity(request: RefLiquidityRequest): Promise<number> {
+    return this.dexService.reserveLiquidity(this.createReserveLiquidityRequest(request));
+  }
+
+  private createReserveLiquidityRequest(request: RefLiquidityRequest): ReserveLiquidityRequest {
     return {
       context: LiquidityOrderContext.REF_PAYOUT,
       correlationId: request.rewardId,

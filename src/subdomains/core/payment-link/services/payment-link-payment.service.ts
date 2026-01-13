@@ -5,11 +5,13 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { LnurlpInvoiceDto } from 'src/integration/lightning/dto/lnurlp.dto';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { AsyncMap } from 'src/shared/utils/async-map';
 import { Util } from 'src/shared/utils/util';
 import { C2BWebhookResult } from 'src/subdomains/core/payment-link/share/c2b-payment-link.provider';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { IsNull, LessThan } from 'typeorm';
+import { isSellRoute } from '../../sell-crypto/route/sell.entity';
 import { CreatePaymentLinkPaymentDto } from '../dto/create-payment-link-payment.dto';
 import { PaymentLinkEvmPaymentDto, PaymentLinkHexResultDto, TransferInfo } from '../dto/payment-link.dto';
 import { PaymentRequestMapper } from '../dto/payment-request.mapper';
@@ -37,6 +39,7 @@ export class PaymentLinkPaymentService {
   private readonly deviceActivationSubject = new Subject<PaymentDevice>();
 
   constructor(
+    private readonly fiatService: FiatService,
     private readonly paymentLinkPaymentRepo: PaymentLinkPaymentRepository,
     private readonly paymentWebhookService: PaymentWebhookService,
     private readonly paymentQuoteService: PaymentQuoteService,
@@ -110,7 +113,7 @@ export class PaymentLinkPaymentService {
         },
       ],
       relations: {
-        link: { route: { deposit: true, user: { userData: true } } },
+        link: { route: { deposit: true, user: { userData: { organization: true } } } },
       },
     });
   }
@@ -213,8 +216,12 @@ export class PaymentLinkPaymentService {
       if (exists) throw new ConflictException('Payment already exists');
     }
 
-    if (dto.currency && dto.currency !== paymentLink.route.fiat.name)
+    if (isSellRoute(paymentLink.route) && dto.currency && dto.currency !== paymentLink.route.fiat.name)
       throw new BadRequestException('Payment currency mismatch');
+
+    const currency = isSellRoute(paymentLink.route)
+      ? paymentLink.route.fiat
+      : await this.fiatService.getFiatByName(dto.currency ?? 'CHF');
 
     const payment = this.paymentLinkPaymentRepo.create({
       amount: dto.amount,
@@ -222,7 +229,7 @@ export class PaymentLinkPaymentService {
       note: dto.note,
       expiryDate: dto.expiryDate ?? Util.secondsAfter(paymentLink.configObj.paymentTimeout),
       mode: dto.mode ?? PaymentLinkPaymentMode.SINGLE,
-      currency: paymentLink.route.fiat,
+      currency,
       uniqueId: Util.createUniqueId(Config.prefixes.paymentLinkPaymentUidPrefix),
       status: PaymentLinkPaymentStatus.PENDING,
       link: paymentLink,
@@ -233,7 +240,11 @@ export class PaymentLinkPaymentService {
     // auto confirm (DEV only)
     if (Config.environment !== Environment.PRD && paymentLink.configObj.autoConfirmSecs != null) {
       setTimeout(async () => {
-        payment.amount === 0.01 ? payment.cancel() : payment.complete();
+        if (payment.amount === 0.01) {
+          payment.cancel();
+        } else {
+          payment.complete();
+        }
         await this.doSave(payment, true);
       }, paymentLink.configObj.autoConfirmSecs * 1000);
     }
@@ -364,7 +375,7 @@ export class PaymentLinkPaymentService {
 
     const payment = await this.paymentLinkPaymentRepo.findOne({
       where: { id: quote.payment.id },
-      relations: { link: { route: { user: { userData: true } } } },
+      relations: { link: { route: { user: { userData: { organization: true } } } } },
     });
 
     await this.handleQuoteChange(payment, quote);
@@ -442,7 +453,7 @@ export class PaymentLinkPaymentService {
     const paymentForWebhook = await this.paymentLinkPaymentRepo.findOne({
       where: { uniqueId: payment.uniqueId },
       relations: {
-        link: { route: { user: { userData: true } } },
+        link: { route: { user: { userData: { organization: true } } } },
       },
     });
 

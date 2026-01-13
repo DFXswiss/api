@@ -1,24 +1,63 @@
+import { XMLParser } from 'fast-xml-parser';
 import { Util } from 'src/shared/utils/util';
+import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+
+export enum CamtStatus {
+  BOOKED = 'BOOK',
+  PENDING = 'PDNG',
+  INFO = 'INFO',
+  REJECTED = 'RJCT',
+}
 
 export interface CamtTransaction {
   accountServiceRef: string;
   bookingDate: Date;
   valueDate: Date;
+
+  creditDebitIndicator: BankTxIndicator;
   amount: number;
   currency: string;
-  creditDebitIndicator: 'CRDT' | 'DBIT';
+  instructedAmount?: number;
+  instructedCurrency?: string;
+  txAmount?: number;
+  txCurrency?: string;
+  exchangeSourceCurrency?: string;
+  exchangeTargetCurrency?: string;
+  exchangeRate?: number;
+
   name?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  country?: string;
+
+  ultimateName?: string;
+  ultimateAddressLine1?: string;
+  ultimateAddressLine2?: string;
+  ultimateCountry?: string;
+
   iban?: string;
   bic?: string;
+  accountIban: string;
+  virtualIban?: string;
+
   remittanceInfo?: string;
   endToEndId?: string;
+  status: CamtStatus;
+  domainCode?: string;
+  familyCode?: string;
+  subFamilyCode?: string;
 }
 
 export interface Party {
   name: string;
+  address?: string;
+  houseNumber?: string;
+  zip?: string;
+  city?: string;
+  country: string;
+
   iban: string;
-  bic: string;
-  country?: string;
+  bic?: string;
 }
 
 export interface Pain001Payment {
@@ -33,63 +72,240 @@ export interface Pain001Payment {
 }
 
 export class Iso20022Service {
-  // --- CAMT PARSING --- //
-  static parseCamtXml(xmlData: string, accountIban: string): CamtTransaction[] {
-    const entryMatches = xmlData.match(/<Ntry>[\s\S]*?<\/Ntry>/g) || [];
+  // --- CAMT.054 PARSING --- //
+  static parseCamt054Json(camt054: any): CamtTransaction {
+    const notification = camt054.BkToCstmrDbtCdtNtfctn?.Ntfctn;
+    if (!notification) throw new Error('Invalid camt.054 format: missing Ntfctn');
 
-    return entryMatches
-      .filter((entry) => {
-        const entryIban = Iso20022Service.extractTag(entry, 'IBAN');
-        return !entryIban || entryIban === accountIban;
-      })
-      .map((entry) => Iso20022Service.parseCamtElement(entry, accountIban));
-  }
+    const entry = notification.Ntry;
 
-  private static parseCamtElement(entryXml: string, accountIban: string): CamtTransaction {
-    // amount and currency
-    const amtMatch = entryXml.match(/<Amt\s+Ccy="([^"]+)">([^<]+)<\/Amt>/);
-    const amount = amtMatch ? parseFloat(amtMatch[2]) : 0;
-    const currency = amtMatch ? amtMatch[1] : 'CHF';
+    // NtryDtls can be at root level (Yapeal format) or nested under Ntry (camt.054 spec)
+    const entryDetails = camt054.BkToCstmrDbtCdtNtfctn?.NtryDtls ?? entry?.NtryDtls;
 
-    // credit/debit indicator
-    const creditDebitIndicator = Iso20022Service.extractTag(entryXml, 'CdtDbtInd') as 'CRDT' | 'DBIT';
-    if (!creditDebitIndicator) throw new Error(`Missing CdtDbtInd in CAMT entry`);
+    // transaction details
+    const txDetails = entryDetails?.TxDtls;
+    const txDetail = Array.isArray(txDetails) ? txDetails[0] : txDetails;
 
     // dates
-    const bookingDateStr = Iso20022Service.extractTag(entryXml, 'BookgDt');
-    const valueDateStr = Iso20022Service.extractTag(entryXml, 'ValDt');
-    const bookingDate = bookingDateStr ? Iso20022Service.parseDate(bookingDateStr) : new Date();
-    const valueDate = valueDateStr ? Iso20022Service.parseDate(valueDateStr) : bookingDate;
+    const bookingDate = entry.BookgDt?.Dt ? this.parseDate(entry.BookgDt.Dt) : new Date();
+    const valueDate = entry.ValDt?.Dt ? this.parseDate(entry.ValDt.Dt) : bookingDate;
+
+    // amount and currency
+    const amount = entry.Amt?.Value;
+    const currency = entry.Amt?.Ccy;
+
+    const isCredit = entry.CdtDbtInd === 'CDTN'; // CDTN / DBTN
+
+    // receiving account
+    const accountIban = notification.Acct?.Id?.IBAN;
+    if (!accountIban) throw new Error('Invalid camt.054 format: missing account IBAN');
+
+    const creditorIban = txDetail?.RltdPties?.CdtrAcct?.Id?.IBAN;
+    const virtualIban = isCredit && creditorIban !== accountIban ? creditorIban : undefined;
+
+    // counterparty info
+    const counterparty = isCredit ? txDetail?.RltdPties?.Dbtr : txDetail?.RltdPties?.Cdtr;
+    const counterpartyAcct = isCredit ? txDetail?.RltdPties?.DbtrAcct : txDetail?.RltdPties?.CdtrAcct;
+    const counterpartyAgent = isCredit ? txDetail?.RltdAgts?.DbtrAgt : txDetail?.RltdAgts?.CdtrAgt;
+
+    const name = counterparty?.Nm;
+    const iban = counterpartyAcct?.Id?.IBAN;
+    const bic = counterpartyAgent?.FinInstnId?.BIC || counterpartyAgent?.FinInstnId?.BICFI;
+
+    // address info
+    const postalAddress = counterparty?.PstlAdr;
+    const { addressLine1, addressLine2 } = this.parsePostalAddress(postalAddress);
+    const country = postalAddress?.Ctry;
+
+    // ultimate party info (actual sender/receiver behind intermediary banks like Wise/Revolut)
+    const ultimateParty = isCredit ? txDetail?.RltdPties?.UltmtDbtr : txDetail?.RltdPties?.UltmtCdtr;
+    const ultimateName = ultimateParty?.Nm;
+    const ultimatePostalAddress = ultimateParty?.PstlAdr;
+    const { addressLine1: ultimateAddressLine1, addressLine2: ultimateAddressLine2 } =
+      this.parsePostalAddress(ultimatePostalAddress);
+    const ultimateCountry = ultimatePostalAddress?.Ctry;
+
+    // remittance info
+    let remittanceInfo: string | undefined;
+    if (txDetail?.RmtInf?.Ustrd) {
+      const ustrd = txDetail.RmtInf.Ustrd;
+      remittanceInfo = Array.isArray(ustrd) ? ustrd.join(' ') : ustrd;
+    } else if (txDetail?.RmtInf?.Strd) {
+      remittanceInfo = txDetail.RmtInf.Strd;
+    }
+
+    // references
+    const accountServiceRef = txDetail?.Refs?.AcctSvcrRef || txDetail?.Refs?.TxId || notification.Id;
+    const endToEndId = txDetail?.Refs?.EndToEndId;
+
+    // bank transaction codes
+    const bkTxCd = txDetail?.BkTxCd?.Domn;
+    const domainCode = bkTxCd?.Cd;
+    const familyCode = bkTxCd?.Fmly?.Cd;
+    const subFamilyCode = bkTxCd?.Fmly?.SubFmlyCd;
+
+    // currency exchange information
+    const amtDtls = txDetail?.AmtDtls;
+    const instructedAmount = amtDtls?.InstdAmt?.Amt?.Value;
+    const instructedCurrency = amtDtls?.InstdAmt?.Amt?.Ccy;
+    const txAmount = amtDtls?.TxAmt?.Amt?.Value;
+    const txCurrency = amtDtls?.TxAmt?.Amt?.Ccy;
+    const exchangeSourceCurrency = amtDtls?.InstdAmt?.CcyXchg?.SrcCcy;
+    const exchangeTargetCurrency = amtDtls?.InstdAmt?.CcyXchg?.TrgtCcy;
+    const exchangeRate = amtDtls?.InstdAmt?.CcyXchg?.XchgRate;
+
+    return {
+      accountServiceRef,
+      bookingDate,
+      valueDate,
+      creditDebitIndicator: entry.CdtDbtInd === 'CDTN' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+      amount,
+      currency,
+      instructedAmount,
+      instructedCurrency,
+      txAmount,
+      txCurrency,
+      exchangeSourceCurrency,
+      exchangeTargetCurrency,
+      exchangeRate,
+      name,
+      addressLine1,
+      addressLine2,
+      country,
+      ultimateName,
+      ultimateAddressLine1,
+      ultimateAddressLine2,
+      ultimateCountry,
+      iban,
+      bic,
+      remittanceInfo,
+      endToEndId,
+      status: entry.Sts as CamtStatus,
+      accountIban,
+      virtualIban,
+      domainCode,
+      familyCode,
+      subFamilyCode,
+    };
+  }
+
+  private static parsePostalAddress(postalAddress: any): { addressLine1?: string; addressLine2?: string } {
+    if (!postalAddress) return {};
+
+    // AdrLine format (array of address lines)
+    if (postalAddress.AdrLine) {
+      const lines = Array.isArray(postalAddress.AdrLine) ? postalAddress.AdrLine : [postalAddress.AdrLine];
+      return {
+        addressLine1: lines[0],
+        addressLine2: lines[1],
+      };
+    }
+
+    // structured format (StrtNm, BldgNb, PstCd, TwnNm)
+    if (postalAddress.StrtNm || postalAddress.TwnNm) {
+      const streetPart = [postalAddress.StrtNm, postalAddress.BldgNb].filter(Boolean).join(' ');
+      const cityPart = [postalAddress.PstCd, postalAddress.TwnNm].filter(Boolean).join(' ');
+      return {
+        addressLine1: streetPart || undefined,
+        addressLine2: cityPart || undefined,
+      };
+    }
+
+    return {};
+  }
+
+  // --- CAMT.053 PARSING --- //
+  static parseCamt053Json(camt053: any, accountIban: string): CamtTransaction[] {
+    const statements = camt053?.BkToCstmrStmt?.Stmt;
+    if (!statements || !Array.isArray(statements)) return [];
+
+    const transactions: CamtTransaction[] = [];
+
+    for (const stmt of statements) {
+      if (!stmt.Ntry || !Array.isArray(stmt.Ntry)) continue;
+
+      for (const entry of stmt.Ntry) {
+        try {
+          transactions.push(Iso20022Service.parseCamt053JsonEntry(entry, accountIban));
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    return transactions;
+  }
+
+  private static parseCamt053JsonEntry(entry: any, accountIban: string): CamtTransaction {
+    // amount and currency
+    const amtObj = entry.Amt;
+    const amount = parseFloat(amtObj?.Value || amtObj?.['#text'] || amtObj || '0');
+    const currency = amtObj?.Ccy || 'CHF';
+
+    // credit/debit indicator
+    const cdtDbtInd = entry.CdtDbtInd;
+    if (!cdtDbtInd) throw new Error('Missing CdtDbtInd in CAMT entry');
+    const creditDebitIndicator = cdtDbtInd === 'CRDT' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT;
+
+    // dates
+    const bookingDateStr = entry.BookgDt?.Dt;
+    const valueDateStr = entry.ValDt?.Dt;
+    const bookingDate = bookingDateStr ? this.parseDate(bookingDateStr) : new Date();
+    const valueDate = valueDateStr ? this.parseDate(valueDateStr) : bookingDate;
 
     // reference
-    const accountServiceRef = Iso20022Service.extractTag(entryXml, 'AcctSvcrRef') || Util.createUniqueId(accountIban);
+    const accountServiceRef = entry.NtryRef || entry.AcctSvcrRef || Util.createUniqueId(accountIban);
 
-    // transaction details (inside TxDtls)
-    const txDtls = entryXml.match(/<TxDtls>[\s\S]*?<\/TxDtls>/)?.[0] || entryXml;
+    // transaction details
+    const entryDtls = entry.NtryDtls;
+    const txDtlsArray = Array.isArray(entryDtls) ? entryDtls : entryDtls ? [entryDtls] : [];
+    const firstDetail = txDtlsArray[0];
+    const txDtlsList = firstDetail?.TxDtls;
+    const txDtls = Array.isArray(txDtlsList) ? txDtlsList[0] : txDtlsList || {};
 
-    // party information
-    const name =
-      Iso20022Service.extractTag(txDtls, 'Nm') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', 'Dbtr', 'Nm') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', 'Cdtr', 'Nm');
+    // party information - determine counterparty based on credit/debit
+    const isCredit = creditDebitIndicator === BankTxIndicator.CREDIT;
+    const parties = txDtls.RltdPties || {};
+    const counterparty = isCredit ? parties.Dbtr : parties.Cdtr;
+    const counterpartyAcct = isCredit ? parties.DbtrAcct : parties.CdtrAcct;
+    const counterpartyAgent = isCredit ? txDtls.RltdAgts?.DbtrAgt : txDtls.RltdAgts?.CdtrAgt;
 
-    const iban =
-      Iso20022Service.extractTag(txDtls, 'IBAN') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', 'DbtrAcct', 'IBAN') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdPties', 'CdtrAcct', 'IBAN');
+    const name = counterparty?.Nm || '';
+    const iban = counterpartyAcct?.Id?.IBAN || '';
+    const bic = counterpartyAgent?.FinInstnId?.BIC || counterpartyAgent?.FinInstnId?.BICFI;
 
-    const bic =
-      Iso20022Service.extractTag(txDtls, 'BIC') ||
-      Iso20022Service.extractTag(txDtls, 'BICFI') ||
-      Iso20022Service.extractNestedTag(txDtls, 'RltdAgts', 'DbtrAgt', 'BIC');
+    // address information from PstlAdr
+    const postalAddress = counterparty?.PstlAdr;
+    const { addressLine1, addressLine2 } = this.parsePostalAddress(postalAddress);
+    const country = postalAddress?.Ctry;
+
+    // ultimate party info (actual sender/receiver behind intermediary banks like Wise/Revolut)
+    const ultimateParty = isCredit ? parties.UltmtDbtr : parties.UltmtCdtr;
+    const ultimateName = ultimateParty?.Nm;
+    const ultimatePostalAddress = ultimateParty?.PstlAdr;
+    const { addressLine1: ultimateAddressLine1, addressLine2: ultimateAddressLine2 } =
+      this.parsePostalAddress(ultimatePostalAddress);
+    const ultimateCountry = ultimatePostalAddress?.Ctry;
 
     // remittance information
-    const ustrd = Iso20022Service.extractTag(txDtls, 'Ustrd');
-    const strd = Iso20022Service.extractTag(txDtls, 'Strd');
-    const remittanceInfo = ustrd || strd;
+    let remittanceInfo: string | undefined;
+    if (txDtls.RmtInf?.Ustrd) {
+      const ustrd = txDtls.RmtInf.Ustrd;
+      remittanceInfo = Array.isArray(ustrd) ? ustrd.join(' ') : ustrd;
+    } else if (txDtls.RmtInf?.Strd) {
+      remittanceInfo = txDtls.RmtInf.Strd;
+    } else if (entry.AddtlNtryInf) {
+      remittanceInfo = entry.AddtlNtryInf;
+    }
 
     // end-to-end ID
-    const endToEndId = Iso20022Service.extractTag(txDtls, 'EndToEndId');
+    const endToEndId = txDtls.Refs?.EndToEndId || '';
+
+    // bank transaction codes
+    const bkTxCd = txDtls.BkTxCd?.Domn;
+    const domainCode = bkTxCd?.Cd;
+    const familyCode = bkTxCd?.Fmly?.Cd;
+    const subFamilyCode = bkTxCd?.Fmly?.SubFmlyCd;
 
     return {
       accountServiceRef,
@@ -99,11 +315,35 @@ export class Iso20022Service {
       currency,
       creditDebitIndicator,
       name,
+      addressLine1,
+      addressLine2,
+      country,
+      ultimateName,
+      ultimateAddressLine1,
+      ultimateAddressLine2,
+      ultimateCountry,
       iban,
       bic,
       remittanceInfo,
       endToEndId,
+      status: CamtStatus.BOOKED, // camt.053 contains only booked transactions
+      accountIban,
+      virtualIban: undefined, // not available in camt.053 format
+      domainCode,
+      familyCode,
+      subFamilyCode,
     };
+  }
+
+  static parseCamt053Xml(xmlData: string, accountIban: string): CamtTransaction[] {
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '',
+      parseAttributeValue: true,
+    });
+
+    const jsonData = parser.parse(xmlData);
+    return this.parseCamt053Json(jsonData.Document || jsonData, accountIban);
   }
 
   // --- PAIN.001 GENERATION --- //
@@ -147,6 +387,10 @@ export class Iso20022Service {
                 Cdtr: {
                   Nm: payment.creditor.name,
                   PstlAdr: {
+                    ...(payment.creditor.address && { StrtNm: payment.creditor.address }),
+                    ...(payment.creditor.houseNumber && { BldgNb: payment.creditor.houseNumber }),
+                    ...(payment.creditor.zip && { PstCd: payment.creditor.zip }),
+                    ...(payment.creditor.city && { TwnNm: payment.creditor.city }),
                     Ctry: payment.creditor.country,
                   },
                 },
@@ -239,23 +483,6 @@ export class Iso20022Service {
   }
 
   // --- XML HELPER METHODS --- //
-
-  private static extractTag(xml: string, tag: string): string | undefined {
-    const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`));
-    return match?.[1]?.trim();
-  }
-
-  private static extractNestedTag(xml: string, ...tags: string[]): string | undefined {
-    let current = xml;
-    for (const tag of tags) {
-      const match = current.match(new RegExp(`<${tag}>[\\s\\S]*?</${tag}>`));
-      if (!match) return undefined;
-      current = match[0];
-    }
-
-    const textMatch = current.match(/>([^<]+)</);
-    return textMatch?.[1]?.trim();
-  }
 
   private static parseDate(dateStr: string): Date {
     const dateMatch = dateStr.match(/(\d{4}-\d{2}-\d{2})/);

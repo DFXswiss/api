@@ -3,7 +3,7 @@ import { Deposit } from '../deposit.entity';
 
 const defaultDeposit: Partial<Deposit> = {
   address: 'someAddress',
-  blockchains: `${Blockchain.DEFICHAIN}`,
+  blockchains: `${Blockchain.BITCOIN}`,
 };
 
 export function createDefaultDeposit(): Deposit {

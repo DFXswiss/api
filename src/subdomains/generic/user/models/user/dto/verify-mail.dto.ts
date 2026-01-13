@@ -7,3 +7,8 @@ export class VerifyMailDto {
   @IsString()
   token: string;
 }
+
+export enum UpdateMailStatus {
+  Accepted = 'accepted',
+  Ok = 'ok',
+}

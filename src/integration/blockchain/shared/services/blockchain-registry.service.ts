@@ -4,18 +4,22 @@ import { BaseService } from '../../base/base.service';
 import { BitcoinClient } from '../../bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from '../../bitcoin/node/bitcoin.service';
 import { BscService } from '../../bsc/bsc.service';
+import { CardanoClient } from '../../cardano/cardano-client';
+import { CardanoService } from '../../cardano/services/cardano.service';
+import { CitreaTestnetService } from '../../citrea-testnet/citrea-testnet.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
-import { SepoliaService } from '../../sepolia/sepolia.service';
 import { GnosisService } from '../../gnosis/gnosis.service';
 import { MoneroClient } from '../../monero/monero-client';
 import { MoneroService } from '../../monero/services/monero.service';
 import { OptimismService } from '../../optimism/optimism.service';
 import { PolygonService } from '../../polygon/polygon.service';
+import { SepoliaService } from '../../sepolia/sepolia.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { SolanaClient } from '../../solana/solana-client';
+import { SparkClient } from '../../spark/spark-client';
+import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
 import { TronClient } from '../../tron/tron-client';
-import { CitreaTestnetService } from '../../citrea-testnet/citrea-testnet.service';
 import { ZanoService } from '../../zano/services/zano.service';
 import { ZanoClient } from '../../zano/zano-client';
 import { Blockchain } from '../enums/blockchain.enum';
@@ -23,8 +27,24 @@ import { EvmClient } from '../evm/evm-client';
 import { EvmService } from '../evm/evm.service';
 import { L2BridgeEvmClient } from '../evm/interfaces';
 
-type BlockchainClientType = EvmClient | BitcoinClient | MoneroClient | ZanoClient | SolanaClient | TronClient;
-type BlockchainServiceType = EvmService | BitcoinService | MoneroService | ZanoService | SolanaService | TronService;
+type BlockchainClientType =
+  | EvmClient
+  | BitcoinClient
+  | MoneroClient
+  | SparkClient
+  | ZanoClient
+  | SolanaClient
+  | TronClient
+  | CardanoClient;
+type BlockchainServiceType =
+  | EvmService
+  | BitcoinService
+  | MoneroService
+  | SparkService
+  | ZanoService
+  | SolanaService
+  | TronService
+  | CardanoService;
 
 @Injectable()
 export class BlockchainRegistryService {
@@ -39,9 +59,11 @@ export class BlockchainRegistryService {
     private readonly gnosisService: GnosisService,
     private readonly bitcoinService: BitcoinService,
     private readonly moneroService: MoneroService,
+    private readonly sparkService: SparkService,
     private readonly zanoService: ZanoService,
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
+    private readonly cardanoService: CardanoService,
     private readonly citreaTestnetService: CitreaTestnetService,
   ) {}
 
@@ -84,12 +106,16 @@ export class BlockchainRegistryService {
         return this.bitcoinService;
       case Blockchain.MONERO:
         return this.moneroService;
+      case Blockchain.SPARK:
+        return this.sparkService;
       case Blockchain.ZANO:
         return this.zanoService;
       case Blockchain.SOLANA:
         return this.solanaService;
       case Blockchain.TRON:
         return this.tronService;
+      case Blockchain.CARDANO:
+        return this.cardanoService;
       case Blockchain.CITREA_TESTNET:
         return this.citreaTestnetService;
 

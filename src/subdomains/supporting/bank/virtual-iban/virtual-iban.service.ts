@@ -1,9 +1,7 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import * as IbanTools from 'ibantools';
+import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
+import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
@@ -12,8 +10,6 @@ import { VirtualIbanRepository } from './virtual-iban.repository';
 
 @Injectable()
 export class VirtualIbanService {
-  private readonly logger = new DfxLogger(VirtualIbanService);
-
   constructor(
     private readonly virtualIbanRepo: VirtualIbanRepository,
     private readonly bankService: BankService,
@@ -32,13 +28,6 @@ export class VirtualIbanService {
     });
   }
 
-  async getByIban(iban: string): Promise<VirtualIban | null> {
-    return this.virtualIbanRepo.findOne({
-      where: { iban, active: true },
-      relations: { userData: true },
-    });
-  }
-
   async createForUser(userData: UserData, currencyName: string): Promise<VirtualIban> {
     const existing = await this.getActiveForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
@@ -49,7 +38,7 @@ export class VirtualIbanService {
     const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
     if (!bank) throw new BadRequestException('No bank available for this currency');
 
-    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal();
+    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal(bank.iban);
 
     const virtualIban = this.virtualIbanRepo.create({
       userData,
@@ -63,31 +52,111 @@ export class VirtualIbanService {
       activatedAt: new Date(),
     });
 
-    return this.virtualIbanRepo.save(virtualIban);
+    const saved = await this.virtualIbanRepo.save(virtualIban);
+
+    this.virtualIbanRepo.invalidateCache();
+
+    return saved;
   }
 
-  private async reserveVibanFromYapeal(): Promise<{ iban: string; bban?: string; accountUid?: string }> {
+  async createForBuy(userData: UserData, buy: Buy, currencyName: string): Promise<VirtualIban> {
+    const existingForBuy = await this.getActiveForBuyAndCurrency(buy.id, currencyName);
+    if (existingForBuy) throw new ConflictException('Buy already has an active personal IBAN for this currency');
+
+    const currency = await this.fiatService.getFiatByName(currencyName);
+    if (!currency) throw new BadRequestException('Currency not found');
+
+    const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
+    if (!bank) throw new BadRequestException('No bank available for this currency');
+
+    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal(bank.iban);
+
+    const virtualIban = this.virtualIbanRepo.create({
+      userData,
+      bank,
+      currency,
+      iban,
+      bban,
+      yapealAccountUid: accountUid,
+      status: VirtualIbanStatus.ACTIVE,
+      active: true,
+      activatedAt: new Date(),
+      buy,
+      label: buy.asset?.name,
+    });
+
+    const saved = await this.virtualIbanRepo.save(virtualIban);
+
+    this.virtualIbanRepo.invalidateCache();
+
+    return saved;
+  }
+
+  async getActiveForBuyAndCurrency(buyId: number, currencyName: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOneCached(`buy-${buyId}-${currencyName}`, {
+      where: {
+        buy: { id: buyId },
+        currency: { name: currencyName },
+        active: true,
+        status: VirtualIbanStatus.ACTIVE,
+      },
+    });
+  }
+
+  async getByIban(iban: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOneCached(iban, {
+      where: { iban },
+      relations: { userData: true, bank: true, buy: true },
+    });
+  }
+
+  async getVirtualIbansForAccount(userDataId: number): Promise<VirtualIban[]> {
+    return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
+  }
+
+  async countActiveForUser(userDataId: number): Promise<number> {
+    return this.virtualIbanRepo.countBy({
+      userData: { id: userDataId },
+      active: true,
+      status: VirtualIbanStatus.ACTIVE,
+    });
+  }
+
+  async getBaseAccountIban(iban: string): Promise<string | undefined> {
+    return this.getByIban(iban).then((viban) => viban?.bank.iban);
+  }
+
+  async getVirtualIbanByKey(key: string, value: any): Promise<VirtualIban> {
+    return this.virtualIbanRepo
+      .createQueryBuilder('virtualIban')
+      .select('virtualIban')
+      .leftJoinAndSelect('virtualIban.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
+      .leftJoinAndSelect('userData.language', 'language')
+      .leftJoinAndSelect('virtualIban.currency', 'currency')
+      .leftJoinAndSelect('virtualIban.bank', 'bank')
+      .where(`${key.includes('.') ? key : `virtualIban.${key}`} = :param`, { param: value })
+      .getOne();
+  }
+
+  private async reserveVibanFromYapeal(
+    accountIban: string,
+  ): Promise<{ iban: string; bban?: string; accountUid?: string }> {
     if (!this.yapealService.isAvailable()) {
-      this.logger.info('YAPEAL not configured, using placeholder IBAN');
-      return { iban: this.generatePlaceholderIban() };
+      throw new ServiceUnavailableException('Yapeal service is not available');
     }
 
-    const result = await this.yapealService.createViban();
+    const result = await this.yapealService.createViban(accountIban);
 
     return {
       iban: result.iban,
       bban: result.bban,
       accountUid: result.accountUid,
     };
-  }
-
-  private generatePlaceholderIban(): string {
-    const bankCode = '89144';
-    const accountNumber = Util.createHash(Date.now().toString() + Math.random().toString())
-      .substring(0, 12)
-      .toUpperCase()
-      .replace(/[^0-9]/g, '0');
-
-    return IbanTools.composeIBAN({ countryCode: 'CH', bban: bankCode + accountNumber });
   }
 }

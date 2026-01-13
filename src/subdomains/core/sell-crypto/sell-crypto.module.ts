@@ -9,9 +9,11 @@ import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { FiatOutputModule } from 'src/subdomains/supporting/fiat-output/fiat-output.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
+import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
+import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { AmlModule } from '../aml/aml.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { CustodyModule } from '../custody/custody.module';
@@ -41,15 +43,17 @@ import { SellService } from './route/sell.service';
     forwardRef(() => BankModule),
     forwardRef(() => BankTxModule),
     forwardRef(() => PayInModule),
+    PayoutModule,
     forwardRef(() => BuyCryptoModule),
     forwardRef(() => AddressPoolModule),
     FiatOutputModule,
     PricingModule,
-    TransactionModule,
+    forwardRef(() => TransactionModule),
     AmlModule,
-    TransactionUtilModule,
+    forwardRef(() => TransactionUtilModule),
     RouteModule,
     forwardRef(() => CustodyModule),
+    SupportIssueModule,
   ],
   controllers: [BuyFiatController, SellController],
   providers: [

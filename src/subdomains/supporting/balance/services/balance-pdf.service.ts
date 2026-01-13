@@ -72,11 +72,11 @@ export class BalancePdfService {
 
     // Get native coin balance at historical block
     const nativeCoinBalance = await this.alchemyService.getNativeCoinBalance(chainId, address, blockNumber);
-    const nativeCoin = assets.find((a) => !a.chainId);
+    const nativeCoin = assets.find((a) => a.type === AssetType.COIN);
     if (nativeCoin && nativeCoinBalance) {
-      const balance = EvmUtil.fromWeiAmount(nativeCoinBalance, 18);
+      const balance = EvmUtil.fromWeiAmount(nativeCoinBalance, nativeCoin.decimals ?? 18);
       if (balance > 0) {
-        const price = await this.getHistoricalPrice(nativeCoin, blockchain, date, currency);
+        const price = await this.getHistoricalPrice(nativeCoin, date, currency);
         balances.push({
           asset: nativeCoin,
           balance,
@@ -87,7 +87,7 @@ export class BalancePdfService {
     }
 
     // Get token balances at historical block (parallelized in batches)
-    const tokenAssets = assets.filter((a) => a.chainId != null);
+    const tokenAssets = assets.filter((a) => a.type === AssetType.TOKEN && a.chainId != null);
     const BATCH_SIZE = 10;
 
     for (let i = 0; i < tokenAssets.length; i += BATCH_SIZE) {
@@ -104,7 +104,7 @@ export class BalancePdfService {
             );
             const balance = EvmUtil.fromWeiAmount(rawBalance, asset.decimals ?? 18);
             if (balance > 0) {
-              const price = await this.getHistoricalPrice(asset, blockchain, date, currency);
+              const price = await this.getHistoricalPrice(asset, date, currency);
               return {
                 asset,
                 balance,
@@ -126,12 +126,7 @@ export class BalancePdfService {
     return PdfUtil.sortBalancesByValue(balances);
   }
 
-  private async getHistoricalPrice(
-    asset: Asset,
-    blockchain: Blockchain,
-    date: Date,
-    currency: PriceCurrency,
-  ): Promise<number | undefined> {
+  private async getHistoricalPrice(asset: Asset, date: Date, currency: PriceCurrency): Promise<number | undefined> {
     // First, check local database for historical price
     const localPrice = await this.assetPricesService.getAssetPriceForDate(asset.id, date);
     if (localPrice) {
@@ -147,7 +142,7 @@ export class BalancePdfService {
 
     // Fallback to CoinGecko for historical price
     const currencyLower = currency.toLowerCase() as 'usd' | 'eur' | 'chf';
-    return this.coinGeckoService.getHistoricalPriceForAsset(blockchain, asset.chainId, date, currencyLower);
+    return this.coinGeckoService.getHistoricalPriceForAsset(asset, date, currencyLower);
   }
 
   private createPdf(

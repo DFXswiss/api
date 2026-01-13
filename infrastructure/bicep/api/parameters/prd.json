@@ -452,24 +452,6 @@
     "olkyPassword": {
       "value": "xxx"
     },
-    "frickUrl": {
-      "value": "https://olb.bankfrick.li/webapi/v2"
-    },
-    "frickKey": {
-      "value": "xxx"
-    },
-    "frickPassword": {
-      "value": "xxx"
-    },
-    "frickPrivateKey": {
-      "value": "xxx"
-    },
-    "revolutRefreshToken": {
-      "value": "xxx"
-    },
-    "revolutClientAssertion": {
-      "value": "xxx"
-    },
     "letterUrl": {
       "value": "https://api.letterxpress.de/v1"
     },

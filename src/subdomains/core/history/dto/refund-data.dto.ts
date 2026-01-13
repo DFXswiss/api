@@ -14,6 +14,32 @@ export class RefundFeeDto {
   dfx: number;
 }
 
+export class RefundBankDetailsDto {
+  @ApiPropertyOptional({ description: 'Account holder name' })
+  name?: string;
+
+  @ApiPropertyOptional({ description: 'Street address' })
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'House number' })
+  houseNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Postal code' })
+  zip?: string;
+
+  @ApiPropertyOptional({ description: 'City' })
+  city?: string;
+
+  @ApiPropertyOptional({ description: 'Country code' })
+  country?: string;
+
+  @ApiPropertyOptional({ description: 'IBAN' })
+  iban?: string;
+
+  @ApiPropertyOptional({ description: 'BIC/SWIFT code' })
+  bic?: string;
+}
+
 export class RefundDataDto {
   @ApiProperty({ description: 'Expiry date of the refund data' })
   expiryDate: Date;
@@ -34,5 +60,8 @@ export class RefundDataDto {
   refundAsset: ActiveDto;
 
   @ApiPropertyOptional({ description: 'IBAN for bank tx or blockchain address for crypto tx' })
-  refundTarget: string;
+  refundTarget?: string;
+
+  @ApiPropertyOptional({ type: RefundBankDetailsDto, description: 'Bank details' })
+  bankDetails?: RefundBankDetailsDto;
 }

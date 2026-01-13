@@ -1,6 +1,19 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
@@ -11,6 +24,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -31,9 +45,10 @@ import { UpdateAddressDto } from './dto/update-address.dto';
 import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
+import { UserProfileDto } from './dto/user-profile.dto';
 import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
-import { VerifyMailDto } from './dto/verify-mail.dto';
+import { UpdateMailStatus, VerifyMailDto } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User, UserSupportUpdateCols } from './user.entity';
 import { UserStatus } from './user.enum';
@@ -240,15 +255,23 @@ export class UserV2Controller {
   @Put('mail')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  @ApiOkResponse({ description: 'Verification code sent' })
+  @ApiOkResponse({ description: 'Mail updated successfully' })
+  @ApiAcceptedResponse({ description: 'Verification code sent' })
   @ApiForbiddenResponse({ description: 'Missing 2FA' })
   @ApiConflictResponse({ description: 'Account already exists' })
   async updateUserMail(
     @GetJwt() jwt: JwtPayload,
     @Body() newMail: UpdateUserMailDto,
     @RealIP() ip: string,
+    @Res() res: Response,
   ): Promise<void> {
-    return this.userService.updateUserMail(jwt.account, newMail, ip);
+    const result = await this.userService.updateUserMail(jwt.account, newMail, ip);
+
+    if (result === UpdateMailStatus.Accepted) {
+      res.status(202).send('Verification code sent');
+    } else {
+      res.status(200).send('Mail updated successfully');
+    }
   }
 
   @Post('mail/verify')
@@ -294,5 +317,13 @@ export class UserV2Controller {
   @ApiOkResponse({ type: ReferralDto })
   async getRef(@GetJwt() jwt: JwtPayload): Promise<ReferralDto> {
     return this.userService.getRefDtoV2(jwt.user);
+  }
+
+  @Get('profile')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: UserProfileDto })
+  async getProfile(@GetJwt() jwt: JwtPayload): Promise<UserProfileDto> {
+    return this.userService.getUserProfile(jwt.account);
   }
 }

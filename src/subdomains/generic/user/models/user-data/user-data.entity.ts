@@ -8,8 +8,10 @@ import { Util } from 'src/shared/utils/util';
 import { AmlListStatus } from 'src/subdomains/core/aml/enums/aml-list-status.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { FaucetRequest } from 'src/subdomains/core/faucet-request/entities/faucet-request.entity';
-import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
+import {
+  DefaultPaymentLinkConfig,
+  PaymentLinkConfig,
+} from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -293,6 +295,10 @@ export class UserData extends IEntity {
   apiFilterCT?: string;
 
   // Volumes
+
+  @Column({ type: 'float', default: 0 })
+  monthlyBuyVolume: number; // CHF
+
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number; // CHF
 
@@ -300,10 +306,16 @@ export class UserData extends IEntity {
   buyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
+  monthlySellVolume: number; // CHF
+
+  @Column({ type: 'float', default: 0 })
   annualSellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
   sellVolume: number; // CHF
+
+  @Column({ type: 'float', default: 0 })
+  monthlyCryptoVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
   annualCryptoVolume: number; // CHF
@@ -324,6 +336,10 @@ export class UserData extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   paymentLinksConfig?: string; // PaymentLinkConfig
+
+  // Referral trust
+  @Column({ default: false })
+  isTrustedReferrer: boolean;
 
   // References
   @ManyToOne(() => Wallet, { nullable: true })
@@ -403,8 +419,8 @@ export class UserData extends IEntity {
         this.users.length === 0
           ? UserDataStatus.KYC_ONLY
           : this.users.some((u) => u.status === UserStatus.ACTIVE)
-          ? UserDataStatus.ACTIVE
-          : UserDataStatus.NA,
+            ? UserDataStatus.ACTIVE
+            : UserDataStatus.NA,
       deactivationDate: null,
     };
   }
@@ -591,11 +607,11 @@ export class UserData extends IEntity {
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
-          street: this.organizationStreet,
-          houseNumber: this.organizationHouseNumber,
-          city: this.organizationLocation,
-          zip: this.organizationZip,
-          country: this.organizationCountry,
+          street: this.organization.street,
+          houseNumber: this.organization.houseNumber,
+          city: this.organization.location,
+          zip: this.organization.zip,
+          country: this.organization.country,
         }
       : {
           street: this.street,
@@ -755,9 +771,10 @@ export function Blank(value: string, type: BlankType): string {
       return `${createStringOf('*', value.length - numberOfLastVisibleNumbers)}${value.substring(
         value.length - numberOfLastVisibleNumbers,
       )}`;
-    case BlankType.MAIL:
+    case BlankType.MAIL: {
       const [name, domain] = value.split('@');
       return `${name[0]}${createStringOf('*', name.length - 1)}@${domain}`;
+    }
     case BlankType.WALLET_ADDRESS:
       return `${value.substring(0, 4)}${createStringOf('*', 8)}${value.substring(value.length - 4)}`;
   }

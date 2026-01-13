@@ -1,7 +1,6 @@
 import { Body, Controller, ForbiddenException, Headers, Post } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
-import { YapealWebhookPayloadDto } from '../dto/yapeal-webhook.dto';
 import { YapealWebhookService } from '../services/yapeal-webhook.service';
 
 @ApiTags('Bank')
@@ -11,23 +10,23 @@ export class YapealWebhookController {
 
   @Post('webhook')
   @ApiExcludeEndpoint()
-  handleYapealWebhook(
-    @Headers('x-yapeal-signature') signature: string,
-    @Body() payload: YapealWebhookPayloadDto,
-  ): { received: boolean } {
-    const webhookSecret = Config.bank.yapeal.webhookSecret;
-    if (webhookSecret && !this.verifySignature(signature, webhookSecret)) {
-      throw new ForbiddenException('Invalid webhook signature');
-    }
+  async handleYapealWebhook(
+    @Headers('x-api-key') apiKey: string,
+    @Body() payload: any,
+  ): Promise<{ received: boolean }> {
+    this.validateApiKey(apiKey);
 
-    this.yapealWebhookService.processWebhook(payload);
+    await this.yapealWebhookService.processWebhook(payload);
+
     return { received: true };
   }
 
-  private verifySignature(signature: string, secret: string): boolean {
-    if (!signature) return false;
+  private validateApiKey(apiKey: string): void {
+    const expectedKey = Config.bank.yapeal.webhookApiKey;
+    if (!expectedKey) return;
 
-    // TODO: Implement actual YAPEAL signature verification once documentation is available
-    return signature.length > 0 && secret.length > 0;
+    if (!apiKey || apiKey !== expectedKey) {
+      throw new ForbiddenException('Invalid API key');
+    }
   }
 }

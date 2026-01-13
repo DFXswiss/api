@@ -54,6 +54,8 @@ export const LiquidityManagementExchanges = [
   LiquidityManagementSystem.KRAKEN,
   LiquidityManagementSystem.BINANCE,
   LiquidityManagementSystem.SCRYPT,
+  LiquidityManagementSystem.FRANKENCOIN,
+  LiquidityManagementSystem.DEURO,
 ];
 export const LiquidityManagementBridges = [
   LiquidityManagementSystem.BASE_L2_BRIDGE,

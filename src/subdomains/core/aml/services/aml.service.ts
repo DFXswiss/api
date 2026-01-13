@@ -60,7 +60,7 @@ export class AmlService {
       if (
         !entity.userData.bankTransactionVerification &&
         entity instanceof BuyFiat &&
-        (entity.sell.iban.startsWith('LI') || entity.sell.iban.startsWith('CH'))
+        Config.isDomesticIban(entity.sell.iban)
       )
         entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
           bankTransactionVerification: CheckStatus.GSHEET,
@@ -94,8 +94,11 @@ export class AmlService {
     blacklist: SpecialExternalAccount[];
     banks?: Bank[];
     ipLogCountries?: string[];
+    multiAccountBankNames?: string[];
   }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
+    const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountNames();
+
     entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);
     let bankData = await this.getBankData(entity);
     const refUser =
@@ -121,7 +124,9 @@ export class AmlService {
               entity.bankTx?.name ?? entity.checkoutTx?.cardName,
               entity.userData.verifiedName ?? bankData.name,
             ) ||
-            Util.isSameName(entity.bankTx?.ultimateName, entity.userData.verifiedName ?? bankData.name))
+            Util.isSameName(entity.bankTx?.ultimateName, entity.userData.verifiedName ?? bankData.name)) &&
+          (!entity.bankTx || !multiAccountBankNames.includes(entity.bankTx.name) || entity.bankTx.ultimateName) &&
+          !multiAccountBankNames.includes(bankData.name)
         ) {
           try {
             const [master, slave] = AccountMergeService.masterFirst([entity.userData, bankData.userData]);
@@ -156,7 +161,7 @@ export class AmlService {
     // verified country
     if (!entity.userData.verifiedCountry) {
       const verifiedCountry = await this.getVerifiedCountry(entity);
-      verifiedCountry && (await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry }));
+      if (verifiedCountry) await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry });
     }
 
     if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist };
@@ -174,7 +179,7 @@ export class AmlService {
       };
 
     const banks = await this.bankService.getAllBanks();
-    return { users: entity.userData.users, refUser, bankData, blacklist, banks, ipLogCountries };
+    return { users: entity.userData.users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames };
   }
 
   //*** HELPER METHODS ***//
@@ -215,9 +220,10 @@ export class AmlService {
     if (entity instanceof BuyFiat) return this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
     if (entity.cryptoInput) return undefined;
 
-    return this.countryService.getCountryWithSymbol(
-      entity.checkoutTx?.cardIssuerCountry ?? entity.bankTx.iban.substring(0, 2),
-    );
+    const countryCode = entity.checkoutTx?.cardIssuerCountry ?? entity.bankTx?.iban?.substring(0, 2);
+    if (!countryCode) return undefined;
+
+    return this.countryService.getCountryWithSymbol(countryCode);
   }
 
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {

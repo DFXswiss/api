@@ -1,10 +1,10 @@
-import { AddressType } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -95,6 +95,8 @@ export class DepositService {
       return this.createSolanaDeposits(blockchain, count);
     } else if (blockchain === Blockchain.TRON) {
       return this.createTronDeposits(blockchain, count);
+    } else if (blockchain === Blockchain.CARDANO) {
+      return this.createCardanoDeposits(blockchain, count);
     }
 
     throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
@@ -103,10 +105,9 @@ export class DepositService {
   private async createBitcoinDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const client = this.bitcoinClient;
     const label = Util.isoDate(new Date());
-    const type = AddressType.P2SH_SEGWIT;
 
     for (let i = 0; i < count; i++) {
-      const address = await client.createAddress(label, type);
+      const address = await client.createAddress(label, 'p2sh-segwit');
       const deposit = Deposit.create(address, [blockchain]);
       await this.depositRepo.save(deposit);
     }
@@ -210,10 +211,13 @@ export class DepositService {
 
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
-      const zanoAddress = ZanoHelper.createDepositAddress(accountIndex);
 
-      const deposit = Deposit.create(zanoAddress, [blockchain], accountIndex);
-      await this.depositRepo.save(deposit);
+      if (accountIndex !== 0) {
+        const zanoAddress = ZanoHelper.createDepositAddress(accountIndex);
+
+        const deposit = Deposit.create(zanoAddress, [blockchain], accountIndex);
+        await this.depositRepo.save(deposit);
+      }
     }
   }
 
@@ -251,5 +255,19 @@ export class DepositService {
     }
 
     await this.tatumWebhookService.createAddressWebhook({ blockchain: Blockchain.TRON, addresses: addresses });
+  }
+
+  private async createCardanoDeposits(blockchain: Blockchain, count: number): Promise<void> {
+    const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
+
+    for (let i = 0; i < count; i++) {
+      const accountIndex = nextDepositIndex + i;
+
+      if (accountIndex !== 0) {
+        const wallet = CardanoUtil.createWallet(Config.blockchain.cardano.walletAccount(accountIndex));
+        const deposit = Deposit.create(wallet.address, [blockchain], accountIndex);
+        await this.depositRepo.save(deposit);
+      }
+    }
   }
 }

@@ -27,7 +27,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.ARBITRUM]: 10,
   [Blockchain.BITCOIN]: 100,
   [Blockchain.LIGHTNING]: 1,
-  [Blockchain.SPARK]: undefined,
+  [Blockchain.SPARK]: 1,
   [Blockchain.MONERO]: 1,
   [Blockchain.ZANO]: undefined,
   [Blockchain.CARDANO]: undefined,
@@ -54,8 +54,8 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.MAERKI_BAUMANN]: undefined,
   [Blockchain.OLKYPAY]: undefined,
   [Blockchain.CHECKOUT]: undefined,
-  [Blockchain.KALEIDO]: undefined,
   [Blockchain.SUMIXX]: undefined,
+  [Blockchain.YAPEAL]: undefined,
 };
 
 @Injectable()

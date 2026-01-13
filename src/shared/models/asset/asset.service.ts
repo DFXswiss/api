@@ -37,7 +37,7 @@ export class AssetService {
   ): Promise<Asset[]> {
     const search: FindOptionsWhere<Asset> = {};
     search.blockchain = blockchains.length > 0 ? In(blockchains) : Not(Blockchain.DEFICHAIN);
-    !includePrivate && (search.category = Not(AssetCategory.PRIVATE));
+    if (!includePrivate) search.category = Not(AssetCategory.PRIVATE);
 
     return this.assetRepo.findCached(JSON.stringify({ where: search, relations }), { where: search, relations });
   }
@@ -203,6 +203,14 @@ export class AssetService {
     });
   }
 
+  async getSparkCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'BTC',
+      blockchain: Blockchain.SPARK,
+      type: AssetType.COIN,
+    });
+  }
+
   async getMoneroCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'XMR',
@@ -239,6 +247,14 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'TRX',
       blockchain: Blockchain.TRON,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getCardanoCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ADA',
+      blockchain: Blockchain.CARDANO,
       type: AssetType.COIN,
     });
   }

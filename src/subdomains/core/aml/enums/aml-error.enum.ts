@@ -26,6 +26,7 @@ export enum AmlError {
   INVALID_KYC_TYPE = 'InvalidKycType',
   NO_VERIFIED_NAME = 'NoVerifiedName',
   NAME_MISSING = 'NameMissing',
+  NAME_TOO_SHORT = 'NameTooShort',
   VERIFIED_COUNTRY_NOT_ALLOWED = 'VerifiedCountryNotAllowed',
   IBAN_COUNTRY_FATF_NOT_ALLOWED = 'IbanCountryFatfNotAllowed',
   TX_COUNTRY_NOT_ALLOWED = 'TxCountryNotAllowed',
@@ -40,6 +41,7 @@ export enum AmlError {
   BANK_DATA_MISSING = 'BankDataMissing',
   BANK_DATA_NOT_ACTIVE = 'BankDataNotActive',
   BANK_DATA_USER_MISMATCH = 'BankDataUserMismatch',
+  VIRTUAL_IBAN_USER_MISMATCH = 'VirtualIbanUserMismatch',
   BANK_DATA_MANUAL_REVIEW = 'BankDataManualReview',
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
@@ -61,6 +63,7 @@ export enum AmlError {
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
+  BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
 }
 
 export const DelayResultError = [
@@ -149,6 +152,11 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.KYC_DATA_NEEDED,
   },
+  [AmlError.NAME_TOO_SHORT]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.NAME_TOO_SHORT,
+  },
   [AmlError.VERIFIED_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
@@ -198,7 +206,16 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
   },
-  [AmlError.BANK_DATA_USER_MISMATCH]: null,
+  [AmlError.BANK_DATA_USER_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.USER_DATA_MISMATCH,
+  },
+  [AmlError.VIRTUAL_IBAN_USER_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: AmlReason.VIRTUAL_IBAN_USER_MISMATCH,
+  },
   [AmlError.BANK_DATA_MANUAL_REVIEW]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
@@ -287,5 +304,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK_PHONE,
+  },
+  [AmlError.BANK_TX_CUSTOMER_NAME_MISSING]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.INTERMEDIARY_WITHOUT_SENDER,
   },
 };

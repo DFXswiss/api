@@ -1,17 +1,18 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiCreatedResponse,
+  ApiExcludeEndpoint,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import {
-  AllowlistStatusDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
@@ -22,16 +23,23 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { RealUnitRegistrationDto } from '../dto/realunit-registration.dto';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import {
+  RealUnitRegistrationDto,
+  RealUnitRegistrationResponseDto,
+  RealUnitRegistrationStatus,
+} from '../dto/realunit-registration.dto';
+import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
   AccountSummaryDto,
-  BankDetailsDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
   HoldersDto,
   HoldersQueryDto,
+  RealUnitBuyDto,
+  RealUnitPaymentInfoDto,
   TimeFrame,
   TokenInfoDto,
 } from '../dto/realunit.dto';
@@ -40,7 +48,10 @@ import { RealUnitService } from '../realunit.service';
 @ApiTags('Realunit')
 @Controller('realunit')
 export class RealUnitController {
-  constructor(private readonly realunitService: RealUnitService) {}
+  constructor(
+    private readonly realunitService: RealUnitService,
+    private readonly userService: UserService,
+  ) {}
 
   @Get('account/:address')
   @ApiOperation({
@@ -153,25 +164,59 @@ export class RealUnitController {
     return this.realunitService.getBrokerbotShares(amount);
   }
 
-  @Get('allowlist/:address')
+  // --- Buy Payment Info Endpoint ---
+
+  @Put('buy')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    summary: 'Check allowlist status',
-    description: 'Checks if a wallet address is allowed to receive REALU tokens',
+    summary: 'Get payment info for RealUnit buy',
+    description:
+      'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 50 and RealUnit registration.',
   })
-  @ApiParam({ name: 'address', description: 'Wallet address to check' })
-  @ApiOkResponse({ type: AllowlistStatusDto })
-  async getAllowlistStatus(@Param('address') address: string): Promise<AllowlistStatusDto> {
-    return this.realunitService.getAllowlistStatus(address);
+  @ApiOkResponse({ type: RealUnitPaymentInfoDto })
+  @ApiBadRequestResponse({ description: 'KYC Level 50 required, registration missing, or address not on allowlist' })
+  async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    return this.realunitService.getPaymentInfo(user, dto);
   }
 
-  @Get('bank')
+  // --- Sell Payment Info Endpoints ---
+
+  @Put('sell')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    summary: 'Get bank details',
-    description: 'Retrieves bank account details for REALU purchases via bank transfer',
+    summary: 'Get payment info for RealUnit sell',
+    description:
+      'Returns EIP-7702 delegation data for gasless REALU transfer and fallback deposit info. Requires KYC Level 20 and RealUnit registration.',
   })
-  @ApiOkResponse({ type: BankDetailsDto })
-  getBankDetails(): BankDetailsDto {
-    return this.realunitService.getBankDetails();
+  @ApiOkResponse({ type: RealUnitSellPaymentInfoDto })
+  @ApiBadRequestResponse({ description: 'KYC Level 20 required or registration missing' })
+  async getSellPaymentInfo(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitSellDto,
+  ): Promise<RealUnitSellPaymentInfoDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    return this.realunitService.getSellPaymentInfo(user, dto);
+  }
+
+  @Put('sell/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Confirm RealUnit sell transaction',
+    description: 'Confirms the sell transaction with EIP-7702 signatures or manual transaction hash.',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ description: 'Transaction confirmed', schema: { properties: { txHash: { type: 'string' } } } })
+  @ApiBadRequestResponse({ description: 'Invalid transaction request or signatures' })
+  async confirmSell(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RealUnitSellConfirmDto,
+  ): Promise<{ txHash: string }> {
+    return this.realunitService.confirmSell(jwt.user, +id, dto);
   }
 
   // --- Registration Endpoint ---
@@ -180,9 +225,29 @@ export class RealUnitController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOperation({ summary: 'Register for RealUnit' })
-  @ApiCreatedResponse({ description: 'Registration saved successfully' })
+  @ApiOkResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration completed successfully' })
+  @ApiAcceptedResponse({
+    type: RealUnitRegistrationResponseDto,
+    description: 'Registration accepted, pending manual review',
+  })
   @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
-  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto): Promise<void> {
-    await this.realunitService.register(jwt.account, dto);
+  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto, @Res() res: Response): Promise<void> {
+    const needsReview = await this.realunitService.register(jwt.account, dto);
+
+    const response: RealUnitRegistrationResponseDto = {
+      status: needsReview ? RealUnitRegistrationStatus.PENDING_REVIEW : RealUnitRegistrationStatus.COMPLETED,
+    };
+
+    res.status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK).json(response);
+  }
+
+  // --- Admin Endpoints ---
+
+  @Put('admin/registration/:kycStepId/forward')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async forwardRegistration(@Param('kycStepId') kycStepId: string): Promise<void> {
+    await this.realunitService.forwardRegistrationToAktionariat(+kycStepId);
   }
 }

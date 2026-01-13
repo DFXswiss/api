@@ -62,6 +62,40 @@ export interface YapealAccountsResponse {
   accounts: YapealAccount[];
 }
 
+export interface YapealAccountOwner {
+  name: string;
+  legalForm: string;
+  status: string;
+  uid: string;
+}
+
+export interface YapealEntitlement {
+  entitlementUid: string;
+  action: string;
+}
+
+export interface YapealEntitledAccount {
+  accountName: string;
+  accountUid: string;
+  accountContractUid: string;
+  subAccountUIDs: string[];
+  accountIBAN: string;
+  accountQRIBAN: string;
+  closeOrderUid: string | null;
+  createdAt: string;
+  status: YapealAccountStatus;
+  currency: string;
+  openingDate: string;
+  closingDate: string;
+  bic: string;
+  availableBalance: YapealBalance;
+  balance: YapealBalance;
+  isOwnedByYapini: boolean;
+  accountOwner: YapealAccountOwner;
+  myEntitlements: YapealEntitlement[];
+  internationalPaymentsAvailable: boolean;
+}
+
 // --- Instant Payment DTOs (Pain.001 JSON Format) --- //
 
 export interface YapealInstdAmt {
@@ -146,4 +180,50 @@ export enum YapealPaymentStatus {
 export interface YapealPaymentStatusResponse {
   fileContent?: string; // base64 encoded pain.002 XML
   status: YapealPaymentStatus;
+}
+
+// --- Transaction Subscription DTOs --- //
+
+export enum YapealSubscriptionFormat {
+  JSON = 'JSON',
+  XML = 'XML',
+}
+
+export interface YapealSubscriptionRequest {
+  iban: string;
+  callbackPath?: string;
+  criteria?: string;
+  format?: YapealSubscriptionFormat;
+}
+
+export interface YapealSubscription {
+  uid: string;
+  typeName: string;
+  status: string;
+  ownerUid: string;
+  ownerEntityUid: string;
+  createdAt: string;
+  updatedAt: string;
+  retiredAt: string;
+  revNr: number;
+  histUid: string;
+  histPrevUid: string;
+  data: {
+    accountIBAN: string;
+    accountUid: string;
+    provider: string;
+    providerUid: string;
+    format: YapealSubscriptionFormat;
+    callbackURL: string;
+    callbackPath?: string;
+  };
+}
+
+export interface YapealTransactionEnrichmentData {
+  addressLine1?: string;
+  addressLine2?: string;
+  country?: string;
+  domainCode?: string;
+  familyCode?: string;
+  subFamilyCode?: string;
 }

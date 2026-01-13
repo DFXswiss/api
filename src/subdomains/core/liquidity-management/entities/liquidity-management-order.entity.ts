@@ -49,6 +49,9 @@ export class LiquidityManagementOrder extends IEntity {
   correlationId?: string;
 
   @Column({ length: 'MAX', nullable: true })
+  previousCorrelationIds?: string;
+
+  @Column({ length: 'MAX', nullable: true })
   errorMessage?: string;
 
   //*** FACTORY ***//
@@ -91,9 +94,21 @@ export class LiquidityManagementOrder extends IEntity {
 
   //*** PUBLIC API ***//
 
+  get allCorrelationIds(): string[] {
+    const ids = [this.correlationId, this.previousCorrelationIds?.split(',')].flat();
+    return [...new Set(ids)].filter((id) => id);
+  }
+
   inProgress(correlationId: string): this {
     this.correlationId = correlationId;
     this.status = LiquidityManagementOrderStatus.IN_PROGRESS;
+
+    return this;
+  }
+
+  updateCorrelationId(newCorrelationId: string): this {
+    this.previousCorrelationIds = this.allCorrelationIds.join(',');
+    this.correlationId = newCorrelationId;
 
     return this;
   }

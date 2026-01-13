@@ -31,7 +31,7 @@ export class Country extends IEntity {
   ipEnable: boolean;
 
   @Column({ default: false })
-  maerkiBaumannEnable: boolean;
+  yapealEnable: boolean;
 
   @Column({ default: true })
   fatfEnable: boolean;

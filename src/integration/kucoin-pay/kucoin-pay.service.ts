@@ -24,9 +24,9 @@ import {
 } from './kucoin-pay.dto';
 
 @Injectable()
-export class KucoinPayService
-  implements C2BPaymentLinkProvider<KucoinPayOrderNotification | KucoinPayRefundNotification>
-{
+export class KucoinPayService implements C2BPaymentLinkProvider<
+  KucoinPayOrderNotification | KucoinPayRefundNotification
+> {
   private readonly logger = new DfxLogger(KucoinPayService);
   private readonly baseUrl: string;
   private readonly apiKey: string;
@@ -38,17 +38,18 @@ export class KucoinPayService
 
     this.apiKey = Config.payment.kucoinPayApiKey;
 
-    const secretKey =
-      Config.payment.kucoinPaySigningKey
-        ?.replace('-----BEGIN PRIVATE KEY-----', '')
-        .replace('-----END PRIVATE KEY-----', '')
-        .replace(/\n/g, '') ?? '';
+    const secretKey = Config.payment.kucoinPaySigningKey
+      ?.replace('-----BEGIN PRIVATE KEY-----', '')
+      .replace('-----END PRIVATE KEY-----', '')
+      .replace(/\n/g, '');
 
-    this.privateKey = crypto.createPrivateKey({
-      key: Buffer.from(secretKey, 'base64'),
-      format: 'der',
-      type: 'pkcs8',
-    });
+    this.privateKey =
+      secretKey &&
+      crypto.createPrivateKey({
+        key: Buffer.from(secretKey, 'base64'),
+        format: 'der',
+        type: 'pkcs8',
+      });
 
     this.verificationKey = Config.payment.kucoinPayPublicKey;
   }
@@ -107,13 +108,17 @@ export class KucoinPayService
     try {
       const config = paymentLink.linkConfigObj;
       if (config.kucoinPaySubMerchantId) return true;
-    } catch (e) {}
+    } catch {
+      // ignore - config may not be parseable
+    }
 
     // Method 2: check configObj if available
     try {
       const config = paymentLink.configObj;
       if (config.kucoinPaySubMerchantId) return true;
-    } catch (e) {}
+    } catch {
+      // ignore - config may not be parseable
+    }
 
     // No keys are available
     return false;

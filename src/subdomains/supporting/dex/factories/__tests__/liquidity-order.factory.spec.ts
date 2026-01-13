@@ -35,7 +35,7 @@ describe('LiquidityOrderFactory', () => {
     it('sets purchaseStrategy to AssetCategory', () => {
       const entity = factory.createPurchaseOrder(
         createDefaultGetLiquidityRequest(),
-        Blockchain.DEFICHAIN,
+        Blockchain.BITCOIN,
         AssetCategory.PUBLIC,
       );
 

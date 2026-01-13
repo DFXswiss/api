@@ -22,6 +22,9 @@ export class CitreaTestnetCoinStrategy extends EvmCoinStrategy {
   }
 
   protected getForwardAddress(): BlockchainAddress {
-    return BlockchainAddress.create(Config.blockchain.citreaTestnet.citreaTestnetWalletAddress, Blockchain.CITREA_TESTNET);
+    return BlockchainAddress.create(
+      Config.blockchain.citreaTestnet.citreaTestnetWalletAddress,
+      Blockchain.CITREA_TESTNET,
+    );
   }
 }

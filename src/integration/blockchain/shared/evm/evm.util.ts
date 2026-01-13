@@ -5,6 +5,7 @@ import { defaultPath } from 'ethers/lib/utils';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from '../enums/blockchain.enum';
+import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
 
 enum FeeType {
@@ -62,7 +63,7 @@ export class EvmUtil {
   static toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
     const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
 
-    return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
+    return decimals !== undefined ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
 
   static poolFeeFactor(amount: FeeAmount): number {
@@ -105,5 +106,24 @@ export class EvmUtil {
     return feeInfo.type === FeeType.EIP1559
       ? Math.min(+feeInfo.maxFeePerGas, +gasPrice.add(feeInfo.maxPriorityFeePerGas))
       : +feeInfo.gasPrice;
+  }
+
+  // --- ERC20 Transfer Utilities --- //
+
+  static readonly ERC20_TRANSFER_SELECTOR = '0xa9059cbb';
+
+  private static readonly ERC20_INTERFACE = new ethers.utils.Interface(ERC20_ABI);
+
+  static encodeErc20Transfer(to: string, amount: EthersNumber): string {
+    return this.ERC20_INTERFACE.encodeFunctionData('transfer', [to, amount]);
+  }
+
+  static decodeErc20Transfer(data: string): { to: string; amount: EthersNumber } {
+    const decoded = this.ERC20_INTERFACE.decodeFunctionData('transfer', data);
+    return { to: decoded.to.toLowerCase(), amount: EthersNumber.from(decoded.amount) };
+  }
+
+  static isErc20Transfer(data: string | undefined): boolean {
+    return data?.startsWith(this.ERC20_TRANSFER_SELECTOR) ?? false;
   }
 }

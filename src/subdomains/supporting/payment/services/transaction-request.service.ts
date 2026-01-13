@@ -20,6 +20,8 @@ import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { Between, FindOptionsRelations, In, IsNull, LessThan, MoreThan } from 'typeorm';
+import { Deposit } from '../../address-pool/deposit/deposit.entity';
+import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import {
   TransactionRequest,
@@ -37,7 +39,9 @@ export class TransactionRequestService {
     private readonly siftService: SiftService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
+    @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
@@ -46,18 +50,10 @@ export class TransactionRequestService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async txRequestStatusSync() {
-    if (DisabledProcess(Process.TX_REQUEST_STATUS_SYNC)) return;
+    if (DisabledProcess(Process.TX_REQUEST)) return;
 
-    const entities = await this.transactionRequestRepo.find({
-      where: { status: IsNull() },
-      take: 5000,
-    });
-
-    const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
-
-    for (const entity of entities) {
-      await this.transactionRequestRepo.update(entity.id, { status: this.currentStatus(entity, expiryDate) });
-    }
+    await this.syncStatus();
+    await this.deleteOldTxRequests();
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
@@ -76,12 +72,43 @@ export class TransactionRequestService {
     }
   }
 
+  async deleteOldTxRequests(): Promise<void> {
+    const entities = await this.transactionRequestRepo.find({
+      where: {
+        isComplete: false,
+        created: LessThan(Util.daysBefore(90)),
+        transaction: { id: IsNull() },
+        custodyOrder: { id: IsNull() },
+        supportIssues: { id: IsNull() },
+      },
+      relations: { transaction: true, custodyOrder: true, supportIssues: true },
+      take: 5000,
+    });
+
+    for (const entity of entities) {
+      await this.transactionRequestRepo.delete(entity.id);
+    }
+  }
+
+  async syncStatus(): Promise<void> {
+    const entities = await this.transactionRequestRepo.find({
+      where: { status: IsNull() },
+      take: 5000,
+    });
+
+    const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
+
+    for (const entity of entities) {
+      await this.transactionRequestRepo.update(entity.id, { status: this.currentStatus(entity, expiryDate) });
+    }
+  }
+
   async create(
     type: TransactionRequestType,
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
     userId: number,
-  ): Promise<void> {
+  ): Promise<TransactionRequest | undefined> {
     try {
       const uid = Util.createUid(Config.prefixes.quoteUidPrefix);
 
@@ -111,7 +138,7 @@ export class TransactionRequestService {
       let siftOrder: boolean;
 
       switch (type) {
-        case TransactionRequestType.BUY:
+        case TransactionRequestType.BUY: {
           const buyRequest = request as GetBuyPaymentInfoDto;
           const buyResponse = response as BuyPaymentInfoDto;
 
@@ -125,8 +152,9 @@ export class TransactionRequestService {
           blockchain = buyResponse.asset.blockchain;
           siftOrder = true;
           break;
+        }
 
-        case TransactionRequestType.SELL:
+        case TransactionRequestType.SELL: {
           const sellResponse = response as SellPaymentInfoDto;
 
           transactionRequest.sourcePaymentMethod = CryptoPaymentMethod.CRYPTO;
@@ -137,8 +165,9 @@ export class TransactionRequestService {
           targetCurrencyName = sellResponse.currency.name;
           blockchain = sellResponse.asset.blockchain;
           break;
+        }
 
-        case TransactionRequestType.SWAP:
+        case TransactionRequestType.SWAP: {
           const convertResponse = response as SwapPaymentInfoDto;
 
           transactionRequest.sourcePaymentMethod = CryptoPaymentMethod.CRYPTO;
@@ -148,6 +177,7 @@ export class TransactionRequestService {
           sourceCurrencyName = convertResponse.sourceAsset.name;
           targetCurrencyName = convertResponse.targetAsset.name;
           break;
+        }
       }
 
       // save
@@ -164,6 +194,8 @@ export class TransactionRequestService {
           targetCurrencyName,
           blockchain,
         );
+
+      return transactionRequest;
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
@@ -171,14 +203,16 @@ export class TransactionRequestService {
         )}, response was ${JSON.stringify(response)}:`,
         e,
       );
+      throw e;
     }
   }
 
   async getOrThrow(id: number, userId: number): Promise<TransactionRequest | undefined> {
     const request = await this.transactionRequestRepo.findOne({
       where: { id },
-      relations: { user: { userData: true }, custodyOrder: true },
+      relations: { user: { userData: { organization: true } }, custodyOrder: true },
     });
+
     if (!request) throw new NotFoundException('Transaction request not found');
     if (request.user.id !== userId) throw new ForbiddenException('Not your transaction request');
 
@@ -292,6 +326,21 @@ export class TransactionRequestService {
 
   async confirmTransactionRequest(txRequest: TransactionRequest): Promise<void> {
     await this.transactionRequestRepo.update(txRequest.id, { status: TransactionRequestStatus.WAITING_FOR_PAYMENT });
+  }
+
+  async getActiveDepositAddresses(created: Date, blockchain: Blockchain): Promise<string[]> {
+    return this.transactionRequestRepo
+      .createQueryBuilder('tr')
+      .select('d.address', 'address')
+      .distinct()
+      .innerJoin(DepositRoute, 'dr', 'tr.routeId = dr.id')
+      .innerJoin(Deposit, 'd', 'dr.depositId = d.id')
+      .where('tr.type IN (:...types)', { types: [TransactionRequestType.SELL, TransactionRequestType.SWAP] })
+      .andWhere('tr.status = :status', { status: TransactionRequestStatus.CREATED })
+      .andWhere('tr.created > :created', { created })
+      .andWhere('d.blockchains = :blockchain', { blockchain })
+      .getRawMany<{ address: string }>()
+      .then((transactionRequests) => transactionRequests.map((deposit) => deposit.address));
   }
 
   // --- HELPER METHODS --- //

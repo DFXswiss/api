@@ -63,7 +63,7 @@ export class IknaService {
       do {
         neighborInfo = await this.getAddressNeighbors(address, blockchain, neighborInfo?.next_page);
 
-        for (const neighbor of neighborInfo?.neighbors) {
+        for (const neighbor of neighborInfo?.neighbors ?? []) {
           const recursiveResult = await this.bfsAddressLevel(neighbor.address.address, blockchain, depth - 1);
 
           if (recursiveResult?.isSanctioned) return recursiveResult;

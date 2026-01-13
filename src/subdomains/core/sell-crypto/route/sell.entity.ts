@@ -1,12 +1,11 @@
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
+import { Route } from 'src/subdomains/core/route/route.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { DepositRoute, RouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Check, ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import { PaymentLink } from '../../payment-link/entities/payment-link.entity';
-import { Route } from '../../route/route.entity';
 import { BuyFiat } from '../process/buy-fiat.entity';
 
 @Check(`"active" = 0 OR "bankDataId" IS NOT NULL OR "type" <> 'Sell'`)
@@ -21,15 +20,18 @@ export class Sell extends DepositRoute {
   @Column({ type: 'float', default: 0 })
   annualVolume: number; // CHF
 
+  @Column({ type: 'float', default: 0 })
+  monthlyVolume: number; // CHF
+
   @ManyToOne(() => User, (user) => user.sells, { nullable: false })
-  user: User;
+  declare user: User;
 
   @ManyToOne(() => BankData, (bankData) => bankData.sells, { nullable: true })
   bankData?: BankData;
 
   @OneToOne(() => Route, { eager: true, nullable: true })
   @JoinColumn()
-  route?: Route;
+  declare route?: Route;
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.route)
   cryptoInputs: CryptoInput[];
@@ -38,15 +40,15 @@ export class Sell extends DepositRoute {
   buyFiats: BuyFiat[];
 
   @OneToMany(() => PaymentLink, (paymentLink) => paymentLink.route)
-  paymentLinks: PaymentLink[];
+  declare paymentLinks: PaymentLink[];
 
   // --- ENTITY METHODS --- //
-
-  get userData(): UserData {
-    return this.user.userData;
-  }
 
   get targetAccount(): string {
     return this.iban;
   }
+}
+
+export function isSellRoute(route: DepositRoute): route is Sell {
+  return route.type === RouteType.SELL;
 }

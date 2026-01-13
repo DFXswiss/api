@@ -9,8 +9,12 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PimlicoBundlerService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-bundler.service';
+import { PimlicoPaymasterService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-paymaster.service';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -50,6 +54,7 @@ export class SwapService {
     private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly userDataService: UserDataService,
+    private readonly assetService: AssetService,
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     @Inject(forwardRef(() => BuyCryptoService))
@@ -61,7 +66,11 @@ export class SwapService {
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
+    @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly pimlicoPaymasterService: PimlicoPaymasterService,
+    private readonly pimlicoBundlerService: PimlicoBundlerService,
   ) {}
 
   async getSwapByAddress(depositAddress: string): Promise<Swap> {
@@ -81,10 +90,16 @@ export class SwapService {
     await this.swapRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
-  async updateVolume(swapId: number, volume: number, annualVolume: number): Promise<void> {
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async resetMonthlyVolumes(): Promise<void> {
+    await this.swapRepo.update({ monthlyVolume: Not(0) }, { monthlyVolume: 0 });
+  }
+
+  async updateVolume(swapId: number, volume: number, annualVolume: number, monthlyVolume: number): Promise<void> {
     await this.swapRepo.update(swapId, {
       volume: Util.round(volume, Config.defaultVolumeDecimal),
       annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+      monthlyVolume: Util.round(monthlyVolume, Config.defaultVolumeDecimal),
     });
 
     // update user volume
@@ -94,16 +109,23 @@ export class SwapService {
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
-    await this.userService.updateCryptoVolume(user.id, userVolume.volume, userVolume.annualVolume);
+
+    await this.userService.updateCryptoVolume(
+      user.id,
+      userVolume.volume,
+      userVolume.annualVolume,
+      userVolume.monthlyVolume,
+    );
   }
 
-  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
+  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number; monthlyVolume: number }> {
     return this.swapRepo
       .createQueryBuilder('crypto')
       .select('SUM(volume)', 'volume')
       .addSelect('SUM(annualVolume)', 'annualVolume')
+      .addSelect('SUM(monthlyVolume)', 'monthlyVolume')
       .where('userId = :id', { id: userId })
-      .getRawOne<{ volume: number; annualVolume: number }>();
+      .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {
@@ -156,7 +178,11 @@ export class SwapService {
     });
   }
 
-  async createSwapPaymentInfo(userId: number, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
+  async createSwapPaymentInfo(
+    userId: number,
+    dto: GetSwapPaymentInfoDto,
+    includeTx = false,
+  ): Promise<SwapPaymentInfoDto> {
     const swap = await Util.retry(
       () => this.createSwap(userId, dto.sourceAsset.blockchain, dto.targetAsset, true),
       2,
@@ -164,7 +190,7 @@ export class SwapService {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
-    return this.toPaymentInfoDto(userId, swap, dto);
+    return this.toPaymentInfoDto(userId, swap, dto, includeTx);
   }
 
   async getById(id: number): Promise<Swap> {
@@ -229,21 +255,53 @@ export class SwapService {
 
   // --- CONFIRMATION --- //
   async confirmSwap(request: TransactionRequest, dto: ConfirmDto): Promise<BuyCryptoExtended> {
+    const route = await this.swapRepo.findOne({
+      where: { id: request.routeId },
+      relations: { deposit: true, user: { wallet: true, userData: true } },
+    });
+    if (!route) throw new NotFoundException('Swap route not found');
+
+    let type: string;
+    let payIn;
+
     try {
-      const route = await this.swapRepo.findOne({
-        where: { id: request.routeId },
-        relations: { deposit: true, user: { wallet: true, userData: true } },
-      });
+      if (dto.authorization) {
+        type = 'gasless transfer';
+        const asset = await this.assetService.getAssetById(request.sourceId);
+        if (!asset) throw new BadRequestException('Asset not found');
 
-      const payIn = await this.transactionUtilService.handlePermitInput(route, request, dto);
+        if (!this.pimlicoBundlerService.isGaslessSupported(asset.blockchain)) {
+          throw new BadRequestException(`Gasless transactions not supported for ${asset.blockchain}`);
+        }
+
+        const result = await this.pimlicoBundlerService.executeGaslessTransfer(
+          request.user.address,
+          asset,
+          route.deposit.address,
+          request.amount,
+          dto.authorization,
+        );
+
+        payIn = await this.transactionUtilService.handleTxHashInput(route, request, result.txHash);
+      } else if (dto.permit) {
+        type = 'permit';
+        payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
+      } else if (dto.signedTxHex) {
+        type = 'signed transaction';
+        payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
+      } else if (dto.txHash) {
+        type = 'EIP-5792 sponsored transfer';
+        payIn = await this.transactionUtilService.handleTxHashInput(route, request, dto.txHash);
+      } else {
+        throw new BadRequestException('Either permit, signedTxHex, txHash, or authorization must be provided');
+      }
+
       const buyCrypto = await this.buyCryptoService.createFromCryptoInput(payIn, route, request);
-
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, route);
-
       return await this.buyCryptoWebhookService.extendBuyCrypto(buyCrypto);
     } catch (e) {
-      this.logger.warn(`Failed to execute permit transfer for swap request ${request.id}:`, e);
-      throw new BadRequestException(`Failed to execute permit transfer: ${e.message}`);
+      this.logger.warn(`Failed to execute ${type} transfer for swap request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to confirm request: ${e.message}`);
     }
   }
 
@@ -253,7 +311,50 @@ export class SwapService {
     return this.swapRepo;
   }
 
-  private async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
+  async createDepositTx(request: TransactionRequest, route: Swap, includeEip5792 = false): Promise<any> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    if (!asset) throw new BadRequestException('Asset not found');
+
+    const client = this.blockchainRegistryService.getEvmClient(asset.blockchain);
+    if (!client) throw new BadRequestException(`Unsupported blockchain`);
+
+    const userAddress = request.user?.address;
+    if (!userAddress) throw new BadRequestException('User address not found in transaction request');
+
+    const depositAddress = route.deposit.address;
+
+    try {
+      const unsignedTx = await client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
+
+      // Add EIP-5792 wallet_sendCalls data with paymaster only if user has 0 native balance
+      if (includeEip5792) {
+        const paymasterAvailable = this.pimlicoPaymasterService.isPaymasterAvailable(asset.blockchain);
+        const paymasterUrl = paymasterAvailable
+          ? this.pimlicoPaymasterService.getBundlerUrl(asset.blockchain)
+          : undefined;
+
+        if (paymasterUrl) {
+          unsignedTx.eip5792 = {
+            paymasterUrl,
+            chainId: client.chainId,
+            calls: [{ to: unsignedTx.to, data: unsignedTx.data, value: unsignedTx.value }],
+          };
+        }
+      }
+
+      return unsignedTx;
+    } catch (e) {
+      this.logger.warn(`Failed to create deposit TX for swap request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to create deposit transaction: ${e.reason ?? e.message}`);
+    }
+  }
+
+  private async toPaymentInfoDto(
+    userId: number,
+    swap: Swap,
+    dto: GetSwapPaymentInfoDto,
+    includeTx: boolean,
+  ): Promise<SwapPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
@@ -314,7 +415,47 @@ export class SwapService {
       error,
     };
 
-    await this.transactionRequestService.create(TransactionRequestType.SWAP, dto, swapDto, user.id);
+    const transactionRequest = await this.transactionRequestService.create(
+      TransactionRequestType.SWAP,
+      dto,
+      swapDto,
+      user.id,
+    );
+
+    // Assign complete user object to ensure user.address is available for createDepositTx
+    transactionRequest.user = user;
+
+    // Check if user needs gasless transaction (0 native balance) - must be done BEFORE createDepositTx
+    let hasZeroBalance = false;
+    if (isValid && this.pimlicoBundlerService.isGaslessSupported(dto.sourceAsset.blockchain)) {
+      try {
+        hasZeroBalance = await this.pimlicoBundlerService.hasZeroNativeBalance(
+          user.address,
+          dto.sourceAsset.blockchain,
+        );
+        swapDto.gaslessAvailable = hasZeroBalance;
+
+        if (hasZeroBalance) {
+          swapDto.eip7702Authorization = await this.pimlicoBundlerService.prepareAuthorizationData(
+            user.address,
+            dto.sourceAsset.blockchain,
+          );
+        }
+      } catch (e) {
+        this.logger.warn(`Could not prepare gasless data for swap request ${swap.id}:`, e);
+        swapDto.gaslessAvailable = false;
+      }
+    }
+
+    // Create deposit transaction - only include EIP-5792 data if user has 0 native balance
+    if (includeTx && isValid) {
+      try {
+        swapDto.depositTx = await this.createDepositTx(transactionRequest, swap, hasZeroBalance);
+      } catch (e) {
+        this.logger.warn(`Could not create deposit transaction for swap request ${swap.id}, continuing without it:`, e);
+        swapDto.depositTx = undefined;
+      }
+    }
 
     return swapDto;
   }

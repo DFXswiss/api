@@ -21,7 +21,7 @@ import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
-  private readonly logger = new DfxLogger(ArbitrumClient);
+  protected override readonly logger = new DfxLogger(ArbitrumClient);
 
   private readonly l1Provider: ethers.providers.JsonRpcProvider;
   private readonly l1Wallet: ethers.Wallet;

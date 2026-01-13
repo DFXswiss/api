@@ -193,4 +193,29 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsString()
   chargebackAllowedBy: string;
+
+  // Creditor data for FiatOutput (required when chargebackAllowedDate is set)
+  @IsOptional()
+  @IsString()
+  chargebackCreditorName: string;
+
+  @IsOptional()
+  @IsString()
+  chargebackCreditorAddress: string;
+
+  @IsOptional()
+  @IsString()
+  chargebackCreditorHouseNumber: string;
+
+  @IsOptional()
+  @IsString()
+  chargebackCreditorZip: string;
+
+  @IsOptional()
+  @IsString()
+  chargebackCreditorCity: string;
+
+  @IsOptional()
+  @IsString()
+  chargebackCreditorCountry: string;
 }

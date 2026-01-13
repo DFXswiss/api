@@ -6,7 +6,6 @@ import { EvmClient } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
 import {
-  AllowlistStatusDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
@@ -26,12 +25,6 @@ const BROKERBOT_ABI = [
   'function settings() public view returns (uint256)',
 ];
 
-const REALU_TOKEN_ABI = [
-  'function canReceiveFromAnyone(address account) public view returns (bool)',
-  'function isForbidden(address account) public view returns (bool)',
-  'function isPowerlisted(address account) public view returns (bool)',
-];
-
 @Injectable()
 export class RealUnitBlockchainService implements OnModuleInit {
   private registryService: BlockchainRegistryService;
@@ -44,10 +37,6 @@ export class RealUnitBlockchainService implements OnModuleInit {
 
   private getBrokerbotContract(): Contract {
     return new Contract(BROKERBOT_ADDRESS, BROKERBOT_ABI, this.getEvmClient().wallet);
-  }
-
-  private getRealuTokenContract(): Contract {
-    return new Contract(REALU_TOKEN_ADDRESS, REALU_TOKEN_ABI, this.getEvmClient().wallet);
   }
 
   onModuleInit() {
@@ -90,22 +79,6 @@ export class RealUnitBlockchainService implements OnModuleInit {
       amount: amountChf,
       shares: shares.toNumber(),
       pricePerShare: EvmUtil.fromWeiAmount(pricePerShareRaw).toString(),
-    };
-  }
-
-  async getAllowlistStatus(address: string): Promise<AllowlistStatusDto> {
-    const contract = this.getRealuTokenContract();
-    const [canReceive, isForbidden, isPowerlisted] = await Promise.all([
-      contract.canReceiveFromAnyone(address),
-      contract.isForbidden(address),
-      contract.isPowerlisted(address),
-    ]);
-
-    return {
-      address,
-      canReceive,
-      isForbidden,
-      isPowerlisted,
     };
   }
 

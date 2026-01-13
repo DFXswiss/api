@@ -25,12 +25,20 @@ export class BuyCryptoJobService {
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
     await this.buyCryptoRegistrationService.syncReturnTxId();
     if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
-    if (!DisabledProcess(Process.BUY_CRYPTO_REFRESH_FEE)) await this.buyCryptoPreparationService.refreshFee();
+    if (!DisabledProcess(Process.BUY_CRYPTO_REFRESH_FEE)) {
+      await this.buyCryptoPreparationService.refreshFee();
+      await this.buyCryptoPreparationService.fillPaymentLinkPayments();
+    }
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoPreparationService.chargebackTx();
     await this.buyCryptoPreparationService.chargebackFillUp();
     await this.buyCryptoNotificationService.sendNotificationMails();
+  }
+
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BUY_CRYPTO_AGGREGATION, timeout: 7200 })
+  async checkAggregatingTransactions() {
+    await this.buyCryptoPreparationService.checkAggregatingTransactions();
   }
 }
