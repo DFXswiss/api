@@ -18,10 +18,10 @@ export class AppInsightsQueryService {
   constructor(private readonly http: HttpService) {}
 
   async query(kql: string, timespan?: string, app?: ContainerApp): Promise<AppInsightsQueryResponse> {
-    const { apiKey, apps } = Config.azure.appInsights;
+    const { appId: defaultAppId, apiKey, apps } = Config.azure.appInsights;
 
     // Use specified app or default to dfxApi
-    const appId = app ? apps[app] : apps.dfxApi ?? Config.azure.appInsights.appId;
+    const appId = app ? apps[app] : defaultAppId;
 
     if (!appId || !apiKey) {
       throw new Error(app ? `App insights config missing for ${app}` : 'App insights config missing');
