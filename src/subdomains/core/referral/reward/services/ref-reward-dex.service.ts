@@ -124,7 +124,7 @@ export class RefRewardDexService {
     // Reset rewards without pipeline to PREPARED (pipeline creation failed)
     for (const reward of pendingRewards.filter((r) => !r.liquidityPipeline)) {
       try {
-        this.logger.info(`Resetting ref reward ${reward.id} without pipeline to PREPARED`);
+        this.logger.warn(`Resetting ref reward ${reward.id} without pipeline to PREPARED`);
         await this.refRewardRepo.update(...reward.resetToPrepared());
       } catch (e) {
         this.logger.error(`Error resetting ref reward ${reward.id} to PREPARED:`, e);
