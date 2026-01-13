@@ -153,12 +153,10 @@ export class BuyCryptoPreparationService {
           referenceChfPrice,
         );
 
-        const ibanCountry =
-          entity.bankTx?.iban || entity.checkoutTx?.cardIssuerCountry
-            ? await this.countryService.getCountryWithSymbol(
-                entity.bankTx?.iban.substring(0, 2) ?? entity.checkoutTx.cardIssuerCountry,
-              )
-            : undefined;
+        const ibanCountryCode = entity.bankTx?.iban?.substring(0, 2) ?? entity.checkoutTx?.cardIssuerCountry;
+        const ibanCountry = ibanCountryCode
+          ? await this.countryService.getCountryWithSymbol(ibanCountryCode)
+          : undefined;
 
         const virtualIban = entity.bankTx?.virtualIban
           ? await this.virtualIbanService.getByIban(entity.bankTx.virtualIban)
