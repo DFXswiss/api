@@ -15,6 +15,7 @@ import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -57,6 +58,7 @@ describe('BuyFiatService', () => {
   let transactionHelper: TransactionHelper;
   let custodyOrderService: CustodyOrderService;
   let supportLogService: SupportLogService;
+  let payoutService: PayoutService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -78,6 +80,7 @@ describe('BuyFiatService', () => {
     transactionHelper = createMock<TransactionHelper>();
     custodyOrderService = createMock<CustodyOrderService>();
     supportLogService = createMock<SupportLogService>();
+    payoutService = createMock<PayoutService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -102,6 +105,7 @@ describe('BuyFiatService', () => {
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: CustodyOrderService, useValue: custodyOrderService },
         { provide: SupportLogService, useValue: supportLogService },
+        { provide: PayoutService, useValue: payoutService },
       ],
     }).compile();
 
