@@ -1,4 +1,7 @@
 import { IsEnum, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { ContainerApp } from 'src/integration/infrastructure/enums/container-app.enum';
+
+export { ContainerApp };
 
 export enum LogQueryTemplate {
   TRACES_BY_OPERATION = 'traces-by-operation',
@@ -7,16 +10,6 @@ export enum LogQueryTemplate {
   REQUEST_FAILURES = 'request-failures',
   DEPENDENCIES_SLOW = 'dependencies-slow',
   CUSTOM_EVENTS = 'custom-events',
-}
-
-export enum ContainerApp {
-  DFX_API = 'dfxApi',
-  JUICEDOLLAR_API = 'juicedollarApi',
-  DEURO_API = 'deuroApi',
-  DEURO_MONITORING = 'deuroMonitoring',
-  JUICESWAP_PONDER = 'juiceswapPonder',
-  DEURO_PONDER = 'deuroPonder',
-  REALUNIT_PONDER = 'realunitPonder',
 }
 
 export class LogQueryDto {

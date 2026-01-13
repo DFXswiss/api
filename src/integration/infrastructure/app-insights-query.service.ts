@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { ContainerApp } from 'src/subdomains/generic/gs/dto/log-query.dto';
+import { ContainerApp } from './enums/container-app.enum';
 
 interface AppInsightsQueryResponse {
   tables: {
