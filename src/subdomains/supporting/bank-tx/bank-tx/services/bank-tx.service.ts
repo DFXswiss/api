@@ -226,10 +226,7 @@ export class BankTxService implements OnModuleInit {
 
         if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
 
-        await this.updateInternal(
-          tx,
-          tx.name === 'Payward Trading Ltd.' ? { type: BankTxType.KRAKEN } : { type: BankTxType.GSHEET },
-        );
+        await this.updateInternal(tx, { type: this.getType(tx) ?? BankTxType.GSHEET });
       } catch (e) {
         this.logger.error(`Error during bankTx ${tx.id} assign:`, e);
       }
@@ -294,6 +291,7 @@ export class BankTxService implements OnModuleInit {
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
     entity = this.createTx(bankTx, multiAccounts);
+    entity.type = this.getType(entity);
 
     entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
@@ -490,7 +488,7 @@ export class BankTxService implements OnModuleInit {
   }
 
   private getType(tx: BankTx): BankTxType | null {
-    if (tx.name?.includes('Payward Ltd.')) {
+    if (tx.name?.includes('Payward Trading')) {
       return BankTxType.KRAKEN;
     }
 
