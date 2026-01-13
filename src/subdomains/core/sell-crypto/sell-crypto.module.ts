@@ -9,6 +9,7 @@ import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { FiatOutputModule } from 'src/subdomains/supporting/fiat-output/fiat-output.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
+import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
@@ -42,6 +43,7 @@ import { SellService } from './route/sell.service';
     forwardRef(() => BankModule),
     forwardRef(() => BankTxModule),
     forwardRef(() => PayInModule),
+    PayoutModule,
     forwardRef(() => BuyCryptoModule),
     forwardRef(() => AddressPoolModule),
     FiatOutputModule,

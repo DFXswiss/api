@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
-import { Config, GetConfig } from 'src/config/config';
+import { Config, Environment, GetConfig } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
@@ -75,7 +75,9 @@ export class RealUnitService {
   private readonly ponderUrl: string;
   private readonly genesisDate = new Date('2022-04-12 07:46:41.000');
   private readonly tokenName = 'REALU';
-  private readonly tokenBlockchain = Blockchain.ETHEREUM;
+  private readonly tokenBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
+    ? Blockchain.SEPOLIA
+    : Blockchain.ETHEREUM;
   private readonly historicalPriceCache = new AsyncCache<HistoricalPriceDto[]>(CacheItemResetPeriod.EVERY_6_HOURS);
 
   constructor(

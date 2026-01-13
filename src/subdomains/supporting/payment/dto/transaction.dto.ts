@@ -114,6 +114,7 @@ export const TransactionReasonMapper: {
   [AmlReason.BANK_RELEASE_PENDING]: TransactionReason.BANK_RELEASE_PENDING,
   [AmlReason.VIRTUAL_IBAN_USER_MISMATCH]: TransactionReason.UNKNOWN,
   [AmlReason.INTERMEDIARY_WITHOUT_SENDER]: TransactionReason.BANK_NOT_ALLOWED,
+  [AmlReason.NAME_TOO_SHORT]: TransactionReason.KYC_DATA_NEEDED,
 };
 
 export class UnassignedTransactionDto {

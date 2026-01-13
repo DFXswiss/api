@@ -3,6 +3,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInPurpose, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { IsNull, Not } from 'typeorm';
 import { SellRepository } from '../../route/sell.repository';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -24,27 +26,51 @@ export class BuyFiatRegistrationService {
     private readonly sellRepository: SellRepository,
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
+    private readonly payoutService: PayoutService,
   ) {}
 
   async syncReturnTxId(): Promise<void> {
+    const baseWhere = { chargebackAllowedDate: Not(IsNull()), chargebackTxId: IsNull() };
+
     const entities = await this.buyFiatRepo.find({
-      where: {
-        cryptoInput: { returnTxId: Not(IsNull()), status: PayInStatus.RETURN_CONFIRMED },
-        chargebackTxId: IsNull(),
-      },
+      where: [
+        // PayIn returned
+        { ...baseWhere, cryptoInput: { status: PayInStatus.RETURN_CONFIRMED, returnTxId: Not(IsNull()) } },
+        // Payout forwarded
+        { ...baseWhere, cryptoInput: { status: PayInStatus.FORWARD_CONFIRMED } },
+      ],
       relations: { cryptoInput: true, sell: true, transaction: { user: { wallet: true }, userData: true } },
     });
 
     for (const entity of entities) {
       try {
-        await this.buyFiatRepo.update(entity.id, { chargebackTxId: entity.cryptoInput.returnTxId, isComplete: true });
+        const txId = await this.getReturnTxId(entity);
+        if (!txId) continue;
 
-        // send webhook
+        await this.buyFiatRepo.update(entity.id, { chargebackTxId: txId, isComplete: true });
         await this.buyFiatService.triggerWebhook(entity);
       } catch (e) {
-        this.logger.error(`Error during buyFiat payIn returnTxId sync (${entity.id}):`, e);
+        this.logger.error(`Error during buyFiat returnTxId sync (${entity.id}):`, e);
       }
     }
+  }
+
+  private async getReturnTxId(entity: { id: number; cryptoInput: CryptoInput }): Promise<string | undefined> {
+    // PayIn return (funds were on deposit address)
+    if (entity.cryptoInput.status === PayInStatus.RETURN_CONFIRMED && entity.cryptoInput.returnTxId) {
+      return entity.cryptoInput.returnTxId;
+    }
+
+    // Payout return (funds were forwarded to liquidity)
+    if (entity.cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
+      const { isComplete, payoutTxId } = await this.payoutService.checkOrderCompletion(
+        PayoutOrderContext.BUY_FIAT_RETURN,
+        `${entity.id}`,
+      );
+      return isComplete ? payoutTxId : undefined;
+    }
+
+    return undefined;
   }
 
   async registerSellPayIn(): Promise<void> {

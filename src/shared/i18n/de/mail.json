@@ -95,7 +95,8 @@
                 "manual_check_ip_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "manual_check_ip_country_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert",
-                "intermediary_without_sender": "Die Absenderbank (Wise/Revolut) hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. DFX kann daher den tatsächlichen Absender nicht verifizieren und die Transaktion nicht verarbeiten."
+                "intermediary_without_sender": "Die Absenderbank (Wise/Revolut) hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. DFX kann daher den tatsächlichen Absender nicht verifizieren und die Transaktion nicht verarbeiten.",
+                "name_too_short": "Dein Name ist zu kurz für die Bankverarbeitung. Banken benötigen mindestens 4 Buchstaben im Namen des Kontoinhabers."
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
