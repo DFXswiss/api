@@ -447,7 +447,7 @@ export class TransactionController {
       if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
       return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
-        refundIban: refundData.refundTarget ?? dto.refundTarget,
+        refundIban: dto.refundTarget ?? refundData.refundTarget,
         chargebackCurrency,
         creditorData: dto.creditorData,
         ...refundDto,
@@ -476,7 +476,7 @@ export class TransactionController {
     if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
     return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
-      refundIban: refundData.refundTarget ?? dto.refundTarget,
+      refundIban: dto.refundTarget ?? refundData.refundTarget,
       chargebackCurrency,
       creditorData: dto.creditorData,
       ...refundDto,
