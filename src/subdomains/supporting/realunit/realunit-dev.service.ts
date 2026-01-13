@@ -54,22 +54,15 @@ export class RealUnitDevService {
   }
 
   private async processWaitingRealuRequests(): Promise<void> {
-    // TransactionRequests are created with Mainnet REALU (via realunit.service.ts)
-    const mainnetRealuAsset = await this.assetService.getAssetByQuery({
-      name: 'REALU',
-      blockchain: Blockchain.ETHEREUM,
-      type: AssetType.TOKEN,
-    });
-
-    // But payouts go to Sepolia in DEV environment
+    // On DEV/LOC, TransactionRequests are created with Sepolia REALU
     const sepoliaRealuAsset = await this.assetService.getAssetByQuery({
       name: 'REALU',
       blockchain: Blockchain.SEPOLIA,
       type: AssetType.TOKEN,
     });
 
-    if (!mainnetRealuAsset || !sepoliaRealuAsset) {
-      this.logger.warn('REALU asset not found (mainnet or sepolia) - skipping simulation');
+    if (!sepoliaRealuAsset) {
+      this.logger.warn('REALU asset not found (sepolia) - skipping buy simulation');
       return;
     }
 
@@ -77,7 +70,7 @@ export class RealUnitDevService {
       where: {
         status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
         type: TransactionRequestType.BUY,
-        targetId: mainnetRealuAsset.id,
+        targetId: sepoliaRealuAsset.id,
       },
     });
 
