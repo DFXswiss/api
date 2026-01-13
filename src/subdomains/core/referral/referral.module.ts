@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
+import { LiquidityManagementModule } from 'src/subdomains/core/liquidity-management/liquidity-management.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
@@ -32,6 +33,7 @@ import { RefRewardService } from './reward/services/ref-reward.service';
     NotificationModule,
     PricingModule,
     forwardRef(() => TransactionModule),
+    LiquidityManagementModule,
   ],
   controllers: [RefController, RefRewardController],
   providers: [
