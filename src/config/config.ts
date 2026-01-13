@@ -1018,6 +1018,15 @@ export class Configuration {
     appInsights: {
       appId: process.env.APPINSIGHTS_APP_ID,
       apiKey: process.env.APPINSIGHTS_API_KEY,
+      apps: {
+        dfxApi: process.env.APPINSIGHTS_APP_ID,
+        juicedollarApi: process.env.APPINSIGHTS_JUICEDOLLAR_API_APP_ID,
+        deuroApi: process.env.APPINSIGHTS_DEURO_API_APP_ID,
+        deuroMonitoring: process.env.APPINSIGHTS_DEURO_MONITORING_APP_ID,
+        juiceswapPonder: process.env.APPINSIGHTS_JUICESWAP_PONDER_APP_ID,
+        deuroPonder: process.env.APPINSIGHTS_DEURO_PONDER_APP_ID,
+        realunitPonder: process.env.APPINSIGHTS_REALUNIT_PONDER_APP_ID,
+      },
     },
   };
 
