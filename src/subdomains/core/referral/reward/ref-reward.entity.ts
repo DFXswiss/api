@@ -88,6 +88,28 @@ export class RefReward extends Reward {
     return [this.id, update];
   }
 
+  pendingLiquidity(pipeline: LiquidityManagementPipeline): UpdateResult<RefReward> {
+    const update: Partial<RefReward> = {
+      status: RewardStatus.PENDING_LIQUIDITY,
+      liquidityPipeline: pipeline,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  resetToPrepared(): UpdateResult<RefReward> {
+    const update: Partial<RefReward> = {
+      status: RewardStatus.PREPARED,
+      liquidityPipeline: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get isLightningTransaction(): boolean {
     return this.targetBlockchain === Blockchain.LIGHTNING;
   }

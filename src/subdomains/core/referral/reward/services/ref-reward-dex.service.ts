@@ -38,27 +38,29 @@ export class RefRewardDexService {
   ) {}
 
   async secureLiquidity(): Promise<void> {
-    await this.processNewRewards();
-    await this.processPendingLiquidityRewards();
-  }
-
-  private async processNewRewards(): Promise<void> {
-    const newRefRewards = await this.refRewardRepo.find({
-      where: { status: RewardStatus.PREPARED },
-    });
-
-    // Get assets with pending liquidity pipelines to avoid processing them
-    const pendingLiquidityRewards = await this.refRewardRepo.find({
-      where: { status: RewardStatus.PENDING_LIQUIDITY },
+    // Load all relevant rewards in a single query
+    const allRewards = await this.refRewardRepo.find({
+      where: { status: In([RewardStatus.PREPARED, RewardStatus.PENDING_LIQUIDITY]) },
       relations: { liquidityPipeline: true },
     });
+
+    const preparedRewards = allRewards.filter((r) => r.status === RewardStatus.PREPARED);
+    const pendingLiquidityRewards = allRewards.filter((r) => r.status === RewardStatus.PENDING_LIQUIDITY);
+
+    await this.processPendingLiquidityRewards(pendingLiquidityRewards);
+    await this.processNewRewards(preparedRewards, pendingLiquidityRewards);
+  }
+
+  private async processNewRewards(newRefRewards: RefReward[], pendingLiquidityRewards: RefReward[]): Promise<void> {
+    // Get assets with pending liquidity pipelines to avoid processing them
     const assetsWithPendingPipeline = new Set(
       pendingLiquidityRewards
         .filter(
           (r) =>
             r.outputAsset &&
+            r.liquidityPipeline &&
             [LiquidityManagementPipelineStatus.CREATED, LiquidityManagementPipelineStatus.IN_PROGRESS].includes(
-              r.liquidityPipeline?.status,
+              r.liquidityPipeline.status,
             ),
         )
         .map((r) => r.outputAsset.id),
@@ -67,15 +69,15 @@ export class RefRewardDexService {
     const groupedRewards = Util.groupByAccessor<RefReward, number>(newRefRewards, (r) => r.outputAsset.id);
 
     for (const rewards of groupedRewards.values()) {
+      const asset = rewards[0].outputAsset;
+
+      // Skip if a pipeline is already running for this asset
+      if (assetsWithPendingPipeline.has(asset.id)) {
+        this.logger.verbose(`Skipping ref rewards for ${asset.uniqueName}: pipeline already running`);
+        continue;
+      }
+
       try {
-        const asset = rewards[0].outputAsset;
-
-        // Skip if a pipeline is already running for this asset
-        if (assetsWithPendingPipeline.has(asset.id)) {
-          this.logger.verbose(`Skipping ref rewards for ${asset.uniqueName}: pipeline already running`);
-          continue;
-        }
-
         const assetPrice = await this.priceService.getPrice(PriceCurrency.EUR, asset, PriceValidity.VALID_ONLY);
 
         // Calculate total output amount for all rewards of this asset
@@ -95,83 +97,92 @@ export class RefRewardDexService {
           continue;
         }
 
-        // Enough liquidity - process rewards normally
+        // Enough liquidity - process rewards individually
         for (const reward of rewards) {
-          const outputAmount = assetPrice.convert(reward.amountInEur, 8);
+          try {
+            const outputAmount = assetPrice.convert(reward.amountInEur, 8);
 
-          await this.reserveLiquidity({
-            amount: outputAmount,
-            asset,
-            rewardId: reward.id.toString(),
-          });
+            await this.reserveLiquidity({
+              amount: outputAmount,
+              asset,
+              rewardId: reward.id.toString(),
+            });
 
-          await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
+            await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
+          } catch (e) {
+            this.logger.error(`Error in processing ref reward ${reward.id}:`, e);
+            continue;
+          }
         }
       } catch (e) {
-        this.logger.error(`Error in processing ref rewards for ${rewards[0].outputAsset.uniqueName}:`, e);
+        this.logger.error(`Error in processing ref rewards for ${asset.uniqueName}:`, e);
       }
     }
   }
 
-  private async processPendingLiquidityRewards(): Promise<void> {
-    const pendingRewards = await this.refRewardRepo.find({
-      where: { status: RewardStatus.PENDING_LIQUIDITY },
-      relations: { liquidityPipeline: true },
-    });
-
+  private async processPendingLiquidityRewards(pendingRewards: RefReward[]): Promise<void> {
     // Reset rewards without pipeline to PREPARED (pipeline creation failed)
-    const rewardsWithoutPipeline = pendingRewards.filter((r) => !r.liquidityPipeline);
-    if (rewardsWithoutPipeline.length) {
-      this.logger.info(`Resetting ${rewardsWithoutPipeline.length} ref rewards without pipeline to PREPARED`);
-      await this.refRewardRepo.update(
-        { id: In(rewardsWithoutPipeline.map((r) => r.id)) },
-        { status: RewardStatus.PREPARED },
-      );
+    for (const reward of pendingRewards.filter((r) => !r.liquidityPipeline)) {
+      try {
+        this.logger.info(`Resetting ref reward ${reward.id} without pipeline to PREPARED`);
+        await this.refRewardRepo.update(...reward.resetToPrepared());
+      } catch (e) {
+        this.logger.error(`Error resetting ref reward ${reward.id} to PREPARED:`, e);
+        continue;
+      }
     }
 
     const rewardsWithPipeline = pendingRewards.filter((r) => r.liquidityPipeline);
     const groupedRewards = Util.groupByAccessor<RefReward, number>(rewardsWithPipeline, (r) => r.liquidityPipeline.id);
 
     for (const rewards of groupedRewards.values()) {
+      const pipeline = rewards[0].liquidityPipeline;
+
+      // Pipeline failed/stopped: Reset to PREPARED for retry
+      if (
+        [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(pipeline.status)
+      ) {
+        this.logger.info(`Pipeline ${pipeline.id} failed/stopped, resetting ref rewards to PREPARED`);
+        for (const reward of rewards) {
+          try {
+            await this.refRewardRepo.update(...reward.resetToPrepared());
+          } catch (e) {
+            this.logger.error(`Error resetting ref reward ${reward.id} to PREPARED:`, e);
+            continue;
+          }
+        }
+        continue;
+      }
+
+      // Pipeline not complete yet
+      if (pipeline.status !== LiquidityManagementPipelineStatus.COMPLETE) {
+        continue;
+      }
+
+      // Pipeline complete - process rewards with current price
+      const asset = rewards[0].outputAsset;
+
       try {
-        const pipeline = rewards[0].liquidityPipeline;
-
-        // Pipeline failed/stopped: Reset to PREPARED for retry
-        if (
-          [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
-            pipeline.status,
-          )
-        ) {
-          this.logger.info(`Pipeline ${pipeline.id} failed/stopped, resetting ref rewards to PREPARED`);
-          await this.refRewardRepo.update(
-            { id: In(rewards.map((r) => r.id)) },
-            { status: RewardStatus.PREPARED, liquidityPipeline: null },
-          );
-          continue;
-        }
-
-        // Pipeline not complete yet
-        if (pipeline.status !== LiquidityManagementPipelineStatus.COMPLETE) {
-          continue;
-        }
-
-        // Pipeline complete - process rewards with current price
-        const asset = rewards[0].outputAsset;
         const assetPrice = await this.priceService.getPrice(PriceCurrency.EUR, asset, PriceValidity.VALID_ONLY);
 
         for (const reward of rewards) {
-          const outputAmount = assetPrice.convert(reward.amountInEur, 8);
+          try {
+            const outputAmount = assetPrice.convert(reward.amountInEur, 8);
 
-          await this.reserveLiquidity({
-            amount: outputAmount,
-            asset,
-            rewardId: reward.id.toString(),
-          });
+            await this.reserveLiquidity({
+              amount: outputAmount,
+              asset,
+              rewardId: reward.id.toString(),
+            });
 
-          await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
+            await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
+          } catch (e) {
+            this.logger.error(`Error in processing pending liquidity ref reward ${reward.id}:`, e);
+            continue;
+          }
         }
       } catch (e) {
-        this.logger.error(`Error in processing pending liquidity ref rewards:`, e);
+        this.logger.error(`Error getting price for pending liquidity ref rewards (${asset.uniqueName}):`, e);
       }
     }
   }
@@ -184,19 +195,25 @@ export class RefRewardDexService {
   ): Promise<void> {
     const deficit = Util.round(totalAmount - availableAmount, 8);
 
-    // Set status BEFORE pipeline attempt (consistent with BuyCrypto)
-    await this.refRewardRepo.update({ id: In(rewards.map((r) => r.id)) }, { status: RewardStatus.PENDING_LIQUIDITY });
-
     try {
+      // First create the pipeline
       const pipeline = await this.liquidityService.buyLiquidity(asset.id, deficit, deficit, true);
       this.logger.info(
         `Started liquidity pipeline ${pipeline.id} for ref rewards (deficit: ${deficit} ${asset.uniqueName})`,
       );
 
-      await this.refRewardRepo.update({ id: In(rewards.map((r) => r.id)) }, { liquidityPipeline: pipeline });
+      // Then update rewards atomically with status AND pipeline
+      for (const reward of rewards) {
+        try {
+          await this.refRewardRepo.update(...reward.pendingLiquidity(pipeline));
+        } catch (e) {
+          this.logger.error(`Error setting pending liquidity for ref reward ${reward.id}:`, e);
+          continue;
+        }
+      }
     } catch (e) {
       this.logger.error(`Failed to start liquidity pipeline for ref rewards (${asset.uniqueName}):`, e);
-      // Status remains PENDING_LIQUIDITY without pipeline - will be reset to PREPARED in processPendingLiquidityRewards()
+      // Pipeline creation failed - rewards stay in PREPARED status, will retry next run
     }
   }
 
