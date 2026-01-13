@@ -72,6 +72,8 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   /**
    * @note
    * correlationId is the orderId and set by liquidity management.
+   * targetAsset (from rule) is what we're buying, swapAsset is what we spend.
+   * Amount is in target asset (targetAsset).
    */
   private async purchase(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
@@ -79,11 +81,26 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
         rule: { targetAsset },
       },
       id: correlationId,
+      minAmount,
+      maxAmount,
     } = order;
 
     const { swapAsset: swapAssetName } = this.parseSwapParams(order.action.paramMap);
     const swapAsset = await this.getSwapAsset(targetAsset.blockchain, swapAssetName);
-    const swapLiquidity = await this.resolveSwapLiquidity(order, swapAsset);
+
+    const price = await this.dexService.calculatePrice(swapAsset, targetAsset);
+    const minSwapAmount = minAmount * price;
+    const maxSwapAmount = maxAmount * price;
+
+    const swapLiquidity = await this.resolveSwapLiquidity(
+      correlationId.toString(),
+      swapAsset,
+      minSwapAmount,
+      maxSwapAmount,
+    );
+
+    order.inputAmount = swapLiquidity.amount;
+    order.inputAsset = swapLiquidity.asset.name;
 
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
@@ -100,7 +117,9 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
   /**
    * @note
-   * correlationId is the orderId and set by liquidity management
+   * correlationId is the orderId and set by liquidity management.
+   * targetAsset (from rule) is what we're selling, swapAsset is what we receive.
+   * Amount is in source asset (targetAsset).
    */
   private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
@@ -108,18 +127,27 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
         rule: { targetAsset },
       },
       id: correlationId,
+      minAmount,
+      maxAmount,
     } = order;
 
-    const sellLiquidity = await this.resolveSwapLiquidity(order, targetAsset);
+    const { swapAsset: swapAssetName } = this.parseSwapParams(order.action.paramMap);
+    const swapAsset = await this.getSwapAsset(targetAsset.blockchain, swapAssetName);
+
+    const sellLiquidity = await this.resolveSwapLiquidity(correlationId.toString(), targetAsset, minAmount, maxAmount);
+
+    order.inputAmount = sellLiquidity.amount;
+    order.inputAsset = sellLiquidity.asset.name;
 
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
       correlationId: correlationId.toString(),
-      sellAsset: sellLiquidity.asset,
-      sellAmount: sellLiquidity.amount,
+      referenceAsset: sellLiquidity.asset,
+      referenceAmount: sellLiquidity.amount,
+      targetAsset: swapAsset,
     };
 
-    await this.dexService.sellLiquidity(request);
+    await this.dexService.purchaseLiquidity(request);
 
     return correlationId.toString();
   }
@@ -262,15 +290,15 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   // --- SWAP HELPERS --- //
 
   private async resolveSwapLiquidity(
-    order: LiquidityManagementOrder,
+    correlationId: string,
     liquidityAsset: Asset,
+    minAmount: number,
+    maxAmount: number,
   ): Promise<{ asset: Asset; amount: number }> {
-    const { minAmount, maxAmount, id: correlationId } = order;
-
     // Check available liquidity
     const checkRequest = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
-      correlationId: correlationId.toString(),
+      correlationId,
       referenceAsset: liquidityAsset,
       referenceAmount: minAmount,
       targetAsset: liquidityAsset,
@@ -287,10 +315,6 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     }
 
     const amount = Math.min(maxAmount, availableAmount);
-
-    // Track input for order
-    order.inputAmount = amount;
-    order.inputAsset = liquidityAsset.name;
 
     return { asset: liquidityAsset, amount };
   }
