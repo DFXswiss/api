@@ -27,8 +27,10 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { PaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { DefaultPaymentLinkConfig } from 'src/subdomains/core/payment-link/entities/payment-link.entity';
+import {
+  DefaultPaymentLinkConfig,
+  PaymentLinkConfig,
+} from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
@@ -56,6 +58,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { ApiKeyDto } from '../user/dto/api-key.dto';
 import { UpdateUserDto, UpdateUserMailDto } from '../user/dto/update-user.dto';
 import { UserNameDto } from '../user/dto/user-name.dto';
+import { UpdateMailStatus } from '../user/dto/verify-mail.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
@@ -377,7 +380,7 @@ export class UserDataService {
             );
             const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
             subFolder.file(filePath, fileData.data);
-          } catch (error) {
+          } catch {
             errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
           }
         }
@@ -560,10 +563,10 @@ export class UserDataService {
 
   // --- MAIL UPDATE --- //
 
-  async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<void> {
+  async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<UpdateMailStatus> {
     if (userData.mail == null) {
       await this.trySetUserMail(userData, dto.mail);
-      return;
+      return UpdateMailStatus.Ok;
     }
 
     await this.checkMail(userData, dto.mail);
@@ -581,12 +584,14 @@ export class UserDataService {
     });
 
     // send mail
-    return this.tfaService.sendVerificationMail(
+    await this.tfaService.sendVerificationMail(
       { ...userData, mail: dto.mail } as UserData,
       secret,
       codeExpiryMinutes,
       MailContext.EMAIL_VERIFICATION,
     );
+
+    return UpdateMailStatus.Accepted;
   }
 
   async verifyUserMail(userData: UserData, token: string): Promise<UserData> {
@@ -642,6 +647,12 @@ export class UserDataService {
 
     await this.kycLogService.createMailChangeLog(userData, userData.mail, mail);
 
+    try {
+      await this.kycService.initializeProcess(userData);
+    } catch (e) {
+      this.logger.error(`Failed to initialize KYC process for account ${userData.id}:`, e);
+    }
+
     return userData;
   }
 
@@ -685,12 +696,11 @@ export class UserDataService {
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
     const defaultIdent =
       userData.accountType === AccountType.ORGANIZATION
-        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_VIDEO)
+        ? await this.settingService.get('defaultIdentMethodOrganization', KycStepType.SUMSUB_AUTO)
         : await this.settingService.get('defaultIdentMethod', KycStepType.SUMSUB_AUTO);
     const customIdent = await this.customIdentMethod(userData.id);
-    const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
-    return isVipUser ? KycStepType.SUMSUB_VIDEO : customIdent ?? (defaultIdent as KycStepType);
+    return customIdent ?? (defaultIdent as KycStepType);
   }
 
   private async customIdentMethod(userDataId: number): Promise<KycStepType | undefined> {
@@ -852,8 +862,18 @@ export class UserDataService {
   // --- VOLUMES --- //
   @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
-    await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
+    await this.userDataRepo.update(
+      [{ annualBuyVolume: Not(0) }, { annualSellVolume: Not(0) }, { annualCryptoVolume: Not(0) }],
+      { annualBuyVolume: 0, annualSellVolume: 0, annualCryptoVolume: 0 },
+    );
+  }
+
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async resetMonthlyVolumes(): Promise<void> {
+    await this.userDataRepo.update(
+      [{ monthlyBuyVolume: Not(0) }, { monthlySellVolume: Not(0) }, { monthlyCryptoVolume: Not(0) }],
+      { monthlyBuyVolume: 0, monthlySellVolume: 0, monthlyCryptoVolume: 0 },
+    );
   }
 
   async updateVolumes(userDataId: number): Promise<void> {
@@ -861,27 +881,37 @@ export class UserDataService {
       .createQueryBuilder('user')
       .select('SUM(buyVolume)', 'buyVolume')
       .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
+      .addSelect('SUM(monthlyBuyVolume)', 'monthlyBuyVolume')
       .addSelect('SUM(sellVolume)', 'sellVolume')
       .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
+      .addSelect('SUM(monthlySellVolume)', 'monthlySellVolume')
       .addSelect('SUM(cryptoVolume)', 'cryptoVolume')
       .addSelect('SUM(annualCryptoVolume)', 'annualCryptoVolume')
+      .addSelect('SUM(monthlyCryptoVolume)', 'monthlyCryptoVolume')
+
       .where('userDataId = :id', { id: userDataId })
       .getRawOne<{
         buyVolume: number;
         annualBuyVolume: number;
+        monthlyBuyVolume: number;
         sellVolume: number;
         annualSellVolume: number;
+        monthlySellVolume: number;
         cryptoVolume: number;
         annualCryptoVolume: number;
+        monthlyCryptoVolume: number;
       }>();
 
     await this.userDataRepo.update(userDataId, {
       buyVolume: Util.round(volumes.buyVolume, Config.defaultVolumeDecimal),
       annualBuyVolume: Util.round(volumes.annualBuyVolume, Config.defaultVolumeDecimal),
+      monthlyBuyVolume: Util.round(volumes.monthlyBuyVolume, Config.defaultVolumeDecimal),
       sellVolume: Util.round(volumes.sellVolume, Config.defaultVolumeDecimal),
       annualSellVolume: Util.round(volumes.annualSellVolume, Config.defaultVolumeDecimal),
+      monthlySellVolume: Util.round(volumes.monthlySellVolume, Config.defaultVolumeDecimal),
       cryptoVolume: Util.round(volumes.cryptoVolume, Config.defaultVolumeDecimal),
       annualCryptoVolume: Util.round(volumes.annualCryptoVolume, Config.defaultVolumeDecimal),
+      monthlyCryptoVolume: Util.round(volumes.monthlyCryptoVolume, Config.defaultVolumeDecimal),
     });
   }
 
@@ -1032,6 +1062,12 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
+
+    // Adapt user used refs
+    for (const user of master.users) {
+      if (master.users.some((u) => u.ref === user.usedRef))
+        await this.userRepo.update(user.id, { usedRef: Config.defaultRef });
+    }
 
     // update slave status
     await this.userDataRepo.update(slave.id, {

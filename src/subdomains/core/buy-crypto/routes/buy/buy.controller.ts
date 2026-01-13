@@ -82,8 +82,9 @@ export class BuyController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
   @ApiExcludeEndpoint()
   async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
-    dto = await this.paymentInfoService.buyCheck(dto, jwt);
-    return this.buyService.createBuy(jwt.user, jwt.address, dto).then((b) => this.toDto(jwt.user, b));
+    const user = await this.userService.getUser(jwt.user, { userData: { wallet: true } });
+    dto = await this.paymentInfoService.buyCheck(dto, jwt, user);
+    return this.buyService.createBuy(user, jwt.address, dto).then((b) => this.toDto(jwt.user, b));
   }
 
   @Put('/quote')
@@ -164,14 +165,20 @@ export class BuyController {
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
+    const user = await this.userService.getUser(jwt.user, { wallet: true });
     const buy = await this.buyService.get(jwt.account, request.routeId);
     const currency = await this.fiatService.getFiat(request.sourceId);
-    const bankInfo = await this.buyService.getBankInfo({
-      amount: request.amount,
-      currency: currency.name,
-      paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
-      userData: request.userData,
-    });
+    const bankInfo = await this.buyService.getBankInfo(
+      {
+        amount: request.amount,
+        currency: currency.name,
+        paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
+        userData: request.userData,
+      },
+      buy,
+      buy.asset,
+      user.wallet,
+    );
 
     if (!Config.invoice.currencies.includes(currency.name)) {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
@@ -181,7 +188,7 @@ export class BuyController {
       pdfData: await this.swissQrService.createInvoiceFromRequest(
         request.amount,
         currency.name,
-        buy.bankUsage,
+        bankInfo.reference,
         bankInfo,
         request,
       ),

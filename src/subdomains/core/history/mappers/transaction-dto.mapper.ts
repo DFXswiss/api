@@ -303,8 +303,8 @@ export class TransactionDtoMapper {
       state: bankTxReturn?.chargebackDate
         ? TransactionState.RETURNED
         : bankTxReturn?.chargebackAllowedDateUser
-        ? TransactionState.RETURN_PENDING
-        : TransactionState.UNASSIGNED,
+          ? TransactionState.RETURN_PENDING
+          : TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,
       inputAsset: tx.txCurrency,
       inputAssetId: currency.id,
@@ -395,11 +395,12 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
     return { state: RefRewardStatusMapper[entity.status], reason: null };
   }
 
-  const reason = entity.amlReason
-    ? TransactionReasonMapper[entity.amlReason]
-    : entity.cryptoInput && !entity.cryptoInput.isSettled
-    ? TransactionReason.INPUT_NOT_CONFIRMED
-    : null;
+  const reason =
+    entity.amlReason && [CheckStatus.FAIL, CheckStatus.PENDING, CheckStatus.GSHEET].includes(entity.amlCheck)
+      ? TransactionReasonMapper[entity.amlReason]
+      : entity.cryptoInput && !entity.cryptoInput.isSettled
+        ? TransactionReason.INPUT_NOT_CONFIRMED
+        : null;
 
   if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {

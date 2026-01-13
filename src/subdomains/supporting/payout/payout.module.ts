@@ -13,6 +13,7 @@ import { PayoutArbitrumService } from './services/payout-arbitrum.service';
 import { PayoutBaseService } from './services/payout-base.service';
 import { PayoutBitcoinService } from './services/payout-bitcoin.service';
 import { PayoutBscService } from './services/payout-bsc.service';
+import { PayoutCardanoService } from './services/payout-cardano.service';
 import { PayoutCitreaTestnetService } from './services/payout-citrea-testnet.service';
 import { PayoutEthereumService } from './services/payout-ethereum.service';
 import { PayoutGnosisService } from './services/payout-gnosis.service';
@@ -25,6 +26,7 @@ import { PayoutSepoliaService } from './services/payout-sepolia.service';
 import { PayoutSolanaService } from './services/payout-solana.service';
 import { PayoutTronService } from './services/payout-tron.service';
 import { PayoutZanoService } from './services/payout-zano.service';
+import { PayoutSparkService } from './services/payout-spark.service';
 import { PayoutService } from './services/payout.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPO } from './strategies/payout/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPO } from './strategies/payout/impl/arbitrum-token.strategy';
@@ -34,6 +36,8 @@ import { PayoutStrategyRegistry } from './strategies/payout/impl/base/payout.str
 import { BitcoinStrategy as BitcoinStrategyPO } from './strategies/payout/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyPO } from './strategies/payout/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyPO } from './strategies/payout/impl/bsc-token.strategy';
+import { CardanoCoinStrategy as CardanoCoinStrategyPO } from './strategies/payout/impl/cardano-coin.strategy';
+import { CardanoTokenStrategy as CardanoTokenStrategyPO } from './strategies/payout/impl/cardano-token.strategy';
 import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyPO } from './strategies/payout/impl/citrea-testnet-coin.strategy';
 import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyPO } from './strategies/payout/impl/citrea-testnet-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyPO } from './strategies/payout/impl/ethereum-coin.strategy';
@@ -54,11 +58,13 @@ import { TronCoinStrategy as TronCoinStrategyPO } from './strategies/payout/impl
 import { TronTokenStrategy as TronTokenStrategyPO } from './strategies/payout/impl/tron-token.strategy';
 import { ZanoCoinStrategy as ZanoCoinStrategyPO } from './strategies/payout/impl/zano-coin.strategy';
 import { ZanoTokenStrategy as ZanoTokenStrategyPO } from './strategies/payout/impl/zano-token.strategy';
+import { SparkStrategy as SparkStrategyPO } from './strategies/payout/impl/spark.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyPR } from './strategies/prepare/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyPR } from './strategies/prepare/impl/base.strategy';
 import { PrepareStrategyRegistry } from './strategies/prepare/impl/base/prepare.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.strategy';
+import { CardanoStrategy as CardanoStrategyPR } from './strategies/prepare/impl/cardano.strategy';
 import { CitreaTestnetStrategy as CitreaTestnetStrategyPR } from './strategies/prepare/impl/citrea-testnet.strategy';
 import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/impl/ethereum.strategy';
 import { GnosisStrategy as GnosisStrategyPR } from './strategies/prepare/impl/gnosis.strategy';
@@ -70,6 +76,7 @@ import { SepoliaStrategy as SepoliaStrategyPR } from './strategies/prepare/impl/
 import { SolanaStrategy as SolanaStrategyPR } from './strategies/prepare/impl/solana.strategy';
 import { TronStrategy as TronStrategyPR } from './strategies/prepare/impl/tron.strategy';
 import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.strategy';
+import { SparkStrategy as SparkStrategyPR } from './strategies/prepare/impl/spark.strategy';
 
 @Module({
   imports: [
@@ -90,6 +97,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutLightningService,
     PayoutMoneroService,
     PayoutZanoService,
+    PayoutSparkService,
     PayoutArbitrumService,
     PayoutOptimismService,
     PayoutPolygonService,
@@ -100,6 +108,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutBscService,
     PayoutSolanaService,
     PayoutTronService,
+    PayoutCardanoService,
     PayoutCitreaTestnetService,
     PayoutStrategyRegistry,
     PrepareStrategyRegistry,
@@ -112,6 +121,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     ZanoStrategyPR,
     ZanoCoinStrategyPO,
     ZanoTokenStrategyPO,
+    SparkStrategyPO,
     EthereumStrategyPR,
     EthereumCoinStrategyPO,
     EthereumTokenStrategyPO,
@@ -142,10 +152,21 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     TronStrategyPR,
     TronCoinStrategyPO,
     TronTokenStrategyPO,
+    CardanoStrategyPR,
+    CardanoCoinStrategyPO,
+    CardanoTokenStrategyPO,
     CitreaTestnetStrategyPR,
     CitreaTestnetCoinStrategyPO,
     CitreaTestnetTokenStrategyPO,
+    SparkStrategyPR,
   ],
-  exports: [PayoutService, PayoutBitcoinService, PayoutMoneroService, PayoutZanoService, PayoutSolanaService],
+  exports: [
+    PayoutService,
+    PayoutBitcoinService,
+    PayoutMoneroService,
+    PayoutZanoService,
+    PayoutSparkService,
+    PayoutSolanaService,
+  ],
 })
 export class PayoutModule {}

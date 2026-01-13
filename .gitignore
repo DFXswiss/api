@@ -38,9 +38,12 @@ lerna-debug.log*
 ormconfig.json
 dev-data-source.ts
 .env
+scripts/.env.db-debug
 placeholder.env
 placeholder.env
 
 # Custom
 thunder-tests/env
 .claude/settings.local.json
+.api.pid
+CLAUDE.md

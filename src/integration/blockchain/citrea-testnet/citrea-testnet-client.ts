@@ -10,7 +10,7 @@ import { EvmUtil } from '../shared/evm/evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from '../shared/evm/interfaces';
 
 export class CitreaTestnetClient extends EvmClient {
-  private readonly logger = new DfxLogger(CitreaTestnetClient);
+  protected override readonly logger = new DfxLogger(CitreaTestnetClient);
 
   private readonly goldsky?: GoldskyService;
   private readonly maxRpcBlockRange = 100;

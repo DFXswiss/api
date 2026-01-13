@@ -54,7 +54,7 @@ export class BuyFiatRegistrationService {
 
     const sellPayIns = await this.filterSellPayIns(newPayIns);
 
-    sellPayIns.length > 0 &&
+    if (sellPayIns.length > 0)
       this.logger.verbose(
         `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s): ${sellPayIns.map(
           (s) => s[0].id,
@@ -82,17 +82,29 @@ export class BuyFiatRegistrationService {
     const result = [];
 
     for (const payIn of allPayIns) {
-      const relevantRoute = routes.find(
-        (r) =>
-          (payIn.address.address.toLowerCase() === r.address.toLowerCase() &&
-            r.blockchains.includes(payIn.address.blockchain)) ||
-          (payIn.isPayment && payIn.paymentLinkPayment?.link.route.id === r.id),
-      );
-
-      relevantRoute && result.push([payIn, relevantRoute]);
+      const relevantRoute = this.findMatchingRoute(payIn, routes);
+      if (relevantRoute) result.push([payIn, relevantRoute]);
     }
 
     return result;
+  }
+
+  private findMatchingRoute(payIn: CryptoInput, routes: RouteIdentifier[]): RouteIdentifier | undefined {
+    if (payIn.isPayment) {
+      const routeId = payIn.paymentLinkPayment.link.route.id;
+      const actualRouteId = payIn.paymentLinkPayment.link.linkConfigObj.payoutRouteId;
+
+      // if actual route is configured, it must be a sell route
+      const isSell = !actualRouteId || routes.find((r) => actualRouteId === r.id);
+
+      return isSell ? routes.find((r) => routeId === r.id) : undefined;
+    } else {
+      return routes.find(
+        (r) =>
+          payIn.address.address.toLowerCase() === r.address.toLowerCase() &&
+          r.blockchains.includes(payIn.address.blockchain),
+      );
+    }
   }
 
   private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, RouteIdentifier][]): Promise<void> {

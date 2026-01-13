@@ -4,10 +4,9 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import {
-  LiquidityManagementPipelineStatus,
-  LiquidityManagementRuleStatus,
-} from 'src/subdomains/core/liquidity-management/enums';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
+import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
+import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
@@ -49,7 +48,6 @@ export class BuyCryptoBatchService {
       const search: FindOptionsWhere<BuyCrypto> = {
         outputReferenceAsset: { id: Not(IsNull()) },
         outputAsset: { type: Not(In([AssetType.CUSTOM, AssetType.PRESALE])) },
-        outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
         batch: IsNull(),
         inputReferenceAmountMinusFee: Not(IsNull()),
@@ -97,13 +95,11 @@ export class BuyCryptoBatchService {
           !t.userData.isSuspicious &&
           !t.userData.isRiskBlocked &&
           !t.userData.isRiskBuyCryptoBlocked &&
-          ((!t.liquidityPipeline &&
-            !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
-            [
-              LiquidityManagementPipelineStatus.FAILED,
-              LiquidityManagementPipelineStatus.STOPPED,
-              LiquidityManagementPipelineStatus.COMPLETE,
-            ].includes(t.liquidityPipeline?.status)),
+          (t.liquidityPipeline
+            ? t.liquidityPipeline.isDone
+            : !txWithAssets.some(
+                (tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline?.isDone === false,
+              )),
       );
 
       const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);
@@ -127,7 +123,7 @@ export class BuyCryptoBatchService {
           tx.priceStepsObject = [
             ...tx.inputPriceStep,
             PriceStep.create(
-              Config.manualPriceStepSourceName,
+              Config.priceSourceManual,
               tx.inputReferenceAsset,
               tx.outputReferenceAsset.name,
               tx.inputReferenceAmountMinusFee / tx.outputReferenceAmount,
@@ -143,7 +139,12 @@ export class BuyCryptoBatchService {
             PriceValidity.VALID_ONLY,
           );
 
-          tx.calculateOutputReferenceAmount(price);
+          const exchangeOrders =
+            Config.liquidityManagement.usePipelinePriceForAllAssets && tx.liquidityPipeline
+              ? await this.findAllExchangeOrders(tx.liquidityPipeline)
+              : undefined;
+
+          tx.calculateOutputReferenceAmount(price, exchangeOrders);
         }
       } catch (e) {
         if (e instanceof PriceInvalidException) {
@@ -372,11 +373,10 @@ export class BuyCryptoBatchService {
         const pipeline = await this.liquidityService.buyLiquidity(asset.id, minDeficit, deficit, true);
         this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${pipeline.id}`);
 
-        if (Config.exchangeRateFromLiquidityOrder.includes(asset.name))
-          await this.buyCryptoRepo.update(
-            { id: In(batch.transactions.map((b) => b.id)) },
-            { liquidityPipeline: pipeline },
-          );
+        await this.buyCryptoRepo.update(
+          { id: In(batch.transactions.map((b) => b.id)) },
+          { liquidityPipeline: pipeline },
+        );
       } catch (e) {
         this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
 
@@ -430,6 +430,35 @@ export class BuyCryptoBatchService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async findAllExchangeOrders(
+    pipeline: LiquidityManagementPipeline,
+    maxDepth = 5,
+  ): Promise<LiquidityManagementOrder[]> {
+    if (maxDepth <= 0) return [];
+
+    const orders: LiquidityManagementOrder[] = [];
+
+    // Collect exchange orders from this pipeline
+    const exchangeOrders = pipeline.exchangeOrders;
+    orders.push(...exchangeOrders);
+
+    // Recursively collect from sub-pipelines
+    const subPipelineOrders = pipeline.subPipelineOrders;
+    for (const subPipelineOrder of subPipelineOrders) {
+      const subPipelineId = parseInt(subPipelineOrder.correlationId, 10);
+      if (isNaN(subPipelineId)) continue;
+
+      const subPipeline = await this.liquidityService.getPipelineWithOrders(subPipelineId);
+      if (!subPipeline) continue;
+
+      const subOrders = await this.findAllExchangeOrders(subPipeline, maxDepth - 1);
+      orders.push(...subOrders);
+    }
+
+    return orders;
+  }
+
   private async setWaitingForLowerFeeStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
       await this.buyCryptoRepo.update(...tx.waitingForLowerFee());

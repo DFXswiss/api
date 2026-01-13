@@ -59,7 +59,13 @@ export interface SumSubDataResult {
     ];
   };
   requiredIdDocs?: string;
-  fixedInfo?: string;
+  fixedInfo?: {
+    firstName?: string;
+    firstNameEn?: string;
+    lastName?: string;
+    lastNameEn?: string;
+    country?: string;
+  };
   email?: string;
   phone?: string;
   applicantPlatform?: string;
@@ -390,8 +396,8 @@ export function getSumsubResult(dto: SumSubWebhookResult): IdentShortResult {
           return dto.reviewResult.reviewAnswer === ReviewAnswer.GREEN
             ? IdentShortResult.SUCCESS
             : dto.reviewResult.reviewRejectType === ReviewRejectType.RETRY
-            ? IdentShortResult.RETRY
-            : IdentShortResult.FAIL;
+              ? IdentShortResult.RETRY
+              : IdentShortResult.FAIL;
         }
 
         case SumSubWebhookType.VIDEO_IDENT_STATUS_CHANGED: {

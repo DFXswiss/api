@@ -6,6 +6,7 @@ import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Eip7702AuthorizationDataDto } from './gasless-transfer.dto';
 import { UnsignedTxDto } from './unsigned-tx.dto';
 
 export class BeneficiaryDto {
@@ -106,4 +107,15 @@ export class SellPaymentInfoDto {
     description: 'Unsigned deposit transaction data (only if quote is valid and includeTx=true)',
   })
   depositTx?: UnsignedTxDto;
+
+  @ApiPropertyOptional({
+    type: Eip7702AuthorizationDataDto,
+    description: 'EIP-7702 authorization data for gasless transactions (user has 0 ETH)',
+  })
+  eip7702Authorization?: Eip7702AuthorizationDataDto;
+
+  @ApiPropertyOptional({
+    description: 'Whether gasless transaction is available for this request',
+  })
+  gaslessAvailable?: boolean;
 }

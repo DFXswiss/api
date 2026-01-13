@@ -13,4 +13,5 @@ export interface TxStatementDetails {
   transaction: Transaction;
   currency: string;
   bankInfo?: BankInfoDto;
+  reference?: string;
 }

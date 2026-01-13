@@ -46,7 +46,7 @@ export class KycNotificationService {
       relations: { userData: { wallet: true } },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} KYC reminder email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} KYC reminder email(s)`);
 
     for (const entity of entities) {
       try {
@@ -66,12 +66,12 @@ export class KycNotificationService {
                 { key: `${MailTranslationKey.KYC_REMINDER}.message` },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 {
-                  key: `${MailTranslationKey.KYC}.next_step`,
-                  params: { url: entity.userData.kycUrl, urlText: entity.userData.kycUrl },
-                },
-                {
                   key: `${MailTranslationKey.GENERAL}.button`,
                   params: { url: entity.userData.kycUrl, button: 'true' },
+                },
+                {
+                  key: `${MailTranslationKey.KYC}.next_step`,
+                  params: { url: entity.userData.kycUrl, urlText: entity.userData.kycUrl },
                 },
                 { key: MailKey.DFX_TEAM_CLOSING },
               ],
@@ -107,19 +107,19 @@ export class KycNotificationService {
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
-                key: `${MailTranslationKey.KYC}.retry`,
-                params: { url: userData.kycUrl, urlText: userData.kycUrl },
-              },
-              {
                 key: `${MailTranslationKey.GENERAL}.button`,
                 params: { url: userData.kycUrl, button: 'true' },
+              },
+              {
+                key: `${MailTranslationKey.KYC}.retry`,
+                params: { url: userData.kycUrl, urlText: userData.kycUrl },
               },
               { key: MailKey.DFX_TEAM_CLOSING },
             ],
           },
         });
       } else {
-        !userData.mail &&
+        if (!userData.mail)
           this.logger.warn(`Failed to send kyc step failed mail for user data ${userData.id}: user has no email`);
       }
 
@@ -149,12 +149,12 @@ export class KycNotificationService {
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
-                key: `${MailTranslationKey.KYC}.retry`,
-                params: { url: userData.kycUrl, urlText: userData.kycUrl },
-              },
-              {
                 key: `${MailTranslationKey.GENERAL}.button`,
                 params: { url: userData.kycUrl, button: 'true' },
+              },
+              {
+                key: `${MailTranslationKey.KYC}.retry`,
+                params: { url: userData.kycUrl, urlText: userData.kycUrl },
               },
               { key: MailKey.DFX_TEAM_CLOSING },
             ],

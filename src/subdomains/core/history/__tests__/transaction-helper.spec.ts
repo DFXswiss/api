@@ -106,7 +106,7 @@ describe('TransactionHelper', () => {
       txHelper.getRefundData(
         transaction.refundTargetEntity,
         defaultUserData,
-        IbanBankName.MAERKI,
+        IbanBankName.YAPEAL,
         'DE12500105170648489890',
         !transaction.cryptoInput,
       ),
@@ -130,18 +130,21 @@ describe('TransactionHelper', () => {
 
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
     jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+    jest
+      .spyOn(pricingService, 'getPrice')
+      .mockResolvedValue(createCustomPrice({ source: 'CHF', target: 'CHF', price: 1 }));
 
     await expect(
       txHelper.getRefundData(
         transaction.refundTargetEntity,
         defaultUserData,
-        IbanBankName.MAERKI,
+        IbanBankName.YAPEAL,
         'DE12500105170648489890',
         !transaction.cryptoInput,
       ),
     ).resolves.toMatchObject({
       fee: { network: 0, bank: 1.13 },
-      refundAmount: 99.87,
+      refundAmount: 99.88,
       refundTarget: 'DE12500105170648489890',
     });
   });

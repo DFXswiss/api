@@ -44,7 +44,6 @@ export class TestExchangeService extends ExchangeService {
     MaerkiBaumann: undefined,
     Olkypay: undefined,
     Checkout: undefined,
-    Kaleido: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
   };

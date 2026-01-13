@@ -35,7 +35,6 @@ export enum TransactionTypeInternal {
   REF_REWARD = 'RefReward',
   CHECKOUT_LTD = 'CheckoutLtd',
   SCB = 'SCB',
-  REVOLUT_CARD_PAYMENT = 'RevolutCardPayment',
   BANK_ACCOUNT_FEE = 'BankAccountFee',
   EXTRAORDINARY_EXPENSES = 'ExtraordinaryExpenses',
 }

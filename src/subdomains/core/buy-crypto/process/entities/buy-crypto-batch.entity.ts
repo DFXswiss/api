@@ -184,20 +184,18 @@ export class BuyCryptoBatch extends IEntity {
   private reBatchToMaxReferenceAmount(liquidityLimit: number, bufferCap = 0): this {
     if (this.id || this.created) throw new Error(`Cannot re-batch previously saved batch. Batch ID: ${this.id}`);
 
-    const currentTransactions = this.sortTransactionsAsc();
+    const currentTransactions = this.sortForLimitedLiquidity();
     const reBatchTransactions = [];
     let requiredLiquidity = 0;
 
     for (const tx of currentTransactions) {
-      requiredLiquidity += tx.outputReferenceAmount;
+      const newRequiredLiquidity = requiredLiquidity + tx.outputReferenceAmount;
 
       // configurable reserve cap, because purchasable amounts are indicative and may be different on actual purchase
-      if (requiredLiquidity <= liquidityLimit * (1 - bufferCap)) {
+      if (newRequiredLiquidity <= liquidityLimit * (1 - bufferCap)) {
         reBatchTransactions.push(tx);
-        continue;
+        requiredLiquidity = newRequiredLiquidity;
       }
-
-      break;
     }
 
     if (reBatchTransactions.length === 0) {
@@ -250,7 +248,21 @@ export class BuyCryptoBatch extends IEntity {
     this.transactions = Util.fixRoundingMismatch(this.transactions, 'outputAmount', this.outputAmount, 8);
   }
 
-  private sortTransactionsAsc(): BuyCrypto[] {
-    return Util.sort(this.transactions, 'outputReferenceAmount');
+  private sortForLimitedLiquidity(): BuyCrypto[] {
+    return this.transactions.sort((a, b) => {
+      const aHasPipeline = a.liquidityPipeline != null;
+      const bHasPipeline = b.liquidityPipeline != null;
+
+      // 1. TX with pipeline
+      if (aHasPipeline !== bHasPipeline) return aHasPipeline ? -1 : 1;
+
+      // 2. TX with smaller pipeline ID
+      if (aHasPipeline && bHasPipeline) {
+        return a.liquidityPipeline.id - b.liquidityPipeline.id;
+      }
+
+      // 3. TX with smaller amount
+      return a.outputReferenceAmount - b.outputReferenceAmount;
+    });
   }
 }

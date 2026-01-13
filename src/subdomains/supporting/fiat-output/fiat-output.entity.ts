@@ -3,10 +3,11 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, JoinColumn, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
+import { Bank } from '../bank/bank/bank.entity';
 
 export enum TransactionCharge {
   BEN = 'BEN',
@@ -41,6 +42,9 @@ export class FiatOutput extends IEntity {
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   bankTx?: BankTx;
+
+  @ManyToOne(() => Bank, { nullable: true, eager: true })
+  bank: Bank;
 
   @Column({ length: 256 })
   type: FiatOutputType;
@@ -154,6 +158,10 @@ export class FiatOutput extends IEntity {
     return [this.id, update];
   }
 
+  get sourceIban(): string {
+    return this.bank?.iban ?? this.accountIban;
+  }
+
   get ibanCountry(): string {
     return (
       this.buyCrypto?.chargebackIban ??
@@ -163,20 +171,20 @@ export class FiatOutput extends IEntity {
   }
 
   get bankAccountCurrency(): string {
-    const currency =
+    return (
       this.buyCrypto?.bankTx?.currency ??
       this.buyFiats?.[0]?.sell?.fiat?.name ??
       this.bankTxReturn?.bankTx?.currency ??
-      this.currency;
-    return ['LI', 'CH'].includes(this.ibanCountry) && currency === 'CHF' ? currency : 'EUR';
+      this.currency
+    );
   }
 
   get bankAmount(): number {
     return this.bankAccountCurrency === this.currency || !this.originEntity
       ? this.amount
       : this.bankAccountCurrency === 'CHF'
-      ? this.originEntity.amountInChf
-      : this.originEntity.amountInEur;
+        ? this.originEntity.amountInChf
+        : this.originEntity.amountInEur;
   }
 
   get originEntity(): BuyCrypto | BuyFiat | BankTxReturn | undefined {

@@ -9,8 +9,10 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
+import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -48,10 +50,20 @@ export enum BuyCryptoStatus {
   BATCHED = 'Batched',
   PRICE_SLIPPAGE = 'PriceSlippage',
   PENDING_LIQUIDITY = 'PendingLiquidity',
+  PENDING_AGGREGATION = 'PendingAggregation',
   READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
   STOPPED = 'Stopped',
+}
+
+export interface CreditorData {
+  name?: string;
+  address?: string;
+  houseNumber?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
 }
 
 @Entity()
@@ -214,6 +226,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  chargebackCreditorData?: string;
+
   @OneToOne(() => FiatOutput, { nullable: true })
   @JoinColumn()
   chargebackOutput?: FiatOutput;
@@ -265,30 +280,50 @@ export class BuyCrypto extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  calculateOutputReferenceAmount(price: Price): this {
+  calculateOutputReferenceAmount(price: Price, exchangeOrders?: LiquidityManagementOrder[]): this {
+    // Use pipeline prices only if:
+    // 1. Feature is enabled via config (USE_PIPELINE_PRICE_FOR_ALL_ASSETS=true)
+    // 2. Pipeline exists and is COMPLETE
+    // 3. Exchange orders were found (actual trades happened)
+    // If no exchange orders exist, liquidity was available without trading -> use market price
     if (
-      Config.exchangeRateFromLiquidityOrder.includes(this.outputAsset.name) &&
+      Config.liquidityManagement.usePipelinePriceForAllAssets &&
       this.liquidityPipeline &&
-      ![LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
-        this.liquidityPipeline.status,
-      )
+      this.liquidityPipeline.status === LiquidityManagementPipelineStatus.COMPLETE &&
+      exchangeOrders?.length
     ) {
-      if (
-        this.liquidityPipeline.status !== LiquidityManagementPipelineStatus.COMPLETE ||
-        !this.liquidityPipeline.orders?.length
-      )
-        throw new Error('LiquidityPipeline not completed');
+      // Build aggregated price steps from all exchange orders
+      const pipelinePriceSteps = this.buildAggregatedPriceSteps(exchangeOrders);
 
-      const pipelinePrice = this.liquidityPipeline.orders[0].exchangePrice;
-      const filteredPriceSteps = price.steps.slice(0, -1);
+      // Replace CoinGecko steps with pipeline steps where available
+      // If price.steps is empty (direct conversion), use pipeline steps directly
+      const finalPriceSteps =
+        price.steps.length > 0
+          ? price.steps.map((step) => {
+              const pipelineStep = pipelinePriceSteps.find((ps) => ps.from === step.from && ps.to === step.to);
+              return pipelineStep ?? step;
+            })
+          : pipelinePriceSteps;
 
-      const totalPriceValue = [...filteredPriceSteps, pipelinePrice].reduce((prev, curr) => prev * curr.price, 1);
+      const totalPriceValue = finalPriceSteps.reduce((prev, curr) => prev * curr.price, 1);
       const totalPrice = Price.create(this.inputReferenceAsset, this.outputAsset.name, totalPriceValue);
 
       this.outputReferenceAmount = totalPrice.convert(this.inputReferenceAmountMinusFee, 8);
-      this.priceStepsObject = [...this.inputPriceStep, ...filteredPriceSteps, ...pipelinePrice.steps];
+      this.priceStepsObject = [...this.inputPriceStep, ...finalPriceSteps];
 
       return this;
+    }
+
+    // Pipeline not complete, failed, stopped, or no trade happened -> use market price
+    if (
+      this.liquidityPipeline &&
+      ![
+        LiquidityManagementPipelineStatus.FAILED,
+        LiquidityManagementPipelineStatus.STOPPED,
+        LiquidityManagementPipelineStatus.COMPLETE,
+      ].includes(this.liquidityPipeline.status)
+    ) {
+      throw new Error('LiquidityPipeline not completed');
     }
 
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
@@ -373,6 +408,52 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
+  setPaymentLinkPayment(
+    amountInEur: number,
+    amountInChf: number,
+    feeRate: number,
+    totalFee: number,
+    totalFeeAmountChf: number,
+    inputReferenceAmountMinusFee: number,
+    outputReferenceAmount: number,
+    paymentLinkFee: number,
+    priceSteps: PriceStep[],
+  ): UpdateResult<BuyCrypto> {
+    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+
+    const paymentLinkFeeAmount = Util.roundReadable(outputReferenceAmount * paymentLinkFee, AmountType.ASSET_FEE);
+
+    const update: Partial<BuyCrypto> =
+      inputReferenceAmountMinusFee < 0
+        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH }
+        : {
+            absoluteFeeAmount: 0,
+            minFeeAmount: 0,
+            minFeeAmountFiat: 0,
+            blockchainFee: 0,
+            percentFee: feeRate,
+            percentFeeAmount: totalFee,
+            totalFeeAmount: totalFee,
+            totalFeeAmountChf,
+            paymentLinkFee,
+            inputReferenceAmountMinusFee,
+            amountInEur,
+            amountInChf,
+            usedRef: Config.defaultRef,
+            refProvision: 0,
+            refFactor: 0,
+            usedFees: null,
+            outputAmount: Util.roundReadable(outputReferenceAmount - paymentLinkFeeAmount, AmountType.ASSET),
+            outputReferenceAmount,
+            priceSteps: this.priceSteps,
+            status: BuyCryptoStatus.PENDING_AGGREGATION,
+          };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   setOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
     this.outputAmount = this.calculateOutputAmount(batchReferenceAmount, batchOutputAmount);
     this.status = BuyCryptoStatus.READY_FOR_PAYOUT;
@@ -452,7 +533,10 @@ export class BuyCrypto extends IEntity {
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
     blockchainFee?: number,
+    creditorData?: CreditorData,
   ): UpdateResult<BuyCrypto> {
+    const hasCreditorData = creditorData && Object.values(creditorData).some((v) => v != null);
+
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
       chargebackAllowedDate,
@@ -467,6 +551,7 @@ export class BuyCrypto extends IEntity {
       blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
       status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
+      chargebackCreditorData: hasCreditorData ? JSON.stringify(creditorData) : undefined,
     };
 
     Object.assign(this, update);
@@ -654,6 +739,10 @@ export class BuyCrypto extends IEntity {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
   }
 
+  get creditorData(): CreditorData | undefined {
+    return this.chargebackCreditorData ? JSON.parse(this.chargebackCreditorData) : undefined;
+  }
+
   get networkStartCorrelationId(): string {
     return `${this.id}-network-start-fee`;
   }
@@ -704,7 +793,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get chargebackBankFee(): number {
-    return this.bankTx ? this.bankTx.chargeAmountChf : 0;
+    return this.bankTx ? this.bankTx.chargebackBankFee : 0;
   }
 
   get manualChfPrice(): Price {
@@ -731,6 +820,10 @@ export class BuyCrypto extends IEntity {
 
   get route(): Buy | Swap {
     return this.buy ?? this.cryptoRoute;
+  }
+
+  get paymentLinkPayment(): PaymentLinkPayment | undefined {
+    return this.cryptoInput?.paymentLinkPayment;
   }
 
   get paymentMethodIn(): PaymentMethod {
@@ -769,14 +862,43 @@ export class BuyCrypto extends IEntity {
 
   // --- HELPER METHODS --- //
 
+  private buildAggregatedPriceSteps(orders: LiquidityManagementOrder[]): PriceStep[] {
+    const pairMap = new Map<
+      string,
+      { inputAmount: number; outputAmount: number; system: string; from: string; to: string }
+    >();
+
+    for (const order of orders) {
+      const key = `${order.inputAsset}->${order.outputAsset}`;
+      const existing = pairMap.get(key);
+      if (existing) {
+        existing.inputAmount += order.inputAmount;
+        existing.outputAmount += order.outputAmount;
+      } else {
+        pairMap.set(key, {
+          inputAmount: order.inputAmount,
+          outputAmount: order.outputAmount,
+          system: order.action.system,
+          from: order.inputAsset,
+          to: order.outputAsset,
+        });
+      }
+    }
+
+    return Array.from(pairMap.values()).map((value) =>
+      PriceStep.create(value.system, value.from, value.to, value.inputAmount / value.outputAmount),
+    );
+  }
+
   private resetTransaction(): Partial<BuyCrypto> {
+    const isManualPrice = this.priceStepsObject.some((p) => p.source === Config.priceSourceManual);
+    const isPayment = this.priceStepsObject.some((p) => p.source === Config.priceSourcePayment);
+
     const update: Partial<BuyCrypto> = {
-      outputReferenceAmount: this.priceStepsObject.some((p) => p.source === Config.manualPriceStepSourceName)
-        ? undefined
-        : null, // ignore reset when manual payout
+      outputReferenceAmount: isManualPrice || isPayment ? undefined : null, // ignore reset when manual payout or payment
       batch: null,
       isComplete: false,
-      outputAmount: null,
+      outputAmount: isPayment ? undefined : null, // ignore reset when payment
       outputDate: null,
     };
 

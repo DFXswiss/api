@@ -5,7 +5,11 @@ import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
-import { CheckLiquidityRequest, PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
+import {
+  CheckLiquidityRequest,
+  PurchaseLiquidityRequest,
+  ReserveLiquidityRequest,
+} from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import {
   PriceCurrency,
@@ -75,10 +79,15 @@ export class RefRewardDexService {
         const assetPrice = await this.priceService.getPrice(PriceCurrency.EUR, asset, PriceValidity.VALID_ONLY);
 
         // Calculate total output amount for all rewards of this asset
-        const totalOutputAmount = Util.round(rewards.reduce((sum, r) => sum + assetPrice.convert(r.amountInEur, 8), 0), 8);
+        const totalOutputAmount = Util.round(
+          rewards.reduce((sum, r) => sum + assetPrice.convert(r.amountInEur, 8), 0),
+          8,
+        );
 
         // Check if liquidity is available
-        const liquidity = await this.dexService.checkLiquidity(this.createCheckLiquidityRequest(asset, totalOutputAmount));
+        const liquidity = await this.dexService.checkLiquidity(
+          this.createCheckLiquidityRequest(asset, totalOutputAmount),
+        );
 
         if (liquidity.target.availableAmount < totalOutputAmount) {
           // Not enough liquidity - start pipeline
@@ -128,7 +137,11 @@ export class RefRewardDexService {
         const pipeline = rewards[0].liquidityPipeline;
 
         // Pipeline failed/stopped: Reset to PREPARED for retry
-        if ([LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(pipeline.status)) {
+        if (
+          [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED].includes(
+            pipeline.status,
+          )
+        ) {
           this.logger.info(`Pipeline ${pipeline.id} failed/stopped, resetting ref rewards to PREPARED`);
           await this.refRewardRepo.update(
             { id: In(rewards.map((r) => r.id)) },
@@ -172,19 +185,15 @@ export class RefRewardDexService {
     const deficit = Util.round(totalAmount - availableAmount, 8);
 
     // Set status BEFORE pipeline attempt (consistent with BuyCrypto)
-    await this.refRewardRepo.update(
-      { id: In(rewards.map((r) => r.id)) },
-      { status: RewardStatus.PENDING_LIQUIDITY },
-    );
+    await this.refRewardRepo.update({ id: In(rewards.map((r) => r.id)) }, { status: RewardStatus.PENDING_LIQUIDITY });
 
     try {
       const pipeline = await this.liquidityService.buyLiquidity(asset.id, deficit, deficit, true);
-      this.logger.info(`Started liquidity pipeline ${pipeline.id} for ref rewards (deficit: ${deficit} ${asset.uniqueName})`);
-
-      await this.refRewardRepo.update(
-        { id: In(rewards.map((r) => r.id)) },
-        { liquidityPipeline: pipeline },
+      this.logger.info(
+        `Started liquidity pipeline ${pipeline.id} for ref rewards (deficit: ${deficit} ${asset.uniqueName})`,
       );
+
+      await this.refRewardRepo.update({ id: In(rewards.map((r) => r.id)) }, { liquidityPipeline: pipeline });
     } catch (e) {
       this.logger.error(`Failed to start liquidity pipeline for ref rewards (${asset.uniqueName}):`, e);
       // Status remains PENDING_LIQUIDITY without pipeline - will be reset to PREPARED in processPendingLiquidityRewards()
@@ -207,7 +216,9 @@ export class RefRewardDexService {
     };
   }
 
-  private createReserveLiquidityRequest(request: RefLiquidityRequest): PurchaseLiquidityRequest | ReserveLiquidityRequest {
+  private createReserveLiquidityRequest(
+    request: RefLiquidityRequest,
+  ): PurchaseLiquidityRequest | ReserveLiquidityRequest {
     return {
       context: LiquidityOrderContext.REF_PAYOUT,
       correlationId: request.rewardId,

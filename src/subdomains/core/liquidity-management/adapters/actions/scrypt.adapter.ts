@@ -21,7 +21,10 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
   protected commands = new Map<string, Command>();
 
-  constructor(private readonly scryptService: ScryptService, private readonly dexService: DexService) {
+  constructor(
+    private readonly scryptService: ScryptService,
+    private readonly dexService: DexService,
+  ) {
     super(LiquidityManagementSystem.SCRYPT);
 
     this.commands.set(ScryptAdapterCommands.WITHDRAW, this.withdraw.bind(this));

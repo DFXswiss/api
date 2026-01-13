@@ -41,7 +41,7 @@ export class BankTxReturnNotificationService {
       },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} bankTxReturn chargeback email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} bankTxReturn chargeback email(s)`);
 
     for (const entity of entities) {
       try {

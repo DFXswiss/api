@@ -4,16 +4,16 @@
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [url:https://app.dfx.swiss/support].",
         "thanks": "Merci beaucoup pour votre confiance",
-        "welcome": "Bonjour {name},",
+        "welcome": "Bonjour {name}",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
-        "button": "ou<br>[url:Cliquez ici]",
+        "button": "[url:Cliquez ici]",
         "link": "ou<br>[url:{urlText}]"
     },
     "login": {
         "title": "Connexion DFX",
         "salutation": "Connexion DFX",
-        "message": "Cliquez sur le lien suivant dans les {expiration} minutes pour vous connecter à DFX:<br>[url:{urlText}]"
+        "message": "ou cliquez sur le lien suivant dans les {expiration} minutes pour vous connecter à DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -331,7 +331,7 @@
             "salutation": "Accord de cession",
             "message": "DFX offre à ses clients la possibilité de lui céder des créances impayées résultant de la vente de biens et de services afin de permettre le paiement au moyen de crypto-monnaiesAccord de cession. Le client a la possibilité de soumettre une réclamation en suspens via notre API (api.dfx.swiss) ou via le front-end sur app.dfx.swiss.<br>Le montant dû est versé au client après déduction d'une commission de traitement de 0,2 %. Selon la configuration propre au client, le paiement peut être effectué soit en crypto-monnaies, soit en monnaie fiduciaire par le biais d'une transaction bancaire.<br>Les conditions générales de DFX s'appliquent à toutes les transactions. La cession prend fin automatiquement à la clôture du compte DFX ou peut être résiliée immédiatement par DFX ou le client en cas de rupture de contrat ou d'insolvabilité.<br><br>D'accord sur {date}"
         },
-        "retry": "Veuillez réessayer avec l'URL suivante:<br>[url:{urlText}]",
+        "retry": "ou réessayez avec l'URL suivante:<br>[url:{urlText}]",
         "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]",
         "step_names": {
             "ident": "Identification",
@@ -354,8 +354,7 @@
         "request": {
             "title": "Confirmer l'e-mail",
             "salutation": "Confirmez votre e-mail",
-            "message": "Cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]",
-            "closing": "Si vous n'avez pas saisi votre courrier dans un autre compte DFX, veuillez contacter immédiatement le service d'assistance à l'adresse [url:https://app.dfx.swiss/support]."
+            "message": "ou cliquez sur le lien suivant pour confirmer votre courrier pour un autre compte:<br>[url:{urlText}]"
         },
         "added_address": {
             "title": "Adresse ajoutée au compte",

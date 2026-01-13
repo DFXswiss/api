@@ -39,6 +39,7 @@ export const PaymentLinkBlockchains = [
   Blockchain.KUCOIN_PAY,
   Blockchain.SOLANA,
   Blockchain.TRON,
+  Blockchain.CARDANO,
 ].filter((b) => !TestBlockchains.includes(b));
 
 // --- EXPLORERS --- //
@@ -78,7 +79,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.GNOSIS]: 'https://gnosisscan.io',
   [Blockchain.SOLANA]: 'https://solscan.io',
   [Blockchain.TRON]: 'https://tronscan.org/#',
-  [Blockchain.CITREA_TESTNET]: 'https://explorer.testnet.citrea.xyz',
+  [Blockchain.CITREA_TESTNET]: 'https://testnet.citreascan.com',
   [Blockchain.HAQQ]: 'https://explorer.haqq.network',
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
@@ -93,7 +94,6 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.MAERKI_BAUMANN]: undefined,
   [Blockchain.OLKYPAY]: undefined,
   [Blockchain.CHECKOUT]: undefined,
-  [Blockchain.KALEIDO]: undefined,
   [Blockchain.SUMIXX]: undefined,
   [Blockchain.YAPEAL]: undefined,
 };
@@ -130,7 +130,6 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.MAERKI_BAUMANN]: undefined,
   [Blockchain.OLKYPAY]: undefined,
   [Blockchain.CHECKOUT]: undefined,
-  [Blockchain.KALEIDO]: undefined,
   [Blockchain.SUMIXX]: undefined,
   [Blockchain.YAPEAL]: undefined,
 };

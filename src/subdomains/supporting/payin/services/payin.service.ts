@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -11,8 +13,8 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { In, IsNull, MoreThan, Not } from 'typeorm';
+import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import {
@@ -25,8 +27,11 @@ import {
 } from '../entities/crypto-input.entity';
 import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
+import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
+import { CardanoStrategy } from '../strategies/register/impl/cardano.strategy';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { SendStrategyRegistry } from '../strategies/send/impl/base/send.strategy-registry';
+import { PayInBitcoinService } from './payin-bitcoin.service';
 
 @Injectable()
 export class PayInService {
@@ -34,9 +39,11 @@ export class PayInService {
 
   constructor(
     private readonly payInRepository: PayInRepository,
+    private readonly registerStrategyRegistry: RegisterStrategyRegistry,
     private readonly sendStrategyRegistry: SendStrategyRegistry,
     private readonly transactionService: TransactionService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
+    private readonly payInBitcoinService: PayInBitcoinService,
   ) {}
 
   // --- PUBLIC API --- //
@@ -62,6 +69,14 @@ export class PayInService {
     ]);
 
     return payIn;
+  }
+
+  async pollAddress(address: BlockchainAddress): Promise<void> {
+    if (address.blockchain !== Blockchain.CARDANO)
+      throw new BadRequestException(`Address poll not supported for ${address.blockchain}`);
+
+    const registerStrategy = this.registerStrategyRegistry.get(address.blockchain) as CardanoStrategy;
+    return registerStrategy.pollAddress(address);
   }
 
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
@@ -142,7 +157,10 @@ export class PayInService {
     return this.payInRepository.find({
       where: [
         { status: PayInStatus.CREATED, txType: IsNull() },
-        { status: PayInStatus.CREATED, txType: Not(In([PayInType.PERMIT_TRANSFER, PayInType.SIGNED_TRANSFER])) },
+        {
+          status: PayInStatus.CREATED,
+          txType: Not(In([PayInType.PERMIT_TRANSFER, PayInType.SIGNED_TRANSFER, PayInType.SPONSORED_TRANSFER])),
+        },
       ],
       relations: { transaction: true, paymentLinkPayment: { link: { route: true } } },
     });
@@ -207,7 +225,7 @@ export class PayInService {
     await this.payInRepository.save(payIn);
   }
 
-  async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRouteType): Promise<void> {
+  async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {
     const _payIn = await this.payInRepository.findOneBy({ id: payIn.id });
 
     _payIn.ignore(purpose, route);
@@ -265,7 +283,8 @@ export class PayInService {
   // --- HELPER METHODS --- //
 
   private async forwardPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.find({
+    // 1. Get confirmed PayIns (existing behavior)
+    const confirmedPayIns = await this.payInRepository.find({
       where: {
         status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
         action: PayInAction.FORWARD,
@@ -276,9 +295,14 @@ export class PayInService {
       relations: { buyCrypto: true, buyFiat: true },
     });
 
-    if (payIns.length === 0) return;
+    // 2. Get unconfirmed next-block candidates (new behavior)
+    const unconfirmedPayIns = await this.getUnconfirmedNextBlockPayIns();
 
-    const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
+    const allPayIns = [...confirmedPayIns, ...unconfirmedPayIns];
+
+    if (allPayIns.length === 0) return;
+
+    const groups = this.groupByStrategies(allPayIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
     for (const [strategy, payIns] of groups.entries()) {
       try {
@@ -287,6 +311,47 @@ export class PayInService {
         this.logger.info(`Failed to forward ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`, e);
         continue;
       }
+    }
+  }
+
+  private async getUnconfirmedNextBlockPayIns(): Promise<CryptoInput[]> {
+    if (!Config.blockchain.default.allowUnconfirmedUtxos) return [];
+    if (!this.payInBitcoinService.isAvailable()) {
+      this.logger.warn('Bitcoin service not available - skipping unconfirmed UTXO processing');
+      return [];
+    }
+
+    // Only Bitcoin supports unconfirmed UTXO forwarding
+    const candidates = await this.payInRepository.find({
+      where: {
+        status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+        action: PayInAction.FORWARD,
+        outTxId: IsNull(),
+        asset: Not(IsNull()),
+        isConfirmed: false,
+      },
+      relations: { buyCrypto: true, buyFiat: true, asset: true },
+    });
+
+    // Filter to Bitcoin only
+    const bitcoinCandidates = candidates.filter((p) => p.asset?.blockchain === Blockchain.BITCOIN);
+
+    if (bitcoinCandidates.length === 0) return [];
+
+    // Delegate to Bitcoin service for fee-rate filtering
+    try {
+      const { nextBlockCandidates, failedPayIns } =
+        await this.payInBitcoinService.filterUnconfirmedPayInsForForward(bitcoinCandidates);
+
+      // Persist failed PayIns
+      if (failedPayIns.length > 0) {
+        await this.payInRepository.save(failedPayIns);
+      }
+
+      return nextBlockCandidates;
+    } catch (e) {
+      this.logger.error('Failed to filter unconfirmed PayIns:', e);
+      return [];
     }
   }
 

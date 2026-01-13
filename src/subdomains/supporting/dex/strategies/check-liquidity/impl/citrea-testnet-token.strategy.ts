@@ -7,7 +7,10 @@ import { EvmTokenStrategy } from './base/evm-token.strategy';
 
 @Injectable()
 export class CitreaTestnetTokenStrategy extends EvmTokenStrategy {
-  constructor(protected readonly assetService: AssetService, dexCitreaTestnetService: DexCitreaTestnetService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    dexCitreaTestnetService: DexCitreaTestnetService,
+  ) {
     super(dexCitreaTestnetService);
   }
 

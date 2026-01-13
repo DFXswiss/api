@@ -3,7 +3,6 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -38,14 +37,8 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentResultData, IdentType, NationalityDocType, ValidDocType } from '../dto/ident-result-data.dto';
-import {
-  IdNowReason,
-  IdNowResult,
-  IdentShortResult,
-  getIdNowIdentReason,
-  getIdentResult,
-} from '../dto/ident-result.dto';
-import { IdentDocument, IdentStatus } from '../dto/ident.dto';
+import { IdNowReason, IdNowResult, IdentShortResult, getIdNowIdentReason } from '../dto/ident-result.dto';
+import { IdentDocument } from '../dto/ident.dto';
 import {
   ContactPersonData,
   KycBeneficialData,
@@ -84,7 +77,6 @@ import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { FinancialService } from './integration/financial.service';
-import { IdentService } from './integration/ident.service';
 import { KycDocumentService } from './integration/kyc-document.service';
 import { SumsubService } from './integration/sum-sub.service';
 import { KycFileService } from './kyc-file.service';
@@ -101,7 +93,6 @@ export class KycService {
   constructor(
     @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
-    private readonly identService: IdentService,
     private readonly financialService: FinancialService,
     private readonly documentService: KycDocumentService,
     private readonly kycStepRepo: KycStepRepository,
@@ -400,14 +391,6 @@ export class KycService {
     }
   }
 
-  async syncIdentStep(kycStep: KycStep): Promise<void> {
-    if (!kycStep.isInReview) throw new BadRequestException(`Invalid KYC step status ${kycStep.status}`);
-    if (kycStep.isSumsub) throw new BadRequestException('Ident step sync is only available for IDnow');
-
-    const result = await this.identService.getResult(kycStep);
-    return this.updateIntrumIdent(result);
-  }
-
   async getInfo(kycHash: string): Promise<KycLevelDto> {
     const user = await this.getUser(kycHash);
     await this.verifyUserDuplication(user);
@@ -445,6 +428,13 @@ export class KycService {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
+  }
+
+  async initializeProcess(userData: UserData): Promise<UserData> {
+    const user = await this.getUser(userData.kycHash);
+    if (user.hasDoneStep(KycStepName.CONTACT_DATA)) return user;
+
+    return this.updateProgress(user, true, false);
   }
 
   public getMailFailedReason(comment: string, language: string): string {
@@ -744,21 +734,6 @@ export class KycService {
     );
   }
 
-  async updateIntrumIdent(dto: IdNowResult): Promise<void> {
-    const { id: sessionId, transactionnumber: transactionId, reason } = dto.identificationprocess;
-    if (!sessionId || !transactionId) throw new BadRequestException(`Session data is missing`);
-
-    const result = getIdentResult(dto);
-    if (!result)
-      throw new Error(
-        `Received unknown intrum ident result for transaction ${transactionId}: ${dto.identificationprocess.result}`,
-      );
-
-    this.logger.info(`Received intrum ident webhook call for transaction ${transactionId}: ${result}`);
-
-    await this.updateIdent(IdentType.ID_NOW, transactionId, dto, result, [reason]);
-  }
-
   updateSumsubIdent(dto: SumSubWebhookResult): void {
     const { externalUserId: transactionId } = dto;
 
@@ -956,22 +931,6 @@ export class KycService {
       : getSumSubReason(reason as SumSubRejectionLabels[]);
   }
 
-  async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<string> {
-    const transaction = await this.getUserByTransactionOrThrow(transactionId, status);
-
-    const user = transaction.user;
-    const kycStep = user.getStepOrThrow(transaction.stepId);
-
-    if (status === IdentStatus.SUCCESS && !kycStep.result) {
-      await this.kycStepRepo.update(...kycStep.finish());
-
-      await this.updateProgress(user, false);
-    }
-
-    const search = new URLSearchParams({ code: user.kycHash, status: kycStep.status });
-    return `${Config.frontend.services}/kyc/redirect?${search.toString()}`;
-  }
-
   // --- STEPPING METHODS --- //
   async getOrCreateStepInternal(
     kycHash: string,
@@ -1057,7 +1016,7 @@ export class KycService {
         return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_20 };
 
       case KycStepName.CONTACT_DATA:
-
+      // falls through
       case KycStepName.LEGAL_ENTITY:
       case KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION:
       case KycStepName.SIGNATORY_POWER:
@@ -1071,7 +1030,7 @@ export class KycService {
       case KycStepName.STATUTES:
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
-      case KycStepName.RECOMMENDATION:
+      case KycStepName.RECOMMENDATION: {
         const recommendationSteps = user.getStepsWith(KycStepName.RECOMMENDATION);
         if (
           (recommendationSteps.some((r) => r.comment?.split(';').includes(KycError.BLOCKED)) ||
@@ -1081,8 +1040,9 @@ export class KycService {
           return { nextStep: undefined };
 
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
+      }
 
-      case KycStepName.IDENT:
+      case KycStepName.IDENT: {
         const identSteps = user.getStepsWith(KycStepName.IDENT);
         if (
           identSteps.some((i) => i.comment?.split(';').includes(KycError.USER_DATA_EXISTING)) ||
@@ -1122,8 +1082,9 @@ export class KycService {
             preventDirectEvaluation,
           },
         };
+      }
 
-      case KycStepName.DFX_APPROVAL:
+      case KycStepName.DFX_APPROVAL: {
         const approvalSteps = user.getStepsWith(KycStepName.DFX_APPROVAL);
         if (
           (approvalSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) &&
@@ -1133,6 +1094,7 @@ export class KycService {
           return { nextStep: undefined };
 
         return { nextStep: { name: nextStep, preventDirectEvaluation } };
+      }
 
       default:
         return { nextStep: undefined };
@@ -1171,21 +1133,24 @@ export class KycService {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
           kycStep.sessionId = await this.sumsubService.initiateIdent(user, kycStep);
         } else if (!kycStep.isManual) {
-          throw new InternalServerErrorException('Intrum Ident not possible');
+          throw new Error(`Invalid ident step type ${kycStep.type}`);
         }
 
         break;
 
-      case KycStepName.DFX_APPROVAL:
+      case KycStepName.DFX_APPROVAL: {
         const missingCompletedSteps = requiredKycSteps(user).filter((rs) => !user.hasCompletedStep(rs));
 
-        user.kycLevel >= KycLevel.LEVEL_50
-          ? kycStep.complete()
-          : missingCompletedSteps.length === 1
-          ? kycStep.manualReview()
-          : kycStep.onHold();
+        if (user.kycLevel >= KycLevel.LEVEL_50) {
+          kycStep.complete();
+        } else if (missingCompletedSteps.length === 1) {
+          kycStep.manualReview();
+        } else {
+          kycStep.onHold();
+        }
 
         break;
+      }
     }
 
     return this.kycStepRepo.save(kycStep);
@@ -1276,8 +1241,8 @@ export class KycService {
     nationality ??= nationalityStepData?.nationality?.id
       ? await this.countryService.getCountry(nationalityStepData.nationality.id)
       : data.nationality
-      ? await this.countryService.getCountryWithSymbol(data.nationality)
-      : null;
+        ? await this.countryService.getCountryWithSymbol(data.nationality)
+        : null;
 
     if (
       data.birthday &&
@@ -1416,7 +1381,7 @@ export class KycService {
       identStep.userData.users?.some(
         (u) =>
           u.ipCountry !== ipCountry.symbol &&
-          ![u.ipCountry, ipCountry.symbol].every((c) => Config.kyc.allowedBorderRegions.includes(c)),
+          ![u.ipCountry, ipCountry.symbol].every((c) => Config.allowedBorderRegions.includes(c)),
       )
     )
       errors.push(KycError.IP_COUNTRY_MISMATCH);
@@ -1425,7 +1390,7 @@ export class KycService {
       identStep.userData.users?.some(
         (u) =>
           u.ipCountry !== country.symbol &&
-          ![u.ipCountry, country.symbol].every((c) => Config.kyc.allowedBorderRegions.includes(c)),
+          ![u.ipCountry, country.symbol].every((c) => Config.allowedBorderRegions.includes(c)),
       )
     )
       errors.push(KycError.COUNTRY_IP_COUNTRY_MISMATCH);
@@ -1562,11 +1527,10 @@ export class KycService {
     const kycStep = await this.kycStepRepo.findOne({ where: { id: stepId }, relations: { userData: true } });
     if (!kycStep || kycStep.name !== KycStepName.IDENT) throw new NotFoundException('Invalid step');
 
-    const userFiles = await this.documentService.listUserFiles(kycStep.userData.id);
+    if (!kycStep.isSumsub) throw new Error(`Invalid ident step type ${kycStep.type}`);
 
-    const documents = kycStep.isSumsub
-      ? await this.sumsubService.getDocuments(kycStep)
-      : await this.identService.getDocuments(kycStep);
+    const userFiles = await this.documentService.listUserFiles(kycStep.userData.id);
+    const documents = await this.sumsubService.getDocuments(kycStep);
 
     if (kycStep.isSumsubVideo) {
       documents.push(...(await this.sumsubService.getMedia(kycStep)));

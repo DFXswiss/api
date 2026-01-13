@@ -6,7 +6,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -48,7 +47,7 @@ export class BuyFiatPreparationService {
   ) {}
 
   async doAmlCheck(): Promise<void> {
-    const request: FindOptionsWhere<BuyCrypto> = {
+    const request: FindOptionsWhere<BuyFiat> = {
       inputAmount: Not(IsNull()),
       inputAsset: Not(IsNull()),
       chargebackAllowedDateUser: IsNull(),
@@ -202,7 +201,7 @@ export class BuyFiatPreparationService {
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
           undefined,
-          IbanBankName.MAERKI,
+          IbanBankName.YAPEAL,
           entity.user,
         );
 
@@ -269,7 +268,7 @@ export class BuyFiatPreparationService {
           inputReferenceAmountMinusFee / outputReferenceAmount,
         );
         const priceStep = PriceStep.create(
-          'Payment',
+          Config.priceSourcePayment,
           conversionPrice.source,
           conversionPrice.target,
           conversionPrice.price,
@@ -319,7 +318,7 @@ export class BuyFiatPreparationService {
           : undefined;
         const priceSteps = price?.steps ?? [
           PriceStep.create(
-            'DFX',
+            Config.priceSourceManual,
             entity.inputReferenceAsset,
             entity.outputReferenceAsset.name,
             entity.inputReferenceAmountMinusFee / entity.outputReferenceAmount,
@@ -378,9 +377,10 @@ export class BuyFiatPreparationService {
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: {
         fiatOutput: true,
-        sell: true,
-        transaction: { userData: true },
+        sell: { user: { userData: { country: true } } },
+        transaction: { userData: { organization: true } },
         cryptoInput: { paymentLinkPayment: { link: true } },
+        outputAsset: true,
       },
       where: {
         amlCheck: CheckStatus.PASS,

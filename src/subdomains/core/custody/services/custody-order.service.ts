@@ -46,6 +46,7 @@ export class CustodyOrderService {
     private readonly custodyService: CustodyService,
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
+    @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
     @Inject(forwardRef(() => SwapService))
     private readonly swapService: SwapService,
@@ -113,6 +114,7 @@ export class CustodyOrderService {
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
           GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+          false,
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
@@ -141,6 +143,7 @@ export class CustodyOrderService {
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           targetUser.id,
           GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+          false,
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
@@ -159,6 +162,7 @@ export class CustodyOrderService {
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
           GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+          false,
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);

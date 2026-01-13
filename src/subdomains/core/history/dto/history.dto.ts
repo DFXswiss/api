@@ -21,8 +21,8 @@ export enum PaymentStatus {
 export type HistoryDto<T> = T extends ExportType.COMPACT
   ? TransactionDto
   : T extends ExportType.COIN_TRACKING
-  ? CoinTrackingCsvHistoryDto
-  : ChainReportCsvHistoryDto;
+    ? CoinTrackingCsvHistoryDto
+    : ChainReportCsvHistoryDto;
 
 export class HistoryDtoDeprecated {
   @ApiProperty()
@@ -64,6 +64,7 @@ export const PaymentStatusMapper: {
   [BuyCryptoStatus.MISSING_LIQUIDITY]: PaymentStatus.PENDING,
   [BuyCryptoStatus.PAYING_OUT]: PaymentStatus.PENDING,
   [BuyCryptoStatus.PENDING_LIQUIDITY]: PaymentStatus.PENDING,
+  [BuyCryptoStatus.PENDING_AGGREGATION]: PaymentStatus.PENDING,
   [BuyCryptoStatus.PRICE_INVALID]: PaymentStatus.PENDING,
   [BuyCryptoStatus.PRICE_SLIPPAGE]: PaymentStatus.PENDING,
   [BuyCryptoStatus.READY_FOR_PAYOUT]: PaymentStatus.PENDING,

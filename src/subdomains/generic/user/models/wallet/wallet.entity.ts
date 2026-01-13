@@ -70,6 +70,9 @@ export class Wallet extends IEntity {
   @Column({ default: false })
   autoTradeApproval: boolean;
 
+  @Column({ default: false })
+  buySpecificIbanEnabled: boolean;
+
   //*** ENTITY METHODS ***//
 
   get webhookConfigObject(): WebhookConfig | undefined {

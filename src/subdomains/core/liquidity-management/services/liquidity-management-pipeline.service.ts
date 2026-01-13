@@ -308,7 +308,7 @@ export class LiquidityManagementPipelineService {
   }
 
   private logNewPipelines(newPipelines: LiquidityManagementPipeline[]): void {
-    newPipelines.length > 0 &&
+    if (newPipelines.length > 0)
       this.logger.verbose(
         `Starting ${newPipelines.length} new liquidity management pipeline(s). Rules: ${newPipelines.map(
           (p) => p.rule.id,

@@ -13,6 +13,7 @@ import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/si
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
 import { GoldskyService } from 'src/integration/goldsky/goldsky.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -53,6 +54,8 @@ export enum Direction {
 }
 
 export abstract class EvmClient extends BlockchainClient {
+  protected readonly logger = new DfxLogger(EvmClient);
+
   readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
   protected readonly goldskyService?: GoldskyService;
@@ -76,7 +79,7 @@ export abstract class EvmClient extends BlockchainClient {
     this.chainId = params.chainId;
 
     const url = `${params.gatewayUrl}/${params.apiKey ?? ''}`;
-    this.provider = new ethers.providers.JsonRpcProvider(url);
+    this.provider = new ethers.providers.StaticJsonRpcProvider(url, this.chainId);
 
     this.wallet = new ethers.Wallet(params.walletPrivateKey, this.provider);
 
@@ -167,8 +170,22 @@ export abstract class EvmClient extends BlockchainClient {
     return this.getTokenGasLimitForContact(contract, this.randomReceiverAddress);
   }
 
-  async getTokenGasLimitForContact(contract: Contract, to: string): Promise<EthersNumber> {
-    return contract.estimateGas.transfer(to, 1).then((l) => l.mul(12).div(10));
+  async getTokenGasLimitForContact(contract: Contract, to: string, amount?: EthersNumber): Promise<EthersNumber> {
+    // Use actual amount if provided, otherwise use 1 for gas estimation
+    // Some tokens may have minimum transfer amounts or balance checks that fail with 1 Wei
+    const estimateAmount = amount ?? 1;
+
+    try {
+      const gasEstimate = await contract.estimateGas.transfer(to, estimateAmount);
+      return gasEstimate.mul(12).div(10);
+    } catch (error) {
+      // If gas estimation fails (e.g., from EIP-7702 delegated address), use a safe default
+      // Standard ERC20 transfer is ~65k gas, using 100k as safe upper bound with buffer
+      this.logger.verbose(
+        `Gas estimation failed for token transfer to ${to}: ${error.message}. Using default gas limit of 100000`,
+      );
+      return ethers.BigNumber.from(100000);
+    }
   }
 
   async prepareTransaction(
@@ -220,7 +237,7 @@ export abstract class EvmClient extends BlockchainClient {
         to: asset.chainId,
         data: EvmUtil.encodeErc20Transfer(toAddress, amountWei),
         value: '0',
-        gasLimit: await this.getTokenGasLimitForContact(contract, toAddress),
+        gasLimit: await this.getTokenGasLimitForContact(contract, toAddress, amountWei),
       };
     }
   }

@@ -32,9 +32,15 @@ export class SpecialExternalAccountService {
     );
   }
 
-  async getMultiAccountBankNames(): Promise<string[]> {
+  async getMultiAccountNames(): Promise<string[]> {
     return this.getMultiAccounts().then((list) =>
-      list.filter((a) => a.type === SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME).map((a) => a.name),
+      list
+        .filter((a) =>
+          [SpecialExternalAccountType.MULTI_ACCOUNT_BANK_NAME, SpecialExternalAccountType.MULTI_ACCOUNT_IBAN].includes(
+            a.type,
+          ),
+        )
+        .map((a) => a.name),
     );
   }
 

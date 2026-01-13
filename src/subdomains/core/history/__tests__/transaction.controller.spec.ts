@@ -14,6 +14,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { createDefaultBank } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -48,6 +49,7 @@ describe('TransactionController', () => {
   let bankService: BankService;
   let transactionHelper: TransactionHelper;
   let swissQrService: SwissQRService;
+  let virtualIbanService: VirtualIbanService;
 
   beforeEach(async () => {
     historyService = createMock<HistoryService>();
@@ -67,6 +69,7 @@ describe('TransactionController', () => {
     bankService = createMock<BankService>();
     transactionHelper = createMock<TransactionHelper>();
     swissQrService = createMock<SwissQRService>();
+    virtualIbanService = createMock<VirtualIbanService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -89,6 +92,7 @@ describe('TransactionController', () => {
         { provide: BankService, useValue: bankService },
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: SwissQRService, useValue: swissQrService },
+        { provide: VirtualIbanService, useValue: virtualIbanService },
         TestUtil.provideConfig(),
       ],
     }).compile();

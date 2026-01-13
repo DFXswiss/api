@@ -1,5 +1,6 @@
 import { MailerOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
+import { Config, Environment } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Mail } from '../entities/mail/base/mail';
 
@@ -21,6 +22,12 @@ export class MailService {
   constructor(private readonly mailerService: MailerService) {}
 
   async send(mail: Mail): Promise<void> {
+    // Skip mail sending in local environment
+    if (Config.environment === Environment.LOC) {
+      this.logger.info(`[LOCAL DEV] Mail skipped - to: ${mail.to}, subject: ${mail.subject}`);
+      return;
+    }
+
     try {
       await this.mailerService.sendMail({
         from: mail.from,

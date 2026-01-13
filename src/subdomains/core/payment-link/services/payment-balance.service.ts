@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
@@ -19,10 +20,13 @@ import { Util } from 'src/shared/utils/util';
 export class PaymentBalanceService implements OnModuleInit {
   private readonly logger = new DfxLogger(PaymentBalanceService);
 
+  private readonly unavailableWarningsLogged = new Set<Blockchain>();
+
   private readonly chainsWithoutPaymentBalance = [
     Blockchain.LIGHTNING,
     Blockchain.MONERO,
     Blockchain.ZANO,
+    Blockchain.CARDANO,
     Blockchain.BINANCE_PAY,
     Blockchain.KUCOIN_PAY,
   ];
@@ -30,6 +34,7 @@ export class PaymentBalanceService implements OnModuleInit {
   private evmDepositAddress: string;
   private solanaDepositAddress: string;
   private tronDepositAddress: string;
+  private cardanoDepositAddress: string;
   private moneroDepositAddress: string;
   private bitcoinDepositAddress: string;
   private zanoDepositAddress: string;
@@ -43,6 +48,7 @@ export class PaymentBalanceService implements OnModuleInit {
     this.evmDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
     this.solanaDepositAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
     this.tronDepositAddress = TronUtil.createWallet({ seed: Config.payment.tronSeed, index: 0 }).address;
+    this.cardanoDepositAddress = CardanoUtil.createWallet({ seed: Config.payment.cardanoSeed, index: 0 })?.address;
 
     this.moneroDepositAddress = Config.payment.moneroAddress;
     this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
@@ -61,17 +67,27 @@ export class PaymentBalanceService implements OnModuleInit {
     await Promise.all(
       groupedAssets.map(async ([chain, assets]) => {
         const client = this.blockchainRegistryService.getClient(chain);
+        if (!client) {
+          if (!this.unavailableWarningsLogged.has(chain)) {
+            this.logger.warn(`Blockchain client not configured for ${chain} - skipping payment balance`);
+            this.unavailableWarningsLogged.add(chain);
+          }
+          return;
+        }
 
         const targetAddress = this.getDepositAddress(chain);
+        if (!targetAddress) return;
 
         const coin = assets.find((a) => a.type === AssetType.COIN);
         const tokens = assets.filter((a) => a.type !== AssetType.COIN);
 
-        balanceMap.set(coin.id, {
-          owner: targetAddress,
-          contractAddress: coin.chainId,
-          balance: await client.getNativeCoinBalanceForAddress(targetAddress),
-        });
+        if (coin) {
+          balanceMap.set(coin.id, {
+            owner: targetAddress,
+            contractAddress: coin.chainId,
+            balance: await client.getNativeCoinBalanceForAddress(targetAddress),
+          });
+        }
 
         if (tokens.length) {
           try {
@@ -79,7 +95,7 @@ export class PaymentBalanceService implements OnModuleInit {
             for (const token of tokens) {
               const balance = tokenBalances.find((b) => b.contractAddress === token.chainId)?.balance;
 
-              balance &&
+              if (balance)
                 balanceMap.set(token.id, {
                   owner: targetAddress,
                   contractAddress: token.chainId,
@@ -123,6 +139,9 @@ export class PaymentBalanceService implements OnModuleInit {
 
       case Blockchain.TRON:
         return this.tronDepositAddress;
+
+      case Blockchain.CARDANO:
+        return this.cardanoDepositAddress;
     }
   }
 

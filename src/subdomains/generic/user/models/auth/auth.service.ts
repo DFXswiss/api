@@ -1,14 +1,16 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  forwardRef,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
@@ -25,6 +27,7 @@ import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -87,6 +90,7 @@ export class AuthService {
     private readonly settingService: SettingService,
     private readonly recommendationService: RecommendationService,
     private readonly kycAdminService: KycAdminService,
+    @Inject(forwardRef(() => KycService)) private readonly kycService: KycService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE)
@@ -172,6 +176,8 @@ export class AuthService {
 
     if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, user.userData);
 
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, wallet);
+
     await this.checkIpBlacklistFor(user.userData, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
@@ -207,7 +213,7 @@ export class AuthService {
       }
     }
 
-    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData);
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, user.wallet);
 
     try {
       if (dto.specialCode || dto.discountCode)
@@ -253,6 +259,11 @@ export class AuthService {
     const key = randomUUID();
     const loginUrl = `${Config.frontend.services}/mail-login?otp=${key}`;
 
+    // Log login URL in local environment for testing
+    if (Config.environment === Environment.LOC) {
+      this.logger.info(`[LOCAL DEV] Mail login URL for ${dto.mail}: ${loginUrl}`);
+    }
+
     this.mailKeyList.set(key, {
       created: new Date(),
       key,
@@ -274,16 +285,16 @@ export class AuthService {
         texts: [
           { key: MailKey.SPACE, params: { value: '1' } },
           {
+            key: `${MailTranslationKey.GENERAL}.button`,
+            params: { url: loginUrl, button: 'true' },
+          },
+          {
             key: `${MailTranslationKey.LOGIN}.message`,
             params: {
               url: loginUrl,
               urlText: loginUrl,
               expiration: `${Config.auth.mailLoginExpiresIn}`,
             },
-          },
-          {
-            key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url: loginUrl, button: 'true' },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },
@@ -297,7 +308,7 @@ export class AuthService {
       const entry = this.mailKeyList.get(code);
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
 
-      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
+      const account = await this.userDataService.getUserData(entry.userDataId, { users: true, wallet: true });
 
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail, undefined, account);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
@@ -309,9 +320,15 @@ export class AuthService {
       if (account.isDeactivated)
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
-      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
+      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account, account.wallet);
 
-      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
+      try {
+        await this.kycService.initializeProcess(account);
+      } catch (e) {
+        this.logger.error(`Failed to initialize KYC process for account ${account.id}:`, e);
+      }
+
+      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/account`);
       url.searchParams.set('session', token);
       return url.toString();
     } catch (e) {
@@ -345,6 +362,9 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new BadRequestException('User is deactivated or blocked');
+
+    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, user.wallet);
+
     return { accessToken: this.generateUserToken(user, ip) };
   }
 
@@ -376,8 +396,8 @@ export class AuthService {
 
   // --- HELPER METHODS --- //
 
-  private async checkPendingRecommendation(userData: UserData): Promise<void> {
-    if (userData.wallet?.autoTradeApproval)
+  private async checkPendingRecommendation(userData: UserData, userWallet?: Wallet): Promise<void> {
+    if (userData.wallet?.autoTradeApproval || userWallet?.autoTradeApproval)
       await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
 
     await this.recommendationService.checkAndConfirmRecommendInvitation(userData.id);
@@ -426,6 +446,11 @@ export class AuthService {
     if (blockchains.includes(Blockchain.LIGHTNING) && (isCustodial || /^[a-z0-9]{140,146}$/.test(signature))) {
       // custodial Lightning wallet, only comparison check
       return !dbSignature || signature === dbSignature;
+    }
+
+    if (blockchains.includes(Blockchain.DEFICHAIN)) {
+      // DeFiChain wallet, only comparison check
+      return dbSignature && signature === dbSignature;
     }
 
     let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);

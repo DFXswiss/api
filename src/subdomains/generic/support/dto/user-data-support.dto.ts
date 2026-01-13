@@ -21,11 +21,13 @@ export class UserDataSupportInfo {
 
 export class BankTxSupportInfo {
   id: number;
+  transactionId?: number;
   accountServiceRef: string;
   amount: number;
   currency: string;
   type: BankTxType;
   name?: string;
+  iban?: string;
 }
 
 export class UserDataSupportInfoDetails {
@@ -52,4 +54,6 @@ export enum ComplianceSearchType {
   PHONE = 'Phone',
   NAME = 'Name',
   IBAN = 'Iban',
+  VIRTUAL_IBAN = 'VirtualIban',
+  TRANSACTION_UID = 'TransactionUid',
 }

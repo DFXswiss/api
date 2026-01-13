@@ -1,11 +1,15 @@
 import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
+import { DebugQueryDto } from './dto/debug-query.dto';
+import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
 
@@ -19,9 +23,9 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async getDbData(@Body() query: DbQueryDto): Promise<DbReturnData> {
+  async getDbData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryDto): Promise<DbReturnData> {
     try {
-      return await this.gsService.getDbData(query);
+      return await this.gsService.getDbData(query, jwt.role);
     } catch (e) {
       this.logger.verbose(`DB data call for ${query.table} in ${query.identifier} failed:`, e);
       throw new BadRequestException(e.message);
@@ -32,8 +36,8 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async getExtendedData(@Body() query: DbQueryBaseDto): Promise<DbReturnData> {
-    return this.gsService.getExtendedDbData(query);
+  async getExtendedData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryBaseDto): Promise<DbReturnData> {
+    return this.gsService.getExtendedDbData(query, jwt.role);
   }
 
   @Get('support')
@@ -42,5 +46,21 @@ export class GsController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportData(@Query() query: SupportDataQuery): Promise<SupportReturnData> {
     return this.gsService.getSupportData(query);
+  }
+
+  @Post('debug')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
+  async executeDebugQuery(@GetJwt() jwt: JwtPayload, @Body() dto: DebugQueryDto): Promise<Record<string, unknown>[]> {
+    return this.gsService.executeDebugQuery(dto.sql, jwt.address ?? `account:${jwt.account}`);
+  }
+
+  @Post('debug/logs')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
+  async executeLogQuery(@GetJwt() jwt: JwtPayload, @Body() dto: LogQueryDto): Promise<LogQueryResult> {
+    return this.gsService.executeLogQuery(dto, jwt.address ?? `account:${jwt.account}`);
   }
 }
