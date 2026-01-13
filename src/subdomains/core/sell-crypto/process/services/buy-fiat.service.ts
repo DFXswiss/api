@@ -225,7 +225,7 @@ export class BuyFiatService {
   private async triggerCryptoInputReturn(buyFiat: BuyFiat, cryptoInput: CryptoInput): Promise<void> {
     const { chargebackAddress, chargebackAmount } = buyFiat;
 
-    if (!chargebackAddress || !chargebackAmount || !cryptoInput) return;
+    if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset) return;
 
     // Skip if return already in progress or completed
     if (
