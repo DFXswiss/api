@@ -10,7 +10,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
-import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
+import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
 import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
@@ -60,7 +60,7 @@ export class CustodyController {
   @ApiCreatedResponse({ type: CustodyAuthDto })
   async createCustodyAccount(
     @GetJwt() jwt: JwtPayload,
-    @Body() dto: CreateCustodyAccountDto,
+    @Body() dto: CustodySignupDto,
     @RealIP() ip: string,
   ): Promise<CustodyAuthDto> {
     return this.service.createCustodyAccount(jwt.account, dto, ip);

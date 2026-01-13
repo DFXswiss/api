@@ -39,14 +39,14 @@ export enum CustodyOrderStepCommand {
   SEND_TO_ROUTE = 'SendToRoute',
 }
 
-// SafeAccount Enums
-export enum SafeAccountStatus {
+// CustodyAccount Enums
+export enum CustodyAccountStatus {
   ACTIVE = 'Active',
   BLOCKED = 'Blocked',
   CLOSED = 'Closed',
 }
 
-export enum SafeAccessLevel {
+export enum CustodyAccessLevel {
   READ = 'Read',
   WRITE = 'Write',
 }

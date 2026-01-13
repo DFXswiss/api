@@ -7,7 +7,7 @@ import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { CustodyBalance } from 'src/subdomains/core/custody/entities/custody-balance.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
-import { SafeAccount } from 'src/subdomains/core/custody/entities/safe-account.entity';
+import { CustodyAccount } from 'src/subdomains/core/custody/entities/custody-account.entity';
 import { CustodyAddressType } from 'src/subdomains/core/custody/enums/custody';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -155,8 +155,8 @@ export class User extends IEntity {
   @Column({ nullable: true })
   custodyAddressType: CustodyAddressType;
 
-  @ManyToOne(() => SafeAccount, { nullable: true })
-  safeAccount?: SafeAccount;
+  @ManyToOne(() => CustodyAccount, { nullable: true })
+  custodyAccount?: CustodyAccount;
 
   @OneToMany(() => CustodyOrder, (custodyOrder) => custodyOrder.user)
   custodyOrders: CustodyOrder[];

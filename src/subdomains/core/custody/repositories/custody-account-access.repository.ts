@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { SafeAccountAccess } from '../entities/safe-account-access.entity';
+import { CustodyAccountAccess } from '../entities/custody-account-access.entity';
 
 @Injectable()
-export class SafeAccountAccessRepository extends BaseRepository<SafeAccountAccess> {
+export class CustodyAccountAccessRepository extends BaseRepository<CustodyAccountAccess> {
   constructor(manager: EntityManager) {
-    super(SafeAccountAccess, manager);
+    super(CustodyAccountAccess, manager);
   }
 }

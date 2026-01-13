@@ -10,27 +10,27 @@ import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { DfxOrderStepAdapter } from './adapter/dfx-order-step.adapter';
 import { CustodyAdminController, CustodyController } from './controllers/custody.controller';
-import { SafeAccountController } from './controllers/safe-account.controller';
+import { CustodyAccountController } from './controllers/custody-account.controller';
 import { CustodyBalance } from './entities/custody-balance.entity';
 import { CustodyOrderStep } from './entities/custody-order-step.entity';
 import { CustodyOrder } from './entities/custody-order.entity';
-import { SafeAccountAccess } from './entities/safe-account-access.entity';
-import { SafeAccount } from './entities/safe-account.entity';
+import { CustodyAccountAccess } from './entities/custody-account-access.entity';
+import { CustodyAccount } from './entities/custody-account.entity';
 import { CustodyBalanceRepository } from './repositories/custody-balance.repository';
 import { CustodyOrderStepRepository } from './repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from './repositories/custody-order.repository';
-import { SafeAccountAccessRepository } from './repositories/safe-account-access.repository';
-import { SafeAccountRepository } from './repositories/safe-account.repository';
+import { CustodyAccountAccessRepository } from './repositories/custody-account-access.repository';
+import { CustodyAccountRepository } from './repositories/custody-account.repository';
 import { CustodyJobService } from './services/custody-job.service';
 import { CustodyOrderService } from './services/custody-order.service';
 import { CustodyPdfService } from './services/custody-pdf.service';
 import { CustodyService } from './services/custody.service';
-import { SafeAccountService } from './services/safe-account.service';
-import { SafeAccountReadGuard, SafeAccountWriteGuard } from './guards/safe-account-access.guard';
+import { CustodyAccountService } from './services/custody-account.service';
+import { CustodyAccountReadGuard, CustodyAccountWriteGuard } from './guards/custody-account-access.guard';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CustodyOrder, CustodyOrderStep, SafeAccount, SafeAccountAccess]),
+    TypeOrmModule.forFeature([CustodyOrder, CustodyOrderStep, CustodyAccount, CustodyAccountAccess]),
     forwardRef(() => UserModule),
     forwardRef(() => ReferralModule),
     SharedModule,
@@ -40,7 +40,7 @@ import { SafeAccountReadGuard, SafeAccountWriteGuard } from './guards/safe-accou
     PricingModule,
     PayoutModule,
   ],
-  controllers: [CustodyController, CustodyAdminController, SafeAccountController],
+  controllers: [CustodyController, CustodyAdminController, CustodyAccountController],
   providers: [
     CustodyService,
     CustodyOrderRepository,
@@ -51,12 +51,12 @@ import { SafeAccountReadGuard, SafeAccountWriteGuard } from './guards/safe-accou
     CustodyPdfService,
     CustodyBalance,
     CustodyBalanceRepository,
-    SafeAccountRepository,
-    SafeAccountAccessRepository,
-    SafeAccountService,
-    SafeAccountReadGuard,
-    SafeAccountWriteGuard,
+    CustodyAccountRepository,
+    CustodyAccountAccessRepository,
+    CustodyAccountService,
+    CustodyAccountReadGuard,
+    CustodyAccountWriteGuard,
   ],
-  exports: [CustodyService, CustodyOrderService, SafeAccountService],
+  exports: [CustodyService, CustodyOrderService, CustodyAccountService],
 })
 export class CustodyModule {}

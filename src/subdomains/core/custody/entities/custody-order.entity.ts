@@ -11,7 +11,7 @@ import { Swap } from '../../buy-crypto/routes/swap/swap.entity';
 import { Sell } from '../../sell-crypto/route/sell.entity';
 import { CustodyOrderStatus, CustodyOrderType } from '../enums/custody';
 import { CustodyOrderStep } from './custody-order-step.entity';
-import { SafeAccount } from './safe-account.entity';
+import { CustodyAccount } from './custody-account.entity';
 
 @Entity()
 export class CustodyOrder extends IEntity {
@@ -39,8 +39,8 @@ export class CustodyOrder extends IEntity {
   @ManyToOne(() => User, (user) => user.custodyOrders, { nullable: false })
   user: User;
 
-  @ManyToOne(() => SafeAccount, { nullable: true })
-  safeAccount?: SafeAccount;
+  @ManyToOne(() => CustodyAccount, { nullable: true })
+  custodyAccount?: CustodyAccount;
 
   @ManyToOne(() => UserData, { nullable: true })
   initiatedBy?: UserData;

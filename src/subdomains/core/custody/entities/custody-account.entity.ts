@@ -1,11 +1,11 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
-import { SafeAccountStatus } from '../enums/custody';
-import { SafeAccountAccess } from './safe-account-access.entity';
+import { CustodyAccountStatus } from '../enums/custody';
+import { CustodyAccountAccess } from './custody-account-access.entity';
 
 @Entity()
-export class SafeAccount extends IEntity {
+export class CustodyAccount extends IEntity {
   @Column({ length: 256 })
   title: string;
 
@@ -18,12 +18,9 @@ export class SafeAccount extends IEntity {
   @Column({ type: 'int', default: 1 })
   requiredSignatures: number;
 
-  @Column({ default: SafeAccountStatus.ACTIVE })
-  status: SafeAccountStatus;
+  @Column({ default: CustodyAccountStatus.ACTIVE })
+  status: CustodyAccountStatus;
 
-  @OneToMany(() => SafeAccountAccess, (access) => access.safeAccount)
-  accessGrants: SafeAccountAccess[];
-
-  // Relationships to User, CustodyBalance, CustodyOrder will be added
-  // when those entities are updated
+  @OneToMany(() => CustodyAccountAccess, (access) => access.custodyAccount)
+  accessGrants: CustodyAccountAccess[];
 }
