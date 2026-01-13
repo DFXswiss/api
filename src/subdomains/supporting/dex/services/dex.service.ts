@@ -170,13 +170,15 @@ export class DexService {
   async checkOrderReady(
     context: LiquidityOrderContext,
     correlationId: string,
-  ): Promise<{ isReady: boolean; purchaseTxId: string }> {
+  ): Promise<{ isReady: boolean; purchaseTxId: string; targetAmount: number; targetAsset: string }> {
     const order = await this.liquidityOrderRepo.findOneBy({ context, correlationId });
 
-    const purchaseTxId = order && order.txId;
-    const isReady = order && order.isReady;
+    const purchaseTxId = order?.txId;
+    const isReady = order?.isReady ?? false;
+    const targetAmount = order?.targetAmount;
+    const targetAsset = order?.targetAsset?.name;
 
-    return { isReady, purchaseTxId };
+    return { isReady, purchaseTxId, targetAmount, targetAsset };
   }
 
   async checkOrderCompletion(
