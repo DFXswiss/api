@@ -30,9 +30,7 @@ export class CustodyAccountService {
     if (!account) throw new NotFoundException('User not found');
 
     // owned accounts
-    const ownedAccounts = (account.custodyAccounts ?? []).filter(
-      (ca) => ca.status === CustodyAccountStatus.ACTIVE,
-    );
+    const ownedAccounts = (account.custodyAccounts ?? []).filter((ca) => ca.status === CustodyAccountStatus.ACTIVE);
 
     // shared accounts (via access grants, excluding owned)
     const sharedAccounts = (account.custodyAccountAccesses ?? [])
