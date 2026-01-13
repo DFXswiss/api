@@ -217,10 +217,16 @@ export class SellService {
     await this.sellRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
-  async updateVolume(sellId: number, volume: number, annualVolume: number): Promise<void> {
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async resetMonthlyVolumes(): Promise<void> {
+    await this.sellRepo.update({ monthlyVolume: Not(0) }, { monthlyVolume: 0 });
+  }
+
+  async updateVolume(sellId: number, volume: number, annualVolume: number, monthlyVolume: number): Promise<void> {
     await this.sellRepo.update(sellId, {
       volume: Util.round(volume, Config.defaultVolumeDecimal),
       annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+      monthlyVolume: Util.round(monthlyVolume, Config.defaultVolumeDecimal),
     });
 
     // update user volume
@@ -230,16 +236,23 @@ export class SellService {
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
-    await this.userService.updateSellVolume(user.id, userVolume.volume, userVolume.annualVolume);
+
+    await this.userService.updateSellVolume(
+      user.id,
+      userVolume.volume,
+      userVolume.annualVolume,
+      userVolume.monthlyVolume,
+    );
   }
 
-  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
+  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number; monthlyVolume: number }> {
     return this.sellRepo
       .createQueryBuilder('sell')
       .select('SUM(volume)', 'volume')
       .addSelect('SUM(annualVolume)', 'annualVolume')
+      .addSelect('SUM(monthlyVolume)', 'monthlyVolume')
       .where('userId = :id', { id: userId })
-      .getRawOne<{ volume: number; annualVolume: number }>();
+      .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {

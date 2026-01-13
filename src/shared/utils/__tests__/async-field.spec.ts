@@ -181,7 +181,7 @@ describe('AsyncField', () => {
 
       try {
         await field;
-      } catch (e) {
+      } catch (_e) {
         // Expected
       }
 
