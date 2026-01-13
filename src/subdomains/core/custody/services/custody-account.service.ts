@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -44,12 +44,12 @@ export class CustodyAccountService {
     });
 
     const sharedAccounts = accessGrants
-      .filter((a) => a.custodyAccount.status === CustodyAccountStatus.ACTIVE)
-      .filter((a) => a.custodyAccount.owner.id !== accountId); // exclude owned
+      .filter((a) => a.account.status === CustodyAccountStatus.ACTIVE)
+      .filter((a) => a.account.owner.id !== accountId); // exclude owned
 
     const custodyAccounts: CustodyAccountDto[] = [
       ...ownedAccounts.map((ca) => this.mapToDto(ca, CustodyAccessLevel.WRITE, false)),
-      ...sharedAccounts.map((a) => this.mapToDto(a.custodyAccount, a.accessLevel, false)),
+      ...sharedAccounts.map((a) => this.mapToDto(a.account, a.accessLevel, false)),
     ];
 
     if (custodyAccounts.length > 0) {
@@ -109,11 +109,7 @@ export class CustodyAccountService {
   }
 
   // --- CREATE --- //
-  async createCustodyAccount(
-    accountId: number,
-    title: string,
-    description?: string,
-  ): Promise<CustodyAccount> {
+  async createCustodyAccount(accountId: number, title: string, description?: string): Promise<CustodyAccount> {
     const owner = await this.userDataService.getUserData(accountId);
     if (!owner) throw new NotFoundException('User not found');
 
@@ -129,7 +125,7 @@ export class CustodyAccountService {
 
     // Create WRITE access for owner
     const ownerAccess = this.custodyAccountAccessRepo.create({
-      custodyAccount: saved,
+      account: saved,
       userData: owner,
       accessLevel: CustodyAccessLevel.WRITE,
     });
@@ -155,7 +151,11 @@ export class CustodyAccountService {
   }
 
   // --- HELPERS --- //
-  private mapToDto(custodyAccount: CustodyAccount, accessLevel: CustodyAccessLevel, isLegacy: boolean): CustodyAccountDto {
+  private mapToDto(
+    custodyAccount: CustodyAccount,
+    accessLevel: CustodyAccessLevel,
+    isLegacy: boolean,
+  ): CustodyAccountDto {
     return {
       id: custodyAccount.id,
       title: custodyAccount.title,
@@ -182,7 +182,7 @@ export class CustodyAccountService {
     await this.checkAccess(custodyAccountId, accountId, CustodyAccessLevel.READ);
 
     return this.custodyAccountAccessRepo.find({
-      where: { custodyAccount: { id: custodyAccountId } },
+      where: { account: { id: custodyAccountId } },
       relations: ['userData'],
     });
   }

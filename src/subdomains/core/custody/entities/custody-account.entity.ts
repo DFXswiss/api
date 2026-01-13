@@ -21,6 +21,6 @@ export class CustodyAccount extends IEntity {
   @Column({ default: CustodyAccountStatus.ACTIVE })
   status: CustodyAccountStatus;
 
-  @OneToMany(() => CustodyAccountAccess, (access) => access.custodyAccount)
+  @OneToMany(() => CustodyAccountAccess, (access) => access.account)
   accessGrants: CustodyAccountAccess[];
 }

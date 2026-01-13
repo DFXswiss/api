@@ -5,7 +5,7 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { CustodyAccount } from './custody-account.entity';
 
 @Entity()
-@Index((custodyBalance: CustodyBalance) => [custodyBalance.user, custodyBalance.asset], { unique: true })
+@Index((cb: CustodyBalance) => [cb.user, cb.asset], { unique: true })
 export class CustodyBalance extends IEntity {
   @Column({ type: 'float', default: 0 })
   balance: number;
@@ -17,5 +17,5 @@ export class CustodyBalance extends IEntity {
   asset: Asset;
 
   @ManyToOne(() => CustodyAccount, { nullable: true })
-  custodyAccount?: CustodyAccount;
+  account?: CustodyAccount;
 }

@@ -5,10 +5,10 @@ import { CustodyAccessLevel } from '../enums/custody';
 import { CustodyAccount } from './custody-account.entity';
 
 @Entity()
-@Index((a: CustodyAccountAccess) => [a.custodyAccount, a.userData], { unique: true })
+@Index((a: CustodyAccountAccess) => [a.account, a.userData], { unique: true })
 export class CustodyAccountAccess extends IEntity {
   @ManyToOne(() => CustodyAccount, (custodyAccount) => custodyAccount.accessGrants, { nullable: false })
-  custodyAccount: CustodyAccount;
+  account: CustodyAccount;
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
