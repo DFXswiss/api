@@ -3,7 +3,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
@@ -49,28 +48,50 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
       try {
         if (group.length === 0) continue;
 
-        const groupAmount = Util.sumObjValue<PayoutOrder>(group, 'amount');
         const unlockedBalance = await this.payoutMoneroService.getUnlockedBalance();
+        const affordableOrders = this.getAffordableOrders(group, unlockedBalance);
 
-        if (groupAmount > unlockedBalance) {
+        if (affordableOrders.length === 0) {
+          const firstOrderAmount = group[0].amount;
           this.logger.info(
-            `Insufficient unlocked balance for XMR group. Need: ${groupAmount}, Have: ${unlockedBalance}. ` +
+            `Insufficient unlocked balance for XMR group. Need: ${firstOrderAmount}, Have: ${unlockedBalance}. ` +
               `Order ID(s): ${group.map((o) => o.id)}`,
           );
           continue;
         }
 
-        this.logger.verbose(`Paying out ${group.length} XMR orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+        if (affordableOrders.length < group.length) {
+          const skippedOrders = group.slice(affordableOrders.length);
+          this.logger.info(
+            `Reduced XMR group from ${group.length} to ${affordableOrders.length} orders due to insufficient balance. ` +
+              `Skipped Order ID(s): ${skippedOrders.map((o) => o.id)}`,
+          );
+        }
 
-        await this.sendXMR(context, group);
+        this.logger.verbose(`Paying out ${affordableOrders.length} XMR order(s). Order ID(s): ${affordableOrders.map((o) => o.id)}`);
+
+        await this.sendXMR(context, affordableOrders);
       } catch (e) {
         this.logger.error(
-          `Error in paying out a group of ${group.length} XMR orders(s). Order ID(s): ${group.map((o) => o.id)}`,
+          `Error in paying out a group of ${group.length} XMR order(s). Order ID(s): ${group.map((o) => o.id)}`,
           e,
         );
         continue;
       }
     }
+  }
+
+  private getAffordableOrders(orders: PayoutOrder[], maxAmount: number): PayoutOrder[] {
+    const result: PayoutOrder[] = [];
+    let total = 0;
+
+    for (const order of orders) {
+      if (total + order.amount > maxAmount) break;
+      result.push(order);
+      total += order.amount;
+    }
+
+    return result;
   }
 
   protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
