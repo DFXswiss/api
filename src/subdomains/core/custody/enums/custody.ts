@@ -2,6 +2,7 @@ export enum CustodyAddressType {
   EVM = 'EVM',
 }
 
+// orders
 export enum CustodyOrderType {
   DEPOSIT = 'Deposit',
   WITHDRAWAL = 'Withdrawal',
@@ -37,4 +38,16 @@ export enum CustodyOrderStepContext {
 export enum CustodyOrderStepCommand {
   CHARGE_ROUTE = 'ChargeRoute',
   SEND_TO_ROUTE = 'SendToRoute',
+}
+
+// accounts
+export enum CustodyAccountStatus {
+  ACTIVE = 'Active',
+  BLOCKED = 'Blocked',
+  CLOSED = 'Closed',
+}
+
+export enum CustodyAccessLevel {
+  READ = 'Read',
+  WRITE = 'Write',
 }
