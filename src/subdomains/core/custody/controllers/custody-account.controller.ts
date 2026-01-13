@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -9,7 +9,9 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
 import { UpdateCustodyAccountDto } from '../dto/input/update-custody-account.dto';
 import { CustodyAccountAccessDto, CustodyAccountDto } from '../dto/output/custody-account.dto';
+import { CustodyAccessLevel } from '../enums/custody';
 import { CustodyAccountReadGuard, CustodyAccountWriteGuard } from '../guards/custody-account-access.guard';
+import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
 import { CustodyAccountService } from '../services/custody-account.service';
 
 @ApiTags('Custody')
@@ -20,7 +22,7 @@ export class CustodyAccountController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  @ApiOkResponse({ type: [CustodyAccountDto], description: 'List of CustodyAccounts for the user' })
+  @ApiOkResponse({ type: [CustodyAccountDto], description: 'List of custody accounts for the user' })
   async getCustodyAccounts(@GetJwt() jwt: JwtPayload): Promise<CustodyAccountDto[]> {
     return this.custodyAccountService.getCustodyAccountsForUser(jwt.account);
   }
@@ -28,58 +30,51 @@ export class CustodyAccountController {
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountReadGuard)
-  @ApiOkResponse({ type: CustodyAccountDto, description: 'CustodyAccount details' })
+  @ApiOkResponse({ type: CustodyAccountDto, description: 'Custody account details' })
   async getCustodyAccount(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CustodyAccountDto> {
-    const custodyAccountId = id === 'legacy' ? null : +id;
     const custodyAccounts = await this.custodyAccountService.getCustodyAccountsForUser(jwt.account);
 
-    if (custodyAccountId === null) {
-      const legacy = custodyAccounts.find((ca) => ca.isLegacy);
-      if (!legacy) throw new Error('No legacy custody account found');
-      return legacy;
-    }
+    const isLegacy = id === 'legacy';
+    const account = isLegacy ? custodyAccounts.find((ca) => ca.isLegacy) : custodyAccounts.find((ca) => ca.id === +id);
+    if (!account) throw new NotFoundException(`${isLegacy ? 'Legacy' : 'Custody'} account not found`);
 
-    const custodyAccount = custodyAccounts.find((ca) => ca.id === custodyAccountId);
-    if (!custodyAccount) throw new Error('CustodyAccount not found');
-    return custodyAccount;
+    return account;
   }
 
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  @ApiCreatedResponse({ type: CustodyAccountDto, description: 'Create a new CustodyAccount' })
-  async createCustodyAccount(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCustodyAccountDto): Promise<CustodyAccountDto> {
-    const custodyAccount = await this.custodyAccountService.createCustodyAccount(jwt.account, dto.title, dto.description);
+  @ApiCreatedResponse({ type: CustodyAccountDto, description: 'Create a new custody account' })
+  async createCustodyAccount(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: CreateCustodyAccountDto,
+  ): Promise<CustodyAccountDto> {
+    const custodyAccount = await this.custodyAccountService.createCustodyAccount(
+      jwt.account,
+      dto.title,
+      dto.description,
+    );
 
-    return {
-      id: custodyAccount.id,
-      title: custodyAccount.title,
-      description: custodyAccount.description,
-      isLegacy: false,
-      accessLevel: 'Write' as any,
-      owner: { id: jwt.account },
-    };
+    return CustodyAccountDtoMapper.toDto(custodyAccount, CustodyAccessLevel.WRITE);
   }
 
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard(), CustodyAccountWriteGuard)
-  @ApiOkResponse({ type: CustodyAccountDto, description: 'Update CustodyAccount' })
+  @ApiOkResponse({ type: CustodyAccountDto, description: 'Update custody account' })
   async updateCustodyAccount(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
     @Body() dto: UpdateCustodyAccountDto,
   ): Promise<CustodyAccountDto> {
-    const custodyAccount = await this.custodyAccountService.updateCustodyAccount(+id, jwt.account, dto.title, dto.description);
+    const custodyAccount = await this.custodyAccountService.updateCustodyAccount(
+      +id,
+      jwt.account,
+      dto.title,
+      dto.description,
+    );
 
-    return {
-      id: custodyAccount.id,
-      title: custodyAccount.title,
-      description: custodyAccount.description,
-      isLegacy: false,
-      accessLevel: 'Write' as any,
-      owner: custodyAccount.owner ? { id: custodyAccount.owner.id } : undefined,
-    };
+    return CustodyAccountDtoMapper.toDto(custodyAccount, CustodyAccessLevel.WRITE);
   }
 
   @Get(':id/access')
@@ -91,7 +86,7 @@ export class CustodyAccountController {
 
     return accessList.map((access) => ({
       id: access.id,
-      userDataId: access.userData.id,
+      user: { id: access.userData.id },
       accessLevel: access.accessLevel,
     }));
   }

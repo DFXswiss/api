@@ -1,22 +1,14 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { CustodyAccountDto } from '../dto/output/custody-account.dto';
 import { CustodyAccountAccess } from '../entities/custody-account-access.entity';
 import { CustodyAccount } from '../entities/custody-account.entity';
 import { CustodyAccessLevel, CustodyAccountStatus } from '../enums/custody';
+import { CustodyAccountDtoMapper } from '../mappers/custody-account-dto.mapper';
 import { CustodyAccountAccessRepository } from '../repositories/custody-account-access.repository';
 import { CustodyAccountRepository } from '../repositories/custody-account.repository';
 import { CustodyBalanceRepository } from '../repositories/custody-balance.repository';
-
-export interface CustodyAccountDto {
-  id: number | null; // null for legacy mode
-  title: string;
-  description?: string;
-  isLegacy: boolean;
-  accessLevel: CustodyAccessLevel;
-  owner?: { id: number };
-}
 
 @Injectable()
 export class CustodyAccountService {
@@ -48,8 +40,8 @@ export class CustodyAccountService {
       .filter((a) => a.account.owner.id !== accountId); // exclude owned
 
     const custodyAccounts: CustodyAccountDto[] = [
-      ...ownedAccounts.map((ca) => this.mapToDto(ca, CustodyAccessLevel.WRITE, false)),
-      ...sharedAccounts.map((a) => this.mapToDto(a.account, a.accessLevel, false)),
+      ...ownedAccounts.map((ca) => CustodyAccountDtoMapper.toDto(ca, CustodyAccessLevel.WRITE)),
+      ...sharedAccounts.map((a) => CustodyAccountDtoMapper.toDto(a.account, a.accessLevel)),
     ];
 
     if (custodyAccounts.length > 0) {
@@ -59,7 +51,7 @@ export class CustodyAccountService {
     // 2. Fallback: Aggregate all CUSTODY users as one "Legacy"
     const custodyUsers = account.users.filter((u) => u.role === UserRole.CUSTODY);
     if (custodyUsers.length > 0) {
-      return [this.createLegacyDto(account)];
+      return [CustodyAccountDtoMapper.toLegacyDto(account)];
     }
 
     return [];
@@ -148,33 +140,6 @@ export class CustodyAccountService {
     if (description !== undefined) custodyAccount.description = description;
 
     return this.custodyAccountRepo.save(custodyAccount);
-  }
-
-  // --- HELPERS --- //
-  private mapToDto(
-    custodyAccount: CustodyAccount,
-    accessLevel: CustodyAccessLevel,
-    isLegacy: boolean,
-  ): CustodyAccountDto {
-    return {
-      id: custodyAccount.id,
-      title: custodyAccount.title,
-      description: custodyAccount.description,
-      isLegacy,
-      accessLevel,
-      owner: custodyAccount.owner ? { id: custodyAccount.owner.id } : undefined,
-    };
-  }
-
-  private createLegacyDto(userData: UserData): CustodyAccountDto {
-    return {
-      id: null,
-      title: 'Custody', // Default title for legacy
-      description: undefined,
-      isLegacy: true,
-      accessLevel: CustodyAccessLevel.WRITE, // Owner has full access
-      owner: { id: userData.id },
-    };
   }
 
   // --- GET ACCESS LIST --- //
