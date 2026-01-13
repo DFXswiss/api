@@ -135,7 +135,7 @@ export class BuyFiatService {
         sell: true,
         fiatOutput: true,
         bankTx: true,
-        cryptoInput: true,
+        cryptoInput: { route: { user: true }, transaction: true },
         transaction: { user: { wallet: true }, userData: true },
         bankData: true,
       },
