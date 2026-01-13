@@ -43,18 +43,20 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    if (!(await this.hasEnoughUnlockedBalance(orders))) {
-      this.logger.info(
-        `Insufficient unlocked balance for paying out XMR orders(s). Order ID(s): ${orders.map((o) => o.id)}`,
-      );
-      return;
-    }
-
     const payoutGroups = this.createPayoutGroups(orders, 15);
 
     for (const group of payoutGroups) {
       try {
-        if (group.length === 0) {
+        if (group.length === 0) continue;
+
+        const groupAmount = Util.sumObjValue<PayoutOrder>(group, 'amount');
+        const unlockedBalance = await this.payoutMoneroService.getUnlockedBalance();
+
+        if (groupAmount > unlockedBalance) {
+          this.logger.info(
+            `Insufficient unlocked balance for XMR group. Need: ${groupAmount}, Have: ${unlockedBalance}. ` +
+              `Order ID(s): ${group.map((o) => o.id)}`,
+          );
           continue;
         }
 
@@ -66,17 +68,9 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
           `Error in paying out a group of ${group.length} XMR orders(s). Order ID(s): ${group.map((o) => o.id)}`,
           e,
         );
-        // continue with next group in case payout failed
         continue;
       }
     }
-  }
-
-  private async hasEnoughUnlockedBalance(orders: PayoutOrder[]): Promise<boolean> {
-    const totalOrderAmount = Util.sumObjValue<PayoutOrder>(orders, 'amount');
-    const unlockedBalance = await this.payoutMoneroService.getUnlockedBalance();
-
-    return totalOrderAmount <= unlockedBalance;
   }
 
   protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
