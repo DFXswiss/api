@@ -24,15 +24,15 @@ export class CustodyAccountService {
   async getCustodyAccountsForUser(accountId: number): Promise<CustodyAccountDto[]> {
     const account = await this.userDataService.getUserData(accountId, {
       users: true,
+      custodyAccounts: true,
       custodyAccountAccesses: { account: { owner: true } },
     });
     if (!account) throw new NotFoundException('User not found');
 
-    // owned accounts (via direct ownership)
-    const ownedAccounts = await this.custodyAccountRepo.find({
-      where: { owner: { id: accountId }, status: CustodyAccountStatus.ACTIVE },
-      relations: { owner: true },
-    });
+    // owned accounts
+    const ownedAccounts = (account.custodyAccounts ?? []).filter(
+      (ca) => ca.status === CustodyAccountStatus.ACTIVE,
+    );
 
     // shared accounts (via access grants, excluding owned)
     const sharedAccounts = (account.custodyAccountAccesses ?? [])
@@ -76,6 +76,9 @@ export class CustodyAccountService {
   ): Promise<{ custodyAccount: CustodyAccount | null; isLegacy: boolean }> {
     // Legacy mode
     if (custodyAccountId === LegacyAccountId) {
+      if (requiredLevel === CustodyAccessLevel.WRITE) {
+        throw new ForbiddenException('Cannot modify legacy account');
+      }
       return { custodyAccount: null, isLegacy: true };
     }
 
@@ -134,7 +137,6 @@ export class CustodyAccountService {
     description?: string,
   ): Promise<CustodyAccount> {
     const { custodyAccount } = await this.checkAccess(custodyAccountId, accountId, CustodyAccessLevel.WRITE);
-    if (!custodyAccount) throw new ForbiddenException('Cannot update legacy account');
 
     Object.assign(custodyAccount, { title, description });
 
