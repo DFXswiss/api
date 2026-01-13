@@ -14,7 +14,7 @@ import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -216,13 +216,13 @@ export class BuyFiatService {
 
     // Trigger return flow when chargebackAllowedDate is newly set via admin update
     if (dto.chargebackAllowedDate && !chargebackAllowedDateBefore) {
-      await this.triggerCryptoInputReturn(entity, cryptoInputBefore);
+      await this.triggerBuyFiatReturn(entity, cryptoInputBefore);
     }
 
     return entity;
   }
 
-  private async triggerCryptoInputReturn(buyFiat: BuyFiat, cryptoInput: CryptoInput): Promise<void> {
+  private async triggerBuyFiatReturn(buyFiat: BuyFiat, cryptoInput: CryptoInput): Promise<void> {
     const { chargebackAddress, chargebackAmount } = buyFiat;
 
     if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset) return;
@@ -234,18 +234,25 @@ export class BuyFiatService {
     )
       return;
 
+    await this.returnCrypto(buyFiat, cryptoInput, chargebackAddress, chargebackAmount);
+  }
+
+  private async returnCrypto(
+    buyFiat: BuyFiat,
+    cryptoInput: CryptoInput,
+    returnAddress: string,
+    amount: number,
+  ): Promise<void> {
     if (cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
-      // Funds already forwarded to liquidity - use PayoutOrder to return
       await this.payoutService.doPayout({
         context: PayoutOrderContext.BUY_FIAT_RETURN,
         correlationId: `${buyFiat.id}`,
         asset: cryptoInput.asset,
-        amount: chargebackAmount,
-        destinationAddress: chargebackAddress,
+        amount,
+        destinationAddress: returnAddress,
       });
-    } else if (cryptoInput.status === PayInStatus.COMPLETED && cryptoInput.action !== PayInAction.FORWARD) {
-      // Funds still on deposit address - use PayIn return
-      await this.payInService.returnPayIn(cryptoInput, chargebackAddress, chargebackAmount);
+    } else if (cryptoInput.status === PayInStatus.COMPLETED) {
+      await this.payInService.returnPayIn(cryptoInput, returnAddress, amount);
     }
   }
 
@@ -340,20 +347,7 @@ export class BuyFiatService {
       blockchainFee = await this.transactionHelper.getBlockchainFee(buyFiat.cryptoInput.asset, true);
 
       const returnAddress = refundUser.address ?? buyFiat.chargebackAddress;
-
-      if (buyFiat.cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
-        // Funds already forwarded to liquidity - use PayoutOrder to return
-        await this.payoutService.doPayout({
-          context: PayoutOrderContext.BUY_FIAT_RETURN,
-          correlationId: `${buyFiat.id}`,
-          asset: buyFiat.cryptoInput.asset,
-          amount: chargebackAmount,
-          destinationAddress: returnAddress,
-        });
-      } else {
-        // Funds still on deposit address - use PayIn return
-        await this.payInService.returnPayIn(buyFiat.cryptoInput, returnAddress, chargebackAmount);
-      }
+      await this.returnCrypto(buyFiat, buyFiat.cryptoInput, returnAddress, chargebackAmount);
     }
 
     await this.buyFiatRepo.update(
