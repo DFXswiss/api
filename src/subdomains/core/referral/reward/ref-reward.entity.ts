@@ -11,7 +11,6 @@ export enum RewardStatus {
   CREATED = 'Created',
   MANUAL_CHECK = 'ManualCheck',
   PREPARED = 'Prepared',
-  PENDING_LIQUIDITY = 'PendingLiquidity',
   READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
@@ -81,28 +80,6 @@ export class RefReward extends Reward {
     const update: Partial<RefReward> = {
       recipientMail: this.user.userData.mail,
       mailSendDate: new Date(),
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
-  }
-
-  pendingLiquidity(pipeline: LiquidityManagementPipeline): UpdateResult<RefReward> {
-    const update: Partial<RefReward> = {
-      status: RewardStatus.PENDING_LIQUIDITY,
-      liquidityPipeline: pipeline,
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
-  }
-
-  resetToPrepared(): UpdateResult<RefReward> {
-    const update: Partial<RefReward> = {
-      status: RewardStatus.PREPARED,
-      liquidityPipeline: null,
     };
 
     Object.assign(this, update);
