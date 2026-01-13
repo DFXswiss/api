@@ -40,6 +40,7 @@ export enum AmlError {
   BANK_DATA_MISSING = 'BankDataMissing',
   BANK_DATA_NOT_ACTIVE = 'BankDataNotActive',
   BANK_DATA_USER_MISMATCH = 'BankDataUserMismatch',
+  VIRTUAL_IBAN_USER_MISMATCH = 'VirtualIbanUserMismatch',
   BANK_DATA_MANUAL_REVIEW = 'BankDataManualReview',
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
@@ -59,6 +60,9 @@ export enum AmlError {
   IP_PHONE_VERIFICATION_NEEDED = 'IpPhoneVerificationNeeded',
   IP_BLACKLISTED_WITHOUT_KYC = 'IpBlacklistedWithoutKyc',
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
+  IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
+  TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
+  BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
 }
 
 export const DelayResultError = [
@@ -196,7 +200,16 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
   },
-  [AmlError.BANK_DATA_USER_MISMATCH]: null,
+  [AmlError.BANK_DATA_USER_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.USER_DATA_MISMATCH,
+  },
+  [AmlError.VIRTUAL_IBAN_USER_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: AmlReason.VIRTUAL_IBAN_USER_MISMATCH,
+  },
   [AmlError.BANK_DATA_MANUAL_REVIEW]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
@@ -275,5 +288,20 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.HIGH_RISK_KYC_NEEDED,
+  },
+  [AmlError.IP_COUNTRY_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  },
+  [AmlError.TRADE_APPROVAL_DATE_MISSING]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
+  },
+  [AmlError.BANK_TX_CUSTOMER_NAME_MISSING]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.INTERMEDIARY_WITHOUT_SENDER,
   },
 };

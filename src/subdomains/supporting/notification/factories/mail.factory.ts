@@ -45,6 +45,8 @@ export enum MailTranslationKey {
   VERIFICATION_CODE = 'mail.verification_code',
   CHARGEBACK_UNCONFIRMED = 'mail.payment.chargeback.unconfirmed',
   PROCESSING = 'mail.payment.processing',
+  RECOMMENDATION_MAIL = 'mail.recommendation.recommended',
+  RECOMMENDATION_CONFIRMATION = 'mail.recommendation.confirmation',
 }
 
 export enum MailKey {
@@ -256,7 +258,7 @@ export class MailFactory {
           DefaultEmptyLine,
         ];
 
-      default:
+      default: {
         const params = Util.removeNullFields(element.params);
         const translatedParams = this.translateParams(params, lang);
         const text = this.translate(element.key, lang, translatedParams);
@@ -288,6 +290,7 @@ export class MailFactory {
             underline: element.params?.underline,
           },
         ];
+      }
     }
   }
 

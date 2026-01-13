@@ -31,7 +31,10 @@ export interface AuthCacheDto {
 export class AuthLnUrlService {
   private readonly authCache: Map<string, AuthCacheDto> = new Map();
 
-  constructor(private readonly authService: AuthService, private readonly ipLogService: IpLogService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly ipLogService: IpLogService,
+  ) {}
 
   @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.LNURL_AUTH_CACHE })
   processCleanupAccessToken() {
@@ -128,7 +131,12 @@ export class AuthLnUrlService {
     const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
       if (e instanceof NotFoundException)
         return this.authService.signUp(
-          { ...session, usedRef: signupDto.usedRef, wallet: signupDto.wallet ?? 'DFX Bitcoin' },
+          {
+            ...session,
+            usedRef: signupDto.usedRef,
+            wallet: signupDto.wallet ?? 'DFX Bitcoin',
+            recommendationCode: signupDto.recommendationCode,
+          },
           servicesIp,
         );
       throw e;

@@ -28,13 +28,13 @@ export class DexBitcoinService {
     const pendingAmount = await this.getPendingAmount();
     const availableAmount = await this.client.getBalance();
 
-    return [inputAmount, +availableAmount.minus(pendingAmount)];
+    return [inputAmount, availableAmount - pendingAmount];
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {
     const transaction = await this.client.getTx(transferTxId);
 
-    return transaction && transaction.blockhash && transaction.confirmations > 0;
+    return transaction != null;
   }
 
   async getRecentHistory(txCount: number): Promise<TransactionHistory[]> {

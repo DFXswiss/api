@@ -9,7 +9,10 @@ import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
 export class LightningStrategy extends CheckLiquidityStrategy {
-  constructor(private readonly assetService: AssetService, private readonly dexLightningService: DexLightningService) {
+  constructor(
+    private readonly assetService: AssetService,
+    private readonly dexLightningService: DexLightningService,
+  ) {
     super();
   }
 
@@ -29,9 +32,8 @@ export class LightningStrategy extends CheckLiquidityStrategy {
     const { context, correlationId, referenceAsset, referenceAmount: bitcoinAmount } = request;
 
     if (referenceAsset.dexName === 'BTC') {
-      const [targetAmount, availableAmount] = await this.dexLightningService.checkAvailableTargetLiquidity(
-        bitcoinAmount,
-      );
+      const [targetAmount, availableAmount] =
+        await this.dexLightningService.checkAvailableTargetLiquidity(bitcoinAmount);
 
       return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
         request,

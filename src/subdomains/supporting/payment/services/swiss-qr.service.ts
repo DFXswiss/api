@@ -45,7 +45,10 @@ interface SwissQRBillTableData {
 
 @Injectable()
 export class SwissQRService {
-  constructor(private readonly assetService: AssetService, private readonly i18n: I18nService) {}
+  constructor(
+    private readonly assetService: AssetService,
+    private readonly i18n: I18nService,
+  ) {}
 
   createQrCode(amount: number, currency: 'CHF', reference: string, bankInfo: BankInfoDto, userData?: UserData): string {
     const data = this.generateQrData(amount, currency, bankInfo, reference, userData);
@@ -91,6 +94,7 @@ export class SwissQRService {
     transaction,
     currency,
     bankInfo,
+    reference,
   }: TxStatementDetails): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
     if (!debtor) throw new Error('Debtor is required');
@@ -109,7 +113,7 @@ export class SwissQRService {
       debtor,
       currency,
       amount: bankInfo && transaction.buyCrypto?.inputAmount,
-      message: bankInfo && transaction.buyCrypto?.buy.bankUsage,
+      message: reference,
     };
 
     return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, transactionType);
@@ -155,12 +159,13 @@ export class SwissQRService {
         pdf.path(dfxLogoText).fill('#072440');
         pdf.restore();
 
-        // Creditor address
+        // Sender address (always DFX AG)
+        const sender = this.dfxCreditor();
         pdf.fontSize(12);
         pdf.fillColor('black');
         pdf.font('Helvetica');
         pdf.text(
-          `${billData.creditor.name}\n${billData.creditor.address} ${billData.creditor.buildingNumber}\n${billData.creditor.zip} ${billData.creditor.city}`,
+          `${sender.name}\n${sender.address} ${sender.buildingNumber}\n${sender.zip} ${sender.city}`,
           mm2pt(20),
           mm2pt(35),
           {
@@ -426,15 +431,17 @@ export class SwissQRService {
   }
 
   private getCreditor(bankInfo: BankInfoDto): Creditor {
-    return {
+    const creditor: Creditor = {
       account: bankInfo.iban,
       address: bankInfo.street,
-      buildingNumber: bankInfo.number,
       city: bankInfo.city,
       country: bankInfo.iban.substring(0, 2).toUpperCase(),
       name: bankInfo.name,
       zip: bankInfo.zip,
     };
+    if (bankInfo.number != null) creditor.buildingNumber = bankInfo.number;
+
+    return creditor;
   }
 
   private getDebtor(userData?: UserData): Debtor | undefined {
@@ -467,7 +474,7 @@ export class SwissQRService {
     };
 
     switch (transactionType) {
-      case TransactionType.BUY:
+      case TransactionType.BUY: {
         const outputAsset = transaction.buyCrypto?.outputAsset;
 
         return {
@@ -480,8 +487,9 @@ export class SwissQRService {
           fiatAmount: transaction.buyCrypto?.inputAmount,
           ...titleAndDate,
         };
+      }
 
-      case TransactionType.SELL:
+      case TransactionType.SELL: {
         const inputAsset = transaction.buyFiat?.cryptoInput?.asset;
 
         return {
@@ -494,8 +502,9 @@ export class SwissQRService {
           fiatAmount: transaction.buyFiat?.outputAmount,
           ...titleAndDate,
         };
+      }
 
-      case TransactionType.SWAP:
+      case TransactionType.SWAP: {
         const sourceAsset = transaction.buyCrypto?.cryptoInput?.asset;
         const targetAsset = transaction.buyCrypto?.outputAsset;
 
@@ -513,8 +522,9 @@ export class SwissQRService {
           fiatAmount: currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur,
           ...titleAndDate,
         };
+      }
 
-      case TransactionType.REFERRAL:
+      case TransactionType.REFERRAL: {
         const targetBlockchain = transaction.refReward?.targetBlockchain;
         if (!targetBlockchain) throw new Error('Missing blockchain information for referral');
         const asset = await this.assetService.getNativeAsset(targetBlockchain);
@@ -529,6 +539,7 @@ export class SwissQRService {
           fiatAmount: currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur,
           ...titleAndDate,
         };
+      }
 
       default:
         throw new Error('Unsupported transaction type');

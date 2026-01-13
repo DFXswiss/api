@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Recommendation } from '../../user/models/recommendation/recommendation.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { IdentDocumentType, IdentResultData, IdentType } from '../dto/ident-result-data.dto';
@@ -11,7 +12,6 @@ import { IdDocTypeMap, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepType, UrlType } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
-import { IdentService } from '../services/integration/ident.service';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycFile } from './kyc-file.entity';
 import { StepLog } from './step-log.entity';
@@ -54,6 +54,9 @@ export class KycStep extends IEntity {
   @OneToMany(() => KycFile, (f) => f.kycStep)
   files: KycFile[];
 
+  @OneToOne(() => Recommendation, (recommendation) => recommendation.kycStep)
+  recommendation?: Recommendation;
+
   // Mail
   @Column({ type: 'datetime2', nullable: true })
   reminderSentDate?: Date;
@@ -71,6 +74,9 @@ export class KycStep extends IEntity {
 
       case KycStepName.NATIONALITY_DATA:
         return { url: `${apiUrl}/data/nationality/${this.id}`, type: UrlType.API };
+
+      case KycStepName.RECOMMENDATION:
+        return { url: `${apiUrl}/data/recommendation/${this.id}`, type: UrlType.API };
 
       case KycStepName.OWNER_DIRECTORY:
         return { url: `${apiUrl}/data/owner/${this.id}`, type: UrlType.API };
@@ -103,7 +109,7 @@ export class KycStep extends IEntity {
         } else if (this.isManual) {
           return { url: `${apiUrl}/ident/manual/${this.id}`, type: UrlType.API };
         } else {
-          return { url: IdentService.identUrl(this), type: UrlType.BROWSER };
+          throw new Error(`Invalid ident step type ${this.type}`);
         }
       }
 
@@ -331,7 +337,9 @@ export class KycStep extends IEntity {
     if (!this.result) return undefined;
     try {
       return JSON.parse(this.result);
-    } catch {}
+    } catch {
+      // ignore - return raw result if not valid JSON
+    }
 
     return this.result as T;
   }
@@ -364,7 +372,7 @@ export class KycStep extends IEntity {
         kycType: identResultData.webhook.levelName,
         success: identResultData.webhook.reviewResult?.reviewAnswer === ReviewAnswer.GREEN,
         ipCountry: identResultData.data.ipCountry,
-        country: identResultData.data.info.country,
+        country: identResultData.data.fixedInfo?.country,
       };
     } else if (this.isManual) {
       const identResultData = this.getResult<ManualIdentResult>();

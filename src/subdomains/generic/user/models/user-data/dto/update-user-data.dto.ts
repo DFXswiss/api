@@ -15,6 +15,7 @@ import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { Util } from 'src/shared/utils/util';
 import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AccountOpenerAuthorization, Organization } from '../../organization/organization.entity';
@@ -31,6 +32,7 @@ export class UpdateUserDataDto {
 
   @IsOptional()
   @IsEmail()
+  @Transform(Util.toLowerCaseTrim)
   mail?: string;
 
   @IsOptional()
@@ -272,6 +274,10 @@ export class UpdateUserDataDto {
   paymentLinksConfig?: string;
 
   @IsOptional()
+  @IsBoolean()
+  isTrustedReferrer?: boolean;
+
+  @IsOptional()
   @IsString()
   postAmlCheck?: string;
 
@@ -296,4 +302,14 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsBoolean()
   recallAgreementAccepted?: boolean;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  tradeApprovalDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  phoneCallIpCountryCheckDate?: Date;
 }

@@ -51,6 +51,13 @@ export class LiquidityManagementService {
 
   //*** PUBLIC API ***//
 
+  async getPipelineWithOrders(pipelineId: number): Promise<LiquidityManagementPipeline | null> {
+    return this.pipelineRepo.findOne({
+      where: { id: pipelineId },
+      relations: { orders: true },
+    });
+  }
+
   async buyLiquidity(
     assetId: number,
     minAmount: number,
@@ -114,12 +121,6 @@ export class LiquidityManagementService {
         return;
       }
 
-      const hasPendingOrders = await this.balanceService.hasPendingOrders(rule);
-      if (hasPendingOrders) {
-        this.logger.info(`Could not verify rule ${rule.id}: pending orders found`);
-        return;
-      }
-
       const balance = this.balanceService.findRelevantBalance(rule, balances);
       if (!balance) {
         this.logger.info(`Could not verify rule ${rule.id}: balance not found`);
@@ -132,6 +133,12 @@ export class LiquidityManagementService {
       const result = rule.verify(balance, transmissionMinimum);
 
       if (result.action) {
+        const hasPendingOrders = await this.balanceService.hasPendingOrders(rule);
+        if (hasPendingOrders) {
+          this.logger.info(`Could not verify rule ${rule.id}: pending orders found`);
+          return;
+        }
+
         if (!this.ruleActivations.has(rule.id)) {
           this.ruleActivations.set(rule.id, new Date());
           this.logger.info(

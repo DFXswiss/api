@@ -10,6 +10,8 @@ export enum RiskStatus {
   NA = 'NA',
   SUSPICIOUS = 'Suspicious',
   BLOCKED = 'Blocked',
+  BLOCKED_BUY_CRYPTO = 'BlockedBuyCrypto',
+  BLOCKED_BUY_FIAT = 'BlockedBuyFiat',
   RELEASED = 'Released',
 }
 
@@ -20,9 +22,9 @@ export enum KycLevel {
   LEVEL_20 = 20, // personal data
 
   // verified levels
-  LEVEL_30 = 30, // auto ident
+  LEVEL_30 = 30, // ident
   LEVEL_40 = 40, // financial data
-  LEVEL_50 = 50, // bank transaction or video ident
+  LEVEL_50 = 50, // dfx approval
 
   TERMINATED = -10,
   REJECTED = -20,

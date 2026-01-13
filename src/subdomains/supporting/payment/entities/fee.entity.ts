@@ -221,7 +221,7 @@ export class Fee extends IEntity {
   //*** GETTER METHODS ***//
 
   get assetList(): number[] {
-    return this.assets?.split(';')?.map(Number);
+    return this.assets ? this.assets.split(';')?.map(Number) : undefined;
   }
 
   get excludedAssetList(): number[] {
@@ -229,7 +229,7 @@ export class Fee extends IEntity {
   }
 
   get fiatList(): number[] {
-    return this.fiats?.split(';')?.map(Number);
+    return this.fiats ? this.fiats.split(';')?.map(Number) : undefined;
   }
 
   get excludedUserDataList(): number[] {

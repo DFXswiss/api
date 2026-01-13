@@ -15,6 +15,10 @@ export class CreateFiatOutputDto {
   @IsNumber()
   bankTxReturnId?: number;
 
+  @IsOptional()
+  @IsNumber()
+  bankTxRepeatId?: number;
+
   @IsNotEmpty()
   @IsEnum(FiatOutputType)
   type: FiatOutputType;
@@ -23,33 +27,37 @@ export class CreateFiatOutputDto {
   @IsNumber()
   originEntityId?: number;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsNumber()
-  amount?: number;
+  amount: number;
+
+  @IsNotEmpty()
+  @IsString()
+  currency: string;
+
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @IsNotEmpty()
+  @IsString()
+  address: string;
 
   @IsOptional()
   @IsString()
-  currency?: string;
+  houseNumber?: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  address?: string;
-
-  @IsOptional()
-  @IsString()
-  city?: string;
+  city: string;
 
   @IsOptional()
   @IsString()
   remittanceInfo?: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  iban?: string;
+  iban: string;
 
   @IsOptional()
   @IsString()
@@ -63,4 +71,12 @@ export class CreateFiatOutputDto {
   @IsOptional()
   @IsString()
   bic?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  zip: string;
+
+  @IsNotEmpty()
+  @IsString()
+  country: string;
 }

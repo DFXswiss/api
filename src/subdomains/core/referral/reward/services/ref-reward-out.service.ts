@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
@@ -18,7 +17,6 @@ export class RefRewardOutService {
   constructor(
     private readonly refRewardRepo: RefRewardRepository,
     private readonly payoutService: PayoutService,
-    private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly refRewardService: RefRewardService,
   ) {}
@@ -52,7 +50,7 @@ export class RefRewardOutService {
         try {
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
-        } catch (e) {
+        } catch {
           this.logger.error(`Failed to initiate ref-reward payout. Transaction ID: ${transaction.id}`);
           // continue with next transaction in case payout initiation failed
           continue;
@@ -68,12 +66,10 @@ export class RefRewardOutService {
   //*** HELPER METHODS ***//
 
   private async doPayout(transaction: RefReward): Promise<void> {
-    const asset = await this.assetService.getNativeAsset(transaction.targetBlockchain);
-
     const request: PayoutRequest = {
       context: PayoutOrderContext.REF_PAYOUT,
       correlationId: transaction.id.toString(),
-      asset,
+      asset: transaction.outputAsset,
       amount: transaction.outputAmount,
       destinationAddress: transaction.targetAddress,
     };
@@ -114,7 +110,7 @@ export class RefRewardOutService {
   private logTransactionsPayouts(transactions: RefReward[]): void {
     const transactionsLogs = transactions.map((tx) => tx.id);
 
-    transactions.length &&
+    if (transactions.length)
       this.logger.info(
         `Paying out ${transactionsLogs.length} reward transaction(s). Transaction ID(s): ${transactionsLogs}`,
       );

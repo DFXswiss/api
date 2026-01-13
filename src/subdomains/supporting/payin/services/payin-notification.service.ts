@@ -18,7 +18,10 @@ import { PayInRepository } from '../repositories/payin.repository';
 export class PayInNotificationService {
   private readonly logger = new DfxLogger(PayInNotificationService);
 
-  constructor(private readonly payInRepo: PayInRepository, private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly payInRepo: PayInRepository,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PAY_IN_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
@@ -36,7 +39,7 @@ export class PayInNotificationService {
       relations: { transaction: { user: { wallet: true }, userData: true }, route: true },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} cryptoInput return email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} cryptoInput return email(s)`);
 
     for (const entity of entities) {
       try {

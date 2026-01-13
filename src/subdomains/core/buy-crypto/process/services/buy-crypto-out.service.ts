@@ -74,13 +74,18 @@ export class BuyCryptoOutService {
       for (const transaction of transactionsToPayout) {
         try {
           if (transaction.userData.isSuspicious) continue;
-          if (transaction.user.isBlockedOrDeleted || transaction.userData.isBlocked || transaction.userData.isRisky)
+          if (
+            transaction.user.isBlockedOrDeleted ||
+            transaction.userData.isBlocked ||
+            transaction.userData.isRiskBlocked ||
+            transaction.userData.isRiskBuyCryptoBlocked
+          )
             throw new Error('Payout stopped for blocked user');
 
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
 
-          for (const feeId of transaction.usedFees?.split(';')) {
+          for (const feeId of transaction.usedFees?.split(';') ?? []) {
             await this.feeService.increaseTxUsages(
               transaction.amountInChf,
               Number.parseInt(feeId),
@@ -144,9 +149,9 @@ export class BuyCryptoOutService {
 
       const networkStartFeeRequest: PayoutRequest = {
         context: PayoutOrderContext.BUY_CRYPTO,
-        correlationId: `${transaction.id}-network-start-fee`,
+        correlationId: transaction.networkStartCorrelationId,
         asset: nativeAsset,
-        amount: networkStartFeePrice.convert(transaction.networkStartFeeAmount),
+        amount: networkStartFeePrice.convert(transaction.networkStartFeeAmount, 8),
         destinationAddress: transaction.targetAddress,
       };
 
@@ -182,6 +187,18 @@ export class BuyCryptoOutService {
           );
 
           tx.complete(payoutFee);
+
+          if (tx.networkStartFeeAmount) {
+            const { payoutTxId, payoutAmount, payoutAsset } = await this.payoutService.checkOrderCompletion(
+              PayoutOrderContext.BUY_CRYPTO,
+              tx.networkStartCorrelationId,
+            );
+
+            tx.networkStartAmount = payoutAmount;
+            tx.networkStartTxId = payoutTxId;
+            tx.networkStartAsset = payoutAsset.name;
+          }
+
           await this.buyCryptoRepo.save(tx);
 
           const custodyOrder = await this.custodyOrderService.getCustodyOrderByTx(tx);
@@ -196,11 +213,9 @@ export class BuyCryptoOutService {
             });
           }
 
-          // create sift transaction
+          // create sift transaction (non-blocking)
           if (!tx.isCryptoCryptoTransaction) {
-            const siftResponse = await this.siftService.buyCryptoTransaction(tx, TransactionStatus.SUCCESS);
-            tx.siftResponse = JSON.stringify(siftResponse?.score_response.scores);
-            await this.buyCryptoRepo.update(tx.id, { siftResponse: tx.siftResponse });
+            void this.siftService.buyCryptoTransaction(tx, TransactionStatus.SUCCESS);
           }
 
           // payment webhook
@@ -228,7 +243,7 @@ export class BuyCryptoOutService {
   private logTransactionsPayouts(transactions: BuyCrypto[]): void {
     const transactionsIds = transactions.map((tx) => tx.id);
 
-    transactions.length &&
+    if (transactions.length)
       this.logger.verbose(`Paying out ${transactionsIds.length} transaction(s). Transaction ID(s): ${transactionsIds}`);
   }
 }

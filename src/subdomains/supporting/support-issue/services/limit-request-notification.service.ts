@@ -37,7 +37,7 @@ export class LimitRequestNotificationService {
       relations: { supportIssue: { userData: { wallet: true } } },
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'limit-request accepted' email(s)`);
+    if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} 'limit-request accepted' email(s)`);
 
     for (const entity of entities) {
       try {

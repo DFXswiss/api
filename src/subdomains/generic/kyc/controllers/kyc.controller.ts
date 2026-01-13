@@ -11,7 +11,6 @@ import {
   Put,
   Query,
   Req,
-  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -28,7 +27,7 @@ import {
 } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
-import { Config, GetConfig } from 'src/config/config';
+import { GetConfig } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
@@ -40,8 +39,6 @@ import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { SignatoryPower } from '../../user/models/user-data/user-data.enum';
-import { IdNowResult } from '../dto/ident-result.dto';
-import { IdentStatus } from '../dto/ident.dto';
 import {
   KycBeneficialData,
   KycContactData,
@@ -51,6 +48,7 @@ import {
   KycNationalityData,
   KycOperationalData,
   KycPersonalData,
+  KycRecommendationData,
   KycSignatoryPowerData,
   PaymentDataDto,
   RecallAgreementData,
@@ -81,7 +79,10 @@ const TfaResponse = { description: '2FA is required' };
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 
-  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
+  constructor(
+    private readonly kycService: KycService,
+    private readonly tfaService: TfaService,
+  ) {}
 
   // --- 2FA --- //
   @Get('2fa')
@@ -154,7 +155,7 @@ export class KycController {
   @Get('file/:id')
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
-  async getFile(@Param('id') id: string, @GetJwt() jwt?: JwtPayload): Promise<KycFileDataDto> {
+  async getFile(@GetJwt() jwt: JwtPayload | undefined, @Param('id') id: string): Promise<KycFileDataDto> {
     return this.kycService.getFileByUid(id, jwt?.account, jwt?.role);
   }
 
@@ -214,6 +215,17 @@ export class KycController {
     @Body() data: KycNationalityData,
   ): Promise<KycStepBase> {
     return this.kycService.updateKycStep(code, +id, data, ReviewStatus.INTERNAL_REVIEW);
+  }
+
+  @Put('data/recommendation/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateRecommendationData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycRecommendationData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updateRecommendationData(code, +id, data);
   }
 
   @Put('data/legal/:id')
@@ -408,38 +420,7 @@ export class KycController {
     return this.kycService.updateIdentManual(code, +id, data);
   }
 
-  @Post('ident/:type')
-  @ApiExcludeEndpoint()
-  async identWebhook(@RealIP() ip: string, @Body() data: IdNowResult) {
-    this.checkWebhookIp(ip, data);
-
-    try {
-      await this.kycService.updateIntrumIdent(data);
-    } catch (e) {
-      this.logger.error(`Failed to handle intrum ident webhook call for session ${data.identificationprocess?.id}:`, e);
-      throw new InternalServerErrorException(e.message);
-    }
-  }
-
-  @Get('ident/:type/:channel/:status')
-  @ApiExcludeEndpoint()
-  async identRedirect(
-    @Res() res: Response,
-    @Param('status') status: IdentStatus,
-    @Query('transactionId') transactionId: string,
-  ): Promise<void> {
-    const redirectUri = await this.kycService.updateIdentStatus(transactionId, status);
-    this.allowFrameIntegration(res);
-    res.redirect(307, redirectUri);
-  }
-
   // --- HELPER METHODS --- //
-  private checkWebhookIp(ip: string, data: IdNowResult) {
-    if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
-      this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
-      throw new ForbiddenException('Invalid source IP');
-    }
-  }
 
   private allowFrameIntegration(res: Response) {
     res.removeHeader('X-Frame-Options');

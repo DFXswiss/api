@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
@@ -10,15 +11,25 @@ export interface BankSelectorInput {
   amount: number;
   currency: string;
   paymentMethod: FiatPaymentMethod;
-  userData: UserData;
+  userData?: UserData;
 }
 
 @Injectable()
-export class BankService {
+export class BankService implements OnModuleInit {
+  private static ibanCache: Map<string, string> = new Map(); // key: "bankName-currency", value: iban
+
   constructor(private bankRepo: BankRepository) {}
+
+  onModuleInit() {
+    void this.loadIbanCache();
+  }
 
   async getAllBanks(): Promise<Bank[]> {
     return this.bankRepo.findCached(`all`);
+  }
+
+  async getBanksByName(bankName: IbanBankName): Promise<Bank[]> {
+    return this.bankRepo.findCachedBy(bankName, { name: bankName });
   }
 
   async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
@@ -33,69 +44,77 @@ export class BankService {
     return this.bankRepo.findOneCachedBy(iban, { iban });
   }
 
-  async getSenderBank(currency: string): Promise<Bank> {
-    return this.bankRepo.findOneCachedBy(currency, { currency, send: true });
+  async getReceiveBanks(): Promise<Bank[]> {
+    return this.bankRepo.findCachedBy(`receive`, { receive: true });
   }
 
-  // --- BankSelector --- //
-  async getBank({ amount, currency, paymentMethod, userData }: BankSelectorInput): Promise<Bank> {
-    const frickAmountLimit = 9000;
+  async getSenderBank(currency: string): Promise<Bank> {
+    return this.bankRepo.findOneCachedBy(`send-${currency}`, { currency, send: true });
+  }
+
+  // --- BANK SELECTOR --- //
+  async getBank({ currency, paymentMethod }: BankSelectorInput): Promise<Bank> {
     const fallBackCurrency = 'EUR';
 
-    const banks = await this.getAllBanks();
+    const banks = await this.getReceiveBanks();
 
     // select the matching bank account
     let account: Bank;
 
-    if (paymentMethod === FiatPaymentMethod.INSTANT) {
-      // instant + bank tx => Revolut
-      if (userData.hasBankTxVerification) {
-        account = this.getMatchingBank(banks, IbanBankName.REVOLUT, currency, fallBackCurrency);
-      }
-      if (!account) {
-        // instant => Olkypay / EUR
-        account = this.getMatchingBank(banks, IbanBankName.OLKY, currency, fallBackCurrency);
-      }
+    // instant bank
+    if (!account && paymentMethod === FiatPaymentMethod.INSTANT) {
+      account = this.getMatchingBank(banks, currency, fallBackCurrency, (b) => b.sctInst);
     }
-    if (!account && (amount > frickAmountLimit || currency === 'USD')) {
-      // amount > 9k => Frick || USD => Frick
-      account = this.getMatchingBank(banks, IbanBankName.FRICK, currency, fallBackCurrency);
-    }
+
+    // fallback => any active bank
     if (!account) {
-      // default => MB
-      account = this.getMatchingBank(banks, IbanBankName.MAERKI, currency, fallBackCurrency);
-    }
-    if (!account) {
-      // fallback => any active bank
-      account = this.getMatchingBank(banks, undefined, currency);
+      account = this.getMatchingBank(banks, currency, fallBackCurrency);
     }
 
     return account;
   }
 
-  static isBankMatching(asset: Asset, accountIban: string): boolean {
-    switch (asset.blockchain as string) {
-      case 'MaerkiBaumann':
-        return (
-          (asset.dexName === 'EUR' && accountIban === 'CH6808573177975201814') ||
-          (asset.dexName === 'CHF' && accountIban === 'CH3408573177975200001')
-        );
+  private getMatchingBank(
+    banks: Bank[],
+    currencyName: string,
+    fallBackCurrencyName: string,
+    selector?: (bank: Bank) => boolean,
+  ): Bank {
+    const matchingBanks = selector ? banks.filter(selector) : banks;
 
-      case 'Olkypay':
-        return accountIban === 'LU116060002000005040';
-    }
+    return (
+      matchingBanks.find((b) => b.currency === currencyName) ??
+      matchingBanks.find((b) => b.currency === fallBackCurrencyName)
+    );
+  }
+
+  static isBankMatching(asset: Asset, accountIban: string): boolean {
+    const bankName = this.blockchainToBankName(asset.blockchain);
+    if (!bankName) return false;
+
+    const expectedIban = this.ibanCache.get(`${bankName}-${asset.dexName}`);
+    return expectedIban === accountIban;
   }
 
   // --- HELPER METHODS --- //
-  private getMatchingBank(
-    banks: Bank[],
-    bankName: string | undefined,
-    currencyName: string,
-    fallBackCurrencyName?: string,
-  ): Bank {
-    return (
-      banks.find((b) => (!bankName || b.name === bankName) && b.currency === currencyName && b.receive) ??
-      banks.find((b) => (!bankName || b.name === bankName) && b.currency === fallBackCurrencyName && b.receive)
-    );
+  private async loadIbanCache(): Promise<void> {
+    const banks = await this.bankRepo.find();
+
+    for (const bank of banks) {
+      BankService.ibanCache.set(`${bank.name}-${bank.currency}`, bank.iban);
+    }
+  }
+
+  private static blockchainToBankName(blockchain: Blockchain): IbanBankName | undefined {
+    switch (blockchain) {
+      case Blockchain.MAERKI_BAUMANN:
+        return IbanBankName.MAERKI;
+      case Blockchain.OLKYPAY:
+        return IbanBankName.OLKY;
+      case Blockchain.YAPEAL:
+        return IbanBankName.YAPEAL;
+      default:
+        return undefined;
+    }
   }
 }

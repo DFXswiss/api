@@ -46,7 +46,7 @@ export class C2BPaymentLinkService {
     try {
       C2BPaymentLinkService.mapBlockchainToProvider(blockchain);
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

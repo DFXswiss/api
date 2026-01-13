@@ -151,6 +151,18 @@ Authorization: Bearer {{authToken}}
 // BUY CRYPTO
 @authToken = {{login.response.body.accessToken}}
 
+PUT {{url}}/v1/buyCrypto/xxx
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "buyId": xxx
+}
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
 POST {{url}}/v1/buyCrypto/xxx/webhook
 Authorization: Bearer {{authToken}}
 
@@ -337,6 +349,19 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
+POST {{url}}/v1/payIn/poll
+content-type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "address": "xxx",
+  "blockchain": "Cardano"
+}
+
+###
+
+@authToken = {{login.response.body.accessToken}}
+
 POST {{url}}/v1/alchemy/syncTransactions
 content-type: application/json
 Authorization: Bearer {{authToken}}
@@ -454,7 +479,7 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-GET {{url}}/v1/pricing/price?fromType=Fiat&fromId=1&toType=Asset&toId=264&allowExpired=false
+GET {{url}}/v1/pricing/price?fromType=Fiat&fromId=1&toType=Asset&toId=264&validity=ValidOnly
 Authorization: Bearer {{authToken}}
 
 

@@ -1,4 +1,3 @@
-import { NetworkName } from '@defichain/jellyfish-network';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
@@ -21,6 +20,10 @@ import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
+import { LoggerOptions } from 'typeorm';
+import { EVM_CHAINS } from './chains.config';
+
+export type NetworkName = 'mainnet' | 'testnet' | 'regtest';
 
 export enum Environment {
   LOC = 'loc',
@@ -28,7 +31,7 @@ export enum Environment {
   PRD = 'prd',
 }
 
-export type Version = '1' | '2';
+type Version = '1' | '2';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -43,12 +46,19 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   defaultRef = '000-000';
-  transactionRefundExpirySeconds = 30;
+  transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   refRewardManualCheckLimit = 3000; // EUR
-  manualPriceStepSourceName = 'DFX'; // source name for priceStep if price is set manually in buyCrypto
   txRequestWaitingExpiryDays = 7;
-  exchangeRateFromLiquidityOrder = ['FPS', 'nDEPS'];
   financeLogTotalBalanceChangeLimit = 5000;
+  faucetAmount = 20; //CHF
+  faucetEnabled = process.env.FAUCET_ENABLED === 'true';
+
+  priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
+  priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
+
+  isDomesticIban(iban: string): boolean {
+    return ['CH', 'LI'].includes(iban?.substring(0, 2));
+  }
 
   defaults = {
     currency: 'EUR',
@@ -95,6 +105,7 @@ export class Configuration {
     fiatOutput: {
       batchAmountLimit: 9500,
     },
+    usePipelinePriceForAllAssets: process.env.USE_PIPELINE_PRICE_FOR_ALL_ASSETS === 'true',
   };
 
   defaultVolumeDecimal = 2;
@@ -104,6 +115,7 @@ export class Configuration {
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
+  allowedBorderRegions = ['CH', 'DE']; // aml & kyc
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
   networkStartFee = 0.5; // CHF
@@ -140,7 +152,7 @@ export class Configuration {
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
   arweaveAddressFormat = '[\\w\\-]{43}';
-  cardanoAddressFormat = 'stake[a-z0-9]{54}';
+  cardanoAddressFormat = '^(stake[a-z0-9]+|addr1[a-z0-9]+)$';
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
   railgunAddressFormat = '0zk[a-z0-9]{1,124}';
@@ -152,13 +164,13 @@ export class Configuration {
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
-  bitcoinSignatureFormat = '.{87}=';
+  bitcoinSignatureFormat = '(.{87}=|[A-Za-z0-9+/]+={0,2})';
   lightningSignatureFormat = '[a-z0-9]{104}';
   lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
   moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
   arweaveSignatureFormat = '[\\w\\-]{683}';
-  cardanoSignatureFormat = '[a-f0-9]{582}';
+  cardanoSignatureFormat = '[a-f0-9]+';
   railgunSignatureFormat = '[a-f0-9]{128}';
   solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
   tronSignatureFormat = '(0x)?[a-f0-9]{130}';
@@ -167,7 +179,7 @@ export class Configuration {
   allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
-  cardanoKeyFormat = '[a-f0-9]{84}';
+  cardanoKeyFormat = '.*';
 
   allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}`;
 
@@ -177,10 +189,12 @@ export class Configuration {
     key: new RegExp(`^(${this.allKeyFormat})$`),
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
+    recommendationCode: /[0-9A-Z]{2}-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{2}/,
     kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
     phone: /^\+\d+$/,
-    accountServiceRef: /^[A-Z]{2}\d{8}\/\d+\/\d+$/,
+    accountServiceRef: /^([A-Z]{2}\d{8}\/\d+\/\d+|[a-f0-9]{32})$/,
     number: /^\d+$/,
+    transactionUid: new RegExp(`^${this.prefixes.transactionUidPrefix}[A-Za-z0-9]{16}$`),
   };
 
   database: TypeOrmModuleOptions = {
@@ -201,6 +215,11 @@ export class Configuration {
       min: +(process.env.SQL_POOL_MIN ?? 5),
       max: +(process.env.SQL_POOL_MAX ?? 10),
       idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
+    },
+    logging: process.env.SQL_LOGGING as LoggerOptions,
+    options: {
+      encrypt: process.env.SQL_ENCRYPT !== 'false',
+      trustServerCertificate: process.env.SQL_ENCRYPT === 'false',
     },
   };
 
@@ -235,19 +254,22 @@ export class Configuration {
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_',
   };
 
+  recommendation = {
+    recommenderExpiration: 30, // days
+    confirmationExpiration: 30, // days
+    maxRecommendationPerMail: 3,
+  };
+
   kyc = {
-    gatewayHost: process.env.KYC_GATEWAY_HOST,
-    auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
-    video: { customer: process.env.KYC_CUSTOMER_VIDEO, apiKey: process.env.KYC_API_KEY_VIDEO },
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
     identFailAfterDays: 30,
-    allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
     reminderAfterDays: 2,
     appToken: process.env.KYC_APP_TOKEN,
     secretKey: process.env.KYC_SECRET_KEY,
     webhookKey: process.env.KYC_WEBHOOK_KEY,
     residencePermitCountries: ['RU'],
     maxIdentTries: 7,
+    maxRecommendationTries: 3,
   };
 
   fileDownloadConfig: {
@@ -515,6 +537,14 @@ export class Configuration {
     allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
     services: (process.env.SERVICES_URL ?? '').split(';')[0],
     payment: process.env.PAYMENT_URL,
+
+    isRedirectUrlAllowed: (url: string): boolean => {
+      try {
+        return this.frontend.allowedUrls.includes(new URL(url).origin);
+      } catch {
+        return false;
+      }
+    },
   };
 
   fixer = {
@@ -567,6 +597,7 @@ export class Configuration {
     evmSeed: process.env.PAYMENT_EVM_SEED,
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
+    cardanoSeed: process.env.PAYMENT_CARDANO_SEED,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
@@ -574,6 +605,7 @@ export class Configuration {
       [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
+    cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
@@ -601,8 +633,8 @@ export class Configuration {
     checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
 
-    forexFee: (standard: PaymentStandard, currency: Fiat, asset: Asset): number => {
-      if (currency.name === 'CHF' && asset.name === 'ZCHF') return 0;
+    forexFee: (standard: PaymentStandard, invoiceCurrency: Fiat, paymentCurrency: Asset): number => {
+      if (invoiceCurrency.name === 'CHF' && paymentCurrency.name === 'ZCHF') return 0;
 
       switch (standard) {
         case PaymentStandard.PAY_TO_ADDRESS:
@@ -672,11 +704,21 @@ export class Configuration {
       walletPassword: process.env.NODE_WALLET_PASSWORD,
       utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
       minTxAmount: 0.00000297,
+      allowUnconfirmedUtxos: true,
+      cpfpFeeMultiplier: +(process.env.CPFP_FEE_MULTIPLIER ?? '2.0'),
+      defaultFeeMultiplier: +(process.env.DEFAULT_FEE_MULTIPLIER ?? '1.5'),
     },
     evm: {
       depositSeed: process.env.EVM_DEPOSIT_SEED,
       custodySeed: process.env.EVM_CUSTODY_SEED,
       minimalPreparationFee: 0.00000001,
+
+      // EIP-7702 Delegation (MetaMask EIP7702StatelessDeleGator v1.3.0)
+      delegationEnabled: process.env.EVM_DELEGATION_ENABLED === 'true',
+      delegatorAddress: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
+
+      // Pimlico Paymaster for EIP-5792 gasless transactions
+      pimlicoApiKey: process.env.PIMLICO_API_KEY,
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.evm.depositSeed,
@@ -689,85 +731,79 @@ export class Configuration {
       }),
     },
     ethereum: {
+      ...EVM_CHAINS.ethereum,
+      ethGatewayUrl: EVM_CHAINS.ethereum.gatewayUrl,
+      ethChainId: EVM_CHAINS.ethereum.chainId,
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
-      ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ALCHEMY_API_KEY,
-      ethChainId: +process.env.ETH_CHAIN_ID,
-      swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
-      quoteContractAddress: process.env.ETH_QUOTE_CONTRACT_ADDRESS,
     },
     sepolia: {
+      ...EVM_CHAINS.sepolia,
+      sepoliaGatewayUrl: EVM_CHAINS.sepolia.gatewayUrl,
+      sepoliaChainId: EVM_CHAINS.sepolia.chainId,
       sepoliaWalletAddress: process.env.SEPOLIA_WALLET_ADDRESS,
       sepoliaWalletPrivateKey: process.env.SEPOLIA_WALLET_PRIVATE_KEY,
-      sepoliaGatewayUrl: process.env.SEPOLIA_GATEWAY_URL,
       sepoliaApiKey: process.env.ALCHEMY_API_KEY,
-      sepoliaChainId: +process.env.SEPOLIA_CHAIN_ID,
-      swapContractAddress: process.env.SEPOLIA_SWAP_CONTRACT_ADDRESS,
-      quoteContractAddress: process.env.SEPOLIA_QUOTE_CONTRACT_ADDRESS,
     },
     optimism: {
+      ...EVM_CHAINS.optimism,
+      optimismGatewayUrl: EVM_CHAINS.optimism.gatewayUrl,
+      optimismChainId: EVM_CHAINS.optimism.chainId,
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
-      optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
       optimismApiKey: process.env.ALCHEMY_API_KEY,
-      optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
-      swapContractAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
-      quoteContractAddress: process.env.OPTIMISM_QUOTE_CONTRACT_ADDRESS,
     },
     arbitrum: {
+      ...EVM_CHAINS.arbitrum,
+      arbitrumGatewayUrl: EVM_CHAINS.arbitrum.gatewayUrl,
+      arbitrumChainId: EVM_CHAINS.arbitrum.chainId,
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
       arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
-      arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
       arbitrumApiKey: process.env.ALCHEMY_API_KEY,
-      arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
-      swapContractAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
-      quoteContractAddress: process.env.ARBITRUM_QUOTE_CONTRACT_ADDRESS,
     },
     polygon: {
+      ...EVM_CHAINS.polygon,
+      polygonGatewayUrl: EVM_CHAINS.polygon.gatewayUrl,
+      polygonChainId: EVM_CHAINS.polygon.chainId,
       polygonWalletAddress: process.env.POLYGON_WALLET_ADDRESS,
       polygonWalletPrivateKey: process.env.POLYGON_WALLET_PRIVATE_KEY,
-      polygonGatewayUrl: process.env.POLYGON_GATEWAY_URL,
       polygonApiKey: process.env.ALCHEMY_API_KEY,
-      polygonChainId: +process.env.POLYGON_CHAIN_ID,
-      swapContractAddress: process.env.POLYGON_SWAP_CONTRACT_ADDRESS,
-      quoteContractAddress: process.env.POLYGON_QUOTE_CONTRACT_ADDRESS,
     },
     base: {
+      ...EVM_CHAINS.base,
+      baseGatewayUrl: EVM_CHAINS.base.gatewayUrl,
+      baseChainId: EVM_CHAINS.base.chainId,
       baseWalletAddress: process.env.BASE_WALLET_ADDRESS,
       baseWalletPrivateKey: process.env.BASE_WALLET_PRIVATE_KEY,
-      baseGatewayUrl: process.env.BASE_GATEWAY_URL,
       baseApiKey: process.env.ALCHEMY_API_KEY,
-      baseChainId: +process.env.BASE_CHAIN_ID,
-      swapContractAddress: process.env.BASE_SWAP_CONTRACT_ADDRESS,
-      swapFactoryAddress: '0x33128a8fc17869897dce68ed026d694621f6fdfd',
-      quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     gnosis: {
+      ...EVM_CHAINS.gnosis,
+      gnosisGatewayUrl: EVM_CHAINS.gnosis.gatewayUrl,
+      gnosisChainId: EVM_CHAINS.gnosis.chainId,
       gnosisWalletAddress: process.env.GNOSIS_WALLET_ADDRESS,
       gnosisWalletPrivateKey: process.env.GNOSIS_WALLET_PRIVATE_KEY,
-      gnosisGatewayUrl: process.env.GNOSIS_GATEWAY_URL,
       gnosisApiKey: process.env.ALCHEMY_API_KEY,
-      gnosisChainId: +process.env.GNOSIS_CHAIN_ID,
       swapContractAddress: process.env.GNOSIS_SWAP_CONTRACT_ADDRESS,
       quoteContractAddress: process.env.GNOSIS_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
+      ...EVM_CHAINS.bsc,
+      bscGatewayUrl: EVM_CHAINS.bsc.gatewayUrl,
+      bscChainId: EVM_CHAINS.bsc.chainId,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
-      bscGatewayUrl: process.env.BSC_GATEWAY_URL,
       bscApiKey: process.env.ALCHEMY_API_KEY,
-      bscChainId: +process.env.BSC_CHAIN_ID,
-      swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
-      quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
       gasPrice: process.env.BSC_GAS_PRICE,
     },
     citreaTestnet: {
+      ...EVM_CHAINS.citreaTestnet,
+      citreaTestnetGatewayUrl: EVM_CHAINS.citreaTestnet.gatewayUrl,
+      citreaTestnetChainId: EVM_CHAINS.citreaTestnet.chainId,
       citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
       citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
-      citreaTestnetGatewayUrl: process.env.CITREA_TESTNET_GATEWAY_URL,
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
-      citreaTestnetChainId: +process.env.CITREA_TESTNET_CHAIN_ID,
       goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
     },
     lightning: {
@@ -831,6 +867,17 @@ export class Configuration {
         index: accountIndex,
       }),
     },
+    cardano: {
+      cardanoWalletSeed: process.env.CARDANO_WALLET_SEED,
+      cardanoApiUrl: process.env.CARDANO_API_URL,
+      cardanoTatumApiKey: process.env.TATUM_API_KEY,
+      cardanoBlockFrostApiKey: process.env.BLOCKFROST_API_KEY,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.cardano.cardanoWalletSeed,
+        index: accountIndex,
+      }),
+    },
     zano: {
       node: {
         url: process.env.ZANO_NODE_URL,
@@ -841,6 +888,9 @@ export class Configuration {
       },
       coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
       fee: 0.01,
+    },
+    spark: {
+      sparkWalletSeed: process.env.SPARK_WALLET_SEED,
     },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
@@ -856,25 +906,22 @@ export class Configuration {
       graphUrl: process.env.DEURO_GRAPH_URL,
       apiUrl: process.env.DEURO_API_URL,
     },
+    realunit: {
+      graphUrl: process.env.REALUNIT_GRAPH_URL,
+      api: {
+        url: process.env.REALUNIT_API_URL,
+        key: process.env.REALUNIT_API_KEY,
+      },
+      bank: {
+        recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
+        address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',
+        iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
+        bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
+        name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
+      },
+    },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
-    },
-  };
-
-  payIn = {
-    minDeposit: {
-      Bitcoin: {
-        BTC: 0.000001,
-      },
-      Monero: {
-        XMR: 0.000001,
-      },
-    },
-  };
-
-  buy = {
-    fee: {
-      limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.001),
     },
   };
 
@@ -924,17 +971,26 @@ export class Configuration {
         clientSecret: process.env.OLKY_CLIENT_SECRET,
       },
     },
-    frick: {
+    raiffeisen: {
       credentials: {
-        url: process.env.FRICK_URL,
-        key: process.env.FRICK_KEY,
-        password: process.env.FRICK_PASSWORD,
-        privateKey: process.env.FRICK_PRIVATE_KEY?.split('<br>').join('\n'),
+        url: process.env.RAIFFEISEN_EBICS_URL,
+        hostId: process.env.RAIFFEISEN_HOST_ID,
+        partnerId: process.env.RAIFFEISEN_PARTNER_ID,
+        userId: process.env.RAIFFEISEN_USER_ID,
+        passphrase: process.env.RAIFFEISEN_PASSPHRASE,
+        iv: process.env.RAIFFEISEN_IV,
       },
     },
-    revolut: {
-      refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
-      clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
+    yapeal: {
+      baseUrl: process.env.YAPEAL_BASE_URL,
+      partnershipUid: process.env.YAPEAL_PARTNERSHIP_UID,
+      adminUid: process.env.YAPEAL_ADMIN_UID,
+      apiKey: process.env.YAPEAL_API_KEY,
+      cert: process.env.YAPEAL_CERT?.split('<br>').join('\n'),
+      key: process.env.YAPEAL_KEY?.split('<br>').join('\n'),
+      rootCa: process.env.YAPEAL_ROOT_CA?.split('<br>').join('\n'),
+      webhookApiKey: process.env.YAPEAL_WEBHOOK_API_KEY,
+      accountIdentifier: process.env.YAPEAL_ACCOUNT_IDENTIFIER,
     },
     forexFee: 0.02,
   };
@@ -958,6 +1014,10 @@ export class Configuration {
         .find((p) => p.includes('BlobEndpoint'))
         ?.replace('BlobEndpoint=', ''),
       connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    },
+    appInsights: {
+      appId: process.env.APPINSIGHTS_APP_ID,
+      apiKey: process.env.APPINSIGHTS_API_KEY,
     },
   };
 
@@ -1047,6 +1107,12 @@ export class Configuration {
       timeout: 30_000,
     };
   }
+
+  scrypt = {
+    wsUrl: process.env.SCRYPT_WS_URL,
+    apiKey: process.env.SCRYPT_API_KEY,
+    apiSecret: process.env.SCRYPT_API_SECRET,
+  };
 
   get evmWallets(): Map<string, string> {
     return splitWithdrawKeys(process.env.EVM_WALLETS);

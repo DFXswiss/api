@@ -11,6 +11,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -21,7 +22,8 @@ import {
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeType } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
@@ -175,7 +177,7 @@ export class BuyFiat extends IEntity {
 
   // Pass
   @Column({ type: 'datetime2', nullable: true })
-  priceDefinitionAllowedDate?: Date;
+  priceDefinitionAllowedDate?: Date; // is set for tx with amlCheck = true or for manualPrice calculation for refunds with missingPrice error
 
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount?: number;
@@ -478,6 +480,10 @@ export class BuyFiat extends IEntity {
       chargebackAllowedBy: null,
       partnerFeeAmount: null,
       usedPartnerFeeRef: null,
+      priceSteps: null,
+      priceDefinitionAllowedDate: null,
+      usedFees: null,
+      bankFeeAmount: null,
     };
 
     Object.assign(this, update);
@@ -490,9 +496,11 @@ export class BuyFiat extends IEntity {
   }
 
   pendingOutputAmount(asset: Asset): number {
-    return this.outputAmount &&
-      asset.dexName === this.sell.fiat.name &&
-      (asset.blockchain as string) === 'MaerkiBaumann'
+    const payoutBankName = this.fiatOutput?.bank?.name ?? IbanBankName.YAPEAL;
+
+    if (payoutBankName === IbanBankName.YAPEAL && this.fiatOutput?.isTransmittedDate) return 0;
+
+    return this.outputAmount && asset.dexName === this.sell.fiat.name && asset.bank?.name === payoutBankName
       ? this.outputAmount
       : 0;
   }
@@ -507,6 +515,12 @@ export class BuyFiat extends IEntity {
 
   get refundAmount(): number {
     return this.inputAmount;
+  }
+
+  get manualChfPrice(): Price {
+    return this.amountInChf && this.priceDefinitionAllowedDate
+      ? Price.create(PriceCurrency.CHF, this.inputAsset, this.amountInChf / this.inputAmount)
+      : undefined;
   }
 
   get wallet(): Wallet {
@@ -579,6 +593,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.MANUAL_CHECK_PHONE,
   AmlReason.MERGE_INCOMPLETE,
   AmlReason.MANUAL_CHECK_IP_PHONE,
+  AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

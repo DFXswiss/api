@@ -20,15 +20,18 @@ import { UpdateAssetDto } from './dto/update-asset.dto';
 @ApiTags('Asset')
 @Controller('asset')
 export class AssetController {
-  constructor(private assetService: AssetService, private readonly repoFactory: RepositoryFactory) {}
+  constructor(
+    private assetService: AssetService,
+    private readonly repoFactory: RepositoryFactory,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: AssetDetailDto, isArray: true })
   async getAllAsset(
+    @GetJwt() jwt: JwtPayload | undefined,
     @Query() { blockchains, includePrivate }: AssetQueryDto,
-    @GetJwt() jwt?: JwtPayload,
   ): Promise<AssetDetailDto[]> {
     const queryBlockchains = blockchains?.split(',').map((value) => value as Blockchain);
 

@@ -33,7 +33,7 @@ export class KycContactData {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
-  @Transform(Util.trim)
+  @Transform(Util.toLowerCaseTrim)
   mail: string;
 }
 
@@ -120,6 +120,7 @@ export class KycInputDataDto extends KycPersonalData {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
+  @Transform(Util.toLowerCaseTrim)
   mail: string;
 }
 
@@ -181,6 +182,13 @@ export class KycOperationalData {
   @IsOptional()
   @IsUrl()
   websiteUrl: string;
+}
+
+export class KycRecommendationData {
+  @ApiProperty({ description: 'Recommendation data: ref-code or recommendation-code or mail of existing user' })
+  @IsNotEmpty()
+  @IsString()
+  key: string;
 }
 
 export class KycNationalityData {

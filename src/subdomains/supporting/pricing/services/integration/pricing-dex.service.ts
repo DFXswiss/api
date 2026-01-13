@@ -8,7 +8,10 @@ import { PricingProvider } from './pricing-provider';
 
 @Injectable()
 export class PricingDexService extends PricingProvider {
-  constructor(private dexService: DexService, private assetService: AssetService) {
+  constructor(
+    private dexService: DexService,
+    private assetService: AssetService,
+  ) {
     super();
   }
 

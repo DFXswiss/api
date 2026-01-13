@@ -1033,7 +1033,10 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.MERGE_INCOMPLETE]: DeclineCategory.OTHER,
   [AmlReason.MANUAL_CHECK_PHONE]: DeclineCategory.RISKY,
   [AmlReason.MANUAL_CHECK_IP_PHONE]: DeclineCategory.RISKY,
+  [AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE]: DeclineCategory.RISKY,
   [AmlReason.BANK_RELEASE_PENDING]: DeclineCategory.OTHER,
+  [AmlReason.VIRTUAL_IBAN_USER_MISMATCH]: DeclineCategory.RISKY,
+  [AmlReason.INTERMEDIARY_WITHOUT_SENDER]: DeclineCategory.RISKY,
 };
 
 export interface ScoreRsponse {

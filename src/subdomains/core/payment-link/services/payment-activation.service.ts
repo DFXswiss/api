@@ -184,7 +184,8 @@ export class PaymentActivationService {
       case Blockchain.MONERO:
       case Blockchain.ZANO:
       case Blockchain.SOLANA:
-      case Blockchain.TRON: {
+      case Blockchain.TRON:
+      case Blockchain.CARDANO: {
         const address = this.paymentBalanceService.getDepositAddress(transferInfo.method);
         if (address) return this.createPaymentRequest(address, transferInfo, 'DFX Payment');
 

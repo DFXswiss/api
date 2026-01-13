@@ -1,11 +1,12 @@
 import BigNumber from 'bignumber.js';
 import { TransformFnParams } from 'class-transformer';
 import * as crypto from 'crypto';
-import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike, randomBytes } from 'crypto';
+import { BinaryLike, createHash, createHmac, createSign, createVerify, KeyLike, randomBytes, randomInt } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 import { isEqual } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
+import { FindOperator, Like } from 'typeorm';
 import { IEntity, UpdateResult } from '../models/entity';
 
 export type KeyType<T, U> = {
@@ -66,7 +67,7 @@ export class Util {
   }
 
   static roundByPrecision(amount: number, precision: number): number {
-    return new BigNumber(amount).precision(precision).toNumber();
+    return new BigNumber(amount).precision(precision, BigNumber.ROUND_HALF_UP).toNumber();
   }
 
   static floorByPrecision(amount: number, precision: number): number {
@@ -136,15 +137,18 @@ export class Util {
   }
 
   static aggregate<T>(list: T[], key: KeyType<T, string>, value: KeyType<T, number>): { [field: string]: number } {
-    return list.reduce((prev, curr) => {
-      const keyValue = curr[key] as unknown as string;
-      if (prev[keyValue]) {
-        prev[keyValue] += curr[value] as unknown as number;
-      } else {
-        prev[keyValue] = curr[value] as unknown as number;
-      }
-      return prev;
-    }, {} as { [key: string]: number });
+    return list.reduce(
+      (prev, curr) => {
+        const keyValue = curr[key] as unknown as string;
+        if (prev[keyValue]) {
+          prev[keyValue] += curr[value] as unknown as number;
+        } else {
+          prev[keyValue] = curr[value] as unknown as number;
+        }
+        return prev;
+      },
+      {} as { [key: string]: number },
+    );
   }
 
   static groupBy<T, U>(list: T[], key: KeyType<T, U>): Map<U, T[]> {
@@ -202,7 +206,7 @@ export class Util {
       .replace(/[ßșšś]/g, 's')
       .replace(/ss/g, 's')
       .replace(/[žż]/g, 'z')
-      .replace(/[\.,’]/g, '')
+      .replace(/[.,']/g, '')
       .replace(/[-‘`´'+&]/g, ' ');
   }
 
@@ -225,6 +229,10 @@ export class Util {
 
   static trim({ value }: TransformFnParams): string | undefined {
     return value?.trim();
+  }
+
+  static toLowerCaseTrim({ value }: TransformFnParams): string | undefined {
+    return value?.trim().toLowerCase();
   }
 
   static equalsIgnoreCase(left: string, right: string): boolean {
@@ -256,6 +264,11 @@ export class Util {
     return randomBytes(4).readUInt32BE();
   }
 
+  static randomIdString(digits: number): string {
+    const num = randomInt(0, 10 ** digits);
+    return num.toString().padStart(digits, '0');
+  }
+
   static randomString(length = 16): string {
     return randomBytes(length / 2)
       .toString('hex')
@@ -266,9 +279,13 @@ export class Util {
     return Util.toBase32(randomBytes(32));
   }
 
-  static createUniqueId(prefix: string, length = 6): string {
+  static createUniqueId(prefix: string, length = 16): string {
     const hash = this.randomString(length).toLowerCase();
     return `${prefix}_${hash}`;
+  }
+
+  static createUid(prefix: string, length = 16): string {
+    return `${prefix}${Util.randomString(length)}`;
   }
 
   // --- DATES --- //
@@ -331,6 +348,16 @@ export class Util {
 
   static daysBefore(days: number, from?: Date): Date {
     return this.daysAfter(-days, from);
+  }
+
+  static startOfMonth(from?: Date): Date {
+    const date = from ?? new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  static startOfYear(from?: Date): Date {
+    const date = from ?? new Date();
+    return new Date(date.getFullYear(), 0, 1);
   }
 
   static sameDay(a: Date, b: Date): boolean {
@@ -457,6 +484,12 @@ export class Util {
     return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
   }
 
+  // --- DB --- //
+
+  static contains(search: string): FindOperator<string> {
+    return Like(`%${search}%`);
+  }
+
   // --- MISC --- //
 
   static async readFileFromDisk(fileName: string): Promise<string> {
@@ -478,21 +511,21 @@ export class Util {
     timeout: number,
     catchErrors?: boolean,
   ): Promise<T | undefined> {
-    return new Promise(async (resolve, reject) => {
-      let abort = false;
+    let abort = false;
 
-      // action/error handling
-      const doAction = async () =>
-        action().catch((e) => {
-          if (catchErrors) return undefined;
+    // action/error handling
+    const doAction = async () =>
+      action().catch((e) => {
+        if (catchErrors) return undefined;
 
-          abort = true;
-          reject(e);
-        });
+        abort = true;
+        throw e;
+      });
 
-      // set timer
-      const timer = setTimeout(() => (abort = true), timeout);
+    // set timer
+    const timer = setTimeout(() => (abort = true), timeout);
 
+    try {
       // poll
       let result = await doAction();
       while (!abort && !verify(result)) {
@@ -500,9 +533,10 @@ export class Util {
         result = await doAction();
       }
 
+      return result;
+    } finally {
       clearTimeout(timer);
-      return resolve(result);
-    });
+    }
   }
 
   static async doInBatches<T, U>(list: T[], action: (batch: T[]) => Promise<U>, batchSize: number): Promise<U[]> {

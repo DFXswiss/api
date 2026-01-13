@@ -70,6 +70,12 @@ export class Wallet extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   mailConfig?: string; // semicolon separated disabled MailContextTypes
 
+  @Column({ default: false })
+  autoTradeApproval: boolean;
+
+  @Column({ default: false })
+  buySpecificIbanEnabled: boolean;
+
   //*** ENTITY METHODS ***//
 
   get webhookConfigObject(): WebhookConfig | undefined {

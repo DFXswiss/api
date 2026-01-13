@@ -14,7 +14,6 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -34,6 +33,7 @@ import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statist
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -66,8 +66,6 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoService {
-  private readonly logger = new DfxLogger(BuyCryptoService);
-
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -114,18 +112,29 @@ export class BuyCryptoService {
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(bankTx.senderAccount, buy.userData.id);
+      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
+        bankTx.senderAccount,
+        buy.userData.id,
+        BankDataType.BANK_IN,
+      );
 
-      if (!bankData) {
+      if (!bankData || bankData.type !== BankDataType.BANK_IN) {
         const multiAccounts = await this.specialExternalAccountService.getMultiAccounts();
         const bankDataName = bankTx.bankDataName(multiAccounts);
-        if (bankDataName)
-          await this.bankDataService.createVerifyBankData(buy.userData, {
-            name: bankDataName,
+        if (bankDataName) {
+          const createDto: CreateBankDataDto = {
+            type: BankDataType.BANK_IN,
             iban: bankTx.senderAccount,
             bic: bankTx.bic,
-            type: BankDataType.BANK_IN,
-          });
+            name: bankDataName,
+          };
+
+          if (bankData) {
+            await this.bankDataService.replaceBankDataWithNewType(bankData, createDto);
+          } else {
+            await this.bankDataService.createVerifyBankData(buy.userData, createDto);
+          }
+        }
       }
     }
 
@@ -157,14 +166,22 @@ export class BuyCryptoService {
       const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
         checkoutTx.cardFingerPrint,
         buy.userData.id,
+        BankDataType.CARD_IN,
       );
 
-      if (!bankData)
-        await this.bankDataService.createVerifyBankData(buy.userData, {
-          name: checkoutTx.cardName ?? buy.userData.completeName ?? buy.userData.verifiedName,
-          iban: checkoutTx.cardFingerPrint,
+      if (!bankData || bankData.type !== BankDataType.CARD_IN) {
+        const createDto: CreateBankDataDto = {
           type: BankDataType.CARD_IN,
-        });
+          iban: checkoutTx.cardFingerPrint,
+          name: checkoutTx.cardName ?? buy.userData.completeName ?? buy.userData.verifiedName,
+        };
+
+        if (bankData) {
+          await this.bankDataService.replaceBankDataWithNewType(bankData, createDto);
+        } else {
+          await this.bankDataService.createVerifyBankData(buy.userData, createDto);
+        }
+      }
     }
 
     // create entity
@@ -258,12 +275,28 @@ export class BuyCryptoService {
       });
 
     if (dto.chargebackAllowedDate) {
-      if (entity.bankTx && !entity.chargebackOutput)
+      if (entity.bankTx && !entity.chargebackOutput) {
+        if (!dto.chargebackCreditorName && !entity.creditorData)
+          throw new BadRequestException('Creditor data is required for chargeback');
+
         update.chargebackOutput = await this.fiatOutputService.createInternal(
           FiatOutputType.BUY_CRYPTO_FAIL,
           { buyCrypto: entity },
           entity.id,
+          false,
+          {
+            iban: dto.chargebackIban ?? entity.chargebackIban,
+            amount: entity.chargebackAmount ?? entity.bankTx.amount,
+            currency: entity.bankTx.currency,
+            name: dto.chargebackCreditorName ?? entity.creditorData?.name,
+            address: dto.chargebackCreditorAddress ?? entity.creditorData?.address,
+            houseNumber: dto.chargebackCreditorHouseNumber ?? entity.creditorData?.houseNumber,
+            zip: dto.chargebackCreditorZip ?? entity.creditorData?.zip,
+            city: dto.chargebackCreditorCity ?? entity.creditorData?.city,
+            country: dto.chargebackCreditorCountry ?? entity.creditorData?.country,
+          },
         );
+      }
 
       if (entity.checkoutTx) {
         await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
@@ -334,9 +367,9 @@ export class BuyCryptoService {
       await this.changeRoute(entity, swap);
     }
 
-    // create sift transaction
+    // create sift transaction (non-blocking)
     if (forceUpdate.amlCheck === CheckStatus.FAIL)
-      await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
+      void this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
 
     // payment webhook
     if (
@@ -373,7 +406,11 @@ export class BuyCryptoService {
 
     // update/reset fields
     const update: Partial<BuyCrypto> = {};
-    route instanceof Buy ? (update.buy = route) : (update.cryptoRoute = route);
+    if (route instanceof Buy) {
+      update.buy = route;
+    } else {
+      update.cryptoRoute = route;
+    }
 
     update.outputAsset = route.asset;
     update.outputReferenceAsset = route.asset;
@@ -489,8 +526,6 @@ export class BuyCryptoService {
   }
 
   async refundBankTx(buyCrypto: BuyCrypto, dto: BankTxRefund): Promise<void> {
-    const timeArray = [Date.now()];
-
     if (!dto.refundIban && !buyCrypto.chargebackIban)
       throw new BadRequestException('You have to define a chargebackIban');
 
@@ -510,13 +545,22 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
-    timeArray.push(Date.now());
+    const creditorData = dto.creditorData ?? buyCrypto.creditorData;
+    if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
+      throw new BadRequestException('Creditor data is required for chargeback');
 
     if (dto.chargebackAllowedDate && chargebackAmount)
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
         { buyCrypto },
         buyCrypto.id,
+        false,
+        {
+          iban: chargebackIban,
+          amount: chargebackAmount,
+          currency: dto.chargebackCurrency ?? buyCrypto.bankTx?.currency,
+          ...creditorData,
+        },
       );
 
     await this.buyCryptoRepo.update(
@@ -528,12 +572,10 @@ export class BuyCryptoService {
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
         buyCrypto.chargebackBankRemittanceInfo,
+        undefined,
+        creditorData,
       ),
     );
-
-    timeArray.push(Date.now());
-
-    this.logger.info(`Refund bankTx time log: ${Util.createTimeString(timeArray)}`);
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {
@@ -560,6 +602,7 @@ export class BuyCryptoService {
       query.leftJoinAndSelect('userData.country', 'country');
       query.leftJoinAndSelect('userData.nationality', 'nationality');
       query.leftJoinAndSelect('userData.organizationCountry', 'organizationCountry');
+      query.leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry');
       query.leftJoinAndSelect('userData.language', 'language');
       query.leftJoinAndSelect('users.wallet', 'wallet');
     }
@@ -821,50 +864,56 @@ export class BuyCryptoService {
   async updateBuyVolume(buyIds: number[]): Promise<void> {
     buyIds = buyIds.filter((u, j) => buyIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
+    const startOfYear = Util.startOfYear();
+    const startOfMonth = Util.startOfMonth();
+
     for (const id of buyIds) {
-      const { volume } = await this.buyCryptoRepo
+      const { volume, annualVolume, monthlyVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'volume')
-        .where('buyId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
-        .getRawOne<{ volume: number }>();
-
-      const newYear = new Date(new Date().getFullYear(), 0, 1);
-      const { annualVolume } = await this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'annualVolume')
+        .select('SUM(buyCrypto.amountInChf)', 'volume')
+        .addSelect(
+          'SUM(CASE WHEN bankTx.bookingDate >= :startOfYear THEN buyCrypto.amountInChf ELSE 0 END)',
+          'annualVolume',
+        )
+        .addSelect(
+          'SUM(CASE WHEN bankTx.bookingDate >= :startOfMonth THEN buyCrypto.amountInChf ELSE 0 END)',
+          'monthlyVolume',
+        )
         .leftJoin('buyCrypto.bankTx', 'bankTx')
-        .where('buyCrypto.buyId = :id', { id: id })
+        .where('buyCrypto.buyId = :id', { id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('bankTx.bookingDate >= :year', { year: newYear })
-        .getRawOne<{ annualVolume: number }>();
+        .setParameters({ startOfYear, startOfMonth })
+        .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
 
-      await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }
   }
 
   async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
     cryptoRouteIds = cryptoRouteIds.filter((u, j) => cryptoRouteIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
+    const startOfYear = Util.startOfYear();
+    const startOfMonth = Util.startOfMonth();
+
     for (const id of cryptoRouteIds) {
-      const { volume } = await this.buyCryptoRepo
+      const { volume, annualVolume, monthlyVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'volume')
-        .where('cryptoRouteId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
-        .getRawOne<{ volume: number }>();
-
-      const newYear = new Date(new Date().getFullYear(), 0, 1);
-      const { annualVolume } = await this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'annualVolume')
+        .select('SUM(buyCrypto.amountInChf)', 'volume')
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfYear THEN buyCrypto.amountInChf ELSE 0 END)',
+          'annualVolume',
+        )
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfMonth THEN buyCrypto.amountInChf ELSE 0 END)',
+          'monthlyVolume',
+        )
         .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
-        .where('buyCrypto.cryptoRouteId = :id', { id: id })
+        .where('buyCrypto.cryptoRouteId = :id', { id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('cryptoInput.created >= :year', { year: newYear })
-        .getRawOne<{ annualVolume: number }>();
+        .setParameters({ startOfYear, startOfMonth })
+        .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
 
-      await this.swapService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      await this.swapService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }
   }
 
