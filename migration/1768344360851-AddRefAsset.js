@@ -7,8 +7,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddRefAsset1768343752571 {
-    name = 'AddRefAsset1768343752571'
+module.exports = class AddRefAsset1768344360851 {
+    name = 'AddRefAsset1768344360851'
 
     /**
      * @param {QueryRunner} queryRunner

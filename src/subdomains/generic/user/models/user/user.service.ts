@@ -293,6 +293,7 @@ export class UserService {
     if (user.addressType !== UserAddressType.EVM)
       throw new BadRequestException('Ref asset can only be set for EVM addresses');
     if (!refAsset) throw new BadRequestException('Ref Asset not found');
+    if (refAsset.refEnabled === false) throw new BadRequestException('Ref asset is not enabled');
 
     user.refAsset = refAsset;
     const savedUser = await this.userRepo.save(user);
