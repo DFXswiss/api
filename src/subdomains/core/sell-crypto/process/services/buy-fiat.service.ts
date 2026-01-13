@@ -144,6 +144,8 @@ export class BuyFiatService {
 
     const sellIdBefore = entity.sell?.id;
     const usedRefBefore = entity.usedRef;
+    const chargebackAllowedDateBefore = entity.chargebackAllowedDate;
+    const cryptoInputBefore = entity.cryptoInput;
 
     const update = this.buyFiatRepo.create(dto);
 
@@ -212,7 +214,32 @@ export class BuyFiatService {
     if (dto.amountInChf) await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
     if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
+    // Trigger return flow when chargebackAllowedDate is newly set via admin update
+    if (dto.chargebackAllowedDate && !chargebackAllowedDateBefore) {
+      await this.triggerCryptoInputReturn(entity, cryptoInputBefore);
+    }
+
     return entity;
+  }
+
+  private async triggerCryptoInputReturn(buyFiat: BuyFiat, cryptoInput: CryptoInput): Promise<void> {
+    const { chargebackAddress, chargebackAmount } = buyFiat;
+
+    if (!chargebackAddress || !chargebackAmount || !cryptoInput) return;
+
+    if (cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
+      // Funds already forwarded to liquidity - use PayoutOrder to return
+      await this.payoutService.doPayout({
+        context: PayoutOrderContext.BUY_FIAT_RETURN,
+        correlationId: `${buyFiat.id}`,
+        asset: cryptoInput.asset,
+        amount: chargebackAmount,
+        destinationAddress: chargebackAddress,
+      });
+    } else if (cryptoInput.status === PayInStatus.COMPLETED) {
+      // Funds still on deposit address - use PayIn return
+      await this.payInService.returnPayIn(cryptoInput, chargebackAddress, chargebackAmount);
+    }
   }
 
   async getBuyFiatByKey(key: string, value: any, onlyDefaultRelation = false): Promise<BuyFiat> {
