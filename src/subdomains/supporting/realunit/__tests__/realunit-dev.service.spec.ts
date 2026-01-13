@@ -6,6 +6,8 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxService } from '../../bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from '../../bank/bank/bank.service';
 import { TransactionRequestStatus, TransactionRequestType } from '../../payment/entities/transaction-request.entity';
@@ -99,6 +101,8 @@ describe('RealUnitDevService', () => {
   let specialAccountService: jest.Mocked<SpecialExternalAccountService>;
   let transactionService: jest.Mocked<TransactionService>;
   let buyCryptoRepo: jest.Mocked<BuyCryptoRepository>;
+  let sellService: jest.Mocked<SellService>;
+  let buyFiatRepo: jest.Mocked<BuyFiatRepository>;
 
   const mainnetRealuAsset = createCustomAsset({
     id: 399,
@@ -183,6 +187,12 @@ describe('RealUnitDevService', () => {
           },
         },
         {
+          provide: SellService,
+          useValue: {
+            getSellByKey: jest.fn(),
+          },
+        },
+        {
           provide: BankTxService,
           useValue: {
             create: jest.fn(),
@@ -214,6 +224,14 @@ describe('RealUnitDevService', () => {
             save: jest.fn(),
           },
         },
+        {
+          provide: BuyFiatRepository,
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -227,6 +245,8 @@ describe('RealUnitDevService', () => {
     specialAccountService = module.get(SpecialExternalAccountService);
     transactionService = module.get(TransactionService);
     buyCryptoRepo = module.get(BuyCryptoRepository);
+    sellService = module.get(SellService);
+    buyFiatRepo = module.get(BuyFiatRepository);
   });
 
   afterEach(() => {
