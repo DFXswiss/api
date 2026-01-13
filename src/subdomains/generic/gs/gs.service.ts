@@ -285,13 +285,15 @@ export class GsService {
     kql += `\n| take ${template.defaultLimit}`;
 
     // Log for audit
-    this.logger.verbose(`Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`);
+    this.logger.verbose(
+      `Log query by ${userIdentifier}: template=${dto.template}, app=${dto.app ?? 'dfxApi'}, params=${JSON.stringify(dto)}`,
+    );
 
     // Execute
     const timespan = `PT${dto.hours ?? 1}H`;
 
     try {
-      const response = await this.appInsightsQueryService.query(kql, timespan);
+      const response = await this.appInsightsQueryService.query(kql, timespan, dto.app);
 
       if (!response.tables?.length) {
         return { columns: [], rows: [] };

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
+import { ContainerApp } from 'src/subdomains/generic/gs/dto/log-query.dto';
 
 interface AppInsightsQueryResponse {
   tables: {
@@ -16,11 +17,14 @@ export class AppInsightsQueryService {
 
   constructor(private readonly http: HttpService) {}
 
-  async query(kql: string, timespan?: string): Promise<AppInsightsQueryResponse> {
-    const { appId, apiKey } = Config.azure.appInsights;
+  async query(kql: string, timespan?: string, app?: ContainerApp): Promise<AppInsightsQueryResponse> {
+    const { apiKey, apps } = Config.azure.appInsights;
+
+    // Use specified app or default to dfxApi
+    const appId = app ? apps[app] : apps.dfxApi ?? Config.azure.appInsights.appId;
 
     if (!appId || !apiKey) {
-      throw new Error('App insights config missing');
+      throw new Error(app ? `App insights config missing for ${app}` : 'App insights config missing');
     }
 
     const body: { query: string; timespan?: string } = { query: kql };

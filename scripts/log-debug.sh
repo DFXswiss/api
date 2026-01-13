@@ -13,6 +13,16 @@
 #
 # Options:
 #   -h, --hours <n>    Time range in hours (default: 1, max: 168)
+#   -a, --app <name>   Container app to query (default: dfxApi)
+#
+# Available apps:
+#   dfxApi            DFX API (default)
+#   juicedollarApi    JuiceDollar API
+#   deuroApi          dEuro API
+#   deuroMonitoring   dEuro Monitoring
+#   juiceswapPonder   JuiceSwap Ponder
+#   deuroPonder       dEuro Ponder
+#   realunitPonder    RealUnit Ponder
 #
 # Environment:
 #   Copy .env.db-debug.sample to .env.db-debug and fill in your credentials
@@ -41,6 +51,7 @@ API_URL="${DEBUG_API_URL:-https://api.dfx.swiss/v1}"
 
 # Parse arguments
 HOURS=1
+APP=""
 COMMAND="${1:-exceptions}"
 shift 2>/dev/null || true
 
@@ -49,6 +60,10 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     -h|--hours)
       HOURS="$2"
+      shift 2
+      ;;
+    -a|--app)
+      APP="$2"
       shift 2
       ;;
     *)
@@ -76,23 +91,26 @@ ROLE=$(echo "$TOKEN" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq -r '.role' 2>/
 echo "Authenticated with role: $ROLE"
 echo ""
 
+# Build app suffix for display
+APP_DISPLAY="${APP:-dfxApi}"
+
 # Build request based on command
 case $COMMAND in
   exceptions|exc)
     TEMPLATE="exceptions-recent"
     BODY="{\"template\":\"$TEMPLATE\",\"hours\":$HOURS}"
-    echo "=== Recent Exceptions (last ${HOURS}h) ==="
+    echo "=== Recent Exceptions [$APP_DISPLAY] (last ${HOURS}h) ==="
     ;;
   failures|fail)
     TEMPLATE="request-failures"
     BODY="{\"template\":\"$TEMPLATE\",\"hours\":$HOURS}"
-    echo "=== Failed Requests (last ${HOURS}h) ==="
+    echo "=== Failed Requests [$APP_DISPLAY] (last ${HOURS}h) ==="
     ;;
   slow)
     TEMPLATE="dependencies-slow"
     DURATION="${PARAM:-1000}"
     BODY="{\"template\":\"$TEMPLATE\",\"hours\":$HOURS,\"durationMs\":$DURATION}"
-    echo "=== Slow Dependencies >${DURATION}ms (last ${HOURS}h) ==="
+    echo "=== Slow Dependencies >${DURATION}ms [$APP_DISPLAY] (last ${HOURS}h) ==="
     ;;
   traces|trace)
     if [ -z "$PARAM" ]; then
@@ -102,7 +120,7 @@ case $COMMAND in
     fi
     TEMPLATE="traces-by-message"
     BODY="{\"template\":\"$TEMPLATE\",\"hours\":$HOURS,\"messageFilter\":\"$PARAM\"}"
-    echo "=== Traces containing '$PARAM' (last ${HOURS}h) ==="
+    echo "=== Traces containing '$PARAM' [$APP_DISPLAY] (last ${HOURS}h) ==="
     ;;
   operation|op)
     if [ -z "$PARAM" ]; then
@@ -112,7 +130,7 @@ case $COMMAND in
     fi
     TEMPLATE="traces-by-operation"
     BODY="{\"template\":\"$TEMPLATE\",\"hours\":$HOURS,\"operationId\":\"$PARAM\"}"
-    echo "=== Traces for operation $PARAM (last ${HOURS}h) ==="
+    echo "=== Traces for operation $PARAM [$APP_DISPLAY] (last ${HOURS}h) ==="
     ;;
   events|event)
     if [ -z "$PARAM" ]; then
@@ -122,7 +140,7 @@ case $COMMAND in
     fi
     TEMPLATE="custom-events"
     BODY="{\"template\":\"$TEMPLATE\",\"hours\":$HOURS,\"eventName\":\"$PARAM\"}"
-    echo "=== Custom Events '$PARAM' (last ${HOURS}h) ==="
+    echo "=== Custom Events '$PARAM' [$APP_DISPLAY] (last ${HOURS}h) ==="
     ;;
   *)
     echo "Unknown command: $COMMAND"
@@ -134,9 +152,24 @@ case $COMMAND in
     echo "  traces <msg>  Search trace messages"
     echo "  operation <id> Traces by operation GUID"
     echo "  events <name> Custom events by name"
+    echo ""
+    echo "Available apps (-a, --app):"
+    echo "  dfxApi            DFX API (default)"
+    echo "  juicedollarApi    JuiceDollar API"
+    echo "  deuroApi          dEuro API"
+    echo "  deuroMonitoring   dEuro Monitoring"
+    echo "  juiceswapPonder   JuiceSwap Ponder"
+    echo "  deuroPonder       dEuro Ponder"
+    echo "  realunitPonder    RealUnit Ponder"
     exit 1
     ;;
 esac
+
+# Add app parameter to body if specified
+if [ -n "$APP" ]; then
+  # Remove trailing } and add app parameter
+  BODY="${BODY%\}},\"app\":\"$APP\"}"
+fi
 
 echo ""
 
