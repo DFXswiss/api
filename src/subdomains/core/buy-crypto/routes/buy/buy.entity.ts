@@ -22,6 +22,9 @@ export class Buy extends IEntity {
   @Column({ type: 'float', default: 0 })
   annualVolume: number; // CHF
 
+  @Column({ type: 'float', default: 0 })
+  monthlyVolume: number; // CHF
+
   @Column({ default: true })
   active: boolean;
 
