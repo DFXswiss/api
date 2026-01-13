@@ -129,7 +129,7 @@ describe('TransactionHelper', () => {
     });
 
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
-    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createChargebackFeeInfo());
     jest
       .spyOn(pricingService, 'getPrice')
       .mockResolvedValue(createCustomPrice({ source: 'CHF', target: 'CHF', price: 1 }));
