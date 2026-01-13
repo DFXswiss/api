@@ -9,6 +9,7 @@ import {
 } from '@deuro/eurocoin';
 import { Contract, ethers } from 'ethers';
 import { gql, request } from 'graphql-request';
+import { EvmUtil } from '../shared/evm/evm.util';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { EvmClient } from '../shared/evm/evm-client';
@@ -209,7 +210,7 @@ export class DEuroClient {
     if (!asset.decimals) throw new Error(`Asset ${asset.name} has no decimals`);
     if (!asset.chainId) throw new Error(`Asset ${asset.name} has no chainId`);
 
-    const weiAmount = ethers.utils.parseUnits(amount.toString(), asset.decimals);
+    const weiAmount = EvmUtil.toWeiAmount(amount, asset.decimals);
 
     const remainingCapacity = await this.getBridgeRemainingCapacity(asset.name);
     if (remainingCapacity.lt(weiAmount)) {
