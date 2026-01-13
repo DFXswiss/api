@@ -330,6 +330,7 @@ export class LogJobService {
     const chfReceiverExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
+        k.status !== 'pending' &&
         k.method === 'Bank Frick (SIC) International' &&
         k.address === yapealChfBank.bic.padEnd(11, 'XXX'),
     );
@@ -341,6 +342,7 @@ export class LogJobService {
     const eurReceiverExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
+        k.status !== 'pending' &&
         k.method === 'Bank Frick (SEPA) International' &&
         k.address === yapealEurBank.bic.padEnd(11, 'XXX'),
     );
