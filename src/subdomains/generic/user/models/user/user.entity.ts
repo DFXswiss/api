@@ -2,6 +2,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
@@ -140,6 +141,9 @@ export class User extends IEntity {
 
   @OneToMany(() => StakingRefReward, (reward) => reward.user)
   stakingRefRewards: StakingRefReward[];
+
+  @ManyToOne(() => Asset, { nullable: true, eager: true })
+  refAsset: Asset;
 
   @OneToMany(() => Transaction, (transaction) => transaction.user)
   transactions: Transaction[];

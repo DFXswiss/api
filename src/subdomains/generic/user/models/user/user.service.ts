@@ -14,6 +14,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Active } from 'src/shared/models/active';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { LanguageService } from 'src/shared/models/language/language.service';
@@ -47,7 +48,7 @@ import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
-import { UserStatus } from './user.enum';
+import { UserAddressType, UserStatus } from './user.enum';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -65,6 +66,7 @@ export class UserService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly siftService: SiftService,
+    private readonly assetService: AssetService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -279,6 +281,23 @@ export class UserService {
     if (!userData) throw new NotFoundException('User not found');
 
     return this.userDataService.updateUserMail(userData, dto, ip);
+  }
+
+  async updateRefAsset(userId: number, refAssetId: number): Promise<UserDetailDto> {
+    const [user, refAsset] = await Promise.all([
+      this.userRepo.findOne({ where: { id: userId } }),
+      this.assetService.getAssetById(refAssetId),
+    ]);
+
+    if (!user) throw new NotFoundException('User not found');
+    if (user.addressType !== UserAddressType.EVM)
+      throw new BadRequestException('Ref asset can only be set for EVM addresses');
+    if (!refAsset) throw new BadRequestException('Ref Asset not found');
+
+    user.refAsset = refAsset;
+    const savedUser = await this.userRepo.save(user);
+
+    return this.toDto(savedUser, true);
   }
 
   async verifyMail(userDataId: number, token: string, userId: number): Promise<UserV2Dto> {
@@ -643,6 +662,7 @@ export class UserService {
       refCredit: user.refCredit,
       paidRefCredit: user.paidRefCredit,
       ...(await this.getRefUserCounts(user)),
+      refAsset: user.refAsset,
     };
   }
 

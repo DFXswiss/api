@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
@@ -102,6 +103,9 @@ export class UserDetailDto extends UserDto implements UserDetails {
 
   @ApiPropertyOptional()
   refCountActive?: number;
+
+  @ApiPropertyOptional()
+  refAsset?: Asset;
 
   @ApiProperty({ type: VolumeInformation, description: 'Buy volume in CHF' })
   buyVolume: VolumeInformation;

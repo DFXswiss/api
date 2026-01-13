@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
@@ -39,6 +40,11 @@ export class ReferralDto {
 
   @ApiProperty({ description: 'Number of active users referred' })
   activeUserCount: number;
+}
+
+export class UpdateRefDto {
+  @ApiProperty({ description: 'Referral asset' })
+  refAsset: Asset;
 }
 
 export class UserAddressDto {

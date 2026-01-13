@@ -136,16 +136,16 @@ export class RefRewardService {
       });
       if (pendingBlockchainRewards) continue;
 
-      const payoutAsset =
-        blockchain === Blockchain.ETHEREUM
-          ? await this.assetService.getAssetByQuery({
-              blockchain,
-              name: 'dEURO',
-              type: AssetType.TOKEN,
-            })
-          : await this.assetService.getNativeAsset(blockchain);
-
       for (const user of users) {
+        const payoutAsset =
+          blockchain === Blockchain.ETHEREUM
+            ? (user.refAsset ??
+              (await this.assetService.getAssetByQuery({
+                blockchain,
+                name: 'dEURO',
+                type: AssetType.TOKEN,
+              })))
+            : await this.assetService.getNativeAsset(blockchain);
         const refCreditEur = user.refCredit - user.paidRefCredit;
         const minCredit = PayoutLimits[blockchain];
 
