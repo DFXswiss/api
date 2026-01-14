@@ -4,35 +4,34 @@
 
 This document outlines the technical implementation plan for integrating the Internet Computer Protocol (ICP) blockchain into the DFX payment infrastructure, as per the contract with DFINITY Stiftung (signed January 2026).
 
-### Scope of Integration
+### Tokens in Scope
 
-| Token | Blockchain | Priority |
-|-------|------------|----------|
-| ICP | Internet Computer | High |
-| ckBTC | Internet Computer | High |
-| VCHF | Internet Computer | High |
-| VEUR | Internet Computer | High |
-| VCHF | Base | Medium (already EVM) |
-| VEUR | Base | Medium (already EVM) |
-| VCHF | Solana | Medium |
-| VEUR | Solana | Medium |
+| Token | Type | Canister ID | Status |
+|-------|------|-------------|--------|
+| ICP | Native Coin | `ryjl3-tyaaa-aaaaa-aaaba-cai` | Ready |
+| ckBTC | Chain-Key Token | `mxzaz-hqaaa-aaaar-qaada-cai` | Ready |
+| ckUSDC | Chain-Key Token | `xevnm-gaaaa-aaaar-qafnq-cai` | Ready |
+| ckUSDT | Chain-Key Token | `cngnf-vqaaa-aaaar-qag4q-cai` | Ready |
+| VCHF | ICRC-1 Token | TBD | Pending VNX deployment |
+| VEUR | ICRC-1 Token | TBD | Pending VNX deployment |
 
 ---
 
 ## 1. Architecture Overview
 
-### 1.1 Key Differences: ICP vs EVM Chains
+### 1.1 ICP Technical Characteristics
 
-| Aspect | Ethereum/EVM (Current) | ICP (New) |
-|--------|------------------------|-----------|
-| RPC Provider | Alchemy, Tatum | **Not needed** - built into protocol |
-| API Endpoint | Provider-specific | Public: `icp-api.io`, `icp0.io` |
-| Protocol | JSON-RPC | **Candid** (IDL) |
-| Addresses | Hex (0x...) | **Principal ID** + **Account Identifier** |
-| Token Standard | ERC-20 | **ICRC-1 / ICRC-2** |
-| Deposit Detection | Webhooks (Alchemy) | **Polling** (Index Canister) |
-| Transaction Finality | ~12 confirmations | **~2 seconds** |
-| Gas Model | ETH for gas | **Cycles** (prepaid by canister) |
+| Aspect | ICP Implementation |
+|--------|-------------------|
+| RPC Provider | **Not needed** - public API boundary nodes |
+| API Endpoint | `https://icp-api.io` or `https://icp0.io` |
+| Protocol | **Candid** (Interface Description Language) |
+| Address Format | **Principal ID** + optional **Subaccount** (32 bytes) |
+| Legacy Address | **Account Identifier** (64-char hex, for ICP native) |
+| Token Standard | **ICRC-1 / ICRC-2** |
+| Deposit Detection | **Polling** via Index Canister |
+| Transaction Finality | **~2 seconds** |
+| Gas Model | **Cycles** (prepaid by canister, not by user) |
 
 ### 1.2 ICP Network Architecture
 
