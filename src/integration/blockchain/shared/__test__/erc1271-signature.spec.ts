@@ -8,7 +8,8 @@ const ERC1271_INVALID_VALUE = '0xffffffff';
 describe('ERC-1271 Signature Verification', () => {
   describe('hashMessage', () => {
     it('should hash message correctly for ERC-1271', () => {
-      const message = 'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_0x623777Cc098C6058a46cF7530f45150ff6a8459D';
+      const message =
+        'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_0x623777Cc098C6058a46cF7530f45150ff6a8459D';
       const hash = hashMessage(message);
 
       // Hash should be a 32-byte hex string
