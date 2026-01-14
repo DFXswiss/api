@@ -2,39 +2,32 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Verifier } from 'bip322-js';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
-import { Contract, ethers } from 'ethers';
-import { hashMessage, verifyMessage } from 'ethers/lib/utils';
-import { Config, GetConfig } from 'src/config/config';
-import ERC1271_ABI from 'src/integration/blockchain/shared/evm/abi/erc1271.abi.json';
+import { verifyMessage } from 'ethers/lib/utils';
+import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/node/bitcoin.service';
+import { CardanoService } from '../../cardano/services/cardano.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
-import { CardanoService } from '../../cardano/services/cardano.service';
 import { ZanoService } from '../../zano/services/zano.service';
 import { Blockchain } from '../enums/blockchain.enum';
+import { EvmClient } from '../evm/evm-client';
 import { EvmUtil } from '../evm/evm.util';
 import { SignatureException } from '../exceptions/signature.exception';
 import { EvmBlockchains, TestBlockchains } from '../util/blockchain.util';
+import { BlockchainRegistryService } from './blockchain-registry.service';
 
 @Injectable()
 export class CryptoService {
-  private readonly logger = new DfxLogger(CryptoService);
-
   private static readonly defaultEthereumChain = Blockchain.ETHEREUM;
-  private static readonly ERC1271_MAGIC_VALUE = '0x1626ba7e';
-
-  // ERC-1271 providers for each EVM chain
-  private readonly evmProviders: Map<Blockchain, ethers.providers.StaticJsonRpcProvider> = new Map();
 
   constructor(
     private readonly bitcoinService: BitcoinService,
@@ -47,81 +40,16 @@ export class CryptoService {
     private readonly cardanoService: CardanoService,
     private readonly arweaveService: ArweaveService,
     private readonly railgunService: RailgunService,
-  ) {
-    this.initializeEvmProviders();
-  }
+    private readonly blockchainRegistry: BlockchainRegistryService,
+  ) {}
 
-  private initializeEvmProviders(): void {
-    const config = GetConfig().blockchain;
-
-    const chainConfigs: { blockchain: Blockchain; gatewayUrl: string; apiKey?: string; chainId: number }[] = [
-      {
-        blockchain: Blockchain.ETHEREUM,
-        gatewayUrl: config.ethereum.ethGatewayUrl,
-        apiKey: config.ethereum.ethApiKey,
-        chainId: config.ethereum.ethChainId,
-      },
-      {
-        blockchain: Blockchain.SEPOLIA,
-        gatewayUrl: config.sepolia.sepoliaGatewayUrl,
-        apiKey: config.sepolia.sepoliaApiKey,
-        chainId: config.sepolia.sepoliaChainId,
-      },
-      {
-        blockchain: Blockchain.ARBITRUM,
-        gatewayUrl: config.arbitrum.arbitrumGatewayUrl,
-        apiKey: config.arbitrum.arbitrumApiKey,
-        chainId: config.arbitrum.arbitrumChainId,
-      },
-      {
-        blockchain: Blockchain.OPTIMISM,
-        gatewayUrl: config.optimism.optimismGatewayUrl,
-        apiKey: config.optimism.optimismApiKey,
-        chainId: config.optimism.optimismChainId,
-      },
-      {
-        blockchain: Blockchain.POLYGON,
-        gatewayUrl: config.polygon.polygonGatewayUrl,
-        apiKey: config.polygon.polygonApiKey,
-        chainId: config.polygon.polygonChainId,
-      },
-      {
-        blockchain: Blockchain.BASE,
-        gatewayUrl: config.base.baseGatewayUrl,
-        apiKey: config.base.baseApiKey,
-        chainId: config.base.baseChainId,
-      },
-      {
-        blockchain: Blockchain.GNOSIS,
-        gatewayUrl: config.gnosis.gnosisGatewayUrl,
-        apiKey: config.gnosis.gnosisApiKey,
-        chainId: config.gnosis.gnosisChainId,
-      },
-      {
-        blockchain: Blockchain.BINANCE_SMART_CHAIN,
-        gatewayUrl: config.bsc.bscGatewayUrl,
-        apiKey: config.bsc.bscApiKey,
-        chainId: config.bsc.bscChainId,
-      },
-      {
-        blockchain: Blockchain.CITREA_TESTNET,
-        gatewayUrl: config.citreaTestnet.citreaTestnetGatewayUrl,
-        apiKey: config.citreaTestnet.citreaTestnetApiKey,
-        chainId: config.citreaTestnet.citreaTestnetChainId,
-      },
-    ];
-
-    for (const { blockchain, gatewayUrl, apiKey, chainId } of chainConfigs) {
-      if (gatewayUrl) {
-        const url = apiKey ? `${gatewayUrl}/${apiKey}` : gatewayUrl;
-        this.evmProviders.set(blockchain, new ethers.providers.StaticJsonRpcProvider(url, chainId));
-      }
-    }
-  }
-
-  private getEvmProvider(blockchain?: Blockchain): ethers.providers.StaticJsonRpcProvider | undefined {
+  private getEvmClient(blockchain?: Blockchain): EvmClient | undefined {
     const chain = blockchain ?? CryptoService.defaultEthereumChain;
-    return this.evmProviders.get(chain);
+    try {
+      return this.blockchainRegistry.getEvmClient(chain);
+    } catch {
+      return undefined;
+    }
   }
 
   // --- PAYMENT REQUEST --- //
@@ -355,50 +283,25 @@ export class CryptoService {
     // there are signatures out there, which do not have '0x' in the beginning, but for verification this is needed
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
 
-    const provider = this.getEvmProvider(blockchain);
-    if (!provider) {
-      this.logger.warn(`No EVM provider for blockchain ${blockchain}, falling back to EOA verification`);
-      return verifyMessage(message, signatureToUse).toLowerCase() === address.toLowerCase();
-    }
+    if (this.verifyEoaSignature(message, address, signatureToUse)) return true;
 
-    // Check if address is a smart contract (ERC-1271)
-    // On RPC failure, fall back to EOA verification to avoid blocking all EVM auth
+    // Fallback to ERC-1271 for smart contract wallets
     try {
-      const code = await provider.getCode(address);
-      if (code !== '0x') {
-        return await this.verifyErc1271Signature(message, address, signatureToUse, provider, blockchain);
+      const client = this.getEvmClient(blockchain);
+      if (client && (await client.isContract(address))) {
+        return await client.verifyErc1271Signature(message, address, signatureToUse);
       }
-    } catch (e) {
-      this.logger.warn(`Failed to check contract code for ${address}, falling back to EOA verification: ${e.message}`);
+    } catch {
+      // ignore
     }
 
-    // Standard EOA verification
-    return verifyMessage(message, signatureToUse).toLowerCase() === address.toLowerCase();
+    return false;
   }
 
-  private async verifyErc1271Signature(
-    message: string,
-    address: string,
-    signature: string,
-    provider: ethers.providers.StaticJsonRpcProvider,
-    blockchain?: Blockchain,
-  ): Promise<boolean> {
+  private verifyEoaSignature(message: string, address: string, signature: string): boolean {
     try {
-      const hash = hashMessage(message);
-      const contract = new Contract(address, ERC1271_ABI, provider);
-      const result = await contract.isValidSignature(hash, signature);
-      const isValid = result === CryptoService.ERC1271_MAGIC_VALUE;
-
-      const chainInfo = blockchain ? ` on ${blockchain}` : '';
-      if (isValid) {
-        this.logger.verbose(`ERC-1271 signature verified for contract wallet ${address}${chainInfo}`);
-      } else {
-        this.logger.verbose(`ERC-1271 signature invalid for ${address}${chainInfo}: returned ${result}`);
-      }
-
-      return isValid;
-    } catch (e) {
-      this.logger.verbose(`ERC-1271 verification failed for ${address}: ${e.message}`);
+      return verifyMessage(message, signature).toLowerCase() === address.toLowerCase();
+    } catch {
       return false;
     }
   }
