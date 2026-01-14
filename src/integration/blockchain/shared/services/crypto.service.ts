@@ -33,9 +33,8 @@ export class CryptoService {
   private static readonly defaultEthereumChain = Blockchain.ETHEREUM;
   private static readonly ERC1271_MAGIC_VALUE = '0x1626ba7e';
 
-  // ERC-1271 provider - uses Ethereum Mainnet only.
-  // Smart contract wallets on other chains (Polygon, Arbitrum, etc.) are not yet supported.
-  private readonly evmProvider: ethers.providers.StaticJsonRpcProvider;
+  // ERC-1271 providers for each EVM chain
+  private readonly evmProviders: Map<Blockchain, ethers.providers.StaticJsonRpcProvider> = new Map();
 
   constructor(
     private readonly bitcoinService: BitcoinService,
@@ -49,9 +48,80 @@ export class CryptoService {
     private readonly arweaveService: ArweaveService,
     private readonly railgunService: RailgunService,
   ) {
-    const { ethGatewayUrl, ethApiKey, ethChainId } = GetConfig().blockchain.ethereum;
-    const url = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
-    this.evmProvider = new ethers.providers.StaticJsonRpcProvider(url, ethChainId);
+    this.initializeEvmProviders();
+  }
+
+  private initializeEvmProviders(): void {
+    const config = GetConfig().blockchain;
+
+    const chainConfigs: { blockchain: Blockchain; gatewayUrl: string; apiKey?: string; chainId: number }[] = [
+      {
+        blockchain: Blockchain.ETHEREUM,
+        gatewayUrl: config.ethereum.ethGatewayUrl,
+        apiKey: config.ethereum.ethApiKey,
+        chainId: config.ethereum.ethChainId,
+      },
+      {
+        blockchain: Blockchain.SEPOLIA,
+        gatewayUrl: config.sepolia.sepoliaGatewayUrl,
+        apiKey: config.sepolia.sepoliaApiKey,
+        chainId: config.sepolia.sepoliaChainId,
+      },
+      {
+        blockchain: Blockchain.ARBITRUM,
+        gatewayUrl: config.arbitrum.arbitrumGatewayUrl,
+        apiKey: config.arbitrum.arbitrumApiKey,
+        chainId: config.arbitrum.arbitrumChainId,
+      },
+      {
+        blockchain: Blockchain.OPTIMISM,
+        gatewayUrl: config.optimism.optimismGatewayUrl,
+        apiKey: config.optimism.optimismApiKey,
+        chainId: config.optimism.optimismChainId,
+      },
+      {
+        blockchain: Blockchain.POLYGON,
+        gatewayUrl: config.polygon.polygonGatewayUrl,
+        apiKey: config.polygon.polygonApiKey,
+        chainId: config.polygon.polygonChainId,
+      },
+      {
+        blockchain: Blockchain.BASE,
+        gatewayUrl: config.base.baseGatewayUrl,
+        apiKey: config.base.baseApiKey,
+        chainId: config.base.baseChainId,
+      },
+      {
+        blockchain: Blockchain.GNOSIS,
+        gatewayUrl: config.gnosis.gnosisGatewayUrl,
+        apiKey: config.gnosis.gnosisApiKey,
+        chainId: config.gnosis.gnosisChainId,
+      },
+      {
+        blockchain: Blockchain.BINANCE_SMART_CHAIN,
+        gatewayUrl: config.bsc.bscGatewayUrl,
+        apiKey: config.bsc.bscApiKey,
+        chainId: config.bsc.bscChainId,
+      },
+      {
+        blockchain: Blockchain.CITREA_TESTNET,
+        gatewayUrl: config.citreaTestnet.citreaTestnetGatewayUrl,
+        apiKey: config.citreaTestnet.citreaTestnetApiKey,
+        chainId: config.citreaTestnet.citreaTestnetChainId,
+      },
+    ];
+
+    for (const { blockchain, gatewayUrl, apiKey, chainId } of chainConfigs) {
+      if (gatewayUrl) {
+        const url = apiKey ? `${gatewayUrl}/${apiKey}` : gatewayUrl;
+        this.evmProviders.set(blockchain, new ethers.providers.StaticJsonRpcProvider(url, chainId));
+      }
+    }
+  }
+
+  private getEvmProvider(blockchain?: Blockchain): ethers.providers.StaticJsonRpcProvider | undefined {
+    const chain = blockchain ?? CryptoService.defaultEthereumChain;
+    return this.evmProviders.get(chain);
   }
 
   // --- PAYMENT REQUEST --- //
@@ -246,22 +316,29 @@ export class CryptoService {
   }
 
   // --- SIGNATURE VERIFICATION --- //
-  public async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {
-    const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
+  public async verifySignature(
+    message: string,
+    address: string,
+    signature: string,
+    key?: string,
+    blockchain?: Blockchain,
+  ): Promise<boolean> {
+    const detectedBlockchain = CryptoService.getDefaultBlockchainBasedOn(address);
 
     try {
-      if (EvmBlockchains.includes(blockchain)) return await this.verifyEthereumBased(message, address, signature);
-      if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
-      if (blockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
-      if (blockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
-      if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
-      if (blockchain === Blockchain.ZANO) return await this.verifyZano(message, address, signature);
-      if (blockchain === Blockchain.SOLANA) return await this.verifySolana(message, address, signature);
-      if (blockchain === Blockchain.TRON) return await this.verifyTron(message, address, signature);
-      if (blockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
-      if (blockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
-      if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
-      if (blockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
+      if (EvmBlockchains.includes(detectedBlockchain))
+        return await this.verifyEthereumBased(message, address, signature, blockchain);
+      if (detectedBlockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
+      if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
+      if (detectedBlockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
+      if (detectedBlockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
+      if (detectedBlockchain === Blockchain.ZANO) return await this.verifyZano(message, address, signature);
+      if (detectedBlockchain === Blockchain.SOLANA) return await this.verifySolana(message, address, signature);
+      if (detectedBlockchain === Blockchain.TRON) return await this.verifyTron(message, address, signature);
+      if (detectedBlockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
+      if (detectedBlockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
+      if (detectedBlockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
+      if (detectedBlockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
     } catch (e) {
       if (e instanceof SignatureException) throw new BadRequestException(e.message);
     }
@@ -269,16 +346,27 @@ export class CryptoService {
     return false;
   }
 
-  private async verifyEthereumBased(message: string, address: string, signature: string): Promise<boolean> {
+  private async verifyEthereumBased(
+    message: string,
+    address: string,
+    signature: string,
+    blockchain?: Blockchain,
+  ): Promise<boolean> {
     // there are signatures out there, which do not have '0x' in the beginning, but for verification this is needed
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
+
+    const provider = this.getEvmProvider(blockchain);
+    if (!provider) {
+      this.logger.warn(`No EVM provider for blockchain ${blockchain}, falling back to EOA verification`);
+      return verifyMessage(message, signatureToUse).toLowerCase() === address.toLowerCase();
+    }
 
     // Check if address is a smart contract (ERC-1271)
     // On RPC failure, fall back to EOA verification to avoid blocking all EVM auth
     try {
-      const code = await this.evmProvider.getCode(address);
+      const code = await provider.getCode(address);
       if (code !== '0x') {
-        return await this.verifyErc1271Signature(message, address, signatureToUse);
+        return await this.verifyErc1271Signature(message, address, signatureToUse, provider, blockchain);
       }
     } catch (e) {
       this.logger.warn(`Failed to check contract code for ${address}, falling back to EOA verification: ${e.message}`);
@@ -288,17 +376,24 @@ export class CryptoService {
     return verifyMessage(message, signatureToUse).toLowerCase() === address.toLowerCase();
   }
 
-  private async verifyErc1271Signature(message: string, address: string, signature: string): Promise<boolean> {
+  private async verifyErc1271Signature(
+    message: string,
+    address: string,
+    signature: string,
+    provider: ethers.providers.StaticJsonRpcProvider,
+    blockchain?: Blockchain,
+  ): Promise<boolean> {
     try {
       const hash = hashMessage(message);
-      const contract = new Contract(address, ERC1271_ABI, this.evmProvider);
+      const contract = new Contract(address, ERC1271_ABI, provider);
       const result = await contract.isValidSignature(hash, signature);
       const isValid = result === CryptoService.ERC1271_MAGIC_VALUE;
 
+      const chainInfo = blockchain ? ` on ${blockchain}` : '';
       if (isValid) {
-        this.logger.verbose(`ERC-1271 signature verified for contract wallet ${address}`);
+        this.logger.verbose(`ERC-1271 signature verified for contract wallet ${address}${chainInfo}`);
       } else {
-        this.logger.verbose(`ERC-1271 signature invalid for ${address}: returned ${result}`);
+        this.logger.verbose(`ERC-1271 signature invalid for ${address}${chainInfo}: returned ${result}`);
       }
 
       return isValid;

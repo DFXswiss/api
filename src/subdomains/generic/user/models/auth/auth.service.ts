@@ -147,7 +147,10 @@ export class AuthService {
     const primaryUser = userId && (await this.userService.getUser(userId));
 
     const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
-    if (!custodyProvider && !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key))) {
+    if (
+      !custodyProvider &&
+      !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, undefined, dto.blockchain))
+    ) {
       throw new BadRequestException('Invalid signature');
     }
 
@@ -205,7 +208,9 @@ export class AuthService {
 
   private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
     if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
-      if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
+      if (
+        !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature, dto.blockchain))
+      ) {
         throw new UnauthorizedException('Invalid credentials');
       } else if (!user.signature) {
         // TODO: temporary code to update empty signatures (remove?)
@@ -438,6 +443,7 @@ export class AuthService {
     isCustodial: boolean,
     key?: string,
     dbSignature?: string,
+    blockchain?: Blockchain,
   ): Promise<boolean> {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
 
@@ -453,8 +459,9 @@ export class AuthService {
       return dbSignature && signature === dbSignature;
     }
 
-    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
-    if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
+    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key, blockchain);
+    if (!isValid)
+      isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key, blockchain);
 
     return isValid;
   }
