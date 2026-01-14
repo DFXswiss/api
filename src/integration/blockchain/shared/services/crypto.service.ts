@@ -10,6 +10,7 @@ import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/node/bitcoin.service';
@@ -27,9 +28,13 @@ import { EvmBlockchains, TestBlockchains } from '../util/blockchain.util';
 
 @Injectable()
 export class CryptoService {
+  private readonly logger = new DfxLogger(CryptoService);
+
   private static readonly defaultEthereumChain = Blockchain.ETHEREUM;
   private static readonly ERC1271_MAGIC_VALUE = '0x1626ba7e';
 
+  // ERC-1271 provider - uses Ethereum Mainnet only.
+  // Smart contract wallets on other chains (Polygon, Arbitrum, etc.) are not yet supported.
   private readonly evmProvider: ethers.providers.StaticJsonRpcProvider;
 
   constructor(
@@ -283,8 +288,17 @@ export class CryptoService {
       const hash = hashMessage(message);
       const contract = new Contract(address, ERC1271_ABI, this.evmProvider);
       const result = await contract.isValidSignature(hash, signature);
-      return result === CryptoService.ERC1271_MAGIC_VALUE;
-    } catch {
+      const isValid = result === CryptoService.ERC1271_MAGIC_VALUE;
+
+      if (isValid) {
+        this.logger.verbose(`ERC-1271 signature verified for contract wallet ${address}`);
+      } else {
+        this.logger.verbose(`ERC-1271 signature invalid for ${address}: returned ${result}`);
+      }
+
+      return isValid;
+    } catch (e) {
+      this.logger.verbose(`ERC-1271 verification failed for ${address}: ${e.message}`);
       return false;
     }
   }
