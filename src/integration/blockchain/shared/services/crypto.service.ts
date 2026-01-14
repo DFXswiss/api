@@ -19,7 +19,6 @@ import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
 import { ZanoService } from '../../zano/services/zano.service';
 import { Blockchain } from '../enums/blockchain.enum';
-import { EvmClient } from '../evm/evm-client';
 import { EvmUtil } from '../evm/evm.util';
 import { SignatureException } from '../exceptions/signature.exception';
 import { EvmBlockchains, TestBlockchains } from '../util/blockchain.util';
@@ -42,15 +41,6 @@ export class CryptoService {
     private readonly railgunService: RailgunService,
     private readonly blockchainRegistry: BlockchainRegistryService,
   ) {}
-
-  private getEvmClient(blockchain?: Blockchain): EvmClient | undefined {
-    const chain = blockchain ?? CryptoService.defaultEthereumChain;
-    try {
-      return this.blockchainRegistry.getEvmClient(chain);
-    } catch {
-      return undefined;
-    }
-  }
 
   // --- PAYMENT REQUEST --- //
   async getPaymentRequest(
@@ -255,7 +245,7 @@ export class CryptoService {
 
     try {
       if (EvmBlockchains.includes(detectedBlockchain))
-        return await this.verifyEthereumBased(message, address, signature, blockchain);
+        return await this.verifyEthereumBased(message, address, signature, blockchain ?? detectedBlockchain);
       if (detectedBlockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
       if (detectedBlockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
@@ -278,7 +268,7 @@ export class CryptoService {
     message: string,
     address: string,
     signature: string,
-    blockchain?: Blockchain,
+    blockchain: Blockchain,
   ): Promise<boolean> {
     // there are signatures out there, which do not have '0x' in the beginning, but for verification this is needed
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
@@ -287,8 +277,8 @@ export class CryptoService {
 
     // Fallback to ERC-1271 for smart contract wallets
     try {
-      const client = this.getEvmClient(blockchain);
-      if (client && (await client.isContract(address))) {
+      const client = this.blockchainRegistry.getEvmClient(blockchain);
+      if (await client.isContract(address)) {
         return await client.verifyErc1271Signature(message, address, signatureToUse);
       }
     } catch {
