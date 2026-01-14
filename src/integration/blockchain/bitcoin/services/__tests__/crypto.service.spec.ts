@@ -1,5 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { ArweaveService } from 'src/integration/blockchain/arweave/services/arweave.service';
 import { CardanoService } from 'src/integration/blockchain/cardano/services/cardano.service';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
