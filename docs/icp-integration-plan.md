@@ -63,26 +63,7 @@ This document outlines the technical implementation plan for integrating the Int
 └──────────────────────────────┘    └─────────────────────────────────┘
 ```
 
-### 1.3 Why Polling Instead of Third-Party Webhooks?
-
-**ICP Architecture Reality:**
-- ICP has **NO native webhook support** - this is a fundamental design decision
-- All deposit detection on ICP is polling-based
-- This is how **all major exchanges** (Binance, Coinbase, Kraken) integrate with ICP
-
-**Third-party solutions (ICSI) were evaluated and rejected:**
-- ICSI internally polls the ledger and then sends webhooks - not true event-driven
-- Single Point of Failure (community-maintained canister outside DFX control)
-- Only 5 GitHub stars, inactive maintainer - high risk for financial application
-- No guaranteed SLA or support
-
-**Polling Benefits:**
-- Uses **official DFINITY-maintained** Index Canister (highest reliability)
-- Full control over retry logic, error handling, and recovery
-- Same pattern already used in DFX for Bitcoin/Lightning
-- ICP's 2-second finality means polling every 10s is more than sufficient
-
-### 1.4 Official Canister IDs (DFINITY-maintained)
+### 1.3 Official Canister IDs
 
 | Component | Canister ID | Maintainer | Notes |
 |-----------|-------------|------------|-------|
@@ -281,14 +262,8 @@ interface GetAccountTransactionsResponse {
 /**
  * ICP Deposit Detection Service
  *
- * Uses polling on the official DFINITY Index Canister.
- * This is the same approach used by Binance, Coinbase, and other major exchanges.
- *
- * Why polling instead of webhooks?
- * - ICP has no native webhook support
- * - Index Canister is official DFINITY infrastructure (highest reliability)
- * - 10-second polling with 2-second finality = excellent UX
- * - Full control over error handling and recovery
+ * Polls the official DFINITY Index Canister every 10 seconds
+ * to detect new incoming transactions.
  */
 @Injectable()
 export class IcpDepositService {
@@ -831,11 +806,8 @@ import { Blockchain } from 'src/shared/enums/blockchain.enum';
 /**
  * ICP PayIn Registration Strategy
  *
- * Uses polling-based deposit detection via IcpDepositService.
- * This is the same approach used by Binance, Coinbase, and other major exchanges.
- *
- * Deposit detection happens in IcpDepositService (cron job every 10 seconds).
- * This strategy is only used for generating new deposit addresses.
+ * Generates deposit addresses for ICP routes.
+ * Deposit detection is handled by IcpDepositService (cron job).
  */
 @Injectable()
 export class IcpRegisterStrategy extends RegisterStrategy {
@@ -1266,26 +1238,9 @@ curl -X GET "http://localhost:3000/v1/transaction"
 
 ---
 
-## 12. Comparison: Polling vs Third-Party Webhooks
+## 12. Risk Assessment
 
-| Aspect | DFX Polling (Chosen) | ICSI Webhooks (Rejected) |
-|--------|---------------------|-------------------------|
-| **Reliability** | Official DFINITY Index Canister | Third-party community project |
-| **Maintainer** | DFINITY Foundation | Single developer (inactive) |
-| **Adoption** | All major exchanges | 5 GitHub stars |
-| **Control** | Full (own infrastructure) | Dependent on external canister |
-| **Recovery** | Own retry/backfill logic | No documented recovery |
-| **Latency** | ~10 seconds | ~15 seconds (internal polling) |
-| **True Event-Driven** | No (polling) | No (polling + webhook notification) |
-| **Single Point of Failure** | No | Yes (ICSI canister) |
-
-**Conclusion:** Polling on official DFINITY infrastructure is the industry-standard approach and provides maximum reliability and control.
-
----
-
-## 13. Risk Assessment
-
-### 13.1 Technical Risks
+### 12.1 Technical Risks
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
@@ -1294,7 +1249,7 @@ curl -X GET "http://localhost:3000/v1/transaction"
 | VCHF/VEUR not deployed yet | High | Blocker - coordinate with VNX |
 | Seed phrase security | Critical | Use HSM or secure vault |
 
-### 13.2 Operational Risks
+### 12.2 Operational Risks
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
@@ -1304,7 +1259,7 @@ curl -X GET "http://localhost:3000/v1/transaction"
 
 ---
 
-## 14. Open Questions for Technical Integration Call
+## 13. Open Questions for Technical Integration Call
 
 1. **VCHF/VEUR Deployment Timeline:**
    - When will VNX deploy VCHF/VEUR canisters on ICP?
@@ -1324,7 +1279,7 @@ curl -X GET "http://localhost:3000/v1/transaction"
 
 ---
 
-## 15. References
+## 14. References
 
 - [DFINITY Index Canisters Documentation](https://docs.internetcomputer.org/defi/token-indexes/)
 - [ICP JavaScript SDK Documentation](https://js.icp.build/)
