@@ -204,7 +204,7 @@ export class RecommendationService {
 
       for (const user of entity.recommended.users ??
         (await this.userService.getAllUserDataUsers(entity.recommended.id))) {
-        await this.userService.updateUserInternal(user, { usedRef: refCode });
+        if (!user.usedRef) await this.userService.updateUserInternal(user, { usedRef: refCode });
       }
     }
 
