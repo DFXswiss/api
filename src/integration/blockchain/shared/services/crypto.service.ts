@@ -274,9 +274,14 @@ export class CryptoService {
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
 
     // Check if address is a smart contract (ERC-1271)
-    const code = await this.evmProvider.getCode(address);
-    if (code !== '0x') {
-      return this.verifyErc1271Signature(message, address, signatureToUse);
+    // On RPC failure, fall back to EOA verification to avoid blocking all EVM auth
+    try {
+      const code = await this.evmProvider.getCode(address);
+      if (code !== '0x') {
+        return await this.verifyErc1271Signature(message, address, signatureToUse);
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to check contract code for ${address}, falling back to EOA verification: ${e.message}`);
     }
 
     // Standard EOA verification
