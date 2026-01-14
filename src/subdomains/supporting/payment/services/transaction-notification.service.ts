@@ -60,10 +60,7 @@ export class TransactionNotificationService {
           continue;
 
         // Skip input mail for Bitcoin purchases that already have txId (will receive BuyCryptoCompleted mail directly)
-        if (
-          entity.buyCrypto?.txId &&
-          entity.buyCrypto?.buy?.asset?.uniqueName === 'Bitcoin/BTC'
-        ) {
+        if (entity.buyCrypto?.txId && entity.buyCrypto?.buy?.asset?.uniqueName === 'Bitcoin/BTC') {
           await this.repo.update(...entity.mailSent());
           continue;
         }
