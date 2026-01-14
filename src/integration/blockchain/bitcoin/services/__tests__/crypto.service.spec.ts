@@ -18,7 +18,7 @@ import { BitcoinService } from '../../node/bitcoin.service';
 
 describe('CryptoService', () => {
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    await Test.createTestingModule({
       providers: [
         CryptoService,
         { provide: BitcoinService, useValue: createMock<BitcoinService>() },
