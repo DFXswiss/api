@@ -345,7 +345,7 @@ export class AuthService {
     const wallet = await this.walletService.getByAddress(dto.address);
     if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
-    if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key)))
+    if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key, dto.blockchain)))
       throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateCompanyToken(wallet, ip) };
@@ -466,12 +466,17 @@ export class AuthService {
     return isValid;
   }
 
-  private async verifyCompanySignature(address: string, signature: string, key?: string): Promise<boolean> {
+  private async verifyCompanySignature(
+    address: string,
+    signature: string,
+    key?: string,
+    blockchain?: Blockchain,
+  ): Promise<boolean> {
     const challengeData = this.challengeList.get(address);
     if (!this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
     this.challengeList.delete(address);
 
-    return this.cryptoService.verifySignature(challengeData.challenge, address, signature, key);
+    return this.cryptoService.verifySignature(challengeData.challenge, address, signature, key, blockchain);
   }
 
   private hasChallenge(address: string): boolean {
