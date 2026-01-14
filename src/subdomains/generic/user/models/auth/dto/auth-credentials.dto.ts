@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -35,7 +35,7 @@ export class SignInDto {
     enum: EvmBlockchains,
   })
   @IsOptional()
-  @IsEnum(Blockchain)
+  @IsIn(EvmBlockchains)
   blockchain?: Blockchain;
 
   @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })
