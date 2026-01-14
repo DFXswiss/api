@@ -377,7 +377,7 @@ export class BuyService {
         return {
           name: selector.userData.completeName,
           street: address.street,
-          number: address.houseNumber,
+          ...(address.houseNumber && { number: address.houseNumber }),
           zip: address.zip,
           city: address.city,
           country: address.country?.name,
@@ -399,7 +399,7 @@ export class BuyService {
       return {
         name: selector.userData.completeName,
         street: address.street,
-        number: address.houseNumber,
+        ...(address.houseNumber && { number: address.houseNumber }),
         zip: address.zip,
         city: address.city,
         country: address.country?.name,

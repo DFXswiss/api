@@ -1,11 +1,12 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class CreateCustodyAccountDto {
-  @ApiProperty({ description: 'Title of the custody account' })
+export class UpdateCustodyAccountDto {
+  @ApiPropertyOptional({ description: 'Title of the custody account' })
+  @IsOptional()
   @IsString()
   @MaxLength(256)
-  title: string;
+  title?: string;
 
   @ApiPropertyOptional({ description: 'Description of the custody account' })
   @IsOptional()

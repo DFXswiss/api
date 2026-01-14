@@ -1,7 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 import { GetConfig } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Moderator } from '../../user-data/user-data.enum';
 import { WalletType } from '../../user/user.enum';
 
@@ -26,6 +28,15 @@ export class SignInDto {
     (dto: SignInDto) => CryptoService.isArweaveAddress(dto.address) || CryptoService.isCardanoAddress(dto.address),
   )
   key?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Blockchain for smart contract wallet signature verification (ERC-1271). Required for contract wallets on non-Ethereum chains.',
+    enum: EvmBlockchains,
+  })
+  @IsOptional()
+  @IsIn(EvmBlockchains)
+  blockchain?: Blockchain;
 
   @ApiPropertyOptional({ description: 'This field is deprecated, use "specialCode" instead.', deprecated: true })
   @IsOptional()

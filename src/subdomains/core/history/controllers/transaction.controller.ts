@@ -428,14 +428,24 @@ export class TransactionController {
     const refundData = this.refundList.get(transaction.id);
     if (!refundData) throw new BadRequestException('Request refund data first');
     if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data request invalid');
-    this.refundList.delete(transaction.id);
 
+    await this.executeRefund(transaction, transaction.targetEntity, refundData, dto);
+
+    this.refundList.delete(transaction.id);
+  }
+
+  private async executeRefund(
+    transaction: Transaction,
+    targetEntity: BuyCrypto | BuyFiat | BankTxReturn | undefined,
+    refundData: RefundDataDto,
+    dto: TransactionRefundDto,
+  ): Promise<void> {
     const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
-    if (!transaction.targetEntity) {
+    if (!targetEntity) {
       transaction.bankTxReturn = await this.bankTxService
         .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
         .then((b) => b.bankTxReturn);
@@ -443,10 +453,10 @@ export class TransactionController {
 
     const chargebackCurrency = refundData.refundAsset.name;
 
-    if (transaction.targetEntity instanceof BankTxReturn) {
+    if (targetEntity instanceof BankTxReturn) {
       if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
-      return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
+      return this.bankTxReturnService.refundBankTx(targetEntity, {
         refundIban: dto.refundTarget ?? refundData.refundTarget,
         chargebackCurrency,
         creditorData: dto.creditorData,
@@ -454,28 +464,27 @@ export class TransactionController {
       });
     }
 
-    if (NotRefundableAmlReasons.includes(transaction.targetEntity.amlReason))
+    if (NotRefundableAmlReasons.includes(targetEntity.amlReason))
       throw new BadRequestException('You cannot refund with this reason');
 
-    if (transaction.targetEntity instanceof BuyFiat)
-      return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
+    if (targetEntity instanceof BuyFiat)
+      return this.buyFiatService.refundBuyFiatInternal(targetEntity, {
         refundUserAddress: dto.refundTarget,
         ...refundDto,
       });
 
-    if (transaction.targetEntity.cryptoInput)
-      return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, {
+    if (targetEntity.cryptoInput)
+      return this.buyCryptoService.refundCryptoInput(targetEntity, {
         refundUserAddress: dto.refundTarget,
         ...refundDto,
       });
 
-    if (transaction.targetEntity.checkoutTx)
-      return this.buyCryptoService.refundCheckoutTx(transaction.targetEntity, { ...refundDto });
+    if (targetEntity.checkoutTx) return this.buyCryptoService.refundCheckoutTx(targetEntity, { ...refundDto });
 
     // BuyCrypto bank refund
     if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
-    return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
+    return this.buyCryptoService.refundBankTx(targetEntity, {
       refundIban: dto.refundTarget ?? refundData.refundTarget,
       chargebackCurrency,
       creditorData: dto.creditorData,

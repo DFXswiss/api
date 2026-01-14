@@ -147,7 +147,10 @@ export class AuthService {
     const primaryUser = userId && (await this.userService.getUser(userId));
 
     const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
-    if (!custodyProvider && !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key))) {
+    if (
+      !custodyProvider &&
+      !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, undefined, dto.blockchain))
+    ) {
       throw new BadRequestException('Invalid signature');
     }
 
@@ -205,7 +208,9 @@ export class AuthService {
 
   private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
     if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
-      if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
+      if (
+        !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature, dto.blockchain))
+      ) {
         throw new UnauthorizedException('Invalid credentials');
       } else if (!user.signature) {
         // TODO: temporary code to update empty signatures (remove?)
@@ -340,7 +345,7 @@ export class AuthService {
     const wallet = await this.walletService.getByAddress(dto.address);
     if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
-    if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key)))
+    if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key, dto.blockchain)))
       throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateCompanyToken(wallet, ip) };
@@ -438,6 +443,7 @@ export class AuthService {
     isCustodial: boolean,
     key?: string,
     dbSignature?: string,
+    blockchain?: Blockchain,
   ): Promise<boolean> {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
 
@@ -453,18 +459,24 @@ export class AuthService {
       return dbSignature && signature === dbSignature;
     }
 
-    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
-    if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
+    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key, blockchain);
+    if (!isValid)
+      isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key, blockchain);
 
     return isValid;
   }
 
-  private async verifyCompanySignature(address: string, signature: string, key?: string): Promise<boolean> {
+  private async verifyCompanySignature(
+    address: string,
+    signature: string,
+    key?: string,
+    blockchain?: Blockchain,
+  ): Promise<boolean> {
     const challengeData = this.challengeList.get(address);
     if (!this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
     this.challengeList.delete(address);
 
-    return this.cryptoService.verifySignature(challengeData.challenge, address, signature, key);
+    return this.cryptoService.verifySignature(challengeData.challenge, address, signature, key, blockchain);
   }
 
   private hasChallenge(address: string): boolean {
