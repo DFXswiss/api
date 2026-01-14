@@ -2,8 +2,10 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Verifier } from 'bip322-js';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
-import { verifyMessage } from 'ethers/lib/utils';
-import { Config } from 'src/config/config';
+import { Contract, ethers } from 'ethers';
+import { hashMessage, verifyMessage } from 'ethers/lib/utils';
+import { Config, GetConfig } from 'src/config/config';
+import ERC1271_ABI from 'src/integration/blockchain/shared/evm/abi/erc1271.abi.json';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { RailgunService } from 'src/integration/railgun/railgun.service';
@@ -26,6 +28,9 @@ import { EvmBlockchains, TestBlockchains } from '../util/blockchain.util';
 @Injectable()
 export class CryptoService {
   private static readonly defaultEthereumChain = Blockchain.ETHEREUM;
+  private static readonly ERC1271_MAGIC_VALUE = '0x1626ba7e';
+
+  private readonly evmProvider: ethers.providers.StaticJsonRpcProvider;
 
   constructor(
     private readonly bitcoinService: BitcoinService,
@@ -38,7 +43,11 @@ export class CryptoService {
     private readonly cardanoService: CardanoService,
     private readonly arweaveService: ArweaveService,
     private readonly railgunService: RailgunService,
-  ) {}
+  ) {
+    const { ethGatewayUrl, ethApiKey, ethChainId } = GetConfig().blockchain.ethereum;
+    const url = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
+    this.evmProvider = new ethers.providers.StaticJsonRpcProvider(url, ethChainId);
+  }
 
   // --- PAYMENT REQUEST --- //
   async getPaymentRequest(
@@ -236,7 +245,7 @@ export class CryptoService {
     const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
 
     try {
-      if (EvmBlockchains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
+      if (EvmBlockchains.includes(blockchain)) return await this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (blockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
       if (blockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
@@ -255,10 +264,29 @@ export class CryptoService {
     return false;
   }
 
-  private verifyEthereumBased(message: string, address: string, signature: string): boolean {
+  private async verifyEthereumBased(message: string, address: string, signature: string): Promise<boolean> {
     // there are signatures out there, which do not have '0x' in the beginning, but for verification this is needed
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
+
+    // Check if address is a smart contract (ERC-1271)
+    const code = await this.evmProvider.getCode(address);
+    if (code !== '0x') {
+      return this.verifyErc1271Signature(message, address, signatureToUse);
+    }
+
+    // Standard EOA verification
     return verifyMessage(message, signatureToUse).toLowerCase() === address.toLowerCase();
+  }
+
+  private async verifyErc1271Signature(message: string, address: string, signature: string): Promise<boolean> {
+    try {
+      const hash = hashMessage(message);
+      const contract = new Contract(address, ERC1271_ABI, this.evmProvider);
+      const result = await contract.isValidSignature(hash, signature);
+      return result === CryptoService.ERC1271_MAGIC_VALUE;
+    } catch {
+      return false;
+    }
   }
 
   private verifyBitcoinBased(message: string, address: string, signature: string, prefix: string | null): boolean {
