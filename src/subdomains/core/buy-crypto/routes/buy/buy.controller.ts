@@ -211,6 +211,14 @@ export class BuyController {
     await this.transactionRequestService.confirmTransactionRequest(request);
   }
 
+  @Get('/personalIban')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOkResponse({ type: VirtualIbanDto, isArray: true })
+  async getAllPersonalBanks(@GetJwt() jwt: JwtPayload): Promise<VirtualIbanDto[]> {
+    return this.virtualIbanService.getVirtualIbanForAccount(jwt.account).then((vI) => vI.map(VirtualIbanMapper.toDto));
+  }
+
   @Post('/personalIban')
   @ApiBearerAuth()
   @UseGuards(

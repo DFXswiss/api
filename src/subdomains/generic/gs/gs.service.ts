@@ -187,7 +187,7 @@ export class GsService {
       buy: await this.buyService.getAllUserBuys(userIds),
       sell: await this.sellService.getAllUserSells(userIds),
       swap: await this.swapService.getAllUserSwaps(userIds),
-      virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData),
+      virtualIbans: await this.virtualIbanService.getVirtualIbanForAccount(userData.id),
     };
   }
 
