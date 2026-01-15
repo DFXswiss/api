@@ -1,5 +1,7 @@
 import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
@@ -70,7 +72,7 @@ export class UserDtoMapper {
     return Object.assign(new VolumesDto(), dto);
   }
 
-  static mapRef(user: User, userCount: number, activeUserCount: number): ReferralDto {
+  static mapRef(user: User, userCount: number, activeUserCount: number, payoutAsset: Asset): ReferralDto {
     const dto: ReferralDto = {
       code: user.ref,
       commission: Util.round(user.refFeePercent / 100, 4),
@@ -79,6 +81,7 @@ export class UserDtoMapper {
       paidCredit: user.paidRefCredit,
       userCount: userCount,
       activeUserCount: activeUserCount,
+      payoutAsset: AssetDtoMapper.toDto(payoutAsset),
     };
 
     return Object.assign(new ReferralDto(), dto);
