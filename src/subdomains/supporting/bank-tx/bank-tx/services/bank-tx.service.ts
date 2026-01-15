@@ -70,6 +70,7 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: TransactionTypeInternal.BANK_TX_REPEAT_CHARGEBACK,
   [BankTxType.FIAT_FIAT]: TransactionTypeInternal.FIAT_FIAT,
   [BankTxType.KRAKEN]: TransactionTypeInternal.KRAKEN,
+  [BankTxType.SCRYPT]: TransactionTypeInternal.SCRYPT,
   [BankTxType.SCB]: TransactionTypeInternal.SCB,
   [BankTxType.CHECKOUT_LTD]: TransactionTypeInternal.CHECKOUT_LTD,
   [BankTxType.BANK_ACCOUNT_FEE]: TransactionTypeInternal.BANK_ACCOUNT_FEE,
@@ -490,6 +491,10 @@ export class BankTxService implements OnModuleInit {
   private getType(tx: BankTx): BankTxType | null {
     if (tx.name?.includes('Payward Trading')) {
       return BankTxType.KRAKEN;
+    }
+
+    if (tx.name?.includes('Scrypt Digital Trading')) {
+      return BankTxType.SCRYPT;
     }
 
     return null;

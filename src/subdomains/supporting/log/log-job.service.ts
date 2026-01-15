@@ -298,6 +298,12 @@ export class LogJobService {
       ExchangeName.KRAKEN,
       [ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL],
     );
+    const recentScryptBankTx = await this.bankTxService.getRecentExchangeTx(undefined, BankTxType.SCRYPT);
+    const recentScryptExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
+      undefined,
+      ExchangeName.SCRYPT,
+      [ExchangeTxType.DEPOSIT],
+    );
 
     // fixed sender and receiver data
 
@@ -364,6 +370,32 @@ export class LogJobService {
     const { sender: recentEurYapealKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
       eurSenderBankTx,
       eurReceiverExchangeTx,
+    );
+
+    // CHF: Yapeal -> Scrypt
+    const chfSenderScryptBankTx = recentScryptBankTx.filter(
+      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+    );
+    const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
+      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'CHF',
+    );
+
+    // EUR: Yapeal -> Scrypt
+    const eurSenderScryptBankTx = recentScryptBankTx.filter(
+      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+    );
+    const eurReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
+      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR',
+    );
+
+    // sender and receiver data for Scrypt
+    const { sender: recentChfYapealScryptTx, receiver: recentChfBankTxScrypt } = this.filterSenderPendingList(
+      chfSenderScryptBankTx,
+      chfReceiverScryptExchangeTx,
+    );
+    const { sender: recentEurYapealScryptTx, receiver: recentEurBankTxScrypt } = this.filterSenderPendingList(
+      eurSenderScryptBankTx,
+      eurReceiverScryptExchangeTx,
     );
 
     // assetLog
@@ -506,6 +538,28 @@ export class LogJobService {
       let toKraken =
         pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
 
+      // Yapeal to Scrypt
+      const pendingYapealScryptPlusAmount = this.getPendingBankAmount(
+        [curr],
+        [...recentChfYapealScryptTx, ...recentEurYapealScryptTx],
+        BankTxType.SCRYPT,
+      );
+      const pendingChfYapealScryptMinusAmount = this.getPendingBankAmount(
+        [curr],
+        recentChfBankTxScrypt,
+        ExchangeTxType.DEPOSIT,
+        yapealChfBank.iban,
+      );
+      const pendingEurYapealScryptMinusAmount = this.getPendingBankAmount(
+        [curr],
+        recentEurBankTxScrypt,
+        ExchangeTxType.DEPOSIT,
+        yapealEurBank.iban,
+      );
+
+      let toScrypt =
+        pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount;
+
       const errors = [];
 
       if (fromKraken !== fromKrakenUnfiltered) {
@@ -539,6 +593,16 @@ export class LogJobService {
         toKraken = 0;
       }
 
+      if (toScrypt < 0) {
+        errors.push(`toScrypt < 0`);
+        this.logger.verbose(
+          `Error in financial log, toScrypt balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+          ${pendingYapealScryptPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealScryptMinusAmount},
+          pendingEurMinusAmount: ${pendingEurYapealScryptMinusAmount}`,
+        );
+        toScrypt = 0;
+      }
+
       // total pending balance
       const totalPlusPending =
         cryptoInput +
@@ -546,7 +610,8 @@ export class LogJobService {
         bridgeOrder +
         pendingOlkyYapealAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
-        (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
+        (useUnfilteredTx ? toKrakenUnfiltered : toKraken) +
+        toScrypt;
 
       const totalPlus = liquidity + totalPlusPending + (totalCustomBalance ?? 0);
 
@@ -631,6 +696,7 @@ export class LogJobService {
                 fromOlky: this.getJsonValue(pendingOlkyYapealAmount, amountType(curr)),
                 fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
+                toScrypt: this.getJsonValue(toScrypt, amountType(curr)),
               }
             : undefined,
           // monitoring: errors.length
