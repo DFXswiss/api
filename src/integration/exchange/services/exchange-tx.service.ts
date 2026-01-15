@@ -126,8 +126,15 @@ export class ExchangeTxService {
 
       // Scrypt special case
       if (exchangeService instanceof ScryptService) {
-        const transactions = await exchangeService.getAllTransactions(since);
-        return ExchangeTxMapper.mapScryptTransactions(transactions, sync.exchange);
+        const [transactions, trades] = await Promise.all([
+          exchangeService.getAllTransactions(since),
+          exchangeService.getTrades(since),
+        ]);
+
+        return [
+          ...ExchangeTxMapper.mapScryptTransactions(transactions, sync.exchange),
+          ...ExchangeTxMapper.mapScryptTrades(trades, sync.exchange),
+        ];
       }
 
       const tokens = sync.tokens ?? (await this.assetService.getAssetsUsedOn(sync.exchange));

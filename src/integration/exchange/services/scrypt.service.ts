@@ -1,158 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { GetConfig } from 'src/config/config';
+import {
+  ScryptBalance,
+  ScryptBalanceTransaction,
+  ScryptExecutionReport,
+  ScryptMarketDataSnapshot,
+  ScryptOrderBook,
+  ScryptOrderInfo,
+  ScryptOrderResponse,
+  ScryptOrderSide,
+  ScryptOrderStatus,
+  ScryptOrderType,
+  ScryptSecurity,
+  ScryptSecurityInfo,
+  ScryptTimeInForce,
+  ScryptTrade,
+  ScryptTransactionStatus,
+  ScryptTransactionType,
+  ScryptWithdrawResponse,
+  ScryptWithdrawStatus,
+} from '../dto/scrypt.dto';
 import { ScryptMessageType, ScryptWebSocketConnection } from './scrypt-websocket-connection';
-
-export enum ScryptTransactionType {
-  WITHDRAWAL = 'Withdrawal',
-  DEPOSIT = 'Deposit',
-}
-
-export enum ScryptTransactionStatus {
-  COMPLETE = 'Complete',
-  FAILED = 'Failed',
-  REJECTED = 'Rejected',
-}
-
-interface ScryptBalance {
-  Currency: string;
-  Amount: string;
-  AvailableAmount: string;
-  Equivalent?: {
-    Currency: string;
-    Amount: string;
-    AvailableAmount: string;
-  };
-}
-
-export interface ScryptBalanceTransaction {
-  TransactionID: string;
-  ClReqID?: string;
-  Currency: string;
-  TransactionType: ScryptTransactionType;
-  Status: ScryptTransactionStatus;
-  Quantity: string;
-  Fee?: string;
-  TxHash?: string;
-  RejectReason?: string;
-  RejectText?: string;
-  Timestamp?: string;
-  TransactTime?: string;
-}
-
-export interface ScryptWithdrawResponse {
-  id: string;
-  status: ScryptTransactionStatus;
-}
-
-export interface ScryptWithdrawStatus {
-  id: string;
-  status: ScryptTransactionStatus;
-  txHash?: string;
-  amount?: number;
-  rejectReason?: string;
-  rejectText?: string;
-}
-
-// --- TRADING TYPES --- //
-
-export enum ScryptOrderStatus {
-  NEW = 'New',
-  PARTIALLY_FILLED = 'PartiallyFilled',
-  FILLED = 'Filled',
-  CANCELLED = 'Cancelled',
-  REJECTED = 'Rejected',
-}
-
-export enum ScryptOrderSide {
-  BUY = 'Buy',
-  SELL = 'Sell',
-}
-
-export enum ScryptOrderType {
-  MARKET = 'Market',
-  LIMIT = 'Limit',
-}
-
-export enum ScryptTimeInForce {
-  FILL_AND_KILL = 'FillAndKill',
-  FILL_OR_KILL = 'FillOrKill',
-  GOOD_TILL_CANCEL = 'GoodTillCancel',
-}
-
-interface ScryptExecutionReport {
-  ClOrdID: string;
-  OrigClOrdID?: string;
-  OrderID?: string;
-  Symbol: string;
-  Side: string;
-  OrdStatus: ScryptOrderStatus;
-  ExecType?: string;
-  OrderQty: string;
-  CumQty: string;
-  LeavesQty: string;
-  AvgPx?: string;
-  Price?: string;
-  RejectReason?: string;
-  Text?: string;
-}
-
-export interface ScryptOrderResponse {
-  id: string;
-  status: ScryptOrderStatus;
-}
-
-export interface ScryptOrderInfo {
-  id: string;
-  orderId?: string;
-  symbol: string;
-  side: string;
-  status: ScryptOrderStatus;
-  quantity: number;
-  filledQuantity: number;
-  remainingQuantity: number;
-  avgPrice?: number;
-  price?: number;
-  rejectReason?: string;
-}
-
-// --- MARKET DATA TYPES --- //
-
-interface ScryptPriceLevel {
-  Price: string;
-  Size: string;
-}
-
-interface ScryptMarketDataSnapshot {
-  Timestamp: string;
-  Symbol: string;
-  Status: string;
-  Bids: ScryptPriceLevel[];
-  Offers: ScryptPriceLevel[];
-}
-
-export interface ScryptOrderBook {
-  bids: Array<{ price: number; size: number }>;
-  offers: Array<{ price: number; size: number }>;
-}
-
-// --- SECURITY TYPES --- //
-
-interface ScryptSecurity {
-  Symbol: string;
-  MinimumSize?: string;
-  MaximumSize?: string;
-  MinPriceIncrement?: string;
-  MinSizeIncrement?: string;
-}
-
-export interface ScryptSecurityInfo {
-  symbol: string;
-  minSize: number;
-  maxSize: number;
-  minPriceIncrement: number;
-  minSizeIncrement: number;
-}
 
 @Injectable()
 export class ScryptService {
@@ -224,7 +93,10 @@ export class ScryptService {
       ScryptMessageType.BALANCE_TRANSACTION,
       (data) => {
         const transactions = data as ScryptBalanceTransaction[];
-        return transactions.find((t) => t.ClReqID === clReqId && t.TransactionType === 'Withdrawal') ?? null;
+        return (
+          transactions.find((t) => t.ClReqID === clReqId && t.TransactionType === ScryptTransactionType.WITHDRAWAL) ??
+          null
+        );
       },
       60000,
     );
@@ -243,7 +115,9 @@ export class ScryptService {
 
   async getWithdrawalStatus(clReqId: string): Promise<ScryptWithdrawStatus | null> {
     const transactions = await this.fetchBalanceTransactions();
-    const transaction = transactions.find((t) => t.ClReqID === clReqId && t.TransactionType === 'Withdrawal');
+    const transaction = transactions.find(
+      (t) => t.ClReqID === clReqId && t.TransactionType === ScryptTransactionType.WITHDRAWAL,
+    );
 
     if (!transaction) return null;
 
@@ -257,6 +131,8 @@ export class ScryptService {
     };
   }
 
+  // --- TRANSACTIONS / TRADES --- //
+
   async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
     const transactions = await this.fetchBalanceTransactions();
     return transactions.filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since));
@@ -265,6 +141,14 @@ export class ScryptService {
   private async fetchBalanceTransactions(): Promise<ScryptBalanceTransaction[]> {
     const data = await this.connection.fetch(ScryptMessageType.BALANCE_TRANSACTION);
     return data as ScryptBalanceTransaction[];
+  }
+
+  async getTrades(since?: Date): Promise<ScryptTrade[]> {
+    const filters: Record<string, unknown> = {};
+    if (since) filters.StartDate = since.toISOString();
+
+    const data = await this.connection.fetch(ScryptMessageType.TRADE, filters);
+    return data as ScryptTrade[];
   }
 
   // --- MARKET DATA --- //

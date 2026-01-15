@@ -22,6 +22,7 @@ export enum ScryptMessageType {
   NEW_WITHDRAW_REQUEST = 'NewWithdrawRequest',
   BALANCE_TRANSACTION = 'BalanceTransaction',
   BALANCE = 'Balance',
+  TRADE = 'Trade',
   ERROR = 'error',
   // Trading
   NEW_ORDER_SINGLE = 'NewOrderSingle',
