@@ -195,6 +195,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
               this.logger.verbose(`Cancel also failed: ${cancelError.message}`);
             }
           }
+        } else {
+          this.logger.verbose(`Order ${correlationId} open, price is still ${currentPrice}`);
         }
         return false;
       }
@@ -244,18 +246,38 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
   private async aggregateSellOutput(order: LiquidityManagementOrder): Promise<number> {
     const correlationIds = order.allCorrelationIds;
-    let totalOutput = 0;
 
-    for (const id of correlationIds) {
-      const orderInfo = await this.scryptService.getOrderStatus(id);
-      if (orderInfo && orderInfo.filledQuantity > 0) {
-        // For SELL: output is the proceeds (filledQuantity * avgPrice)
-        const output = orderInfo.avgPrice ? orderInfo.filledQuantity * orderInfo.avgPrice : orderInfo.filledQuantity;
-        totalOutput += output;
-      }
+    // Fetch all orders in parallel like Binance
+    const orderResults = await Promise.allSettled(
+      correlationIds.map((id) => this.scryptService.getOrderStatus(id)),
+    );
+
+    const orders = orderResults
+      .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof this.scryptService.getOrderStatus>>> =>
+        result.status === 'fulfilled' && result.value !== null)
+      .map((result) => result.value!);
+
+    // Log failures
+    const failures = orderResults.filter((result) => result.status === 'rejected');
+    if (failures.length > 0) {
+      this.logger.warn(
+        `Order ${order.id}: Failed to fetch ${failures.length} of ${correlationIds.length} orders. ` +
+          `Proceeding with ${orders.length} successful fetches.`,
+      );
     }
 
-    return totalOutput;
+    if (orders.length === 0) {
+      throw new OrderFailedException(`Failed to fetch any orders for order ${order.id}`);
+    }
+
+    // For SELL: output is the proceeds (filledQuantity * avgPrice)
+    return orders.reduce((sum, o) => {
+      if (o.filledQuantity > 0) {
+        const output = o.avgPrice ? o.filledQuantity * o.avgPrice : o.filledQuantity;
+        return sum + output;
+      }
+      return sum;
+    }, 0);
   }
 
   // --- PARAM VALIDATION --- //
