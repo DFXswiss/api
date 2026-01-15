@@ -20,15 +20,15 @@ module.exports = class ActivateScryptUsdtLiquidityRule1768479555000 {
         const actionId = result[0].actionId;
 
         // Update Scrypt/USDT rule (ID 315) with thresholds and activate it
-        // - optimal: 25,000 USDT (target balance)
+        // - optimal: 100 USDT (target balance after withdrawal)
         // - maximal: 50,000 USDT (trigger withdrawal when exceeded)
         await queryRunner.query(`
             UPDATE liquidity_management_rule
-            SET optimal = 25000,
+            SET optimal = 100,
                 maximal = 50000,
                 redundancyStartActionId = ${actionId},
                 status = 'Active',
-                reactivationTime = 60
+                reactivationTime = 5
             WHERE id = 315
         `);
     }
