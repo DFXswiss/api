@@ -80,7 +80,6 @@ export enum AmlErrorType {
   SINGLE = 'Single', // Only one error may occur
   MULTI = 'Multi', // All errors must have the same amlCheck
   CRUCIAL = 'Crucial', // Prioritized error
-  FALLBACK = 'Fallback', // Only applies if no other errors exist
 }
 
 export const AmlErrorResult: {
@@ -313,7 +312,7 @@ export const AmlErrorResult: {
     amlReason: AmlReason.INTERMEDIARY_WITHOUT_SENDER,
   },
   [AmlError.FORCE_MANUAL_CHECK]: {
-    type: AmlErrorType.FALLBACK,
+    type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },

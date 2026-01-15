@@ -205,7 +205,6 @@ export class AmlHelperService {
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
       for (const amlRule of entity.user.wallet.amlRuleList) {
-        if (amlRule === AmlRule.RULE_15) continue; // Already checked in main wallet loop
         errors.push(
           ...this.amlRuleCheck(amlRule, entity.wallet.exceptAmlRuleList, entity, amountInChf, last7dCheckoutVolume),
         );
@@ -545,27 +544,10 @@ export class AmlHelperService {
       multiAccountBankNames,
     ).filter((e) => e);
 
-    // Separate FALLBACK errors from real errors
-    const fallbackErrors = amlErrors.filter((e) => AmlErrorResult[e]?.type === AmlErrorType.FALLBACK);
-    const realErrors = amlErrors.filter((e) => AmlErrorResult[e]?.type !== AmlErrorType.FALLBACK);
-
     const comment = Array.from(new Set(amlErrors)).join(';');
 
-    // Pass case - no real errors
-    if (realErrors.length === 0) {
-      // Check for FALLBACK errors (e.g., FORCE_MANUAL_CHECK)
-      if (fallbackErrors.length > 0) {
-        const fallbackResult = { amlError: fallbackErrors[0], ...AmlErrorResult[fallbackErrors[0]] };
-        return {
-          bankData,
-          amlCheck: fallbackResult.amlCheck,
-          amlReason: fallbackResult.amlReason,
-          comment,
-          amlResponsible: 'API',
-        };
-      }
-
-      // True Pass - no errors at all
+    // Pass
+    if (amlErrors.length === 0)
       return {
         bankData,
         amlCheck: CheckStatus.PASS,
@@ -573,10 +555,8 @@ export class AmlHelperService {
         amlResponsible: 'API',
         priceDefinitionAllowedDate: new Date(),
       };
-    }
 
-    // Rest uses realErrors instead of amlErrors (FALLBACK errors are ignored when real errors exist)
-    const amlResults = realErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
+    const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
@@ -590,7 +570,7 @@ export class AmlHelperService {
     }
 
     // Delay amlCheck for some specific errors
-    if (realErrors.some((e) => DelayResultError.includes(e)) && Util.minutesDiff(entity.created) < 5) return { comment };
+    if (amlErrors.some((e) => DelayResultError.includes(e)) && Util.minutesDiff(entity.created) < 5) return { comment };
 
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
@@ -613,7 +593,7 @@ export class AmlHelperService {
 
     // Only error aml
     const onlyErrorResult = amlResults.find((r) => r.type === AmlErrorType.SINGLE);
-    if (onlyErrorResult && realErrors.length === 1)
+    if (onlyErrorResult && amlErrors.length === 1)
       return { bankData, amlCheck: onlyErrorResult.amlCheck, amlReason: onlyErrorResult.amlReason, comment };
 
     // Same error aml
