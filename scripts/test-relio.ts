@@ -171,7 +171,7 @@ async function main() {
   // Check configuration
   console.log('\nConfiguration:');
   console.log('  Base URL:', config.baseUrl || 'MISSING');
-  console.log('  API Key:', config.apiKey ? config.apiKey.substring(0, 20) + '...' : 'MISSING');
+  console.log('  API Key:', config.apiKey ? 'Loaded' : 'MISSING');
   console.log('  Private Key:', privateKey ? 'Loaded' : 'MISSING or INVALID');
   console.log('  Organization ID:', config.organizationId || 'MISSING');
 
