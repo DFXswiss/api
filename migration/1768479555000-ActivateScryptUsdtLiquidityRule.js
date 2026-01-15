@@ -6,8 +6,10 @@ module.exports = class ActivateScryptUsdtLiquidityRule1768479555000 {
     async up(queryRunner) {
         // Create action for Scrypt USDT withdrawal to DFX ETH liquidity wallet
         // When Scrypt/USDT balance exceeds maximal (50,000), withdraw to ETH_WALLET_ADDRESS
-        await queryRunner.query(`
+        // Use OUTPUT to reliably get the inserted ID
+        const result = await queryRunner.query(`
             INSERT INTO liquidity_management_action (system, command, params, tag)
+            OUTPUT INSERTED.id as actionId
             VALUES (
                 'Scrypt',
                 'withdraw',
@@ -15,9 +17,6 @@ module.exports = class ActivateScryptUsdtLiquidityRule1768479555000 {
                 'Scrypt USDT -> ETH Liq'
             )
         `);
-
-        // Get the ID of the newly created action
-        const result = await queryRunner.query(`SELECT SCOPE_IDENTITY() as actionId`);
         const actionId = result[0].actionId;
 
         // Update Scrypt/USDT rule (ID 315) with thresholds and activate it
