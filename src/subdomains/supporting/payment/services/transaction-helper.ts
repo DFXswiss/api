@@ -427,7 +427,12 @@ export class TransactionHelper implements OnModuleInit {
     });
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
-    const networkFeeAmount = price.convert(chargebackFee.network);
+
+    let networkFeeAmount = price.convert(chargebackFee.network);
+
+    if (isAsset(inputCurrency) && inputCurrency.blockchain === Blockchain.SOLANA)
+      networkFeeAmount += await this.getSolanaRentExemptionFee(inputCurrency);
+
     const bankFeeAmount =
       refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
         ? price.convert(
@@ -652,6 +657,13 @@ export class TransactionHelper implements OnModuleInit {
 
     const price = await this.pricingService.getPrice(solanaCoin, PriceCurrency.CHF, PriceValidity.ANY);
     return price.convert(fee);
+  }
+
+  private async getSolanaRentExemptionFee(asset: Asset): Promise<number> {
+    if (asset.type !== AssetType.COIN) return 0;
+
+    const price = await this.pricingService.getPrice(asset, PriceCurrency.CHF, PriceValidity.ANY);
+    return price.convert(Config.blockchain.solana.minimalCoinAccountRent) * 1.05; // 5% buffer for rounding
   }
 
   private async getTronCreateAccountFee(user: User, asset: Asset): Promise<number> {
