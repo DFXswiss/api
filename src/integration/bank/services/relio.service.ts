@@ -85,19 +85,16 @@ export class RelioService {
   async getBalances(): Promise<RelioBalanceInfo[]> {
     const walletsResponse = await this.getWallets();
 
-    const balances: RelioBalanceInfo[] = [];
-    for (const walletItem of walletsResponse.data) {
-      const wallet = await this.getWallet(walletItem.id);
-      balances.push({
-        walletId: wallet.id,
-        iban: wallet.iban,
-        currency: wallet.currency,
-        availableBalance: this.convertRelioAmount(wallet.availableBalance.amount),
-        totalBalance: this.convertRelioAmount(wallet.balance.amount),
-      });
-    }
+    // Fetch all wallet details in parallel for better performance
+    const wallets = await Promise.all(walletsResponse.data.map((item) => this.getWallet(item.id)));
 
-    return balances;
+    return wallets.map((wallet) => ({
+      walletId: wallet.id,
+      iban: wallet.iban,
+      currency: wallet.currency,
+      availableBalance: this.convertRelioAmount(wallet.availableBalance.amount),
+      totalBalance: this.convertRelioAmount(wallet.balance.amount),
+    }));
   }
 
   // --- PAYMENT METHODS --- //
