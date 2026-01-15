@@ -1170,7 +1170,9 @@ export class KycService {
 
   async trySetMail(user: UserData, step: KycStep, mail: string): Promise<UpdateResult<KycStep>> {
     try {
-      user = await this.userDataService.trySetUserMail(user, mail);
+      if (user.mail !== mail) {
+        await this.userDataService.trySetUserMail(user, mail);
+      }
       return step.complete({ mail });
     } catch (e) {
       const error = (e as Error).message?.includes('account merge request sent')
