@@ -1,8 +1,12 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { Trade, Transaction } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { ScryptMessageType, ScryptWebSocketConnection } from './scrypt-websocket-connection';
+
+export enum ScryptTransactionType {
+  WITHDRAWAL = 'Withdrawal',
+  DEPOSIT = 'Deposit',
+}
 
 export enum ScryptTransactionStatus {
   COMPLETE = 'Complete',
@@ -21,11 +25,11 @@ interface ScryptBalance {
   };
 }
 
-interface ScryptBalanceTransaction {
+export interface ScryptBalanceTransaction {
   TransactionID: string;
   ClReqID?: string;
   Currency: string;
-  TransactionType: string;
+  TransactionType: ScryptTransactionType;
   Status: ScryptTransactionStatus;
   Quantity: string;
   Fee?: string;
@@ -153,60 +157,13 @@ export class ScryptService {
     };
   }
 
-  // --- TRANSACTION SYNC (for ExchangeSyncs) --- //
-
-  async getDeposits(_token: string, since?: Date, _chain?: string): Promise<Transaction[]> {
+  async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
     const transactions = await this.fetchBalanceTransactions();
-    return transactions
-      .filter((t) => t.TransactionType === 'Deposit')
-      .filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since))
-      .map((t) => this.mapToCcxtTransaction(t, 'deposit'));
-  }
-
-  async getWithdrawals(_token: string, since?: Date): Promise<Transaction[]> {
-    const transactions = await this.fetchBalanceTransactions();
-    return transactions
-      .filter((t) => t.TransactionType === 'Withdrawal')
-      .filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since))
-      .map((t) => this.mapToCcxtTransaction(t, 'withdrawal'));
-  }
-
-  private mapToCcxtTransaction(t: ScryptBalanceTransaction, type: 'deposit' | 'withdrawal'): Transaction {
-    return {
-      id: t.TransactionID,
-      txid: t.TxHash,
-      type,
-      currency: t.Currency,
-      amount: parseFloat(t.Quantity) || 0,
-      status: this.mapScryptStatus(t.Status),
-      datetime: t.TransactTime,
-      timestamp: t.TransactTime ? new Date(t.TransactTime).getTime() : undefined,
-      updated: t.Timestamp ? new Date(t.Timestamp).getTime() : undefined,
-      fee: t.Fee ? { cost: parseFloat(t.Fee), currency: t.Currency } : undefined,
-      info: { method: 'Bank Transfer', asset: t.Currency },
-    } as Transaction;
-  }
-
-  private mapScryptStatus(status: ScryptTransactionStatus): string {
-    switch (status) {
-      case ScryptTransactionStatus.COMPLETE:
-        return 'ok';
-      case ScryptTransactionStatus.FAILED:
-      case ScryptTransactionStatus.REJECTED:
-        return 'failed';
-      default:
-        return 'pending';
-    }
+    return transactions.filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since));
   }
 
   private async fetchBalanceTransactions(): Promise<ScryptBalanceTransaction[]> {
     const data = await this.connection.fetch(ScryptMessageType.BALANCE_TRANSACTION);
     return data as ScryptBalanceTransaction[];
-  }
-
-  // --- NOT IMPLEMENTED (stubs for ExchangeService compatibility) --- //
-
-  async getTrades(_from?: string, _to?: string, _since?: Date): Promise<Trade[]> {
-    throw new NotImplementedException('getTrades is not supported by Scrypt');
   }
 }

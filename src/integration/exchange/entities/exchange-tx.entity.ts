@@ -137,5 +137,5 @@ export const ExchangeSyncs: ExchangeSync[] = [
     tokenReplacements: [],
   },
   { exchange: ExchangeName.BINANCE, tradeTokens: ['BTC', 'USDT'], tokenReplacements: [['BTCB', 'BTC']] },
-  { exchange: ExchangeName.SCRYPT, tokens: ['CHF', 'EUR'], tokenReplacements: [] },
+  { exchange: ExchangeName.SCRYPT, tokens: [], tokenReplacements: [] },
 ];

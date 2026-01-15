@@ -19,6 +19,7 @@ import { ExchangeName } from '../enums/exchange.enum';
 import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
+import { ScryptService } from './scrypt.service';
 
 @Injectable()
 export class ExchangeTxService {
@@ -123,6 +124,12 @@ export class ExchangeTxService {
     try {
       const exchangeService = this.registryService.getExchange(sync.exchange);
 
+      // Scrypt special case
+      if (exchangeService instanceof ScryptService) {
+        const transactions = await exchangeService.getAllTransactions(since);
+        return ExchangeTxMapper.mapScryptTransactions(transactions, sync.exchange);
+      }
+
       const tokens = sync.tokens ?? (await this.assetService.getAssetsUsedOn(sync.exchange));
 
       // replace invalid tokens
@@ -149,27 +156,25 @@ export class ExchangeTxService {
         );
       }
 
-      // trades (only if exchange service supports it)
-      if (exchangeService.getTrades) {
-        const tradePairs = sync.tradeTokens
-          ? sync.tradeTokens
-              .reduce((prev, curr) => {
-                prev.push(tokens.filter((t) => t !== curr).map((t) => [curr, t]));
-                return prev;
-              }, [])
-              .flat(1)
-              .filter((p, i, l) => l.findIndex((p1) => p.every((t) => p1.includes(t))) === i)
-          : [[undefined, undefined]];
+      // trades
+      const tradePairs = sync.tradeTokens
+        ? sync.tradeTokens
+            .reduce((prev, curr) => {
+              prev.push(tokens.filter((t) => t !== curr).map((t) => [curr, t]));
+              return prev;
+            }, [])
+            .flat(1)
+            .filter((p, i, l) => l.findIndex((p1) => p.every((t) => p1.includes(t))) === i)
+        : [[undefined, undefined]];
 
-        for (const [from, to] of tradePairs) {
-          try {
-            const txs = await exchangeService
-              .getTrades(from, to, since)
-              .then((t) => ExchangeTxMapper.mapTrades(t, sync.exchange));
-            transactions.push(...txs);
-          } catch (e) {
-            if (!e.message?.includes('not supported')) throw e;
-          }
+      for (const [from, to] of tradePairs) {
+        try {
+          const txs = await exchangeService
+            .getTrades(from, to, since)
+            .then((t) => ExchangeTxMapper.mapTrades(t, sync.exchange));
+          transactions.push(...txs);
+        } catch (e) {
+          if (!e.message?.includes('not supported')) throw e;
         }
       }
 

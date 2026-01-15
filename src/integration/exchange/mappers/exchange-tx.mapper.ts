@@ -2,6 +2,7 @@ import { Trade, Transaction } from 'ccxt';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
+import { ScryptBalanceTransaction, ScryptTransactionStatus, ScryptTransactionType } from '../services/scrypt.service';
 
 export class ExchangeTxMapper {
   static mapDeposits(transactions: Transaction[], exchange: ExchangeName): ExchangeTxDto[] {
@@ -69,5 +70,33 @@ export class ExchangeTxMapper {
       symbol: t.symbol,
       side: t.side,
     }));
+  }
+
+  static mapScryptTransactions(transactions: ScryptBalanceTransaction[], exchange: ExchangeName): ExchangeTxDto[] {
+    return transactions.map((t) => ({
+      exchange,
+      type: t.TransactionType === ScryptTransactionType.DEPOSIT ? ExchangeTxType.DEPOSIT : ExchangeTxType.WITHDRAWAL,
+      externalId: t.TransactionID,
+      externalCreated: t.TransactTime ? new Date(t.TransactTime) : new Date(),
+      externalUpdated: t.Timestamp ? new Date(t.Timestamp) : new Date(),
+      status: this.mapScryptStatus(t.Status),
+      amount: parseFloat(t.Quantity) || 0,
+      feeAmount: t.Fee ? parseFloat(t.Fee) : 0,
+      feeCurrency: t.Currency,
+      currency: t.Currency,
+      txId: t.TxHash,
+    }));
+  }
+
+  private static mapScryptStatus(status: ScryptTransactionStatus): string {
+    switch (status) {
+      case ScryptTransactionStatus.COMPLETE:
+        return 'ok';
+      case ScryptTransactionStatus.FAILED:
+      case ScryptTransactionStatus.REJECTED:
+        return 'failed';
+      default:
+        return 'pending';
+    }
   }
 }
