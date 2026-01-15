@@ -13,6 +13,7 @@ import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../interfaces';
+import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
 import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 
 export enum ScryptAdapterCommands {
@@ -29,6 +30,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   constructor(
     private readonly scryptService: ScryptService,
     private readonly dexService: DexService,
+    private readonly orderRepo: LiquidityManagementOrderRepository,
   ) {
     super(LiquidityManagementSystem.SCRYPT);
 
@@ -152,6 +154,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
   private async checkSellCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const { correlationId } = order;
+    const { tradeAsset } = this.parseSellParams(order.action.paramMap);
+    const asset = order.pipeline.rule.targetAsset.dexName;
 
     const orderInfo = await this.scryptService.getOrderStatus(correlationId);
     if (!orderInfo) {
@@ -159,22 +163,67 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       return false;
     }
 
-    if ([ScryptOrderStatus.CANCELLED, ScryptOrderStatus.REJECTED].includes(orderInfo.status)) {
+    // REJECTED is a hard failure - cannot retry
+    if (orderInfo.status === ScryptOrderStatus.REJECTED) {
       throw new OrderFailedException(
-        `Order ${correlationId} has failed with status ${orderInfo.status}: ${orderInfo.rejectReason ?? 'unknown reason'}`,
+        `Order ${correlationId} has been rejected: ${orderInfo.rejectReason ?? 'unknown reason'}`,
       );
     }
 
+    // CANCELLED - automatically restart with remaining amount (like Binance/MEXC)
+    if (orderInfo.status === ScryptOrderStatus.CANCELLED) {
+      const remaining = orderInfo.remainingQuantity;
+
+      // If remaining amount is negligible, consider complete
+      if (remaining < 0.01) {
+        this.logger.verbose(
+          `Order ${correlationId} cancelled with negligible remaining (${remaining}), considering complete`,
+        );
+        order.outputAmount = orderInfo.avgPrice
+          ? orderInfo.filledQuantity * orderInfo.avgPrice
+          : orderInfo.filledQuantity;
+        return true;
+      }
+
+      // Restart order with remaining amount
+      this.logger.verbose(`Order ${correlationId} cancelled, restarting with remaining ${remaining} ${asset}`);
+
+      try {
+        const newId = await this.scryptService.sell(asset, tradeAsset, remaining);
+
+        order.updateCorrelationId(newId);
+        await this.orderRepo.save(order);
+
+        this.logger.verbose(`Order ${correlationId} restarted as ${newId}`);
+        return false;
+      } catch (e) {
+        // If restart fails, report as failed
+        throw new OrderFailedException(`Order ${correlationId} cancelled and restart failed: ${e.message}`);
+      }
+    }
+
     if (orderInfo.status === ScryptOrderStatus.FILLED) {
-      // outputAmount is the proceeds: filledQuantity * avgPrice
-      // For SELL EUR/USDT: filledQuantity=EUR sold, avgPrice=USDT/EUR, output=USDT received
-      order.outputAmount = orderInfo.avgPrice
-        ? orderInfo.filledQuantity * orderInfo.avgPrice
-        : orderInfo.filledQuantity;
+      // Aggregate output from all correlation IDs (in case of restarts)
+      order.outputAmount = await this.aggregateSellOutput(order);
       return true;
     }
 
     return false;
+  }
+
+  private async aggregateSellOutput(order: LiquidityManagementOrder): Promise<number> {
+    const correlationIds = order.allCorrelationIds;
+    let totalOutput = 0;
+
+    for (const id of correlationIds) {
+      const orderInfo = await this.scryptService.getOrderStatus(id);
+      if (orderInfo && orderInfo.filledQuantity > 0) {
+        const output = orderInfo.avgPrice ? orderInfo.filledQuantity * orderInfo.avgPrice : orderInfo.filledQuantity;
+        totalOutput += output;
+      }
+    }
+
+    return totalOutput;
   }
 
   // --- PARAM VALIDATION --- //
