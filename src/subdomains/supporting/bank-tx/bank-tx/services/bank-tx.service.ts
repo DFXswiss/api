@@ -29,10 +29,10 @@ import {
   DeepPartial,
   FindOptionsRelations,
   FindOptionsWhere,
-  ILike,
   In,
   IsNull,
   LessThan,
+  Like,
   MoreThan,
   MoreThanOrEqual,
   Not,
@@ -538,8 +538,8 @@ export class BankTxService implements OnModuleInit {
 
     return this.bankTxRepo.find({
       where: [
-        { ...request, name: ILike(`%${name}%`) },
-        { ...request, ultimateName: ILike(`%${name}%`) },
+        { ...request, name: Like(`%${name}%`) },
+        { ...request, ultimateName: Like(`%${name}%`) },
       ],
       relations: { transaction: true },
     });
