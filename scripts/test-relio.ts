@@ -3,15 +3,32 @@
  *
  * Run with: npx ts-node scripts/test-relio.ts
  *
- * Required environment variables:
- *   RELIO_BASE_URL=https://api.develio.ch/v1
- *   RELIO_API_KEY=<your-api-key>
- *   RELIO_PRIVATE_KEY=<your-private-key-pem>
- *   RELIO_ORGANIZATION_ID=<your-org-id>
+ * Reads configuration from .env file automatically.
  */
 
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import axios from 'axios';
+
+// Load .env file manually (to avoid dotenv dependency issues)
+const envPath = path.join(process.cwd(), '.env');
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  for (const line of envContent.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('#')) {
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex > 0) {
+        const key = trimmed.substring(0, eqIndex);
+        const value = trimmed.substring(eqIndex + 1);
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    }
+  }
+}
 
 // Configuration from environment
 const config = {
