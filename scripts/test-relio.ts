@@ -1,7 +1,7 @@
 /**
  * Relio API Integration Test
  *
- * Run with: npx ts-node src/integration/bank/__tests__/relio.integration.test.ts
+ * Run with: npx ts-node scripts/test-relio.ts
  *
  * Required environment variables:
  *   RELIO_BASE_URL=https://api.develio.ch/v1
@@ -153,13 +153,13 @@ async function main() {
 
   // Check configuration
   console.log('\nConfiguration:');
-  console.log('  Base URL:', config.baseUrl || '❌ MISSING');
-  console.log('  API Key:', config.apiKey ? config.apiKey.substring(0, 20) + '...' : '❌ MISSING');
-  console.log('  Private Key:', privateKey ? '✓ Loaded' : '❌ MISSING or INVALID');
-  console.log('  Organization ID:', config.organizationId || '❌ MISSING');
+  console.log('  Base URL:', config.baseUrl || 'MISSING');
+  console.log('  API Key:', config.apiKey ? config.apiKey.substring(0, 20) + '...' : 'MISSING');
+  console.log('  Private Key:', privateKey ? 'Loaded' : 'MISSING or INVALID');
+  console.log('  Organization ID:', config.organizationId || 'MISSING');
 
   if (!config.baseUrl || !config.apiKey || !privateKey || !config.organizationId) {
-    console.log('\n❌ Missing required configuration. Please set environment variables:');
+    console.log('\nMissing required configuration. Please set environment variables:');
     console.log('   RELIO_BASE_URL=https://api.develio.ch/v1');
     console.log('   RELIO_API_KEY=<your-api-key>');
     console.log('   RELIO_PRIVATE_KEY=<your-private-key-pem>');
@@ -184,10 +184,10 @@ async function main() {
   console.log(`Failed: ${failed}`);
 
   if (failed > 0) {
-    console.log('\n⚠️  Some tests failed. Check the errors above.');
+    console.log('\nSome tests failed. Check the errors above.');
     process.exit(1);
   } else {
-    console.log('\n✓ All tests passed! The Relio integration is working correctly.');
+    console.log('\nAll tests passed! The Relio integration is working correctly.');
   }
 }
 
