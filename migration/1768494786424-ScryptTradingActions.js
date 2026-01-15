@@ -4,8 +4,8 @@
  */
 
 /**
- * Add Scrypt SELL actions for EUR->USDT and CHF->USDT trading
- * and link them to existing rules 312 (EUR) and 313 (CHF)
+ * Add Scrypt SELL actions for CHF->USDT and EUR->USDT trading
+ * and link them to existing rules 312 (CHF) and 313 (EUR)
  *
  * @class
  * @implements {MigrationInterface}
@@ -17,31 +17,7 @@ module.exports = class ScryptTradingActions1768494786424 {
      * @param {QueryRunner} queryRunner
      */
     async up(queryRunner) {
-        // Create Scrypt SELL action for EUR -> USDT
-        await queryRunner.query(`
-            INSERT INTO "dbo"."liquidity_management_action" ("system", "command", "params")
-            VALUES ('Scrypt', 'sell', '{"tradeAsset":"USDT"}')
-        `);
-
-        // Get the ID of the newly created EUR action
-        const eurActionResult = await queryRunner.query(`
-            SELECT TOP 1 "id" FROM "dbo"."liquidity_management_action"
-            WHERE "system" = 'Scrypt' AND "command" = 'sell'
-            ORDER BY "id" DESC
-        `);
-        const eurActionId = eurActionResult[0].id;
-
-        // Update Rule 312 (Scrypt EUR) with maximal=1000 and link to SELL action
-        await queryRunner.query(`
-            UPDATE "dbo"."liquidity_management_rule"
-            SET "minimal" = 0,
-                "optimal" = 0,
-                "maximal" = 1000,
-                "redundancyStartActionId" = ${eurActionId}
-            WHERE "id" = 312
-        `);
-
-        // Create Scrypt SELL action for CHF -> USDT (separate action for clarity)
+        // Create Scrypt SELL action for CHF -> USDT
         await queryRunner.query(`
             INSERT INTO "dbo"."liquidity_management_action" ("system", "command", "params")
             VALUES ('Scrypt', 'sell', '{"tradeAsset":"USDT"}')
@@ -55,13 +31,37 @@ module.exports = class ScryptTradingActions1768494786424 {
         `);
         const chfActionId = chfActionResult[0].id;
 
-        // Update Rule 313 (Scrypt CHF) with maximal=1000 and link to SELL action
+        // Update Rule 312 (Scrypt CHF) with maximal=1000 and link to SELL action
         await queryRunner.query(`
             UPDATE "dbo"."liquidity_management_rule"
             SET "minimal" = 0,
                 "optimal" = 0,
                 "maximal" = 1000,
                 "redundancyStartActionId" = ${chfActionId}
+            WHERE "id" = 312
+        `);
+
+        // Create Scrypt SELL action for EUR -> USDT (separate action for clarity)
+        await queryRunner.query(`
+            INSERT INTO "dbo"."liquidity_management_action" ("system", "command", "params")
+            VALUES ('Scrypt', 'sell', '{"tradeAsset":"USDT"}')
+        `);
+
+        // Get the ID of the newly created EUR action
+        const eurActionResult = await queryRunner.query(`
+            SELECT TOP 1 "id" FROM "dbo"."liquidity_management_action"
+            WHERE "system" = 'Scrypt' AND "command" = 'sell'
+            ORDER BY "id" DESC
+        `);
+        const eurActionId = eurActionResult[0].id;
+
+        // Update Rule 313 (Scrypt EUR) with maximal=1000 and link to SELL action
+        await queryRunner.query(`
+            UPDATE "dbo"."liquidity_management_rule"
+            SET "minimal" = 0,
+                "optimal" = 0,
+                "maximal" = 1000,
+                "redundancyStartActionId" = ${eurActionId}
             WHERE "id" = 313
         `);
     }

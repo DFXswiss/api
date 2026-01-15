@@ -166,7 +166,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     }
 
     if (orderInfo.status === ScryptOrderStatus.FILLED) {
-      order.outputAmount = orderInfo.filledQuantity;
+      // outputAmount is the proceeds: filledQuantity * avgPrice
+      // For SELL EUR/USDT: filledQuantity=EUR sold, avgPrice=USDT/EUR, output=USDT received
+      order.outputAmount = orderInfo.avgPrice
+        ? orderInfo.filledQuantity * orderInfo.avgPrice
+        : orderInfo.filledQuantity;
       return true;
     }
 
