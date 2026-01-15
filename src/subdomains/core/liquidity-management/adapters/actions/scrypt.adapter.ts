@@ -171,7 +171,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         // Price tracking like Binance - update price if changed
         const currentPrice = await this.scryptService.getCurrentPrice(symbol, ScryptOrderSide.SELL);
 
-        if (orderInfo.price && currentPrice !== orderInfo.price) {
+        // Use tolerance for float comparison to avoid unnecessary updates due to rounding
+        const priceChanged = orderInfo.price && Math.abs(currentPrice - orderInfo.price) > 0.000001;
+        if (priceChanged) {
           this.logger.verbose(
             `Order ${correlationId}: price changed ${orderInfo.price} -> ${currentPrice}, updating order`,
           );
@@ -330,7 +332,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
   // --- HELPER METHODS --- //
 
-  private isBalanceTooLowError(_e: Error): boolean {
-    return false; // TODO: implement specific error check for Scrypt
+  private isBalanceTooLowError(e: Error): boolean {
+    return ['Insufficient funds', 'insufficient balance', 'Insufficient position', 'not enough balance'].some((m) =>
+      e.message?.toLowerCase().includes(m.toLowerCase()),
+    );
   }
 }
