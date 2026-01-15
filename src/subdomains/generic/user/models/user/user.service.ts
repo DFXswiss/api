@@ -187,7 +187,7 @@ export class UserService {
 
   async updateRef(userId: number, dto: UpdateRefDto): Promise<ReferralDto> {
     const [user, refAsset] = await Promise.all([
-      this.userRepo.findOne({ where: { id: userId } }),
+      this.userRepo.findOne({ where: { id: userId }, relations: { wallet: true } }),
       this.assetService.getAssetById(dto.payoutAsset.id),
     ]);
 
