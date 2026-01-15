@@ -299,11 +299,9 @@ export class LogJobService {
       [ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL],
     );
     const recentScryptBankTx = await this.bankTxService.getRecentExchangeTx(undefined, BankTxType.SCRYPT);
-    const recentScryptExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
-      undefined,
-      ExchangeName.SCRYPT,
-      [ExchangeTxType.DEPOSIT],
-    );
+    const recentScryptExchangeTx = await this.exchangeTxService.getRecentExchangeTx(undefined, ExchangeName.SCRYPT, [
+      ExchangeTxType.DEPOSIT,
+    ]);
 
     // fixed sender and receiver data
 
