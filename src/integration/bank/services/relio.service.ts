@@ -218,11 +218,20 @@ export class RelioService {
    *
    * From Relio NodeJS example:
    * ```
-   * const sortedKeys = Object.keys(request.body).sort();
-   * body = JSON.stringify(
-   *   sortedKeys.reduce((acc, key) => ((acc[key] = request.body[key]), acc), {})
-   * );
+   * let body = '';
+   * if (request.body && Object.keys(request.body).length > 0) {
+   *   const sortedKeys = Object.keys(request.body).sort();
+   *   body = JSON.stringify(
+   *     sortedKeys.reduce((acc, key) => ((acc[key] = request.body[key]), acc), {})
+   *   );
+   * }
    * ```
+   *
+   * Key behaviors:
+   * - null/undefined → ''
+   * - empty object {} → '' (NOT '{}')
+   * - arrays → JSON.stringify as-is (no sorting)
+   * - objects → sort top-level keys only
    */
   private buildCanonicalBody(body: unknown): string {
     if (body === null || body === undefined) {
@@ -233,8 +242,18 @@ export class RelioService {
       return JSON.stringify(body);
     }
 
-    // Sort only top-level keys (matches Relio NodeJS example exactly)
+    // Arrays: stringify as-is without sorting
+    if (Array.isArray(body)) {
+      return JSON.stringify(body);
+    }
+
+    // Empty object check (matches NodeJS example: Object.keys(request.body).length > 0)
     const obj = body as Record<string, unknown>;
+    if (Object.keys(obj).length === 0) {
+      return '';
+    }
+
+    // Sort only top-level keys (matches Relio NodeJS example exactly)
     const sortedKeys = Object.keys(obj).sort();
     const sortedObj: Record<string, unknown> = {};
 
