@@ -29,6 +29,7 @@ import {
   DeepPartial,
   FindOptionsRelations,
   FindOptionsWhere,
+  ILike,
   In,
   IsNull,
   LessThan,
@@ -526,6 +527,21 @@ export class BankTxService implements OnModuleInit {
     return this.bankTxRepo.find({
       where: { virtualIban },
       relations: { transaction: { userData: true } },
+    });
+  }
+
+  async getBankTxsByName(name: string): Promise<BankTx[]> {
+    const request: FindOptionsWhere<BankTx> = {
+      type: In(BankTxUnassignedTypes),
+      creditDebitIndicator: BankTxIndicator.CREDIT,
+    };
+
+    return this.bankTxRepo.find({
+      where: [
+        { ...request, name: ILike(`%${name}%`) },
+        { ...request, ultimateName: ILike(`%${name}%`) },
+      ],
+      relations: { transaction: true },
     });
   }
 
