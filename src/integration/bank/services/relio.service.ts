@@ -216,52 +216,60 @@ export class RelioService {
   /**
    * Build canonical body string with top-level sorted keys
    *
-   * From Relio NodeJS example:
+   * From Relio NodeJS example (page 4):
    * ```
-   * let body = '';
-   * if (request.body && Object.keys(request.body).length > 0) {
-   *   const sortedKeys = Object.keys(request.body).sort();
-   *   body = JSON.stringify(
-   *     sortedKeys.reduce((acc, key) => ((acc[key] = request.body[key]), acc), {})
-   *   );
+   * let body = "";
+   * if (request.body) {
+   *   if (typeof request.body === "object") {
+   *     const sortedKeys = Object.keys(request.body).sort();
+   *     body = JSON.stringify(
+   *       sortedKeys.reduce((acc, key) => ((acc[key] = request.body[key]), acc), {})
+   *     );
+   *   } else if (typeof request.body === "string") {
+   *     body = request.body;
+   *   }
    * }
    * ```
    *
-   * Key behaviors:
-   * - null/undefined → ''
-   * - empty object {} → '' (NOT '{}')
+   * Key behaviors (matching NodeJS example exactly):
+   * - null/undefined → '' (falsy check: if (request.body))
+   * - empty object {} → '{}' (truthy, gets stringified)
    * - arrays → JSON.stringify as-is (no sorting)
-   * - objects → sort top-level keys only
+   * - objects → sort top-level keys only, then stringify
+   * - strings → use as-is
    */
   private buildCanonicalBody(body: unknown): string {
-    if (body === null || body === undefined) {
+    // Matches: if (request.body) - falsy values return empty string
+    if (!body) {
       return '';
     }
 
-    if (typeof body !== 'object') {
-      return JSON.stringify(body);
+    // Matches: if (typeof request.body === "object")
+    if (typeof body === 'object') {
+      // Arrays: stringify as-is without sorting
+      if (Array.isArray(body)) {
+        return JSON.stringify(body);
+      }
+
+      // Objects (including empty {}): sort top-level keys and stringify
+      const obj = body as Record<string, unknown>;
+      const sortedKeys = Object.keys(obj).sort();
+      const sortedObj: Record<string, unknown> = {};
+
+      for (const key of sortedKeys) {
+        sortedObj[key] = obj[key];
+      }
+
+      return JSON.stringify(sortedObj);
     }
 
-    // Arrays: stringify as-is without sorting
-    if (Array.isArray(body)) {
-      return JSON.stringify(body);
+    // Matches: else if (typeof request.body === "string")
+    if (typeof body === 'string') {
+      return body;
     }
 
-    // Empty object check (matches NodeJS example: Object.keys(request.body).length > 0)
-    const obj = body as Record<string, unknown>;
-    if (Object.keys(obj).length === 0) {
-      return '';
-    }
-
-    // Sort only top-level keys (matches Relio NodeJS example exactly)
-    const sortedKeys = Object.keys(obj).sort();
-    const sortedObj: Record<string, unknown> = {};
-
-    for (const key of sortedKeys) {
-      sortedObj[key] = obj[key];
-    }
-
-    return JSON.stringify(sortedObj);
+    // Other primitives (number, boolean) - stringify
+    return JSON.stringify(body);
   }
 
   /**
