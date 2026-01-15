@@ -601,13 +601,13 @@ export class UserDataService {
 
     await this.checkMail(userData, cacheEntry.mail);
 
-    return this.doUpdateUserMail(userData, cacheEntry.mail, false);
+    return this.doUpdateUserMail(userData, cacheEntry.mail);
   }
 
-  async trySetUserMail(userData: UserData, mail: string, skipKycInit = false): Promise<UserData> {
+  async trySetUserMail(userData: UserData, mail: string): Promise<UserData> {
     await this.checkMail(userData, mail);
 
-    return this.doUpdateUserMail(userData, mail, skipKycInit);
+    return this.doUpdateUserMail(userData, mail);
   }
 
   async checkMail(userData: UserData, mail: string): Promise<void> {
@@ -630,7 +630,7 @@ export class UserDataService {
     throw new ConflictException(errorMessage);
   }
 
-  private async doUpdateUserMail(userData: UserData, mail: string, skipKycInit: boolean): Promise<UserData> {
+  private async doUpdateUserMail(userData: UserData, mail: string): Promise<UserData> {
     await this.userDataRepo.update(userData.id, { mail });
     Object.assign(userData, { mail });
 
@@ -647,12 +647,10 @@ export class UserDataService {
 
     await this.kycLogService.createMailChangeLog(userData, userData.mail, mail);
 
-    if (!skipKycInit) {
-      try {
-        await this.kycService.initializeProcess(userData);
-      } catch (e) {
-        this.logger.error(`Failed to initialize KYC process for account ${userData.id}:`, e);
-      }
+    try {
+      await this.kycService.initializeProcess(userData);
+    } catch (e) {
+      this.logger.error(`Failed to initialize KYC process for account ${userData.id}:`, e);
     }
 
     return userData;
