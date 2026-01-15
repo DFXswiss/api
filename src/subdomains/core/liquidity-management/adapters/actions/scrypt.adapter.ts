@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ScryptOrderStatus, ScryptService, ScryptTransactionStatus } from 'src/integration/exchange/services/scrypt.service';
+import {
+  ScryptOrderStatus,
+  ScryptService,
+  ScryptTransactionStatus,
+} from 'src/integration/exchange/services/scrypt.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
