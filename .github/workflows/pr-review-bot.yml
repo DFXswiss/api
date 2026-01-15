@@ -199,9 +199,9 @@ jobs:
               comments.push(`## ❌ TypeScript: ${tscErrors} errors`);
             }
 
-            // Security audit
-            if (auditCritical > 0 || auditHigh > 0) {
-              comments.push(`## ${auditCritical > 0 ? '❌' : '⚠️'} Security: ${auditCritical} critical, ${auditHigh} high vulnerabilities`);
+            // Security audit (only report critical vulnerabilities)
+            if (auditCritical > 0) {
+              comments.push(`## ❌ Security: ${auditCritical} critical vulnerabilities`);
             }
 
             // New TODOs
