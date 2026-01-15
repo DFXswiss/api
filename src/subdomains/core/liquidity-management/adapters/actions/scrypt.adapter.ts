@@ -159,7 +159,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       return false;
     }
 
-    if ([ScryptOrderStatus.CANCELED, ScryptOrderStatus.REJECTED].includes(orderInfo.status)) {
+    if ([ScryptOrderStatus.CANCELLED, ScryptOrderStatus.REJECTED].includes(orderInfo.status)) {
       throw new OrderFailedException(
         `Order ${correlationId} has failed with status ${orderInfo.status}: ${orderInfo.rejectReason ?? 'unknown reason'}`,
       );

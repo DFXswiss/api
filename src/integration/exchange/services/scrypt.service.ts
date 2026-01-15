@@ -55,7 +55,7 @@ export enum ScryptOrderStatus {
   NEW = 'New',
   PARTIALLY_FILLED = 'PartiallyFilled',
   FILLED = 'Filled',
-  CANCELED = 'Canceled',
+  CANCELLED = 'Cancelled',
   REJECTED = 'Rejected',
 }
 
@@ -298,7 +298,7 @@ export class ScryptService {
       case ScryptOrderStatus.PARTIALLY_FILLED:
       case ScryptOrderStatus.NEW:
         return false;
-      case ScryptOrderStatus.CANCELED:
+      case ScryptOrderStatus.CANCELLED:
       case ScryptOrderStatus.REJECTED:
         throw new Error(`Scrypt order ${clOrdId} failed with status ${order.status}: ${order.rejectReason ?? ''}`);
       default:
