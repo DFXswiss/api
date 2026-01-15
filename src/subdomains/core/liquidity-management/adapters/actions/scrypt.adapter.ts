@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ScryptService, ScryptTransactionStatus } from 'src/integration/exchange/services/scrypt.service';
+import { ScryptOrderStatus, ScryptService, ScryptTransactionStatus } from 'src/integration/exchange/services/scrypt.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -13,6 +13,7 @@ import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 
 export enum ScryptAdapterCommands {
   WITHDRAW = 'withdraw',
+  SELL = 'sell',
 }
 
 @Injectable()
@@ -28,12 +29,16 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     super(LiquidityManagementSystem.SCRYPT);
 
     this.commands.set(ScryptAdapterCommands.WITHDRAW, this.withdraw.bind(this));
+    this.commands.set(ScryptAdapterCommands.SELL, this.sell.bind(this));
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     switch (order.action.command) {
       case ScryptAdapterCommands.WITHDRAW:
         return this.checkWithdrawCompletion(order);
+
+      case ScryptAdapterCommands.SELL:
+        return this.checkSellCompletion(order);
 
       default:
         return false;
@@ -44,6 +49,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     switch (command) {
       case ScryptAdapterCommands.WITHDRAW:
         return this.validateWithdrawParams(params);
+
+      case ScryptAdapterCommands.SELL:
+        return this.validateSellParams(params);
 
       default:
         throw new Error(`Command ${command} not supported by ScryptAdapter`);
@@ -83,6 +91,37 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     }
   }
 
+  private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const { tradeAsset } = this.parseSellParams(order.action.paramMap);
+
+    const asset = order.pipeline.rule.targetAsset.dexName;
+
+    const availableBalance = await this.scryptService.getAvailableBalance(asset);
+    const effectiveMax = Math.min(order.maxAmount, availableBalance);
+
+    if (effectiveMax < order.minAmount) {
+      throw new OrderNotProcessableException(
+        `Scrypt: not enough balance for ${asset} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+      );
+    }
+
+    const amount = Util.floor(effectiveMax, 6);
+
+    order.inputAmount = amount;
+    order.inputAsset = asset;
+    order.outputAsset = tradeAsset;
+
+    try {
+      return await this.scryptService.sell(asset, tradeAsset, amount);
+    } catch (e) {
+      if (this.isBalanceTooLowError(e)) {
+        throw new OrderNotProcessableException(e.message);
+      }
+
+      throw e;
+    }
+  }
+
   // --- COMPLETION CHECKS --- //
 
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
@@ -105,6 +144,29 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
     const { blockchain } = this.parseWithdrawParams(order.action.paramMap);
     return this.dexService.checkTransferCompletion(withdrawal.txHash, blockchain);
+  }
+
+  private async checkSellCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const { correlationId } = order;
+
+    const orderInfo = await this.scryptService.getOrderStatus(correlationId);
+    if (!orderInfo) {
+      this.logger.verbose(`No order info for id ${correlationId} at ${this.scryptService.name} found`);
+      return false;
+    }
+
+    if ([ScryptOrderStatus.CANCELED, ScryptOrderStatus.REJECTED].includes(orderInfo.status)) {
+      throw new OrderFailedException(
+        `Order ${correlationId} has failed with status ${orderInfo.status}: ${orderInfo.rejectReason ?? 'unknown reason'}`,
+      );
+    }
+
+    if (orderInfo.status === ScryptOrderStatus.FILLED) {
+      order.outputAmount = orderInfo.filledQuantity;
+      return true;
+    }
+
+    return false;
   }
 
   // --- PARAM VALIDATION --- //
@@ -132,6 +194,27 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     }
 
     return { address, asset, blockchain };
+  }
+
+  private validateSellParams(params: Record<string, unknown>): boolean {
+    try {
+      this.parseSellParams(params);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private parseSellParams(params: Record<string, unknown>): {
+    tradeAsset: string;
+  } {
+    const tradeAsset = params.tradeAsset as string | undefined;
+
+    if (!tradeAsset) {
+      throw new Error(`Params provided to ScryptAdapter.sell(...) command are invalid.`);
+    }
+
+    return { tradeAsset };
   }
 
   // --- HELPER METHODS --- //

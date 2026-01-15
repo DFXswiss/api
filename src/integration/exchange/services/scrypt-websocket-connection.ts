@@ -23,6 +23,9 @@ export enum ScryptMessageType {
   BALANCE_TRANSACTION = 'BalanceTransaction',
   BALANCE = 'Balance',
   ERROR = 'error',
+  // Trading
+  NEW_ORDER_SINGLE = 'NewOrderSingle',
+  EXECUTION_REPORT = 'ExecutionReport',
 }
 
 enum ScryptRequestType {
