@@ -431,6 +431,10 @@ export class AmlHelperService {
         }
 
         break;
+
+      case AmlRule.RULE_15:
+        errors.push(AmlError.FORCE_MANUAL_CHECK);
+        break;
     }
 
     return errors;
@@ -540,10 +544,27 @@ export class AmlHelperService {
       multiAccountBankNames,
     ).filter((e) => e);
 
+    // Separate FALLBACK errors from real errors
+    const fallbackErrors = amlErrors.filter((e) => AmlErrorResult[e]?.type === AmlErrorType.FALLBACK);
+    const realErrors = amlErrors.filter((e) => AmlErrorResult[e]?.type !== AmlErrorType.FALLBACK);
+
     const comment = Array.from(new Set(amlErrors)).join(';');
 
-    // Pass
-    if (amlErrors.length === 0)
+    // Pass case - no real errors
+    if (realErrors.length === 0) {
+      // Check for FALLBACK errors (e.g., FORCE_MANUAL_CHECK)
+      if (fallbackErrors.length > 0) {
+        const fallbackResult = { amlError: fallbackErrors[0], ...AmlErrorResult[fallbackErrors[0]] };
+        return {
+          bankData,
+          amlCheck: fallbackResult.amlCheck,
+          amlReason: fallbackResult.amlReason,
+          comment,
+          amlResponsible: 'API',
+        };
+      }
+
+      // True Pass - no errors at all
       return {
         bankData,
         amlCheck: CheckStatus.PASS,
@@ -551,8 +572,10 @@ export class AmlHelperService {
         amlResponsible: 'API',
         priceDefinitionAllowedDate: new Date(),
       };
+    }
 
-    const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
+    // Rest uses realErrors instead of amlErrors (FALLBACK errors are ignored when real errors exist)
+    const amlResults = realErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
@@ -566,7 +589,7 @@ export class AmlHelperService {
     }
 
     // Delay amlCheck for some specific errors
-    if (amlErrors.some((e) => DelayResultError.includes(e)) && Util.minutesDiff(entity.created) < 5) return { comment };
+    if (realErrors.some((e) => DelayResultError.includes(e)) && Util.minutesDiff(entity.created) < 5) return { comment };
 
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
@@ -589,7 +612,7 @@ export class AmlHelperService {
 
     // Only error aml
     const onlyErrorResult = amlResults.find((r) => r.type === AmlErrorType.SINGLE);
-    if (onlyErrorResult && amlErrors.length === 1)
+    if (onlyErrorResult && realErrors.length === 1)
       return { bankData, amlCheck: onlyErrorResult.amlCheck, amlReason: onlyErrorResult.amlReason, comment };
 
     // Same error aml
