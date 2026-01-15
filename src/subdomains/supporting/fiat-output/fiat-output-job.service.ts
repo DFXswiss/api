@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
 import { isLiechtensteinBankHoliday } from 'src/config/bank-holiday.config';
+import { Config } from 'src/config/config';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
@@ -95,10 +95,7 @@ export class FiatOutputJobService {
     // Fallback to endToEndId (used for Yapeal LiqManagement payments)
     if (entity.endToEndId) {
       const bankTx = await this.bankTxService.getBankTxByEndToEndId(entity.endToEndId);
-      if (bankTx) {
-        this.logger.info(`FiatOutput ${entity.id} matched via endToEndId ${entity.endToEndId} to BankTx ${bankTx.id}`);
-      }
-      return bankTx;
+      if (bankTx) return bankTx;
     }
 
     return undefined;
