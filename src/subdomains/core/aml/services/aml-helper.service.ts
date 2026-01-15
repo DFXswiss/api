@@ -431,6 +431,10 @@ export class AmlHelperService {
         }
 
         break;
+
+      case AmlRule.RULE_15:
+        errors.push(AmlError.FORCE_MANUAL_CHECK);
+        break;
     }
 
     return errors;
