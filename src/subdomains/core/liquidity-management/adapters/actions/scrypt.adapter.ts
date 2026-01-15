@@ -248,13 +248,13 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const correlationIds = order.allCorrelationIds;
 
     // Fetch all orders in parallel like Binance
-    const orderResults = await Promise.allSettled(
-      correlationIds.map((id) => this.scryptService.getOrderStatus(id)),
-    );
+    const orderResults = await Promise.allSettled(correlationIds.map((id) => this.scryptService.getOrderStatus(id)));
 
     const orders = orderResults
-      .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof this.scryptService.getOrderStatus>>> =>
-        result.status === 'fulfilled' && result.value !== null)
+      .filter(
+        (result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof this.scryptService.getOrderStatus>>> =>
+          result.status === 'fulfilled' && result.value !== null,
+      )
       .map((result) => result.value!);
 
     // Log failures
