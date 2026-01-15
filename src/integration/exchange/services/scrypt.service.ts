@@ -224,7 +224,7 @@ export class ScryptService {
     side: ScryptOrderSide,
     quantity: number,
     orderType: ScryptOrderType = ScryptOrderType.MARKET,
-    timeInForce: ScryptTimeInForce = ScryptTimeInForce.FILL_AND_KILL,
+    timeInForce: ScryptTimeInForce = ScryptTimeInForce.GOOD_TILL_CANCEL,
   ): Promise<ScryptOrderResponse> {
     const clOrdId = randomUUID();
 
