@@ -322,9 +322,9 @@ export class UserV2Controller {
   @Put('ref')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
-  @ApiOkResponse({ type: UserDetailDto })
-  async updateRefAsset(@GetJwt() jwt: JwtPayload, @Body() dto: UpdateRefDto): Promise<UserDetailDto> {
-    return this.userService.updateRefAsset(jwt.user, dto.refAsset.id);
+  @ApiOkResponse({ type: ReferralDto })
+  async updateRefAsset(@GetJwt() jwt: JwtPayload, @Body() dto: UpdateRefDto): Promise<ReferralDto> {
+    return this.userService.updateRef(jwt.user, dto);
   }
 
   @Get('profile')

@@ -2,7 +2,6 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -136,16 +135,12 @@ export class RefRewardService {
       });
       if (pendingBlockchainRewards) continue;
 
+      const defaultAsset = await this.assetService.getRefPayoutAsset(blockchain);
+
       for (const user of users) {
-        const payoutAsset =
-          blockchain === Blockchain.ETHEREUM
-            ? (user.refAsset ??
-              (await this.assetService.getAssetByQuery({
-                blockchain,
-                name: 'dEURO',
-                type: AssetType.TOKEN,
-              })))
-            : await this.assetService.getNativeAsset(blockchain);
+        const payoutAsset = user.refAsset ?? defaultAsset;
+        if (payoutAsset.blockchain !== blockchain) throw new Error('User ref asset blockchain mismatch');
+
         const refCreditEur = user.refCredit - user.paidRefCredit;
         const minCredit = PayoutLimits[blockchain];
 

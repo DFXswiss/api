@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsNotEmptyObject, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
@@ -40,11 +44,17 @@ export class ReferralDto {
 
   @ApiProperty({ description: 'Number of active users referred' })
   activeUserCount: number;
+
+  @ApiProperty({ description: 'Referral payout asset' })
+  payoutAsset: AssetDto;
 }
 
 export class UpdateRefDto {
-  @ApiProperty({ description: 'Referral asset' })
-  refAsset: Asset;
+  @ApiProperty({ type: EntityDto, description: 'Referral payout asset' })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  payoutAsset: Asset;
 }
 
 export class UserAddressDto {
