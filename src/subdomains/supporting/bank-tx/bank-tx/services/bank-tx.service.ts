@@ -386,6 +386,14 @@ export class BankTxService implements OnModuleInit {
       .getOne();
   }
 
+  async getBankTxByEndToEndId(endToEndId: string): Promise<BankTx> {
+    return this.bankTxRepo.findOne({
+      where: { endToEndId },
+      relations: { transaction: true },
+      order: { id: 'DESC' },
+    });
+  }
+
   async getBankTxByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
     return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }

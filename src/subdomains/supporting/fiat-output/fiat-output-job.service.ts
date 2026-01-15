@@ -86,9 +86,18 @@ export class FiatOutputJobService {
   // --- HELPER METHODS --- //
 
   private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
-    if (!entity.remittanceInfo) return undefined;
+    // Try remittanceInfo first
+    if (entity.remittanceInfo) {
+      const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
+      if (bankTx) return bankTx;
+    }
 
-    return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
+    // Fallback to endToEndId (used for Yapeal LiqManagement payments)
+    if (entity.endToEndId) {
+      return this.bankTxService.getBankTxByEndToEndId(entity.endToEndId);
+    }
+
+    return undefined;
   }
 
   private async getPayoutAccount(entity: FiatOutput, country: Country): Promise<{ accountIban: string; bank: Bank }> {
