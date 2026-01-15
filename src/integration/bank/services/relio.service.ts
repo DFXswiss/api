@@ -200,49 +200,61 @@ export class RelioService {
 
   /**
    * Create canonical request string for signing
-   * Format: ${METHOD}${path}${?queryString}${sortedJsonBody}
+   * Format: ${METHOD}${path}${?sortedQueryString}${topLevelSortedJsonBody}
+   *
+   * Based on Relio API documentation examples:
+   * - Query params must be sorted alphabetically
+   * - JSON body keys must be sorted alphabetically (top-level only)
    */
-  private createCanonicalString(method: string, path: string, queryString: string, body?: unknown): string {
-    let canonicalBody = '';
-    if (body && typeof body === 'object' && Object.keys(body).length > 0) {
-      canonicalBody = this.sortAndStringify(body);
-    }
+  private createCanonicalString(
+    method: string,
+    path: string,
+    queryParams: Map<string, string>,
+    body?: unknown,
+  ): string {
+    // Sort query params alphabetically
+    const sortedQueryString = this.buildSortedQueryString(queryParams);
 
-    return `${method.toUpperCase()}${path}${queryString}${canonicalBody}`;
+    // Sort body keys (top-level only, as per Relio NodeJS example)
+    const canonicalBody = this.buildCanonicalBody(body);
+
+    return `${method.toUpperCase()}${path}${sortedQueryString}${canonicalBody}`;
   }
 
   /**
-   * Sort object keys alphabetically and stringify (recursive)
+   * Build sorted query string from params map
    */
-  private sortAndStringify(obj: unknown): string {
-    if (obj === null || obj === undefined) {
+  private buildSortedQueryString(queryParams: Map<string, string>): string {
+    if (queryParams.size === 0) return '';
+
+    const sortedParams = Array.from(queryParams.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${value}`)
+      .join('&');
+
+    return `?${sortedParams}`;
+  }
+
+  /**
+   * Build canonical body string with top-level sorted keys
+   * Matches Relio NodeJS example: only top-level keys are sorted
+   */
+  private buildCanonicalBody(body: unknown): string {
+    if (body === null || body === undefined) {
       return '';
     }
 
-    if (typeof obj !== 'object') {
-      return JSON.stringify(obj);
+    if (typeof body !== 'object') {
+      return JSON.stringify(body);
     }
 
-    if (Array.isArray(obj)) {
-      const sortedArray = obj.map((item) => {
-        if (typeof item === 'object' && item !== null) {
-          return JSON.parse(this.sortAndStringify(item));
-        }
-        return item;
-      });
-      return JSON.stringify(sortedArray);
-    }
-
-    const sortedKeys = Object.keys(obj as Record<string, unknown>).sort();
+    // Sort only top-level keys (as per Relio NodeJS example)
+    const obj = body as Record<string, unknown>;
+    const sortedKeys = Object.keys(obj).sort();
     const sortedObj: Record<string, unknown> = {};
 
     for (const key of sortedKeys) {
-      const value = (obj as Record<string, unknown>)[key];
-      if (typeof value === 'object' && value !== null) {
-        sortedObj[key] = JSON.parse(this.sortAndStringify(value));
-      } else {
-        sortedObj[key] = value;
-      }
+      sortedObj[key] = obj[key];
     }
 
     return JSON.stringify(sortedObj);
@@ -269,13 +281,19 @@ export class RelioService {
 
     const { baseUrl, apiKey } = Config.bank.relio;
 
-    // Parse endpoint for path and query string
+    // Parse endpoint for path and query params
     const [pathPart, queryPart] = endpoint.split('?');
     const path = `/v1/${pathPart}`;
-    const queryString = queryPart ? `?${queryPart}` : '';
+
+    // Parse query params into Map for sorting
+    const queryParams = new Map<string, string>();
+    if (queryPart) {
+      const searchParams = new URLSearchParams(queryPart);
+      searchParams.forEach((value, key) => queryParams.set(key, value));
+    }
 
     // Create canonical string and sign
-    const canonicalString = this.createCanonicalString(method, path, queryString, data);
+    const canonicalString = this.createCanonicalString(method, path, queryParams, data);
     const signature = this.signRequest(canonicalString);
 
     try {
