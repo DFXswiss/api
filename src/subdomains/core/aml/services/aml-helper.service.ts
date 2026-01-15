@@ -205,6 +205,7 @@ export class AmlHelperService {
         errors.push(AmlError.SUSPICIOUS_MAIL);
 
       for (const amlRule of entity.user.wallet.amlRuleList) {
+        if (amlRule === AmlRule.RULE_15) continue; // Already checked in main wallet loop
         errors.push(
           ...this.amlRuleCheck(amlRule, entity.wallet.exceptAmlRuleList, entity, amountInChf, last7dCheckoutVolume),
         );
