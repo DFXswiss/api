@@ -94,7 +94,11 @@ export class FiatOutputJobService {
 
     // Fallback to endToEndId (used for Yapeal LiqManagement payments)
     if (entity.endToEndId) {
-      return this.bankTxService.getBankTxByEndToEndId(entity.endToEndId);
+      const bankTx = await this.bankTxService.getBankTxByEndToEndId(entity.endToEndId);
+      if (bankTx) {
+        this.logger.info(`FiatOutput ${entity.id} matched via endToEndId ${entity.endToEndId} to BankTx ${bankTx.id}`);
+      }
+      return bankTx;
     }
 
     return undefined;
