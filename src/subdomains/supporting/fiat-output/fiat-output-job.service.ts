@@ -448,6 +448,9 @@ export class FiatOutputJobService {
 
       case FiatOutputType.BANK_TX_RETURN:
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
+
+      case FiatOutputType.LIQ_MANAGEMENT:
+        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.INTERNAL });
     }
   }
 }
