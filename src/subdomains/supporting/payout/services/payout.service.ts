@@ -7,8 +7,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { FindOptionsRelations, IsNull, LessThan, MoreThan, Not } from 'typeorm';
-import { Config } from 'src/config/config';
+import { FindOptionsRelations, IsNull, MoreThan, Not } from 'typeorm';
 import { MailRequest } from '../../notification/interfaces';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
@@ -113,7 +112,6 @@ export class PayoutService {
     await this.prepareNewOrders();
     await this.payoutOrders();
     await this.processFailedOrders();
-    await this.processStuckPayoutOrders();
   }
 
   //*** HELPER METHODS ***//
@@ -225,40 +223,6 @@ export class PayoutService {
     for (const order of orders) {
       order.pendingInvestigation();
       await this.payoutOrderRepo.save(order);
-    }
-  }
-
-  private async processStuckPayoutOrders(): Promise<void> {
-    const timeoutMinutes = Config.payout.stuckPayoutTimeoutMinutes;
-    const cutoffDate = Util.minutesBefore(timeoutMinutes);
-
-    const stuckOrders = await this.payoutOrderRepo.findBy({
-      status: PayoutOrderStatus.PAYOUT_PENDING,
-      payoutTxId: Not(IsNull()),
-      updated: LessThan(cutoffDate),
-    });
-
-    if (stuckOrders.length === 0) return;
-
-    this.logger.warn(`Found ${stuckOrders.length} stuck payout order(s) older than ${timeoutMinutes} minutes`);
-
-    const groups = this.groupByStrategies(stuckOrders, (a) => this.payoutStrategyRegistry.getPayoutStrategy(a));
-
-    for (const [strategy, orders] of groups.entries()) {
-      for (const order of orders) {
-        try {
-          const canRetry = await strategy.canRetryFailedPayout(order);
-          if (!canRetry) {
-            this.logger.verbose(`Payout order ${order.id} does not match any whitelisted retry condition, skipping`);
-            continue;
-          }
-
-          this.logger.info(`Retrying failed payout order ${order.id} (txId: ${order.payoutTxId})`);
-          await strategy.doPayout([order]);
-        } catch (e) {
-          this.logger.error(`Error retrying payout order ${order.id}:`, e);
-        }
-      }
     }
   }
 

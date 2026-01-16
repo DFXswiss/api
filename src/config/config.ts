@@ -679,10 +679,6 @@ export class Configuration {
     ],
   };
 
-  payout = {
-    stuckPayoutTimeoutMinutes: +(process.env.PAYOUT_STUCK_TIMEOUT_MINUTES ?? 10),
-  };
-
   blockchain = {
     default: {
       user: process.env.NODE_USER,
