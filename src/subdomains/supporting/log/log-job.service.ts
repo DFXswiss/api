@@ -275,6 +275,8 @@ export class LogJobService {
             financeLogPairIds?.fromKraken.eur.bankTxId,
             financeLogPairIds?.toKraken.chf.bankTxId,
             financeLogPairIds?.toKraken.eur.bankTxId,
+            financeLogPairIds?.toScrypt.chf.bankTxId,
+            financeLogPairIds?.toScrypt.eur.bankTxId,
           ],
         )
       : undefined;
@@ -285,6 +287,8 @@ export class LogJobService {
             financeLogPairIds?.fromKraken.eur.exchangeTxId,
             financeLogPairIds?.toKraken.chf.exchangeTxId,
             financeLogPairIds?.toKraken.eur.exchangeTxId,
+            financeLogPairIds?.toScrypt.chf.exchangeTxId,
+            financeLogPairIds?.toScrypt.eur.exchangeTxId,
           ],
         )
       : undefined;
@@ -298,11 +302,12 @@ export class LogJobService {
       ExchangeName.KRAKEN,
       [ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL],
     );
-    const recentScryptBankTx = await this.bankTxService.getRecentExchangeTx(undefined, BankTxType.SCRYPT);
-    const recentScryptExchangeTx = await this.exchangeTxService.getRecentExchangeTx(undefined, ExchangeName.SCRYPT, [
-      ExchangeTxType.DEPOSIT,
-      ExchangeTxType.WITHDRAWAL,
-    ]);
+    const recentScryptBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.SCRYPT);
+    const recentScryptExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
+      minExchangeTxId,
+      ExchangeName.SCRYPT,
+      [ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL],
+    );
 
     // fixed sender and receiver data
 
@@ -352,6 +357,14 @@ export class LogJobService {
         k.address === yapealEurBank.bic.padEnd(11, 'XXX'),
     );
 
+    // CHF: Yapeal -> Scrypt
+    const chfSenderScryptBankTx = recentScryptBankTx.filter(
+      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+    );
+    const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
+      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'CHF',
+    );
+
     // sender and receiver data
     const { sender: recentChfKrakenYapealTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
       chfSenderExchangeTx,
@@ -369,14 +382,6 @@ export class LogJobService {
     const { sender: recentEurYapealKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
       eurSenderBankTx,
       eurReceiverExchangeTx,
-    );
-
-    // CHF: Yapeal -> Scrypt
-    const chfSenderScryptBankTx = recentScryptBankTx.filter(
-      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
-    );
-    const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
-      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'CHF',
     );
 
     // EUR: Yapeal -> Scrypt
@@ -549,20 +554,6 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      const fromKrakenUnfiltered =
-        pendingChfKrakenYapealPlusAmountUnfiltered +
-        pendingEurKrakenYapealPlusAmountUnfiltered +
-        pendingKrakenYapealMinusAmountUnfiltered;
-      const toKrakenUnfiltered =
-        pendingYapealKrakenPlusAmountUnfiltered +
-        pendingChfYapealKrakenMinusAmountUnfiltered +
-        pendingEurYapealKrakenMinusAmountUnfiltered;
-
-      let fromKraken =
-        pendingChfKrakenYapealPlusAmount + pendingEurKrakenYapealPlusAmount + pendingKrakenYapealMinusAmount;
-      let toKraken =
-        pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
-
       // Yapeal to Scrypt
       const pendingYapealScryptPlusAmount = this.getPendingBankAmount(
         [curr],
@@ -581,6 +572,20 @@ export class LogJobService {
         ExchangeTxType.DEPOSIT,
         yapealEurBank.iban,
       );
+
+      const fromKrakenUnfiltered =
+        pendingChfKrakenYapealPlusAmountUnfiltered +
+        pendingEurKrakenYapealPlusAmountUnfiltered +
+        pendingKrakenYapealMinusAmountUnfiltered;
+      const toKrakenUnfiltered =
+        pendingYapealKrakenPlusAmountUnfiltered +
+        pendingChfYapealKrakenMinusAmountUnfiltered +
+        pendingEurYapealKrakenMinusAmountUnfiltered;
+
+      let fromKraken =
+        pendingChfKrakenYapealPlusAmount + pendingEurKrakenYapealPlusAmount + pendingKrakenYapealMinusAmount;
+      let toKraken =
+        pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
 
       let toScrypt =
         pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount;
