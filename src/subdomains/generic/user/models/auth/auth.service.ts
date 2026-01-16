@@ -343,7 +343,7 @@ export class AuthService {
 
   private async companySignIn(dto: SignInDto, ip: string): Promise<AuthResponseDto> {
     const wallet = await this.walletService.getByAddress(dto.address);
-    if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
+    if (!wallet) throw new NotFoundException('Wallet not found');
 
     if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key, dto.blockchain)))
       throw new UnauthorizedException('Invalid credentials');
@@ -353,7 +353,7 @@ export class AuthService {
 
   async getCompanyChallenge(address: string): Promise<ChallengeDto> {
     const wallet = await this.walletService.getByAddress(address);
-    if (!wallet?.isKycClient) throw new BadRequestException('Wallet not found/invalid');
+    if (!wallet) throw new BadRequestException('Wallet not found/invalid');
 
     const challenge = randomUUID();
 
@@ -514,7 +514,7 @@ export class AuthService {
     const payload: JwtPayload = {
       user: wallet.id,
       address: wallet.address,
-      role: UserRole.KYC_CLIENT_COMPANY,
+      role: wallet.isKycClient ? UserRole.KYC_CLIENT_COMPANY : UserRole.CLIENT_COMPANY,
       ip,
     };
     return this.jwtService.sign(payload, { expiresIn: Config.auth.company.signOptions.expiresIn });

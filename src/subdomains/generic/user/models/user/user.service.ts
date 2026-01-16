@@ -14,6 +14,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Active } from 'src/shared/models/active';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { LanguageService } from 'src/shared/models/language/language.service';
@@ -42,12 +43,12 @@ import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
-import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
+import { ReferralDto, UpdateRefDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
-import { UserStatus } from './user.enum';
+import { UserAddressType, UserStatus } from './user.enum';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -65,6 +66,7 @@ export class UserService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly siftService: SiftService,
+    private readonly assetService: AssetService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -180,9 +182,36 @@ export class UserService {
       where: { id: userId },
     });
 
-    const { refCount, refCountActive } = await this.getRefUserCounts(user);
+    return this.mapRefDtoV2(user);
+  }
 
-    return UserDtoMapper.mapRef(user, refCount, refCountActive);
+  async updateRef(userId: number, dto: UpdateRefDto): Promise<ReferralDto> {
+    const [user, refAsset] = await Promise.all([
+      this.userRepo.findOne({ where: { id: userId }, relations: { wallet: true } }),
+      this.assetService.getAssetById(dto.payoutAsset.id),
+    ]);
+
+    if (!user) throw new NotFoundException('User not found');
+    if (user.addressType !== UserAddressType.EVM)
+      throw new BadRequestException('Ref asset can only be set for EVM addresses');
+
+    if (!refAsset) throw new BadRequestException('Asset not found');
+    if (refAsset.refEnabled === false) throw new BadRequestException('Asset is not enabled for ref payout');
+    if (!user.blockchains.includes(refAsset.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+
+    user.refAsset = refAsset;
+    const savedUser = await this.userRepo.save(user);
+
+    return this.mapRefDtoV2(savedUser);
+  }
+
+  private async mapRefDtoV2(user: User): Promise<ReferralDto> {
+    const { refCount, refCountActive } = await this.getRefUserCounts(user);
+    const payoutAsset =
+      user.refAsset ??
+      (await this.assetService.getRefPayoutAsset(CryptoService.getDefaultBlockchainBasedOn(user.address)));
+
+    return UserDtoMapper.mapRef(user, refCount, refCountActive, payoutAsset);
   }
 
   async getUserProfile(userDataId: number): Promise<UserProfileDto> {

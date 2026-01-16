@@ -32,5 +32,12 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
   abstract estimateFee(targetAsset: Asset, address: string, amount: number, asset: Asset): Promise<FeeResult>;
   abstract estimateBlockchainFee(asset: Asset): Promise<FeeResult>;
 
+  // Returns true if the payout can be safely retried.
+  // Uses whitelist approach: only explicitly handled failure types allow retry.
+  // Default: false (no retry). Override in specific strategies to handle known failure types.
+  async canRetryFailedPayout(_order: PayoutOrder): Promise<boolean> {
+    return false;
+  }
+
   protected abstract getFeeAsset(): Promise<Asset>;
 }

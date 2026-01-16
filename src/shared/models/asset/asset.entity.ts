@@ -73,6 +73,9 @@ export class Asset extends IEntity {
   @Column({ default: false })
   paymentEnabled: boolean;
 
+  @Column({ default: false })
+  refEnabled: boolean;
+
   @Column({ default: true })
   refundEnabled: boolean;
 
@@ -140,7 +143,8 @@ export class Asset extends IEntity {
       this.sellable ||
       this.cardSellable ||
       this.instantSellable ||
-      this.paymentEnabled
+      this.paymentEnabled ||
+      this.refEnabled
     );
   }
 

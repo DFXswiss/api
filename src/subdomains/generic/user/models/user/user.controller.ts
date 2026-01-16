@@ -46,7 +46,7 @@ import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
-import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
+import { ReferralDto, UpdateRefDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
 import { UpdateMailStatus, VerifyMailDto } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
@@ -317,6 +317,14 @@ export class UserV2Controller {
   @ApiOkResponse({ type: ReferralDto })
   async getRef(@GetJwt() jwt: JwtPayload): Promise<ReferralDto> {
     return this.userService.getRefDtoV2(jwt.user);
+  }
+
+  @Put('ref')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOkResponse({ type: ReferralDto })
+  async updateRefAsset(@GetJwt() jwt: JwtPayload, @Body() dto: UpdateRefDto): Promise<ReferralDto> {
+    return this.userService.updateRef(jwt.user, dto);
   }
 
   @Get('profile')

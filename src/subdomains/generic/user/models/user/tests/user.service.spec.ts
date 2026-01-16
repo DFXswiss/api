@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
@@ -34,6 +35,7 @@ describe('UserService', () => {
   let tfaService: TfaService;
   let siftService: SiftService;
   let kycAdminService: KycAdminService;
+  let assetService: AssetService;
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
@@ -50,6 +52,7 @@ describe('UserService', () => {
     tfaService = createMock<TfaService>();
     siftService = createMock<SiftService>();
     kycAdminService = createMock<KycAdminService>();
+    assetService = createMock<AssetService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -68,6 +71,7 @@ describe('UserService', () => {
         { provide: TfaService, useValue: tfaService },
         { provide: SiftService, useValue: siftService },
         { provide: KycAdminService, useValue: kycAdminService },
+        { provide: AssetService, useValue: assetService },
         TestUtil.provideConfig(),
       ],
     }).compile();

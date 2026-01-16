@@ -14,6 +14,7 @@ export enum UserRole {
   // service roles
   BANKING_BOT = 'BankingBot',
 
-  // external kyc client company roles
+  // external client company roles
   KYC_CLIENT_COMPANY = 'KycClientCompany',
+  CLIENT_COMPANY = 'ClientCompany',
 }
