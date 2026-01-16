@@ -81,7 +81,7 @@ export class ScryptWebSocketConnection {
 
   // --- PUBLIC METHODS --- //
 
-  async fetch(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<any[]> {
+  async fetch<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
     const response = await this.request({
       type: ScryptRequestType.SUBSCRIBE,
       streams: [{ name: streamName, ...filters }],
@@ -89,13 +89,13 @@ export class ScryptWebSocketConnection {
 
     if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
 
-    return response.data ?? [];
+    return (response.data ?? []) as T[];
   }
 
   async requestAndWaitForUpdate<T>(
     request: ScryptRequest,
     streamName: ScryptMessageType,
-    matcher: (data: any) => T | null,
+    matcher: (data: T[]) => T | null,
     timeoutMs: number,
   ): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -105,7 +105,7 @@ export class ScryptWebSocketConnection {
       }, timeoutMs);
 
       const unsubscribe = this.subscribe(streamName, (data) => {
-        const match = matcher(data);
+        const match = matcher(data as T[]);
         if (match) {
           clearTimeout(timeoutId);
           unsubscribe();

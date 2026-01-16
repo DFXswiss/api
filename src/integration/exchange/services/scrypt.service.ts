@@ -54,11 +54,10 @@ export class ScryptService {
   }
 
   private async fetchBalances(currencies?: string[]): Promise<ScryptBalance[]> {
-    const data = await this.connection.fetch(
+    return this.connection.fetch<ScryptBalance>(
       ScryptMessageType.BALANCE,
       currencies?.length ? { Currencies: currencies } : undefined,
     );
-    return data as ScryptBalance[];
   }
 
   // --- WITHDRAWALS --- //
@@ -91,13 +90,9 @@ export class ScryptService {
     const transaction = await this.connection.requestAndWaitForUpdate<ScryptBalanceTransaction>(
       withdrawRequest,
       ScryptMessageType.BALANCE_TRANSACTION,
-      (data) => {
-        const transactions = data as ScryptBalanceTransaction[];
-        return (
-          transactions.find((t) => t.ClReqID === clReqId && t.TransactionType === ScryptTransactionType.WITHDRAWAL) ??
-          null
-        );
-      },
+      (transactions) =>
+        transactions.find((t) => t.ClReqID === clReqId && t.TransactionType === ScryptTransactionType.WITHDRAWAL) ??
+        null,
       60000,
     );
 
@@ -139,23 +134,22 @@ export class ScryptService {
   }
 
   private async fetchBalanceTransactions(): Promise<ScryptBalanceTransaction[]> {
-    const data = await this.connection.fetch(ScryptMessageType.BALANCE_TRANSACTION);
-    return data as ScryptBalanceTransaction[];
+    return this.connection.fetch<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION);
   }
 
   async getTrades(since?: Date): Promise<ScryptTrade[]> {
     const filters: Record<string, unknown> = {};
     if (since) filters.StartDate = since.toISOString();
 
-    const data = await this.connection.fetch(ScryptMessageType.TRADE, filters);
-    return data as ScryptTrade[];
+    return this.connection.fetch<ScryptTrade>(ScryptMessageType.TRADE, filters);
   }
 
   // --- MARKET DATA --- //
 
   async fetchOrderBook(symbol: string): Promise<ScryptOrderBook> {
-    const data = await this.connection.fetch(ScryptMessageType.MARKET_DATA_SNAPSHOT, { Symbols: [symbol] });
-    const snapshots = data as ScryptMarketDataSnapshot[];
+    const snapshots = await this.connection.fetch<ScryptMarketDataSnapshot>(ScryptMessageType.MARKET_DATA_SNAPSHOT, {
+      Symbols: [symbol],
+    });
     const snapshot = snapshots.find((s) => s.Symbol === symbol);
 
     if (!snapshot) {
@@ -183,8 +177,7 @@ export class ScryptService {
   // --- SECURITY INFO --- //
 
   async getSecurityInfo(symbol: string): Promise<ScryptSecurityInfo> {
-    const data = await this.connection.fetch(ScryptMessageType.SECURITY, { Symbols: [symbol] });
-    const securities = data as ScryptSecurity[];
+    const securities = await this.connection.fetch<ScryptSecurity>(ScryptMessageType.SECURITY, { Symbols: [symbol] });
     const security = securities.find((s) => s.Symbol === symbol);
 
     if (!security) {
@@ -243,10 +236,7 @@ export class ScryptService {
     const report = await this.connection.requestAndWaitForUpdate<ScryptExecutionReport>(
       orderRequest,
       ScryptMessageType.EXECUTION_REPORT,
-      (data) => {
-        const reports = data as ScryptExecutionReport[];
-        return reports.find((r) => r.ClOrdID === clOrdId) ?? null;
-      },
+      (reports) => reports.find((r) => r.ClOrdID === clOrdId) ?? null,
       60000,
     );
 
@@ -292,10 +282,7 @@ export class ScryptService {
     const report = await this.connection.requestAndWaitForUpdate<ScryptExecutionReport>(
       cancelRequest,
       ScryptMessageType.EXECUTION_REPORT,
-      (data) => {
-        const reports = data as ScryptExecutionReport[];
-        return reports.find((r) => r.OrigClOrdID === origClOrdId || r.ClOrdID === newClOrdId) ?? null;
-      },
+      (reports) => reports.find((r) => r.OrigClOrdID === origClOrdId || r.ClOrdID === newClOrdId) ?? null,
       60000,
     );
 
@@ -322,10 +309,7 @@ export class ScryptService {
     const report = await this.connection.requestAndWaitForUpdate<ScryptExecutionReport>(
       replaceRequest,
       ScryptMessageType.EXECUTION_REPORT,
-      (data) => {
-        const reports = data as ScryptExecutionReport[];
-        return reports.find((r) => r.ClOrdID === newClOrdId) ?? null;
-      },
+      (reports) => reports.find((r) => r.ClOrdID === newClOrdId) ?? null,
       60000,
     );
 
@@ -358,7 +342,6 @@ export class ScryptService {
   }
 
   private async fetchExecutionReports(): Promise<ScryptExecutionReport[]> {
-    const data = await this.connection.fetch(ScryptMessageType.EXECUTION_REPORT);
-    return data as ScryptExecutionReport[];
+    return this.connection.fetch<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
   }
 }

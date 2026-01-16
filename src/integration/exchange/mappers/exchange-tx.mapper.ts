@@ -12,6 +12,7 @@ import { ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
 
 export class ExchangeTxMapper {
+  // --- CCXT TRANSACTIONS --- //
   static mapDeposits(transactions: Transaction[], exchange: ExchangeName): ExchangeTxDto[] {
     return transactions
       .filter((d) => d.type === 'deposit')
@@ -79,13 +80,14 @@ export class ExchangeTxMapper {
     }));
   }
 
+  // --- SCRYPT TRANSACTIONS --- //
   static mapScryptTransactions(transactions: ScryptBalanceTransaction[], exchange: ExchangeName): ExchangeTxDto[] {
     return transactions.map((t) => ({
       exchange,
       type: this.mapScryptTransactionType(t.TransactionType),
       externalId: t.TransactionID,
-      externalCreated: t.TransactTime ? new Date(t.TransactTime) : new Date(),
-      externalUpdated: t.Timestamp ? new Date(t.Timestamp) : new Date(),
+      externalCreated: t.TransactTime ? new Date(t.TransactTime) : null,
+      externalUpdated: t.Timestamp ? new Date(t.Timestamp) : null,
       status: this.mapScryptStatus(t.Status),
       amount: parseFloat(t.Quantity) || 0,
       feeAmount: t.Fee ? parseFloat(t.Fee) : 0,
@@ -118,6 +120,7 @@ export class ExchangeTxMapper {
     }
   }
 
+  // --- SCRYPT TRADES --- //
   static mapScryptTrades(trades: ScryptTrade[], exchange: ExchangeName): ExchangeTxDto[] {
     return trades.map((t) => ({
       exchange,
