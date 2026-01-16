@@ -78,7 +78,8 @@ export abstract class EvmStrategy extends PayoutStrategy {
     }
   }
 
-  override async isPayoutStuck(order: PayoutOrder): Promise<boolean> {
+  // Whitelisted failure type: Flashbots expired transactions (TX does not exist on-chain)
+  override async canRetryFailedPayout(order: PayoutOrder): Promise<boolean> {
     if (!order.payoutTxId) return false;
     return this.payoutEvmService.isTxExpired(order.payoutTxId);
   }

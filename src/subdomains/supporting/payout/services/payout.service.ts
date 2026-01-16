@@ -247,16 +247,16 @@ export class PayoutService {
     for (const [strategy, orders] of groups.entries()) {
       for (const order of orders) {
         try {
-          const isStuck = await strategy.isPayoutStuck(order);
-          if (!isStuck) {
-            this.logger.verbose(`Payout order ${order.id} is not stuck (TX still pending), skipping retry`);
+          const canRetry = await strategy.canRetryFailedPayout(order);
+          if (!canRetry) {
+            this.logger.verbose(`Payout order ${order.id} does not match any whitelisted retry condition, skipping`);
             continue;
           }
 
-          this.logger.info(`Retrying stuck payout order ${order.id} (txId: ${order.payoutTxId})`);
+          this.logger.info(`Retrying failed payout order ${order.id} (txId: ${order.payoutTxId})`);
           await strategy.doPayout([order]);
         } catch (e) {
-          this.logger.error(`Error retrying stuck payout order ${order.id}:`, e);
+          this.logger.error(`Error retrying payout order ${order.id}:`, e);
         }
       }
     }
