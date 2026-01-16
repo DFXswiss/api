@@ -1,4 +1,5 @@
 const mssql = require('mssql');
+const crypto = require('crypto');
 
 // Safety check - only local
 const dbHost = process.env.SQL_HOST || 'localhost';
@@ -31,10 +32,7 @@ const TEST_ADDRESSES = {
 };
 
 function uuid() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0;
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-  }).toUpperCase();
+  return crypto.randomUUID().toUpperCase();
 }
 
 function bankUsage() {
@@ -42,7 +40,7 @@ function bankUsage() {
   let result = '';
   for (let i = 0; i < 12; i++) {
     if (i === 4 || i === 8) result += '-';
-    result += chars[Math.floor(Math.random() * chars.length)];
+    result += chars[crypto.randomInt(chars.length)];
   }
   return result;
 }
