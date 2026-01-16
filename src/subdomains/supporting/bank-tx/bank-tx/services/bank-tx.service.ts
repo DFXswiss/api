@@ -501,6 +501,10 @@ export class BankTxService implements OnModuleInit {
       return BankTxType.KRAKEN;
     }
 
+    if (tx.name?.includes('SCB AG')) {
+      return BankTxType.SCB;
+    }
+
     return null;
   }
 
