@@ -94,8 +94,7 @@ export abstract class EvmStrategy extends SendStrategy {
           minConfirmations,
         );
         if (isConfirmed) {
-          payIn.confirm(direction, this.forwardRequired);
-          await this.payInRepo.save(payIn);
+          await this.payInRepo.update(...payIn.confirm(direction, this.forwardRequired));
         } else if (direction === PayInConfirmationType.OUTPUT && Util.minutesDiff(payIn.updated) > 30) {
           await this.resetForward(payIn, 'timed out');
         }

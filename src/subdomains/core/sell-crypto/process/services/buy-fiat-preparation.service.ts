@@ -386,6 +386,8 @@ export class BuyFiatPreparationService {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),
         cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+        outputAmount: Not(IsNull()),
+        outputAsset: Not(IsNull()),
       },
     });
 

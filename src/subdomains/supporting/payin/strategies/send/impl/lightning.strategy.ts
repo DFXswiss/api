@@ -70,9 +70,7 @@ export class LightningStrategy extends SendStrategy {
 
   async checkConfirmations(payIns: CryptoInput[], direction: PayInConfirmationType): Promise<void> {
     for (const payIn of payIns) {
-      payIn.confirm(direction, this.forwardRequired);
-
-      await this.payInRepo.save(payIn);
+      await this.payInRepo.update(...payIn.confirm(direction, this.forwardRequired));
     }
   }
 
