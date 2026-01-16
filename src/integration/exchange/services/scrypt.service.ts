@@ -181,7 +181,7 @@ export class ScryptService {
       remainingQuantity: parseFloat(report.LeavesQty) || 0,
       avgPrice: report.AvgPx ? parseFloat(report.AvgPx) : undefined,
       price: report.Price ? parseFloat(report.Price) : undefined,
-      rejectReason: report.RejectReason ?? report.Text,
+      rejectReason: report.OrdRejReason ?? report.Text,
     };
   }
 
@@ -223,7 +223,7 @@ export class ScryptService {
         return false;
       }
 
-      case ScryptOrderStatus.CANCELLED: {
+      case ScryptOrderStatus.CANCELED: {
         const minAmount = await this.getMinTradeAmount(from, to);
         const remaining = orderInfo.remainingQuantity;
 
@@ -250,7 +250,10 @@ export class ScryptService {
       case ScryptOrderStatus.REJECTED:
         throw new Error(`Order ${clOrdId} has been rejected: ${orderInfo.rejectReason ?? 'unknown reason'}`);
 
-      default:
+      case ScryptOrderStatus.PENDING_NEW:
+      case ScryptOrderStatus.PENDING_CANCEL:
+      case ScryptOrderStatus.PENDING_REPLACE:
+        this.logger.verbose(`Order ${clOrdId} is pending (${orderInfo.status}), waiting...`);
         return false;
     }
   }
@@ -307,7 +310,7 @@ export class ScryptService {
     );
 
     if (report.OrdStatus === ScryptOrderStatus.REJECTED) {
-      throw new Error(`Scrypt order rejected: ${report.Text ?? report.RejectReason ?? 'Unknown reason'}`);
+      throw new Error(`Scrypt order rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`);
     }
 
     return {
@@ -339,7 +342,7 @@ export class ScryptService {
       60000,
     );
 
-    return report.OrdStatus === ScryptOrderStatus.CANCELLED;
+    return report.OrdStatus === ScryptOrderStatus.CANCELED;
   }
 
   private async editOrder(
@@ -374,7 +377,7 @@ export class ScryptService {
     );
 
     if (report.OrdStatus === ScryptOrderStatus.REJECTED) {
-      throw new Error(`Scrypt order edit rejected: ${report.Text ?? report.RejectReason ?? 'Unknown reason'}`);
+      throw new Error(`Scrypt order edit rejected: ${report.Text ?? report.OrdRejReason ?? 'Unknown reason'}`);
     }
 
     return newClOrdId;
@@ -436,9 +439,9 @@ export class ScryptService {
 
   private async fetchOrderBook(symbol: string): Promise<ScryptOrderBook> {
     const snapshots = await this.connection.fetch<ScryptMarketDataSnapshot>(ScryptMessageType.MARKET_DATA_SNAPSHOT, {
-      Symbols: [symbol],
+      Symbol: symbol,
     });
-    const snapshot = snapshots.find((s) => s.Symbol === symbol);
+    const snapshot = snapshots[0];
 
     if (!snapshot) {
       throw new Error(`No orderbook data for symbol ${symbol}`);

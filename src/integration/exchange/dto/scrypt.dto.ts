@@ -93,8 +93,11 @@ export enum ScryptOrderStatus {
   NEW = 'New',
   PARTIALLY_FILLED = 'PartiallyFilled',
   FILLED = 'Filled',
-  CANCELLED = 'Cancelled',
+  CANCELED = 'Canceled',
+  PENDING_CANCEL = 'PendingCancel',
   REJECTED = 'Rejected',
+  PENDING_NEW = 'PendingNew',
+  PENDING_REPLACE = 'PendingReplace',
 }
 
 export enum ScryptOrderSide {
@@ -126,7 +129,8 @@ export interface ScryptExecutionReport {
   LeavesQty: string;
   AvgPx?: string;
   Price?: string;
-  RejectReason?: string;
+  OrdRejReason?: string;
+  CxlRejReason?: string;
   Text?: string;
 }
 
@@ -180,4 +184,3 @@ export interface ScryptSecurity {
   MinPriceIncrement?: string;
   MinSizeIncrement?: string;
 }
-
