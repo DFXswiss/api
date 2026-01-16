@@ -5,6 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncSubscription } from 'src/shared/utils/async-field';
 import { Util } from 'src/shared/utils/util';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PricingProvider } from 'src/subdomains/supporting/pricing/services/integration/pricing-provider';
 import {
   ScryptBalance,
   ScryptBalanceTransaction,
@@ -28,7 +29,7 @@ import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import { ScryptMessageType, ScryptWebSocketConnection } from './scrypt-websocket-connection';
 
 @Injectable()
-export class ScryptService {
+export class ScryptService extends PricingProvider {
   private readonly logger = new DfxLogger(ScryptService);
   private readonly connection: ScryptWebSocketConnection;
 
@@ -40,6 +41,8 @@ export class ScryptService {
   readonly name: string = 'Scrypt';
 
   constructor() {
+    super();
+
     const config = GetConfig().scrypt;
     this.connection = new ScryptWebSocketConnection(config.wsUrl, config.apiKey, config.apiSecret);
 
