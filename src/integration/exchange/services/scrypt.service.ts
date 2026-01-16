@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncSubscription } from 'src/shared/utils/async-field';
+import { Util } from 'src/shared/utils/util';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import {
   ScryptBalance,
   ScryptBalanceTransaction,
@@ -169,13 +171,63 @@ export class ScryptService {
 
   // --- TRADING --- //
 
-  async trade(from: string, to: string, amount: number): Promise<string> {
+  async getPrice(from: string, to: string): Promise<Price> {
     const { symbol, side } = await this.getTradePair(from, to);
-    const price = await this.getCurrentPrice(symbol, side);
+    const price = await this.getOrderBookPrice(symbol, side);
+
+    return Price.create(from, to, side === ScryptOrderSide.BUY ? price : 1 / price);
+  }
+
+  async getCurrentPrice(from: string, to: string): Promise<number> {
+    const { symbol, side } = await this.getTradePair(from, to);
+    const price = await this.getOrderBookPrice(symbol, side);
+
+    return side === ScryptOrderSide.BUY ? price : 1 / price;
+  }
+
+  async sell(from: string, to: string, amount: number): Promise<string> {
+    const { symbol, side } = await this.getTradePair(from, to);
+    const price = await this.getOrderBookPrice(symbol, side);
+    const sizeIncrement = await this.getSizeIncrement(symbol);
+
+    // OrderQty must be in base currency
+    // SELL (from=base): orderQty = amount
+    // BUY (from=quote): orderQty = amount / price
+    const rawQty = side === ScryptOrderSide.SELL ? amount : amount / price;
+    const orderQty = Util.floorToValue(rawQty, sizeIncrement);
+
+    return this.placeAndReturnId(symbol, side, orderQty, price);
+  }
+
+  async buy(from: string, to: string, amount: number): Promise<string> {
+    const { symbol, side } = await this.getTradePair(from, to);
+    const price = await this.getOrderBookPrice(symbol, side);
+    const sizeIncrement = await this.getSizeIncrement(symbol);
+
+    // OrderQty must be in base currency
+    // BUY (to=base): orderQty = amount
+    // SELL (to=quote): orderQty = amount / price
+    const rawQty = side === ScryptOrderSide.BUY ? amount : amount / price;
+    const orderQty = Util.floorToValue(rawQty, sizeIncrement);
+
+    return this.placeAndReturnId(symbol, side, orderQty, price);
+  }
+
+  private async getSizeIncrement(symbol: string): Promise<number> {
+    const security = await this.getSecurity(symbol);
+    return parseFloat(security.MinSizeIncrement ?? '0.000001');
+  }
+
+  private async placeAndReturnId(
+    symbol: string,
+    side: ScryptOrderSide,
+    orderQty: number,
+    price: number,
+  ): Promise<string> {
     const response = await this.placeOrder(
       symbol,
       side,
-      amount,
+      orderQty,
       ScryptOrderType.LIMIT,
       ScryptTimeInForce.GOOD_TILL_CANCEL,
       price,
@@ -252,12 +304,23 @@ export class ScryptService {
           return true;
         }
 
-        // Restart order with remaining amount
-        this.logger.verbose(`Order ${clOrdId} cancelled, restarting with remaining ${remaining} ${from}`);
+        // Restart order with remaining amount (already in base currency)
+        const { symbol, side } = await this.getTradePair(from, to);
+        const price = await this.getOrderBookPrice(symbol, side);
 
-        const newId = await this.trade(from, to, remaining);
-        this.logger.verbose(`Order ${clOrdId} changed to ${newId}`);
-        throw new TradeChangedException(newId);
+        this.logger.verbose(`Order ${clOrdId} cancelled, restarting with remaining ${remaining} (base currency)`);
+
+        const response = await this.placeOrder(
+          symbol,
+          side,
+          remaining,
+          ScryptOrderType.LIMIT,
+          ScryptTimeInForce.GOOD_TILL_CANCEL,
+          price,
+        );
+
+        this.logger.verbose(`Order ${clOrdId} changed to ${response.id}`);
+        throw new TradeChangedException(response.id);
       }
 
       case ScryptOrderStatus.FILLED:
@@ -277,7 +340,7 @@ export class ScryptService {
 
   private async getTradePrice(from: string, to: string): Promise<number> {
     const { symbol, side } = await this.getTradePair(from, to);
-    return this.getCurrentPrice(symbol, side);
+    return this.getOrderBookPrice(symbol, side);
   }
 
   private async getMinTradeAmount(from: string, to: string): Promise<number> {
@@ -402,7 +465,7 @@ export class ScryptService {
 
   // --- MARKET DATA --- //
 
-  private async getTradePair(from: string, to: string): Promise<{ symbol: string; side: ScryptOrderSide }> {
+  async getTradePair(from: string, to: string): Promise<{ symbol: string; side: ScryptOrderSide }> {
     const securities = await this.securities;
 
     // Find matching pair: either from=base,to=quote (SELL base) or from=quote,to=base (BUY base)
@@ -431,7 +494,7 @@ export class ScryptService {
     return security;
   }
 
-  private async getCurrentPrice(symbol: string, side: ScryptOrderSide): Promise<number> {
+  private async getOrderBookPrice(symbol: string, side: ScryptOrderSide): Promise<number> {
     const orderBook = await this.fetchOrderBook(symbol);
 
     // BUY: look at offers (what sellers are asking) - best ask (lowest offer)
