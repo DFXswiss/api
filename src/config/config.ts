@@ -992,6 +992,12 @@ export class Configuration {
       webhookApiKey: process.env.YAPEAL_WEBHOOK_API_KEY,
       accountIdentifier: process.env.YAPEAL_ACCOUNT_IDENTIFIER,
     },
+    relio: {
+      baseUrl: process.env.RELIO_BASE_URL,
+      apiKey: process.env.RELIO_API_KEY,
+      privateKey: process.env.RELIO_PRIVATE_KEY?.split('<br>').join('\n'),
+      organizationId: process.env.RELIO_ORGANIZATION_ID,
+    },
     forexFee: 0.02,
   };
 
