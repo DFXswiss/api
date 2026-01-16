@@ -34,6 +34,7 @@ export enum BankTxType {
   TEST_FIAT_FIAT = 'TestFiatFiat',
   GSHEET = 'GSheet',
   KRAKEN = 'Kraken',
+  SCRYPT = 'Scrypt',
   SCB = 'SCB',
   CHECKOUT_LTD = 'CheckoutLtd',
   BANK_ACCOUNT_FEE = 'BankAccountFee',
@@ -395,6 +396,7 @@ export class BankTx extends IEntity {
             : 0;
 
       case BankTxType.KRAKEN:
+      case BankTxType.SCRYPT:
         if (
           !BankService.isBankMatching(asset, targetIban ?? this.accountIban) ||
           (targetIban && asset.dexName !== this.instructedCurrency)

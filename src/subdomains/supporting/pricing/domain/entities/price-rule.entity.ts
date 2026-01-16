@@ -12,6 +12,7 @@ export enum PriceSource {
   KUCOIN = 'Kucoin',
   MEXC = 'MEXC',
   XT = 'XT',
+  SCRYPT = 'Scrypt',
 
   COIN_GECKO = 'CoinGecko',
   DEX = 'DEX',

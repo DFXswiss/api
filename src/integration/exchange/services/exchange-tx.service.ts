@@ -19,6 +19,7 @@ import { ExchangeName } from '../enums/exchange.enum';
 import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
+import { ScryptService } from './scrypt.service';
 
 @Injectable()
 export class ExchangeTxService {
@@ -121,7 +122,20 @@ export class ExchangeTxService {
 
   private async getTransactionsFor(sync: ExchangeSync, since: Date): Promise<ExchangeTxDto[]> {
     try {
-      const exchangeService = this.registryService.get(sync.exchange);
+      const exchangeService = this.registryService.getExchange(sync.exchange);
+
+      // Scrypt special case
+      if (exchangeService instanceof ScryptService) {
+        const [transactions, trades] = await Promise.all([
+          exchangeService.getAllTransactions(since),
+          exchangeService.getTrades(since),
+        ]);
+
+        return [
+          ...ExchangeTxMapper.mapScryptTransactions(transactions, sync.exchange),
+          ...ExchangeTxMapper.mapScryptTrades(trades, sync.exchange),
+        ];
+      }
 
       const tokens = sync.tokens ?? (await this.assetService.getAssetsUsedOn(sync.exchange));
 

@@ -26,6 +26,7 @@ export enum TransactionTypeInternal {
   FIAT_FIAT = 'FiatFiat',
   INTERNAL = 'Internal',
   KRAKEN = 'Kraken',
+  SCRYPT = 'Scrypt',
   BANK_TX_RETURN = 'BankTxReturn',
   BANK_TX_REPEAT = 'BankTxRepeat',
   CRYPTO_INPUT_RETURN = 'CryptoInputReturn',
