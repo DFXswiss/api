@@ -232,32 +232,28 @@ export class PayoutService {
     const timeoutMinutes = Config.payout.stuckPayoutTimeoutMinutes;
     const cutoffDate = Util.minutesBefore(timeoutMinutes);
 
-    const stuckOrders = await this.payoutOrderRepo.find({
-      where: {
-        status: PayoutOrderStatus.PAYOUT_PENDING,
-        payoutTxId: Not(IsNull()),
-        updated: LessThan(cutoffDate),
-      },
+    const stuckOrders = await this.payoutOrderRepo.findBy({
+      status: PayoutOrderStatus.PAYOUT_PENDING,
+      payoutTxId: Not(IsNull()),
+      updated: LessThan(cutoffDate),
     });
 
     if (stuckOrders.length === 0) return;
 
     this.logger.warn(`Found ${stuckOrders.length} stuck payout order(s) older than ${timeoutMinutes} minutes`);
 
-    for (const order of stuckOrders) {
-      try {
-        await this.retryStuckPayout(order);
-      } catch (e) {
-        this.logger.error(`Error retrying stuck payout order ${order.id}:`, e);
+    const groups = this.groupByStrategies(stuckOrders, (a) => this.payoutStrategyRegistry.getPayoutStrategy(a));
+
+    for (const [strategy, orders] of groups.entries()) {
+      for (const order of orders) {
+        try {
+          this.logger.info(`Retrying stuck payout order ${order.id} (txId: ${order.payoutTxId})`);
+          await strategy.doPayout([order]);
+        } catch (e) {
+          this.logger.error(`Error retrying stuck payout order ${order.id}:`, e);
+        }
       }
     }
-  }
-
-  private async retryStuckPayout(order: PayoutOrder): Promise<void> {
-    this.logger.info(`Retrying stuck payout order ${order.id} (txId: ${order.payoutTxId})`);
-
-    const strategy = this.payoutStrategyRegistry.getPayoutStrategy(order.asset);
-    await strategy.doPayout([order]);
   }
 
   private groupByStrategies<T>(orders: PayoutOrder[], getter: (asset: Asset) => T): Map<T, PayoutOrder[]> {
