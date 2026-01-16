@@ -573,23 +573,6 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      const fromKrakenUnfiltered =
-        pendingChfKrakenYapealPlusAmountUnfiltered +
-        pendingEurKrakenYapealPlusAmountUnfiltered +
-        pendingKrakenYapealMinusAmountUnfiltered;
-      const toKrakenUnfiltered =
-        pendingYapealKrakenPlusAmountUnfiltered +
-        pendingChfYapealKrakenMinusAmountUnfiltered +
-        pendingEurYapealKrakenMinusAmountUnfiltered;
-
-      let fromKraken =
-        pendingChfKrakenYapealPlusAmount + pendingEurKrakenYapealPlusAmount + pendingKrakenYapealMinusAmount;
-      let toKraken =
-        pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
-
-      let toScrypt =
-        pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount;
-
       // Scrypt to Yapeal
       const pendingChfScryptYapealPlusAmount = this.getPendingBankAmount(
         [curr],
@@ -609,8 +592,24 @@ export class LogJobService {
         BankTxType.SCRYPT,
       );
 
+      const fromKrakenUnfiltered =
+        pendingChfKrakenYapealPlusAmountUnfiltered +
+        pendingEurKrakenYapealPlusAmountUnfiltered +
+        pendingKrakenYapealMinusAmountUnfiltered;
+      const toKrakenUnfiltered =
+        pendingYapealKrakenPlusAmountUnfiltered +
+        pendingChfYapealKrakenMinusAmountUnfiltered +
+        pendingEurYapealKrakenMinusAmountUnfiltered;
+
+      let fromKraken =
+        pendingChfKrakenYapealPlusAmount + pendingEurKrakenYapealPlusAmount + pendingKrakenYapealMinusAmount;
+      let toKraken =
+        pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
+
       let fromScrypt =
         pendingChfScryptYapealPlusAmount + pendingEurScryptYapealPlusAmount + pendingScryptYapealMinusAmount;
+      let toScrypt =
+        pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount;
 
       const errors = [];
 
