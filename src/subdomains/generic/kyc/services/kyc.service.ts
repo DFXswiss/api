@@ -1228,6 +1228,13 @@ export class KycService {
     return this.kycStepRepo.findOne({ where: { id }, relations: { userData: true } });
   }
 
+  async getStepsByUserData(userDataId: number): Promise<KycStep[]> {
+    return this.kycStepRepo.find({
+      where: { userData: { id: userDataId } },
+      order: { sequenceNumber: 'ASC' },
+    });
+  }
+
   async saveKycStepUpdate(updateResult: UpdateResult<KycStep>): Promise<void> {
     await this.kycStepRepo.update(...updateResult);
   }

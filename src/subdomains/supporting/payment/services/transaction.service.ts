@@ -121,6 +121,14 @@ export class TransactionService {
     return this.repo.findBy({ uid: IsNull(), created: LessThanOrEqual(filterDate) });
   }
 
+  async getTransactionsByUserDataId(userDataId: number): Promise<Transaction[]> {
+    return this.repo.find({
+      where: { userData: { id: userDataId } },
+      order: { created: 'DESC' },
+      take: 100,
+    });
+  }
+
   async getTransactionsForAccount(userDataId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
     return this.repo.find({
       where: { userData: { id: userDataId }, type: Not(IsNull()), created: Between(from, to) },

@@ -30,9 +30,65 @@ export class BankTxSupportInfo {
   iban?: string;
 }
 
+export class UserSupportInfo {
+  id: number;
+  address: string;
+  role: string;
+  status: string;
+  created: Date;
+}
+
+export class TransactionSupportInfo {
+  id: number;
+  uid: string;
+  type?: string;
+  sourceType: string;
+  amountInChf?: number;
+  amlCheck?: string;
+  created: Date;
+}
+
+export class KycStepSupportInfo {
+  id: number;
+  name: string;
+  type?: string;
+  status: string;
+  sequenceNumber: number;
+  created: Date;
+}
+
+export class BankDataSupportInfo {
+  id: number;
+  iban: string;
+  name: string;
+  approved: boolean;
+}
+
+export class BuySupportInfo {
+  id: number;
+  bankUsage: string;
+  assetName: string;
+  blockchain: string;
+  volume: number;
+  active: boolean;
+}
+
+export class SellSupportInfo {
+  id: number;
+  iban: string;
+  fiatName?: string;
+  volume: number;
+}
+
 export class UserDataSupportInfoDetails {
   userData: UserData;
   kycFiles: KycFile[];
+  kycSteps: KycStepSupportInfo[];
+  transactions: TransactionSupportInfo[];
+  users: UserSupportInfo[];
+  bankDatas: BankDataSupportInfo[];
+  buyRoutes: BuySupportInfo[];
+  sellRoutes: SellSupportInfo[];
 }
 
 export class UserDataSupportQuery {

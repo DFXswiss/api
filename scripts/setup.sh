@@ -94,6 +94,25 @@ for i in {1..30}; do
   echo -n "."
 done
 
+# Seed test data
+echo ""
+echo "🌱 Seeding test data..."
+if [ -f "scripts/testdata.js" ]; then
+  node scripts/testdata.js
+  echo "✅ Test data seeded"
+else
+  echo "⚠️  testdata.js not found, skipping"
+fi
+
+echo ""
+echo "🔐 Seeding KYC test data..."
+if [ -f "scripts/kyc/kyc-testdata.js" ]; then
+  node scripts/kyc/kyc-testdata.js
+  echo "✅ KYC test data seeded"
+else
+  echo "⚠️  kyc-testdata.js not found, skipping"
+fi
+
 echo ""
 echo "✅ Setup complete!"
 echo ""
@@ -102,4 +121,7 @@ echo "   npm start"
 echo ""
 echo "📝 The server will be available at: http://localhost:3000"
 echo "📝 All external services are automatically mocked in local mode"
+echo ""
+echo "📁 To upload KYC files (after API is running), run:"
+echo "   ./scripts/kyc/upload-kyc-files.sh"
 echo ""

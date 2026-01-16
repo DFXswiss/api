@@ -301,6 +301,12 @@ export class BankDataService {
     });
   }
 
+  async getBankDatasByUserData(userDataId: number): Promise<BankData[]> {
+    return this.bankDataRepo.find({
+      where: { userData: { id: userDataId } },
+    });
+  }
+
   async getVerifiedBankDataWithIban(
     iban: string,
     userDataId?: number,

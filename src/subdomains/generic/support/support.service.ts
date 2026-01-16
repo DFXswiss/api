@@ -4,11 +4,13 @@ import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { BankRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import {
@@ -20,20 +22,31 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { KycFileService } from '../kyc/services/kyc-file.service';
+import { KycService } from '../kyc/services/kyc.service';
+import { BankData } from '../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
+import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
 import {
+  BankDataSupportInfo,
   BankTxSupportInfo,
+  BuySupportInfo,
   ComplianceSearchType,
+  KycStepSupportInfo,
+  SellSupportInfo,
+  TransactionSupportInfo,
   UserDataSupportInfo,
   UserDataSupportInfoDetails,
   UserDataSupportInfoResult,
   UserDataSupportQuery,
+  UserSupportInfo,
 } from './dto/user-data-support.dto';
 
 interface UserDataComplianceSearchTypePair {
@@ -56,6 +69,7 @@ export class SupportService {
     private readonly bankTxService: BankTxService,
     private readonly payInService: PayInService,
     private readonly kycFileService: KycFileService,
+    private readonly kycService: KycService,
     private readonly bankDataService: BankDataService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly transactionService: TransactionService,
@@ -69,9 +83,91 @@ export class SupportService {
     const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
     if (!userData) throw new NotFoundException(`User not found`);
 
-    const kycFiles = await this.kycFileService.getUserDataKycFiles(id);
+    // Load all related data in parallel
+    const [kycFiles, kycSteps, transactions, users, bankDatas, buyRoutes, sellRoutes] = await Promise.all([
+      this.kycFileService.getUserDataKycFiles(id),
+      this.kycService.getStepsByUserData(id),
+      this.transactionService.getTransactionsByUserDataId(id),
+      this.userService.getAllUserDataUsers(id),
+      this.bankDataService.getBankDatasByUserData(id),
+      this.buyService.getUserDataBuys(id),
+      this.sellService.getSellsByUserDataId(id),
+    ]);
 
-    return { userData, kycFiles };
+    return {
+      userData,
+      kycFiles,
+      kycSteps: kycSteps.map((s) => this.toKycStepSupportInfo(s)),
+      transactions: transactions.map((t) => this.toTransactionSupportInfo(t)),
+      users: users.map((u) => this.toUserSupportInfo(u)),
+      bankDatas: bankDatas.map((b) => this.toBankDataSupportInfo(b)),
+      buyRoutes: buyRoutes.map((b) => this.toBuySupportInfo(b)),
+      sellRoutes: sellRoutes.map((s) => this.toSellSupportInfo(s)),
+    };
+  }
+
+  // --- MAPPING METHODS --- //
+
+  private toKycStepSupportInfo(step: KycStep): KycStepSupportInfo {
+    return {
+      id: step.id,
+      name: step.name,
+      type: step.type,
+      status: step.status,
+      sequenceNumber: step.sequenceNumber,
+      created: step.created,
+    };
+  }
+
+  private toTransactionSupportInfo(tx: Transaction): TransactionSupportInfo {
+    return {
+      id: tx.id,
+      uid: tx.uid,
+      type: tx.type,
+      sourceType: tx.sourceType,
+      amountInChf: tx.amountInChf,
+      amlCheck: tx.amlCheck,
+      created: tx.created,
+    };
+  }
+
+  private toUserSupportInfo(user: User): UserSupportInfo {
+    return {
+      id: user.id,
+      address: user.address,
+      role: user.role,
+      status: user.status,
+      created: user.created,
+    };
+  }
+
+  private toBankDataSupportInfo(bankData: BankData): BankDataSupportInfo {
+    return {
+      id: bankData.id,
+      iban: bankData.iban,
+      name: bankData.name,
+      approved: bankData.approved,
+    };
+  }
+
+  private toBuySupportInfo(buy: Buy): BuySupportInfo {
+    return {
+      id: buy.id,
+      bankUsage: buy.bankUsage,
+      assetName: buy.asset?.name,
+      blockchain: buy.asset?.blockchain,
+      volume: buy.volume,
+      active: buy.active,
+    };
+  }
+
+  private toSellSupportInfo(sell: Sell): SellSupportInfo {
+    return {
+      id: sell.id,
+      iban: sell.iban,
+      fiatName: sell.fiat?.name,
+      volume: sell.annualVolume,
+    };
   }
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {

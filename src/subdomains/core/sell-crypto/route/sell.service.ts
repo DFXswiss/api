@@ -132,6 +132,13 @@ export class SellService {
     return sells.filter((s) => s.deposit.blockchainList.some((b) => sellableBlockchains.includes(b)));
   }
 
+  async getSellsByUserDataId(userDataId: number): Promise<Sell[]> {
+    return this.sellRepo.find({
+      where: { user: { userData: { id: userDataId } } },
+      relations: { fiat: true, user: true },
+    });
+  }
+
   async getSellWithoutRoute(): Promise<Sell[]> {
     return this.sellRepo.findBy({ route: { id: IsNull() } });
   }
