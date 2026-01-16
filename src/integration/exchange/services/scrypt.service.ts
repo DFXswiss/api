@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncSubscription } from 'src/shared/utils/async-field';
 import {
   ScryptBalance,
   ScryptBalanceTransaction,
@@ -29,22 +30,46 @@ export class ScryptService {
   private readonly logger = new DfxLogger(ScryptService);
   private readonly connection: ScryptWebSocketConnection;
 
-  private securities: ScryptSecurity[];
+  // Subscriptions
+  private readonly securities: AsyncSubscription<ScryptSecurity[]>;
+  private readonly balances: AsyncSubscription<Map<string, ScryptBalance>>;
+  private readonly executionReports: Map<string, ScryptExecutionReport> = new Map();
 
   readonly name: string = 'Scrypt';
 
   constructor() {
     const config = GetConfig().scrypt;
     this.connection = new ScryptWebSocketConnection(config.wsUrl, config.apiKey, config.apiSecret);
+
+    // Securities subscription
+    this.securities = new AsyncSubscription((cb) => {
+      this.connection.subscribeToStream<ScryptSecurity>(ScryptMessageType.SECURITY, cb);
+    });
+
+    // Balances subscription (accumulate into Map)
+    this.balances = new AsyncSubscription((cb) => {
+      const map = new Map<string, ScryptBalance>();
+      this.connection.subscribeToStream<ScryptBalance>(ScryptMessageType.BALANCE, (balances) => {
+        for (const b of balances) map.set(b.Currency, b);
+        cb(map);
+      });
+    });
+
+    // ExecutionReport subscription (accumulate into Map, no await needed)
+    this.connection.subscribeToStream<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, (reports) => {
+      for (const report of reports) {
+        this.executionReports.set(report.ClOrdID, report);
+      }
+    });
   }
 
   // --- BALANCES --- //
 
   async getTotalBalances(): Promise<Record<string, number>> {
-    const balances = await this.fetchBalances();
+    const balances = await this.balances;
 
     const totalBalances: Record<string, number> = {};
-    for (const balance of balances) {
+    for (const balance of balances.values()) {
       totalBalances[balance.Currency] = parseFloat(balance.Amount) || 0;
     }
 
@@ -52,16 +77,10 @@ export class ScryptService {
   }
 
   async getAvailableBalance(currency: string): Promise<number> {
-    const balances = await this.fetchBalances([currency]);
-    const balance = balances.find((b) => b.Currency === currency);
-    return balance ? parseFloat(balance.AvailableAmount) || 0 : 0;
-  }
+    const balances = await this.balances;
 
-  private async fetchBalances(currencies?: string[]): Promise<ScryptBalance[]> {
-    return this.connection.fetch<ScryptBalance>(
-      ScryptMessageType.BALANCE,
-      currencies?.length ? { Currencies: currencies } : undefined,
-    );
+    const balance = balances.get(currency);
+    return balance ? parseFloat(balance.AvailableAmount) || 0 : 0;
   }
 
   // --- WITHDRAWALS --- //
@@ -165,9 +184,7 @@ export class ScryptService {
   }
 
   async getOrderStatus(clOrdId: string): Promise<ScryptOrderInfo | null> {
-    const reports = await this.fetchExecutionReports();
-    const report = reports.find((r) => r.ClOrdID === clOrdId);
-
+    const report = this.executionReports.get(clOrdId);
     if (!report) return null;
 
     return {
@@ -383,14 +400,10 @@ export class ScryptService {
     return newClOrdId;
   }
 
-  private async fetchExecutionReports(): Promise<ScryptExecutionReport[]> {
-    return this.connection.fetch<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
-  }
-
   // --- MARKET DATA --- //
 
   private async getTradePair(from: string, to: string): Promise<{ symbol: string; side: ScryptOrderSide }> {
-    const securities = await this.getSecurities();
+    const securities = await this.securities;
 
     // Find matching pair: either from=base,to=quote (SELL base) or from=quote,to=base (BUY base)
     const security = securities.find(
@@ -408,7 +421,7 @@ export class ScryptService {
   }
 
   private async getSecurity(symbol: string): Promise<ScryptSecurity> {
-    const securities = await this.getSecurities();
+    const securities = await this.securities;
     const security = securities.find((s) => s.Symbol === symbol);
 
     if (!security) {
@@ -416,13 +429,6 @@ export class ScryptService {
     }
 
     return security;
-  }
-
-  private async getSecurities(): Promise<ScryptSecurity[]> {
-    if (!this.securities) {
-      this.securities = await this.connection.fetch<ScryptSecurity>(ScryptMessageType.SECURITY);
-    }
-    return this.securities;
   }
 
   private async getCurrentPrice(symbol: string, side: ScryptOrderSide): Promise<number> {

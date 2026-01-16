@@ -277,6 +277,14 @@ export class ScryptWebSocketConnection {
 
   // --- STREAMING SUBSCRIPTIONS --- //
 
+  subscribeToStream<T>(
+    streamName: ScryptMessageType,
+    callback: (data: T[]) => void,
+    filters?: Record<string, unknown>,
+  ): UnsubscribeFunction {
+    return this.subscribe(streamName, callback as SubscriptionCallback, filters);
+  }
+
   private subscribe(
     streamName: ScryptMessageType,
     callback: SubscriptionCallback,
