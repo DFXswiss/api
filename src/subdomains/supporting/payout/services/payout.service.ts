@@ -7,7 +7,8 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { FindOptionsRelations, IsNull, MoreThan, Not } from 'typeorm';
+import { FindOptionsRelations, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { Config } from 'src/config/config';
 import { MailRequest } from '../../notification/interfaces';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
@@ -112,6 +113,7 @@ export class PayoutService {
     await this.prepareNewOrders();
     await this.payoutOrders();
     await this.processFailedOrders();
+    await this.processStuckPayoutOrders();
   }
 
   //*** HELPER METHODS ***//
@@ -224,6 +226,38 @@ export class PayoutService {
       order.pendingInvestigation();
       await this.payoutOrderRepo.save(order);
     }
+  }
+
+  private async processStuckPayoutOrders(): Promise<void> {
+    const timeoutMinutes = Config.payout.stuckPayoutTimeoutMinutes;
+    const cutoffDate = Util.minutesBefore(timeoutMinutes);
+
+    const stuckOrders = await this.payoutOrderRepo.find({
+      where: {
+        status: PayoutOrderStatus.PAYOUT_PENDING,
+        payoutTxId: Not(IsNull()),
+        updated: LessThan(cutoffDate),
+      },
+    });
+
+    if (stuckOrders.length === 0) return;
+
+    this.logger.warn(`Found ${stuckOrders.length} stuck payout order(s) older than ${timeoutMinutes} minutes`);
+
+    for (const order of stuckOrders) {
+      try {
+        await this.retryStuckPayout(order);
+      } catch (e) {
+        this.logger.error(`Error retrying stuck payout order ${order.id}:`, e);
+      }
+    }
+  }
+
+  private async retryStuckPayout(order: PayoutOrder): Promise<void> {
+    this.logger.info(`Retrying stuck payout order ${order.id} (txId: ${order.payoutTxId})`);
+
+    const strategy = this.payoutStrategyRegistry.getPayoutStrategy(order.asset);
+    await strategy.doPayout([order]);
   }
 
   private groupByStrategies<T>(orders: PayoutOrder[], getter: (asset: Asset) => T): Map<T, PayoutOrder[]> {
