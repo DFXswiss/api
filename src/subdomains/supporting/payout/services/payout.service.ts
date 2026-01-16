@@ -247,6 +247,12 @@ export class PayoutService {
     for (const [strategy, orders] of groups.entries()) {
       for (const order of orders) {
         try {
+          const isStuck = await strategy.isPayoutStuck(order);
+          if (!isStuck) {
+            this.logger.verbose(`Payout order ${order.id} is not stuck (TX still pending), skipping retry`);
+            continue;
+          }
+
           this.logger.info(`Retrying stuck payout order ${order.id} (txId: ${order.payoutTxId})`);
           await strategy.doPayout([order]);
         } catch (e) {

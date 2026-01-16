@@ -77,4 +77,9 @@ export abstract class EvmStrategy extends PayoutStrategy {
       return this.payoutEvmService.getTxNonce(order.payoutTxId);
     }
   }
+
+  override async isPayoutStuck(order: PayoutOrder): Promise<boolean> {
+    if (!order.payoutTxId) return false;
+    return this.payoutEvmService.isTxExpired(order.payoutTxId);
+  }
 }
