@@ -505,6 +505,10 @@ export class BankTxService implements OnModuleInit {
       return BankTxType.SCRYPT;
     }
 
+    if (tx.name?.includes('SCB AG')) {
+      return BankTxType.SCB;
+    }
+
     return null;
   }
 
