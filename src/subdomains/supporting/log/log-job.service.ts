@@ -301,6 +301,7 @@ export class LogJobService {
     const recentScryptBankTx = await this.bankTxService.getRecentExchangeTx(undefined, BankTxType.SCRYPT);
     const recentScryptExchangeTx = await this.exchangeTxService.getRecentExchangeTx(undefined, ExchangeName.SCRYPT, [
       ExchangeTxType.DEPOSIT,
+      ExchangeTxType.WITHDRAWAL,
     ]);
 
     // fixed sender and receiver data
@@ -386,7 +387,23 @@ export class LogJobService {
       (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR',
     );
 
-    // sender and receiver data for Scrypt
+    // CHF: Scrypt -> Yapeal
+    const chfSenderScryptExchangeTx = recentScryptExchangeTx.filter(
+      (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status === 'ok' && k.currency === 'CHF',
+    );
+    const chfReceiverScryptBankTx = recentScryptBankTx.filter(
+      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+    );
+
+    // EUR: Scrypt -> Yapeal
+    const eurSenderScryptExchangeTx = recentScryptExchangeTx.filter(
+      (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status === 'ok' && k.currency === 'EUR',
+    );
+    const eurReceiverScryptBankTx = recentScryptBankTx.filter(
+      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+    );
+
+    // sender and receiver data for Yapeal -> Scrypt
     const { sender: recentChfYapealScryptTx, receiver: recentChfBankTxScrypt } = this.filterSenderPendingList(
       chfSenderScryptBankTx,
       chfReceiverScryptExchangeTx,
@@ -394,6 +411,16 @@ export class LogJobService {
     const { sender: recentEurYapealScryptTx, receiver: recentEurBankTxScrypt } = this.filterSenderPendingList(
       eurSenderScryptBankTx,
       eurReceiverScryptExchangeTx,
+    );
+
+    // sender and receiver data for Scrypt -> Yapeal
+    const { sender: recentChfScryptYapealTx, receiver: recentChfScryptBankTx } = this.filterSenderPendingList(
+      chfSenderScryptExchangeTx,
+      chfReceiverScryptBankTx,
+    );
+    const { sender: recentEurScryptYapealTx, receiver: recentEurScryptBankTx } = this.filterSenderPendingList(
+      eurSenderScryptExchangeTx,
+      eurReceiverScryptBankTx,
     );
 
     // assetLog
@@ -558,6 +585,28 @@ export class LogJobService {
       let toScrypt =
         pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount;
 
+      // Scrypt to Yapeal
+      const pendingChfScryptYapealPlusAmount = this.getPendingBankAmount(
+        [curr],
+        recentChfScryptYapealTx,
+        ExchangeTxType.WITHDRAWAL,
+        yapealChfBank.iban,
+      );
+      const pendingEurScryptYapealPlusAmount = this.getPendingBankAmount(
+        [curr],
+        recentEurScryptYapealTx,
+        ExchangeTxType.WITHDRAWAL,
+        yapealEurBank.iban,
+      );
+      const pendingScryptYapealMinusAmount = this.getPendingBankAmount(
+        [curr],
+        [...recentChfScryptBankTx, ...recentEurScryptBankTx],
+        BankTxType.SCRYPT,
+      );
+
+      let fromScrypt =
+        pendingChfScryptYapealPlusAmount + pendingEurScryptYapealPlusAmount + pendingScryptYapealMinusAmount;
+
       const errors = [];
 
       if (fromKraken !== fromKrakenUnfiltered) {
@@ -601,6 +650,16 @@ export class LogJobService {
         toScrypt = 0;
       }
 
+      if (fromScrypt < 0) {
+        errors.push(`fromScrypt < 0`);
+        this.logger.verbose(
+          `Error in financial log, fromScrypt balance < 0 for asset: ${curr.id}, pendingChfPlusAmount:
+          ${pendingChfScryptYapealPlusAmount}, pendingEurPlusAmount: ${pendingEurScryptYapealPlusAmount},
+          pendingMinusAmount: ${pendingScryptYapealMinusAmount}`,
+        );
+        fromScrypt = 0;
+      }
+
       // total pending balance
       const totalPlusPending =
         cryptoInput +
@@ -609,6 +668,7 @@ export class LogJobService {
         pendingOlkyYapealAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken) +
+        fromScrypt +
         toScrypt;
 
       const totalPlus = liquidity + totalPlusPending + (totalCustomBalance ?? 0);
@@ -694,6 +754,7 @@ export class LogJobService {
                 fromOlky: this.getJsonValue(pendingOlkyYapealAmount, amountType(curr)),
                 fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
+                fromScrypt: this.getJsonValue(fromScrypt, amountType(curr)),
                 toScrypt: this.getJsonValue(toScrypt, amountType(curr)),
               }
             : undefined,

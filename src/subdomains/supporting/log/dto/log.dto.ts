@@ -58,6 +58,7 @@ export type ManualLogPosition = {
 export type LogPairId = {
   fromKraken: { eur: PairId; chf: PairId };
   toKraken: { eur: PairId; chf: PairId };
+  fromScrypt?: { eur: PairId; chf: PairId };
   toScrypt?: { eur: PairId; chf: PairId };
 };
 
@@ -109,6 +110,7 @@ type AssetLogPlusPending = {
   fromOlky?: number;
   fromKraken?: number;
   toKraken?: number;
+  fromScrypt?: number;
   toScrypt?: number;
 };
 
