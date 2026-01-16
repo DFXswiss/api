@@ -61,6 +61,10 @@ export abstract class EvmStrategy extends PayoutStrategy {
           order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
 
           await this.payoutOrderRepo.save(order);
+        } else if (await this.canRetryFailedPayout(order)) {
+          // TX expired (not on-chain, not in mempool) - retry immediately, no gas costs incurred
+          this.logger.info(`Payout order ${order.id} has expired TX (${order.payoutTxId}), retrying immediately`);
+          await this.doPayout([order]);
         }
       } catch (e) {
         this.logger.error(`Error in checking completion of EVM payout order ${order.id}:`, e);
