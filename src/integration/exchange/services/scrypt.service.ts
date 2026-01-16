@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { GetConfig } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import {
   ScryptBalance,
   ScryptBalanceTransaction,
@@ -13,7 +14,6 @@ import {
   ScryptOrderStatus,
   ScryptOrderType,
   ScryptSecurity,
-  ScryptSecurityInfo,
   ScryptTimeInForce,
   ScryptTrade,
   ScryptTransactionStatus,
@@ -21,11 +21,15 @@ import {
   ScryptWithdrawResponse,
   ScryptWithdrawStatus,
 } from '../dto/scrypt.dto';
+import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import { ScryptMessageType, ScryptWebSocketConnection } from './scrypt-websocket-connection';
 
 @Injectable()
 export class ScryptService {
+  private readonly logger = new DfxLogger(ScryptService);
   private readonly connection: ScryptWebSocketConnection;
+
+  private securities: ScryptSecurity[];
 
   readonly name: string = 'Scrypt';
 
@@ -126,7 +130,7 @@ export class ScryptService {
     };
   }
 
-  // --- TRANSACTIONS / TRADES --- //
+  // --- TRANSACTIONS --- //
 
   async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
     const transactions = await this.fetchBalanceTransactions();
@@ -144,63 +148,125 @@ export class ScryptService {
     return this.connection.fetch<ScryptTrade>(ScryptMessageType.TRADE, filters);
   }
 
-  // --- MARKET DATA --- //
-
-  async fetchOrderBook(symbol: string): Promise<ScryptOrderBook> {
-    const snapshots = await this.connection.fetch<ScryptMarketDataSnapshot>(ScryptMessageType.MARKET_DATA_SNAPSHOT, {
-      Symbols: [symbol],
-    });
-    const snapshot = snapshots.find((s) => s.Symbol === symbol);
-
-    if (!snapshot) {
-      throw new Error(`No orderbook data for symbol ${symbol}`);
-    }
-
-    return {
-      bids: snapshot.Bids.map((b) => ({ price: parseFloat(b.Price), size: parseFloat(b.Size) })),
-      offers: snapshot.Offers.map((o) => ({ price: parseFloat(o.Price), size: parseFloat(o.Size) })),
-    };
-  }
-
-  async getCurrentPrice(symbol: string, side: ScryptOrderSide): Promise<number> {
-    const orderBook = await this.fetchOrderBook(symbol);
-
-    if (side === ScryptOrderSide.BUY) {
-      if (!orderBook.offers.length) throw new Error(`No offers available for ${symbol}`);
-      return orderBook.offers[0].price; // Best ask (lowest offer)
-    } else {
-      if (!orderBook.bids.length) throw new Error(`No bids available for ${symbol}`);
-      return orderBook.bids[0].price; // Best bid (highest bid)
-    }
-  }
-
-  // --- SECURITY INFO --- //
-
-  async getSecurityInfo(symbol: string): Promise<ScryptSecurityInfo> {
-    const securities = await this.connection.fetch<ScryptSecurity>(ScryptMessageType.SECURITY, { Symbols: [symbol] });
-    const security = securities.find((s) => s.Symbol === symbol);
-
-    if (!security) {
-      throw new Error(`No security info for symbol ${symbol}`);
-    }
-
-    return {
-      symbol: security.Symbol,
-      minSize: parseFloat(security.MinimumSize ?? '0'),
-      maxSize: parseFloat(security.MaximumSize ?? '0'),
-      minPriceIncrement: parseFloat(security.MinPriceIncrement ?? '0'),
-      minSizeIncrement: parseFloat(security.MinSizeIncrement ?? '0'),
-    };
-  }
-
-  async getMinTradeAmount(symbol: string): Promise<number> {
-    const info = await this.getSecurityInfo(symbol);
-    return info.minSize;
-  }
-
   // --- TRADING --- //
 
-  async placeOrder(
+  async trade(from: string, to: string, amount: number): Promise<string> {
+    const { symbol, side } = await this.getTradePair(from, to);
+    const price = await this.getCurrentPrice(symbol, side);
+    const response = await this.placeOrder(
+      symbol,
+      side,
+      amount,
+      ScryptOrderType.LIMIT,
+      ScryptTimeInForce.GOOD_TILL_CANCEL,
+      price,
+    );
+    return response.id;
+  }
+
+  async getOrderStatus(clOrdId: string): Promise<ScryptOrderInfo | null> {
+    const reports = await this.fetchExecutionReports();
+    const report = reports.find((r) => r.ClOrdID === clOrdId);
+
+    if (!report) return null;
+
+    return {
+      id: report.ClOrdID,
+      orderId: report.OrderID,
+      symbol: report.Symbol,
+      side: report.Side,
+      status: report.OrdStatus,
+      quantity: parseFloat(report.OrderQty) || 0,
+      filledQuantity: parseFloat(report.CumQty) || 0,
+      remainingQuantity: parseFloat(report.LeavesQty) || 0,
+      avgPrice: report.AvgPx ? parseFloat(report.AvgPx) : undefined,
+      price: report.Price ? parseFloat(report.Price) : undefined,
+      rejectReason: report.RejectReason ?? report.Text,
+    };
+  }
+
+  async checkTrade(clOrdId: string, from: string, to: string): Promise<boolean> {
+    const orderInfo = await this.getOrderStatus(clOrdId);
+    if (!orderInfo) {
+      this.logger.verbose(`No order info for id ${clOrdId} at ${this.name} found`);
+      return false;
+    }
+
+    switch (orderInfo.status) {
+      case ScryptOrderStatus.NEW:
+      case ScryptOrderStatus.PARTIALLY_FILLED: {
+        const currentPrice = await this.getTradePrice(from, to);
+
+        // Use tolerance for float comparison to avoid unnecessary updates due to rounding
+        const priceChanged = orderInfo.price && Math.abs(currentPrice - orderInfo.price) > 0.000001;
+        if (priceChanged) {
+          this.logger.verbose(`Order ${clOrdId}: price changed ${orderInfo.price} -> ${currentPrice}, updating order`);
+
+          try {
+            const newId = await this.editOrder(clOrdId, from, to, orderInfo.remainingQuantity, currentPrice);
+            this.logger.verbose(`Order ${clOrdId} changed to ${newId}`);
+            throw new TradeChangedException(newId);
+          } catch (e) {
+            if (e instanceof TradeChangedException) throw e;
+
+            // If edit fails, try to cancel and let it restart
+            this.logger.verbose(`Could not update order ${clOrdId}, attempting cancel: ${e.message}`);
+            try {
+              await this.cancelOrder(clOrdId, from, to);
+            } catch (cancelError) {
+              this.logger.verbose(`Cancel also failed: ${cancelError.message}`);
+            }
+          }
+        } else {
+          this.logger.verbose(`Order ${clOrdId} open, price is still ${currentPrice}`);
+        }
+        return false;
+      }
+
+      case ScryptOrderStatus.CANCELLED: {
+        const minAmount = await this.getMinTradeAmount(from, to);
+        const remaining = orderInfo.remainingQuantity;
+
+        // If remaining amount is below minimum, consider complete
+        if (remaining < minAmount) {
+          this.logger.verbose(
+            `Order ${clOrdId} cancelled with remaining ${remaining} < minAmount ${minAmount}, marking complete`,
+          );
+          return true;
+        }
+
+        // Restart order with remaining amount
+        this.logger.verbose(`Order ${clOrdId} cancelled, restarting with remaining ${remaining} ${from}`);
+
+        const newId = await this.trade(from, to, remaining);
+        this.logger.verbose(`Order ${clOrdId} changed to ${newId}`);
+        throw new TradeChangedException(newId);
+      }
+
+      case ScryptOrderStatus.FILLED:
+        this.logger.verbose(`Order ${clOrdId} filled`);
+        return true;
+
+      case ScryptOrderStatus.REJECTED:
+        throw new Error(`Order ${clOrdId} has been rejected: ${orderInfo.rejectReason ?? 'unknown reason'}`);
+
+      default:
+        return false;
+    }
+  }
+
+  private async getTradePrice(from: string, to: string): Promise<number> {
+    const { symbol, side } = await this.getTradePair(from, to);
+    return this.getCurrentPrice(symbol, side);
+  }
+
+  private async getMinTradeAmount(from: string, to: string): Promise<number> {
+    const { symbol } = await this.getTradePair(from, to);
+    const security = await this.getSecurity(symbol);
+    return parseFloat(security.MinimumSize ?? '0');
+  }
+
+  private async placeOrder(
     symbol: string,
     side: ScryptOrderSide,
     quantity: number,
@@ -250,21 +316,8 @@ export class ScryptService {
     };
   }
 
-  async sell(from: string, to: string, amount: number): Promise<string> {
-    const symbol = `${from}/${to}`;
-    const price = await this.getCurrentPrice(symbol, ScryptOrderSide.SELL);
-    const response = await this.placeOrder(
-      symbol,
-      ScryptOrderSide.SELL,
-      amount,
-      ScryptOrderType.LIMIT,
-      ScryptTimeInForce.GOOD_TILL_CANCEL,
-      price,
-    );
-    return response.id;
-  }
-
-  async cancelOrder(clOrdId: string, symbol: string): Promise<boolean> {
+  private async cancelOrder(clOrdId: string, from: string, to: string): Promise<boolean> {
+    const { symbol } = await this.getTradePair(from, to);
     const origClOrdId = clOrdId;
     const newClOrdId = randomUUID();
 
@@ -289,7 +342,14 @@ export class ScryptService {
     return report.OrdStatus === ScryptOrderStatus.CANCELLED;
   }
 
-  async editOrder(clOrdId: string, symbol: string, newQuantity: number, newPrice: number): Promise<string> {
+  private async editOrder(
+    clOrdId: string,
+    from: string,
+    to: string,
+    newQuantity: number,
+    newPrice: number,
+  ): Promise<string> {
+    const { symbol } = await this.getTradePair(from, to);
     const origClOrdId = clOrdId;
     const newClOrdId = randomUUID();
 
@@ -320,28 +380,73 @@ export class ScryptService {
     return newClOrdId;
   }
 
-  async getOrderStatus(clOrdId: string): Promise<ScryptOrderInfo | null> {
-    const reports = await this.fetchExecutionReports();
-    const report = reports.find((r) => r.ClOrdID === clOrdId);
-
-    if (!report) return null;
-
-    return {
-      id: report.ClOrdID,
-      orderId: report.OrderID,
-      symbol: report.Symbol,
-      side: report.Side,
-      status: report.OrdStatus,
-      quantity: parseFloat(report.OrderQty) || 0,
-      filledQuantity: parseFloat(report.CumQty) || 0,
-      remainingQuantity: parseFloat(report.LeavesQty) || 0,
-      avgPrice: report.AvgPx ? parseFloat(report.AvgPx) : undefined,
-      price: report.Price ? parseFloat(report.Price) : undefined,
-      rejectReason: report.RejectReason ?? report.Text,
-    };
-  }
-
   private async fetchExecutionReports(): Promise<ScryptExecutionReport[]> {
     return this.connection.fetch<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
+  }
+
+  // --- MARKET DATA --- //
+
+  private async getTradePair(from: string, to: string): Promise<{ symbol: string; side: ScryptOrderSide }> {
+    const securities = await this.getSecurities();
+
+    // Find matching pair: either from=base,to=quote (SELL base) or from=quote,to=base (BUY base)
+    const security = securities.find(
+      (s) => (s.BaseCurrency === from && s.QuoteCurrency === to) || (s.BaseCurrency === to && s.QuoteCurrency === from),
+    );
+
+    if (!security) {
+      throw new Error(`${this.name}: pair with ${from} and ${to} not supported`);
+    }
+
+    // If 'from' is the base currency, we're selling the base; otherwise buying the base
+    const side = security.BaseCurrency === from ? ScryptOrderSide.SELL : ScryptOrderSide.BUY;
+
+    return { symbol: security.Symbol, side };
+  }
+
+  private async getSecurity(symbol: string): Promise<ScryptSecurity> {
+    const securities = await this.getSecurities();
+    const security = securities.find((s) => s.Symbol === symbol);
+
+    if (!security) {
+      throw new Error(`No security info for symbol ${symbol}`);
+    }
+
+    return security;
+  }
+
+  private async getSecurities(): Promise<ScryptSecurity[]> {
+    if (!this.securities) {
+      this.securities = await this.connection.fetch<ScryptSecurity>(ScryptMessageType.SECURITY);
+    }
+    return this.securities;
+  }
+
+  private async getCurrentPrice(symbol: string, side: ScryptOrderSide): Promise<number> {
+    const orderBook = await this.fetchOrderBook(symbol);
+
+    // BUY: look at offers (what sellers are asking) - best ask (lowest offer)
+    // SELL: look at bids (what buyers are offering) - best bid (highest bid)
+    const orders = side === ScryptOrderSide.BUY ? orderBook.offers : orderBook.bids;
+    if (!orders.length)
+      throw new Error(`No ${side === ScryptOrderSide.BUY ? 'offers' : 'bids'} available for ${symbol}`);
+
+    return orders[0].price;
+  }
+
+  private async fetchOrderBook(symbol: string): Promise<ScryptOrderBook> {
+    const snapshots = await this.connection.fetch<ScryptMarketDataSnapshot>(ScryptMessageType.MARKET_DATA_SNAPSHOT, {
+      Symbols: [symbol],
+    });
+    const snapshot = snapshots.find((s) => s.Symbol === symbol);
+
+    if (!snapshot) {
+      throw new Error(`No orderbook data for symbol ${symbol}`);
+    }
+
+    return {
+      bids: snapshot.Bids.map((b) => ({ price: parseFloat(b.Price), size: parseFloat(b.Size) })),
+      offers: snapshot.Offers.map((o) => ({ price: parseFloat(o.Price), size: parseFloat(o.Size) })),
+    };
   }
 }

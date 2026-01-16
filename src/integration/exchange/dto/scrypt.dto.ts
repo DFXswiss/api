@@ -173,16 +173,11 @@ export interface ScryptOrderBook {
 
 export interface ScryptSecurity {
   Symbol: string;
+  BaseCurrency: string;
+  QuoteCurrency: string;
   MinimumSize?: string;
   MaximumSize?: string;
   MinPriceIncrement?: string;
   MinSizeIncrement?: string;
 }
 
-export interface ScryptSecurityInfo {
-  symbol: string;
-  minSize: number;
-  maxSize: number;
-  minPriceIncrement: number;
-  minSizeIncrement: number;
-}

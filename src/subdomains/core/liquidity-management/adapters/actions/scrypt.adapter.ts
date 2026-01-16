@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ScryptOrderSide, ScryptOrderStatus, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
+import { ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
+import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -115,7 +116,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     order.outputAsset = tradeAsset;
 
     try {
-      return await this.scryptService.sell(asset, tradeAsset, amount);
+      return await this.scryptService.trade(asset, tradeAsset, amount);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
@@ -150,102 +151,32 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   }
 
   private async checkSellCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const { correlationId } = order;
     const { tradeAsset } = this.parseSellParams(order.action.paramMap);
     const asset = order.pipeline.rule.targetAsset.dexName;
-    const symbol = `${asset}/${tradeAsset}`;
 
-    const orderInfo = await this.scryptService.getOrderStatus(correlationId);
-    if (!orderInfo) {
-      this.logger.verbose(`No order info for id ${correlationId} at ${this.scryptService.name} found`);
-      return false;
-    }
+    try {
+      const isComplete = await this.scryptService.checkTrade(order.correlationId, asset, tradeAsset);
 
-    switch (orderInfo.status) {
-      case ScryptOrderStatus.NEW:
-      case ScryptOrderStatus.PARTIALLY_FILLED: {
-        // Price tracking like Binance - update price if changed
-        const currentPrice = await this.scryptService.getCurrentPrice(symbol, ScryptOrderSide.SELL);
-
-        // Use tolerance for float comparison to avoid unnecessary updates due to rounding
-        const priceChanged = orderInfo.price && Math.abs(currentPrice - orderInfo.price) > 0.000001;
-        if (priceChanged) {
-          this.logger.verbose(
-            `Order ${correlationId}: price changed ${orderInfo.price} -> ${currentPrice}, updating order`,
-          );
-
-          try {
-            const newId = await this.scryptService.editOrder(
-              correlationId,
-              symbol,
-              orderInfo.remainingQuantity,
-              currentPrice,
-            );
-            order.updateCorrelationId(newId);
-            await this.orderRepo.save(order);
-            this.logger.verbose(`Order ${correlationId} updated to ${newId} with new price ${currentPrice}`);
-          } catch (e) {
-            // If edit fails, try to cancel and let it restart
-            this.logger.verbose(`Could not update order ${correlationId}, attempting cancel: ${e.message}`);
-            try {
-              await this.scryptService.cancelOrder(correlationId, symbol);
-            } catch (cancelError) {
-              this.logger.verbose(`Cancel also failed: ${cancelError.message}`);
-            }
-          }
-        } else {
-          this.logger.verbose(`Order ${correlationId} open, price is still ${currentPrice}`);
-        }
-        return false;
-      }
-
-      case ScryptOrderStatus.CANCELLED: {
-        const minAmount = await this.scryptService.getMinTradeAmount(symbol);
-        const remaining = orderInfo.remainingQuantity;
-
-        // If remaining amount is below minimum, consider complete
-        if (remaining < minAmount) {
-          this.logger.verbose(
-            `Order ${correlationId} cancelled with remaining ${remaining} < minAmount ${minAmount}, marking complete`,
-          );
-          order.outputAmount = await this.aggregateSellOutput(order);
-          return true;
-        }
-
-        // Restart order with remaining amount (like Binance)
-        this.logger.verbose(`Order ${correlationId} cancelled, restarting with remaining ${remaining} ${asset}`);
-
-        try {
-          const newId = await this.scryptService.sell(asset, tradeAsset, remaining);
-          order.updateCorrelationId(newId);
-          await this.orderRepo.save(order);
-          this.logger.verbose(`Order ${correlationId} restarted as ${newId}`);
-          return false;
-        } catch (e) {
-          throw new OrderFailedException(`Order ${correlationId} cancelled and restart failed: ${e.message}`);
-        }
-      }
-
-      case ScryptOrderStatus.FILLED: {
-        // Aggregate output from all correlation IDs (in case of restarts)
+      if (isComplete) {
         order.outputAmount = await this.aggregateSellOutput(order);
-        return true;
       }
 
-      case ScryptOrderStatus.REJECTED:
-        throw new OrderFailedException(
-          `Order ${correlationId} has been rejected: ${orderInfo.rejectReason ?? 'unknown reason'}`,
-        );
-
-      default:
+      return isComplete;
+    } catch (e) {
+      if (e instanceof TradeChangedException) {
+        order.updateCorrelationId(e.id);
+        await this.orderRepo.save(order);
         return false;
+      }
+
+      throw new OrderFailedException(e.message);
     }
   }
 
   private async aggregateSellOutput(order: LiquidityManagementOrder): Promise<number> {
     const correlationIds = order.allCorrelationIds;
 
-    // Fetch all orders in parallel like Binance
+    // Fetch all orders in parallel
     const orderResults = await Promise.allSettled(correlationIds.map((id) => this.scryptService.getOrderStatus(id)));
 
     const orders = orderResults
