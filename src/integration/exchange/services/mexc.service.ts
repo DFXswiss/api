@@ -128,9 +128,7 @@ export class MexcService extends ExchangeService {
           ? 'ok'
           : 'pending',
       updated: undefined,
-      fee: d.transactionFee
-        ? { cost: parseFloat(d.transactionFee), currency: d.coin.split('-')[0] }
-        : undefined,
+      fee: d.transactionFee ? { cost: parseFloat(d.transactionFee), currency: d.coin.split('-')[0] } : undefined,
       network: d.network,
       comment: d.memo,
       internal: undefined,
