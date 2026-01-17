@@ -762,7 +762,7 @@ export class KycService {
       .catch((e) => this.logger.error(`Error during sumsub webhook update for applicant ${dto.applicantId}:`, e));
   }
 
-  private async updateKycStepAndLog(
+  async updateKycStepAndLog(
     kycStep: KycStep,
     user: UserData,
     data: KycStepResult,
@@ -933,13 +933,14 @@ export class KycService {
 
   // --- STEPPING METHODS --- //
   async getOrCreateStepInternal(
-    kycHash: string,
     name: KycStepName,
+    user?: UserData,
+    kycHash?: string,
     type?: KycStepType,
     sequence?: number,
     restartCompletedSteps = false,
   ): Promise<{ user: UserData; step: KycStep }> {
-    const user = await this.getUser(kycHash);
+    user = user ?? (await this.getUser(kycHash));
 
     let step =
       sequence != null
@@ -966,7 +967,7 @@ export class KycService {
     const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
     if (!name) throw new BadRequestException('Invalid step name');
 
-    const { user, step } = await this.getOrCreateStepInternal(kycHash, name, type, sequence, true);
+    const { user, step } = await this.getOrCreateStepInternal(name, undefined, kycHash, type, sequence, true);
 
     await this.verify2faIfRequired(user, ip);
 
