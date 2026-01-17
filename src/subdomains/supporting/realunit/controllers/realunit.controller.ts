@@ -12,18 +12,24 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import { Config, Environment } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { PdfBrand } from 'src/shared/utils/pdf.util';
+import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BalancePdfService } from '../../balance/services/balance-pdf.service';
+import { RealUnitBalancePdfDto } from '../dto/realunit-balance-pdf.dto';
 import {
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
@@ -50,6 +56,7 @@ import { RealUnitService } from '../realunit.service';
 export class RealUnitController {
   constructor(
     private readonly realunitService: RealUnitService,
+    private readonly balancePdfService: BalancePdfService,
     private readonly userService: UserService,
   ) {}
 
@@ -118,6 +125,27 @@ export class RealUnitController {
   @ApiOkResponse({ type: TokenInfoDto })
   async getTokenInfo(): Promise<TokenInfoDto> {
     return this.realunitService.getRealUnitInfo();
+  }
+
+  // --- Balance PDF Endpoint ---
+
+  @Post('balance/pdf')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get balance report PDF',
+    description: 'Generates a PDF balance report for a specific address on Ethereum blockchain',
+  })
+  @ApiOkResponse({ type: PdfDto, description: 'Balance PDF report (base64 encoded)' })
+  async getBalancePdf(@Body() dto: RealUnitBalancePdfDto): Promise<PdfDto> {
+    const tokenBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? Blockchain.SEPOLIA
+      : Blockchain.ETHEREUM;
+    const pdfData = await this.balancePdfService.generateBalancePdf(
+      { ...dto, blockchain: tokenBlockchain },
+      PdfBrand.REALUNIT,
+    );
+    return { pdfData };
   }
 
   // --- Brokerbot Endpoints ---
