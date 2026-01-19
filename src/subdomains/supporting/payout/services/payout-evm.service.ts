@@ -35,4 +35,12 @@ export abstract class PayoutEvmService {
   async getTxNonce(txHash: string): Promise<number> {
     return this.client.getTxNonce(txHash);
   }
+
+  async isTxExpired(txHash: string): Promise<boolean> {
+    const receipt = await this.client.getTxReceipt(txHash);
+    if (receipt) return false; // TX was mined (success or fail)
+
+    const tx = await this.client.getTx(txHash);
+    return tx === null; // TX does not exist anymore -> expired
+  }
 }

@@ -78,11 +78,16 @@ export class SupportService {
     const searchResult = await this.getUserDatasByKey(query.key);
     const bankTx = [ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN].includes(searchResult.type)
       ? await this.bankTxService.getUnassignedBankTx([query.key], [query.key])
-      : [];
+      : searchResult.type === ComplianceSearchType.NAME
+        ? await this.bankTxService.getBankTxsByName(query.key)
+        : [];
 
     if (
       !searchResult.userDatas.length &&
-      (!bankTx.length || ![ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN].includes(searchResult.type))
+      (!bankTx.length ||
+        ![ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN, ComplianceSearchType.NAME].includes(
+          searchResult.type,
+        ))
     )
       throw new NotFoundException('No user or bankTx found');
 

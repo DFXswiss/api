@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
-import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { Active } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -19,7 +17,6 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
 
   constructor(
     private readonly exchangeRegistry: ExchangeRegistryService,
-    private readonly scryptService: ScryptService,
     private readonly orderRepo: LiquidityManagementOrderRepository,
   ) {}
 
@@ -61,8 +58,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
 
   async getForExchange(exchange: string, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     try {
-      const exchangeService =
-        exchange === ExchangeName.SCRYPT ? this.scryptService : this.exchangeRegistry.get(exchange);
+      const exchangeService = this.exchangeRegistry.getExchange(exchange);
       const balances = await exchangeService.getTotalBalances();
 
       return assets.map((a) => {

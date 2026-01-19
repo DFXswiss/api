@@ -32,6 +32,7 @@ import {
   In,
   IsNull,
   LessThan,
+  Like,
   MoreThan,
   MoreThanOrEqual,
   Not,
@@ -70,6 +71,7 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: TransactionTypeInternal.BANK_TX_REPEAT_CHARGEBACK,
   [BankTxType.FIAT_FIAT]: TransactionTypeInternal.FIAT_FIAT,
   [BankTxType.KRAKEN]: TransactionTypeInternal.KRAKEN,
+  [BankTxType.SCRYPT]: TransactionTypeInternal.SCRYPT,
   [BankTxType.SCB]: TransactionTypeInternal.SCB,
   [BankTxType.CHECKOUT_LTD]: TransactionTypeInternal.CHECKOUT_LTD,
   [BankTxType.BANK_ACCOUNT_FEE]: TransactionTypeInternal.BANK_ACCOUNT_FEE,
@@ -500,6 +502,14 @@ export class BankTxService implements OnModuleInit {
       return BankTxType.KRAKEN;
     }
 
+    if (tx.name?.includes('Scrypt Digital Trading')) {
+      return BankTxType.SCRYPT;
+    }
+
+    if (tx.name?.includes('SCB AG')) {
+      return BankTxType.SCB;
+    }
+
     return null;
   }
 
@@ -526,6 +536,21 @@ export class BankTxService implements OnModuleInit {
     return this.bankTxRepo.find({
       where: { virtualIban },
       relations: { transaction: { userData: true } },
+    });
+  }
+
+  async getBankTxsByName(name: string): Promise<BankTx[]> {
+    const request: FindOptionsWhere<BankTx> = {
+      type: In(BankTxUnassignedTypes),
+      creditDebitIndicator: BankTxIndicator.CREDIT,
+    };
+
+    return this.bankTxRepo.find({
+      where: [
+        { ...request, name: Like(`%${name}%`) },
+        { ...request, ultimateName: Like(`%${name}%`) },
+      ],
+      relations: { transaction: true },
     });
   }
 

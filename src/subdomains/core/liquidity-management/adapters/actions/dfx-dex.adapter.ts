@@ -214,7 +214,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   }
 
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const { system, assetId } = this.parseWithdrawParams(order.action.paramMap);
+    const { system, assetId, exchangeAssetName } = this.parseWithdrawParams(order.action.paramMap);
 
     const exchange = this.exchangeRegistry.get(system);
 
@@ -222,8 +222,9 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     const sourceChain = sourceAsset && exchange.mapNetwork(sourceAsset.blockchain);
 
     const targetAsset = order.pipeline.rule.targetAsset;
+    const depositAssetName = exchangeAssetName ?? targetAsset.dexName;
 
-    const deposits = await exchange.getDeposits(targetAsset.dexName, order.created, sourceChain || undefined);
+    const deposits = await exchange.getDeposits(depositAssetName, order.created, sourceChain || undefined);
     const deposit = deposits.find((d) => d.amount === order.inputAmount && d.timestamp > order.created.getTime());
 
     const isComplete = deposit && deposit.status === 'ok';
@@ -249,15 +250,17 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     address: string;
     system: LiquidityManagementSystem;
     assetId?: number;
+    exchangeAssetName?: string;
   } {
     const address = process.env[params.destinationAddress as string];
     const system = params.destinationSystem as LiquidityManagementSystem;
     const assetId = params.assetId as number | undefined;
+    const exchangeAssetName = params.exchangeAssetName as string | undefined;
 
     const isValid = this.withdrawParamsValid(address, system);
     if (!isValid) throw new Error(`Params provided to DfxDexAdapter.withdraw(...) command are invalid.`);
 
-    return { address, system, assetId };
+    return { address, system, assetId, exchangeAssetName };
   }
 
   private withdrawParamsValid(address: string, system: LiquidityManagementSystem): boolean {
