@@ -93,6 +93,14 @@ export class MexcService extends ExchangeService {
     for (const azPair of this.assessmentZonePairs) {
       if (!markets.find((m) => m.symbol === azPair.symbol)) {
         markets.push(azPair as Market);
+
+        // Also inject into ccxt's internal cache for methods like fetchOrderBook/createOrder
+        if (this.exchange.markets && !this.exchange.markets[azPair.symbol]) {
+          this.exchange.markets[azPair.symbol] = azPair as Market;
+        }
+        if (this.exchange.symbols && !this.exchange.symbols.includes(azPair.symbol)) {
+          this.exchange.symbols.push(azPair.symbol);
+        }
       }
     }
 
