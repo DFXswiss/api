@@ -35,6 +35,6 @@ import { TransactionService } from './services/transaction.service';
     SpecialExternalAccountRepository,
     TransactionNotificationService,
   ],
-  exports: [TransactionService, SpecialExternalAccountService],
+  exports: [TransactionService, SpecialExternalAccountService, TransactionNotificationService],
 })
 export class TransactionModule {}
