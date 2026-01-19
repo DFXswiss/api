@@ -57,7 +57,7 @@ export class WebhookNotificationService {
         {
           ...webhook.sentWebhook(result),
           lastTryDate: now,
-          nextTryDate: null, // Erfolg -> keine Retries mehr
+          nextTryDate: null,
         },
       );
     } catch (error) {
