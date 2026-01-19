@@ -161,7 +161,7 @@ export class VirtualIbanService {
     };
   }
 
-  async getVirtualIbanForAccount(userDataId: number): Promise<VirtualIban[]> {
-    return this.virtualIbanRepo.findCachedBy(userDataId, { userData: { id: userDataId } });
+  async getVirtualIbansForAccount(userDataId: number): Promise<VirtualIban[]> {
+    return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
   }
 }

@@ -213,17 +213,17 @@ export class BuyController {
 
   @Get('/personalIban')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOkResponse({ type: VirtualIbanDto, isArray: true })
-  async getAllPersonalBanks(@GetJwt() jwt: JwtPayload): Promise<VirtualIbanDto[]> {
-    return this.virtualIbanService.getVirtualIbanForAccount(jwt.account).then((vI) => vI.map(VirtualIbanMapper.toDto));
+  async getAllPersonalIbans(@GetJwt() jwt: JwtPayload): Promise<VirtualIbanDto[]> {
+    return this.virtualIbanService.getVirtualIbansForAccount(jwt.account).then((vI) => vI.map(VirtualIbanMapper.toDto));
   }
 
   @Post('/personalIban')
   @ApiBearerAuth()
   @UseGuards(
     AuthGuard(),
-    RoleGuard(UserRole.USER),
+    RoleGuard(UserRole.ACCOUNT),
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
