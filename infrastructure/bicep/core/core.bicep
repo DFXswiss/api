@@ -31,6 +31,8 @@ var applicationInsightsName = 'appi-${compName}-${rg}-${env}'
 var sqlServerName = 'sql-${compName}-${rg}-${env}'
 var sqlDbName = 'sqldb-${compName}-${rg}-${env}'
 
+var storageAccountName = 'st${compName}${rg}${env}'
+
 // --- MODULES --- //
 module networkSecurityGroup './modules/networkSecurityGroups.bicep' = {
   name: 'networkSecurityGroup'
@@ -79,4 +81,11 @@ module sqlServer './modules/sqlServer.bicep' = {
   dependsOn: [
     virtualNetworks
   ]
+}
+
+module storageAccount './modules/storageAccount.bicep' = {
+  name: 'storageAccount'
+  params: {
+    storageAccountName: storageAccountName
+  }
 }
