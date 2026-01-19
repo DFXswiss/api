@@ -2,9 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { In } from 'typeorm';
+import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { In, IsNull, MoreThan, Not } from 'typeorm';
 import { MailFactory } from '../../notification/factories/mail.factory';
 import { SupportMessageTranslationKey } from '../dto/support-issue.dto';
+import { BotAuthor } from '../entities/support-message.entity';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportIssueService } from './support-issue.service';
@@ -27,13 +30,19 @@ export class SupportIssueJobService {
       where: {
         type: SupportIssueType.TRANSACTION_ISSUE,
         reason: In([SupportIssueReason.FUNDS_NOT_RECEIVED, SupportIssueReason.TRANSACTION_MISSING]),
+        state: SupportIssueInternalState.CREATED,
+        messages: { author: Not(BotAuthor) },
+        transaction: {
+          buyCrypto: { id: Not(IsNull()), isComplete: true, amlCheck: CheckStatus.PASS, outputAsset: { name: 'XMR' } },
+        },
+        created: MoreThan(Util.daysBefore(2)),
       },
     });
 
     for (const entity of entities) {
       const lang = entity.userData.language.symbol.toLowerCase();
       const message = this.mailFactory.translate(SupportMessageTranslationKey.MONERO_NOT_DISPLAYED, lang);
-      await this.supportIssueService.createMessageSupport(entity.id, { message });
+      await this.supportIssueService.createMessageSupport(entity.id, { message, author: BotAuthor });
       await this.supportIssueService.updateIssueInternal(entity, { state: SupportIssueInternalState.BOT_MESSAGE });
     }
   }
