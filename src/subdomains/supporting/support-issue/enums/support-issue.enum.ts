@@ -4,6 +4,7 @@ export enum SupportIssueInternalState {
   COMPLETED = 'Completed',
   CANCELED = 'Canceled',
   ON_HOLD = 'OnHold',
+  BOT_MESSAGE = 'BotMessage',
 }
 
 export enum SupportIssueType {

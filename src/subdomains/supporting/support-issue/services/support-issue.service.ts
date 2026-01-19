@@ -161,6 +161,10 @@ export class SupportIssueService {
     const entity = await this.supportIssueRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Support issue not found');
 
+    return this.updateIssueInternal(entity, dto);
+  }
+
+  async updateIssueInternal(entity: SupportIssue, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     Object.assign(entity, dto);
 
     await this.supportLogService.createSupportLog(entity.userData, {
@@ -182,8 +186,11 @@ export class SupportIssueService {
     return this.createMessageInternal(issue, { ...dto, author: CustomerAuthor });
   }
 
-  async createMessageSupport(id: number, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
-    const issue = await this.supportIssueRepo.findOne({ where: { id }, relations: { userData: { wallet: true } } });
+  async createMessageSupport(issueId: number, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: { id: issueId },
+      relations: { userData: { wallet: true } },
+    });
     if (!issue) throw new NotFoundException('Support issue not found');
 
     return this.createMessageInternal(issue, dto);
@@ -266,6 +273,7 @@ export class SupportIssueService {
         SupportIssueInternalState.COMPLETED,
         SupportIssueInternalState.ON_HOLD,
         SupportIssueInternalState.CANCELED,
+        SupportIssueInternalState.BOT_MESSAGE,
       ].includes(issue.state)
     )
       await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.PENDING));

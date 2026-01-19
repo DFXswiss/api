@@ -6,6 +6,10 @@ import {
   SupportIssueType,
 } from '../enums/support-issue.enum';
 
+export enum SupportMessageTranslationKey {
+  MONERO_NOT_DISPLAYED = 'support-issue.monero_not_displayed',
+}
+
 export class SupportMessageDto {
   @ApiProperty()
   id: number;
@@ -76,4 +80,5 @@ export const SupportIssueStateMapper: {
   [SupportIssueInternalState.COMPLETED]: SupportIssueState.COMPLETED,
   [SupportIssueInternalState.CANCELED]: SupportIssueState.CANCELED,
   [SupportIssueInternalState.ON_HOLD]: SupportIssueState.PENDING,
+  [SupportIssueInternalState.BOT_MESSAGE]: SupportIssueState.PENDING,
 };
