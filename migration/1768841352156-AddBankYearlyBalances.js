@@ -29,13 +29,13 @@ module.exports = class AddBankYearlyBalances1768841352156 {
         // Format: { "YYYY": closingBalance } - opening is previous year's closing
         const bankBalances = [
             // Maerki Baumann EUR (ID: 5)
-            // 2025: opening 3617.58 (from 2024), closing 0
+            // 2024: closing 3617.58, 2025: closing 0
             {
                 id: 5,
                 balances: { "2024": 3617.58, "2025": 0 }
             },
             // Maerki Baumann CHF (ID: 6)
-            // 2025: opening 2437.57 (from 2024), closing 0
+            // 2024: closing 2437.57, 2025: closing 0
             {
                 id: 6,
                 balances: { "2024": 2437.57, "2025": 0 }
