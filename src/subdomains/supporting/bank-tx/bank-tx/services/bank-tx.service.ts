@@ -497,7 +497,7 @@ export class BankTxService implements OnModuleInit {
     return batch;
   }
 
-  private getType(tx: BankTx): BankTxType | null {
+  getType(tx: BankTx): BankTxType | null {
     if (tx.name?.includes('Payward Trading')) {
       return BankTxType.KRAKEN;
     }
