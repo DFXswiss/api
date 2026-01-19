@@ -36,6 +36,7 @@ export enum KycError {
   // FinancialData errors
   MISSING_RESPONSE = 'MissingResponse',
   RISKY_BUSINESS = 'RiskyBusiness',
+  INCORRECT_RESPONSE = 'IncorrectResponse',
 
   // NationalityData errors
   NATIONALITY_NOT_MATCHING = 'NationalityNotMatching',
@@ -85,6 +86,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.EXPIRED_RECOMMENDATION]: 'Your recommendation request is expired',
   [KycError.RECOMMENDER_BLOCKED]: 'Unknown error',
   [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee not paid',
+  [KycError.INCORRECT_RESPONSE]: 'Incorrect response',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
