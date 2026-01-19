@@ -23,6 +23,8 @@ interface GraphQLPageInfo {
 }
 
 export class DEuroClient {
+  private static readonly DEURO_DECIMALS = 18;
+
   constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV2s(): Promise<DEuroPositionGraphDto[]> {
@@ -212,12 +214,15 @@ export class DEuroClient {
 
     const weiAmount = EvmUtil.toWeiAmount(amount, asset.decimals);
 
+    // Normalize to 18 decimals for comparison (bridge capacity is in DEURO = 18 decimals)
+    const normalizedAmount = this.normalizeToDeuroDecimals(weiAmount, asset.decimals);
+
     const remainingCapacity = await this.getBridgeRemainingCapacity(asset.name);
-    if (remainingCapacity.lt(weiAmount)) {
+    if (remainingCapacity.lt(normalizedAmount)) {
       throw new Error(
-        `Bridge capacity exceeded for ${
-          asset.name
-        } (remaining: ${remainingCapacity.toString()}, requested: ${weiAmount.toString()})`,
+        `Bridge capacity exceeded for ${asset.name} (remaining: ${EvmUtil.fromWeiAmount(
+          remainingCapacity,
+        )} DEURO, requested: ${amount} ${asset.name})`,
       );
     }
 
@@ -238,5 +243,26 @@ export class DEuroClient {
     const limit = await bridgeContract.limit();
     const minted = await bridgeContract.minted();
     return limit.sub(minted);
+  }
+
+  /**
+   * Normalizes a token amount to DEURO decimals (18) for comparison purposes.
+   * Bridge capacity (limit - minted) is stored in 18 decimals,
+   * while input tokens have different decimals (e.g., EURC=6, EURS=2).
+   */
+  private normalizeToDeuroDecimals(amount: ethers.BigNumber, tokenDecimals: number): ethers.BigNumber {
+    if (tokenDecimals === DEuroClient.DEURO_DECIMALS) {
+      return amount;
+    }
+
+    if (tokenDecimals < DEuroClient.DEURO_DECIMALS) {
+      // Scale up: multiply by 10^(18 - tokenDecimals)
+      const scaleFactor = ethers.BigNumber.from(10).pow(DEuroClient.DEURO_DECIMALS - tokenDecimals);
+      return amount.mul(scaleFactor);
+    }
+
+    // Edge case: tokenDecimals > 18 (unlikely but handle gracefully)
+    const scaleFactor = ethers.BigNumber.from(10).pow(tokenDecimals - DEuroClient.DEURO_DECIMALS);
+    return amount.div(scaleFactor);
   }
 }
