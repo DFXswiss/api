@@ -447,7 +447,15 @@ export class FiatOutputJobService {
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
 
       case FiatOutputType.LIQ_MANAGEMENT:
-        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.INTERNAL });
+        return this.bankTxService.updateInternal(bankTx, { type: this.getSpecificType(bankTx) });
     }
+  }
+
+  private getSpecificType(bankTx: BankTx): BankTxType {
+    if (bankTx.name?.includes('Payward Trading')) return BankTxType.KRAKEN;
+    if (bankTx.name?.includes('Scrypt Digital Trading')) return BankTxType.SCRYPT;
+    if (bankTx.name?.includes('SCB AG')) return BankTxType.SCB;
+
+    return BankTxType.INTERNAL;
   }
 }
