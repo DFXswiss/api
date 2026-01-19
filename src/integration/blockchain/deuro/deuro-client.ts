@@ -9,10 +9,10 @@ import {
 } from '@deuro/eurocoin';
 import { Contract, ethers } from 'ethers';
 import { gql, request } from 'graphql-request';
-import { EvmUtil } from '../shared/evm/evm.util';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { EvmClient } from '../shared/evm/evm-client';
+import { EvmUtil } from '../shared/evm/evm.util';
 import { DEuroDepsGraphDto, DEuroPositionGraphDto, DEuroSavingsInfoDto } from './dto/deuro.dto';
 
 interface GraphQLPageInfo {
@@ -23,8 +23,6 @@ interface GraphQLPageInfo {
 }
 
 export class DEuroClient {
-  private static readonly DEURO_DECIMALS = 18;
-
   constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV2s(): Promise<DEuroPositionGraphDto[]> {
@@ -212,20 +210,14 @@ export class DEuroClient {
     if (!asset.decimals) throw new Error(`Asset ${asset.name} has no decimals`);
     if (!asset.chainId) throw new Error(`Asset ${asset.name} has no chainId`);
 
-    const weiAmount = EvmUtil.toWeiAmount(amount, asset.decimals);
-
-    // Normalize to 18 decimals for comparison (bridge capacity is in DEURO = 18 decimals)
-    const normalizedAmount = this.normalizeToDeuroDecimals(weiAmount, asset.decimals);
-
     const remainingCapacity = await this.getBridgeRemainingCapacity(asset.name);
-    if (remainingCapacity.lt(normalizedAmount)) {
+    if (remainingCapacity < amount) {
       throw new Error(
-        `Bridge capacity exceeded for ${asset.name} (remaining: ${EvmUtil.fromWeiAmount(
-          remainingCapacity,
-        )} DEURO, requested: ${amount} ${asset.name})`,
+        `Bridge capacity exceeded for ${asset.name} (remaining: ${remainingCapacity} DEURO, requested: ${amount} ${asset.name})`,
       );
     }
 
+    const weiAmount = EvmUtil.toWeiAmount(amount, asset.decimals);
     const eurTokenContract = this.getErc20Contract(asset.chainId);
 
     const allowance = await eurTokenContract.allowance(this.evmClient.wallet.address, bridgeContract.address);
@@ -238,31 +230,10 @@ export class DEuroClient {
     return tx.hash;
   }
 
-  private async getBridgeRemainingCapacity(assetName: string): Promise<ethers.BigNumber> {
+  private async getBridgeRemainingCapacity(assetName: string): Promise<number> {
     const bridgeContract = this.getBridgeContract(assetName);
     const limit = await bridgeContract.limit();
     const minted = await bridgeContract.minted();
-    return limit.sub(minted);
-  }
-
-  /**
-   * Normalizes a token amount to DEURO decimals (18) for comparison purposes.
-   * Bridge capacity (limit - minted) is stored in 18 decimals,
-   * while input tokens have different decimals (e.g., EURC=6, EURS=2).
-   */
-  private normalizeToDeuroDecimals(amount: ethers.BigNumber, tokenDecimals: number): ethers.BigNumber {
-    if (tokenDecimals === DEuroClient.DEURO_DECIMALS) {
-      return amount;
-    }
-
-    if (tokenDecimals < DEuroClient.DEURO_DECIMALS) {
-      // Scale up: multiply by 10^(18 - tokenDecimals)
-      const scaleFactor = ethers.BigNumber.from(10).pow(DEuroClient.DEURO_DECIMALS - tokenDecimals);
-      return amount.mul(scaleFactor);
-    }
-
-    // Edge case: tokenDecimals > 18 (unlikely but handle gracefully)
-    const scaleFactor = ethers.BigNumber.from(10).pow(tokenDecimals - DEuroClient.DEURO_DECIMALS);
-    return amount.div(scaleFactor);
+    return EvmUtil.fromWeiAmount(limit.sub(minted), 18); // bridge capacity is in DEURO = 18 decimals
   }
 }
