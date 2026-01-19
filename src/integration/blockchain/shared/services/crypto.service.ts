@@ -11,17 +11,18 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/node/bitcoin.service';
+import { CardanoService } from '../../cardano/services/cardano.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
-import { CardanoService } from '../../cardano/services/cardano.service';
 import { ZanoService } from '../../zano/services/zano.service';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmUtil } from '../evm/evm.util';
 import { SignatureException } from '../exceptions/signature.exception';
 import { EvmBlockchains, TestBlockchains } from '../util/blockchain.util';
+import { BlockchainRegistryService } from './blockchain-registry.service';
 
 @Injectable()
 export class CryptoService {
@@ -38,6 +39,7 @@ export class CryptoService {
     private readonly cardanoService: CardanoService,
     private readonly arweaveService: ArweaveService,
     private readonly railgunService: RailgunService,
+    private readonly blockchainRegistry: BlockchainRegistryService,
   ) {}
 
   // --- PAYMENT REQUEST --- //
@@ -232,22 +234,29 @@ export class CryptoService {
   }
 
   // --- SIGNATURE VERIFICATION --- //
-  public async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {
-    const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
+  public async verifySignature(
+    message: string,
+    address: string,
+    signature: string,
+    key?: string,
+    blockchain?: Blockchain,
+  ): Promise<boolean> {
+    const detectedBlockchain = CryptoService.getDefaultBlockchainBasedOn(address);
 
     try {
-      if (EvmBlockchains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
-      if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
-      if (blockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
-      if (blockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
-      if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
-      if (blockchain === Blockchain.ZANO) return await this.verifyZano(message, address, signature);
-      if (blockchain === Blockchain.SOLANA) return await this.verifySolana(message, address, signature);
-      if (blockchain === Blockchain.TRON) return await this.verifyTron(message, address, signature);
-      if (blockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
-      if (blockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
-      if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
-      if (blockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
+      if (EvmBlockchains.includes(detectedBlockchain))
+        return await this.verifyEthereumBased(message, address, signature, blockchain ?? detectedBlockchain);
+      if (detectedBlockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
+      if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
+      if (detectedBlockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
+      if (detectedBlockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
+      if (detectedBlockchain === Blockchain.ZANO) return await this.verifyZano(message, address, signature);
+      if (detectedBlockchain === Blockchain.SOLANA) return await this.verifySolana(message, address, signature);
+      if (detectedBlockchain === Blockchain.TRON) return await this.verifyTron(message, address, signature);
+      if (detectedBlockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
+      if (detectedBlockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
+      if (detectedBlockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
+      if (detectedBlockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
     } catch (e) {
       if (e instanceof SignatureException) throw new BadRequestException(e.message);
     }
@@ -255,10 +264,36 @@ export class CryptoService {
     return false;
   }
 
-  private verifyEthereumBased(message: string, address: string, signature: string): boolean {
+  private async verifyEthereumBased(
+    message: string,
+    address: string,
+    signature: string,
+    blockchain: Blockchain,
+  ): Promise<boolean> {
     // there are signatures out there, which do not have '0x' in the beginning, but for verification this is needed
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
-    return verifyMessage(message, signatureToUse).toLowerCase() === address.toLowerCase();
+
+    if (this.verifyEoaSignature(message, address, signatureToUse)) return true;
+
+    // Fallback to ERC-1271 for smart contract wallets
+    try {
+      const client = this.blockchainRegistry.getEvmClient(blockchain);
+      if (await client.isContract(address)) {
+        return await client.verifyErc1271Signature(message, address, signatureToUse);
+      }
+    } catch {
+      // ignore
+    }
+
+    return false;
+  }
+
+  private verifyEoaSignature(message: string, address: string, signature: string): boolean {
+    try {
+      return verifyMessage(message, signature).toLowerCase() === address.toLowerCase();
+    } catch {
+      return false;
+    }
   }
 
   private verifyBitcoinBased(message: string, address: string, signature: string, prefix: string | null): boolean {

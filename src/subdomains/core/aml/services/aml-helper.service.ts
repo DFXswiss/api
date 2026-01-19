@@ -69,6 +69,13 @@ export class AmlHelperService {
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
     if (!entity.userData.verifiedName && !bankData?.name && !entity.userData.completeName)
       errors.push(AmlError.NAME_MISSING);
+
+    // Check name length (min 4 letters for bank processing)
+    const completeName = entity.userData.verifiedName ?? bankData?.name ?? entity.userData.completeName;
+    if (completeName && this.countLetters(completeName) < 4) {
+      errors.push(AmlError.NAME_TOO_SHORT);
+    }
+
     if (entity.userData.verifiedCountry && !entity.userData.verifiedCountry.fatfEnable)
       errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
     if (ibanCountry && !ibanCountry.fatfEnable) errors.push(AmlError.IBAN_COUNTRY_FATF_NOT_ALLOWED);
@@ -206,6 +213,7 @@ export class AmlHelperService {
       if (
         !entity.userData.phoneCallCheckDate &&
         !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_14) &&
+        !refUser?.userData?.isTrustedReferrer &&
         (entity.bankTx || entity.checkoutTx) &&
         entity.userData.phone &&
         entity.userData.birthday &&
@@ -304,7 +312,7 @@ export class AmlHelperService {
       if (entity.inputAmount > entity.cryptoInput.asset.liquidityCapacity)
         errors.push(AmlError.LIQUIDITY_LIMIT_EXCEEDED);
       if (nationality && !nationality.cryptoEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
-      if (entity.sell.fiat.name === 'CHF' && !entity.sell.iban.startsWith('CH') && !entity.sell.iban.startsWith('LI'))
+      if (entity.sell.fiat.name === 'CHF' && !Config.isDomesticIban(entity.sell.iban))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (
         blacklist.some((b) =>
@@ -422,6 +430,10 @@ export class AmlHelperService {
           if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
         }
 
+        break;
+
+      case AmlRule.RULE_15:
+        errors.push(AmlError.FORCE_MANUAL_CHECK);
         break;
     }
 
@@ -604,5 +616,9 @@ export class AmlHelperService {
 
     // No Result - only comment
     return { bankData, comment };
+  }
+
+  private static countLetters(str: string): number {
+    return str.replace(/[^\p{L}]/gu, '').length;
   }
 }

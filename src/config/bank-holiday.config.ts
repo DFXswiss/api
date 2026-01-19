@@ -20,9 +20,36 @@ export const BankHolidays = [
   '2026-12-26',
 ];
 
-export function isBankHoliday(date = new Date()): boolean {
+export const LiechtensteinBankHolidays = [
+  '2026-01-01',
+  '2026-01-02',
+  '2026-01-06',
+  '2026-04-06',
+  '2026-05-01',
+  '2026-05-14',
+  '2026-05-25',
+  '2026-06-04',
+  '2026-08-15',
+  '2026-09-08',
+  '2026-11-01',
+  '2026-12-08',
+  '2026-12-24',
+  '2026-12-25',
+  '2026-12-26',
+  '2026-12-31',
+];
+
+function isHoliday(date: Date, holidays: string[]): boolean {
   const isWeekend = [0, 6].includes(date.getDay());
-  return BankHolidays.includes(Util.isoDate(date)) || isWeekend;
+  return holidays.includes(Util.isoDate(date)) || isWeekend;
+}
+
+export function isBankHoliday(date = new Date()): boolean {
+  return isHoliday(date, BankHolidays);
+}
+
+export function isLiechtensteinBankHoliday(date = new Date()): boolean {
+  return isHoliday(date, LiechtensteinBankHolidays);
 }
 
 export function getBankHolidayInfoBanner(): InfoBannerDto {

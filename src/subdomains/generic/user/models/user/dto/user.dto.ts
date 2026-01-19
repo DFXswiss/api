@@ -13,6 +13,9 @@ export class VolumeInformation {
 
   @ApiProperty()
   annual: number;
+
+  @ApiProperty()
+  monthly: number;
 }
 
 export class TradingLimit {

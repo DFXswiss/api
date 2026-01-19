@@ -86,9 +86,7 @@ export abstract class SolanaStrategy extends SendStrategy {
         );
 
         if (isConfirmed) {
-          payIn.confirm(direction, this.forwardRequired);
-
-          await this.payInRepo.save(payIn);
+          await this.payInRepo.update(...payIn.confirm(direction, this.forwardRequired));
         }
       } catch (e) {
         this.logger.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);

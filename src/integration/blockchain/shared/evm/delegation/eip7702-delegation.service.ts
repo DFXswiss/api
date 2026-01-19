@@ -1,22 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import {
-  createPublicClient,
-  createWalletClient,
-  encodeFunctionData,
-  encodeAbiParameters,
-  http,
-  parseAbi,
-  encodePacked,
-  Hex,
-  Address,
-  Chain,
-} from 'viem';
-import { privateKeyToAccount, signTypedData } from 'viem/accounts';
-import { mainnet, arbitrum, optimism, polygon, base, bsc, gnosis, sepolia } from 'viem/chains';
-import { GetConfig } from 'src/config/config';
+import { Config, Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import {
+  Address,
+  Chain,
+  createPublicClient,
+  createWalletClient,
+  encodeAbiParameters,
+  encodeFunctionData,
+  encodePacked,
+  Hex,
+  http,
+  parseAbi,
+} from 'viem';
+import { privateKeyToAccount, signTypedData } from 'viem/accounts';
+import { arbitrum, base, bsc, gnosis, mainnet, optimism, polygon, sepolia } from 'viem/chains';
 import { WalletAccount } from '../domain/wallet-account';
 import { EvmUtil } from '../evm.util';
 import DELEGATION_MANAGER_ABI from './delegation-manager.abi.json';
@@ -84,7 +84,10 @@ export class Eip7702DelegationService {
    * RealUnit app supports eth_sign (unlike MetaMask), so EIP-7702 works
    */
   isDelegationSupportedForRealUnit(blockchain: Blockchain): boolean {
-    return blockchain === Blockchain.BASE && CHAIN_CONFIG[blockchain] !== undefined;
+    const expectedBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? Blockchain.SEPOLIA
+      : Blockchain.ETHEREUM;
+    return blockchain === expectedBlockchain && CHAIN_CONFIG[blockchain] !== undefined;
   }
 
   /**

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
@@ -6,13 +6,21 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
+import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
+import { BankRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import {
+  BankTx,
+  BankTxType,
+  BankTxTypeUnassigned,
+} from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { KycFileService } from '../kyc/services/kyc-file.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
@@ -35,6 +43,8 @@ interface UserDataComplianceSearchTypePair {
 
 @Injectable()
 export class SupportService {
+  private readonly refundList = new Map<number, RefundDataDto>();
+
   constructor(
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
@@ -50,6 +60,9 @@ export class SupportService {
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly transactionService: TransactionService,
     private readonly virtualIbanService: VirtualIbanService,
+    private readonly bankService: BankService,
+    @Inject(forwardRef(() => TransactionHelper))
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
@@ -65,11 +78,16 @@ export class SupportService {
     const searchResult = await this.getUserDatasByKey(query.key);
     const bankTx = [ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN].includes(searchResult.type)
       ? await this.bankTxService.getUnassignedBankTx([query.key], [query.key])
-      : [];
+      : searchResult.type === ComplianceSearchType.NAME
+        ? await this.bankTxService.getBankTxsByName(query.key)
+        : [];
 
     if (
       !searchResult.userDatas.length &&
-      (!bankTx.length || ![ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN].includes(searchResult.type))
+      (!bankTx.length ||
+        ![ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN, ComplianceSearchType.NAME].includes(
+          searchResult.type,
+        ))
     )
       throw new NotFoundException('No user or bankTx found');
 
@@ -201,11 +219,91 @@ export class SupportService {
   private toBankTxDto(bankTx: BankTx): BankTxSupportInfo {
     return {
       id: bankTx.id,
+      transactionId: bankTx.transaction?.id,
       accountServiceRef: bankTx.accountServiceRef,
       amount: bankTx.amount,
       currency: bankTx.currency,
       type: bankTx.type,
       name: bankTx.completeName(),
+      iban: bankTx.iban,
     };
+  }
+
+  // --- REFUND METHODS --- //
+
+  async getTransactionRefundData(transactionId: number): Promise<RefundDataDto | undefined> {
+    const transaction = await this.transactionService.getTransactionById(transactionId, {
+      bankTx: { bankTxReturn: true },
+      userData: true,
+    });
+
+    if (!transaction?.bankTx) return undefined;
+    if (!BankTxTypeUnassigned(transaction.bankTx.type)) return undefined;
+    if (transaction.bankTx.bankTxReturn) throw new BadRequestException('Transaction already has a return');
+
+    const bankIn = await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name);
+    const refundTarget = transaction.bankTx.iban;
+
+    const refundData = await this.transactionHelper.getRefundData(
+      transaction.bankTx,
+      transaction.userData,
+      bankIn,
+      refundTarget,
+      true,
+    );
+
+    this.refundList.set(transactionId, refundData);
+
+    return refundData;
+  }
+
+  async processTransactionRefund(transactionId: number, dto: BankRefundDto): Promise<boolean> {
+    const transaction = await this.transactionService.getTransactionById(transactionId, {
+      bankTx: { bankTxReturn: true },
+      bankTxReturn: { bankTx: true, chargebackOutput: true },
+      userData: true,
+    });
+
+    if (!transaction?.bankTx) throw new NotFoundException('Transaction not found');
+    if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new BadRequestException('Transaction already assigned');
+
+    const refundData = this.refundList.get(transactionId);
+    if (!refundData) throw new BadRequestException('Request refund data first');
+    if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data expired');
+    this.refundList.delete(transactionId);
+
+    // Create BankTxReturn if not exists
+    if (!transaction.bankTxReturn) {
+      // Load bankTx with transaction relation for the create method
+      const bankTxWithRelations = await this.bankTxService.getBankTxById(transaction.bankTx.id, {
+        transaction: { userData: true },
+      });
+
+      transaction.bankTxReturn = await this.bankTxService
+        .updateInternal(bankTxWithRelations, { type: BankTxType.BANK_TX_RETURN })
+        .then((b) => b.bankTxReturn);
+    }
+
+    // Process refund
+    await this.bankTxReturnService.refundBankTx(transaction.bankTxReturn, {
+      refundIban: dto.refundTarget,
+      chargebackAmount: refundData.refundAmount,
+      chargebackAllowedDate: new Date(),
+      chargebackAllowedBy: 'Compliance',
+      creditorData: {
+        name: dto.name,
+        address: dto.address,
+        houseNumber: dto.houseNumber,
+        zip: dto.zip,
+        city: dto.city,
+        country: dto.country,
+      },
+    });
+
+    return true;
+  }
+
+  private isRefundDataValid(refundData: RefundDataDto): boolean {
+    return Util.secondsDiff(refundData.expiryDate) <= 0;
   }
 }

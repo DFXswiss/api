@@ -11,6 +11,7 @@ import { NoSwapBlockchains } from 'src/subdomains/core/buy-crypto/routes/swap/sw
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { JwtPayload } from '../auth/jwt-payload.interface';
@@ -61,8 +62,11 @@ export class PaymentInfoService {
       !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
       !user.userData.tradeApprovalDate &&
       !user.wallet?.autoTradeApproval
-    )
-      throw new BadRequestException('Trading not allowed');
+    ) {
+      throw new BadRequestException(
+        user.userData.kycLevel >= KycLevel.LEVEL_10 ? 'RecommendationRequired' : 'EmailRequired',
+      );
+    }
 
     return dto;
   }
@@ -86,7 +90,7 @@ export class PaymentInfoService {
     if (!dto.currency) throw new NotFoundException('Currency not found');
     if (!dto.currency.buyable) throw new BadRequestException('Currency not buyable');
 
-    if ('iban' in dto && dto.currency?.name === 'CHF' && !dto.iban.startsWith('CH') && !dto.iban.startsWith('LI'))
+    if ('iban' in dto && dto.currency?.name === 'CHF' && !Config.isDomesticIban(dto.iban))
       throw new BadRequestException(
         'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
       );

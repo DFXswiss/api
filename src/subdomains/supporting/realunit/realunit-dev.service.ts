@@ -28,6 +28,12 @@ import { TransactionService } from '../payment/services/transaction.service';
 @Injectable()
 export class RealUnitDevService {
   private readonly logger = new DfxLogger(RealUnitDevService);
+  private readonly tokenName = 'REALU';
+  private readonly tokenBlockchain = Blockchain.SEPOLIA;
+
+  private get isDevEnvironment(): boolean {
+    return [Environment.DEV, Environment.LOC].includes(Config.environment);
+  }
 
   constructor(
     private readonly transactionRequestRepo: TransactionRequestRepository,
@@ -44,7 +50,7 @@ export class RealUnitDevService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(60)
   async simulateRealuPayments(): Promise<void> {
-    if (![Environment.DEV, Environment.LOC].includes(Config.environment)) return;
+    if (!this.isDevEnvironment) return;
 
     try {
       await this.processWaitingRealuRequests();
@@ -54,22 +60,14 @@ export class RealUnitDevService {
   }
 
   private async processWaitingRealuRequests(): Promise<void> {
-    // TransactionRequests are created with Mainnet REALU (via realunit.service.ts)
-    const mainnetRealuAsset = await this.assetService.getAssetByQuery({
-      name: 'REALU',
-      blockchain: Blockchain.ETHEREUM,
+    const realuAsset = await this.assetService.getAssetByQuery({
+      name: this.tokenName,
+      blockchain: this.tokenBlockchain,
       type: AssetType.TOKEN,
     });
 
-    // But payouts go to Sepolia in DEV environment
-    const sepoliaRealuAsset = await this.assetService.getAssetByQuery({
-      name: 'REALU',
-      blockchain: Blockchain.SEPOLIA,
-      type: AssetType.TOKEN,
-    });
-
-    if (!mainnetRealuAsset || !sepoliaRealuAsset) {
-      this.logger.warn('REALU asset not found (mainnet or sepolia) - skipping simulation');
+    if (!realuAsset) {
+      this.logger.warn('REALU asset not found - skipping buy simulation');
       return;
     }
 
@@ -77,7 +75,7 @@ export class RealUnitDevService {
       where: {
         status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
         type: TransactionRequestType.BUY,
-        targetId: mainnetRealuAsset.id,
+        targetId: realuAsset.id,
       },
     });
 
@@ -87,7 +85,7 @@ export class RealUnitDevService {
 
     for (const request of waitingRequests) {
       try {
-        await this.simulatePaymentForRequest(request, sepoliaRealuAsset);
+        await this.simulatePaymentForRequest(request, realuAsset);
       } catch (e) {
         this.logger.error(`Failed to simulate payment for TransactionRequest ${request.id}:`, e);
       }

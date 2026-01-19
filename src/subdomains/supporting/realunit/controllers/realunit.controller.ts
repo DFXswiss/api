@@ -12,30 +12,34 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import { Config, Environment } from 'src/config/config';
 import {
-  AllowlistStatusDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { PdfBrand } from 'src/shared/utils/pdf.util';
+import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BalancePdfService } from '../../balance/services/balance-pdf.service';
+import { RealUnitBalancePdfDto } from '../dto/realunit-balance-pdf.dto';
 import {
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
 } from '../dto/realunit-registration.dto';
-import { RealUnitSellDto, RealUnitSellPaymentInfoDto, RealUnitSellConfirmDto } from '../dto/realunit-sell.dto';
+import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
   AccountSummaryDto,
-  BankDetailsDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
   HoldersDto,
@@ -52,6 +56,7 @@ import { RealUnitService } from '../realunit.service';
 export class RealUnitController {
   constructor(
     private readonly realunitService: RealUnitService,
+    private readonly balancePdfService: BalancePdfService,
     private readonly userService: UserService,
   ) {}
 
@@ -122,6 +127,27 @@ export class RealUnitController {
     return this.realunitService.getRealUnitInfo();
   }
 
+  // --- Balance PDF Endpoint ---
+
+  @Post('balance/pdf')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get balance report PDF',
+    description: 'Generates a PDF balance report for a specific address on Ethereum blockchain',
+  })
+  @ApiOkResponse({ type: PdfDto, description: 'Balance PDF report (base64 encoded)' })
+  async getBalancePdf(@Body() dto: RealUnitBalancePdfDto): Promise<PdfDto> {
+    const tokenBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? Blockchain.SEPOLIA
+      : Blockchain.ETHEREUM;
+    const pdfData = await this.balancePdfService.generateBalancePdf(
+      { ...dto, blockchain: tokenBlockchain },
+      PdfBrand.REALUNIT,
+    );
+    return { pdfData };
+  }
+
   // --- Brokerbot Endpoints ---
 
   @Get('brokerbot/info')
@@ -166,34 +192,13 @@ export class RealUnitController {
     return this.realunitService.getBrokerbotShares(amount);
   }
 
-  @Get('allowlist/:address')
-  @ApiOperation({
-    summary: 'Check allowlist status',
-    description: 'Checks if a wallet address is allowed to receive REALU tokens',
-  })
-  @ApiParam({ name: 'address', description: 'Wallet address to check' })
-  @ApiOkResponse({ type: AllowlistStatusDto })
-  async getAllowlistStatus(@Param('address') address: string): Promise<AllowlistStatusDto> {
-    return this.realunitService.getAllowlistStatus(address);
-  }
-
-  @Get('bank')
-  @ApiOperation({
-    summary: 'Get bank details',
-    description: 'Retrieves bank account details for REALU purchases via bank transfer',
-  })
-  @ApiOkResponse({ type: BankDetailsDto })
-  getBankDetails(): BankDetailsDto {
-    return this.realunitService.getBankDetails();
-  }
-
   // --- Buy Payment Info Endpoint ---
 
-  @Put('paymentInfo')
+  @Put('buy')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    summary: 'Get payment info for RealUnit purchase',
+    summary: 'Get payment info for RealUnit buy',
     description:
       'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 50 and RealUnit registration.',
   })
@@ -206,7 +211,7 @@ export class RealUnitController {
 
   // --- Sell Payment Info Endpoints ---
 
-  @Put('sellPaymentInfo')
+  @Put('sell')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({

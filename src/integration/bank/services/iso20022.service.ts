@@ -78,7 +78,9 @@ export class Iso20022Service {
     if (!notification) throw new Error('Invalid camt.054 format: missing Ntfctn');
 
     const entry = notification.Ntry;
-    const entryDetails = camt054.BkToCstmrDbtCdtNtfctn?.NtryDtls;
+
+    // NtryDtls can be at root level (Yapeal format) or nested under Ntry (camt.054 spec)
+    const entryDetails = camt054.BkToCstmrDbtCdtNtfctn?.NtryDtls ?? entry?.NtryDtls;
 
     // transaction details
     const txDetails = entryDetails?.TxDtls;

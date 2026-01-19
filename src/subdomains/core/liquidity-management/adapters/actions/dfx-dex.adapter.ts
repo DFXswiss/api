@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
@@ -40,10 +42,8 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     switch (order.action.command) {
       case DfxDexAdapterCommands.PURCHASE:
-        return this.checkSellPurchaseCompletion(order);
-
       case DfxDexAdapterCommands.SELL:
-        return this.checkSellPurchaseCompletion(order);
+        return this.checkSwapCompletion(order);
 
       case DfxDexAdapterCommands.WITHDRAW:
         return this.checkWithdrawCompletion(order);
@@ -59,10 +59,8 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
         return this.validateWithdrawParams(params);
 
       case DfxDexAdapterCommands.PURCHASE:
-        return true;
-
       case DfxDexAdapterCommands.SELL:
-        return true;
+        return this.validateSwapParams(params);
 
       default:
         throw new Error(`Command ${command} not supported by DfxDexAdapter`);
@@ -73,23 +71,43 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
   /**
    * @note
-   * correlationId is the orderId and set by liquidity management
+   * correlationId is the orderId and set by liquidity management.
+   * targetAsset (from rule) is what we're buying, swapAsset is what we spend.
+   * Amount is in target asset (targetAsset).
    */
   private async purchase(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
       pipeline: {
-        rule: { targetAsset: asset },
+        rule: { targetAsset },
       },
-      maxAmount: amount,
       id: correlationId,
+      minAmount,
+      maxAmount,
     } = order;
+
+    const { swapAsset: swapAssetName } = this.parseSwapParams(order.action.paramMap);
+    const swapAsset = await this.getSwapAsset(targetAsset.blockchain, swapAssetName);
+
+    const price = await this.dexService.calculatePrice(swapAsset, targetAsset);
+    const minSwapAmount = minAmount * price;
+    const maxSwapAmount = maxAmount * price;
+
+    const swapLiquidity = await this.resolveSwapLiquidity(
+      correlationId.toString(),
+      swapAsset,
+      minSwapAmount,
+      maxSwapAmount,
+    );
+
+    order.inputAmount = swapLiquidity.amount;
+    order.inputAsset = swapLiquidity.asset.name;
 
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
       correlationId: correlationId.toString(),
-      referenceAsset: asset,
-      referenceAmount: amount,
-      targetAsset: asset,
+      referenceAsset: swapLiquidity.asset,
+      referenceAmount: swapLiquidity.amount,
+      targetAsset,
     };
 
     await this.dexService.purchaseLiquidity(request);
@@ -99,25 +117,37 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
   /**
    * @note
-   * correlationId is the orderId and set by liquidity management
+   * correlationId is the orderId and set by liquidity management.
+   * targetAsset (from rule) is what we're selling, swapAsset is what we receive.
+   * Amount is in source asset (targetAsset).
    */
   private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
       pipeline: {
-        rule: { targetAsset: asset },
+        rule: { targetAsset },
       },
-      maxAmount: amount,
       id: correlationId,
+      minAmount,
+      maxAmount,
     } = order;
+
+    const { swapAsset: swapAssetName } = this.parseSwapParams(order.action.paramMap);
+    const swapAsset = await this.getSwapAsset(targetAsset.blockchain, swapAssetName);
+
+    const sellLiquidity = await this.resolveSwapLiquidity(correlationId.toString(), targetAsset, minAmount, maxAmount);
+
+    order.inputAmount = sellLiquidity.amount;
+    order.inputAsset = sellLiquidity.asset.name;
 
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
       correlationId: correlationId.toString(),
-      sellAsset: asset,
-      sellAmount: amount,
+      referenceAsset: sellLiquidity.asset,
+      referenceAmount: sellLiquidity.amount,
+      targetAsset: swapAsset,
     };
 
-    await this.dexService.sellLiquidity(request);
+    await this.dexService.purchaseLiquidity(request);
 
     return correlationId.toString();
   }
@@ -163,7 +193,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
   // --- COMPLETION CHECKS --- //
 
-  private async checkSellPurchaseCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+  private async checkSwapCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     try {
       const result = await this.dexService.checkOrderReady(
         LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
@@ -172,6 +202,9 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
 
       if (result.isReady) {
         await this.dexService.completeOrders(LiquidityOrderContext.LIQUIDITY_MANAGEMENT, order.correlationId);
+
+        order.outputAmount = result.targetAmount;
+        order.outputAsset = result.targetAsset;
       }
 
       return result.isReady;
@@ -181,7 +214,7 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
   }
 
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const { system, assetId } = this.parseWithdrawParams(order.action.paramMap);
+    const { system, assetId, exchangeAssetName } = this.parseWithdrawParams(order.action.paramMap);
 
     const exchange = this.exchangeRegistry.get(system);
 
@@ -189,8 +222,9 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     const sourceChain = sourceAsset && exchange.mapNetwork(sourceAsset.blockchain);
 
     const targetAsset = order.pipeline.rule.targetAsset;
+    const depositAssetName = exchangeAssetName ?? targetAsset.dexName;
 
-    const deposits = await exchange.getDeposits(targetAsset.dexName, order.created, sourceChain || undefined);
+    const deposits = await exchange.getDeposits(depositAssetName, order.created, sourceChain || undefined);
     const deposit = deposits.find((d) => d.amount === order.inputAmount && d.timestamp > order.created.getTime());
 
     const isComplete = deposit && deposit.status === 'ok';
@@ -216,15 +250,17 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
     address: string;
     system: LiquidityManagementSystem;
     assetId?: number;
+    exchangeAssetName?: string;
   } {
     const address = process.env[params.destinationAddress as string];
     const system = params.destinationSystem as LiquidityManagementSystem;
     const assetId = params.assetId as number | undefined;
+    const exchangeAssetName = params.exchangeAssetName as string | undefined;
 
     const isValid = this.withdrawParamsValid(address, system);
     if (!isValid) throw new Error(`Params provided to DfxDexAdapter.withdraw(...) command are invalid.`);
 
-    return { address, system, assetId };
+    return { address, system, assetId, exchangeAssetName };
   }
 
   private withdrawParamsValid(address: string, system: LiquidityManagementSystem): boolean {
@@ -234,5 +270,69 @@ export class DfxDexAdapter extends LiquidityActionAdapter {
       Object.values(LiquidityManagementSystem).includes(system) &&
       this.exchangeRegistry.get(system)
     );
+  }
+
+  private validateSwapParams(params: Record<string, unknown>): boolean {
+    try {
+      this.parseSwapParams(params);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private parseSwapParams(params: Record<string, unknown>): { swapAsset: string } {
+    const swapAsset = params?.tradeAsset as string | undefined;
+
+    if (!(typeof swapAsset === 'string' && swapAsset.length > 0))
+      throw new Error('Params provided to DfxDexAdapter swap command are invalid.');
+
+    return { swapAsset };
+  }
+
+  // --- SWAP HELPERS --- //
+
+  private async resolveSwapLiquidity(
+    correlationId: string,
+    liquidityAsset: Asset,
+    minAmount: number,
+    maxAmount: number,
+  ): Promise<{ asset: Asset; amount: number }> {
+    // Check available liquidity
+    const checkRequest = {
+      context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+      correlationId,
+      referenceAsset: liquidityAsset,
+      referenceAmount: minAmount,
+      targetAsset: liquidityAsset,
+    };
+
+    const {
+      reference: { availableAmount },
+    } = await this.dexService.checkLiquidity(checkRequest);
+
+    if (availableAmount < minAmount) {
+      throw new OrderNotProcessableException(
+        `Not enough ${liquidityAsset.name} liquidity (balance: ${availableAmount}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
+      );
+    }
+
+    const amount = Math.min(maxAmount, availableAmount);
+
+    return { asset: liquidityAsset, amount };
+  }
+
+  private async getSwapAsset(blockchain: Blockchain, swapAssetName: string): Promise<Asset> {
+    const swapAsset = await this.assetService.getAssetByQuery({
+      name: swapAssetName,
+      blockchain,
+      type: AssetType.TOKEN,
+    });
+
+    if (!swapAsset) {
+      throw new OrderNotProcessableException(`Swap asset ${swapAssetName} not found on ${blockchain}`);
+    }
+
+    return swapAsset;
   }
 }

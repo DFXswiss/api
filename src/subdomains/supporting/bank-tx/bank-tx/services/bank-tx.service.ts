@@ -32,6 +32,7 @@ import {
   In,
   IsNull,
   LessThan,
+  Like,
   MoreThan,
   MoreThanOrEqual,
   Not,
@@ -70,6 +71,7 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: TransactionTypeInternal.BANK_TX_REPEAT_CHARGEBACK,
   [BankTxType.FIAT_FIAT]: TransactionTypeInternal.FIAT_FIAT,
   [BankTxType.KRAKEN]: TransactionTypeInternal.KRAKEN,
+  [BankTxType.SCRYPT]: TransactionTypeInternal.SCRYPT,
   [BankTxType.SCB]: TransactionTypeInternal.SCB,
   [BankTxType.CHECKOUT_LTD]: TransactionTypeInternal.CHECKOUT_LTD,
   [BankTxType.BANK_ACCOUNT_FEE]: TransactionTypeInternal.BANK_ACCOUNT_FEE,
@@ -207,7 +209,7 @@ export class BankTxService implements OnModuleInit {
         if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
           // check for dedicated asset vIBAN
           if (tx.virtualIban) {
-            const virtualIban = await this.virtualIbanService.getByIbanWithBuy(tx.virtualIban);
+            const virtualIban = await this.virtualIbanService.getByIban(tx.virtualIban);
             if (virtualIban?.buy) {
               await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: virtualIban.buy.id });
               continue;
@@ -226,10 +228,7 @@ export class BankTxService implements OnModuleInit {
 
         if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
 
-        await this.updateInternal(
-          tx,
-          tx.name === 'Payward Trading Ltd.' ? { type: BankTxType.KRAKEN } : { type: BankTxType.GSHEET },
-        );
+        await this.updateInternal(tx, { type: this.getType(tx) ?? BankTxType.GSHEET });
       } catch (e) {
         this.logger.error(`Error during bankTx ${tx.id} assign:`, e);
       }
@@ -294,6 +293,7 @@ export class BankTxService implements OnModuleInit {
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
     entity = this.createTx(bankTx, multiAccounts);
+    entity.type = this.getType(entity);
 
     entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
@@ -388,12 +388,20 @@ export class BankTxService implements OnModuleInit {
       .getOne();
   }
 
+  async getBankTxByEndToEndId(endToEndId: string): Promise<BankTx> {
+    return this.bankTxRepo.findOne({
+      where: { endToEndId, creditDebitIndicator: BankTxIndicator.DEBIT },
+      relations: { transaction: true },
+      order: { id: 'DESC' },
+    });
+  }
+
   async getBankTxByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
     return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
-  async getBankTxById(id: number): Promise<BankTx> {
-    return this.bankTxRepo.findOneBy({ id });
+  async getBankTxById(id: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
+    return this.bankTxRepo.findOne({ where: { id }, relations });
   }
 
   async getPendingTx(): Promise<BankTx[]> {
@@ -489,9 +497,17 @@ export class BankTxService implements OnModuleInit {
     return batch;
   }
 
-  private getType(tx: BankTx): BankTxType | null {
-    if (tx.name?.includes('Payward Ltd.')) {
+  getType(tx: BankTx): BankTxType | null {
+    if (tx.name?.includes('Payward Trading')) {
       return BankTxType.KRAKEN;
+    }
+
+    if (tx.name?.includes('Scrypt Digital Trading')) {
+      return BankTxType.SCRYPT;
+    }
+
+    if (tx.name?.includes('SCB AG')) {
+      return BankTxType.SCB;
     }
 
     return null;
@@ -523,6 +539,21 @@ export class BankTxService implements OnModuleInit {
     });
   }
 
+  async getBankTxsByName(name: string): Promise<BankTx[]> {
+    const request: FindOptionsWhere<BankTx> = {
+      type: In(BankTxUnassignedTypes),
+      creditDebitIndicator: BankTxIndicator.CREDIT,
+    };
+
+    return this.bankTxRepo.find({
+      where: [
+        { ...request, name: Like(`%${name}%`) },
+        { ...request, ultimateName: Like(`%${name}%`) },
+      ],
+      relations: { transaction: true },
+    });
+  }
+
   async checkAssignAndNotifyUserData(iban: string, userData: UserData): Promise<void> {
     const bankTxs = await this.getUnassignedBankTx([iban], [], { transaction: { userData: true } });
 
@@ -544,7 +575,7 @@ export class BankTxService implements OnModuleInit {
     const candidates = [tx.remittanceInfo, tx.endToEndId].filter((c) => c && c !== '-');
 
     for (const candidate of candidates) {
-      const normalized = candidate.replace(/[ -]/g, '').replace(/O/g, '0');
+      const normalized = candidate.replace(/[ -]/g, '').toUpperCase().replace(/O/g, '0');
       const buy = buys.find((b) => normalized.includes(b.bankUsage.replace(/-/g, '')));
       if (buy) return buy;
     }

@@ -430,6 +430,13 @@ export class KycService {
     );
   }
 
+  async initializeProcess(userData: UserData): Promise<UserData> {
+    const user = await this.getUser(userData.kycHash);
+    if (user.getStepsWith(KycStepName.CONTACT_DATA).length > 0) return user;
+
+    return this.updateProgress(user, true, false);
+  }
+
   public getMailFailedReason(comment: string, language: string): string {
     return `<ul>${comment
       ?.split(';')
@@ -1163,7 +1170,9 @@ export class KycService {
 
   async trySetMail(user: UserData, step: KycStep, mail: string): Promise<UpdateResult<KycStep>> {
     try {
-      user = await this.userDataService.trySetUserMail(user, mail);
+      if (user.mail !== mail) {
+        await this.userDataService.trySetUserMail(user, mail);
+      }
       return step.complete({ mail });
     } catch (e) {
       const error = (e as Error).message?.includes('account merge request sent')

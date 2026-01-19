@@ -43,7 +43,7 @@ export class TransactionNotificationService {
       },
       relations: {
         bankTx: true,
-        buyCrypto: true,
+        buyCrypto: { buy: { asset: true } },
         buyFiat: true,
         userData: { wallet: true },
         user: { wallet: true },
@@ -58,6 +58,12 @@ export class TransactionNotificationService {
           (!entity.targetEntity.comment && !entity.targetEntity.amlCheck)
         )
           continue;
+
+        // Skip input mail for Bitcoin purchases that already have txId (will receive BuyCryptoCompleted mail directly)
+        if (entity.buyCrypto?.txId && entity.buyCrypto?.buy?.asset?.uniqueName === 'Bitcoin/BTC') {
+          await this.repo.update(...entity.mailSent());
+          continue;
+        }
 
         if (entity.userData?.mail)
           await this.notificationService.sendMail({

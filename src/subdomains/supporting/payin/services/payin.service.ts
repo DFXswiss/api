@@ -157,7 +157,10 @@ export class PayInService {
     return this.payInRepository.find({
       where: [
         { status: PayInStatus.CREATED, txType: IsNull() },
-        { status: PayInStatus.CREATED, txType: Not(In([PayInType.PERMIT_TRANSFER, PayInType.SIGNED_TRANSFER])) },
+        {
+          status: PayInStatus.CREATED,
+          txType: Not(In([PayInType.PERMIT_TRANSFER, PayInType.SIGNED_TRANSFER, PayInType.SPONSORED_TRANSFER])),
+        },
       ],
       relations: { transaction: true, paymentLinkPayment: { link: { route: true } } },
     });

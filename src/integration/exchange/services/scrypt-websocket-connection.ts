@@ -22,7 +22,17 @@ export enum ScryptMessageType {
   NEW_WITHDRAW_REQUEST = 'NewWithdrawRequest',
   BALANCE_TRANSACTION = 'BalanceTransaction',
   BALANCE = 'Balance',
+  TRADE = 'Trade',
   ERROR = 'error',
+  // Trading
+  NEW_ORDER_SINGLE = 'NewOrderSingle',
+  EXECUTION_REPORT = 'ExecutionReport',
+  // Market Data
+  MARKET_DATA_SNAPSHOT = 'MarketDataSnapshot',
+  SECURITY = 'Security',
+  // Order Management
+  ORDER_CANCEL_REQUEST = 'OrderCancelRequest',
+  ORDER_CANCEL_REPLACE_REQUEST = 'OrderCancelReplaceRequest',
 }
 
 enum ScryptRequestType {
@@ -71,7 +81,7 @@ export class ScryptWebSocketConnection {
 
   // --- PUBLIC METHODS --- //
 
-  async fetch(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<any[]> {
+  async fetch<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
     const response = await this.request({
       type: ScryptRequestType.SUBSCRIBE,
       streams: [{ name: streamName, ...filters }],
@@ -79,13 +89,13 @@ export class ScryptWebSocketConnection {
 
     if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
 
-    return response.data ?? [];
+    return (response.data ?? []) as T[];
   }
 
   async requestAndWaitForUpdate<T>(
     request: ScryptRequest,
     streamName: ScryptMessageType,
-    matcher: (data: any) => T | null,
+    matcher: (data: T[]) => T | null,
     timeoutMs: number,
   ): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -95,7 +105,7 @@ export class ScryptWebSocketConnection {
       }, timeoutMs);
 
       const unsubscribe = this.subscribe(streamName, (data) => {
-        const match = matcher(data);
+        const match = matcher(data as T[]);
         if (match) {
           clearTimeout(timeoutId);
           unsubscribe();
@@ -266,6 +276,14 @@ export class ScryptWebSocketConnection {
   }
 
   // --- STREAMING SUBSCRIPTIONS --- //
+
+  subscribeToStream<T>(
+    streamName: ScryptMessageType,
+    callback: (data: T[]) => void,
+    filters?: Record<string, unknown>,
+  ): UnsubscribeFunction {
+    return this.subscribe(streamName, callback as SubscriptionCallback, filters);
+  }
 
   private subscribe(
     streamName: ScryptMessageType,

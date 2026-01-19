@@ -60,7 +60,7 @@ export class AmlService {
       if (
         !entity.userData.bankTransactionVerification &&
         entity instanceof BuyFiat &&
-        (entity.sell.iban.startsWith('LI') || entity.sell.iban.startsWith('CH'))
+        Config.isDomesticIban(entity.sell.iban)
       )
         entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {
           bankTransactionVerification: CheckStatus.GSHEET,
@@ -220,9 +220,10 @@ export class AmlService {
     if (entity instanceof BuyFiat) return this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
     if (entity.cryptoInput) return undefined;
 
-    return this.countryService.getCountryWithSymbol(
-      entity.checkoutTx?.cardIssuerCountry ?? entity.bankTx.iban.substring(0, 2),
-    );
+    const countryCode = entity.checkoutTx?.cardIssuerCountry ?? entity.bankTx?.iban?.substring(0, 2);
+    if (!countryCode) return undefined;
+
+    return this.countryService.getCountryWithSymbol(countryCode);
   }
 
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {

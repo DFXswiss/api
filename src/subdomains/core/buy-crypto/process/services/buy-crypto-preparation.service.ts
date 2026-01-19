@@ -153,12 +153,10 @@ export class BuyCryptoPreparationService {
           referenceChfPrice,
         );
 
-        const ibanCountry =
-          entity.bankTx?.iban || entity.checkoutTx?.cardIssuerCountry
-            ? await this.countryService.getCountryWithSymbol(
-                entity.bankTx?.iban.substring(0, 2) ?? entity.checkoutTx.cardIssuerCountry,
-              )
-            : undefined;
+        const ibanCountryCode = entity.bankTx?.iban?.substring(0, 2) ?? entity.checkoutTx?.cardIssuerCountry;
+        const ibanCountry = ibanCountryCode
+          ? await this.countryService.getCountryWithSymbol(ibanCountryCode)
+          : undefined;
 
         const virtualIban = entity.bankTx?.virtualIban
           ? await this.virtualIbanService.getByIban(entity.bankTx.virtualIban)
@@ -455,7 +453,7 @@ export class BuyCryptoPreparationService {
       isComplete: false,
       transaction: {
         userData: {
-          kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
+          kycStatus: In([KycStatus.NA, KycStatus.CHECK, KycStatus.COMPLETED]),
           status: Not(UserDataStatus.BLOCKED),
           riskStatus: In([RiskStatus.NA, RiskStatus.RELEASED]),
         },
@@ -464,7 +462,9 @@ export class BuyCryptoPreparationService {
     };
     const entities = await this.buyCryptoRepo.find({
       where: [
-        { ...baseRequest, chargebackIban: Not(IsNull()) },
+        // Bank refund: requires creditorData for FiatOutput
+        { ...baseRequest, chargebackIban: Not(IsNull()), chargebackCreditorData: Not(IsNull()) },
+        // Checkout refund: no creditorData needed
         { ...baseRequest, checkoutTx: { id: Not(IsNull()) } },
       ],
       relations: { checkoutTx: true, bankTx: true, cryptoInput: true, transaction: { userData: true } },

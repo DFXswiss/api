@@ -46,7 +46,7 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   defaultRef = '000-000';
-  transactionRefundExpirySeconds = 30;
+  transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   refRewardManualCheckLimit = 3000; // EUR
   txRequestWaitingExpiryDays = 7;
   financeLogTotalBalanceChangeLimit = 5000;
@@ -55,6 +55,10 @@ export class Configuration {
 
   priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
   priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
+
+  isDomesticIban(iban: string): boolean {
+    return ['CH', 'LI'].includes(iban?.substring(0, 2));
+  }
 
   defaults = {
     currency: 'EUR',
@@ -713,6 +717,9 @@ export class Configuration {
       delegationEnabled: process.env.EVM_DELEGATION_ENABLED === 'true',
       delegatorAddress: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
 
+      // Pimlico Paymaster for EIP-5792 gasless transactions
+      pimlicoApiKey: process.env.PIMLICO_API_KEY,
+
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.evm.depositSeed,
         index: accountIndex,
@@ -882,6 +889,9 @@ export class Configuration {
       coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
       fee: 0.01,
     },
+    spark: {
+      sparkWalletSeed: process.env.SPARK_WALLET_SEED,
+    },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {
@@ -1007,6 +1017,7 @@ export class Configuration {
     },
     appInsights: {
       appId: process.env.APPINSIGHTS_APP_ID,
+      apiKey: process.env.APPINSIGHTS_API_KEY,
     },
   };
 

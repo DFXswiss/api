@@ -201,7 +201,7 @@ export class BuyFiatPreparationService {
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
           undefined,
-          IbanBankName.MAERKI,
+          IbanBankName.YAPEAL,
           entity.user,
         );
 
@@ -377,14 +377,17 @@ export class BuyFiatPreparationService {
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: {
         fiatOutput: true,
-        sell: true,
-        transaction: { userData: true },
+        sell: { user: { userData: { country: true } } },
+        transaction: { userData: { organization: true } },
         cryptoInput: { paymentLinkPayment: { link: true } },
+        outputAsset: true,
       },
       where: {
         amlCheck: CheckStatus.PASS,
         fiatOutput: IsNull(),
         cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) },
+        outputAmount: Not(IsNull()),
+        outputAsset: Not(IsNull()),
       },
     });
 
