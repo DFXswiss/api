@@ -7,7 +7,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { BalanceEntry, PdfUtil } from 'src/shared/utils/pdf.util';
+import { BalanceEntry, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { CoinGeckoService } from '../../pricing/services/integration/coin-gecko.service';
@@ -17,6 +17,7 @@ import { GetBalancePdfDto, PdfLanguage } from '../dto/input/get-balance-pdf.dto'
 // Supported EVM blockchains (must have Alchemy support and chainId mapping)
 const SUPPORTED_BLOCKCHAINS: Blockchain[] = [
   Blockchain.ETHEREUM,
+  Blockchain.SEPOLIA,
   Blockchain.BINANCE_SMART_CHAIN,
   Blockchain.POLYGON,
   Blockchain.ARBITRUM,
@@ -37,7 +38,7 @@ export class BalancePdfService {
     private readonly i18n: I18nService,
   ) {}
 
-  async generateBalancePdf(dto: GetBalancePdfDto): Promise<string> {
+  async generateBalancePdf(dto: GetBalancePdfDto, brand: PdfBrand = PdfBrand.DFX): Promise<string> {
     if (!SUPPORTED_BLOCKCHAINS.includes(dto.blockchain)) {
       throw new BadRequestException(
         `Blockchain ${dto.blockchain} is not supported. Supported blockchains: ${SUPPORTED_BLOCKCHAINS.join(', ')}`,
@@ -52,7 +53,7 @@ export class BalancePdfService {
     const totalValue = balances.reduce((sum, b) => sum + (b.value ?? 0), 0);
     const hasIncompleteData = balances.some((b) => b.value == null);
 
-    return this.createPdf(balances, totalValue, hasIncompleteData, dto);
+    return this.createPdf(balances, totalValue, hasIncompleteData, dto, brand);
   }
 
   private async getBalancesForAddress(
@@ -150,6 +151,7 @@ export class BalancePdfService {
     totalValue: number,
     hasIncompleteData: boolean,
     dto: GetBalancePdfDto,
+    brand: PdfBrand = PdfBrand.DFX,
   ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       try {
@@ -163,7 +165,7 @@ export class BalancePdfService {
           resolve(base64PDF);
         });
 
-        PdfUtil.drawLogo(pdf);
+        PdfUtil.drawLogo(pdf, brand);
         this.drawHeader(pdf, dto, language);
         PdfUtil.drawTable(pdf, balances, dto.currency, language, this.i18n);
         PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);
