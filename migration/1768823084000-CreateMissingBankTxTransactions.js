@@ -23,30 +23,32 @@ module.exports = class CreateMissingBankTxTransactions1768823084000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
+    const crypto = require('crypto');
+
     // Get all bank_tx IDs without a transaction
     const bankTxWithoutTransaction = await queryRunner.query(`
       SELECT id FROM dbo.bank_tx WHERE transactionId IS NULL
     `);
 
     for (const bankTx of bankTxWithoutTransaction) {
-      // Generate a unique UID (T + 16 hex chars)
-      const uid = 'T' + Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16).toUpperCase()).join('');
+      // Generate a cryptographically secure UID (T + 16 hex chars)
+      const uid = 'T' + crypto.randomBytes(8).toString('hex').toUpperCase();
 
-      // Create the transaction
-      await queryRunner.query(`
-        INSERT INTO dbo.[transaction] (uid, sourceType, created, updated)
-        VALUES ('${uid}', 'BankTx', GETDATE(), GETDATE())
-      `);
+      // Create the transaction with OUTPUT clause for atomic ID retrieval
+      const result = await queryRunner.query(
+        `INSERT INTO dbo.[transaction] (uid, sourceType, created, updated)
+         OUTPUT INSERTED.id
+         VALUES (@0, 'BankTx', GETDATE(), GETDATE())`,
+        [uid],
+      );
 
-      // Get the newly created transaction ID
-      const [{ id: transactionId }] = await queryRunner.query(`SELECT SCOPE_IDENTITY() as id`);
+      const transactionId = result[0].id;
 
       // Link the bank_tx to the transaction
-      await queryRunner.query(`
-        UPDATE dbo.bank_tx
-        SET transactionId = ${transactionId}
-        WHERE id = ${bankTx.id}
-      `);
+      await queryRunner.query(
+        `UPDATE dbo.bank_tx SET transactionId = @0 WHERE id = @1`,
+        [transactionId, bankTx.id],
+      );
 
       console.log(`Created transaction ${transactionId} (${uid}) for bank_tx ${bankTx.id}`);
     }
