@@ -148,6 +148,7 @@ export class UserService {
     return this.userRepo
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('user.refAsset', 'refAsset')
       .where('user.refCredit - user.paidRefCredit > 0')
       .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
