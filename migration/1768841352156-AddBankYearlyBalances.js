@@ -41,22 +41,22 @@ module.exports = class AddBankYearlyBalances1768841352156 {
                 balances: { "2024": 2437.57, "2025": 0 }
             },
             // Raiffeisen CHF (ID: 13)
-            // 2025: opening 0, closing 1161.67
+            // 2024: closing 0, 2025: closing 1161.67
             {
                 id: 13,
-                balances: { "2025": 1161.67 }
+                balances: { "2024": 0, "2025": 1161.67 }
             },
             // Yapeal CHF (ID: 15)
-            // 2025: opening 0, closing 1557.73
+            // 2024: closing 0, 2025: closing 1557.73
             {
                 id: 15,
-                balances: { "2025": 1557.73 }
+                balances: { "2024": 0, "2025": 1557.73 }
             },
             // Yapeal EUR (ID: 16)
-            // 2025: opening 0, closing 2568.79
+            // 2024: closing 0, 2025: closing 2568.79
             {
                 id: 16,
-                balances: { "2025": 2568.79 }
+                balances: { "2024": 0, "2025": 2568.79 }
             },
         ];
 
