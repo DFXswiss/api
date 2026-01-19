@@ -77,7 +77,7 @@ import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { RefundDataDto } from '../dto/refund-data.dto';
 import { TransactionFilter } from '../dto/transaction-filter.dto';
-import { BankRefundDto, TransactionRefundDto } from '../dto/transaction-refund.dto';
+import { TransactionRefundDto } from '../dto/transaction-refund.dto';
 import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
 import { ExportType, HistoryService } from '../services/history.service';
 
@@ -390,11 +390,7 @@ export class TransactionController {
     @Param('id') id: string,
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
-    return this.processRefund(+id, jwt, dto);
-  }
-
-  private async processRefund(transactionId: number, jwt: JwtPayload, dto: TransactionRefundDto): Promise<void> {
-    const transaction = await this.transactionService.getTransactionById(transactionId, {
+    const transaction = await this.transactionService.getTransactionById(+id, {
       bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
       refReward: true,
@@ -434,6 +430,44 @@ export class TransactionController {
     this.refundList.delete(transaction.id);
   }
 
+  @Put(':id/invoice')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
+  @ApiOkResponse({ type: PdfDto })
+  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      jwt.account,
+      +id,
+      TxStatementType.INVOICE,
+    );
+
+    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
+      throw new Error('PDF invoice is only available for CHF and EUR transactions');
+    }
+
+    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
+  }
+
+  @Put(':id/receipt')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
+  @ApiOkResponse({ type: PdfDto })
+  async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      jwt.account,
+      +id,
+      TxStatementType.RECEIPT,
+    );
+
+    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
+      throw new Error('PDF receipt is only available for CHF and EUR transactions');
+    }
+
+    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
+  }
+
+  // --- HELPER METHODS --- //
+
   private async executeRefund(
     transaction: Transaction,
     targetEntity: BuyCrypto | BuyFiat | BankTxReturn | undefined,
@@ -446,7 +480,7 @@ export class TransactionController {
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!targetEntity) {
-      transaction.bankTxReturn = await this.bankTxService
+      targetEntity = await this.bankTxService
         .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
         .then((b) => b.bankTxReturn);
     }
@@ -491,72 +525,6 @@ export class TransactionController {
       ...refundDto,
     });
   }
-
-  // Deprecated - use PUT :id/refund with creditorData instead
-  @Put(':id/refund/bank')
-  @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.ACCOUNT),
-    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
-  )
-  @ApiOkResponse()
-  async setBankRefundTarget(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: BankRefundDto,
-  ): Promise<void> {
-    const refundDto: TransactionRefundDto = {
-      refundTarget: dto.refundTarget,
-      creditorData: {
-        name: dto.name,
-        address: dto.address,
-        houseNumber: dto.houseNumber,
-        zip: dto.zip,
-        city: dto.city,
-        country: dto.country,
-      },
-    };
-    return this.processRefund(+id, jwt, refundDto);
-  }
-
-  @Put(':id/invoice')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
-  @ApiOkResponse({ type: PdfDto })
-  async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
-    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
-      jwt.account,
-      +id,
-      TxStatementType.INVOICE,
-    );
-
-    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
-      throw new Error('PDF invoice is only available for CHF and EUR transactions');
-    }
-
-    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
-  }
-
-  @Put(':id/receipt')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
-  @ApiOkResponse({ type: PdfDto })
-  async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
-    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
-      jwt.account,
-      +id,
-      TxStatementType.RECEIPT,
-    );
-
-    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
-      throw new Error('PDF receipt is only available for CHF and EUR transactions');
-    }
-
-    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
-  }
-
-  // --- HELPER METHODS --- //
 
   private async getTransactionDto(
     tx: Transaction | TransactionRequest | undefined,
