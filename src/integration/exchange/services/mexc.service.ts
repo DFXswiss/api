@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
-import { mexc, Transaction } from 'ccxt';
+import { Market, mexc, Transaction } from 'ccxt';
 import { Config, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -49,6 +49,33 @@ export class MexcService extends ExchangeService {
     Yapeal: undefined,
   };
 
+  // Assessment Zone pairs - require API whitelisting from MEXC
+  // See: https://www.mexc.com/announcements/article/api-access-changes-for-assessment-zone-trading-pairs-17827791522788
+  private readonly assessmentZonePairs: Partial<Market>[] = [
+    {
+      id: 'ZCHFUSDT',
+      symbol: 'ZCHF/USDT',
+      base: 'ZCHF',
+      quote: 'USDT',
+      baseId: 'ZCHF',
+      quoteId: 'USDT',
+      active: true,
+      type: 'spot',
+      spot: true,
+      margin: false,
+      future: false,
+      swap: false,
+      option: false,
+      contract: false,
+      limits: {
+        amount: { min: 1, max: undefined },
+        price: { min: 0.0001, max: undefined },
+        cost: { min: 1, max: undefined },
+      },
+      precision: { amount: 2, price: 4 },
+    },
+  ];
+
   constructor(private readonly http: HttpService) {
     super(mexc, GetConfig().mexc);
   }
@@ -57,6 +84,19 @@ export class MexcService extends ExchangeService {
 
   get name(): string {
     return 'MEXC';
+  }
+
+  protected async getMarkets(): Promise<Market[]> {
+    const markets = await super.getMarkets();
+
+    // Inject Assessment Zone pairs that are hidden from public API
+    for (const azPair of this.assessmentZonePairs) {
+      if (!markets.find((m) => m.symbol === azPair.symbol)) {
+        markets.push(azPair as Market);
+      }
+    }
+
+    return markets;
   }
 
   async getDeposits(token: string, from: Date): Promise<Transaction[]> {

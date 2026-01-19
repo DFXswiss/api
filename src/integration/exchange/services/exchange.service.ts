@@ -43,7 +43,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   protected abstract readonly networks: { [b in Blockchain]: string | false };
   protected readonly exchange: Exchange;
 
-  private markets: Market[];
+  protected markets: Market[];
 
   @Inject() private readonly registry: ExchangeRegistryService;
 
@@ -225,7 +225,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
   // --- Helper Methods --- //
   // currency pairs
-  private async getMarkets(): Promise<Market[]> {
+  protected async getMarkets(): Promise<Market[]> {
     if (!this.markets) {
       this.markets = await this.callApi((e) => e.fetchMarkets());
     }
