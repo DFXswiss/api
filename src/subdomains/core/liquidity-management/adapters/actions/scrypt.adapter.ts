@@ -49,8 +49,10 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         return this.checkWithdrawCompletion(order);
 
       case ScryptAdapterCommands.SELL:
+        return this.checkSellCompletion(order);
+
       case ScryptAdapterCommands.BUY:
-        return this.checkTradeCompletion(order);
+        return this.checkBuyCompletion(order);
 
       default:
         return false;
@@ -198,16 +200,21 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     return this.dexService.checkTransferCompletion(withdrawal.txHash, blockchain);
   }
 
-  private async checkTradeCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+  private async checkSellCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    // For SELL: from=asset, to=tradeAsset
-    // For BUY: from=tradeAsset, to=asset
-    const isBuy = order.action.command === ScryptAdapterCommands.BUY;
-    const from = isBuy ? tradeAsset : asset;
-    const to = isBuy ? asset : tradeAsset;
+    return this.checkTradeCompletion(order, asset, tradeAsset);
+  }
 
+  private async checkBuyCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
+    const asset = order.pipeline.rule.targetAsset.dexName;
+
+    return this.checkTradeCompletion(order, tradeAsset, asset);
+  }
+
+  private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
     try {
       const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to);
 
