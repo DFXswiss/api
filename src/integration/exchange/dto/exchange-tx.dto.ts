@@ -5,8 +5,8 @@ export class ExchangeTxDto {
   exchange: ExchangeName;
   type: ExchangeTxType;
   externalId: string;
-  externalCreated: Date;
-  externalUpdated: Date;
+  externalCreated?: Date;
+  externalUpdated?: Date;
   status: string;
   amount: number;
   feeAmount: number;

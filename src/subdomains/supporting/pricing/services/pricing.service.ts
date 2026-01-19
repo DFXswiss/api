@@ -3,6 +3,7 @@ import { BinanceService } from 'src/integration/exchange/services/binance.servic
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { MexcService } from 'src/integration/exchange/services/mexc.service';
+import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { XtService } from 'src/integration/exchange/services/xt.service';
 import { Active, activesEqual, isAsset, isFiat } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -61,6 +62,7 @@ export class PricingService implements OnModuleInit {
     readonly kucoinService: KucoinService,
     readonly mexcService: MexcService,
     readonly xtService: XtService,
+    readonly scryptService: ScryptService,
     readonly coinGeckoService: CoinGeckoService,
     readonly dexService: PricingDexService,
     readonly fixerService: FixerService,
@@ -77,6 +79,7 @@ export class PricingService implements OnModuleInit {
       [PriceSource.KUCOIN]: kucoinService,
       [PriceSource.MEXC]: mexcService,
       [PriceSource.XT]: xtService,
+      [PriceSource.SCRYPT]: scryptService,
       [PriceSource.COIN_GECKO]: coinGeckoService,
       [PriceSource.DEX]: dexService,
       [PriceSource.FIXER]: fixerService,
