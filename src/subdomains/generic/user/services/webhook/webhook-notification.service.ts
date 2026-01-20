@@ -7,7 +7,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { LessThanOrEqual } from 'typeorm';
+import { IsNull, LessThanOrEqual } from 'typeorm';
 import { KycWebhookData } from './dto/kyc-webhook.dto';
 import { PaymentWebhookData } from './dto/payment-webhook.dto';
 import { WebhookDto } from './dto/webhook.dto';
@@ -33,9 +33,7 @@ export class WebhookNotificationService {
     const now = new Date();
 
     const entities = await this.webhookRepo.find({
-      where: {
-        nextTryDate: LessThanOrEqual(now),
-      },
+      where: [{ nextTryDate: LessThanOrEqual(now) }, { nextTryDate: IsNull(), lastTryDate: IsNull() }],
       relations: ['wallet', 'user', 'userData'],
     });
 
