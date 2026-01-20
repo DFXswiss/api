@@ -26,26 +26,11 @@ const mockStorage = new Map<string, { data: Buffer; type: string; metadata?: Rec
 // Dummy files directory for local development
 const DUMMY_FILES_DIR = path.join(process.cwd(), 'scripts', 'kyc', 'dummy-files');
 
-// Load dummy file from disk or return fallback
-function loadDummyFile(filename: string, fallbackBase64: string): Buffer {
+// Load dummy file from disk
+function loadDummyFile(filename: string): Buffer {
   const filePath = path.join(DUMMY_FILES_DIR, filename);
-  try {
-    if (fs.existsSync(filePath)) {
-      return fs.readFileSync(filePath);
-    }
-  } catch {
-    // Ignore errors, use fallback
-  }
-  return Buffer.from(fallbackBase64, 'base64');
+  return fs.readFileSync(filePath);
 }
-
-// Fallback dummy files (minimal valid files)
-const FALLBACK_PNG_BASE64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mNk+M9Qz0AEYBxVSF+FABJADq/v5GbkAAAAAElFTkSuQmCC';
-const FALLBACK_PDF_BASE64 =
-  'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmCjAwMDAwMDAwMDkgMDAwMDAgbgowMDAwMDAwMDU4IDAwMDAwIG4KMDAwMDAwMDExNSAwMDAwMCBuCnRyYWlsZXIKPDwgL1NpemUgNCAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMTk1CiUlRU9G';
-const FALLBACK_JPG_BASE64 =
-  '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBEQCEAwEPwAB//9k=';
 
 export class AzureStorageService {
   private readonly logger = new DfxLogger(AzureStorageService);
@@ -129,35 +114,23 @@ export class AzureStorageService {
       const filename = name.split('/').pop() ?? name;
 
       // Map common KYC file names to dummy files
-      const dummyFileMap: Record<string, { file: string; fallback: string; type: string }> = {
-        'id_front.png': { file: 'id_front.png', fallback: FALLBACK_PNG_BASE64, type: 'image/png' },
-        'id_back.png': { file: 'id_back.png', fallback: FALLBACK_PNG_BASE64, type: 'image/png' },
-        'selfie.jpg': { file: 'selfie.jpg', fallback: FALLBACK_JPG_BASE64, type: 'image/jpeg' },
-        'passport.png': { file: 'passport.png', fallback: FALLBACK_PNG_BASE64, type: 'image/png' },
-        'residence_permit.png': { file: 'residence_permit.png', fallback: FALLBACK_PNG_BASE64, type: 'image/png' },
-        'proof_of_address.pdf': {
-          file: 'proof_of_address.pdf',
-          fallback: FALLBACK_PDF_BASE64,
-          type: 'application/pdf',
-        },
-        'bank_statement.pdf': { file: 'bank_statement.pdf', fallback: FALLBACK_PDF_BASE64, type: 'application/pdf' },
-        'source_of_funds.pdf': { file: 'source_of_funds.pdf', fallback: FALLBACK_PDF_BASE64, type: 'application/pdf' },
-        'commercial_register.pdf': {
-          file: 'commercial_register.pdf',
-          fallback: FALLBACK_PDF_BASE64,
-          type: 'application/pdf',
-        },
-        'additional_document.pdf': {
-          file: 'additional_document.pdf',
-          fallback: FALLBACK_PDF_BASE64,
-          type: 'application/pdf',
-        },
+      const dummyFileMap: Record<string, { file: string; type: string }> = {
+        'id_front.png': { file: 'id_front.png', type: 'image/png' },
+        'id_back.png': { file: 'id_back.png', type: 'image/png' },
+        'selfie.jpg': { file: 'selfie.jpg', type: 'image/jpeg' },
+        'passport.png': { file: 'passport.png', type: 'image/png' },
+        'residence_permit.png': { file: 'residence_permit.png', type: 'image/png' },
+        'proof_of_address.pdf': { file: 'proof_of_address.pdf', type: 'application/pdf' },
+        'bank_statement.pdf': { file: 'bank_statement.pdf', type: 'application/pdf' },
+        'source_of_funds.pdf': { file: 'source_of_funds.pdf', type: 'application/pdf' },
+        'commercial_register.pdf': { file: 'commercial_register.pdf', type: 'application/pdf' },
+        'additional_document.pdf': { file: 'additional_document.pdf', type: 'application/pdf' },
       };
 
       const mapping = dummyFileMap[filename];
       if (mapping) {
         return {
-          data: loadDummyFile(mapping.file, mapping.fallback),
+          data: loadDummyFile(mapping.file),
           contentType: mapping.type,
           created: new Date(),
           updated: new Date(),
@@ -169,10 +142,7 @@ export class AzureStorageService {
       const isJpg = ext === 'jpg' || ext === 'jpeg';
       const isPdf = ext === 'pdf';
       return {
-        data: loadDummyFile(
-          isPdf ? 'proof_of_address.pdf' : isJpg ? 'selfie.jpg' : 'id_front.png',
-          isPdf ? FALLBACK_PDF_BASE64 : isJpg ? FALLBACK_JPG_BASE64 : FALLBACK_PNG_BASE64,
-        ),
+        data: loadDummyFile(isPdf ? 'proof_of_address.pdf' : isJpg ? 'selfie.jpg' : 'id_front.png'),
         contentType: isPdf ? 'application/pdf' : isJpg ? 'image/jpeg' : 'image/png',
         created: new Date(),
         updated: new Date(),
