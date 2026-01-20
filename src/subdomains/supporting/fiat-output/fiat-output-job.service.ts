@@ -227,6 +227,8 @@ export class FiatOutputJobService {
                 }
               }
 
+              if (entity.currency === 'EUR') continue;
+
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
               this.logger.info(
                 `FiatOutput ${entity.id} ready: LiqBalance ${asset.balance.amount} ${
