@@ -393,7 +393,6 @@ export class FiatOutputJobService {
         amount: Not(IsNull()),
         isComplete: false,
         bankTx: { id: IsNull() },
-        isReadyDate: Not(IsNull()),
       },
       relations: { bankTx: { transaction: true }, bankTxReturn: true, bankTxRepeat: true },
     });
@@ -401,7 +400,7 @@ export class FiatOutputJobService {
     for (const entity of entities) {
       try {
         const bankTx = await this.getMatchingBankTx(entity);
-        if (!bankTx || entity.isReadyDate > bankTx.created) continue;
+        if (!bankTx || (entity.isReadyDate && entity.isReadyDate > bankTx.created)) continue;
 
         const updateData: Partial<FiatOutput> = {
           bankTx,
