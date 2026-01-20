@@ -355,6 +355,35 @@ export class BuyService {
     asset?: Asset,
     wallet?: Wallet,
   ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
+    // EUR: VIBAN is mandatory
+    if (selector.currency === 'EUR') {
+      if (selector.userData.kycLevel < KycLevel.LEVEL_50) {
+        throw new BadRequestException('KycRequired');
+      }
+
+      let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
+
+      if (!virtualIban) {
+        virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
+      }
+
+      const { address } = selector.userData;
+      return {
+        name: selector.userData.completeName,
+        street: address.street,
+        ...(address.houseNumber && { number: address.houseNumber }),
+        zip: address.zip,
+        city: address.city,
+        country: address.country?.name,
+        bank: virtualIban.bank.name,
+        iban: virtualIban.iban,
+        bic: virtualIban.bank.bic,
+        sepaInstant: virtualIban.bank.sctInst,
+        isPersonalIban: true,
+        reference: this.getBuyReference(buy?.bankUsage, false),
+      };
+    }
+
     // asset-specific personal IBAN
     if (
       buy &&
