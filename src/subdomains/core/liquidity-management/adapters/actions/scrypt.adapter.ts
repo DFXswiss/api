@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
+import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -260,14 +260,19 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       throw new OrderFailedException(`Failed to fetch any orders for order ${order.id}`);
     }
 
-    // For SELL: output is the proceeds (filledQuantity * avgPrice)
-    return orders.reduce((sum, o) => {
-      if (o.filledQuantity > 0) {
-        const output = o.avgPrice ? o.filledQuantity * o.avgPrice : o.filledQuantity;
-        return sum + output;
-      }
-      return sum;
-    }, 0);
+    return orders.reduce((sum, o) => sum + this.calculateOrderOutput(o), 0);
+  }
+
+  private calculateOrderOutput(order: ScryptOrderInfo): number {
+    if (order.filledQuantity <= 0) return 0;
+
+    if (order.side === ScryptOrderSide.BUY) {
+      // BUY: output is base currency = filledQuantity
+      return order.filledQuantity;
+    } else {
+      // SELL: output is quote currency = filledQuantity * avgPrice
+      return order.avgPrice ? order.filledQuantity * order.avgPrice : order.filledQuantity;
+    }
   }
 
   // --- PARAM VALIDATION --- //

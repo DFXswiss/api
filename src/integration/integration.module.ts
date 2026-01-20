@@ -6,7 +6,6 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { ExchangeModule } from './exchange/exchange.module';
 import { IknaModule } from './ikna/ikna.module';
 import { AppInsightsQueryService } from './infrastructure/app-insights-query.service';
-import { AzureService } from './infrastructure/azure-service';
 import { LetterModule } from './letter/letter.module';
 import { SiftModule } from './sift/sift.module';
 
@@ -22,7 +21,7 @@ import { SiftModule } from './sift/sift.module';
     SiftModule,
   ],
   controllers: [],
-  providers: [AzureService, AppInsightsQueryService],
+  providers: [AppInsightsQueryService],
   exports: [
     BankIntegrationModule,
     BlockchainModule,
@@ -30,7 +29,6 @@ import { SiftModule } from './sift/sift.module';
     LetterModule,
     IknaModule,
     CheckoutModule,
-    AzureService,
     AppInsightsQueryService,
     SiftModule,
   ],
