@@ -297,7 +297,7 @@ export class KycService {
 
         if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
           await this.kycStepRepo.update(...entity.ignored(comment));
-        } else if (errors.includes(KycError.MISSING_RESPONSE)) {
+        } else if (errors.includes(KycError.MISSING_INFO)) {
           await this.kycStepRepo.update(...entity.inProgress());
           await this.kycNotificationService.kycStepMissingData(
             entity.userData,
@@ -1348,7 +1348,7 @@ export class KycService {
     const financialStepResult = entity.getResult<KycFinancialResponse[]>();
 
     if (!FinancialService.isComplete(financialStepResult, entity.userData.accountType))
-      errors.push(KycError.MISSING_RESPONSE);
+      errors.push(KycError.MISSING_INFO);
     if (!financialStepResult.some((f) => f.key === 'risky_business' && f.value.includes('no')))
       errors.push(KycError.RISKY_BUSINESS);
 
