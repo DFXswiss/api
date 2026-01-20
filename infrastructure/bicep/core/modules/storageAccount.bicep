@@ -17,7 +17,6 @@ param enableChangeFeed bool = true
 
 @description('Container names to create')
 param containerNames array = [
-  'db-bak'
   'kyc'
   'support'
 ]

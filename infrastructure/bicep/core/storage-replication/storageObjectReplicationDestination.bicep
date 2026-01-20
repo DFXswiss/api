@@ -7,7 +7,6 @@ param sourceStorageAccountId string
 
 @description('Container rules for replication')
 param containerRules array = [
-  { sourceContainer: 'db-bak', destinationContainer: 'db-bak' }
   { sourceContainer: 'kyc', destinationContainer: 'kyc' }
   { sourceContainer: 'support', destinationContainer: 'support' }
 ]
@@ -24,13 +23,17 @@ resource destinationReplicationPolicy 'Microsoft.Storage/storageAccounts/objectR
   properties: {
     sourceAccount: sourceStorageAccountId
     destinationAccount: destinationStorageAccount.id
-    rules: [for rule in containerRules: {
-      sourceContainer: rule.sourceContainer
-      destinationContainer: rule.destinationContainer
-      filters: contains(rule, 'prefixMatch') ? {
-        prefixMatch: rule.prefixMatch
-      } : null
-    }]
+    rules: [
+      for rule in containerRules: {
+        sourceContainer: rule.sourceContainer
+        destinationContainer: rule.destinationContainer
+        filters: contains(rule, 'prefixMatch')
+          ? {
+              prefixMatch: rule.prefixMatch
+            }
+          : null
+      }
+    ]
   }
 }
 

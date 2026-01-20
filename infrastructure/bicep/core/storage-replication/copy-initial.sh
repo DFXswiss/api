@@ -41,11 +41,6 @@ DEST_SAS=$(az storage account generate-sas \
 
 # Kopieren
 azcopy copy \
-  "https://stdfxapi${ENV}.blob.core.windows.net/db-bak/*?${SOURCE_SAS}" \
-  "https://stdfxcore${ENV}.blob.core.windows.net/db-bak/?${DEST_SAS}" \
-  --recursive
-
-azcopy copy \
   "https://stdfxapi${ENV}.blob.core.windows.net/kyc/*?${SOURCE_SAS}" \
   "https://stdfxcore${ENV}.blob.core.windows.net/kyc/?${DEST_SAS}" \
   --recursive
