@@ -120,28 +120,38 @@ export class ExchangeTxService {
 
     this.logger.verbose(`Syncing ${pendingTx.length} pending exchange transactions`);
 
-    for (const tx of pendingTx) {
+    // Group by exchange + type + currency for efficient API calls
+    const grouped = Util.groupByAccessor(pendingTx, (tx) => `${tx.exchange}:${tx.type}:${tx.currency}`);
+
+    for (const [key, txs] of grouped.entries()) {
       try {
-        const exchangeService = this.registryService.get(tx.exchange);
+        const [exchangeName, type, currency] = key.split(':') as [ExchangeName, ExchangeTxType, string];
+        const exchangeService = this.registryService.get(exchangeName);
         if (!exchangeService) continue;
 
-        const transaction =
-          tx.type === ExchangeTxType.DEPOSIT
-            ? await exchangeService.getDeposit(tx.externalId, tx.currency)
-            : await exchangeService.getWithdraw(tx.externalId, tx.currency);
+        // Fetch all transactions for this exchange/type/currency (without since limit)
+        const transactions =
+          type === ExchangeTxType.DEPOSIT
+            ? await exchangeService.getDeposits(currency)
+            : await exchangeService.getWithdrawals(currency);
 
-        if (transaction && transaction.status !== tx.status) {
-          this.logger.verbose(
-            `Updating ${tx.exchange} ${tx.type} ${tx.externalId} status: ${tx.status} -> ${transaction.status}`,
-          );
+        // Match pending transactions against fetched results
+        for (const tx of txs) {
+          const transaction = transactions.find((t) => t.id === tx.externalId);
 
-          tx.status = transaction.status;
-          tx.externalUpdated = transaction.updated ? new Date(transaction.updated) : null;
+          if (transaction && transaction.status !== tx.status) {
+            this.logger.verbose(
+              `Updating ${tx.exchange} ${tx.type} ${tx.externalId} status: ${tx.status} -> ${transaction.status}`,
+            );
 
-          await this.exchangeTxRepo.save(tx);
+            tx.status = transaction.status;
+            tx.externalUpdated = transaction.updated ? new Date(transaction.updated) : null;
+
+            await this.exchangeTxRepo.save(tx);
+          }
         }
       } catch (e) {
-        this.logger.warn(`Failed to sync pending transaction ${tx.id} (${tx.exchange}/${tx.externalId}):`, e);
+        this.logger.warn(`Failed to sync pending transactions for ${key}:`, e);
       }
     }
   }

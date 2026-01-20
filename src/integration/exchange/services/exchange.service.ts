@@ -215,11 +215,6 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return withdrawals.find((w) => w.id === id);
   }
 
-  async getDeposit(id: string, token: string): Promise<Transaction | undefined> {
-    const deposits = await this.callApi((e) => e.fetchDeposits(token, undefined, 50, { limit: 50 }));
-    return deposits.find((d) => d.id === id);
-  }
-
   async getDeposits(token: string, since?: Date, _chain?: string): Promise<Transaction[]> {
     return this.callApi((e) => e.fetchDeposits(token, this.toCcxtDate(since), 200, { limit: 200 }));
   }
