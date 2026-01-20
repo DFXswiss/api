@@ -77,7 +77,7 @@ import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { RefundDataDto } from '../dto/refund-data.dto';
 import { TransactionFilter } from '../dto/transaction-filter.dto';
-import { BankRefundDto, TransactionRefundDto } from '../dto/transaction-refund.dto';
+import { TransactionRefundDto } from '../dto/transaction-refund.dto';
 import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
 import { ExportType, HistoryService } from '../services/history.service';
 
@@ -390,11 +390,7 @@ export class TransactionController {
     @Param('id') id: string,
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
-    return this.processRefund(+id, jwt, dto);
-  }
-
-  private async processRefund(transactionId: number, jwt: JwtPayload, dto: TransactionRefundDto): Promise<void> {
-    const transaction = await this.transactionService.getTransactionById(transactionId, {
+    const transaction = await this.transactionService.getTransactionById(+id, {
       bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
       refReward: true,
@@ -428,87 +424,10 @@ export class TransactionController {
     const refundData = this.refundList.get(transaction.id);
     if (!refundData) throw new BadRequestException('Request refund data first');
     if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data request invalid');
+
+    await this.executeRefund(transaction, transaction.targetEntity, refundData, dto);
+
     this.refundList.delete(transaction.id);
-
-    const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
-    if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
-
-    const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
-
-    if (!transaction.targetEntity) {
-      transaction.bankTxReturn = await this.bankTxService
-        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
-        .then((b) => b.bankTxReturn);
-    }
-
-    const chargebackCurrency = refundData.refundAsset.name;
-
-    if (transaction.targetEntity instanceof BankTxReturn) {
-      if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
-
-      return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
-        refundIban: refundData.refundTarget ?? dto.refundTarget,
-        chargebackCurrency,
-        creditorData: dto.creditorData,
-        ...refundDto,
-      });
-    }
-
-    if (NotRefundableAmlReasons.includes(transaction.targetEntity.amlReason))
-      throw new BadRequestException('You cannot refund with this reason');
-
-    if (transaction.targetEntity instanceof BuyFiat)
-      return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
-        refundUserAddress: dto.refundTarget,
-        ...refundDto,
-      });
-
-    if (transaction.targetEntity.cryptoInput)
-      return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, {
-        refundUserAddress: dto.refundTarget,
-        ...refundDto,
-      });
-
-    if (transaction.targetEntity.checkoutTx)
-      return this.buyCryptoService.refundCheckoutTx(transaction.targetEntity, { ...refundDto });
-
-    // BuyCrypto bank refund
-    if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
-
-    return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
-      refundIban: refundData.refundTarget ?? dto.refundTarget,
-      chargebackCurrency,
-      creditorData: dto.creditorData,
-      ...refundDto,
-    });
-  }
-
-  // Deprecated - use PUT :id/refund with creditorData instead
-  @Put(':id/refund/bank')
-  @ApiBearerAuth()
-  @UseGuards(
-    AuthGuard(),
-    RoleGuard(UserRole.ACCOUNT),
-    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
-  )
-  @ApiOkResponse()
-  async setBankRefundTarget(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: BankRefundDto,
-  ): Promise<void> {
-    const refundDto: TransactionRefundDto = {
-      refundTarget: dto.refundTarget,
-      creditorData: {
-        name: dto.name,
-        address: dto.address,
-        houseNumber: dto.houseNumber,
-        zip: dto.zip,
-        city: dto.city,
-        country: dto.country,
-      },
-    };
-    return this.processRefund(+id, jwt, refundDto);
   }
 
   @Put(':id/invoice')
@@ -548,6 +467,64 @@ export class TransactionController {
   }
 
   // --- HELPER METHODS --- //
+
+  private async executeRefund(
+    transaction: Transaction,
+    targetEntity: BuyCrypto | BuyFiat | BankTxReturn | undefined,
+    refundData: RefundDataDto,
+    dto: TransactionRefundDto,
+  ): Promise<void> {
+    const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
+    if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
+
+    const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
+
+    if (!targetEntity) {
+      targetEntity = await this.bankTxService
+        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
+        .then((b) => b.bankTxReturn);
+    }
+
+    const chargebackCurrency = refundData.refundAsset.name;
+
+    if (targetEntity instanceof BankTxReturn) {
+      if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
+
+      return this.bankTxReturnService.refundBankTx(targetEntity, {
+        refundIban: dto.refundTarget ?? refundData.refundTarget,
+        chargebackCurrency,
+        creditorData: dto.creditorData,
+        ...refundDto,
+      });
+    }
+
+    if (NotRefundableAmlReasons.includes(targetEntity.amlReason))
+      throw new BadRequestException('You cannot refund with this reason');
+
+    if (targetEntity instanceof BuyFiat)
+      return this.buyFiatService.refundBuyFiatInternal(targetEntity, {
+        refundUserAddress: dto.refundTarget,
+        ...refundDto,
+      });
+
+    if (targetEntity.cryptoInput)
+      return this.buyCryptoService.refundCryptoInput(targetEntity, {
+        refundUserAddress: dto.refundTarget,
+        ...refundDto,
+      });
+
+    if (targetEntity.checkoutTx) return this.buyCryptoService.refundCheckoutTx(targetEntity, { ...refundDto });
+
+    // BuyCrypto bank refund
+    if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
+
+    return this.buyCryptoService.refundBankTx(targetEntity, {
+      refundIban: dto.refundTarget ?? refundData.refundTarget,
+      chargebackCurrency,
+      creditorData: dto.creditorData,
+      ...refundDto,
+    });
+  }
 
   private async getTransactionDto(
     tx: Transaction | TransactionRequest | undefined,

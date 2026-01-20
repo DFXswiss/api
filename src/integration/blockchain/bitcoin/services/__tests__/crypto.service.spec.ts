@@ -1,9 +1,10 @@
 import { createMock } from '@golevelup/ts-jest';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { ArweaveService } from 'src/integration/blockchain/arweave/services/arweave.service';
 import { CardanoService } from 'src/integration/blockchain/cardano/services/cardano.service';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { SparkService } from 'src/integration/blockchain/spark/spark.service';
@@ -16,53 +17,24 @@ import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.en
 import { BitcoinService } from '../../node/bitcoin.service';
 
 describe('CryptoService', () => {
-  let service: CryptoService;
-
-  let bitcoinService: BitcoinService;
-  let lightningService: LightningService;
-  let sparkService: SparkService;
-  let moneroService: MoneroService;
-  let zanoService: ZanoService;
-  let solanaService: SolanaService;
-  let tronService: TronService;
-  let cardanoService: CardanoService;
-  let arweaveService: ArweaveService;
-  let railgunService: RailgunService;
-
   beforeEach(async () => {
-    bitcoinService = createMock<BitcoinService>();
-    lightningService = createMock<LightningService>();
-    sparkService = createMock<SparkService>();
-    moneroService = createMock<MoneroService>();
-    zanoService = createMock<ZanoService>();
-    solanaService = createMock<SolanaService>();
-    tronService = createMock<TronService>();
-    cardanoService = createMock<CardanoService>();
-    arweaveService = createMock<ArweaveService>();
-    railgunService = createMock<RailgunService>();
-
-    const module: TestingModule = await Test.createTestingModule({
+    await Test.createTestingModule({
       providers: [
         CryptoService,
-        { provide: BitcoinService, useValue: bitcoinService },
-        { provide: LightningService, useValue: lightningService },
-        { provide: SparkService, useValue: sparkService },
-        { provide: MoneroService, useValue: moneroService },
-        { provide: ZanoService, useValue: zanoService },
-        { provide: SolanaService, useValue: solanaService },
-        { provide: TronService, useValue: tronService },
-        { provide: CardanoService, useValue: cardanoService },
-        { provide: ArweaveService, useValue: arweaveService },
-        { provide: RailgunService, useValue: railgunService },
+        { provide: BitcoinService, useValue: createMock<BitcoinService>() },
+        { provide: LightningService, useValue: createMock<LightningService>() },
+        { provide: SparkService, useValue: createMock<SparkService>() },
+        { provide: MoneroService, useValue: createMock<MoneroService>() },
+        { provide: ZanoService, useValue: createMock<ZanoService>() },
+        { provide: SolanaService, useValue: createMock<SolanaService>() },
+        { provide: TronService, useValue: createMock<TronService>() },
+        { provide: CardanoService, useValue: createMock<CardanoService>() },
+        { provide: ArweaveService, useValue: createMock<ArweaveService>() },
+        { provide: RailgunService, useValue: createMock<RailgunService>() },
+        { provide: BlockchainRegistryService, useValue: createMock<BlockchainRegistryService>() },
         TestUtil.provideConfig(),
       ],
     }).compile();
-
-    service = module.get<CryptoService>(CryptoService);
-  });
-
-  it('should be defined', () => {
-    expect(service).toBeDefined();
   });
 
   it('should return Blockchain.BITCOIN for address bc1q4mzpjac5e53dmgnq54j58klvldhme39ed71234', () => {

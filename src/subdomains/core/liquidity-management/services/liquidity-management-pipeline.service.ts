@@ -32,16 +32,16 @@ export class LiquidityManagementPipelineService {
 
   //*** JOBS ***//
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
-  async processPipelines() {
-    await this.checkRunningOrders();
-    await this.startNewPipelines();
+  @DfxCron(CronExpression.EVERY_10_SECONDS, { process: Process.LIQUIDITY_MANAGEMENT, timeout: 1800 })
+  async processPipelines(): Promise<void> {
+    let hasChanges = true;
+    while (hasChanges) {
+      const newPipelinesStarted = await this.startNewPipelines();
+      const ordersChanged = await this.checkRunningOrders();
+      const pipelinesChanged = await this.checkRunningPipelines();
+      const newOrdersStarted = await this.startNewOrders();
 
-    let hasWaitingOrders = true;
-    for (let i = 0; i < 5 && hasWaitingOrders; i++) {
-      await this.checkRunningPipelines();
-
-      hasWaitingOrders = await this.startNewOrders();
+      hasChanges = newPipelinesStarted || ordersChanged || pipelinesChanged || newOrdersStarted;
     }
   }
 
@@ -82,7 +82,7 @@ export class LiquidityManagementPipelineService {
 
   //*** HELPER METHODS ***//
 
-  async startNewPipelines(): Promise<void> {
+  async startNewPipelines(): Promise<boolean> {
     const newPipelines = await this.pipelineRepo.findBy({ status: LiquidityManagementPipelineStatus.CREATED });
 
     this.logNewPipelines(newPipelines);
@@ -96,13 +96,16 @@ export class LiquidityManagementPipelineService {
         continue;
       }
     }
+
+    return newPipelines.length > 0;
   }
 
-  private async checkRunningPipelines(): Promise<void> {
+  private async checkRunningPipelines(): Promise<boolean> {
     const runningPipelines = await this.pipelineRepo.find({
       where: { status: LiquidityManagementPipelineStatus.IN_PROGRESS },
       relations: { currentAction: { onSuccess: true, onFail: true } },
     });
+    let anyChanged = false;
 
     for (const pipeline of runningPipelines) {
       try {
@@ -120,6 +123,7 @@ export class LiquidityManagementPipelineService {
           ) {
             pipeline.continue(lastOrder.status);
             await this.pipelineRepo.save(pipeline);
+            anyChanged = true;
 
             if (pipeline.status === LiquidityManagementPipelineStatus.COMPLETE) {
               await this.handlePipelineCompletion(pipeline);
@@ -146,11 +150,14 @@ export class LiquidityManagementPipelineService {
         );
 
         await this.placeLiquidityOrder(pipeline, lastOrder);
+        anyChanged = true;
       } catch (e) {
         this.logger.error(`Error in checking running liquidity pipeline ${pipeline.id}:`, e);
         continue;
       }
     }
+
+    return anyChanged;
   }
 
   private async placeLiquidityOrder(
@@ -164,8 +171,6 @@ export class LiquidityManagementPipelineService {
   }
 
   private async startNewOrders(): Promise<boolean> {
-    let hasFinishedOrders = false;
-
     const newOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.CREATED });
 
     for (const order of newOrders) {
@@ -175,23 +180,19 @@ export class LiquidityManagementPipelineService {
         if (e instanceof OrderNotNecessaryException) {
           order.complete();
           await this.orderRepo.save(order);
-        }
-        if (e instanceof OrderNotProcessableException) {
+        } else if (e instanceof OrderNotProcessableException) {
           order.notProcessable(e);
           await this.orderRepo.save(order);
-        }
-        if (e instanceof OrderFailedException) {
+        } else if (e instanceof OrderFailedException) {
           order.fail(e);
           await this.orderRepo.save(order);
         }
-
-        hasFinishedOrders = true;
 
         this.logger.info(`Error in starting new liquidity order ${order.id}:`, e);
       }
     }
 
-    return hasFinishedOrders;
+    return newOrders.length > 0;
   }
 
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
@@ -203,30 +204,36 @@ export class LiquidityManagementPipelineService {
     await this.orderRepo.save(order);
   }
 
-  private async checkRunningOrders(): Promise<void> {
+  private async checkRunningOrders(): Promise<boolean> {
     const runningOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.IN_PROGRESS });
+    let anyChanged = false;
 
     for (const order of runningOrders) {
       try {
-        await this.checkOrder(order);
+        const changed = await this.checkOrder(order);
+        anyChanged = anyChanged || changed;
       } catch (e) {
         if (e instanceof OrderNotProcessableException) {
           order.notProcessable(e);
           await this.orderRepo.save(order);
+          anyChanged = true;
           continue;
         }
         if (e instanceof OrderFailedException) {
           order.fail(e);
           await this.orderRepo.save(order);
+          anyChanged = true;
           continue;
         }
 
         this.logger.error(`Error in checking running liquidity order ${order.id}:`, e);
       }
     }
+
+    return anyChanged;
   }
 
-  private async checkOrder(order: LiquidityManagementOrder): Promise<void> {
+  private async checkOrder(order: LiquidityManagementOrder): Promise<boolean> {
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
     const isComplete = await actionIntegration.checkCompletion(order);
 
@@ -235,7 +242,10 @@ export class LiquidityManagementPipelineService {
       await this.orderRepo.save(order);
 
       this.logger.verbose(`Liquidity management order ${order.id} complete`);
+      return true;
     }
+
+    return false;
   }
 
   private async handlePipelineCompletion(pipeline: LiquidityManagementPipeline): Promise<void> {

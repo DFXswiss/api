@@ -39,6 +39,7 @@ export enum AmlReason {
   BANK_RELEASE_PENDING = 'BankReleasePending',
   VIRTUAL_IBAN_USER_MISMATCH = 'VirtualIbanUserMismatch',
   INTERMEDIARY_WITHOUT_SENDER = 'IntermediaryWithoutSender',
+  NAME_TOO_SHORT = 'NameTooShort',
 }
 
 export const KycAmlReasons = [

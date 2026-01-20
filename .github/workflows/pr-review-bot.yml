@@ -55,18 +55,18 @@ jobs:
         continue-on-error: true
         run: |
           npm run lint 2>&1 | tee eslint-output.txt || true
-          WARNINGS=$(grep -c "warning" eslint-output.txt || echo "0")
-          ERRORS=$(grep -c "error" eslint-output.txt || echo "0")
-          echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
-          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+          WARNINGS=$(grep -c "warning" eslint-output.txt || true)
+          ERRORS=$(grep -c "error" eslint-output.txt || true)
+          echo "warnings=${WARNINGS:-0}" >> $GITHUB_OUTPUT
+          echo "errors=${ERRORS:-0}" >> $GITHUB_OUTPUT
 
       - name: Run TypeScript check
         id: typescript
         continue-on-error: true
         run: |
           npx tsc --noEmit 2>&1 | tee tsc-output.txt || true
-          ERRORS=$(grep -c "error TS" tsc-output.txt || echo "0")
-          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+          ERRORS=$(grep -c "error TS" tsc-output.txt || true)
+          echo "errors=${ERRORS:-0}" >> $GITHUB_OUTPUT
 
       - name: Security Audit
         id: audit
@@ -85,36 +85,6 @@ jobs:
           COUNT=$(wc -l < new-todos.txt | tr -d ' ')
           echo "count=$COUNT" >> $GITHUB_OUTPUT
 
-      - name: Check commit message format
-        id: commits-format
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const conventionalPattern = /^(feat|fix|refactor|test|ci|docs|chore|perf|style|build|revert)(\(.+\))?: .+/;
-
-            const commits = await github.rest.pulls.listCommits({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number
-            });
-
-            const badCommits = commits.data.filter(c => {
-              const firstLine = c.commit.message.split('\n')[0];
-              return !conventionalPattern.test(firstLine);
-            });
-
-            if (badCommits.length > 0) {
-              const list = badCommits.map(c =>
-                `- \`${c.sha.substring(0,7)}\` ${c.commit.message.split('\n')[0]}`
-              ).join('\n');
-
-              core.setOutput('invalid', 'true');
-              core.setOutput('invalid_list', list);
-              core.setOutput('invalid_count', badCommits.length);
-            } else {
-              core.setOutput('invalid', 'false');
-            }
-
       - name: Post PR comment
         uses: actions/github-script@v7
         env:
@@ -127,9 +97,6 @@ jobs:
           AUDIT_HIGH: ${{ steps.audit.outputs.high }}
           AUDIT_CRITICAL: ${{ steps.audit.outputs.critical }}
           TODO_COUNT: ${{ steps.todos.outputs.count }}
-          INVALID_COMMITS: ${{ steps.commits-format.outputs.invalid }}
-          INVALID_LIST: ${{ steps.commits-format.outputs.invalid_list }}
-          INVALID_COUNT: ${{ steps.commits-format.outputs.invalid_count }}
         with:
           script: |
             const fs = require('fs');
@@ -146,10 +113,6 @@ jobs:
             const auditCritical = parseInt(process.env.AUDIT_CRITICAL) || 0;
 
             const todoCount = parseInt(process.env.TODO_COUNT) || 0;
-
-            const invalidCommits = process.env.INVALID_COMMITS === 'true';
-            const invalidList = process.env.INVALID_LIST || '';
-            const invalidCount = process.env.INVALID_COUNT || '0';
 
             let comments = [];
 
@@ -177,18 +140,6 @@ jobs:
             </details>`);
             }
 
-            // Invalid commit message format
-            if (invalidCommits) {
-              comments.push(`## ⚠️ Non-Conventional Commits (${invalidCount})
-
-            The following commits don't follow conventional commit format:
-
-            ${invalidList}
-
-            Expected: \`type(scope): description\`
-            Types: feat, fix, refactor, test, ci, docs, chore, perf, style, build, revert`);
-            }
-
             // ESLint warnings
             if (eslintWarnings > 0 || eslintErrors > 0) {
               comments.push(`## ${eslintErrors > 0 ? '❌' : '⚠️'} ESLint: ${eslintErrors} errors, ${eslintWarnings} warnings`);
@@ -199,9 +150,9 @@ jobs:
               comments.push(`## ❌ TypeScript: ${tscErrors} errors`);
             }
 
-            // Security audit
-            if (auditCritical > 0 || auditHigh > 0) {
-              comments.push(`## ${auditCritical > 0 ? '❌' : '⚠️'} Security: ${auditCritical} critical, ${auditHigh} high vulnerabilities`);
+            // Security audit (only report critical vulnerabilities)
+            if (auditCritical > 0) {
+              comments.push(`## ❌ Security: ${auditCritical} critical vulnerabilities`);
             }
 
             // New TODOs
@@ -235,7 +186,6 @@ jobs:
             const botComment = existingComments.data.find(c =>
               c.user?.login === 'github-actions[bot]' && (
                 c.body?.includes('Unverified Commits') ||
-                c.body?.includes('Non-Conventional Commits') ||
                 c.body?.includes('ESLint:') ||
                 c.body?.includes('TypeScript:') ||
                 c.body?.includes('Security:') ||

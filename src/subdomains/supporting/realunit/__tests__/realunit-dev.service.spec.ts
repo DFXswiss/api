@@ -100,14 +100,6 @@ describe('RealUnitDevService', () => {
   let transactionService: jest.Mocked<TransactionService>;
   let buyCryptoRepo: jest.Mocked<BuyCryptoRepository>;
 
-  const mainnetRealuAsset = createCustomAsset({
-    id: 399,
-    name: 'REALU',
-    blockchain: Blockchain.ETHEREUM,
-    type: AssetType.TOKEN,
-    decimals: 0,
-  });
-
   const sepoliaRealuAsset = createCustomAsset({
     id: 408,
     name: 'REALU',
@@ -144,7 +136,7 @@ describe('RealUnitDevService', () => {
     id: 7,
     amount: 100,
     sourceId: 1,
-    targetId: 399,
+    targetId: 408, // Sepolia REALU asset ID
     routeId: 1,
     status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
     type: TransactionRequestType.BUY,
@@ -244,37 +236,25 @@ describe('RealUnitDevService', () => {
 
     it('should execute on DEV environment', async () => {
       (global as any).__mockEnvironment = 'dev';
-      assetService.getAssetByQuery.mockResolvedValueOnce(mainnetRealuAsset);
       assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
       transactionRequestRepo.find.mockResolvedValue([]);
 
       await service.simulateRealuPayments();
 
-      expect(assetService.getAssetByQuery).toHaveBeenCalledTimes(2);
+      expect(assetService.getAssetByQuery).toHaveBeenCalledTimes(1);
     });
 
     it('should execute on LOC environment', async () => {
       (global as any).__mockEnvironment = 'loc';
-      assetService.getAssetByQuery.mockResolvedValueOnce(mainnetRealuAsset);
       assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
       transactionRequestRepo.find.mockResolvedValue([]);
 
       await service.simulateRealuPayments();
 
-      expect(assetService.getAssetByQuery).toHaveBeenCalledTimes(2);
-    });
-
-    it('should skip if mainnet REALU asset not found', async () => {
-      assetService.getAssetByQuery.mockResolvedValueOnce(null);
-      assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
-
-      await service.simulateRealuPayments();
-
-      expect(transactionRequestRepo.find).not.toHaveBeenCalled();
+      expect(assetService.getAssetByQuery).toHaveBeenCalledTimes(1);
     });
 
     it('should skip if sepolia REALU asset not found', async () => {
-      assetService.getAssetByQuery.mockResolvedValueOnce(mainnetRealuAsset);
       assetService.getAssetByQuery.mockResolvedValueOnce(null);
 
       await service.simulateRealuPayments();
@@ -283,7 +263,6 @@ describe('RealUnitDevService', () => {
     });
 
     it('should skip if no waiting requests', async () => {
-      assetService.getAssetByQuery.mockResolvedValueOnce(mainnetRealuAsset);
       assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
       transactionRequestRepo.find.mockResolvedValue([]);
 
@@ -292,8 +271,7 @@ describe('RealUnitDevService', () => {
       expect(buyService.getBuyByKey).not.toHaveBeenCalled();
     });
 
-    it('should query for WAITING_FOR_PAYMENT requests with mainnet REALU targetId', async () => {
-      assetService.getAssetByQuery.mockResolvedValueOnce(mainnetRealuAsset);
+    it('should query for WAITING_FOR_PAYMENT requests with sepolia REALU targetId', async () => {
       assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
       transactionRequestRepo.find.mockResolvedValue([]);
 
@@ -303,7 +281,7 @@ describe('RealUnitDevService', () => {
         where: {
           status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
           type: TransactionRequestType.BUY,
-          targetId: 399,
+          targetId: 408,
         },
       });
     });
@@ -311,7 +289,6 @@ describe('RealUnitDevService', () => {
 
   describe('simulatePaymentForRequest', () => {
     beforeEach(() => {
-      assetService.getAssetByQuery.mockResolvedValueOnce(mainnetRealuAsset);
       assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
     });
 

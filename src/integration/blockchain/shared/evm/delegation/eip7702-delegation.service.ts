@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GetConfig } from 'src/config/config';
+import { Config, Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -84,7 +84,10 @@ export class Eip7702DelegationService {
    * RealUnit app supports eth_sign (unlike MetaMask), so EIP-7702 works
    */
   isDelegationSupportedForRealUnit(blockchain: Blockchain): boolean {
-    return blockchain === Blockchain.ETHEREUM && CHAIN_CONFIG[blockchain] !== undefined;
+    const expectedBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? Blockchain.SEPOLIA
+      : Blockchain.ETHEREUM;
+    return blockchain === expectedBlockchain && CHAIN_CONFIG[blockchain] !== undefined;
   }
 
   /**

@@ -1,18 +1,26 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ScryptService, ScryptTransactionStatus } from 'src/integration/exchange/services/scrypt.service';
+import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
+import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
+import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../interfaces';
+import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
 import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 
 export enum ScryptAdapterCommands {
   WITHDRAW = 'withdraw',
+  SELL = 'sell',
+  BUY = 'buy',
 }
 
 @Injectable()
@@ -24,16 +32,27 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   constructor(
     private readonly scryptService: ScryptService,
     private readonly dexService: DexService,
+    private readonly orderRepo: LiquidityManagementOrderRepository,
+    private readonly pricingService: PricingService,
+    private readonly assetService: AssetService,
   ) {
     super(LiquidityManagementSystem.SCRYPT);
 
     this.commands.set(ScryptAdapterCommands.WITHDRAW, this.withdraw.bind(this));
+    this.commands.set(ScryptAdapterCommands.SELL, this.sell.bind(this));
+    this.commands.set(ScryptAdapterCommands.BUY, this.buy.bind(this));
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     switch (order.action.command) {
       case ScryptAdapterCommands.WITHDRAW:
         return this.checkWithdrawCompletion(order);
+
+      case ScryptAdapterCommands.SELL:
+        return this.checkSellCompletion(order);
+
+      case ScryptAdapterCommands.BUY:
+        return this.checkBuyCompletion(order);
 
       default:
         return false;
@@ -44,6 +63,10 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     switch (command) {
       case ScryptAdapterCommands.WITHDRAW:
         return this.validateWithdrawParams(params);
+
+      case ScryptAdapterCommands.SELL:
+      case ScryptAdapterCommands.BUY:
+        return this.validateTradeParams(params);
 
       default:
         throw new Error(`Command ${command} not supported by ScryptAdapter`);
@@ -83,6 +106,76 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     }
   }
 
+  private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const { tradeAsset, maxPriceDeviation } = this.parseTradeParams(order.action.paramMap);
+
+    const targetAssetEntity = order.pipeline.rule.targetAsset;
+    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`Scrypt/${tradeAsset}`);
+
+    await this.getAndCheckTradePrice(targetAssetEntity, tradeAssetEntity, maxPriceDeviation);
+
+    const availableBalance = await this.scryptService.getAvailableBalance(targetAssetEntity.dexName);
+    const effectiveMax = Math.min(order.maxAmount, availableBalance);
+
+    if (effectiveMax < order.minAmount) {
+      throw new OrderNotProcessableException(
+        `Scrypt: not enough balance for ${targetAssetEntity.dexName} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+      );
+    }
+
+    const amount = Util.floor(effectiveMax, 6);
+
+    order.inputAmount = amount;
+    order.inputAsset = targetAssetEntity.dexName;
+    order.outputAsset = tradeAsset;
+
+    try {
+      return await this.scryptService.sell(targetAssetEntity.dexName, tradeAsset, amount);
+    } catch (e) {
+      if (this.isBalanceTooLowError(e)) {
+        throw new OrderNotProcessableException(e.message);
+      }
+
+      throw e;
+    }
+  }
+
+  private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const { tradeAsset, maxPriceDeviation } = this.parseTradeParams(order.action.paramMap);
+
+    const targetAssetEntity = order.pipeline.rule.targetAsset;
+    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`Scrypt/${tradeAsset}`);
+
+    const price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity, maxPriceDeviation);
+    const minSellAmount = Util.floor(order.minAmount * price, 6);
+    const maxSellAmount = Util.floor(order.maxAmount * price, 6);
+
+    const availableBalance = await this.getAvailableTradeBalance(tradeAsset, targetAssetEntity.dexName);
+    const effectiveMax = Math.min(maxSellAmount, availableBalance);
+
+    if (effectiveMax < minSellAmount) {
+      throw new OrderNotProcessableException(
+        `Scrypt: not enough balance for ${tradeAsset} (balance: ${availableBalance}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
+      );
+    }
+
+    const amount = Util.floor(effectiveMax, 6);
+
+    order.inputAmount = amount;
+    order.inputAsset = tradeAsset;
+    order.outputAsset = targetAssetEntity.dexName;
+
+    try {
+      return await this.scryptService.sell(tradeAsset, targetAssetEntity.dexName, amount);
+    } catch (e) {
+      if (this.isBalanceTooLowError(e)) {
+        throw new OrderNotProcessableException(e.message);
+      }
+
+      throw e;
+    }
+  }
+
   // --- COMPLETION CHECKS --- //
 
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
@@ -105,6 +198,81 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
     const { blockchain } = this.parseWithdrawParams(order.action.paramMap);
     return this.dexService.checkTransferCompletion(withdrawal.txHash, blockchain);
+  }
+
+  private async checkSellCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
+    const asset = order.pipeline.rule.targetAsset.dexName;
+
+    return this.checkTradeCompletion(order, asset, tradeAsset);
+  }
+
+  private async checkBuyCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
+    const asset = order.pipeline.rule.targetAsset.dexName;
+
+    return this.checkTradeCompletion(order, tradeAsset, asset);
+  }
+
+  private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
+    try {
+      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to);
+
+      if (isComplete) {
+        order.outputAmount = await this.aggregateTradeOutput(order);
+      }
+
+      return isComplete;
+    } catch (e) {
+      if (e instanceof TradeChangedException) {
+        order.updateCorrelationId(e.id);
+        await this.orderRepo.save(order);
+        return false;
+      }
+
+      throw new OrderFailedException(e.message);
+    }
+  }
+
+  private async aggregateTradeOutput(order: LiquidityManagementOrder): Promise<number> {
+    const correlationIds = order.allCorrelationIds;
+
+    // Fetch all orders in parallel
+    const orderResults = await Promise.allSettled(correlationIds.map((id) => this.scryptService.getOrderStatus(id)));
+
+    const orders = orderResults
+      .filter(
+        (result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof this.scryptService.getOrderStatus>>> =>
+          result.status === 'fulfilled' && result.value !== null,
+      )
+      .map((result) => result.value!);
+
+    // Log failures
+    const failures = orderResults.filter((result) => result.status === 'rejected');
+    if (failures.length > 0) {
+      this.logger.warn(
+        `Order ${order.id}: Failed to fetch ${failures.length} of ${correlationIds.length} orders. ` +
+          `Proceeding with ${orders.length} successful fetches.`,
+      );
+    }
+
+    if (orders.length === 0) {
+      throw new OrderFailedException(`Failed to fetch any orders for order ${order.id}`);
+    }
+
+    return orders.reduce((sum, o) => sum + this.calculateOrderOutput(o), 0);
+  }
+
+  private calculateOrderOutput(order: ScryptOrderInfo): number {
+    if (order.filledQuantity <= 0) return 0;
+
+    if (order.side === ScryptOrderSide.BUY) {
+      // BUY: output is base currency = filledQuantity
+      return order.filledQuantity;
+    } else {
+      // SELL: output is quote currency = filledQuantity * avgPrice
+      return order.avgPrice ? order.filledQuantity * order.avgPrice : order.filledQuantity;
+    }
   }
 
   // --- PARAM VALIDATION --- //
@@ -134,9 +302,56 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     return { address, asset, blockchain };
   }
 
+  private validateTradeParams(params: Record<string, unknown>): boolean {
+    try {
+      this.parseTradeParams(params);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private parseTradeParams(params: Record<string, unknown>): {
+    tradeAsset: string;
+    maxPriceDeviation?: number;
+  } {
+    const tradeAsset = params.tradeAsset as string | undefined;
+    const maxPriceDeviation = params.maxPriceDeviation as number | undefined;
+
+    if (!tradeAsset) {
+      throw new Error(`Params provided to ScryptAdapter trade command are invalid.`);
+    }
+
+    return { tradeAsset, maxPriceDeviation };
+  }
+
   // --- HELPER METHODS --- //
 
-  private isBalanceTooLowError(_e: Error): boolean {
-    return false; // TODO: implement specific error check for Scrypt
+  private isBalanceTooLowError(e: Error): boolean {
+    return ['Insufficient funds', 'insufficient balance', 'Insufficient position', 'not enough balance'].some((m) =>
+      e.message?.toLowerCase().includes(m.toLowerCase()),
+    );
+  }
+
+  private async getAvailableTradeBalance(from: string, to: string): Promise<number> {
+    const availableBalance = await this.scryptService.getAvailableBalance(from);
+
+    const { side } = await this.scryptService.getTradePair(from, to);
+    // Reduce balance by 1% when buying to account for price changes
+    return side === ScryptOrderSide.BUY ? availableBalance * 0.99 : availableBalance;
+  }
+
+  private async getAndCheckTradePrice(from: Asset, to: Asset, maxPriceDeviation = 0.05): Promise<number> {
+    const price = await this.scryptService.getCurrentPrice(from.name, to.name);
+
+    const checkPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
+
+    if (Math.abs((price - checkPrice.price) / checkPrice.price) > maxPriceDeviation) {
+      throw new OrderFailedException(
+        `Trade price out of range: exchange price ${price}, check price ${checkPrice.price}, max deviation ${maxPriceDeviation}`,
+      );
+    }
+
+    return price;
   }
 }

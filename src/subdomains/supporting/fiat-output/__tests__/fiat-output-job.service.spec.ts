@@ -16,7 +16,7 @@ import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks_
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
-import { createDefaultBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createCustomBank, yapealEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from '../../bank/bank/bank.service';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
@@ -107,7 +107,7 @@ describe('FiatOutputJobService', () => {
           id: 2,
           type: FiatOutputType.BANK_TX_REPEAT,
           isComplete: false,
-          bankTx: createDefaultBankTx(),
+          bankTx: createCustomBankTx({}),
         }),
         createCustomFiatOutput({
           id: 3,
@@ -472,6 +472,64 @@ describe('FiatOutputJobService', () => {
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
       expect(updateCalls[0][0]).toBe(1);
       expect(updateCalls[1][0]).toBe(2);
+    });
+  });
+
+  describe('searchOutgoingBankTx', () => {
+    it('should match FiatOutput via remittanceInfo', async () => {
+      const bankTx = createCustomBankTx({ id: 100, created: new Date('2024-01-01') });
+      const fiatOutput = createCustomFiatOutput({
+        id: 1,
+        remittanceInfo: 'DFX-123',
+        isComplete: false,
+        isReadyDate: new Date('2024-01-01'),
+      });
+
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxService, 'getBankTxByRemittanceInfo').mockResolvedValue(bankTx);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(bankTxService.getBankTxByRemittanceInfo).toHaveBeenCalledWith('DFX-123');
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(1, expect.objectContaining({ isComplete: true, bankTx }));
+    });
+
+    it('should match FiatOutput via endToEndId when remittanceInfo is not set', async () => {
+      const bankTx = createCustomBankTx({ id: 200, created: new Date('2024-01-01') });
+      const fiatOutput = createCustomFiatOutput({
+        id: 2,
+        endToEndId: 'E2E-79057',
+        remittanceInfo: undefined,
+        isComplete: false,
+        isReadyDate: new Date('2024-01-01'),
+        type: FiatOutputType.LIQ_MANAGEMENT,
+      });
+
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxService, 'getBankTxByRemittanceInfo').mockResolvedValue(null);
+      jest.spyOn(bankTxService, 'getBankTxByEndToEndId').mockResolvedValue(bankTx);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(bankTxService.getBankTxByEndToEndId).toHaveBeenCalledWith('E2E-79057');
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(2, expect.objectContaining({ isComplete: true, bankTx }));
+    });
+
+    it('should not match if BankTx created before FiatOutput isReadyDate', async () => {
+      const bankTx = createCustomBankTx({ id: 300, created: new Date('2024-01-01') });
+      const fiatOutput = createCustomFiatOutput({
+        id: 3,
+        endToEndId: 'E2E-79058',
+        isComplete: false,
+        isReadyDate: new Date('2024-01-02'), // after BankTx.created
+      });
+
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxService, 'getBankTxByEndToEndId').mockResolvedValue(bankTx);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
 import { isLiechtensteinBankHoliday } from 'src/config/bank-holiday.config';
+import { Config } from 'src/config/config';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
@@ -86,9 +86,19 @@ export class FiatOutputJobService {
   // --- HELPER METHODS --- //
 
   private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
-    if (!entity.remittanceInfo) return undefined;
+    // Try remittanceInfo first
+    if (entity.remittanceInfo) {
+      const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
+      if (bankTx) return bankTx;
+    }
 
-    return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
+    // Fallback to endToEndId (used for Yapeal LiqManagement payments)
+    if (entity.endToEndId) {
+      const bankTx = await this.bankTxService.getBankTxByEndToEndId(entity.endToEndId);
+      if (bankTx) return bankTx;
+    }
+
+    return undefined;
   }
 
   private async getPayoutAccount(entity: FiatOutput, country: Country): Promise<{ accountIban: string; bank: Bank }> {
@@ -435,6 +445,11 @@ export class FiatOutputJobService {
 
       case FiatOutputType.BANK_TX_RETURN:
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
+
+      case FiatOutputType.LIQ_MANAGEMENT: {
+        const specificType = this.bankTxService.getType(bankTx);
+        if (specificType) return this.bankTxService.updateInternal(bankTx, { type: specificType });
+      }
     }
   }
 }

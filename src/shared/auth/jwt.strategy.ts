@@ -22,6 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         break;
 
       case UserRole.KYC_CLIENT_COMPANY:
+      case UserRole.CLIENT_COMPANY:
         if (!address || !user) throw new UnauthorizedException();
         break;
 
