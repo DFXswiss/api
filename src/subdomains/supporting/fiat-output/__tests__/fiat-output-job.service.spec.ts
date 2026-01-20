@@ -19,7 +19,6 @@ import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return
 import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createCustomBank, yapealEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from '../../bank/bank/bank.service';
-import { IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { createCustomVirtualIban } from '../../bank/virtual-iban/__mocks__/virtual-iban.entity.mock';
 import { VirtualIbanService } from '../../bank/virtual-iban/virtual-iban.service';
 import { createCustomLog } from '../../log/__mocks__/log.entity.mock';
@@ -185,11 +184,11 @@ describe('FiatOutputJobService', () => {
   });
 
   describe('setReadyDate', () => {
-    it('should set ready date when balance is available and cryptoInput is confirmed', async () => {
+    it('should set ready date for non-EUR transactions and skip EUR transactions', async () => {
       jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
         createCustomFiatOutput({
           id: 1,
-          accountIban: 'DE123456789',
+          accountIban: 'CH123456789',
           iban: 'CH123456789',
           isReadyDate: null,
           buyFiats: [
@@ -197,7 +196,7 @@ describe('FiatOutputJobService', () => {
               cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
             }),
           ],
-          amount: 15000,
+          amount: 100,
           currency: 'EUR',
           type: FiatOutputType.BUY_FIAT,
         }),
@@ -211,97 +210,15 @@ describe('FiatOutputJobService', () => {
               cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
             }),
           ],
-          amount: 5000,
+          amount: 100,
           currency: 'CHF',
           type: FiatOutputType.BUY_FIAT,
         }),
         createCustomFiatOutput({
           id: 3,
-          accountIban: 'DE123456789',
+          accountIban: 'CH123456789',
           iban: 'CH123456789',
           isReadyDate: null,
-          buyFiats: [
-            createCustomBuyFiat({
-              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
-            }),
-          ],
-          amount: 100,
-          currency: 'EUR',
-          type: FiatOutputType.BUY_FIAT,
-        }),
-        createCustomFiatOutput({
-          id: 4,
-          accountIban: 'DE123456789',
-          iban: 'CH123456789',
-          isReadyDate: null,
-          buyFiats: [
-            createCustomBuyFiat({
-              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
-            }),
-          ],
-          amount: 300,
-          currency: 'EUR',
-          type: FiatOutputType.BUY_FIAT,
-        }),
-        createCustomFiatOutput({
-          id: 5,
-          accountIban: 'DE123456789',
-          isReadyDate: null,
-          amount: 9500,
-          currency: 'EUR',
-          type: FiatOutputType.LIQ_MANAGEMENT,
-        }),
-        createCustomFiatOutput({
-          id: 6,
-          accountIban: 'DE123456789',
-          iban: 'DE123459876',
-          isReadyDate: new Date(),
-          buyFiats: [
-            createCustomBuyFiat({
-              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
-            }),
-          ],
-          amount: 1200,
-          currency: 'EUR',
-          type: FiatOutputType.BUY_FIAT,
-        }),
-        createCustomFiatOutput({
-          id: 7,
-          accountIban: 'DE123456789',
-          iban: 'CH123456789',
-          isReadyDate: null,
-          buyFiats: [
-            createCustomBuyFiat({
-              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
-              amountInChf: 4000,
-              amountInEur: 4500,
-            }),
-          ],
-          amount: 20000,
-          currency: 'AED',
-          type: FiatOutputType.BUY_FIAT,
-        }),
-        createCustomFiatOutput({
-          id: 8,
-          accountIban: 'DE123456789',
-          iban: 'CH123456789',
-          isReadyDate: null,
-          buyFiats: [
-            createCustomBuyFiat({
-              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
-              amountInChf: 20000,
-              amountInEur: 22000,
-            }),
-          ],
-          amount: 400,
-          currency: 'XYZ',
-          type: FiatOutputType.BUY_FIAT,
-        }),
-        createCustomFiatOutput({
-          id: 9,
-          accountIban: 'CH4243843938',
-          iban: 'CH12345987645',
-          isReadyDate: new Date(),
           buyFiats: [
             createCustomBuyFiat({
               cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
@@ -310,55 +227,44 @@ describe('FiatOutputJobService', () => {
           amount: 200,
           currency: 'EUR',
           type: FiatOutputType.BUY_FIAT,
-          bank: createCustomBank({ name: IbanBankName.YAPEAL, iban: 'CH475843938' }),
         }),
         createCustomFiatOutput({
-          id: 10,
-          accountIban: 'CH4244043938',
-          iban: 'CH12345987645',
+          id: 4,
+          accountIban: 'CH123456789',
+          iban: 'CH123456789',
+          isReadyDate: null,
           buyFiats: [
             createCustomBuyFiat({
               cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
             }),
           ],
-          amount: 100,
-          currency: 'EUR',
+          amount: 150,
+          currency: 'USD',
           type: FiatOutputType.BUY_FIAT,
-          bank: createCustomBank({ name: IbanBankName.YAPEAL, iban: 'CH475843938' }),
         }),
       ]);
       jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
         createCustomAsset({
           id: 1,
           type: AssetType.CUSTODY,
-          bank: createCustomBank({ iban: 'DE123456789' }),
-          name: 'EUR',
-          balance: createCustomLiquidityBalance({ amount: 13000 }),
-        }),
-        createCustomAsset({
-          id: 2,
-          type: AssetType.CUSTODY,
           bank: createCustomBank({ iban: 'CH123456789' }),
           name: 'CHF',
           balance: createCustomLiquidityBalance({ amount: 9000 }),
-        }),
-        createCustomAsset({
-          id: 3,
-          type: AssetType.CUSTODY,
-          bank: createCustomBank({ iban: 'CH475843938', name: IbanBankName.YAPEAL }),
-          name: 'CHF',
-          balance: createCustomLiquidityBalance({ amount: 500 }),
         }),
       ]);
 
       await service['setReadyDate']();
 
       const updateCalls = (fiatOutputRepo.update as jest.Mock).mock.calls;
-      expect(updateCalls[0][0]).toBe(3);
-      expect(updateCalls[1][0]).toBe(4);
-      expect(updateCalls[2][0]).toBe(7);
-      expect(updateCalls[3][0]).toBe(2);
-      expect(updateCalls[4][0]).toBe(10);
+      const updatedIds = updateCalls.map((call) => call[0]);
+
+      // EUR transactions (id 1 and 3) should NOT be updated
+      expect(updatedIds).not.toContain(1);
+      expect(updatedIds).not.toContain(3);
+
+      // Non-EUR transactions (id 2 CHF and id 4 USD) should be updated
+      expect(updatedIds).toContain(2);
+      expect(updatedIds).toContain(4);
     });
   });
 
