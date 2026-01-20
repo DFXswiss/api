@@ -1,4 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export interface YearlyBalance {
+  opening: number;
+  closing: number;
+}
 
 export class BankDto {
   @ApiProperty()
@@ -12,6 +17,9 @@ export class BankDto {
 
   @ApiProperty()
   currency: string;
+
+  @ApiPropertyOptional({ description: 'Yearly balances per year' })
+  yearlyBalances?: Record<string, YearlyBalance>;
 }
 
 export enum IbanBankName {
