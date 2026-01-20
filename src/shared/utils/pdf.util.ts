@@ -3,6 +3,7 @@ import PDFDocument from 'pdfkit';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { mm2pt } from 'swissqrbill/utils';
 import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from './logos/dfx-logo';
 import { realunitLogoColor, realunitLogoPath } from './logos/realunit-logo';
 
@@ -59,6 +60,45 @@ export class PdfUtil {
     pdf.restore();
 
     pdf.translate(0, 30);
+  }
+
+  static drawInvoiceLogo(pdf: InstanceType<typeof PDFDocument>, brand: PdfBrand = PdfBrand.DFX): void {
+    if (brand === PdfBrand.REALUNIT) {
+      this.drawInvoiceRealUnitLogo(pdf);
+    } else {
+      this.drawInvoiceDfxLogo(pdf);
+    }
+  }
+
+  private static drawInvoiceDfxLogo(pdf: InstanceType<typeof PDFDocument>): void {
+    pdf.save();
+    pdf.translate(mm2pt(20), mm2pt(14));
+    pdf.scale(0.15);
+
+    const gradient1 = pdf.linearGradient(122.111, 64.6777, 45.9618, 103.949);
+    gradient1
+      .stop(0.04, '#F5516C')
+      .stop(0.14, '#C74863')
+      .stop(0.31, '#853B57')
+      .stop(0.44, '#55324E')
+      .stop(0.55, '#382D49')
+      .stop(0.61, '#2D2B47');
+
+    const gradient2 = pdf.linearGradient(75.8868, 50.7468, 15.2815, 122.952);
+    gradient2.stop(0.2, '#F5516C').stop(1, '#6B3753');
+
+    pdf.path(dfxLogoBall1).fill(gradient1);
+    pdf.path(dfxLogoBall2).fill(gradient2);
+    pdf.path(dfxLogoText).fill('#072440');
+    pdf.restore();
+  }
+
+  private static drawInvoiceRealUnitLogo(pdf: InstanceType<typeof PDFDocument>): void {
+    pdf.save();
+    pdf.translate(mm2pt(20), mm2pt(14));
+    pdf.scale(0.15);
+    pdf.path(realunitLogoPath).fill(realunitLogoColor);
+    pdf.restore();
   }
 
   static drawTable(

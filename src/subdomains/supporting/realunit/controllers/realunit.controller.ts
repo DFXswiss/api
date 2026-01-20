@@ -1,4 +1,16 @@
-import { Body, Controller, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiAcceptedResponse,
@@ -29,6 +41,9 @@ import { PdfBrand } from 'src/shared/utils/pdf.util';
 import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BalancePdfService } from '../../balance/services/balance-pdf.service';
+import { TxStatementType } from '../../payment/dto/transaction-helper/tx-statement-details.dto';
+import { SwissQRService } from '../../payment/services/swiss-qr.service';
+import { TransactionHelper } from '../../payment/services/transaction-helper';
 import { RealUnitBalancePdfDto } from '../dto/realunit-balance-pdf.dto';
 import {
   RealUnitRegistrationDto,
@@ -58,6 +73,8 @@ export class RealUnitController {
     private readonly realunitService: RealUnitService,
     private readonly balancePdfService: BalancePdfService,
     private readonly userService: UserService,
+    private readonly transactionHelper: TransactionHelper,
+    private readonly swissQrService: SwissQRService,
   ) {}
 
   @Get('account/:address')
@@ -146,6 +163,35 @@ export class RealUnitController {
       PdfBrand.REALUNIT,
     );
     return { pdfData };
+  }
+
+  // --- Receipt PDF Endpoint ---
+
+  @Put('transaction/:id/receipt')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    description: 'Generates a PDF receipt for a completed RealUnit transaction',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction ID' })
+  @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
+  @ApiBadRequestResponse({ description: 'Transaction not found or not a RealUnit transaction' })
+  async generateReceipt(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      user.userData.id,
+      +id,
+      TxStatementType.RECEIPT,
+    );
+
+    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
+      throw new BadRequestException('PDF receipt is only available for CHF and EUR transactions');
+    }
+
+    txStatementDetails.brand = PdfBrand.REALUNIT;
+
+    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
   }
 
   // --- Brokerbot Endpoints ---
