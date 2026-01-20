@@ -17,10 +17,7 @@ export class AccountingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   @ApiOkResponse({ type: BankBalanceSheetDto })
-  async getBankBalanceSheet(
-    @Param('iban') iban: string,
-    @Param('year') year: string,
-  ): Promise<BankBalanceSheetDto> {
+  async getBankBalanceSheet(@Param('iban') iban: string, @Param('year') year: string): Promise<BankBalanceSheetDto> {
     return this.accountingService.getBankBalanceSheet(iban, parseInt(year, 10));
   }
 

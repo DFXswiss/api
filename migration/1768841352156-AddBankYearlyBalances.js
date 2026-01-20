@@ -25,38 +25,59 @@ module.exports = class AddBankYearlyBalances1768841352156 {
             ALTER TABLE "dbo"."bank" ADD "yearlyBalances" nvarchar(MAX) NULL
         `);
 
-        // Update each bank with their yearly balances
+        // Update each bank with their yearly balances (closing balances per year)
         // Format: { "YYYY": closingBalance } - opening is previous year's closing
+        // Data source: bank anfangsbestände per 1.1.xxxx - Endbestaende.csv
         const bankBalances = [
+            // Bank Frick EUR (ID: 1)
+            {
+                id: 1,
+                balances: { "2022": 11407.01, "2023": 0, "2024": 0, "2025": 0 }
+            },
+            // Bank Frick CHF (ID: 2)
+            {
+                id: 2,
+                balances: { "2022": 116.54, "2023": 0, "2024": 0, "2025": 0 }
+            },
+            // Bank Frick USD (ID: 3)
+            {
+                id: 3,
+                balances: { "2022": 6670.51, "2023": 0, "2024": 0, "2025": 0 }
+            },
+            // Olkypay EUR (ID: 4)
+            {
+                id: 4,
+                balances: { "2022": 15702.24, "2023": 35581.94, "2024": 11219.32, "2025": 21814.76 }
+            },
             // Maerki Baumann EUR (ID: 5)
-            // 2024: closing 3617.58, 2025: closing 0
             {
                 id: 5,
-                balances: { "2024": 3617.58, "2025": 0 }
+                balances: { "2022": 67230.42, "2023": 26327.80, "2024": 3312.22, "2025": 0 }
             },
             // Maerki Baumann CHF (ID: 6)
-            // 2024: closing 2437.57, 2025: closing 0
             {
                 id: 6,
-                balances: { "2024": 2437.57, "2025": 0 }
+                balances: { "2022": 30549.23, "2023": 8011.98, "2024": 2437.57, "2025": 0 }
+            },
+            // Revolut EUR (ID: 7)
+            {
+                id: 7,
+                balances: { "2022": 8687.49, "2023": 3303.60, "2024": 0, "2025": 0 }
             },
             // Raiffeisen CHF (ID: 13)
-            // 2024: closing 0, 2025: closing 1161.67
             {
                 id: 13,
-                balances: { "2024": 0, "2025": 1161.67 }
+                balances: { "2022": 0, "2023": 0, "2024": 0, "2025": 1161.67 }
             },
             // Yapeal CHF (ID: 15)
-            // 2024: closing 0, 2025: closing 1557.73
             {
                 id: 15,
-                balances: { "2024": 0, "2025": 1557.73 }
+                balances: { "2022": 0, "2023": 0, "2024": 0, "2025": 1557.73 }
             },
             // Yapeal EUR (ID: 16)
-            // 2024: closing 0, 2025: closing 2568.79
             {
                 id: 16,
-                balances: { "2024": 0, "2025": 2568.79 }
+                balances: { "2022": 0, "2023": 0, "2024": 0, "2025": 2568.79 }
             },
         ];
 

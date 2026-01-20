@@ -22,9 +22,7 @@ export class AccountingService {
 
     // Parse yearly balances from JSON: { "2024": 1234.56, "2025": 0 }
     // Each year stores only the closing balance
-    const yearlyBalances: Record<string, number> = bank.yearlyBalances
-      ? JSON.parse(bank.yearlyBalances)
-      : {};
+    const yearlyBalances: Record<string, number> = bank.yearlyBalances ? JSON.parse(bank.yearlyBalances) : {};
 
     // Opening balance = previous year's closing balance
     const previousYear = (year - 1).toString();
@@ -90,9 +88,7 @@ export class AccountingService {
     }
 
     // Parse yearly balances
-    const yearlyBalances: Record<string, number> = bank.yearlyBalances
-      ? JSON.parse(bank.yearlyBalances)
-      : {};
+    const yearlyBalances: Record<string, number> = bank.yearlyBalances ? JSON.parse(bank.yearlyBalances) : {};
 
     // Opening balance = previous year's closing balance
     const previousYear = (year - 1).toString();
@@ -105,7 +101,7 @@ export class AccountingService {
     // Get income breakdown by type (CRDT transactions)
     const incomeByTypeResult = await this.bankTxRepo
       .createQueryBuilder('tx')
-      .select('COALESCE(tx.type, \'Unknown\')', 'type')
+      .select("COALESCE(tx.type, 'Unknown')", 'type')
       .addSelect('COALESCE(SUM(tx.amount), 0)', 'amount')
       .addSelect('COUNT(*)', 'count')
       .where('tx.accountIban = :iban', { iban })
@@ -119,7 +115,7 @@ export class AccountingService {
     // Get expenses breakdown by type (DBIT transactions)
     const expensesByTypeResult = await this.bankTxRepo
       .createQueryBuilder('tx')
-      .select('COALESCE(tx.type, \'Unknown\')', 'type')
+      .select("COALESCE(tx.type, 'Unknown')", 'type')
       .addSelect('COALESCE(SUM(tx.amount), 0)', 'amount')
       .addSelect('COUNT(*)', 'count')
       .where('tx.accountIban = :iban', { iban })
