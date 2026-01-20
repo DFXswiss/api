@@ -21,7 +21,7 @@ import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
-import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
+import { SupportIssueDto, SupportIssueInternalDataDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
@@ -211,6 +211,16 @@ export class SupportIssueService {
     });
 
     return SupportIssueDtoMapper.mapSupportIssue(issue);
+  }
+
+  async getIssueData(id: number): Promise<SupportIssueInternalDataDto> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: { id },
+      relations: { transaction: { buyCrypto: true, buyFiat: true, user: { wallet: true } } },
+    });
+    if (!issue) throw new NotFoundException('Support issue not found');
+
+    return SupportIssueDtoMapper.mapSupportIssueData(issue);
   }
 
   async getIssueFile(id: string, messageId: number, userDataId?: number): Promise<BlobContent> {

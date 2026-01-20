@@ -11,7 +11,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { GetSupportIssueFilter } from './dto/get-support-issue.dto';
-import { SupportIssueDto, SupportMessageDto } from './dto/support-issue.dto';
+import { SupportIssueDto, SupportIssueInternalDataDto, SupportMessageDto } from './dto/support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
@@ -63,6 +63,14 @@ export class SupportIssueController {
     @Query() query: GetSupportIssueFilter,
   ): Promise<SupportIssueDto> {
     return this.supportIssueService.getIssue(id, query, jwt?.account);
+  }
+
+  @Get(':id/data')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getIssueData(@Param('id') id: string): Promise<SupportIssueInternalDataDto> {
+    return this.supportIssueService.getIssueData(+id);
   }
 
   @Post(':id/message')

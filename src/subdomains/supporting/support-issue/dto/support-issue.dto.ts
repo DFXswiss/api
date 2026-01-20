@@ -1,4 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CountryDto } from 'src/shared/models/country/dto/country.dto';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { WalletDto } from 'src/subdomains/generic/user/models/wallet/dto/wallet.dto';
+import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { Department } from '../enums/department.enum';
 import {
   SupportIssueInternalState,
   SupportIssueReason,
@@ -66,6 +74,108 @@ export class SupportIssueDto {
 
   @ApiPropertyOptional({ type: SupportIssueLimitRequestDto })
   limitRequest?: SupportIssueLimitRequestDto;
+}
+
+export class SupportIssueInternalAccountDataDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty({ enum: UserDataStatus })
+  status: UserDataStatus;
+
+  @ApiProperty()
+  verifiedName: string;
+
+  @ApiProperty()
+  completeName: string;
+
+  @ApiProperty({ enum: AccountType })
+  accountType: AccountType;
+
+  @ApiProperty({ enum: KycLevel })
+  kycLevel: KycLevel;
+
+  @ApiProperty()
+  depositLimit: number;
+
+  @ApiProperty()
+  annualVolume: number;
+
+  @ApiProperty()
+  kycHash: string;
+
+  @ApiProperty({ type: CountryDto })
+  country: CountryDto;
+}
+
+export class SupportIssueInternalTransactionDataDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty({ enum: TransactionSourceType })
+  sourceType: TransactionSourceType;
+
+  @ApiProperty({ enum: TransactionTypeInternal })
+  type: TransactionTypeInternal;
+
+  @ApiProperty({ enum: CheckStatus })
+  amlCheck: CheckStatus;
+
+  @ApiProperty({ enum: AmlReason })
+  amlReason: AmlReason;
+
+  @ApiProperty()
+  comment: string;
+
+  @ApiProperty()
+  inputAmount: number;
+
+  @ApiProperty()
+  inputAsset: string;
+
+  @ApiProperty()
+  outputAmount: number;
+
+  @ApiProperty()
+  outputAsset: string;
+
+  @ApiProperty({ type: WalletDto })
+  wallet: WalletDto;
+
+  @ApiProperty()
+  isComplete: boolean;
+}
+
+export class SupportIssueInternalDataDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty({ type: Date })
+  created: Date;
+
+  @ApiProperty()
+  uid: string;
+
+  @ApiProperty({ enum: SupportIssueType })
+  type: SupportIssueType;
+
+  @ApiProperty({ enum: Department })
+  department?: Department;
+
+  @ApiProperty({ enum: SupportIssueReason })
+  reason: SupportIssueReason;
+
+  @ApiProperty({ enum: SupportIssueInternalState })
+  state: SupportIssueInternalState;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ type: SupportIssueInternalAccountDataDto })
+  userData: SupportIssueInternalAccountDataDto;
+
+  @ApiProperty({ type: SupportIssueInternalTransactionDataDto })
+  transaction: SupportIssueInternalTransactionDataDto;
 }
 
 export const SupportIssueStateMapper: {
