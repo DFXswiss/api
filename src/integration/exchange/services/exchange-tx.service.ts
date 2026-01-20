@@ -12,7 +12,7 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
+import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
@@ -40,6 +40,11 @@ export class ExchangeTxService {
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.EXCHANGE_TX_SYNC, timeout: 1800 })
   async syncExchangeJob() {
     await this.syncExchanges();
+  }
+
+  @DfxCron(CronExpression.EVERY_30_MINUTES, { process: Process.EXCHANGE_TX_PENDING_SYNC, timeout: 1800 })
+  async syncPendingExchangeJob() {
+    await this.syncPendingTransactions();
   }
 
   async syncExchanges(from?: Date, exchange?: ExchangeName) {
@@ -100,6 +105,44 @@ export class ExchangeTxService {
       }
 
       await this.exchangeTxRepo.save(entity);
+    }
+  }
+
+  async syncPendingTransactions(): Promise<void> {
+    // Scrypt handles pending status differently via getAllTransactions
+    const pendingTx = await this.exchangeTxRepo.findBy({
+      status: 'pending',
+      type: In([ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL]),
+      exchange: Not(ExchangeName.SCRYPT),
+    });
+
+    if (!pendingTx.length) return;
+
+    this.logger.verbose(`Syncing ${pendingTx.length} pending exchange transactions`);
+
+    for (const tx of pendingTx) {
+      try {
+        const exchangeService = this.registryService.get(tx.exchange);
+        if (!exchangeService) continue;
+
+        const transaction =
+          tx.type === ExchangeTxType.DEPOSIT
+            ? await exchangeService.getDeposit(tx.externalId, tx.currency)
+            : await exchangeService.getWithdraw(tx.externalId, tx.currency);
+
+        if (transaction && transaction.status !== tx.status) {
+          this.logger.verbose(
+            `Updating ${tx.exchange} ${tx.type} ${tx.externalId} status: ${tx.status} -> ${transaction.status}`,
+          );
+
+          tx.status = transaction.status;
+          tx.externalUpdated = transaction.updated ? new Date(transaction.updated) : null;
+
+          await this.exchangeTxRepo.save(tx);
+        }
+      } catch (e) {
+        this.logger.warn(`Failed to sync pending transaction ${tx.id} (${tx.exchange}/${tx.externalId}):`, e);
+      }
     }
   }
 

@@ -18,6 +18,7 @@ export enum Process {
   BUY_FIAT_MAIL = 'BuyFiatMail',
   REF_REWARD_MAIL = 'RefRewardMail',
   EXCHANGE_TX_SYNC = 'ExchangeTxSync',
+  EXCHANGE_TX_PENDING_SYNC = 'ExchangeTxPendingSync',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
   LIQUIDITY_MANAGEMENT_CHECK_BALANCES = 'LiquidityManagementCheckBalances',
   MONITORING = 'Monitoring',
