@@ -12,7 +12,7 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
+import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
@@ -42,16 +42,10 @@ export class ExchangeTxService {
     await this.syncExchanges();
   }
 
-  @DfxCron(CronExpression.EVERY_30_MINUTES, { process: Process.EXCHANGE_TX_PENDING_SYNC, timeout: 1800 })
-  async syncPendingExchangeJob() {
-    await this.syncPendingTransactions();
-  }
-
   async syncExchanges(from?: Date, exchange?: ExchangeName) {
     const syncs = ExchangeSyncs.filter((s) => !exchange || s.exchange === exchange);
-    const since = from ?? Util.minutesBefore(Config.exchangeTxSyncLimit);
 
-    const transactions = await Promise.all(syncs.map((s) => this.getTransactionsFor(s, since))).then((tx) => tx.flat());
+    const transactions = await Promise.all(syncs.map((s) => this.getTransactionsFor(s, from))).then((tx) => tx.flat());
 
     // sort by date
     transactions.sort((a, b) => a.externalCreated.getTime() - b.externalCreated.getTime());
@@ -108,54 +102,6 @@ export class ExchangeTxService {
     }
   }
 
-  async syncPendingTransactions(): Promise<void> {
-    // Scrypt handles pending status differently via getAllTransactions
-    const pendingTx = await this.exchangeTxRepo.findBy({
-      status: 'pending',
-      type: In([ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL]),
-      exchange: Not(ExchangeName.SCRYPT),
-    });
-
-    if (!pendingTx.length) return;
-
-    this.logger.verbose(`Syncing ${pendingTx.length} pending exchange transactions`);
-
-    // Group by exchange + type + currency for efficient API calls
-    const grouped = Util.groupByAccessor(pendingTx, (tx) => `${tx.exchange}:${tx.type}:${tx.currency}`);
-
-    for (const [key, txs] of grouped.entries()) {
-      try {
-        const [exchangeName, type, currency] = key.split(':') as [ExchangeName, ExchangeTxType, string];
-        const exchangeService = this.registryService.get(exchangeName);
-        if (!exchangeService) continue;
-
-        // Fetch all transactions for this exchange/type/currency (without since limit)
-        const transactions =
-          type === ExchangeTxType.DEPOSIT
-            ? await exchangeService.getDeposits(currency)
-            : await exchangeService.getWithdrawals(currency);
-
-        // Match pending transactions against fetched results
-        for (const tx of txs) {
-          const transaction = transactions.find((t) => t.id === tx.externalId);
-
-          if (transaction && transaction.status !== tx.status) {
-            this.logger.verbose(
-              `Updating ${tx.exchange} ${tx.type} ${tx.externalId} status: ${tx.status} -> ${transaction.status}`,
-            );
-
-            tx.status = transaction.status;
-            tx.externalUpdated = transaction.updated ? new Date(transaction.updated) : null;
-
-            await this.exchangeTxRepo.save(tx);
-          }
-        }
-      } catch (e) {
-        this.logger.warn(`Failed to sync pending transactions for ${key}:`, e);
-      }
-    }
-  }
-
   async getExchangeTx(from: Date, relations?: FindOptionsRelations<ExchangeTx>): Promise<ExchangeTx[]> {
     return this.exchangeTxRepo.find({ where: { created: MoreThan(from) }, relations });
   }
@@ -173,8 +119,25 @@ export class ExchangeTxService {
     });
   }
 
-  private async getTransactionsFor(sync: ExchangeSync, since: Date): Promise<ExchangeTxDto[]> {
+  private async getSyncSinceDate(exchange: ExchangeName): Promise<Date> {
+    const defaultSince = Util.minutesBefore(Config.exchangeTxSyncLimit);
+
+    const oldestPending = await this.exchangeTxRepo.findOne({
+      where: { exchange, status: 'pending' },
+      order: { externalCreated: 'ASC' },
+    });
+
+    if (!oldestPending?.externalCreated) return defaultSince;
+
+    // Add 1 hour buffer to account for timing differences
+    const pendingSince = Util.hoursBefore(1, oldestPending.externalCreated);
+
+    return pendingSince < defaultSince ? pendingSince : defaultSince;
+  }
+
+  private async getTransactionsFor(sync: ExchangeSync, from?: Date): Promise<ExchangeTxDto[]> {
     try {
+      const since = from ?? (await this.getSyncSinceDate(sync.exchange));
       const exchangeService = this.registryService.getExchange(sync.exchange);
 
       // Scrypt special case
