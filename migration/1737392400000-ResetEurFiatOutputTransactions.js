@@ -34,7 +34,8 @@ module.exports = class ResetEurFiatOutputTransactions1737392400000 {
       SET "isReadyDate" = NULL,
           "isTransmittedDate" = NULL,
           "isApprovedDate" = NULL,
-          "yapealMsgId" = NULL
+          "yapealMsgId" = NULL,
+          "endToEndId" = NULL
       WHERE "id" IN (79157, 79158, 79161, 79162, 79163, 79164, 79165, 79166)
         AND "currency" = 'EUR'
         AND "isComplete" = 0
