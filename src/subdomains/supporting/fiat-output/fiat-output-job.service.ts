@@ -209,6 +209,8 @@ export class FiatOutputJobService {
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
+          if (entity.currency === 'EUR') continue;
+
           if (availableBalance > entity.bankAmount) {
             updatedFiatOutputAmount += entity.bankAmount;
             const ibanCountry = entity.iban.substring(0, 2);
@@ -226,8 +228,6 @@ export class FiatOutputJobService {
                   continue;
                 }
               }
-
-              if (entity.currency === 'EUR') continue;
 
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
               this.logger.info(
