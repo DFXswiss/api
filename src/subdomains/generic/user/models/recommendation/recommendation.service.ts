@@ -41,7 +41,7 @@ export class RecommendationService {
 
     const mailUser = dto.recommendedMail
       ? await this.userDataService
-          .getUsersByMail(dto.recommendedMail, true)
+          .getUsersByMail(dto.recommendedMail, true, { users: true, wallet: true, kycSteps: true })
           .then((u) => u.find((us) => us.tradeApprovalDate) ?? u?.[0])
       : undefined;
 
@@ -72,6 +72,7 @@ export class RecommendationService {
             language: userData.language,
             currency: userData.currency,
             tradeApprovalDate: new Date(),
+            kycSteps: [],
           })
         : undefined;
 
@@ -91,6 +92,7 @@ export class RecommendationService {
         recommended,
         undefined,
       );
+      step.userData = undefined;
       await this.kycService.updateKycStepAndLog(step, recommended, { key: entity.code }, ReviewStatus.COMPLETED);
       await this.updateRecommendationInternal(entity, {
         isConfirmed: true,
