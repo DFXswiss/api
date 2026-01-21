@@ -378,37 +378,21 @@ export class BuyService {
       }
     }
 
-    // EUR: VIBAN is mandatory
-    if (selector.currency === 'EUR') {
-      let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
+    // user-level vIBAN
+    let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
 
-      if (!virtualIban) {
-        if (selector.userData.kycLevel < KycLevel.LEVEL_50) {
-          throw new BadRequestException('KycRequired');
-        }
-
-        virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
-      }
-
-      return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
+    // EUR/CHF: create vIBAN for KYC 50+
+    if (!virtualIban && ['EUR', 'CHF'].includes(selector.currency) && selector.userData.kycLevel >= KycLevel.LEVEL_50) {
+      virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
     }
-
-    // CHF: VIBAN for KYC 50+
-    if (selector.currency === 'CHF' && selector.userData.kycLevel >= KycLevel.LEVEL_50) {
-      let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
-
-      if (!virtualIban) {
-        virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
-      }
-
-      return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
-    }
-
-    // user-level personal IBAN
-    const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
 
     if (virtualIban) {
       return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
+    }
+
+    // EUR: vIBAN is mandatory
+    if (selector.currency === 'EUR') {
+      throw new BadRequestException('KycRequired');
     }
 
     // normal bank selection

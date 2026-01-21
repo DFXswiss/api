@@ -25,15 +25,20 @@ export class BankTransactionHandler implements OnModuleInit {
   }
 
   private async handleTransaction(event: BankTransactionEvent): Promise<void> {
+    const { bankTxData } = event;
+
     try {
       const multiAccounts = await this.specialAccountService.getMultiAccounts();
-      await this.bankTxService.create(event.bankTxData, multiAccounts);
+      await this.bankTxService.create(bankTxData, multiAccounts);
     } catch (e) {
       if (e instanceof ConflictException) {
         return;
       }
 
-      this.logger.error('Failed to handle bank webhook transaction:', e);
+      this.logger.error(
+        `Failed to handle bank webhook transaction (transaction ${bankTxData.accountServiceRef} on account ${bankTxData.accountIban}):`,
+        e,
+      );
     }
   }
 }
