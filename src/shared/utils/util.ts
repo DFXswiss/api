@@ -38,6 +38,20 @@ export class Util {
     }
   }
 
+  static floorReadable(amount: number, type: AmountType, assetPrecision?: number): number {
+    switch (type) {
+      case AmountType.ASSET:
+      case AmountType.ASSET_FEE:
+        return this.floorByPrecision(amount, assetPrecision ?? 5);
+
+      case AmountType.FIAT:
+        return this.floor(amount, 2);
+
+      case AmountType.FIAT_FEE:
+        return this.floor(amount, 2);
+    }
+  }
+
   static round(amount: number, decimals: number): number {
     return this.roundToValue(amount, Math.pow(10, -decimals));
   }
