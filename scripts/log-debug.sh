@@ -15,25 +15,28 @@
 #   -h, --hours <n>    Time range in hours (default: 1, max: 168)
 #
 # Environment:
-#   Copy .env.db-debug.sample to .env.db-debug and fill in your credentials
+#   Uses the central .env file. Required variables:
+#   - DEBUG_ADDRESS: Wallet address with DEBUG role
+#   - DEBUG_SIGNATURE: Signature from signing the DFX login message
+#   - DEBUG_API_URL (optional): API URL, defaults to https://api.dfx.swiss/v1
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/.env.db-debug"
+ENV_FILE="$SCRIPT_DIR/../.env"
 
 # Load environment variables
 if [ -f "$ENV_FILE" ]; then
   source "$ENV_FILE"
 else
   echo "Error: Environment file not found: $ENV_FILE"
-  echo "Copy .env.db-debug.sample to .env.db-debug and fill in your credentials"
+  echo "Create .env in the api root directory"
   exit 1
 fi
 
 # Validate required variables
 if [ -z "$DEBUG_ADDRESS" ] || [ -z "$DEBUG_SIGNATURE" ]; then
-  echo "Error: DEBUG_ADDRESS and DEBUG_SIGNATURE must be set in $ENV_FILE"
+  echo "Error: DEBUG_ADDRESS and DEBUG_SIGNATURE must be set in .env"
   exit 1
 fi
 
