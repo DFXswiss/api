@@ -736,7 +736,7 @@ export class TransactionHelper implements OnModuleInit {
       timestamp: price.timestamp,
       exchangeRate: Util.roundReadable(price.price, amountType(from)),
       rate: targetAmount ? Util.roundReadable(sourceAmount / targetAmount, amountType(from)) : Number.MAX_VALUE,
-      sourceAmount: Util.roundReadable(sourceAmount, amountType(from)),
+      sourceAmount: Util.floorReadable(sourceAmount, amountType(from)),
       estimatedAmount: Util.roundReadable(targetAmount, amountType(to)),
       exactPrice: price.isValid,
       priceSteps: price.steps,

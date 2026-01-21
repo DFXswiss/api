@@ -3,6 +3,7 @@ import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { PDFColumn, PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
@@ -13,15 +14,6 @@ import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/t
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionRequest } from '../entities/transaction-request.entity';
 import { Transaction } from '../entities/transaction.entity';
-
-const dfxLogoBall1 =
-  'M86.1582 126.274C109.821 126.274 129.004 107.092 129.004 83.4287C129.004 59.7657 109.821 40.583 86.1582 40.583C62.4952 40.583 43.3126 59.7657 43.3126 83.4287C43.3126 107.092 62.4952 126.274 86.1582 126.274Z';
-
-const dfxLogoBall2 =
-  'M47.1374 132.146C73.1707 132.146 94.2748 111.042 94.2748 85.009C94.2748 58.9757 73.1707 37.8716 47.1374 37.8716C21.1041 37.8716 0 58.9757 0 85.009C0 111.042 21.1041 132.146 47.1374 132.146Z';
-
-const dfxLogoText =
-  'M61.5031 0H124.245C170.646 0 208.267 36.5427 208.267 84.0393C208.267 131.536 169.767 170.018 122.288 170.018H61.5031V135.504H114.046C141.825 135.504 164.541 112.789 164.541 85.009C164.541 57.2293 141.825 34.5136 114.046 34.5136H61.5031V0ZM266.25 31.5686V76.4973H338.294V108.066H266.25V170H226.906V0H355.389V31.5686H266.25ZM495.76 170L454.71 110.975L414.396 170H369.216L432.12 83.5365L372.395 0H417.072L456.183 55.1283L494.557 0H537.061L477.803 82.082L541.191 170H495.778H495.76Z';
 
 enum SupportedInvoiceLanguage {
   DE = 'DE',
@@ -88,14 +80,10 @@ export class SwissQRService {
     return this.generatePdfInvoice(tableData, language, data, true, TransactionType.BUY);
   }
 
-  async createTxStatement({
-    statementType,
-    transactionType,
-    transaction,
-    currency,
-    bankInfo,
-    reference,
-  }: TxStatementDetails): Promise<string> {
+  async createTxStatement(
+    { statementType, transactionType, transaction, currency, bankInfo, reference }: TxStatementDetails,
+    brand: PdfBrand = PdfBrand.DFX,
+  ): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
     if (!debtor) throw new Error('Debtor is required');
 
@@ -108,15 +96,16 @@ export class SwissQRService {
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
     const tableData = await this.getTableData(statementType, transactionType, transaction, currency);
 
+    const defaultCreditor = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
     const billData: QrBillData = {
-      creditor: (bankInfo && this.getCreditor(bankInfo)) || (this.dfxCreditor() as unknown as Creditor),
+      creditor: (bankInfo && this.getCreditor(bankInfo)) || (defaultCreditor as unknown as Creditor),
       debtor,
       currency,
       amount: bankInfo && transaction.buyCrypto?.inputAmount,
       message: reference,
     };
 
-    return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, transactionType);
+    return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, transactionType, brand);
   }
 
   private generatePdfInvoice(
@@ -125,6 +114,7 @@ export class SwissQRService {
     billData: QrBillData,
     includeQrBill: boolean,
     transactionType: TransactionType,
+    brand: PdfBrand = PdfBrand.DFX,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
@@ -141,26 +131,10 @@ export class SwissQRService {
         });
 
         // Logo
-        pdf.save();
-        pdf.translate(mm2pt(20), mm2pt(14));
-        pdf.scale(0.15);
-        const gradient1 = pdf.linearGradient(122.111, 64.6777, 45.9618, 103.949);
-        gradient1
-          .stop(0.04, '#F5516C')
-          .stop(0.14, '#C74863')
-          .stop(0.31, '#853B57')
-          .stop(0.44, '#55324E')
-          .stop(0.55, '#382D49')
-          .stop(0.61, '#2D2B47');
-        const gradient2 = pdf.linearGradient(75.8868, 50.7468, 15.2815, 122.952);
-        gradient2.stop(0.2, '#F5516C').stop(1, '#6B3753');
-        pdf.path(dfxLogoBall1).fill(gradient1);
-        pdf.path(dfxLogoBall2).fill(gradient2);
-        pdf.path(dfxLogoText).fill('#072440');
-        pdf.restore();
+        PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
 
-        // Sender address (always DFX AG)
-        const sender = this.dfxCreditor();
+        // Sender address
+        const sender = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
         pdf.fontSize(12);
         pdf.fillColor('black');
         pdf.font('Helvetica');
@@ -374,6 +348,18 @@ export class SwissQRService {
       buildingNumber: dfxAddress.number,
       zip: dfxAddress.zip,
       city: dfxAddress.city,
+      country: 'CH',
+    } as Creditor;
+  }
+
+  private realunitCreditor(): Creditor {
+    const { bank, address } = Config.blockchain.realunit;
+    return {
+      name: bank.recipient,
+      address: address.street,
+      buildingNumber: address.number,
+      zip: address.zip,
+      city: address.city,
       country: 'CH',
     } as Creditor;
   }
