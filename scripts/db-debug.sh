@@ -10,7 +10,10 @@
 #   ./scripts/db-debug.sh --asset-history Yapeal/EUR 10      # Show asset balance history
 #
 # Environment:
-#   Copy .env.db-debug.sample to .env.db-debug and fill in your credentials
+#   Uses the central .env file. Required variables:
+#   - DEBUG_ADDRESS: Wallet address with DEBUG role
+#   - DEBUG_SIGNATURE: Signature from signing the DFX login message
+#   - DEBUG_API_URL (optional): API URL, defaults to https://api.dfx.swiss/v1
 #
 # Requirements:
 #   - curl
@@ -102,18 +105,21 @@ esac
 
 # --- Load environment ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/.env.db-debug"
+ENV_FILE="$SCRIPT_DIR/../.env"
 
-if [ -f "$ENV_FILE" ]; then
-  source "$ENV_FILE"
-else
+if [ ! -f "$ENV_FILE" ]; then
   echo "Error: Environment file not found: $ENV_FILE"
-  echo "Copy .env.db-debug.sample to .env.db-debug and fill in your credentials"
+  echo "Create .env in the api root directory"
   exit 1
 fi
 
+# Read specific variables (avoid sourcing to prevent bash keyword conflicts)
+DEBUG_ADDRESS=$(grep -E "^DEBUG_ADDRESS=" "$ENV_FILE" | cut -d'=' -f2-)
+DEBUG_SIGNATURE=$(grep -E "^DEBUG_SIGNATURE=" "$ENV_FILE" | cut -d'=' -f2-)
+DEBUG_API_URL=$(grep -E "^DEBUG_API_URL=" "$ENV_FILE" | cut -d'=' -f2-)
+
 if [ -z "$DEBUG_ADDRESS" ] || [ -z "$DEBUG_SIGNATURE" ]; then
-  echo "Error: DEBUG_ADDRESS and DEBUG_SIGNATURE must be set in $ENV_FILE"
+  echo "Error: DEBUG_ADDRESS and DEBUG_SIGNATURE must be set in .env"
   exit 1
 fi
 

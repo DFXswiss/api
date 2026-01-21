@@ -490,6 +490,15 @@ async function main() {
       // Register user
       const authResponse = await registerUser(adminWallet.address, signature);
       logSuccess(`User registered (ID: ${authResponse.accessToken ? 'received JWT' : 'no token'})`);
+
+      // Save DEBUG credentials for debug scripts
+      updateEnvFile({
+        DEBUG_ADDRESS: adminWallet.address,
+        DEBUG_SIGNATURE: signature,
+        DEBUG_API_URL: API_URL + '/v1',
+      });
+      logSuccess('Debug credentials saved to .env');
+
       registrationSuccess = true;
       break;
 
