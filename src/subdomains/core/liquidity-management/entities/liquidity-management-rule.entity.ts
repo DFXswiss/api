@@ -147,6 +147,10 @@ export class LiquidityManagementRule extends IEntity {
       : this.redundancyStartAction;
   }
 
+  hasStartAction(optimizationType: LiquidityOptimizationType): boolean {
+    return this.getStartAction(optimizationType) != null;
+  }
+
   get target(): Active {
     return this.targetAsset ?? this.targetFiat;
   }
