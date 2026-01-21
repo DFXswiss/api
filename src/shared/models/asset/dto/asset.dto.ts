@@ -72,6 +72,9 @@ export class AssetDto {
 
   @ApiPropertyOptional()
   sortOrder: number;
+
+  @ApiProperty()
+  refEnabled: boolean;
 }
 
 export class AssetInDto {
