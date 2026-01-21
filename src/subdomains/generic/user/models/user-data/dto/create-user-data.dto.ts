@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsEnum, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
-import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { Wallet } from '../../wallet/wallet.entity';
 import { KycType } from '../user-data.enum';
 import { UpdateUserDataDto } from './update-user-data.dto';
@@ -15,6 +14,4 @@ export class CreateUserDataDto extends UpdateUserDataDto {
   @ValidateNested()
   @Type(() => EntityDto)
   wallet?: Wallet;
-
-  kycSteps?: KycStep[];
 }

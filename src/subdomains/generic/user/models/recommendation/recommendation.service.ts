@@ -34,7 +34,7 @@ export class RecommendationService {
   ) {}
 
   async createRecommendationByRecommender(userDataId: number, dto: CreateRecommendationDto): Promise<Recommendation> {
-    const userData = await this.userDataService.getUserData(userDataId);
+    const userData = await this.userDataService.getUserData(userDataId, { users: true });
     if (!userData) throw new NotFoundException('Account not found');
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
     if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
@@ -72,7 +72,6 @@ export class RecommendationService {
             language: userData.language,
             currency: userData.currency,
             tradeApprovalDate: new Date(),
-            kycSteps: [],
           })
         : undefined;
 
@@ -92,7 +91,9 @@ export class RecommendationService {
         recommended,
         undefined,
       );
+      // avoid circular reference
       step.userData = undefined;
+
       await this.kycService.updateKycStepAndLog(step, recommended, { key: entity.code }, ReviewStatus.COMPLETED);
       await this.updateRecommendationInternal(entity, {
         isConfirmed: true,
