@@ -24,6 +24,7 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -355,35 +356,6 @@ export class BuyService {
     asset?: Asset,
     wallet?: Wallet,
   ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
-    // EUR: VIBAN is mandatory
-    if (selector.currency === 'EUR') {
-      if (selector.userData.kycLevel < KycLevel.LEVEL_50) {
-        throw new BadRequestException('KycRequired');
-      }
-
-      let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
-
-      if (!virtualIban) {
-        virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
-      }
-
-      const { address } = selector.userData;
-      return {
-        name: selector.userData.completeName,
-        street: address.street,
-        ...(address.houseNumber && { number: address.houseNumber }),
-        zip: address.zip,
-        city: address.city,
-        country: address.country?.name,
-        bank: virtualIban.bank.name,
-        iban: virtualIban.iban,
-        bic: virtualIban.bank.bic,
-        sepaInstant: virtualIban.bank.sctInst,
-        isPersonalIban: true,
-        reference: this.getBuyReference(buy?.bankUsage, false),
-      };
-    }
-
     // asset-specific personal IBAN
     if (
       buy &&
@@ -402,43 +374,30 @@ export class BuyService {
       }
 
       if (virtualIban) {
-        const { address } = selector.userData;
-        return {
-          name: selector.userData.completeName,
-          street: address.street,
-          ...(address.houseNumber && { number: address.houseNumber }),
-          zip: address.zip,
-          city: address.city,
-          country: address.country?.name,
-          bank: virtualIban.bank.name,
-          iban: virtualIban.iban,
-          bic: virtualIban.bank.bic,
-          sepaInstant: virtualIban.bank.sctInst,
-          isPersonalIban: true,
-          reference: this.getBuyReference(buy?.bankUsage, true),
-        };
+        return this.buildVirtualIbanResponse(virtualIban, selector.userData);
       }
+    }
+
+    // EUR: VIBAN is mandatory
+    if (selector.currency === 'EUR') {
+      let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
+
+      if (!virtualIban) {
+        if (selector.userData.kycLevel < KycLevel.LEVEL_50) {
+          throw new BadRequestException('KycRequired');
+        }
+
+        virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
+      }
+
+      return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
     }
 
     // user-level personal IBAN
     const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
 
     if (virtualIban) {
-      const { address } = selector.userData;
-      return {
-        name: selector.userData.completeName,
-        street: address.street,
-        ...(address.houseNumber && { number: address.houseNumber }),
-        zip: address.zip,
-        city: address.city,
-        country: address.country?.name,
-        bank: virtualIban.bank.name,
-        iban: virtualIban.iban,
-        bic: virtualIban.bank.bic,
-        sepaInstant: virtualIban.bank.sctInst,
-        isPersonalIban: true,
-        reference: this.getBuyReference(buy?.bankUsage, false),
-      };
+      return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
     }
 
     // normal bank selection
@@ -453,13 +412,30 @@ export class BuyService {
       bic: bank.bic,
       sepaInstant: bank.sctInst,
       isPersonalIban: false,
-      reference: this.getBuyReference(buy?.bankUsage, false),
+      reference: buy?.bankUsage,
     };
   }
 
-  private getBuyReference(bankUsage: string | undefined, isBuySpecificIban: boolean): string | undefined {
-    // for buy-specific IBANs, no reference is needed
-    return isBuySpecificIban ? undefined : bankUsage;
+  private buildVirtualIbanResponse(
+    virtualIban: VirtualIban,
+    userData: UserData,
+    reference?: string,
+  ): BankInfoDto & { isPersonalIban: boolean; reference?: string } {
+    const { address } = userData;
+    return {
+      name: userData.completeName,
+      street: address.street,
+      ...(address.houseNumber && { number: address.houseNumber }),
+      zip: address.zip,
+      city: address.city,
+      country: address.country?.name,
+      bank: virtualIban.bank.name,
+      iban: virtualIban.iban,
+      bic: virtualIban.bank.bic,
+      sepaInstant: virtualIban.bank.sctInst,
+      isPersonalIban: true,
+      reference,
+    };
   }
 
   private generateQRCode(
