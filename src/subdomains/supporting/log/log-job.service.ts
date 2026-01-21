@@ -1028,105 +1028,86 @@ export class LogJobService {
   ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
     const before21Days = Util.daysBefore(21);
 
-    let filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
-    let filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
+    const filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
+    const filtered21ReceiverTx = receiverTx?.filter((r) => r.created > before21Days) ?? [];
 
     if (!filtered21SenderTx.length) return { receiver: [], sender: [] };
-    if (!filtered21ReceiverTx?.length) {
+    if (!filtered21ReceiverTx.length) {
       return {
         sender: filtered21SenderTx,
         receiver: [],
       };
     }
 
-    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
+    // Perform 1:1 matching - each sender gets matched with exactly one receiver
+    const { unmatchedSenders, unmatchedReceivers } = this.matchSenderReceiverPairs(
+      filtered21SenderTx,
+      filtered21ReceiverTx,
+    );
 
     if (filtered21SenderTx[0] instanceof BankTx) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${filtered21ReceiverTx?.[receiverIndex]?.id}/${filtered21ReceiverTx?.[
-          receiverIndex
-        ]?.created.toDateString()}; senderTx[0] id/date: ${
-          filtered21SenderTx[0]?.id
-        }/${filtered21SenderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
-          senderPair && senderPair instanceof BankTx
-            ? senderPair.valueDate.toDateString()
-            : senderPair?.created.toDateString()
-        }; senderTx length: ${filtered21SenderTx.length}`,
+        `FinanceLog 1:1 matching: ${filtered21SenderTx.length} senders, ${filtered21ReceiverTx.length} receivers -> ` +
+          `${unmatchedSenders.length} unmatched senders, ${unmatchedReceivers.length} unmatched receivers`,
       );
     }
 
-    filtered21SenderTx = senderPair ? filtered21SenderTx.filter((s) => s.id >= senderPair.id) : filtered21SenderTx;
-
-    if (filtered21ReceiverTx.length > filtered21SenderTx.length) {
-      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx, true);
-
-      const senderTxLength = senderPair
-        ? filtered21SenderTx.filter((s) => s.id <= senderPair.id).length
-        : filtered21ReceiverTx.length;
-
-      filtered21ReceiverTx = filtered21ReceiverTx.slice(filtered21ReceiverTx.length - senderTxLength);
-    }
-
     return {
-      receiver: filtered21ReceiverTx.filter((r) => r.id >= (filtered21ReceiverTx[receiverIndex]?.id ?? 0)),
-      sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
+      receiver: unmatchedReceivers.sort((a, b) => a.id - b.id),
+      sender: unmatchedSenders.sort((a, b) => a.id - b.id),
     };
   }
 
-  private findSenderReceiverPair(
+  private matchSenderReceiverPairs(
     senderTx: (BankTx | ExchangeTx)[],
-    receiverTx: (BankTx | ExchangeTx)[] | undefined,
-    reverseSearch = false,
-  ): { senderPair: BankTx | ExchangeTx; receiverIndex: number } {
-    if (!receiverTx.length) return { receiverIndex: undefined, senderPair: undefined };
+    receiverTx: (BankTx | ExchangeTx)[],
+  ): { unmatchedSenders: (BankTx | ExchangeTx)[]; unmatchedReceivers: (BankTx | ExchangeTx)[] } {
+    // Sort both lists by created date (oldest first) to match in chronological order
+    const sortedSenders = [...senderTx].sort((a, b) => a.created.getTime() - b.created.getTime());
+    const sortedReceivers = [...receiverTx].sort((a, b) => a.created.getTime() - b.created.getTime());
 
-    if ((senderTx[0] instanceof BankTx && !reverseSearch) || (!(senderTx[0] instanceof BankTx) && reverseSearch)) {
-      senderTx.sort((a, b) => a.id - b.id);
-    } else {
-      senderTx.sort((a, b) => b.id - a.id);
-    }
+    const matchedSenderIds = new Set<number>();
+    const matchedReceiverIds = new Set<number>();
 
-    if (!reverseSearch) {
-      receiverTx.sort((a, b) => a.id - b.id);
-    } else {
-      receiverTx.sort((a, b) => b.id - a.id);
-    }
+    // For each sender, find a matching receiver
+    for (const sender of sortedSenders) {
+      const senderAmount = sender instanceof BankTx ? sender.instructedAmount : sender.amount;
+      const senderDate = sender instanceof BankTx ? sender.valueDate : sender.created;
 
-    let receiverIndex = 0;
+      // Find a receiver that matches this sender
+      const matchingReceiver = sortedReceivers.find((receiver) => {
+        // Skip already matched receivers
+        if (matchedReceiverIds.has(receiver.id)) return false;
 
-    do {
-      const receiverAmount =
-        receiverTx[receiverIndex] instanceof BankTx
-          ? (receiverTx[receiverIndex] as BankTx).instructedAmount
-          : receiverTx[receiverIndex].amount;
+        const receiverAmount = receiver instanceof BankTx ? receiver.instructedAmount : receiver.amount;
+        const receiverCreated = receiver.created;
 
-      const senderPair = senderTx.find((s) => {
-        const receiverCreated = receiverTx[receiverIndex].created;
-        const senderDate = s instanceof BankTx ? s.valueDate : s.created;
-        const daysDiff = Math.abs(Util.daysDiff(senderDate, receiverCreated));
+        // Receiver must be created after sender
+        if (receiverCreated <= sender.created) return false;
 
-        return s instanceof BankTx
-          ? s.instructedAmount === receiverAmount && daysDiff <= 5 && receiverCreated > s.created
-          : s.amount === receiverAmount && receiverCreated > s.created;
-      });
+        // Amounts must match
+        if (senderAmount !== receiverAmount) return false;
 
-      if (!senderPair) {
-        receiverIndex++;
-      } else {
-        if (reverseSearch) {
-          if (senderTx[0] instanceof BankTx) {
-            senderTx.sort((a, b) => a.id - b.id);
-          } else {
-            senderTx.sort((a, b) => b.id - a.id);
-          }
-          receiverTx.sort((a, b) => a.id - b.id);
+        // For BankTx senders, check 5-day limit
+        if (sender instanceof BankTx) {
+          const daysDiff = Math.abs(Util.daysDiff(senderDate, receiverCreated));
+          if (daysDiff > 5) return false;
         }
 
-        return { senderPair, receiverIndex };
-      }
-    } while (receiverTx.length > receiverIndex);
+        return true;
+      });
 
-    return { receiverIndex: undefined, senderPair: undefined };
+      if (matchingReceiver) {
+        matchedSenderIds.add(sender.id);
+        matchedReceiverIds.add(matchingReceiver.id);
+      }
+    }
+
+    // Return unmatched transactions
+    const unmatchedSenders = senderTx.filter((s) => !matchedSenderIds.has(s.id));
+    const unmatchedReceivers = receiverTx.filter((r) => !matchedReceiverIds.has(r.id));
+
+    return { unmatchedSenders, unmatchedReceivers };
   }
 
   private async getCustomBalances(

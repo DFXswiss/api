@@ -108,10 +108,12 @@ describe('LogJobService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should filter same length sender & receiver', async () => {
+  it('should filter same length sender & receiver with 1:1 matching', async () => {
     if (new Date().getHours() > 19) return;
 
     // Items 0-6 are > 21 days old (will be filtered out), items 7-9 are < 21 days (will remain)
+    // After 21d filter: 3 receivers (310h) and 4 senders (3 at 312h + 1 at 309h)
+    // 1:1 matching: 3 senders match 3 receivers, 1 sender (142409) remains unmatched
     const receiverTx = [
       createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
       createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
@@ -198,16 +200,17 @@ describe('LogJobService', () => {
       }),
       createCustomBankTx({
         id: 142409,
-        created: Util.hoursBefore(309), // 13d
+        created: Util.hoursBefore(309), // 13d - only unmatched sender
         valueDate: Util.hoursBefore(309),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
     ];
 
+    // With 1:1 matching: 3 senders (312h) match 3 receivers (310h), 1 sender (309h) has no match
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx.slice(7),
-      receiver: receiverTx.slice(7),
+      sender: [senderTx[10]], // Only the unmatched sender
+      receiver: [],
     });
   });
 
@@ -215,7 +218,8 @@ describe('LogJobService', () => {
     expect(service.filterSenderPendingList([], [])).toMatchObject({ receiver: [], sender: [] });
   });
 
-  it('should return sender & receiver', async () => {
+  it('should match sender & receiver with 1:1 matching', async () => {
+    // Sender at 27h, receiver at 26h (more recent) - they should match
     const senderTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(27), amount: 9999.0 })];
 
     const receiverTx = [
@@ -228,13 +232,16 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With 1:1 matching, sender matches receiver, both are filtered out
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx,
-      receiver: receiverTx,
+      sender: [],
+      receiver: [],
     });
   });
 
-  it('should filter not matching older senderTx', async () => {
+  it('should match all senders with receivers using 1:1 matching', async () => {
+    // 3 senders, 3 receivers, all with matching amounts
+    // All receivers are created after their corresponding senders
     const senderTx = [
       createCustomExchangeTx({ id: 1, created: Util.daysBefore(8), amount: 9999.0 }),
       createCustomExchangeTx({ id: 2, created: Util.daysBefore(8), amount: 9999.0 }),
@@ -265,13 +272,17 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With 1:1 matching, all 3 senders match all 3 receivers
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: [senderTx[2]],
-      receiver: [receiverTx[2]],
+      sender: [],
+      receiver: [],
     });
   });
 
-  it('should filter tx 21d or older', async () => {
+  it('should filter tx 21d or older and match remaining', async () => {
+    // sender[0] at 22d (filtered), sender[1] at 17d, sender[2] at 7d
+    // receiver[0] at 21d (filtered), receiver[1] at 16d, receiver[2] at 6d
+    // After filter: 2 senders match 2 receivers
     const senderTx = [
       createCustomExchangeTx({ id: 1, created: Util.daysBefore(22), amount: 9999.0 }),
       createCustomExchangeTx({ id: 2, created: Util.daysBefore(17), amount: 9999.0 }),
@@ -302,13 +313,16 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // After 21d filter: sender[1,2] and receiver[1,2] remain, all match
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx.slice(1),
-      receiver: receiverTx.slice(1),
+      sender: [],
+      receiver: [],
     });
   });
 
-  it('should filter tx 21d or older', async () => {
+  it('should filter tx 21d or older with non-matching amounts', async () => {
+    // sender[0] at 21d (filtered), sender[1] at 17d (amount 19999)
+    // receiver[0] at 20d (amount 47543.81 - no match), receiver[1] at 16d (amount 19999 - matches sender[1])
     const senderTx = [
       createCustomExchangeTx({ id: 1, created: Util.daysBefore(21), amount: 47543.81 }),
       createCustomExchangeTx({ id: 2, created: Util.daysBefore(17), amount: 19999.0 }),
@@ -331,14 +345,17 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // sender[1] matches receiver[1], receiver[0] has no matching sender
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: [senderTx[1]],
-      receiver: [receiverTx[1]],
+      sender: [],
+      receiver: [receiverTx[0]],
     });
   });
 
-  it('should filter receiver 21d or older', async () => {
-    // All senders created after receiver, so matching finds sender with highest id
+  it('should filter receiver 21d or older with 1:1 matching', async () => {
+    // 3 senders at 20d, 19d, 19d - all within 21d
+    // 1 receiver at 18d (receiver[0] at 21d is filtered)
+    // Only 1 receiver available, so only 1 sender can match
     const senderTx = [
       createCustomExchangeTx({ id: 3, created: Util.daysBefore(20), amount: 9999.0 }),
       createCustomExchangeTx({ id: 2, created: Util.daysBefore(19), amount: 9999.0 }),
@@ -362,18 +379,21 @@ describe('LogJobService', () => {
       }),
     ];
 
-    // Matching finds sender id=3 (oldest sender that's still older than receiver at 18d)
-    // Filter keeps only senders with id >= 3
+    // With 1:1 matching: sender[0] (20d, oldest) matches receiver[1] (18d)
+    // sender[1] (id=2) and sender[2] (id=1) have no receiver to match
+    // Results are sorted by id, so [id=1, id=2] = [senderTx[2], senderTx[1]]
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: [senderTx[0]], // Only id=3 remains after matching
-      receiver: [receiverTx[1]],
+      sender: [senderTx[2], senderTx[1]], // Unmatched senders sorted by id
+      receiver: [],
     });
   });
 
-  it('should filter same length sender & receiver (reverse)', async () => {
+  it('should filter same length sender & receiver (reverse) with 1:1 matching', async () => {
     if (new Date().getHours() > 19) return;
 
     // Items 0-6 are > 21 days old (will be filtered out), items 7-9 are < 21 days (will remain)
+    // After 21d filter: 3 senders (312h) and 3 receivers (310h)
+    // All 3 pairs match, so result should be empty
     const receiverTx = [
       createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
       createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
@@ -460,9 +480,10 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With 1:1 matching: all 3 senders (312h) match all 3 receivers (310h)
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx.slice(7),
-      receiver: receiverTx.slice(7),
+      sender: [],
+      receiver: [],
     });
   });
 });

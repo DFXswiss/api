@@ -35,10 +35,14 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  -s, --stats                   Show log statistics by system/subsystem"
   echo "  -A, --asset-history <ID|Blockchain/Name> [N]"
   echo "                                Show balance history for asset (default: 10)"
+  echo "  -p, --top-plus [N]            Show top N plus balances from latest entry (default: 15)"
+  echo "  -m, --top-minus [N]           Show top N minus balances from latest entry (default: 15)"
   echo ""
   echo "Examples:"
   echo "  ./scripts/db-debug.sh --anomalies 50"
   echo "  ./scripts/db-debug.sh --balance 10"
+  echo "  ./scripts/db-debug.sh --top-plus 20"
+  echo "  ./scripts/db-debug.sh --top-minus 20"
   echo "  ./scripts/db-debug.sh --asset-history 405 20"
   echo "  ./scripts/db-debug.sh --asset-history Yapeal/EUR 20"
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
@@ -72,6 +76,10 @@ ASSET_HISTORY_MODE=""
 ASSET_ID=""
 ASSET_INPUT=""
 ASSET_LIMIT="10"
+TOP_PLUS_MODE=""
+TOP_PLUS_LIMIT="15"
+TOP_MINUS_MODE=""
+TOP_MINUS_LIMIT="15"
 
 case "${1:-}" in
   -a|--anomalies)
@@ -97,6 +105,16 @@ case "${1:-}" in
     ASSET_HISTORY_MODE="1"
     ASSET_INPUT="$2"
     ASSET_LIMIT="${3:-10}"
+    ;;
+  -p|--top-plus)
+    TOP_PLUS_MODE="1"
+    TOP_PLUS_LIMIT="${2:-15}"
+    SQL="SELECT TOP 1 id, message FROM log WHERE subsystem = 'FinancialDataLog' ORDER BY id DESC"
+    ;;
+  -m|--top-minus)
+    TOP_MINUS_MODE="1"
+    TOP_MINUS_LIMIT="${2:-15}"
+    SQL="SELECT TOP 1 id, message FROM log WHERE subsystem = 'FinancialDataLog' ORDER BY id DESC"
     ;;
   *)
     SQL="${1:-SELECT TOP 5 id, name, blockchain FROM asset ORDER BY id DESC}"
@@ -203,6 +221,88 @@ if [ -n "$ASSET_HISTORY_MODE" ]; then
       "[\(.id)] Asset \($aid) not found in this log entry"
     end
   ' 2>/dev/null || echo "$RESULT" | jq .
+elif [ -n "$TOP_PLUS_MODE" ]; then
+  if ! command -v jq &> /dev/null; then
+    echo "Error: jq is required for --top-plus"
+    exit 1
+  fi
+
+  # Extract top assets by plusBalanceChf
+  ASSET_IDS=$(echo "$RESULT" | jq -r --argjson limit "$TOP_PLUS_LIMIT" '
+    .[0].message | fromjson | .assets | to_entries |
+    map({id: .key, plusBalanceChf: ((.value.plusBalance.total // 0) * (.value.priceChf // 0))}) |
+    sort_by(-.plusBalanceChf) | .[0:$limit] | .[].id
+  ' | tr '\n' ',' | sed 's/,$//')
+
+  # Fetch asset names
+  echo "=== Resolving Asset Names ==="
+  ASSET_NAMES_RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"sql\":\"SELECT id, name, blockchain FROM asset WHERE id IN ($ASSET_IDS)\"}")
+
+  echo ""
+  echo "=== Top $TOP_PLUS_LIMIT Plus Balances ==="
+  echo ""
+  printf "%-4s  %-25s  %15s  %12s\n" "Rank" "Asset" "Balance" "CHF Value"
+  printf "%-4s  %-25s  %15s  %12s\n" "----" "-------------------------" "---------------" "------------"
+
+  # Combine and format output
+  echo "$RESULT" | jq -r --argjson limit "$TOP_PLUS_LIMIT" --argjson names "$ASSET_NAMES_RESULT" '
+    # Build name lookup
+    ($names | map({(.id | tostring): "\(.blockchain)/\(.name)"}) | add) as $lookup |
+    .[0].message | fromjson | .assets | to_entries |
+    map({
+      id: .key,
+      plusBalance: (.value.plusBalance.total // 0),
+      plusBalanceChf: ((.value.plusBalance.total // 0) * (.value.priceChf // 0))
+    }) |
+    sort_by(-.plusBalanceChf) | .[0:$limit] | to_entries | .[] |
+    "\(.key + 1)|\($lookup[.value.id] // "Unknown")|\(.value.plusBalance)|\(.value.plusBalanceChf | floor)"
+  ' | while IFS='|' read -r rank asset balance chf; do
+    printf "%-4s  %-25s  %15s  %'12d CHF\n" "$rank" "$asset" "$balance" "$chf"
+  done
+elif [ -n "$TOP_MINUS_MODE" ]; then
+  if ! command -v jq &> /dev/null; then
+    echo "Error: jq is required for --top-minus"
+    exit 1
+  fi
+
+  # Extract top assets by minusBalanceChf
+  ASSET_IDS=$(echo "$RESULT" | jq -r --argjson limit "$TOP_MINUS_LIMIT" '
+    .[0].message | fromjson | .assets | to_entries |
+    map({id: .key, minusBalanceChf: ((.value.minusBalance.total // 0) * (.value.priceChf // 0))}) |
+    sort_by(-.minusBalanceChf) | .[0:$limit] | .[].id
+  ' | tr '\n' ',' | sed 's/,$//')
+
+  # Fetch asset names
+  echo "=== Resolving Asset Names ==="
+  ASSET_NAMES_RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"sql\":\"SELECT id, name, blockchain FROM asset WHERE id IN ($ASSET_IDS)\"}")
+
+  echo ""
+  echo "=== Top $TOP_MINUS_LIMIT Minus Balances ==="
+  echo ""
+  printf "%-4s  %-25s  %15s  %12s\n" "Rank" "Asset" "Balance" "CHF Value"
+  printf "%-4s  %-25s  %15s  %12s\n" "----" "-------------------------" "---------------" "------------"
+
+  # Combine and format output
+  echo "$RESULT" | jq -r --argjson limit "$TOP_MINUS_LIMIT" --argjson names "$ASSET_NAMES_RESULT" '
+    # Build name lookup
+    ($names | map({(.id | tostring): "\(.blockchain)/\(.name)"}) | add) as $lookup |
+    .[0].message | fromjson | .assets | to_entries |
+    map({
+      id: .key,
+      minusBalance: (.value.minusBalance.total // 0),
+      minusBalanceChf: ((.value.minusBalance.total // 0) * (.value.priceChf // 0))
+    }) |
+    sort_by(-.minusBalanceChf) | .[0:$limit] | to_entries | .[] |
+    "\(.key + 1)|\($lookup[.value.id] // "Unknown")|\(.value.minusBalance)|\(.value.minusBalanceChf | floor)"
+  ' | while IFS='|' read -r rank asset balance chf; do
+    printf "%-4s  %-25s  %15s  %'12d CHF\n" "$rank" "$asset" "$balance" "$chf"
+  done
 else
   if command -v jq &> /dev/null; then
     echo "$RESULT" | jq .
