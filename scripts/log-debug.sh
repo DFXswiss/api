@@ -66,7 +66,7 @@ done
 
 # Get JWT Token
 echo "=== Authenticating to $API_URL ==="
-TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/auth/signIn" \
+TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/auth" \
   -H "Content-Type: application/json" \
   -d "{\"address\":\"$DEBUG_ADDRESS\",\"signature\":\"$DEBUG_SIGNATURE\"}")
 
