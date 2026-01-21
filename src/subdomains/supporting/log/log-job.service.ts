@@ -592,6 +592,50 @@ export class LogJobService {
         BankTxType.SCRYPT,
       );
 
+      // Yapeal to Scrypt - unfiltered lists
+      const pendingYapealScryptPlusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        [
+          ...chfSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.bankTxId),
+          ...eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
+        ],
+        BankTxType.SCRYPT,
+      );
+      const pendingChfYapealScryptMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        chfReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        yapealChfBank.iban,
+      );
+      const pendingEurYapealScryptMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        yapealEurBank.iban,
+      );
+
+      // Scrypt to Yapeal - unfiltered lists
+      const pendingChfScryptYapealPlusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        chfSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.fromScrypt?.chf?.exchangeTxId),
+        ExchangeTxType.WITHDRAWAL,
+        yapealChfBank.iban,
+      );
+      const pendingEurScryptYapealPlusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.fromScrypt?.eur?.exchangeTxId),
+        ExchangeTxType.WITHDRAWAL,
+        yapealEurBank.iban,
+      );
+      const pendingScryptYapealMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        [
+          ...chfReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds?.fromScrypt?.chf?.bankTxId),
+          ...eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds?.fromScrypt?.eur?.bankTxId),
+        ],
+        BankTxType.SCRYPT,
+      );
+
       const fromKrakenUnfiltered =
         pendingChfKrakenYapealPlusAmountUnfiltered +
         pendingEurKrakenYapealPlusAmountUnfiltered +
@@ -611,6 +655,15 @@ export class LogJobService {
       let toScrypt =
         pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount;
 
+      const fromScryptUnfiltered =
+        pendingChfScryptYapealPlusAmountUnfiltered +
+        pendingEurScryptYapealPlusAmountUnfiltered +
+        pendingScryptYapealMinusAmountUnfiltered;
+      const toScryptUnfiltered =
+        pendingYapealScryptPlusAmountUnfiltered +
+        pendingChfYapealScryptMinusAmountUnfiltered +
+        pendingEurYapealScryptMinusAmountUnfiltered;
+
       const errors = [];
 
       if (fromKraken !== fromKrakenUnfiltered) {
@@ -625,6 +678,20 @@ export class LogJobService {
         this.logger
           .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount:
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
+      }
+
+      if (fromScrypt !== fromScryptUnfiltered) {
+        errors.push(`fromScrypt !== fromScryptUnfiltered`);
+        this.logger.verbose(
+          `Error in financial log, fromScrypt balance !== fromScryptUnfiltered balance for asset: ${curr.id}, fromScryptAmount: ${fromScrypt}, fromScryptUnfilteredAmount: ${fromScryptUnfiltered}`,
+        );
+      }
+
+      if (toScrypt !== toScryptUnfiltered) {
+        errors.push(`toScrypt !== toScryptUnfiltered`);
+        this.logger.verbose(
+          `Error in financial log, toScrypt balance !== toScryptUnfiltered balance for asset: ${curr.id}, toScryptAmount: ${toScrypt}, toScryptUnfilteredAmount: ${toScryptUnfiltered}`,
+        );
       }
 
       if (fromKraken < 0) {
@@ -672,8 +739,8 @@ export class LogJobService {
         pendingOlkyYapealAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken) +
-        fromScrypt +
-        toScrypt;
+        (useUnfilteredTx ? fromScryptUnfiltered : fromScrypt) +
+        (useUnfilteredTx ? toScryptUnfiltered : toScrypt);
 
       const totalPlus = liquidity + totalPlusPending + (totalCustomBalance ?? 0);
 
@@ -758,8 +825,8 @@ export class LogJobService {
                 fromOlky: this.getJsonValue(pendingOlkyYapealAmount, amountType(curr)),
                 fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
-                fromScrypt: this.getJsonValue(fromScrypt, amountType(curr)),
-                toScrypt: this.getJsonValue(toScrypt, amountType(curr)),
+                fromScrypt: this.getJsonValue(useUnfilteredTx ? fromScryptUnfiltered : fromScrypt, amountType(curr)),
+                toScrypt: this.getJsonValue(useUnfilteredTx ? toScryptUnfiltered : toScrypt, amountType(curr)),
               }
             : undefined,
           // monitoring: errors.length
