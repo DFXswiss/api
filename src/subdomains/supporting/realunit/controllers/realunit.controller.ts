@@ -189,9 +189,7 @@ export class RealUnitController {
       throw new BadRequestException('PDF receipt is only available for CHF and EUR transactions');
     }
 
-    txStatementDetails.brand = PdfBrand.REALUNIT;
-
-    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails) };
+    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
   }
 
   // --- Brokerbot Endpoints ---

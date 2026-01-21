@@ -3,7 +3,7 @@ import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { PDFColumn, PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
@@ -80,15 +80,10 @@ export class SwissQRService {
     return this.generatePdfInvoice(tableData, language, data, true, TransactionType.BUY);
   }
 
-  async createTxStatement({
-    statementType,
-    transactionType,
-    transaction,
-    currency,
-    bankInfo,
-    reference,
-    brand = PdfBrand.DFX,
-  }: TxStatementDetails): Promise<string> {
+  async createTxStatement(
+    { statementType, transactionType, transaction, currency, bankInfo, reference }: TxStatementDetails,
+    brand: PdfBrand = PdfBrand.DFX,
+  ): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
     if (!debtor) throw new Error('Debtor is required');
 
@@ -136,7 +131,7 @@ export class SwissQRService {
         });
 
         // Logo
-        PdfUtil.drawInvoiceLogo(pdf, brand);
+        PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
 
         // Sender address
         const sender = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
@@ -358,13 +353,13 @@ export class SwissQRService {
   }
 
   private realunitCreditor(): Creditor {
-    const realunitBank = Config.blockchain.realunit.bank;
+    const { bank, address } = Config.blockchain.realunit;
     return {
-      name: realunitBank.recipient,
-      address: 'Schochenmühlestrasse',
-      buildingNumber: '6',
-      zip: '6340',
-      city: 'Baar',
+      name: bank.recipient,
+      address: address.street,
+      buildingNumber: address.number,
+      zip: address.zip,
+      city: address.city,
       country: 'CH',
     } as Creditor;
   }
