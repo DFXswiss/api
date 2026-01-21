@@ -3,12 +3,18 @@ import PDFDocument from 'pdfkit';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { mm2pt } from 'swissqrbill/utils';
 import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from './logos/dfx-logo';
 import { realunitLogoColor, realunitLogoPath } from './logos/realunit-logo';
 
 export enum PdfBrand {
   DFX = 'DFX',
   REALUNIT = 'REALUNIT',
+}
+
+export enum LogoSize {
+  SMALL = 'SMALL',
+  LARGE = 'LARGE',
 }
 
 export interface BalanceEntry {
@@ -19,19 +25,43 @@ export interface BalanceEntry {
 }
 
 export class PdfUtil {
-  static drawLogo(pdf: InstanceType<typeof PDFDocument>, brand: PdfBrand = PdfBrand.DFX): void {
+  static drawLogo(
+    pdf: InstanceType<typeof PDFDocument>,
+    brand: PdfBrand = PdfBrand.DFX,
+    size: LogoSize = LogoSize.SMALL,
+  ): void {
+    const { x, y, scale } = this.getLogoConfig(size);
+
+    pdf.save();
+    pdf.translate(x, y);
+    pdf.scale(scale);
+
     if (brand === PdfBrand.REALUNIT) {
-      this.drawRealUnitLogo(pdf);
+      this.drawRealUnitLogoPath(pdf);
     } else {
-      this.drawDfxLogo(pdf);
+      this.drawDfxLogoPath(pdf);
+    }
+
+    pdf.restore();
+
+    // Extra vertical offset for RealUnit small logo
+    if (brand === PdfBrand.REALUNIT && size === LogoSize.SMALL) {
+      pdf.translate(0, 30);
     }
   }
 
-  private static drawDfxLogo(pdf: InstanceType<typeof PDFDocument>): void {
-    pdf.save();
-    pdf.translate(50, 30);
-    pdf.scale(0.12);
+  private static getLogoConfig(size: LogoSize): { x: number; y: number; scale: number } {
+    if (size === LogoSize.LARGE) {
+      return { x: mm2pt(20), y: mm2pt(14), scale: 0.15 };
+    }
+    return { x: 50, y: 30, scale: 0.12 };
+  }
 
+  private static drawRealUnitLogoPath(pdf: InstanceType<typeof PDFDocument>): void {
+    pdf.path(realunitLogoPath).fill(realunitLogoColor);
+  }
+
+  private static drawDfxLogoPath(pdf: InstanceType<typeof PDFDocument>): void {
     const gradient1 = pdf.linearGradient(122.111, 64.6777, 45.9618, 103.949);
     gradient1
       .stop(0.04, '#F5516C')
@@ -47,18 +77,6 @@ export class PdfUtil {
     pdf.path(dfxLogoBall1).fill(gradient1);
     pdf.path(dfxLogoBall2).fill(gradient2);
     pdf.path(dfxLogoText).fill('#072440');
-    pdf.restore();
-  }
-
-  private static drawRealUnitLogo(pdf: InstanceType<typeof PDFDocument>): void {
-    pdf.save();
-    pdf.translate(50, 30);
-    pdf.scale(0.12);
-    pdf.path(realunitLogoPath).fill(realunitLogoColor);
-
-    pdf.restore();
-
-    pdf.translate(0, 30);
   }
 
   static drawTable(

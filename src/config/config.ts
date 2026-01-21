@@ -914,10 +914,16 @@ export class Configuration {
       },
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
-        address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',
         iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
         bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
         name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
+      },
+      address: {
+        street: process.env.REALUNIT_ADDRESS_STREET ?? 'Schochenmühlestrasse',
+        number: process.env.REALUNIT_ADDRESS_NUMBER ?? '6',
+        zip: process.env.REALUNIT_ADDRESS_ZIP ?? '6340',
+        city: process.env.REALUNIT_ADDRESS_CITY ?? 'Baar',
+        country: process.env.REALUNIT_ADDRESS_COUNTRY ?? 'Switzerland',
       },
     },
     ebel2x: {
