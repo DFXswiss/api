@@ -459,7 +459,7 @@ export class LogJobService {
         0,
       );
 
-      // Olky to Yapeal
+      // Olky to Yapeal //
       const pendingOlkyYapealAmount = this.getPendingBankAmount(
         [curr],
         recentBankTxFromOlky,
@@ -468,7 +468,7 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      // Kraken to Yapeal
+      // Kraken to Yapeal //
 
       // filtered lists
       const pendingChfKrakenYapealPlusAmount = this.getPendingBankAmount(
@@ -511,7 +511,7 @@ export class LogJobService {
         BankTxType.KRAKEN,
       );
 
-      // Yapeal to Kraken
+      // Yapeal to Kraken //
 
       // filtered lists
       const pendingYapealKrakenPlusAmount = this.getPendingBankAmount(
@@ -554,7 +554,9 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      // Yapeal to Scrypt
+      // Yapeal to Scrypt //
+
+      // filtered lists
       const pendingYapealScryptPlusAmount = this.getPendingBankAmount(
         [curr],
         [...recentChfYapealScryptTx, ...recentEurYapealScryptTx],
@@ -573,26 +575,7 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      // Scrypt to Yapeal
-      const pendingChfScryptYapealPlusAmount = this.getPendingBankAmount(
-        [curr],
-        recentChfScryptYapealTx,
-        ExchangeTxType.WITHDRAWAL,
-        yapealChfBank.iban,
-      );
-      const pendingEurScryptYapealPlusAmount = this.getPendingBankAmount(
-        [curr],
-        recentEurScryptYapealTx,
-        ExchangeTxType.WITHDRAWAL,
-        yapealEurBank.iban,
-      );
-      const pendingScryptYapealMinusAmount = this.getPendingBankAmount(
-        [curr],
-        [...recentChfScryptBankTx, ...recentEurScryptBankTx],
-        BankTxType.SCRYPT,
-      );
-
-      // Yapeal to Scrypt - unfiltered lists
+      // unfiltered lists
       const pendingYapealScryptPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         [
@@ -614,7 +597,28 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      // Scrypt to Yapeal - unfiltered lists
+      // Scrypt to Yapeal //
+
+      // filtered lists
+      const pendingChfScryptYapealPlusAmount = this.getPendingBankAmount(
+        [curr],
+        recentChfScryptYapealTx,
+        ExchangeTxType.WITHDRAWAL,
+        yapealChfBank.iban,
+      );
+      const pendingEurScryptYapealPlusAmount = this.getPendingBankAmount(
+        [curr],
+        recentEurScryptYapealTx,
+        ExchangeTxType.WITHDRAWAL,
+        yapealEurBank.iban,
+      );
+      const pendingScryptYapealMinusAmount = this.getPendingBankAmount(
+        [curr],
+        [...recentChfScryptBankTx, ...recentEurScryptBankTx],
+        BankTxType.SCRYPT,
+      );
+
+      // unfiltered lists
       const pendingChfScryptYapealPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         chfSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.fromScrypt?.chf?.exchangeTxId),
