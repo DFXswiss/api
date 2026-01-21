@@ -619,26 +619,33 @@ export class LogJobService {
       );
 
       // unfiltered lists
-      const pendingChfScryptYapealPlusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        chfSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.fromScrypt?.chf?.exchangeTxId),
-        ExchangeTxType.WITHDRAWAL,
-        yapealChfBank.iban,
-      );
-      const pendingEurScryptYapealPlusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.fromScrypt?.eur?.exchangeTxId),
-        ExchangeTxType.WITHDRAWAL,
-        yapealEurBank.iban,
-      );
-      const pendingScryptYapealMinusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        [
-          ...chfReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds?.fromScrypt?.chf?.bankTxId),
-          ...eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds?.fromScrypt?.eur?.bankTxId),
-        ],
-        BankTxType.SCRYPT,
-      );
+      const pendingChfScryptYapealPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.chf?.exchangeTxId
+        ? this.getPendingBankAmount(
+            [curr],
+            chfSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.exchangeTxId),
+            ExchangeTxType.WITHDRAWAL,
+            yapealChfBank.iban,
+          )
+        : 0;
+      const pendingEurScryptYapealPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
+        ? this.getPendingBankAmount(
+            [curr],
+            eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+            ExchangeTxType.WITHDRAWAL,
+            yapealEurBank.iban,
+          )
+        : 0;
+      const pendingScryptYapealMinusAmountUnfiltered =
+        financeLogPairIds?.fromScrypt?.chf?.bankTxId || financeLogPairIds?.fromScrypt?.eur?.bankTxId
+          ? this.getPendingBankAmount(
+              [curr],
+              [
+                ...chfReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.bankTxId),
+                ...eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
+              ],
+              BankTxType.SCRYPT,
+            )
+          : 0;
 
       const fromKrakenUnfiltered =
         pendingChfKrakenYapealPlusAmountUnfiltered +
