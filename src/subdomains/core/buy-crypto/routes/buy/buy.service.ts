@@ -393,6 +393,17 @@ export class BuyService {
       return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
     }
 
+    // CHF: VIBAN for KYC 50+
+    if (selector.currency === 'CHF' && selector.userData.kycLevel >= KycLevel.LEVEL_50) {
+      let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
+
+      if (!virtualIban) {
+        virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
+      }
+
+      return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
+    }
+
     // user-level personal IBAN
     const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
 
