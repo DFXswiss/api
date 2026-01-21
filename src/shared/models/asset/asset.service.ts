@@ -81,6 +81,16 @@ export class AssetService {
     return this.assetRepo.findOneCachedBy(`native-${blockchain}`, { blockchain, type: AssetType.COIN });
   }
 
+  async getRefPayoutAsset(blockchain: Blockchain): Promise<Asset> {
+    return blockchain === Blockchain.ETHEREUM
+      ? this.getAssetByQuery({
+          blockchain,
+          name: 'dEURO',
+          type: AssetType.TOKEN,
+        })
+      : this.getNativeAsset(blockchain);
+  }
+
   async getTokens(blockchain: Blockchain): Promise<Asset[]> {
     return this.assetRepo.findCachedBy(`token-${blockchain}`, { blockchain, type: AssetType.TOKEN });
   }
@@ -199,6 +209,14 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'BTC',
       blockchain: Blockchain.LIGHTNING,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getSparkCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'BTC',
+      blockchain: Blockchain.SPARK,
       type: AssetType.COIN,
     });
   }

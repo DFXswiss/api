@@ -20,6 +20,7 @@ import { PolygonModule } from './polygon/polygon.module';
 import { RealUnitBlockchainModule } from './realunit/realunit-blockchain.module';
 import { SepoliaModule } from './sepolia/sepolia.module';
 import { Eip7702DelegationModule } from './shared/evm/delegation/eip7702-delegation.module';
+import { PimlicoPaymasterModule } from './shared/evm/paymaster/pimlico-paymaster.module';
 import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
@@ -58,6 +59,7 @@ import { ZanoModule } from './zano/zano.module';
     CitreaTestnetModule,
     RealUnitBlockchainModule,
     Eip7702DelegationModule,
+    PimlicoPaymasterModule,
     BlockchainApiModule,
   ],
   exports: [
@@ -87,6 +89,7 @@ import { ZanoModule } from './zano/zano.module';
     TxValidationService,
     RealUnitBlockchainModule,
     Eip7702DelegationModule,
+    PimlicoPaymasterModule,
     BlockchainApiModule,
   ],
 })

@@ -25,8 +25,6 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -403,6 +401,12 @@ export class TransactionHelper implements OnModuleInit {
     const inputCurrency = await this.getRefundActive(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
+    // CHF refunds only to domestic IBANs
+    const refundCurrency =
+      isFiat && inputCurrency.name === 'CHF' && refundTarget && !Config.isDomesticIban(refundTarget)
+        ? await this.fiatService.getFiatByName('EUR')
+        : inputCurrency;
+
     const price =
       refundEntity.manualChfPrice ??
       (await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.PREFER_VALID));
@@ -423,7 +427,12 @@ export class TransactionHelper implements OnModuleInit {
     });
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
-    const networkFeeAmount = price.convert(chargebackFee.network);
+
+    let networkFeeAmount = price.convert(chargebackFee.network);
+
+    if (isAsset(inputCurrency) && inputCurrency.blockchain === Blockchain.SOLANA)
+      networkFeeAmount += await this.getSolanaRentExemptionFee(inputCurrency);
+
     const bankFeeAmount =
       refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
         ? price.convert(
@@ -431,11 +440,21 @@ export class TransactionHelper implements OnModuleInit {
           )
         : 0; // Bank fee buffer 1%
 
-    const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
+    const totalFeeAmount = dfxFeeAmount + networkFeeAmount + bankFeeAmount;
     if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
 
-    const refundAsset =
+    const inputAsset =
       inputCurrency instanceof Asset ? AssetDtoMapper.toDto(inputCurrency) : FiatDtoMapper.toDto(inputCurrency);
+    const refundAsset =
+      refundCurrency instanceof Asset ? AssetDtoMapper.toDto(refundCurrency) : FiatDtoMapper.toDto(refundCurrency);
+
+    // convert to refund currency
+    const refundPrice = await this.pricingService.getPrice(inputCurrency, refundCurrency, PriceValidity.VALID_ONLY);
+
+    const refundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
+    const feeDfx = Util.roundReadable(refundPrice.convert(dfxFeeAmount), feeAmountType);
+    const feeNetwork = Util.roundReadable(refundPrice.convert(networkFeeAmount), feeAmountType);
+    const feeBank = Util.roundReadable(refundPrice.convert(bankFeeAmount), feeAmountType);
 
     // Get bank details from the refund entity
     const bankTx = this.getBankTxFromRefundEntity(refundEntity);
@@ -443,12 +462,12 @@ export class TransactionHelper implements OnModuleInit {
     return {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       inputAmount: Util.roundReadable(inputAmount, amountType),
-      inputAsset: refundAsset,
-      refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, amountType),
+      inputAsset,
+      refundAmount,
       fee: {
-        dfx: Util.roundReadable(dfxFeeAmount, feeAmountType),
-        network: Util.roundReadable(networkFeeAmount, feeAmountType),
-        bank: Util.roundReadable(bankFeeAmount, feeAmountType),
+        dfx: feeDfx,
+        network: feeNetwork,
+        bank: feeBank,
       },
       refundAsset,
       refundTarget,
@@ -640,6 +659,13 @@ export class TransactionHelper implements OnModuleInit {
     return price.convert(fee);
   }
 
+  private async getSolanaRentExemptionFee(asset: Asset): Promise<number> {
+    if (asset.type !== AssetType.COIN) return 0;
+
+    const price = await this.pricingService.getPrice(asset, PriceCurrency.CHF, PriceValidity.ANY);
+    return price.convert(Config.blockchain.solana.minimalCoinAccountRent) * 1.05; // 5% buffer for rounding
+  }
+
   private async getTronCreateAccountFee(user: User, asset: Asset): Promise<number> {
     const tronService = this.blockchainRegistryService.getService(asset.blockchain) as TronService;
 
@@ -744,7 +770,7 @@ export class TransactionHelper implements OnModuleInit {
   static getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
     switch (paymentMethod) {
       case FiatPaymentMethod.BANK:
-        return IbanBankName.MAERKI;
+        return IbanBankName.YAPEAL;
       case FiatPaymentMethod.CARD:
         return CardBankName.CHECKOUT;
       case FiatPaymentMethod.INSTANT:
@@ -870,17 +896,18 @@ export class TransactionHelper implements OnModuleInit {
       user?.userData &&
       !user.userData.tradeApprovalDate &&
       !user.wallet.autoTradeApproval
-    )
-      return QuoteError.TRADING_NOT_ALLOWED;
+    ) {
+      return user.userData.kycLevel >= KycLevel.LEVEL_10
+        ? QuoteError.RECOMMENDATION_REQUIRED
+        : QuoteError.EMAIL_REQUIRED;
+    }
+
+    // Credit card payments disabled
+    if (paymentMethodIn === FiatPaymentMethod.CARD) return QuoteError.PAYMENT_METHOD_NOT_ALLOWED;
 
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
-    if (
-      nationality &&
-      ((isBuy && !nationality.bankEnable) ||
-        (paymentMethodIn === FiatPaymentMethod.CARD && !nationality.checkoutEnable) ||
-        ((isSell || isSwap) && !nationality.cryptoEnable))
-    )
+    if (nationality && ((isBuy && !nationality.bankEnable) || ((isSell || isSwap) && !nationality.cryptoEnable)))
       return QuoteError.NATIONALITY_NOT_ALLOWED;
 
     // KYC checks
@@ -918,22 +945,7 @@ export class TransactionHelper implements OnModuleInit {
 
     // verification checks
     if (
-      paymentMethodIn === FiatPaymentMethod.CARD &&
-      user &&
-      !user.userData.completeName &&
-      !user.userData.verifiedName
-    )
-      return QuoteError.NAME_REQUIRED;
-
-    if (
-      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc &&
-      user?.userData?.accountType === AccountType.ORGANIZATION &&
-      user?.userData?.identificationType === KycIdentificationType.ONLINE_ID
-    )
-      return QuoteError.VIDEO_IDENT_REQUIRED;
-
-    if (
-      ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
+      ((isSell && to.name !== 'CHF') || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc

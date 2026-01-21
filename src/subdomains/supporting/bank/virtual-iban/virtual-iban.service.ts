@@ -103,15 +103,15 @@ export class VirtualIbanService {
     });
   }
 
-  async getByIbanWithBuy(iban: string): Promise<VirtualIban | null> {
-    return this.virtualIbanRepo.findOne({
+  async getByIban(iban: string): Promise<VirtualIban | null> {
+    return this.virtualIbanRepo.findOneCached(iban, {
       where: { iban },
-      relations: { userData: true, bank: true, buy: { user: { userData: true } } },
+      relations: { userData: true, bank: true, buy: true },
     });
   }
 
-  async getVirtualIbansForAccount(userData: UserData): Promise<VirtualIban[]> {
-    return this.virtualIbanRepo.findCachedBy(`user-${userData.id}`, { userData: { id: userData.id } });
+  async getVirtualIbansForAccount(userDataId: number): Promise<VirtualIban[]> {
+    return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
   }
 
   async countActiveForUser(userDataId: number): Promise<number> {
@@ -119,13 +119,6 @@ export class VirtualIbanService {
       userData: { id: userDataId },
       active: true,
       status: VirtualIbanStatus.ACTIVE,
-    });
-  }
-
-  async getByIban(iban: string): Promise<VirtualIban | null> {
-    return this.virtualIbanRepo.findOneCached(iban, {
-      where: { iban },
-      relations: { userData: true, bank: true },
     });
   }
 

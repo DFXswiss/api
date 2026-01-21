@@ -1,40 +1,25 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class Eip7702DelegationDataDto {
-  @ApiProperty({ description: 'Relayer address that will execute the transaction' })
-  relayerAddress: string;
+export class Eip5792CallDto {
+  @ApiProperty({ description: 'Target contract address' })
+  to: string;
 
-  @ApiProperty({ description: 'DelegationManager contract address' })
-  delegationManagerAddress: string;
+  @ApiProperty({ description: 'Encoded call data' })
+  data: string;
 
-  @ApiProperty({ description: 'Delegator contract address (MetaMask delegator)' })
-  delegatorAddress: string;
+  @ApiProperty({ description: 'Value in wei (usually 0x0 for ERC20 transfers)' })
+  value: string;
+}
 
-  @ApiProperty({ description: 'User account nonce for EIP-7702 authorization' })
-  userNonce: number;
+export class Eip5792DataDto {
+  @ApiProperty({ description: 'Pimlico paymaster service URL for gas sponsorship' })
+  paymasterUrl: string;
 
-  @ApiProperty({ description: 'EIP-712 domain for delegation signature' })
-  domain: {
-    name: string;
-    version: string;
-    chainId: number;
-    verifyingContract: string;
-  };
+  @ApiProperty({ description: 'Chain ID' })
+  chainId: number;
 
-  @ApiProperty({ description: 'EIP-712 types for delegation signature' })
-  types: {
-    Delegation: Array<{ name: string; type: string }>;
-    Caveat: Array<{ name: string; type: string }>;
-  };
-
-  @ApiProperty({ description: 'Delegation message to sign' })
-  message: {
-    delegate: string;
-    delegator: string;
-    authority: string;
-    caveats: any[];
-    salt: string;
-  };
+  @ApiProperty({ type: [Eip5792CallDto], description: 'Array of calls to execute' })
+  calls: Eip5792CallDto[];
 }
 
 export class UnsignedTxDto {
@@ -63,8 +48,8 @@ export class UnsignedTxDto {
   gasLimit: string;
 
   @ApiPropertyOptional({
-    type: Eip7702DelegationDataDto,
-    description: 'EIP-7702 delegation data (only present if user has 0 native token)',
+    type: Eip5792DataDto,
+    description: 'EIP-5792 wallet_sendCalls data (only present if user has 0 native token for gas)',
   })
-  eip7702?: Eip7702DelegationDataDto;
+  eip5792?: Eip5792DataDto;
 }

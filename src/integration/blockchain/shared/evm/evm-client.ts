@@ -7,7 +7,9 @@ import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@un
 import { AssetTransfersCategory, AssetTransfersWithMetadataResult, BigNumberish } from 'alchemy-sdk';
 import BigNumber from 'bignumber.js';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { hashMessage } from 'ethers/lib/utils';
 import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/services/alchemy.service';
+import ERC1271_ABI from 'src/integration/blockchain/shared/evm/abi/erc1271.abi.json';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
@@ -396,6 +398,20 @@ export abstract class EvmClient extends BlockchainClient {
 
   async getTxReceipt(txHash: string): Promise<ethers.providers.TransactionReceipt> {
     return this.provider.getTransactionReceipt(txHash);
+  }
+
+  async isContract(address: string): Promise<boolean> {
+    const code = await this.provider.getCode(address);
+    return code !== '0x';
+  }
+
+  async verifyErc1271Signature(message: string, address: string, signature: string): Promise<boolean> {
+    const ERC1271_MAGIC_VALUE = '0x1626ba7e';
+
+    const hash = hashMessage(message);
+    const contract = new Contract(address, ERC1271_ABI, this.provider);
+    const result = await contract.isValidSignature(hash, signature);
+    return result === ERC1271_MAGIC_VALUE;
   }
 
   // got from https://gist.github.com/gluk64/fdea559472d957f1138ed93bcbc6f78a

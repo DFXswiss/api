@@ -242,26 +242,6 @@ export class HistoricalPriceDto {
   usd?: number;
 }
 
-export class BankDetailsDto {
-  @ApiProperty({ description: 'Bank account recipient name' })
-  recipient: string;
-
-  @ApiProperty({ description: 'Recipient address' })
-  address: string;
-
-  @ApiProperty({ description: 'IBAN' })
-  iban: string;
-
-  @ApiProperty({ description: 'BIC/SWIFT code' })
-  bic: string;
-
-  @ApiProperty({ description: 'Bank name' })
-  bankName: string;
-
-  @ApiProperty({ description: 'Currency (always CHF)' })
-  currency: string;
-}
-
 // --- Buy Payment Info DTOs ---
 
 export enum RealUnitBuyCurrency {

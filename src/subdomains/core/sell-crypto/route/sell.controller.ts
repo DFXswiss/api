@@ -182,7 +182,11 @@ export class SellController {
   @ApiOperation({
     summary: 'Confirm sell transaction',
     description:
-      'Confirms a sell transaction either by permit signature (backend executes transfer) or by signed transaction (user broadcasts).',
+      'Confirms a sell transaction using one of the following methods: ' +
+      '1) Permit signature (ERC-2612) - backend executes transfer, ' +
+      '2) Signed transaction hex - user broadcasts, ' +
+      '3) Transaction hash (EIP-5792) - wallet_sendCalls result, ' +
+      '4) EIP-7702 authorization - gasless transfer via Pimlico paymaster.',
   })
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(

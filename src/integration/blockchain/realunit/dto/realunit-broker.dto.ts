@@ -33,20 +33,6 @@ export class BrokerbotSharesDto {
   pricePerShare: string;
 }
 
-export class AllowlistStatusDto {
-  @ApiProperty({ description: 'Wallet address' })
-  address: string;
-
-  @ApiProperty({ description: 'Whether the address can receive REALU tokens' })
-  canReceive: boolean;
-
-  @ApiProperty({ description: 'Whether the address is forbidden' })
-  isForbidden: boolean;
-
-  @ApiProperty({ description: 'Whether the address is powerlisted (can send to anyone)' })
-  isPowerlisted: boolean;
-}
-
 export class BrokerbotInfoDto {
   @ApiProperty({ description: 'Brokerbot contract address' })
   brokerbotAddress: string;

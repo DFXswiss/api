@@ -10,20 +10,27 @@ import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { DfxOrderStepAdapter } from './adapter/dfx-order-step.adapter';
 import { CustodyAdminController, CustodyController } from './controllers/custody.controller';
+import { CustodyAccountController } from './controllers/custody-account.controller';
 import { CustodyBalance } from './entities/custody-balance.entity';
 import { CustodyOrderStep } from './entities/custody-order-step.entity';
 import { CustodyOrder } from './entities/custody-order.entity';
+import { CustodyAccountAccess } from './entities/custody-account-access.entity';
+import { CustodyAccount } from './entities/custody-account.entity';
 import { CustodyBalanceRepository } from './repositories/custody-balance.repository';
 import { CustodyOrderStepRepository } from './repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from './repositories/custody-order.repository';
+import { CustodyAccountAccessRepository } from './repositories/custody-account-access.repository';
+import { CustodyAccountRepository } from './repositories/custody-account.repository';
 import { CustodyJobService } from './services/custody-job.service';
 import { CustodyOrderService } from './services/custody-order.service';
 import { CustodyPdfService } from './services/custody-pdf.service';
 import { CustodyService } from './services/custody.service';
+import { CustodyAccountService } from './services/custody-account.service';
+import { CustodyAccountReadGuard, CustodyAccountWriteGuard } from './guards/custody-account-access.guard';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CustodyOrder, CustodyOrderStep]),
+    TypeOrmModule.forFeature([CustodyOrder, CustodyOrderStep, CustodyAccount, CustodyAccountAccess]),
     forwardRef(() => UserModule),
     forwardRef(() => ReferralModule),
     SharedModule,
@@ -33,7 +40,7 @@ import { CustodyService } from './services/custody.service';
     PricingModule,
     PayoutModule,
   ],
-  controllers: [CustodyController, CustodyAdminController],
+  controllers: [CustodyController, CustodyAdminController, CustodyAccountController],
   providers: [
     CustodyService,
     CustodyOrderRepository,
@@ -44,7 +51,12 @@ import { CustodyService } from './services/custody.service';
     CustodyPdfService,
     CustodyBalance,
     CustodyBalanceRepository,
+    CustodyAccountRepository,
+    CustodyAccountAccessRepository,
+    CustodyAccountService,
+    CustodyAccountReadGuard,
+    CustodyAccountWriteGuard,
   ],
-  exports: [CustodyService, CustodyOrderService],
+  exports: [CustodyService, CustodyOrderService, CustodyAccountService],
 })
 export class CustodyModule {}

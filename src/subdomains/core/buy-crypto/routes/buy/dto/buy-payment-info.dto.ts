@@ -16,8 +16,8 @@ export class BankInfoDto {
   @ApiProperty()
   street: string;
 
-  @ApiProperty()
-  number: string;
+  @ApiPropertyOptional()
+  number?: string;
 
   @ApiProperty()
   zip: string;

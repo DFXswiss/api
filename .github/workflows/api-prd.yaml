@@ -2,7 +2,7 @@ name: API PRD CI/CD
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -33,32 +33,22 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_on: error
-          command: |
-            npm ci
-
-      - name: Build code
-        run: |
-          npm run build
-
-      - name: Type check
-        run: |
-          npm run type-check
-
-      - name: Format check
-        run: |
-          npm run format:check
-
-      - name: Run tests
-        run: |
-          npm run test
+          command: npm ci
 
       - name: Run linter
-        run: |
-          npm run lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Build code
+        run: npm run build
+
+      - name: Run tests
+        run: npm run test
 
       - name: Security audit
-        run: |
-          npm audit --audit-level=high
+        run: npm audit --audit-level=high
         continue-on-error: true
 
       - name: Deploy to Azure App Service (PRD)

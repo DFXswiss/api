@@ -234,7 +234,7 @@ describe('BuyCryptoBatch', () => {
       expect(batch.outputReferenceAmount).toBe(1.9);
     });
 
-    it('stops adding transactions when next sorted transaction exceeds limit', () => {
+    it('continues checking remaining transactions when higher priority transaction exceeds limit', () => {
       const batch = createBatchWithPipelinePriority();
       // Batch has: TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline), TX3 (0.5, pipeline 3)
       // Total: 1.9, Available: 0.95
@@ -243,11 +243,28 @@ describe('BuyCryptoBatch', () => {
 
       // Sorted order: TX3 (0.5, pipeline 3), TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline)
       // TX3 (0.5) fits, running total = 0.5
-      // TX1 (1.0) would make total 1.5 > 0.95, so algorithm stops (greedy approach)
-      // TX2 is not considered because algorithm breaks when a TX doesn't fit
+      // TX1 (1.0) would make total 1.5 > 0.95, skip it but continue
+      // TX2 (0.4) fits! Total 0.9 <= 0.95, so it gets added
+      expect(batch.transactions.length).toBe(2);
+      expect(batch.transactions[0].id).toBe(3); // pipeline TX
+      expect(batch.transactions[1].id).toBe(2); // no pipeline but fits
+      expect(batch.outputReferenceAmount).toBe(0.9);
+    });
+
+    it('processes non-pipeline transactions when all pipeline transactions exceed limit', () => {
+      const batch = createBatchWithPipelinePriority();
+      // Batch has: TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline), TX3 (0.5, pipeline 3)
+      // Total: 1.9, Available: 0.45
+
+      batch.optimizeByLiquidity(0.45, 0);
+
+      // Sorted order: TX3 (0.5, pipeline 3), TX1 (1.0, pipeline 5), TX2 (0.4, no pipeline)
+      // TX3 (0.5) exceeds 0.45, skip but continue
+      // TX1 (1.0) exceeds 0.45, skip but continue
+      // TX2 (0.4) fits! This is the critical case that would have failed with old logic
       expect(batch.transactions.length).toBe(1);
-      expect(batch.transactions[0].id).toBe(3);
-      expect(batch.outputReferenceAmount).toBe(0.5);
+      expect(batch.transactions[0].id).toBe(2); // non-pipeline TX is processed
+      expect(batch.outputReferenceAmount).toBe(0.4);
     });
   });
 

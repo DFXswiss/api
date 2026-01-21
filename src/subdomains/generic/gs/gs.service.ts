@@ -187,7 +187,7 @@ export class GsService {
       buy: await this.buyService.getAllUserBuys(userIds),
       sell: await this.sellService.getAllUserSells(userIds),
       swap: await this.swapService.getAllUserSwaps(userIds),
-      virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData),
+      virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData.id),
     };
   }
 
@@ -243,7 +243,7 @@ export class GsService {
     }
 
     // 10. Log query for audit trail
-    this.logger.info(`Debug query by ${userIdentifier}: ${sql.substring(0, 500)}${sql.length > 500 ? '...' : ''}`);
+    this.logger.verbose(`Debug query by ${userIdentifier}: ${sql.substring(0, 500)}${sql.length > 500 ? '...' : ''}`);
 
     // 11. Execute query with result limit
     try {
@@ -255,7 +255,7 @@ export class GsService {
 
       return result;
     } catch (e) {
-      this.logger.warn(`Debug query by ${userIdentifier} failed: ${e.message}`);
+      this.logger.info(`Debug query by ${userIdentifier} failed: ${e.message}`);
       throw new BadRequestException('Query execution failed');
     }
   }
@@ -285,7 +285,7 @@ export class GsService {
     kql += `\n| take ${template.defaultLimit}`;
 
     // Log for audit
-    this.logger.info(`Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`);
+    this.logger.verbose(`Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`);
 
     // Execute
     const timespan = `PT${dto.hours ?? 1}H`;
@@ -302,7 +302,7 @@ export class GsService {
         rows: response.tables[0].rows,
       };
     } catch (e) {
-      this.logger.warn(`Log query by ${userIdentifier} failed: ${e.message}`);
+      this.logger.info(`Log query by ${userIdentifier} failed: ${e.message}`);
       throw new BadRequestException('Query execution failed');
     }
   }
@@ -619,7 +619,7 @@ export class GsService {
     for (const entry of data) {
       for (const key of Object.keys(entry)) {
         if (this.shouldMaskDebugColumn(key, blockedColumns)) {
-          entry[key] = GsRestrictedMarker;
+          entry[key] = entry[key] == null ? '[RESTRICTED:NULL]' : '[RESTRICTED:SET]';
         }
       }
     }

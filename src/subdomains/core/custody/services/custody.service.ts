@@ -12,7 +12,7 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
 import { In } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
-import { CreateCustodyAccountDto } from '../dto/input/create-custody-account.dto';
+import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto, CustodyHistoryDto, CustodyHistoryEntryDto } from '../dto/output/custody-balance.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
@@ -41,7 +41,7 @@ export class CustodyService {
   ) {}
 
   // --- ACCOUNT --- //
-  async createCustodyAccount(accountId: number, dto: CreateCustodyAccountDto, userIp: string): Promise<CustodyAuthDto> {
+  async createCustodyAccount(accountId: number, dto: CustodySignupDto, userIp: string): Promise<CustodyAuthDto> {
     const ref = await this.refService.get(userIp);
     if (ref) dto.usedRef ??= ref.ref;
 

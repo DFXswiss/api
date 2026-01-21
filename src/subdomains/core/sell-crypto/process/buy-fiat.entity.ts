@@ -469,6 +469,10 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDateUser: null,
       chargebackAmount: null,
       chargebackAllowedBy: null,
+      priceSteps: null,
+      priceDefinitionAllowedDate: null,
+      usedFees: null,
+      bankFeeAmount: null,
     };
 
     Object.assign(this, update);

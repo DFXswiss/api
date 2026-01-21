@@ -25,7 +25,7 @@ export class KycClientController {
 
   @Get('payments')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.CLIENT_COMPANY))
   @ApiOkResponse({ type: PaymentWebhookData, isArray: true })
   async getAllPayments(
     @GetJwt() jwt: JwtPayload,

@@ -17,6 +17,7 @@ export class CreateBankDataDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => value?.trim() || undefined)
   name?: string;
 
   @IsOptional()

@@ -50,7 +50,7 @@ export enum PayInStatus {
 export enum PayInType {
   PERMIT_TRANSFER = 'PermitTransfer',
   SIGNED_TRANSFER = 'SignedTransfer',
-  DELEGATION_TRANSFER = 'DelegationTransfer',
+  SPONSORED_TRANSFER = 'SponsoredTransfer', // EIP-5792 wallet_sendCalls with paymaster
   DEPOSIT = 'Deposit',
   PAYMENT = 'Payment',
 }
@@ -253,24 +253,27 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  confirm(direction: PayInConfirmationType, forwardRequired: boolean): this {
+  confirm(direction: PayInConfirmationType, forwardRequired: boolean): UpdateResult<CryptoInput> {
+    let update: Partial<CryptoInput> = {};
+
     switch (direction) {
       case PayInConfirmationType.INPUT:
         if (!this.purpose) break;
-        this.isConfirmed = true;
-        this.status = !forwardRequired ? PayInStatus.COMPLETED : undefined;
+        update = { isConfirmed: true, status: !forwardRequired ? PayInStatus.COMPLETED : undefined };
         break;
 
       case PayInConfirmationType.OUTPUT:
-        this.status = PayInStatus.FORWARD_CONFIRMED;
+        update = { status: PayInStatus.FORWARD_CONFIRMED };
         break;
 
       case PayInConfirmationType.RETURN:
-        this.status = PayInStatus.RETURN_CONFIRMED;
+        update = { status: PayInStatus.RETURN_CONFIRMED };
         break;
     }
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   confirmationTxId(direction: PayInConfirmationType): string {

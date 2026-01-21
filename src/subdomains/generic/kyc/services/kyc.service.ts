@@ -297,7 +297,7 @@ export class KycService {
 
         if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
           await this.kycStepRepo.update(...entity.ignored(comment));
-        } else if (errors.includes(KycError.MISSING_RESPONSE)) {
+        } else if (errors.includes(KycError.MISSING_INFO)) {
           await this.kycStepRepo.update(...entity.inProgress());
           await this.kycNotificationService.kycStepMissingData(
             entity.userData,
@@ -428,6 +428,13 @@ export class KycService {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
+  }
+
+  async initializeProcess(userData: UserData): Promise<UserData> {
+    const user = await this.getUser(userData.kycHash);
+    if (user.getStepsWith(KycStepName.CONTACT_DATA).length > 0) return user;
+
+    return this.updateProgress(user, true, false);
   }
 
   public getMailFailedReason(comment: string, language: string): string {
@@ -1164,7 +1171,9 @@ export class KycService {
 
   async trySetMail(user: UserData, step: KycStep, mail: string): Promise<UpdateResult<KycStep>> {
     try {
-      user = await this.userDataService.trySetUserMail(user, mail);
+      if (user.mail !== mail) {
+        await this.userDataService.trySetUserMail(user, mail);
+      }
       return step.complete({ mail });
     } catch (e) {
       const error = (e as Error).message?.includes('account merge request sent')
@@ -1218,6 +1227,13 @@ export class KycService {
 
   async getKycStepById(id: number): Promise<KycStep | null> {
     return this.kycStepRepo.findOne({ where: { id }, relations: { userData: true } });
+  }
+
+  async getStepsByUserData(userDataId: number): Promise<KycStep[]> {
+    return this.kycStepRepo.find({
+      where: { userData: { id: userDataId } },
+      order: { sequenceNumber: 'ASC' },
+    });
   }
 
   async saveKycStepUpdate(updateResult: UpdateResult<KycStep>): Promise<void> {
@@ -1340,7 +1356,7 @@ export class KycService {
     const financialStepResult = entity.getResult<KycFinancialResponse[]>();
 
     if (!FinancialService.isComplete(financialStepResult, entity.userData.accountType))
-      errors.push(KycError.MISSING_RESPONSE);
+      errors.push(KycError.MISSING_INFO);
     if (!financialStepResult.some((f) => f.key === 'risky_business' && f.value.includes('no')))
       errors.push(KycError.RISKY_BUSINESS);
 
