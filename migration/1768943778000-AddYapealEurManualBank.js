@@ -15,6 +15,7 @@ module.exports = class AddYapealEurManualBank1768943778000 {
      */
     async up(queryRunner) {
         await queryRunner.query(`
+            IF NOT EXISTS (SELECT 1 FROM "bank" WHERE "iban" = 'CH8383019496938261612')
             INSERT INTO "bank" ("name", "iban", "bic", "currency", "receive", "send", "sctInst", "amlEnabled", "assetId")
             VALUES ('Yapeal', 'CH8383019496938261612', 'YAPECHZ2', 'EUR', 0, 1, 0, 1, 405)
         `);
