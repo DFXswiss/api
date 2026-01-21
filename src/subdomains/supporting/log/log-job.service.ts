@@ -948,34 +948,24 @@ export class LogJobService {
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
   ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
-    const before14Days = Util.daysBefore(14);
     const before21Days = Util.daysBefore(21);
 
-    before14Days.setHours(0, 0, 0, 0);
-
     let filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
-    let filtered14ReceiverTx = receiverTx.filter((r) => r.created > before14Days);
+    let filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
 
     if (!filtered21SenderTx.length) return { receiver: [], sender: [] };
-    if (!filtered14ReceiverTx?.length) {
-      const filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
-
-      const { receiverIndex: rawReceiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
-
+    if (!filtered21ReceiverTx?.length) {
       return {
         sender: filtered21SenderTx,
-        receiver:
-          rawReceiverIndex != null
-            ? filtered21ReceiverTx.filter((r) => r.id >= filtered21ReceiverTx[rawReceiverIndex]?.id)
-            : filtered14ReceiverTx,
+        receiver: [],
       };
     }
 
-    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx);
+    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
 
     if (filtered21SenderTx[0] instanceof BankTx) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${filtered14ReceiverTx?.[receiverIndex]?.id}/${filtered14ReceiverTx?.[
+        `FinanceLog receiverTxId/date: ${filtered21ReceiverTx?.[receiverIndex]?.id}/${filtered21ReceiverTx?.[
           receiverIndex
         ]?.created.toDateString()}; senderTx[0] id/date: ${
           filtered21SenderTx[0]?.id
@@ -989,18 +979,18 @@ export class LogJobService {
 
     filtered21SenderTx = senderPair ? filtered21SenderTx.filter((s) => s.id >= senderPair.id) : filtered21SenderTx;
 
-    if (filtered14ReceiverTx.length > filtered21SenderTx.length) {
-      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx, true);
+    if (filtered21ReceiverTx.length > filtered21SenderTx.length) {
+      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx, true);
 
       const senderTxLength = senderPair
         ? filtered21SenderTx.filter((s) => s.id <= senderPair.id).length
-        : filtered14ReceiverTx.length;
+        : filtered21ReceiverTx.length;
 
-      filtered14ReceiverTx = filtered14ReceiverTx.slice(filtered14ReceiverTx.length - senderTxLength);
+      filtered21ReceiverTx = filtered21ReceiverTx.slice(filtered21ReceiverTx.length - senderTxLength);
     }
 
     return {
-      receiver: filtered14ReceiverTx.filter((r) => r.id >= (filtered14ReceiverTx[receiverIndex]?.id ?? 0)),
+      receiver: filtered21ReceiverTx.filter((r) => r.id >= (filtered21ReceiverTx[receiverIndex]?.id ?? 0)),
       sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
     };
   }
@@ -1032,13 +1022,15 @@ export class LogJobService {
           ? (receiverTx[receiverIndex] as BankTx).instructedAmount
           : receiverTx[receiverIndex].amount;
 
-      const senderPair = senderTx.find((s) =>
-        s instanceof BankTx
-          ? s.instructedAmount === receiverAmount &&
-            receiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
-            receiverTx[receiverIndex].created > s.created
-          : s.amount === receiverAmount && receiverTx[receiverIndex].created > s.created,
-      );
+      const senderPair = senderTx.find((s) => {
+        const receiverCreated = receiverTx[receiverIndex].created;
+        const senderDate = s instanceof BankTx ? s.valueDate : s.created;
+        const daysDiff = Math.abs(Util.daysDiff(senderDate, receiverCreated));
+
+        return s instanceof BankTx
+          ? s.instructedAmount === receiverAmount && daysDiff <= 5 && receiverCreated > s.created
+          : s.amount === receiverAmount && receiverCreated > s.created;
+      });
 
       if (!senderPair) {
         receiverIndex++;
