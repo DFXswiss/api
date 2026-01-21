@@ -127,7 +127,7 @@ API_URL="${DEBUG_API_URL:-https://api.dfx.swiss/v1}"
 
 # --- Authenticate ---
 echo "=== Authenticating to $API_URL ==="
-TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/auth/signIn" \
+TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/auth" \
   -H "Content-Type: application/json" \
   -d "{\"address\":\"$DEBUG_ADDRESS\",\"signature\":\"$DEBUG_SIGNATURE\"}")
 
