@@ -737,8 +737,10 @@ export class UserData extends IEntity {
   }
 
   get requiredKycFields(): string[] {
-    return ['accountType'].concat(
-      !this.accountType || this.accountType === AccountType.PERSONAL ? ['firstname', 'surname'] : ['organizationName'],
+    return ['accountType', 'mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
+      !this.accountType || this.accountType === AccountType.PERSONAL
+        ? []
+        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
     );
   }
 
@@ -747,13 +749,9 @@ export class UserData extends IEntity {
   }
 
   get requiredInvoiceFields(): string[] {
-    const baseFields = ['accountType', 'street', 'location', 'zip', 'country'];
-    const nameFields =
-      !this.accountType || this.accountType === AccountType.PERSONAL
-        ? ['firstname', 'surname']
-        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'];
-
-    return baseFields.concat(nameFields);
+    return ['accountType'].concat(
+      !this.accountType || this.accountType === AccountType.PERSONAL ? ['firstname', 'surname'] : ['organizationName'],
+    );
   }
 
   get isInvoiceDataComplete(): boolean {
