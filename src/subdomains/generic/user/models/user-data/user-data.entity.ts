@@ -748,6 +748,16 @@ export class UserData extends IEntity {
     return this.requiredKycFields.every((f) => this[f]);
   }
 
+  get requiredInvoiceFields(): string[] {
+    return ['accountType'].concat(
+      !this.accountType || this.accountType === AccountType.PERSONAL ? ['firstname', 'surname'] : ['organizationName'],
+    );
+  }
+
+  get isInvoiceDataComplete(): boolean {
+    return this.requiredInvoiceFields.every((f) => this[f]);
+  }
+
   get hasBankTxVerification(): boolean {
     return [CheckStatus.PASS, CheckStatus.UNNECESSARY, CheckStatus.GSHEET].includes(this.bankTransactionVerification);
   }
