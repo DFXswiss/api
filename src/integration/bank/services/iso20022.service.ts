@@ -253,9 +253,6 @@ export class Iso20022Service {
     const bookingDate = bookingDateStr ? this.parseDate(bookingDateStr) : new Date();
     const valueDate = valueDateStr ? this.parseDate(valueDateStr) : bookingDate;
 
-    // reference
-    const accountServiceRef = entry.NtryRef || entry.AcctSvcrRef || Util.createUniqueId(accountIban);
-
     // transaction details
     const entryDtls = entry.NtryDtls;
     const txDtlsArray = Array.isArray(entryDtls) ? entryDtls : entryDtls ? [entryDtls] : [];
@@ -297,6 +294,10 @@ export class Iso20022Service {
     } else if (entry.AddtlNtryInf) {
       remittanceInfo = entry.AddtlNtryInf;
     }
+
+    // reference - check transaction-level refs first (matches camt.054), then entry-level AcctSvcrRef
+    const accountServiceRef =
+      txDtls.Refs?.AcctSvcrRef || txDtls.Refs?.TxId || entry.AcctSvcrRef || entry.NtryRef || Util.createUniqueId(accountIban);
 
     // end-to-end ID
     const endToEndId = txDtls.Refs?.EndToEndId || '';
