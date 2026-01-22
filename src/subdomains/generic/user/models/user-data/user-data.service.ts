@@ -14,7 +14,6 @@ import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
@@ -768,10 +767,6 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
-  private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return this.userRepo.existsBy({ userData: { id: userDataId }, role });
-  }
-
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
