@@ -737,10 +737,10 @@ export class UserData extends IEntity {
   }
 
   get requiredKycFields(): string[] {
-    return ['accountType', 'mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
+    return ['accountType'].concat(
       !this.accountType || this.accountType === AccountType.PERSONAL
-        ? []
-        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
+        ? ['firstname', 'surname']
+        : ['organizationName'],
     );
   }
 
