@@ -21,3 +21,6 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-02
     publicNetworkAccessForQuery: 'Enabled'
   }
 }
+
+// --- OUTPUT --- //
+output workspaceId string = logAnalyticsWorkspace.id
