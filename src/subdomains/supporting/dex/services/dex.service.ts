@@ -297,7 +297,7 @@ export class DexService {
     try {
       return await strategy.calculatePrice(from, to, poolFee);
     } catch (e) {
-      this.logger.error('Error while getting target amount:', e);
+      this.logger.error(`Error while getting target amount (${from.uniqueName} -> ${to.uniqueName}):`, e);
 
       // default public exception
       throw new Error(`Error while getting price from ${from.uniqueName} to ${to.uniqueName}.`);

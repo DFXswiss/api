@@ -126,18 +126,23 @@ export class BankTxService implements OnModuleInit {
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX })
   async enrichYapealTransactions(): Promise<void> {
-    const transactions = await this.bankTxRepo.findBy([
-      { created: MoreThan(Util.minutesBefore(30)), familyCode: 'CCRD' }, // credit card => wrong data
-    ]);
+    const transactions = await this.bankTxRepo.find({
+      where: { familyCode: 'CCRD' }, // credit card => wrong data
+      order: { id: 'DESC' },
+      take: 100,
+    });
 
     if (transactions.length === 0) return;
 
-    const today = new Date();
     const ibanGroups = Util.groupBy<BankTx, string>(transactions, 'accountIban');
 
     for (const [accountIban, groupTransactions] of ibanGroups) {
       try {
-        const yapealTransactions = await this.yapealService.getTransactions(accountIban, today, today);
+        const dates = groupTransactions.map((tx) => (tx.bookingDate ?? tx.created).getTime());
+        const fromDate = new Date(Math.min(...dates));
+        const toDate = new Date(Math.max(...dates));
+
+        const yapealTransactions = await this.yapealService.getTransactions(accountIban, fromDate, toDate);
 
         for (const transaction of groupTransactions) {
           const yapealTx = yapealTransactions.find((tx) => tx.accountServiceRef === transaction.accountServiceRef);
