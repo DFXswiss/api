@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsEthereumAddress, IsNotEmpty, IsOptional } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsDate,
+  IsEnum,
+  IsEthereumAddress,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+} from 'class-validator';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 
@@ -24,4 +33,12 @@ export class RealUnitBalancePdfDto {
   @IsOptional()
   @IsEnum(PdfLanguage)
   language?: PdfLanguage = PdfLanguage.EN;
+}
+
+export class RealUnitMultiReceiptPdfDto {
+  @ApiProperty({ type: [Number], description: 'Array of transaction IDs to include in the receipt' })
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @ArrayMinSize(1)
+  transactionIds: number[];
 }
