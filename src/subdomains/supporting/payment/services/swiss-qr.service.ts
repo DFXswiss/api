@@ -447,12 +447,12 @@ export class SwissQRService {
 
     const debtor: Debtor = {
       name,
-      address: address.street,
-      city: address.city,
-      country: address.country.symbol,
-      zip: address.zip,
+      address: address?.street ?? '',
+      city: address?.city ?? '',
+      country: address?.country?.symbol ?? '',
+      zip: address?.zip ?? '',
     };
-    if (address.houseNumber != null) debtor.buildingNumber = address.houseNumber;
+    if (address?.houseNumber != null) debtor.buildingNumber = address.houseNumber;
 
     return debtor;
   }
