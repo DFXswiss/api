@@ -435,9 +435,10 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txIdOrUid = isNaN(+id) ? id : +id;
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
       jwt.account,
-      +id,
+      txIdOrUid,
       TxStatementType.INVOICE,
     );
 
@@ -453,9 +454,10 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txIdOrUid = isNaN(+id) ? id : +id;
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
       jwt.account,
-      +id,
+      txIdOrUid,
       TxStatementType.RECEIPT,
     );
 

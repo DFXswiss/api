@@ -493,20 +493,26 @@ export class TransactionHelper implements OnModuleInit {
 
   async getTxStatementDetails(
     userDataId: number,
-    txId: number,
+    txIdOrUid: number | string,
     statementType: TxStatementType,
   ): Promise<TxStatementDetails> {
-    const transaction = await this.transactionService.getTransactionById(txId, {
+    const relations = {
       userData: { organization: true },
       buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
-    });
+    };
+
+    const transaction =
+      typeof txIdOrUid === 'number'
+        ? await this.transactionService.getTransactionById(txIdOrUid, relations)
+        : await this.transactionService.getTransactionByUid(txIdOrUid, relations);
 
     if (!transaction || !transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn)
       throw new BadRequestException('Transaction not found');
     if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
-    if (!transaction.targetEntity.isComplete) throw new BadRequestException('Transaction not completed');
+    if (statementType === TxStatementType.RECEIPT && !transaction.targetEntity.isComplete)
+      throw new BadRequestException('Transaction not completed');
     if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
 
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
