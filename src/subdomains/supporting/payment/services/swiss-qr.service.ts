@@ -158,16 +158,13 @@ export class SwissQRService {
         // Debtor address
         pdf.fontSize(12);
         pdf.font('Helvetica');
-        pdf.text(
-          `${billData.debtor.name}\n${billData.debtor.address} ${billData.debtor.buildingNumber}\n${billData.debtor.zip} ${billData.debtor.city}`,
-          mm2pt(130),
-          mm2pt(60),
-          {
-            align: 'left',
-            height: mm2pt(50),
-            width: mm2pt(70),
-          },
-        );
+        const addressLine = [billData.debtor.address, billData.debtor.buildingNumber].filter(Boolean).join(' ');
+        const cityLine = [billData.debtor.zip, billData.debtor.city].filter(Boolean).join(' ');
+        pdf.text([billData.debtor.name, addressLine, cityLine].filter(Boolean).join('\n'), mm2pt(130), mm2pt(60), {
+          align: 'left',
+          height: mm2pt(50),
+          width: mm2pt(70),
+        });
 
         // Title
         pdf.fontSize(14);
