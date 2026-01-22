@@ -297,7 +297,11 @@ export class Iso20022Service {
 
     // reference - check transaction-level refs first (matches camt.054), then entry-level AcctSvcrRef
     const accountServiceRef =
-      txDtls.Refs?.AcctSvcrRef || txDtls.Refs?.TxId || entry.AcctSvcrRef || entry.NtryRef || Util.createUniqueId(accountIban);
+      txDtls.Refs?.AcctSvcrRef ||
+      txDtls.Refs?.TxId ||
+      entry.AcctSvcrRef ||
+      entry.NtryRef ||
+      Util.createUniqueId(accountIban);
 
     // end-to-end ID
     const endToEndId = txDtls.Refs?.EndToEndId || '';
