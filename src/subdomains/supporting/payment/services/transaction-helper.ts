@@ -47,6 +47,7 @@ import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/t
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
+import { Transaction } from '../entities/transaction.entity';
 import { TransactionService } from './transaction.service';
 
 @Injectable()
@@ -501,6 +502,7 @@ export class TransactionHelper implements OnModuleInit {
       buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
+      request: true,
     };
 
     const transaction =
@@ -508,12 +510,20 @@ export class TransactionHelper implements OnModuleInit {
         ? await this.transactionService.getTransactionById(txIdOrUid, relations)
         : await this.transactionService.getTransactionByUid(txIdOrUid, relations);
 
-    if (!transaction || !transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn)
-      throw new BadRequestException('Transaction not found');
+    if (!transaction) throw new BadRequestException('Transaction not found');
     if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+    if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
+
+    // Handle pending transactions (no targetEntity yet, but has request)
+    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn) {
+      if (statementType === TxStatementType.RECEIPT)
+        throw new BadRequestException('Receipt not available for pending transactions');
+      if (!transaction.request) throw new BadRequestException('Transaction not found');
+      return this.getTxStatementDetailsFromRequest(transaction, statementType);
+    }
+
     if (statementType === TxStatementType.RECEIPT && !transaction.targetEntity.isComplete)
       throw new BadRequestException('Transaction not completed');
-    if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
 
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
@@ -570,6 +580,38 @@ export class TransactionHelper implements OnModuleInit {
     }
 
     throw new BadRequestException('Transaction type not supported for invoice generation');
+  }
+
+  private async getTxStatementDetailsFromRequest(
+    transaction: Transaction,
+    statementType: TxStatementType,
+  ): Promise<TxStatementDetails> {
+    const request = transaction.request;
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    const currency = await this.fiatService.getFiat(request.sourceId);
+    const buy = await this.buyService.get(transaction.userData.id, request.routeId);
+    const bankInfo = await this.buyService.getBankInfo(
+      {
+        amount: request.amount,
+        currency: currency.name,
+        paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
+        userData: transaction.userData,
+      },
+      buy,
+      buy?.asset,
+      buy?.user?.wallet,
+    );
+
+    return {
+      statementType,
+      transactionType: TransactionType.BUY,
+      transaction,
+      currency: currency.name,
+      bankInfo,
+      reference: bankInfo?.reference,
+      request,
+    };
   }
 
   async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
