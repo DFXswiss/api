@@ -35,6 +35,13 @@ export class RealUnitBalancePdfDto {
   language?: PdfLanguage = PdfLanguage.EN;
 }
 
+export class RealUnitSingleReceiptPdfDto {
+  @ApiProperty({ type: Number, description: 'Transaction ID' })
+  @IsNumber()
+  @Type(() => Number)
+  transactionId: number;
+}
+
 export class RealUnitMultiReceiptPdfDto {
   @ApiProperty({ type: [Number], description: 'Array of transaction IDs to include in the receipt' })
   @IsArray()
