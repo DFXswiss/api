@@ -797,6 +797,14 @@ export class Configuration {
       bscApiKey: process.env.ALCHEMY_API_KEY,
       gasPrice: process.env.BSC_GAS_PRICE,
     },
+    citrea: {
+      ...EVM_CHAINS.citrea,
+      citreaGatewayUrl: EVM_CHAINS.citrea.gatewayUrl,
+      citreaChainId: EVM_CHAINS.citrea.chainId,
+      citreaWalletAddress: process.env.CITREA_WALLET_ADDRESS,
+      citreaWalletPrivateKey: process.env.CITREA_WALLET_PRIVATE_KEY,
+      citreaApiKey: process.env.CITREA_API_KEY,
+    },
     citreaTestnet: {
       ...EVM_CHAINS.citreaTestnet,
       citreaTestnetGatewayUrl: EVM_CHAINS.citreaTestnet.gatewayUrl,

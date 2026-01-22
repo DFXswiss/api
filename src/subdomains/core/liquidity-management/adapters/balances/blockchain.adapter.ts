@@ -113,6 +113,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.BASE:
         case Blockchain.GNOSIS:
         case Blockchain.BINANCE_SMART_CHAIN:
+        case Blockchain.CITREA:
         case Blockchain.CITREA_TESTNET:
           await this.updateEvmBalance(assets);
           break;
