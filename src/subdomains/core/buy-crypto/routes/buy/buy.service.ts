@@ -355,6 +355,7 @@ export class BuyService {
     buy?: Buy,
     asset?: Asset,
     wallet?: Wallet,
+    forInvoice?: boolean,
   ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
     // asset-specific personal IBAN
     if (
@@ -390,8 +391,8 @@ export class BuyService {
       return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
     }
 
-    // EUR: vIBAN is mandatory
-    if (selector.currency === 'EUR') {
+    // EUR: vIBAN is mandatory (except for invoice generation)
+    if (selector.currency === 'EUR' && !forInvoice) {
       throw new BadRequestException('KycRequired');
     }
 
