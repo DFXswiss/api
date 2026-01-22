@@ -65,7 +65,6 @@ export class SwissQRService {
     }
 
     const data = this.generateQrData(amount, currency, bankInfo, reference, request.userData);
-    if (!data.debtor) throw new Error('Debtor is required');
 
     const userLanguage = request.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
@@ -82,7 +81,15 @@ export class SwissQRService {
       date: request.created,
     };
 
-    return this.generatePdfInvoice(tableData, language, data, true, TransactionType.BUY);
+    return this.generatePdfInvoice(
+      tableData,
+      language,
+      data,
+      true,
+      TransactionType.BUY,
+      PdfBrand.DFX,
+      request.userData.completeName,
+    );
   }
 
   async createTxStatement(
@@ -90,7 +97,6 @@ export class SwissQRService {
     brand: PdfBrand = PdfBrand.DFX,
   ): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
-    if (!debtor) throw new Error('Debtor is required');
 
     currency = Config.invoice.currencies.includes(currency) ? currency : Config.invoice.defaultCurrency;
     if (!this.isSupportedInvoiceCurrency(currency)) {
@@ -111,7 +117,15 @@ export class SwissQRService {
       message: reference,
     };
 
-    return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, transactionType, brand);
+    return this.generatePdfInvoice(
+      tableData,
+      language,
+      billData,
+      !!bankInfo,
+      transactionType,
+      brand,
+      transaction.userData.completeName,
+    );
   }
 
   private generatePdfInvoice(
@@ -121,6 +135,7 @@ export class SwissQRService {
     includeQrBill: boolean,
     transactionType: TransactionType,
     brand: PdfBrand = PdfBrand.DFX,
+    debtorName?: string,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
@@ -156,15 +171,20 @@ export class SwissQRService {
         );
 
         // Debtor address
-        pdf.fontSize(12);
-        pdf.font('Helvetica');
-        const addressLine = [billData.debtor.address, billData.debtor.buildingNumber].filter(Boolean).join(' ');
-        const cityLine = [billData.debtor.zip, billData.debtor.city].filter(Boolean).join(' ');
-        pdf.text([billData.debtor.name, addressLine, cityLine].filter(Boolean).join('\n'), mm2pt(130), mm2pt(60), {
-          align: 'left',
-          height: mm2pt(50),
-          width: mm2pt(70),
-        });
+        const displayName = billData.debtor?.name ?? debtorName;
+        if (displayName) {
+          pdf.fontSize(12);
+          pdf.font('Helvetica');
+          const addressLine = billData.debtor
+            ? [billData.debtor.address, billData.debtor.buildingNumber].filter(Boolean).join(' ')
+            : '';
+          const cityLine = billData.debtor ? [billData.debtor.zip, billData.debtor.city].filter(Boolean).join(' ') : '';
+          pdf.text([displayName, addressLine, cityLine].filter(Boolean).join('\n'), mm2pt(130), mm2pt(60), {
+            align: 'left',
+            height: mm2pt(50),
+            width: mm2pt(70),
+          });
+        }
 
         // Title
         pdf.fontSize(14);
@@ -442,14 +462,18 @@ export class SwissQRService {
     const name = userData.completeName;
     const address = userData.address;
 
+    // SwissQRBill requires country to be exactly 2 characters
+    // If no valid address, return undefined (debtor is optional in QR bill)
+    if (!address?.country?.symbol) return undefined;
+
     const debtor: Debtor = {
       name,
-      address: address?.street ?? '',
-      city: address?.city ?? '',
-      country: address?.country?.symbol ?? '',
-      zip: address?.zip ?? '',
+      address: address.street ?? '',
+      city: address.city ?? '',
+      country: address.country.symbol,
+      zip: address.zip ?? '',
     };
-    if (address?.houseNumber != null) debtor.buildingNumber = address.houseNumber;
+    if (address.houseNumber != null) debtor.buildingNumber = address.houseNumber;
 
     return debtor;
   }
