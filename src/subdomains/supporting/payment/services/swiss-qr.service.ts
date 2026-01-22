@@ -74,7 +74,7 @@ export class SwissQRService {
         assetBlockchain: asset.blockchain,
       },
       fiatAmount: amount,
-      date: new Date(),
+      date: request.created,
     };
 
     return this.generatePdfInvoice(tableData, language, data, true, TransactionType.BUY);
