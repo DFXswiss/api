@@ -446,8 +446,7 @@ export class TransactionController {
 
       if (request) {
         // Validate ownership and state
-        if (request.user.userData.id !== jwt.account)
-          throw new ForbiddenException('Not your transaction request');
+        if (request.user.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction request');
         if (!request.userData.isDataComplete) throw new BadRequestException('User data is not complete');
         if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
 
