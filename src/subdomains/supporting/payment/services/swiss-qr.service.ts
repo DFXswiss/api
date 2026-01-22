@@ -59,6 +59,11 @@ export class SwissQRService {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
     }
 
+    // Use EUR-specific IBAN for EUR invoices
+    if (currency === 'EUR') {
+      bankInfo = { ...bankInfo, iban: 'CH8583019DFXSWISSEURX' };
+    }
+
     const data = this.generateQrData(amount, currency, bankInfo, reference, request.userData);
     if (!data.debtor) throw new Error('Debtor is required');
 
