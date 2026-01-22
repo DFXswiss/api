@@ -440,7 +440,7 @@ export class SwissQRService {
   }
 
   private getDebtor(userData?: UserData): Debtor | undefined {
-    if (!userData?.isDataComplete) return undefined;
+    if (!userData?.isInvoiceDataComplete) return undefined;
 
     const name = userData.completeName;
     const address = userData.address;

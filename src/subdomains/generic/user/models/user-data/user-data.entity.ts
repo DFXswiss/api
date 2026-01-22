@@ -738,14 +738,26 @@ export class UserData extends IEntity {
 
   get requiredKycFields(): string[] {
     return ['accountType'].concat(
-      !this.accountType || this.accountType === AccountType.PERSONAL
-        ? ['firstname', 'surname']
-        : ['organizationName'],
+      !this.accountType || this.accountType === AccountType.PERSONAL ? ['firstname', 'surname'] : ['organizationName'],
     );
   }
 
   get isDataComplete(): boolean {
     return this.requiredKycFields.every((f) => this[f]);
+  }
+
+  get requiredInvoiceFields(): string[] {
+    const baseFields = ['accountType', 'street', 'location', 'zip', 'country'];
+    const nameFields =
+      !this.accountType || this.accountType === AccountType.PERSONAL
+        ? ['firstname', 'surname']
+        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'];
+
+    return baseFields.concat(nameFields);
+  }
+
+  get isInvoiceDataComplete(): boolean {
+    return this.requiredInvoiceFields.every((f) => this[f]);
   }
 
   get hasBankTxVerification(): boolean {
