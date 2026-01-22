@@ -36,6 +36,7 @@ export class TestExchangeService extends ExchangeService {
     KucoinPay: undefined,
     Solana: undefined,
     Tron: undefined,
+    Citrea: undefined,
     CitreaTestnet: undefined,
     Kraken: undefined,
     Binance: undefined,

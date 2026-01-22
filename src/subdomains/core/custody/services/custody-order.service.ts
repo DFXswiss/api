@@ -37,7 +37,7 @@ import { CustodyService } from './custody.service';
 
 @Injectable()
 export class CustodyOrderService {
-  private readonly CustodyChains = [Blockchain.ETHEREUM];
+  private readonly CustodyChains = [Blockchain.ETHEREUM, Blockchain.CITREA];
 
   constructor(
     private readonly userService: UserService,
