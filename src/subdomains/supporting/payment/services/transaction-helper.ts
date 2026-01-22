@@ -511,7 +511,7 @@ export class TransactionHelper implements OnModuleInit {
         : await this.transactionService.getTransactionByUid(txIdOrUid, relations);
 
     if (!transaction) throw new BadRequestException('Transaction not found');
-    if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+    if (!transaction.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
 
     // Handle pending transactions (no targetEntity yet, but has request)

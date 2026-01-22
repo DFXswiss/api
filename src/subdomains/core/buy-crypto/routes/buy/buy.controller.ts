@@ -161,7 +161,7 @@ export class BuyController {
   @ApiOkResponse({ type: PdfDto })
   async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
-    if (!request.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+    if (!request.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
