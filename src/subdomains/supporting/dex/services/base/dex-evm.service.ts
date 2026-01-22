@@ -72,14 +72,9 @@ export abstract class DexEvmService implements PurchaseDexService {
   ): Promise<number> {
     if (sourceAsset.id === targetAsset.id) return sourceAmount;
 
-    return Util.retry(
-      () =>
-        poolFee != null
-          ? this.#client.testSwapPool(sourceAsset, sourceAmount, targetAsset, poolFee)
-          : this.#client.testSwap(sourceAsset, sourceAmount, targetAsset, maxSlippage),
-      3,
-      1000,
-    ).then((r) => r.targetAmount);
+    return poolFee != null
+      ? this.#client.testSwapPool(sourceAsset, sourceAmount, targetAsset, poolFee).then((r) => r.targetAmount)
+      : this.#client.testSwap(sourceAsset, sourceAmount, targetAsset, maxSlippage).then((r) => r.targetAmount);
   }
 
   async swap(swapAsset: Asset, swapAmount: number, targetAsset: Asset, maxSlippage: number): Promise<string> {
