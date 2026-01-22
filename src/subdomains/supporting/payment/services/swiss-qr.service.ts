@@ -81,7 +81,7 @@ export class SwissQRService {
   }
 
   async createTxStatement(
-    { statementType, transactionType, transaction, currency, bankInfo, reference }: TxStatementDetails,
+    { statementType, transactionType, transaction, currency, bankInfo, reference, request }: TxStatementDetails,
     brand: PdfBrand = PdfBrand.DFX,
   ): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
@@ -94,14 +94,15 @@ export class SwissQRService {
 
     const userLanguage = transaction.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
-    const tableData = await this.getTableData(statementType, transactionType, transaction, currency);
+    const tableData = await this.getTableData(statementType, transactionType, transaction, currency, request);
 
     const defaultCreditor = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
+    const amount = request?.amount ?? transaction.buyCrypto?.inputAmount;
     const billData: QrBillData = {
       creditor: (bankInfo && this.getCreditor(bankInfo)) || (defaultCreditor as unknown as Creditor),
       debtor,
       currency,
-      amount: bankInfo && transaction.buyCrypto?.inputAmount,
+      amount: bankInfo && amount,
       message: reference,
     };
 
@@ -396,6 +397,7 @@ export class SwissQRService {
     statementType: TxStatementType,
     transactionType: TransactionType,
     transaction: Transaction,
+    request?: TransactionRequest,
   ): string {
     let titleKey: string;
 
@@ -407,8 +409,10 @@ export class SwissQRService {
       titleKey = 'invoice.title';
     }
 
+    const invoiceId = request?.id ?? transaction.id;
+
     return this.translate(titleKey, transaction.userData.language.symbol.toLowerCase(), {
-      invoiceId: transaction.id,
+      invoiceId,
     });
   }
 
@@ -453,14 +457,30 @@ export class SwissQRService {
     transactionType: TransactionType,
     transaction: Transaction,
     currency: string,
+    request?: TransactionRequest,
   ): Promise<SwissQRBillTableData> {
     const titleAndDate = {
-      title: this.getStatementTitle(statementType, transactionType, transaction),
+      title: this.getStatementTitle(statementType, transactionType, transaction, request),
       date: this.getStatementDate(statementType, transaction),
     };
 
     switch (transactionType) {
       case TransactionType.BUY: {
+        // Handle pending transactions with request data
+        if (request) {
+          const asset = await this.assetService.getAssetById(request.targetId);
+          return {
+            quantity: request.estimatedAmount,
+            description: {
+              assetDescription: asset.description ?? asset.name,
+              assetName: asset.name,
+              assetBlockchain: asset.blockchain,
+            },
+            fiatAmount: request.amount,
+            ...titleAndDate,
+          };
+        }
+
         const outputAsset = transaction.buyCrypto?.outputAsset;
 
         return {
