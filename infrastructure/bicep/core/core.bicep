@@ -63,6 +63,7 @@ module applicationInsights './modules/applicationInsights.bicep' = {
   name: 'applicationInsights'
   params: {
     applicationInsightsName: applicationInsightsName
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
   }
 }
 
