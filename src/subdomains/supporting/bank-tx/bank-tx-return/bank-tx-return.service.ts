@@ -200,7 +200,7 @@ export class BankTxReturnService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
-    const creditorData = dto.creditorData ?? bankTxReturn.creditorData;
+    const creditorData = bankTxReturn.creditorData ?? dto.creditorData;
     if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
       throw new BadRequestException('Creditor data is required for chargeback');
 

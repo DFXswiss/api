@@ -545,7 +545,7 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
-    const creditorData = dto.creditorData ?? buyCrypto.creditorData;
+    const creditorData = buyCrypto.creditorData ?? dto.creditorData;
     if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
       throw new BadRequestException('Creditor data is required for chargeback');
 
