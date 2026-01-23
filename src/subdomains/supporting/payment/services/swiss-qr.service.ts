@@ -97,22 +97,15 @@ export class SwissQRService {
     brand: PdfBrand = PdfBrand.DFX,
   ): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
+    const validatedCurrency = this.validateCurrency(currency);
+    const language = this.getLanguage(transaction.userData);
+    const tableData = await this.getTableData(statementType, transactionType, transaction, validatedCurrency, request);
 
-    currency = Config.invoice.currencies.includes(currency) ? currency : Config.invoice.defaultCurrency;
-    if (!this.isSupportedInvoiceCurrency(currency)) {
-      throw new Error('PDF invoice is only available for CHF and EUR transactions');
-    }
-
-    const userLanguage = transaction.userData.language.symbol.toUpperCase();
-    const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
-    const tableData = await this.getTableData(statementType, transactionType, transaction, currency, request);
-
-    const defaultCreditor = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
     const amount = request?.amount ?? transaction.buyCrypto?.inputAmount;
     const billData: QrBillData = {
-      creditor: (bankInfo && this.getCreditor(bankInfo)) || (defaultCreditor as unknown as Creditor),
+      creditor: (bankInfo && this.getCreditor(bankInfo)) || this.getDefaultCreditor(brand),
       debtor,
-      currency,
+      currency: validatedCurrency,
       amount: bankInfo && amount,
       message: reference,
     };
@@ -135,14 +128,8 @@ export class SwissQRService {
     const debtor = this.getDebtor(firstDetail.transaction.userData);
     if (!debtor) throw new Error('Debtor is required');
 
-    let currency = firstDetail.currency;
-    currency = Config.invoice.currencies.includes(currency) ? currency : Config.invoice.defaultCurrency;
-    if (!this.isSupportedInvoiceCurrency(currency)) {
-      throw new Error('PDF invoice is only available for CHF and EUR transactions');
-    }
-
-    const userLanguage = firstDetail.transaction.userData.language.symbol.toUpperCase();
-    const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
+    const validatedCurrency = this.validateCurrency(firstDetail.currency);
+    const language = this.getLanguage(firstDetail.transaction.userData);
 
     const tableDataWithType: { data: SwissQRBillTableData; type: TransactionType }[] = [];
     for (const detail of details) {
@@ -150,16 +137,15 @@ export class SwissQRService {
         detail.statementType,
         detail.transactionType,
         detail.transaction,
-        currency,
+        validatedCurrency,
       );
       tableDataWithType.push({ data: tableData, type: detail.transactionType });
     }
 
-    const defaultCreditor = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
     const billData: QrBillData = {
-      creditor: defaultCreditor as unknown as Creditor,
+      creditor: this.getDefaultCreditor(brand),
       debtor,
-      currency,
+      currency: validatedCurrency,
     };
 
     return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand);
@@ -174,229 +160,170 @@ export class SwissQRService {
     brand: PdfBrand = PdfBrand.DFX,
     debtorName?: string,
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      try {
-        const pdf = new PDFDocument({ size: 'A4' });
+    const { pdf, promise } = this.createPdfWithBase64Promise();
 
-        // Store PDF as base64 string
-        const base64 = [];
-        pdf.on('data', (data) => {
-          base64.push(data);
-        });
-        pdf.on('end', () => {
-          const base64PDF = Buffer.concat(base64).toString('base64');
-          resolve(base64PDF);
-        });
+    PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
+    this.drawSenderAddress(pdf, brand);
+    this.drawDebtorAddress(pdf, billData.debtor, debtorName);
+    this.drawTitle(pdf, tableData.title);
 
-        // Logo
-        PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
-
-        // Sender address
-        const sender = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
-        pdf.fontSize(12);
-        pdf.fillColor('black');
-        pdf.font('Helvetica');
-        pdf.text(
-          `${sender.name}\n${sender.address} ${sender.buildingNumber}\n${sender.zip} ${sender.city}`,
-          mm2pt(20),
-          mm2pt(35),
-          {
-            align: 'left',
-            height: mm2pt(50),
-            width: mm2pt(100),
-          },
-        );
-
-        // Debtor address
-        const displayName = billData.debtor?.name ?? debtorName;
-        if (displayName) {
-          pdf.fontSize(12);
-          pdf.font('Helvetica');
-          const addressLine = billData.debtor
-            ? [billData.debtor.address, billData.debtor.buildingNumber].filter(Boolean).join(' ')
-            : '';
-          const cityLine = billData.debtor ? [billData.debtor.zip, billData.debtor.city].filter(Boolean).join(' ') : '';
-          pdf.text([displayName, addressLine, cityLine].filter(Boolean).join('\n'), mm2pt(130), mm2pt(60), {
-            align: 'left',
-            height: mm2pt(50),
-            width: mm2pt(70),
-          });
-        }
-
-        // Title
-        pdf.fontSize(14);
-        pdf.font('Helvetica-Bold');
-        pdf.text(tableData.title, mm2pt(20), mm2pt(100), {
-          align: 'left',
-          width: mm2pt(170),
-        });
-
-        // Date
-        pdf.fontSize(11);
-        pdf.font('Helvetica');
-        pdf.text(`Zug ${tableData.date.getDate()}.${tableData.date.getMonth() + 1}.${tableData.date.getFullYear()}`, {
-          align: 'right',
-          width: mm2pt(170),
-        });
-
-        // Table
-        const rows: PDFRow[] = [
-          {
-            backgroundColor: '#4A4D51',
-            columns: [
-              {
-                text: this.translate('invoice.table.headers.quantity', language) + (includeQrBill ? ' *' : ''),
-                width: mm2pt(40),
-              },
-              {
-                text: this.translate('invoice.table.headers.description', language),
-              },
-              {
-                text: this.translate('invoice.table.headers.total', language),
-                width: mm2pt(30),
-              },
-            ],
-            fontName: 'Helvetica-Bold',
-            height: 20,
-            padding: 5,
-            textColor: '#fff',
-            verticalAlign: 'center',
-          },
-          {
-            columns: [
-              {
-                text: `${tableData.quantity}`,
-                width: mm2pt(40),
-              },
-              {
-                text: this.translate(
-                  `invoice.table.position_row.${transactionType.toLowerCase()}_description`,
-                  language,
-                  tableData.description,
-                ),
-              },
-              {
-                text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
-                width: mm2pt(30),
-              },
-            ],
-            padding: 5,
-          },
-          {
-            columns: [
-              {
-                text: '',
-                width: mm2pt(40),
-              },
-              {
-                fontName: 'Helvetica-Bold',
-                text: this.translate('invoice.table.total_row.total_label', language),
-              },
-              {
-                fontName: 'Helvetica-Bold',
-                text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
-                width: mm2pt(30),
-              },
-            ],
-            height: 40,
-            padding: 5,
-          },
-          {
-            columns: [
-              {
-                text: '',
-                width: mm2pt(40),
-              },
-              {
-                text: this.translate('invoice.table.vat_row.vat_label', language),
-              },
-              {
-                text: '0%',
-                width: mm2pt(30),
-              },
-            ],
-            padding: 5,
-          },
-          {
-            columns: [
-              {
-                text: '',
-                width: mm2pt(40),
-              },
-              {
-                text: this.translate('invoice.table.vat_row.vat_amount_label', language),
-              },
-              {
-                text: `${billData.currency} 0.00`,
-                width: mm2pt(30),
-              },
-            ],
-            padding: 5,
-          },
-          {
-            columns: [
-              {
-                text: '',
-                width: mm2pt(40),
-              },
-              {
-                fontName: 'Helvetica-Bold',
-                text: this.translate(
-                  transactionType === TransactionType.REFERRAL
-                    ? 'invoice.table.credit_total_row.credit_total_label'
-                    : 'invoice.table.invoice_total_row.invoice_total_label',
-                  language,
-                ),
-              },
-              {
-                fontName: 'Helvetica-Bold',
-                text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
-                width: mm2pt(30),
-              },
-            ],
-            height: 40,
-            padding: 5,
-          },
-        ];
-
-        // T&Cs
-        const termsAndConditions: PDFColumn = {
-          text: this.translate('invoice.terms', language),
-          textOptions: { lineGap: 2 },
-          fontSize: 10,
-          width: mm2pt(170),
-          padding: [5, 0, 5, 0],
-        };
-
-        // QR-Bill
-        let qrBill: SwissQRBill = null;
-        if (includeQrBill) {
-          rows.push({
-            columns: [
-              {
-                text: this.translate('invoice.info', language),
-                textOptions: { oblique: true, lineGap: 2 },
-                fontSize: 10,
-                width: mm2pt(170),
-              },
-            ],
-          });
-
-          rows.push({ columns: [termsAndConditions] });
-          qrBill = new SwissQRBill(billData, { language: language as SupportedInvoiceLanguage });
-        } else {
-          rows.push({ columns: [termsAndConditions] });
-        }
-
-        const table = new Table({ rows, width: mm2pt(170) });
-        table.attachTo(pdf);
-        qrBill?.attachTo(pdf);
-
-        pdf.end();
-      } catch (error) {
-        reject(error);
-      }
+    // Date
+    pdf.fontSize(11);
+    pdf.font('Helvetica');
+    pdf.text(`Zug ${tableData.date.getDate()}.${tableData.date.getMonth() + 1}.${tableData.date.getFullYear()}`, {
+      align: 'right',
+      width: mm2pt(170),
     });
+
+    // Table
+    const rows: PDFRow[] = [
+      {
+        backgroundColor: '#4A4D51',
+        columns: [
+          {
+            text: this.translate('invoice.table.headers.quantity', language) + (includeQrBill ? ' *' : ''),
+            width: mm2pt(40),
+          },
+          {
+            text: this.translate('invoice.table.headers.description', language),
+          },
+          {
+            text: this.translate('invoice.table.headers.total', language),
+            width: mm2pt(30),
+          },
+        ],
+        fontName: 'Helvetica-Bold',
+        height: 20,
+        padding: 5,
+        textColor: '#fff',
+        verticalAlign: 'center',
+      },
+      {
+        columns: [
+          {
+            text: `${tableData.quantity}`,
+            width: mm2pt(40),
+          },
+          {
+            text: this.translate(
+              `invoice.table.position_row.${transactionType.toLowerCase()}_description`,
+              language,
+              tableData.description,
+            ),
+          },
+          {
+            text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
+            width: mm2pt(30),
+          },
+        ],
+        padding: 5,
+      },
+      {
+        columns: [
+          {
+            text: '',
+            width: mm2pt(40),
+          },
+          {
+            fontName: 'Helvetica-Bold',
+            text: this.translate('invoice.table.total_row.total_label', language),
+          },
+          {
+            fontName: 'Helvetica-Bold',
+            text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
+            width: mm2pt(30),
+          },
+        ],
+        height: 40,
+        padding: 5,
+      },
+      {
+        columns: [
+          {
+            text: '',
+            width: mm2pt(40),
+          },
+          {
+            text: this.translate('invoice.table.vat_row.vat_label', language),
+          },
+          {
+            text: '0%',
+            width: mm2pt(30),
+          },
+        ],
+        padding: 5,
+      },
+      {
+        columns: [
+          {
+            text: '',
+            width: mm2pt(40),
+          },
+          {
+            text: this.translate('invoice.table.vat_row.vat_amount_label', language),
+          },
+          {
+            text: `${billData.currency} 0.00`,
+            width: mm2pt(30),
+          },
+        ],
+        padding: 5,
+      },
+      {
+        columns: [
+          {
+            text: '',
+            width: mm2pt(40),
+          },
+          {
+            fontName: 'Helvetica-Bold',
+            text: this.translate(
+              transactionType === TransactionType.REFERRAL
+                ? 'invoice.table.credit_total_row.credit_total_label'
+                : 'invoice.table.invoice_total_row.invoice_total_label',
+              language,
+            ),
+          },
+          {
+            fontName: 'Helvetica-Bold',
+            text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
+            width: mm2pt(30),
+          },
+        ],
+        height: 40,
+        padding: 5,
+      },
+    ];
+
+    const termsAndConditions = this.getTermsAndConditions(language);
+
+    // QR-Bill
+    let qrBill: SwissQRBill = null;
+    if (includeQrBill) {
+      rows.push({
+        columns: [
+          {
+            text: this.translate('invoice.info', language),
+            textOptions: { oblique: true, lineGap: 2 },
+            fontSize: 10,
+            width: mm2pt(170),
+          },
+        ],
+      });
+
+      rows.push({ columns: [termsAndConditions] });
+      qrBill = new SwissQRBill(billData, { language: language as SupportedInvoiceLanguage });
+    } else {
+      rows.push({ columns: [termsAndConditions] });
+    }
+
+    const table = new Table({ rows, width: mm2pt(170) });
+    table.attachTo(pdf);
+    qrBill?.attachTo(pdf);
+
+    pdf.end();
+
+    return promise;
   }
 
   private generateMultiPdfInvoice(
@@ -405,247 +332,261 @@ export class SwissQRService {
     billData: QrBillData,
     brand: PdfBrand = PdfBrand.DFX,
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      try {
-        const pdf = new PDFDocument({ size: 'A4' });
+    const { pdf, promise } = this.createPdfWithBase64Promise();
 
-        // Store PDF as base64 string
-        const base64 = [];
-        pdf.on('data', (data) => {
-          base64.push(data);
-        });
-        pdf.on('end', () => {
-          const base64PDF = Buffer.concat(base64).toString('base64');
-          resolve(base64PDF);
-        });
+    PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
+    this.drawSenderAddress(pdf, brand);
+    this.drawDebtorAddress(pdf, billData.debtor);
+    this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', language));
 
-        // Logo
-        PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
+    const buyTransactions = tableDataWithType.filter((t) => t.type === TransactionType.BUY);
+    const sellTransactions = tableDataWithType.filter((t) => t.type === TransactionType.SELL);
+    const buyTotal = buyTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
+    const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
+    const grandTotal = sellTotal - buyTotal;
 
-        // Sender address
-        const sender = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
-        pdf.fontSize(12);
-        pdf.fillColor('black');
-        pdf.font('Helvetica');
-        pdf.text(
-          `${sender.name}\n${sender.address} ${sender.buildingNumber}\n${sender.zip} ${sender.city}`,
-          mm2pt(20),
-          mm2pt(35),
+    const rows: PDFRow[] = [];
+
+    if (buyTransactions.length > 0) {
+      rows.push({
+        columns: [
           {
-            align: 'left',
-            height: mm2pt(50),
-            width: mm2pt(100),
-          },
-        );
-
-        // Debtor address
-        pdf.fontSize(12);
-        pdf.font('Helvetica');
-        pdf.text(
-          `${billData.debtor.name}\n${billData.debtor.address} ${billData.debtor.buildingNumber}\n${billData.debtor.zip} ${billData.debtor.city}`,
-          mm2pt(130),
-          mm2pt(60),
-          {
-            align: 'left',
-            height: mm2pt(50),
-            width: mm2pt(70),
-          },
-        );
-
-        // Title
-        const title = this.translate('invoice.multi_receipt_title', language);
-        pdf.fontSize(14);
-        pdf.font('Helvetica-Bold');
-        pdf.text(title, mm2pt(20), mm2pt(100), {
-          align: 'left',
-          width: mm2pt(170),
-        });
-
-        const buyTransactions = tableDataWithType.filter((t) => t.type === TransactionType.BUY);
-        const sellTransactions = tableDataWithType.filter((t) => t.type === TransactionType.SELL);
-        const buyTotal = buyTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
-        const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
-        const grandTotal = sellTotal - buyTotal;
-
-        const rows: PDFRow[] = [];
-
-        if (buyTransactions.length > 0) {
-          rows.push({
-            columns: [
-              {
-                text: this.translate('invoice.section.buy', language),
-                fontName: 'Helvetica-Bold',
-                fontSize: 12,
-              },
-            ],
-            height: 30,
-            padding: [15, 5, 5, 5],
-          });
-
-          rows.push({
-            backgroundColor: '#4A4D51',
-            columns: [
-              { text: this.translate('invoice.table.headers.quantity', language), width: mm2pt(30) },
-              { text: this.translate('invoice.table.headers.description', language) },
-              { text: this.translate('invoice.table.headers.date', language), width: mm2pt(25) },
-              { text: this.translate('invoice.table.headers.total', language), width: mm2pt(30) },
-            ],
+            text: this.translate('invoice.section.buy', language),
             fontName: 'Helvetica-Bold',
-            height: 20,
-            padding: 5,
-            textColor: '#fff',
-            verticalAlign: 'center',
-          });
+            fontSize: 12,
+          },
+        ],
+        height: 30,
+        padding: [15, 5, 5, 5],
+      });
 
-          for (const { data: tableData } of buyTransactions) {
-            const txDate = tableData.date;
-            const formattedDate = `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
-            rows.push({
-              columns: [
-                { text: `${tableData.quantity}`, width: mm2pt(30) },
-                { text: this.translate('invoice.table.position_row.buy_description', language, tableData.description) },
-                { text: formattedDate, width: mm2pt(25) },
-                { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30) },
-              ],
-              padding: 5,
-            });
-          }
+      rows.push({
+        backgroundColor: '#4A4D51',
+        columns: [
+          { text: this.translate('invoice.table.headers.quantity', language), width: mm2pt(30) },
+          { text: this.translate('invoice.table.headers.description', language) },
+          { text: this.translate('invoice.table.headers.date', language), width: mm2pt(25) },
+          { text: this.translate('invoice.table.headers.total', language), width: mm2pt(30) },
+        ],
+        fontName: 'Helvetica-Bold',
+        height: 20,
+        padding: 5,
+        textColor: '#fff',
+        verticalAlign: 'center',
+      });
 
-          rows.push({
-            columns: [
-              { text: '', width: mm2pt(30) },
-              {
-                text: this.translate('invoice.table.total_row.total_label', language),
-                fontName: 'Helvetica-Bold',
-              },
-              { text: '', width: mm2pt(25) },
-              { text: `${billData.currency} ${buyTotal.toFixed(2)}`, width: mm2pt(30), fontName: 'Helvetica-Bold' },
-            ],
-            height: 25,
-            padding: 5,
-          });
-        }
-
-        if (sellTransactions.length > 0) {
-          rows.push({
-            columns: [
-              {
-                text: this.translate('invoice.section.sell', language),
-                fontName: 'Helvetica-Bold',
-                fontSize: 12,
-              },
-            ],
-            height: 30,
-            padding: [15, 5, 5, 5],
-          });
-
-          rows.push({
-            backgroundColor: '#4A4D51',
-            columns: [
-              { text: this.translate('invoice.table.headers.quantity', language), width: mm2pt(30) },
-              { text: this.translate('invoice.table.headers.description', language) },
-              { text: this.translate('invoice.table.headers.date', language), width: mm2pt(25) },
-              { text: this.translate('invoice.table.headers.total', language), width: mm2pt(30) },
-            ],
-            fontName: 'Helvetica-Bold',
-            height: 20,
-            padding: 5,
-            textColor: '#fff',
-            verticalAlign: 'center',
-          });
-
-          for (const { data: tableData } of sellTransactions) {
-            const txDate = tableData.date;
-            const formattedDate = `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
-            rows.push({
-              columns: [
-                { text: `${tableData.quantity}`, width: mm2pt(30) },
-                {
-                  text: this.translate('invoice.table.position_row.sell_description', language, tableData.description),
-                },
-                { text: formattedDate, width: mm2pt(25) },
-                { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30) },
-              ],
-              padding: 5,
-            });
-          }
-
-          // Sell subtotal
-          rows.push({
-            columns: [
-              { text: '', width: mm2pt(30) },
-              {
-                text: this.translate('invoice.table.total_row.total_label', language),
-                fontName: 'Helvetica-Bold',
-              },
-              { text: '', width: mm2pt(25) },
-              { text: `${billData.currency} ${sellTotal.toFixed(2)}`, width: mm2pt(30), fontName: 'Helvetica-Bold' },
-            ],
-            height: 25,
-            padding: 5,
-          });
-        }
-
-        rows.push({
-          columns: [{ text: '' }],
-          height: 10,
-        });
-
+      for (const { data: tableData } of buyTransactions) {
+        const txDate = tableData.date;
+        const formattedDate = `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
         rows.push({
           columns: [
-            { text: '', width: mm2pt(30) },
-            { text: this.translate('invoice.table.vat_row.vat_label', language) },
-            { text: '', width: mm2pt(25) },
-            { text: '0%', width: mm2pt(30) },
+            { text: `${tableData.quantity}`, width: mm2pt(30) },
+            { text: this.translate('invoice.table.position_row.buy_description', language, tableData.description) },
+            { text: formattedDate, width: mm2pt(25) },
+            { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30) },
           ],
           padding: 5,
         });
-
-        rows.push({
-          columns: [
-            { text: '', width: mm2pt(30) },
-            { text: this.translate('invoice.table.vat_row.vat_amount_label', language) },
-            { text: '', width: mm2pt(25) },
-            { text: `${billData.currency} 0.00`, width: mm2pt(30) },
-          ],
-          padding: 5,
-        });
-
-        rows.push({
-          columns: [
-            { text: '', width: mm2pt(30) },
-            {
-              fontName: 'Helvetica-Bold',
-              text: this.translate('invoice.table.invoice_total_row.invoice_total_label', language),
-            },
-            { text: '', width: mm2pt(25) },
-            { fontName: 'Helvetica-Bold', text: `${billData.currency} ${grandTotal.toFixed(2)}`, width: mm2pt(30) },
-          ],
-          height: 40,
-          padding: 5,
-        });
-
-        // T&Cs
-        const termsAndConditions: PDFColumn = {
-          text: this.translate('invoice.terms', language),
-          textOptions: { lineGap: 2 },
-          fontSize: 10,
-          width: mm2pt(170),
-          padding: [5, 0, 5, 0],
-        };
-        rows.push({ columns: [termsAndConditions] });
-
-        const table = new Table({ rows, width: mm2pt(170) });
-        table.attachTo(pdf);
-
-        pdf.end();
-      } catch (error) {
-        reject(error);
       }
+
+      rows.push({
+        columns: [
+          { text: '', width: mm2pt(30) },
+          {
+            text: this.translate('invoice.table.total_row.total_label', language),
+            fontName: 'Helvetica-Bold',
+          },
+          { text: '', width: mm2pt(25) },
+          { text: `${billData.currency} ${buyTotal.toFixed(2)}`, width: mm2pt(30), fontName: 'Helvetica-Bold' },
+        ],
+        height: 25,
+        padding: 5,
+      });
+    }
+
+    if (sellTransactions.length > 0) {
+      rows.push({
+        columns: [
+          {
+            text: this.translate('invoice.section.sell', language),
+            fontName: 'Helvetica-Bold',
+            fontSize: 12,
+          },
+        ],
+        height: 30,
+        padding: [15, 5, 5, 5],
+      });
+
+      rows.push({
+        backgroundColor: '#4A4D51',
+        columns: [
+          { text: this.translate('invoice.table.headers.quantity', language), width: mm2pt(30) },
+          { text: this.translate('invoice.table.headers.description', language) },
+          { text: this.translate('invoice.table.headers.date', language), width: mm2pt(25) },
+          { text: this.translate('invoice.table.headers.total', language), width: mm2pt(30) },
+        ],
+        fontName: 'Helvetica-Bold',
+        height: 20,
+        padding: 5,
+        textColor: '#fff',
+        verticalAlign: 'center',
+      });
+
+      for (const { data: tableData } of sellTransactions) {
+        const txDate = tableData.date;
+        const formattedDate = `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
+        rows.push({
+          columns: [
+            { text: `${tableData.quantity}`, width: mm2pt(30) },
+            {
+              text: this.translate('invoice.table.position_row.sell_description', language, tableData.description),
+            },
+            { text: formattedDate, width: mm2pt(25) },
+            { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30) },
+          ],
+          padding: 5,
+        });
+      }
+
+      // Sell subtotal
+      rows.push({
+        columns: [
+          { text: '', width: mm2pt(30) },
+          {
+            text: this.translate('invoice.table.total_row.total_label', language),
+            fontName: 'Helvetica-Bold',
+          },
+          { text: '', width: mm2pt(25) },
+          { text: `${billData.currency} ${sellTotal.toFixed(2)}`, width: mm2pt(30), fontName: 'Helvetica-Bold' },
+        ],
+        height: 25,
+        padding: 5,
+      });
+    }
+
+    rows.push({
+      columns: [{ text: '' }],
+      height: 10,
+    });
+
+    rows.push({
+      columns: [
+        { text: '', width: mm2pt(30) },
+        { text: this.translate('invoice.table.vat_row.vat_label', language) },
+        { text: '', width: mm2pt(25) },
+        { text: '0%', width: mm2pt(30) },
+      ],
+      padding: 5,
+    });
+
+    rows.push({
+      columns: [
+        { text: '', width: mm2pt(30) },
+        { text: this.translate('invoice.table.vat_row.vat_amount_label', language) },
+        { text: '', width: mm2pt(25) },
+        { text: `${billData.currency} 0.00`, width: mm2pt(30) },
+      ],
+      padding: 5,
+    });
+
+    rows.push({
+      columns: [
+        { text: '', width: mm2pt(30) },
+        {
+          fontName: 'Helvetica-Bold',
+          text: this.translate('invoice.table.invoice_total_row.invoice_total_label', language),
+        },
+        { text: '', width: mm2pt(25) },
+        { fontName: 'Helvetica-Bold', text: `${billData.currency} ${grandTotal.toFixed(2)}`, width: mm2pt(30) },
+      ],
+      height: 40,
+      padding: 5,
+    });
+
+    rows.push({ columns: [this.getTermsAndConditions(language)] });
+
+    const table = new Table({ rows, width: mm2pt(170) });
+    table.attachTo(pdf);
+
+    pdf.end();
+
+    return promise;
+  }
+
+  private createPdfWithBase64Promise(): { pdf: typeof PDFDocument.prototype; promise: Promise<string> } {
+    const pdf = new PDFDocument({ size: 'A4' });
+    const base64: Buffer[] = [];
+
+    const promise = new Promise<string>((resolve, reject) => {
+      pdf.on('data', (data: Buffer) => base64.push(data));
+      pdf.on('end', () => resolve(Buffer.concat(base64).toString('base64')));
+      pdf.on('error', reject);
+    });
+
+    return { pdf, promise };
+  }
+
+  private drawSenderAddress(pdf: typeof PDFDocument.prototype, brand: PdfBrand): void {
+    const sender = this.getDefaultCreditor(brand);
+    pdf.fontSize(12);
+    pdf.fillColor('black');
+    pdf.font('Helvetica');
+    pdf.text(
+      `${sender.name}\n${sender.address} ${sender.buildingNumber}\n${sender.zip} ${sender.city}`,
+      mm2pt(20),
+      mm2pt(35),
+      { align: 'left', height: mm2pt(50), width: mm2pt(100) },
+    );
+  }
+
+  private drawDebtorAddress(pdf: typeof PDFDocument.prototype, debtor?: Debtor, fallbackName?: string): void {
+    const displayName = debtor?.name ?? fallbackName;
+    if (!displayName) return;
+
+    pdf.fontSize(12);
+    pdf.font('Helvetica');
+    const addressLine = debtor ? [debtor.address, debtor.buildingNumber].filter(Boolean).join(' ') : '';
+    const cityLine = debtor ? [debtor.zip, debtor.city].filter(Boolean).join(' ') : '';
+    pdf.text([displayName, addressLine, cityLine].filter(Boolean).join('\n'), mm2pt(130), mm2pt(60), {
+      align: 'left',
+      height: mm2pt(50),
+      width: mm2pt(70),
     });
   }
 
-  // --- HELPER METHODS --- //
+  private drawTitle(pdf: typeof PDFDocument.prototype, title: string): void {
+    pdf.fontSize(14);
+    pdf.font('Helvetica-Bold');
+    pdf.text(title, mm2pt(20), mm2pt(100), { align: 'left', width: mm2pt(170) });
+  }
+
+  private getTermsAndConditions(language: string): PDFColumn {
+    return {
+      text: this.translate('invoice.terms', language),
+      textOptions: { lineGap: 2 },
+      fontSize: 10,
+      width: mm2pt(170),
+      padding: [5, 0, 5, 0],
+    };
+  }
+
+  private validateCurrency(currency: string): SupportedSwissQRBillCurrency {
+    currency = Config.invoice.currencies.includes(currency) ? currency : Config.invoice.defaultCurrency;
+    if (!this.isSupportedInvoiceCurrency(currency)) {
+      throw new Error('PDF invoice is only available for CHF and EUR transactions');
+    }
+    return currency;
+  }
+
+  private getLanguage(userData: UserData): SupportedInvoiceLanguage {
+    const userLanguage = userData.language.symbol.toUpperCase();
+    return this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : SupportedInvoiceLanguage.EN;
+  }
+
+  private getDefaultCreditor(brand: PdfBrand): Creditor {
+    return (brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor()) as unknown as Creditor;
+  }
+
   private dfxCreditor(): Creditor {
     const dfxAddress = Config.bank.dfxAddress;
     return {
