@@ -20,8 +20,11 @@ environmentOptions=("loc" "dev" "prd")
 # "jdta": JuiceDollar Testnet API
 # "jdtd": JuiceDollar Testnet dApp
 # "jdtm": JuiceDollar Testnet Monitoring
+# "jdmp": JuiceDollar Mainnet Ponder
+# "jdma": JuiceDollar Mainnet API
+# "jdmd": JuiceDollar Mainnet dApp
 # "rup": realUnit Ponder
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "jdtp" "jdta" "jdtd" "jdtm" "rup")
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "jdtp" "jdta" "jdtd" "jdtm" "jdmp" "jdma" "jdmd" "rup")
 
 # --- FUNCTIONS --- #
 selectOption() {

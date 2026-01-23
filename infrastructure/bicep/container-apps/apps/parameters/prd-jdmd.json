@@ -40,15 +40,15 @@
         },
         {
           "name": "NEXT_PUBLIC_APP_URL",
-          "value": "https://app.testnet.juicedollar.com"
+          "value": "https://app.juicedollar.com"
         },
         {
           "name": "NEXT_PUBLIC_API_URL",
-          "value": "https://api.testnet.juicedollar.com"
+          "value": "https://api.juicedollar.com"
         },
         {
           "name": "NEXT_PUBLIC_PONDER_URL",
-          "value": "https://ponder.testnet.juicedollar.com"
+          "value": "https://ponder.juicedollar.com"
         },
         {
           "name": "NEXT_PUBLIC_WAGMI_ID",
@@ -56,11 +56,11 @@
         },
         {
           "name": "NEXT_PUBLIC_CHAIN_NAME",
-          "value": "testnet"
+          "value": "mainnet"
         },
         {
           "name": "NEXT_PUBLIC_RPC_URL_MAINNET",
-          "value": "https://rpc.testnet.juiceswap.com"
+          "value": "https://rpc.juiceswap.com"
         },
         {
           "name": "NEXT_PUBLIC_RPC_URL_TESTNET",
@@ -68,7 +68,7 @@
         },
         {
           "name": "NEXT_PUBLIC_PONDER_FALLBACK_URL",
-          "value": "https://dev.ponder.testnet.juicedollar.com/"
+          "value": "https://dev.ponder.juicedollar.com/"
         }
       ]
     },

@@ -6,7 +6,7 @@
       "value": 1
     },
     "containerImage": {
-      "value": "juicedollar-ponder:latest"
+      "value": "juicedollar-ponder:beta"
     },
     "containerVolumeMounts": {
       "value": [
@@ -45,7 +45,7 @@
         },
         {
           "name": "PONDER_PROFILE",
-          "value": "testnet"
+          "value": "mainnet"
         },
         {
           "name": "PONDER_SCHEMA_VERSION",

@@ -6,7 +6,7 @@
       "value": 1
     },
     "containerImage": {
-      "value": "juicedollar-api:latest"
+      "value": "juicedollar-api:beta"
     },
     "containerVolumeMounts": {
       "value": [
@@ -53,15 +53,15 @@
         },
         {
           "name": "CONFIG_CHAIN",
-          "value": "testnet"
+          "value": "mainnet"
         },
         {
           "name": "CONFIG_APP_URL",
-          "value": "https://app.testnet.juicedollar.com"
+          "value": "https://dev.app.juicedollar.com"
         },
         {
           "name": "CONFIG_INDEXER_URL",
-          "value": "https://ponder.testnet.juicedollar.com"
+          "value": "https://dev.ponder.juicedollar.com"
         },
         {
           "name": "COINGECKO_API_KEY",
@@ -69,7 +69,7 @@
         },
         {
           "name": "RPC_URL_MAINNET",
-          "value": "https://rpc.testnet.juiceswap.com"
+          "value": "https://rpc.juiceswap.com"
         },
         {
           "name": "TELEGRAM_BOT_TOKEN",
