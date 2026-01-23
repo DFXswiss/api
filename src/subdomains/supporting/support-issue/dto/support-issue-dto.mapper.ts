@@ -1,6 +1,5 @@
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { WalletDtoMapper } from 'src/subdomains/generic/user/models/wallet/mapper/wallet-dto.mapper';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { LimitRequest } from '../entities/limit-request.entity';
 import { SupportIssue } from '../entities/support-issue.entity';
@@ -43,7 +42,7 @@ export class SupportIssueDtoMapper {
       reason: supportIssue.reason,
       state: supportIssue.state,
       name: supportIssue.name,
-      userData: SupportIssueDtoMapper.mapUserData(supportIssue.userData),
+      account: SupportIssueDtoMapper.mapUserData(supportIssue.userData),
       transaction: SupportIssueDtoMapper.mapTransactionData(supportIssue.transaction),
     };
 
@@ -80,21 +79,27 @@ export class SupportIssueDtoMapper {
   static mapTransactionData(transaction: Transaction): SupportIssueInternalTransactionDataDto {
     if (!transaction?.id) return undefined;
 
-    const wallet = transaction.buyCrypto?.wallet ?? transaction.buyFiat?.wallet;
+    const targetEntity = transaction.buyCrypto ?? transaction.buyFiat;
 
     return {
       id: transaction.id,
       sourceType: transaction.sourceType,
       type: transaction.type,
       amlCheck: transaction.amlCheck,
-      amlReason: transaction.buyCrypto?.amlReason ?? transaction.buyFiat?.amlReason,
-      comment: transaction.buyCrypto?.comment ?? transaction.buyFiat?.comment,
-      inputAmount: transaction.buyCrypto?.inputAmount ?? transaction.buyFiat?.inputAmount,
-      inputAsset: transaction.buyCrypto?.inputAsset ?? transaction.buyFiat?.inputAsset,
-      outputAmount: transaction.buyCrypto?.outputAmount ?? transaction.buyFiat?.outputAmount,
-      outputAsset: transaction.buyCrypto?.amlReason ?? transaction.buyFiat?.amlReason,
-      wallet: wallet ? WalletDtoMapper.mapWalletDto(wallet) : undefined,
-      isComplete: transaction.buyCrypto?.isComplete ?? transaction.buyFiat?.isComplete,
+      amlReason: targetEntity?.amlReason,
+      comment: targetEntity?.comment,
+      inputAmount: targetEntity?.inputAmount,
+      inputAsset: targetEntity?.inputAsset,
+      outputAmount: targetEntity?.outputAmount,
+      outputAsset: targetEntity?.amlReason,
+      wallet: targetEntity?.wallet
+        ? {
+            name: targetEntity.wallet.displayName ?? targetEntity.wallet.name,
+            amlRules: targetEntity.wallet.amlRules,
+            isKycClient: targetEntity.wallet.isKycClient,
+          }
+        : undefined,
+      isComplete: targetEntity?.isComplete,
     };
   }
 

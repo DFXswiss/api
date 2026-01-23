@@ -4,7 +4,6 @@ import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { WalletDto } from 'src/subdomains/generic/user/models/wallet/dto/wallet.dto';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { Department } from '../enums/department.enum';
 import {
@@ -108,6 +107,17 @@ export class SupportIssueInternalAccountDataDto {
   country: CountryDto;
 }
 
+export class SupportIssueInternalWalletDto {
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  amlRules: string;
+
+  @ApiProperty()
+  isKycClient: boolean;
+}
+
 export class SupportIssueInternalTransactionDataDto {
   @ApiProperty()
   id: number;
@@ -139,8 +149,8 @@ export class SupportIssueInternalTransactionDataDto {
   @ApiProperty()
   outputAsset: string;
 
-  @ApiProperty({ type: WalletDto })
-  wallet: WalletDto;
+  @ApiProperty({ type: SupportIssueInternalWalletDto })
+  wallet: SupportIssueInternalWalletDto;
 
   @ApiProperty()
   isComplete: boolean;
@@ -172,7 +182,7 @@ export class SupportIssueInternalDataDto {
   name: string;
 
   @ApiProperty({ type: SupportIssueInternalAccountDataDto })
-  userData: SupportIssueInternalAccountDataDto;
+  account: SupportIssueInternalAccountDataDto;
 
   @ApiProperty({ type: SupportIssueInternalTransactionDataDto })
   transaction: SupportIssueInternalTransactionDataDto;
