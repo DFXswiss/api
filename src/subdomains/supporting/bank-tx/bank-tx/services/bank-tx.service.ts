@@ -25,6 +25,7 @@ import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
+import { TransactionNotificationService } from 'src/subdomains/supporting/payment/services/transaction-notification.service';
 import {
   DeepPartial,
   FindOptionsRelations,
@@ -108,6 +109,8 @@ export class BankTxService implements OnModuleInit {
     private readonly sepaParser: SepaParser,
     private readonly bankDataService: BankDataService,
     private readonly virtualIbanService: VirtualIbanService,
+    @Inject(forwardRef(() => TransactionNotificationService))
+    private readonly transactionNotificationService: TransactionNotificationService,
   ) {}
 
   onModuleInit() {
@@ -566,6 +569,8 @@ export class BankTxService implements OnModuleInit {
       if (bankTx.transaction.userData) continue;
 
       await this.transactionService.updateInternal(bankTx.transaction, { userData });
+
+      await this.transactionNotificationService.sendUnassignedTxMail(bankTx.transaction, userData);
     }
   }
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -6,13 +6,14 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { In, IsNull, MoreThan } from 'typeorm';
 import { BankTxIndicator, BankTxUnassignedTypes } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../../bank-tx/bank-tx/services/bank-tx.service';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
 import { NotificationService } from '../../notification/services/notification.service';
-import { TransactionTypeInternal } from '../entities/transaction.entity';
+import { Transaction, TransactionTypeInternal } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 
 @Injectable()
@@ -22,6 +23,7 @@ export class TransactionNotificationService {
   constructor(
     private readonly repo: TransactionRepository,
     private readonly notificationService: NotificationService,
+    @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
   ) {}
 
@@ -120,41 +122,45 @@ export class TransactionNotificationService {
     if (entities.length === 0) return;
 
     for (const entity of entities) {
-      try {
-        const userData = await this.bankTxService.getUserDataForBankTx(entity.bankTx);
-        if (!userData) continue;
+      const userData = await this.bankTxService.getUserDataForBankTx(entity.bankTx);
+      if (!userData) continue;
 
-        if (userData.mail) {
-          await this.notificationService.sendMail({
-            type: MailType.USER_V2,
-            context: MailContext.UNASSIGNED_TX,
-            input: {
-              userData,
-              wallet: userData.wallet,
-              title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
-              salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
-              texts: [
-                {
-                  key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.transaction_button`,
-                  params: { url: entity.url, button: 'true' },
-                },
-                {
-                  key: `${MailTranslationKey.GENERAL}.link`,
-                  params: { url: entity.url, urlText: entity.url },
-                },
-                { key: MailKey.SPACE, params: { value: '4' } },
-                { key: MailKey.DFX_TEAM_CLOSING },
-              ],
-            },
-          });
+      await this.sendUnassignedTxMail(entity, userData);
+    }
+  }
 
-          await this.repo.update(...entity.mailSent(userData));
-        } else {
-          await this.repo.update(entity.id, { userData });
-        }
-      } catch (e) {
-        this.logger.error(`Failed to send tx unassigned mail for ${entity.id}:`, e);
+  async sendUnassignedTxMail(entity: Transaction, userData: UserData) {
+    try {
+      if (userData.mail) {
+        await this.notificationService.sendMail({
+          type: MailType.USER_V2,
+          context: MailContext.UNASSIGNED_TX,
+          input: {
+            userData,
+            wallet: userData.wallet,
+            title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
+            salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
+            texts: [
+              {
+                key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.transaction_button`,
+                params: { url: entity.url, button: 'true' },
+              },
+              {
+                key: `${MailTranslationKey.GENERAL}.link`,
+                params: { url: entity.url, urlText: entity.url },
+              },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
+        });
+
+        await this.repo.update(...entity.mailSent(userData));
+      } else {
+        await this.repo.update(entity.id, { userData });
       }
+    } catch (e) {
+      this.logger.error(`Failed to send tx unassigned mail for ${entity.id}:`, e);
     }
   }
 }
