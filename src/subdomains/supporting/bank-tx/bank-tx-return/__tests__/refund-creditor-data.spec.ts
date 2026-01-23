@@ -1,15 +1,15 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { BankTxReturnService } from '../bank-tx-return.service';
-import { BankTxReturnRepository } from '../bank-tx-return.repository';
-import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
+import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BankTxReturn } from '../bank-tx-return.entity';
-import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { BankTxReturnRepository } from '../bank-tx-return.repository';
+import { BankTxReturnService } from '../bank-tx-return.service';
 
 /**
  * Test: Creditor-Daten Fallback in BankTxReturnService.refundBankTx()
@@ -104,7 +104,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       );
     });
 
-    it('should use dto creditor data when provided (override)', async () => {
+    it('should use chargeback creditor if set', async () => {
       const dto = {
         chargebackAllowedDate: new Date(),
         chargebackAllowedBy: 'Admin',
@@ -126,12 +126,12 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
         mockBankTxReturn.id,
         false,
         expect.objectContaining({
-          name: 'Override Name',
-          address: 'Override Address',
-          houseNumber: '99',
-          zip: '9999',
-          city: 'Override City',
-          country: 'DE',
+          name: 'Max Mustermann',
+          address: 'Hauptstrasse',
+          houseNumber: '42',
+          zip: '3000',
+          city: 'Bern',
+          country: 'CH',
         }),
       );
     });
