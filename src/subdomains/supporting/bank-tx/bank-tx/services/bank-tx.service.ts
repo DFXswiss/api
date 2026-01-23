@@ -140,7 +140,7 @@ export class BankTxService implements OnModuleInit {
       try {
         const dates = groupTransactions.map((tx) => (tx.bookingDate ?? tx.created).getTime());
         const fromDate = new Date(Math.min(...dates));
-        const toDate = new Date(Math.max(...dates));
+        const toDate = Util.daysAfter(1, new Date(Math.max(...dates)));
 
         const yapealTransactions = await this.yapealService.getTransactions(accountIban, fromDate, toDate);
 
