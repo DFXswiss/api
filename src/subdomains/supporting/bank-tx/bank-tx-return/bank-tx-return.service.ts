@@ -55,10 +55,6 @@ export class BankTxReturnService {
       where: [
         {
           ...baseWhere,
-          userData: IsNull(),
-        },
-        {
-          ...baseWhere,
           userData: {
             kycStatus: In([KycStatus.NA, KycStatus.COMPLETED]),
             status: Not(UserDataStatus.BLOCKED),
@@ -71,10 +67,15 @@ export class BankTxReturnService {
 
     for (const entity of entities) {
       try {
-        await this.refundBankTx(entity, {
-          chargebackAllowedDate: new Date(),
-          chargebackAllowedBy: 'API',
-        });
+        if (
+          Util.includesSameName(entity.userData.verifiedName, entity.creditorData.name) ||
+          Util.includesSameName(entity.userData.completeName, entity.creditorData.name) ||
+          (!entity.userData.verifiedName && !entity.userData.completeName)
+        )
+          await this.refundBankTx(entity, {
+            chargebackAllowedDate: new Date(),
+            chargebackAllowedBy: 'API',
+          });
       } catch (e) {
         this.logger.error(`Failed to chargeback bank-tx-return ${entity.id}:`, e);
       }
