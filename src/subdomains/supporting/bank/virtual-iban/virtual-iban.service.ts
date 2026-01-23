@@ -18,13 +18,11 @@ export class VirtualIbanService {
   ) {}
 
   async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
-    return this.virtualIbanRepo.findOneCached(`${userData.id}-${currencyName}`, {
-      where: {
-        userData: { id: userData.id },
-        currency: { name: currencyName },
-        active: true,
-        status: VirtualIbanStatus.ACTIVE,
-      },
+    return this.virtualIbanRepo.findOneCachedBy(`${userData.id}-${currencyName}`, {
+      userData: { id: userData.id },
+      currency: { name: currencyName },
+      active: true,
+      status: VirtualIbanStatus.ACTIVE,
     });
   }
 
@@ -110,10 +108,6 @@ export class VirtualIbanService {
     });
   }
 
-  async getVirtualIbansForAccount(userDataId: number): Promise<VirtualIban[]> {
-    return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
-  }
-
   async countActiveForUser(userDataId: number): Promise<number> {
     return this.virtualIbanRepo.countBy({
       userData: { id: userDataId },
@@ -158,5 +152,9 @@ export class VirtualIbanService {
       bban: result.bban,
       accountUid: result.accountUid,
     };
+  }
+
+  async getVirtualIbansForAccount(userDataId: number): Promise<VirtualIban[]> {
+    return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
   }
 }
