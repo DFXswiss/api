@@ -57,7 +57,7 @@
         },
         {
           "name": "CONFIG_APP_URL",
-          "value": "https://dev.app.juicedollar.com"
+          "value": "https://dev.bapp.juicedollar.com"
         },
         {
           "name": "CONFIG_INDEXER_URL",

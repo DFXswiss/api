@@ -40,7 +40,7 @@
         },
         {
           "name": "NEXT_PUBLIC_APP_URL",
-          "value": "https://dev.app.juicedollar.com"
+          "value": "https://dev.bapp.juicedollar.com"
         },
         {
           "name": "NEXT_PUBLIC_API_URL",
