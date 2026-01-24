@@ -56,8 +56,8 @@
           "value": "[DATABASE_URL]"
         },
         {
-          "name": "RPC_URL_MAINNET",
-          "value": "http://10.0.1.6:8085"
+          "name": "RPC_URL_TESTNET",
+          "value": "https://rpc.testnet.juiceswap.com"
         }
       ]
     },

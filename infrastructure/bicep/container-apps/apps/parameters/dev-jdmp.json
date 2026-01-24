@@ -57,7 +57,7 @@
         },
         {
           "name": "RPC_URL_MAINNET",
-          "value": "http://10.0.1.6:8085"
+          "value": "https://rpc.juiceswap.com"
         }
       ]
     },
