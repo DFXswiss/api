@@ -4,7 +4,7 @@ import { Column, Entity, ManyToOne } from 'typeorm';
 import { SupportIssue } from './support-issue.entity';
 
 export const CustomerAuthor = 'Customer';
-export const BotAuthor = 'Bot';
+export const AutoResponder = 'AutoResponder';
 
 @Entity()
 export class SupportMessage extends IEntity {

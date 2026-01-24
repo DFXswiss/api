@@ -7,7 +7,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { In, IsNull, MoreThan, Not } from 'typeorm';
 import { MailFactory } from '../../notification/factories/mail.factory';
 import { SupportMessageTranslationKey } from '../dto/support-issue.dto';
-import { BotAuthor } from '../entities/support-message.entity';
+import { AutoResponder } from '../entities/support-message.entity';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportIssueService } from './support-issue.service';
@@ -20,8 +20,8 @@ export class SupportIssueJobService {
     private readonly mailFactory: MailFactory,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_ISSUE_AUTO_TEMPLATES, timeout: 1800 })
-  async sendAutoTemplates() {
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
+  async sendAutoResponses() {
     await this.moneroComplete();
   }
 
@@ -31,7 +31,7 @@ export class SupportIssueJobService {
         type: SupportIssueType.TRANSACTION_ISSUE,
         reason: In([SupportIssueReason.FUNDS_NOT_RECEIVED, SupportIssueReason.TRANSACTION_MISSING]),
         state: SupportIssueInternalState.CREATED,
-        messages: { author: Not(BotAuthor) },
+        messages: { author: Not(AutoResponder) },
         transaction: {
           buyCrypto: { id: Not(IsNull()), isComplete: true, amlCheck: CheckStatus.PASS, outputAsset: { name: 'XMR' } },
         },
@@ -42,7 +42,7 @@ export class SupportIssueJobService {
     for (const entity of entities) {
       const lang = entity.userData.language.symbol.toLowerCase();
       const message = this.mailFactory.translate(SupportMessageTranslationKey.MONERO_NOT_DISPLAYED, lang);
-      await this.supportIssueService.createMessageSupport(entity.id, { message, author: BotAuthor });
+      await this.supportIssueService.createMessageSupport(entity.id, { message, author: AutoResponder });
       await this.supportIssueService.updateIssueInternal(entity, { state: SupportIssueInternalState.BOT_MESSAGE });
     }
   }
