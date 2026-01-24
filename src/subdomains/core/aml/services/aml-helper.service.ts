@@ -437,7 +437,8 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_16:
-        errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
+        if (entity.userData.accountType === AccountType.PERSONAL && !entity.userData.phoneCallCheckDate)
+          errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
         break;
     }
 
