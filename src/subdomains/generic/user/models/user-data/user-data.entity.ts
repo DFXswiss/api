@@ -409,6 +409,14 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  blockUserData(): UpdateResult<UserData> {
+    const update: Partial<UserData> = { status: UserDataStatus.BLOCKED };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   deactivateUserData(): UpdateResult<UserData> {
     const update: Partial<UserData> = {
       status: UserDataStatus.DEACTIVATED,

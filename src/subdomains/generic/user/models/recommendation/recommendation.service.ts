@@ -273,6 +273,31 @@ export class RecommendationService {
     return this.updateRecommendationInternal(entity, { isConfirmed: true, confirmationDate: new Date() });
   }
 
+  async blockUserDataRoot(userDataId: number): Promise<void> {
+    const userData = await this.userDataService.getUserData(userDataId);
+
+    const recommendations = await this.getAllRecommendationForUserData(userData.id);
+    let sourceRecommendation = await this.recommendationRepo.findOne({
+      where: { recommended: { id: userData.id } },
+      relations: { recommender: true },
+    });
+
+    await this.userDataService.blockUserData(userData, 'manual root block');
+
+    for (const recommendation of recommendations) {
+      await this.userDataService.blockUserData(recommendation.recommender, 'manual root block - recommended');
+    }
+
+    while (sourceRecommendation) {
+      await this.userDataService.blockUserData(sourceRecommendation.recommender, 'manual root block - recommender');
+
+      sourceRecommendation = await this.recommendationRepo.findOne({
+        where: { recommended: { id: sourceRecommendation.recommender.id } },
+        relations: { recommender: true },
+      });
+    }
+  }
+
   // --- NOTIFICATIONS --- //
   private async sendInvitationMail(entity: Recommendation): Promise<void> {
     try {
