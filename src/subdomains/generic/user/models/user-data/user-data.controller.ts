@@ -26,6 +26,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { RecommendationService } from '../recommendation/recommendation.service';
 import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
@@ -44,6 +45,7 @@ export class UserDataController {
     private readonly feeService: FeeService,
     private readonly documentService: KycDocumentService,
     private readonly kycLogService: KycLogService,
+    private readonly recommendationService: RecommendationService,
   ) {}
 
   @Get()
@@ -113,6 +115,14 @@ export class UserDataController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async createEmptyUserData(@Body() dto: CreateUserDataDto): Promise<UserData> {
     return this.userDataService.createUserData({ ...dto, status: UserDataStatus.KYC_ONLY });
+  }
+
+  @Delete(':id/root')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async blockUserDataRoot(@Param('id') id: string): Promise<void> {
+    return this.recommendationService.blockUserDataRoot(+id);
   }
 
   // --- DISCOUNT CODES --- //

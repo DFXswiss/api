@@ -561,6 +561,11 @@ export class UserDataService {
     await this.userDataNotificationService.deactivateAccountMail(userData);
   }
 
+  async blockUserData(userData: UserData, reason: string): Promise<void> {
+    await this.userDataRepo.update(...userData.blockUserData());
+    await this.kycLogService.createLogInternal(userData, KycLogType.RISK_STATUS, `UserData blocked: ${reason}`);
+  }
+
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
   }
