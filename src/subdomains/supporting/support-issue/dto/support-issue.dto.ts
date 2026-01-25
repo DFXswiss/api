@@ -80,5 +80,4 @@ export const SupportIssueStateMapper: {
   [SupportIssueInternalState.COMPLETED]: SupportIssueState.COMPLETED,
   [SupportIssueInternalState.CANCELED]: SupportIssueState.CANCELED,
   [SupportIssueInternalState.ON_HOLD]: SupportIssueState.PENDING,
-  [SupportIssueInternalState.BOT_MESSAGE]: SupportIssueState.PENDING,
 };
