@@ -24,7 +24,7 @@ import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
-import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
+import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
@@ -266,6 +266,8 @@ export class SupportIssueService {
     if (dto.author !== CustomerAuthor) {
       await this.supportIssueRepo.update(...issue.setClerk(dto.author));
       await this.supportIssueNotificationService.newSupportMessage(entity);
+    } else if (issue.clerk === AutoResponder) {
+      await this.supportIssueRepo.update(...issue.setClerk(null));
     }
 
     if (
@@ -273,7 +275,6 @@ export class SupportIssueService {
         SupportIssueInternalState.COMPLETED,
         SupportIssueInternalState.ON_HOLD,
         SupportIssueInternalState.CANCELED,
-        SupportIssueInternalState.BOT_MESSAGE,
       ].includes(issue.state)
     )
       await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.PENDING));
