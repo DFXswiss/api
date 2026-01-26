@@ -1,158 +1,138 @@
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInCitreaTestnetService } from '../../../services/payin-citrea-testnet.service';
-import { EvmStrategy } from './base/evm.strategy';
+import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
-export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
+export class CitreaTestnetStrategy extends RegisterStrategy {
   protected readonly logger = new DfxLogger(CitreaTestnetStrategy);
 
-  private static readonly LAST_PROCESSED_BLOCK_KEY = 'citreaTestnetLastProcessedBlock';
-  private lastProcessedBlock: number | null = null;
+  private readonly paymentDepositAddress: string;
 
-  @Inject() private readonly settingService: SettingService;
-
-  constructor(private readonly citreaTestnetService: PayInCitreaTestnetService) {
+  constructor(
+    private readonly payInCitreaTestnetService: PayInCitreaTestnetService,
+    private readonly transactionRequestService: TransactionRequestService,
+  ) {
     super();
+    this.paymentDepositAddress = EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address;
   }
 
-  onModuleInit() {
-    super.onModuleInit();
-
-    void this.loadPersistedState().catch((error) =>
-      this.logger.error('Failed to load persisted state during initialization:', error),
-    );
+  get blockchain(): Blockchain {
+    return Blockchain.CITREA_TESTNET;
   }
 
   // --- JOBS --- //
-
-  // Note: pay-in functionality currently not used/tested for Citrea
-  // @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.PAY_IN, timeout: 7200 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
+    const activeDepositAddresses = await this.transactionRequestService.getActiveDepositAddresses(
+      Util.hoursBefore(1),
+      this.blockchain,
+    );
+
+    await this.processNewPayInEntries(activeDepositAddresses.map((a) => BlockchainAddress.create(a, this.blockchain)));
+  }
+
+  async pollAddress(depositAddress: BlockchainAddress): Promise<void> {
+    if (depositAddress.blockchain !== this.blockchain)
+      throw new Error(`Invalid blockchain: ${depositAddress.blockchain}`);
+
+    return this.processNewPayInEntries([depositAddress]);
+  }
+
+  private async processNewPayInEntries(depositAddresses: BlockchainAddress[]): Promise<void> {
     const log = this.createNewLogObject();
-    const { entries, processedBlock } = await this.getNewEntriesWithBlock();
 
-    await this.createPayInsAndSave(entries, log);
+    const newEntries: PayInEntry[] = [];
 
-    if (processedBlock !== null) await this.updateLastProcessedBlock(processedBlock);
+    for (const depositAddress of depositAddresses) {
+      const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight(depositAddress);
 
-    this.printInputLog(log, processedBlock ?? 'omitted', Blockchain.CITREA_TESTNET);
-  }
-
-  // --- HELPER METHODS --- //
-
-  private async getNewEntriesWithBlock(): Promise<{ entries: PayInEntry[]; processedBlock: number | null }> {
-    const currentBlock = await this.citreaTestnetService.getCurrentBlockNumber();
-    const { fromBlock, toBlock } = this.getBlockRange(currentBlock);
-
-    if (fromBlock > toBlock) {
-      // no new blocks to process (could indicate blockchain reorganization)
-      if (this.lastProcessedBlock !== null && currentBlock < this.lastProcessedBlock) {
-        this.logger.warn(
-          `Potential blockchain reorganization detected: currentBlock=${currentBlock} < lastProcessedBlock=${this.lastProcessedBlock}. ` +
-            `This could indicate a chain fork. Will wait for chain to advance.`,
-        );
-      }
-      return { entries: [], processedBlock: null };
+      newEntries.push(...(await this.getNewEntries(depositAddress, lastCheckedBlockHeight)));
     }
 
-    this.logger.verbose(`Processing CitreaTestnet blocks ${fromBlock} to ${toBlock}`);
-
-    const newEntries = await this.fetchTransactionsForBlockRange(fromBlock, toBlock);
-
-    if (newEntries.length > 0) this.logger.info(`Found ${newEntries.length} new CitreaTestnet transactions`);
-
-    return { entries: newEntries, processedBlock: toBlock };
-  }
-
-  private getBlockRange(currentBlock: number): { fromBlock: number; toBlock: number } {
-    if (this.lastProcessedBlock == null) {
-      const fromBlock = Math.max(0, currentBlock - 100);
-
-      this.logger.warn(
-        `First run: Starting from block ${fromBlock} (skipping blocks 0-${fromBlock - 1}). ` +
-          `Historical transactions before block ${fromBlock} will not be processed.`,
-      );
-
-      return {
-        fromBlock,
-        toBlock: currentBlock,
-      };
+    if (newEntries?.length) {
+      await this.createPayInsAndSave(newEntries, log);
     }
 
-    const maxBlocksPerRun = 100;
-    const nextFromBlock = this.lastProcessedBlock + 1;
-    const nextToBlock = Math.min(currentBlock, nextFromBlock + maxBlocksPerRun - 1);
-
-    // warn about large gaps that might indicate service downtime
-    if (nextToBlock - nextFromBlock + 1 >= maxBlocksPerRun) {
-      this.logger.warn(
-        `Processing maximum block range: ${nextFromBlock}-${nextToBlock} (${nextToBlock - nextFromBlock + 1} blocks)`,
-      );
-    }
-
-    return {
-      fromBlock: nextFromBlock,
-      toBlock: nextToBlock,
-    };
+    this.printInputLog(log, 'omitted', this.blockchain);
   }
 
-  private async fetchTransactionsForBlockRange(fromBlock: number, toBlock: number): Promise<PayInEntry[]> {
-    const allEntries: PayInEntry[] = [];
-    const addressesToMonitor = await this.getPayInAddresses();
-
-    for (const address of addressesToMonitor) {
-      const [coinTransactions, tokenTransactions] = await this.citreaTestnetService.getHistory(
-        address,
-        fromBlock,
-        toBlock,
-      );
-
-      const coinEntries = await this.mapCoinTransactionsToEntries(coinTransactions, address);
-      allEntries.push(...coinEntries);
-
-      const tokenEntries = await this.mapTokenTransactionsToEntries(tokenTransactions, address);
-      allEntries.push(...tokenEntries);
-    }
-
-    return allEntries;
+  private async getLastCheckedBlockHeight(depositAddress: BlockchainAddress): Promise<number> {
+    return this.payInRepository
+      .findOne({
+        select: ['id', 'blockHeight'],
+        where: { address: depositAddress },
+        order: { blockHeight: 'DESC' },
+        loadEagerRelations: false,
+      })
+      .then((input) => input?.blockHeight ?? 0);
   }
 
-  private async mapCoinTransactionsToEntries(
-    transactions: EvmCoinHistoryEntry[],
-    monitoredAddress: string,
+  private async getNewEntries(
+    depositAddress: BlockchainAddress,
+    lastCheckedBlockHeight: number,
   ): Promise<PayInEntry[]> {
-    const asset = await this.assetService.getCitreaTestnetCoin();
-
-    return transactions.map((tx) => ({
-      senderAddresses: tx.from,
-      receiverAddress: BlockchainAddress.create(tx.to, Blockchain.CITREA_TESTNET),
-      txId: tx.hash,
-      txType: this.getTxType(monitoredAddress),
-      txSequence: 0, // EVM coin transactions have single output
-      blockHeight: parseInt(tx.blockNumber),
-      amount: parseFloat(tx.value),
-      asset,
-    }));
-  }
-
-  private async mapTokenTransactionsToEntries(
-    transactions: EvmTokenHistoryEntry[],
-    monitoredAddress: string,
-  ): Promise<PayInEntry[]> {
-    const entries: PayInEntry[] = [];
+    const fromBlock = lastCheckedBlockHeight + 1;
+    const [coinTransactions, tokenTransactions] = await this.payInCitreaTestnetService.getHistory(
+      depositAddress.address,
+      fromBlock,
+    );
 
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
-    // group by transaction hash to handle multiple token transfers in same tx
-    const txGroups = Util.groupBy(transactions, 'hash');
+    const coinEntries = this.mapCoinTransactionsToEntries(coinTransactions, depositAddress, supportedAssets);
+    const tokenEntries = this.mapTokenTransactionsToEntries(tokenTransactions, depositAddress, supportedAssets);
+
+    return [...coinEntries, ...tokenEntries];
+  }
+
+  private mapCoinTransactionsToEntries(
+    transactions: EvmCoinHistoryEntry[],
+    depositAddress: BlockchainAddress,
+    supportedAssets: Asset[],
+  ): PayInEntry[] {
+    const relevantTransactions = transactions.filter(
+      (t) => t.to.toLowerCase() === depositAddress.address.toLowerCase(),
+    );
+
+    const coinAsset = supportedAssets.find((a) => a.type === AssetType.COIN);
+
+    return relevantTransactions.map((tx) => ({
+      senderAddresses: tx.from,
+      receiverAddress: depositAddress,
+      txId: tx.hash,
+      txType: this.getTxType(depositAddress.address),
+      txSequence: 0,
+      blockHeight: parseInt(tx.blockNumber),
+      amount: parseFloat(tx.value),
+      asset: coinAsset,
+    }));
+  }
+
+  private mapTokenTransactionsToEntries(
+    transactions: EvmTokenHistoryEntry[],
+    depositAddress: BlockchainAddress,
+    supportedAssets: Asset[],
+  ): PayInEntry[] {
+    const relevantTransactions = transactions.filter(
+      (t) => t.to.toLowerCase() === depositAddress.address.toLowerCase(),
+    );
+
+    const entries: PayInEntry[] = [];
+    const txGroups = Util.groupBy(relevantTransactions, 'hash');
 
     for (const txGroup of txGroups.values()) {
       for (let i = 0; i < txGroup.length; i++) {
@@ -160,13 +140,13 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
 
         entries.push({
           senderAddresses: tx.from,
-          receiverAddress: BlockchainAddress.create(tx.to, Blockchain.CITREA_TESTNET),
+          receiverAddress: depositAddress,
           txId: tx.hash,
-          txType: this.getTxType(monitoredAddress),
-          txSequence: i, // use index for multiple token transfers in same transaction
+          txType: this.getTxType(depositAddress.address),
+          txSequence: i,
           blockHeight: parseInt(tx.blockNumber),
           amount: parseFloat(tx.value),
-          asset: this.getTransactionAsset(supportedAssets, tx.contractAddress),
+          asset: this.assetService.getByChainIdSync(supportedAssets, this.blockchain, tx.contractAddress),
         });
       }
     }
@@ -174,21 +154,9 @@ export class CitreaTestnetStrategy extends EvmStrategy implements OnModuleInit {
     return entries;
   }
 
-  private async loadPersistedState(): Promise<void> {
-    const persistedBlock = await this.settingService.get(CitreaTestnetStrategy.LAST_PROCESSED_BLOCK_KEY);
-    if (persistedBlock) this.lastProcessedBlock = +persistedBlock;
+  private getTxType(depositAddress: string): PayInType {
+    return Util.equalsIgnoreCase(this.paymentDepositAddress, depositAddress) ? PayInType.PAYMENT : PayInType.DEPOSIT;
   }
-
-  private async updateLastProcessedBlock(blockNumber: number): Promise<void> {
-    await this.settingService.set(CitreaTestnetStrategy.LAST_PROCESSED_BLOCK_KEY, blockNumber.toString());
-    this.lastProcessedBlock = blockNumber;
-  }
-
-  get blockchain(): Blockchain {
-    return Blockchain.CITREA_TESTNET;
-  }
-
-  // --- HELPER METHODS --- //
 
   protected getOwnAddresses(): string[] {
     return [Config.blockchain.citreaTestnet.citreaTestnetWalletAddress];
