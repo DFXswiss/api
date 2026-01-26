@@ -7,13 +7,13 @@
         "welcome": "Hi {name}",
         "team_questions": "Bei Fragen zögere bitte nicht, uns anzusprechen.",
         "personal_closing": "Freundliche Grüsse,<br>{closingName}",
-        "button": "oder<br>[url:Klick hier]",
+        "button": "[url:Klick hier]",
         "link": "oder<br>[url:{urlText}]"
     },
     "login": {
         "title": "DFX Login",
         "salutation": "DFX Login",
-        "message": "Klicke den nachfolgenden Link innerhalb von {expiration} Minuten um dich bei DFX einzuloggen:<br>[url:{urlText}]"
+        "message": "oder klicke den nachfolgenden Link innerhalb von {expiration} Minuten um dich bei DFX einzuloggen:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -95,7 +95,8 @@
                 "manual_check_ip_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "manual_check_ip_country_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert",
-                "intermediary_without_sender": "Die Absenderbank (Wise/Revolut) hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. DFX kann daher den tatsächlichen Absender nicht verifizieren und die Transaktion nicht verarbeiten."
+                "intermediary_without_sender": "Die Absenderbank (Wise/Revolut) hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. DFX kann daher den tatsächlichen Absender nicht verifizieren und die Transaktion nicht verarbeiten.",
+                "name_too_short": "Dein Name ist zu kurz für die Bankverarbeitung. Banken benötigen mindestens 4 Buchstaben im Namen des Kontoinhabers."
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
@@ -331,7 +332,7 @@
             "salutation": "Forderungsabtretungsvertrag (Zession)",
             "message": "DFX bietet seinen Kunden die Möglichkeit, offene Forderungen aus dem Verkauf von Waren und Dienstleistungen an DFX abzutreten, um eine Bezahlung mittels Kryptowährungen zu ermöglichen. Der Kunde hat die Möglichkeit, eine offene Forderung über unsere API (api.dfx.swiss) oder über das Frontend auf app.dfx.swiss zu übermitteln.<br>Der geschuldete Betrag wird nach Abzug einer Bearbeitungsgebühr von 0.2% an den Kunden ausbezahlt. Die Auszahlung kann, entsprechend der kundenspezifischen Konfiguration, entweder in Kryptowährungen oder als Fiat-Währung per Banktransaktion erfolgen.<br>Für alle Transaktionen gelten die AGB der DFX. Die Zession endet automatisch mit der Schliessung des DFX-Kontos oder kann bei Vertragsverstössen oder Zahlungsunfähigkeit sofort durch DFX oder den Kunden beendet werden.<br><br>Zugestimmt am {date}"
         },
-        "retry": "Bitte versuche es über die folgende URL erneut:<br>[url:{urlText}]",
+        "retry": "oder versuche es über die folgende URL erneut:<br>[url:{urlText}]",
         "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]",
         "step_names": {
             "ident": "Identifikation",
@@ -354,7 +355,7 @@
         "request": {
             "title": "E-Mail bestätigen",
             "salutation": "Bestätige deine E-Mail",
-            "message": "Klicke den nachfolgenden Link, um deine E-Mail für einen anderen Account zu bestätigen:<br>[url:{urlText}]"
+            "message": "oder klicke den nachfolgenden Link, um deine E-Mail für einen anderen Account zu bestätigen:<br>[url:{urlText}]"
         },
         "added_address": {
             "title": "Adresse zu Account hinzugefügt",

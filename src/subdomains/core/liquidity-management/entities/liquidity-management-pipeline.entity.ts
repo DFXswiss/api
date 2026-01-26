@@ -1,6 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, Index, JoinTable, ManyToOne, OneToMany } from 'typeorm';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
+import { RefReward } from '../../referral/reward/ref-reward.entity';
 import {
   LiquidityManagementExchanges,
   LiquidityManagementOrderStatus,
@@ -27,6 +28,9 @@ export class LiquidityManagementPipeline extends IEntity {
 
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.liquidityPipeline)
   buyCryptos: BuyCrypto[];
+
+  @OneToMany(() => RefReward, (refReward) => refReward.liquidityPipeline)
+  refRewards: RefReward[];
 
   @OneToMany(() => LiquidityManagementOrder, (orders) => orders.pipeline)
   orders: LiquidityManagementOrder[];
@@ -67,6 +71,14 @@ export class LiquidityManagementPipeline extends IEntity {
   }
 
   //*** GETTERS ***//
+
+  get isDone(): boolean {
+    return [
+      LiquidityManagementPipelineStatus.FAILED,
+      LiquidityManagementPipelineStatus.STOPPED,
+      LiquidityManagementPipelineStatus.COMPLETE,
+    ].includes(this.status);
+  }
 
   get exchangeOrders(): LiquidityManagementOrder[] {
     return (

@@ -25,7 +25,18 @@ import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
-import { DeepPartial, FindOptionsRelations, In, IsNull, LessThan, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
+import {
+  DeepPartial,
+  FindOptionsRelations,
+  FindOptionsWhere,
+  In,
+  IsNull,
+  LessThan,
+  Like,
+  MoreThan,
+  MoreThanOrEqual,
+  Not,
+} from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
@@ -60,6 +71,7 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: TransactionTypeInternal.BANK_TX_REPEAT_CHARGEBACK,
   [BankTxType.FIAT_FIAT]: TransactionTypeInternal.FIAT_FIAT,
   [BankTxType.KRAKEN]: TransactionTypeInternal.KRAKEN,
+  [BankTxType.SCRYPT]: TransactionTypeInternal.SCRYPT,
   [BankTxType.SCB]: TransactionTypeInternal.SCB,
   [BankTxType.CHECKOUT_LTD]: TransactionTypeInternal.CHECKOUT_LTD,
   [BankTxType.BANK_ACCOUNT_FEE]: TransactionTypeInternal.BANK_ACCOUNT_FEE,
@@ -74,6 +86,8 @@ export const TransactionBankTxTypeMapper: {
 export class BankTxService implements OnModuleInit {
   private readonly logger = new DfxLogger(BankTxService);
   private readonly bankBalanceSubject: Subject<BankBalanceUpdate> = new Subject<BankBalanceUpdate>();
+
+  private olkyUnavailableWarningLogged = false;
 
   constructor(
     private readonly bankTxRepo: BankTxRepository,
@@ -112,18 +126,23 @@ export class BankTxService implements OnModuleInit {
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX })
   async enrichYapealTransactions(): Promise<void> {
-    const transactions = await this.bankTxRepo.findBy([
-      { created: MoreThan(Util.minutesBefore(30)), familyCode: 'CCRD' }, // credit card => wrong data
-    ]);
+    const transactions = await this.bankTxRepo.find({
+      where: { familyCode: 'CCRD' }, // credit card => wrong data
+      order: { id: 'DESC' },
+      take: 100,
+    });
 
     if (transactions.length === 0) return;
 
-    const today = new Date();
     const ibanGroups = Util.groupBy<BankTx, string>(transactions, 'accountIban');
 
     for (const [accountIban, groupTransactions] of ibanGroups) {
       try {
-        const yapealTransactions = await this.yapealService.getTransactions(accountIban, today, today);
+        const dates = groupTransactions.map((tx) => (tx.bookingDate ?? tx.created).getTime());
+        const fromDate = new Date(Math.min(...dates));
+        const toDate = Util.daysAfter(1, new Date(Math.max(...dates)));
+
+        const yapealTransactions = await this.yapealService.getTransactions(accountIban, fromDate, toDate);
 
         for (const transaction of groupTransactions) {
           const yapealTx = yapealTransactions.find((tx) => tx.accountServiceRef === transaction.accountServiceRef);
@@ -153,6 +172,13 @@ export class BankTxService implements OnModuleInit {
     const newModificationTime = new Date().toISOString();
 
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
+    if (!olkyBank) {
+      if (!this.olkyUnavailableWarningLogged) {
+        this.logger.warn('Olky bank not configured - skipping checkTransactions');
+        this.olkyUnavailableWarningLogged = true;
+      }
+      return;
+    }
 
     // Get bank transactions
     const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
@@ -186,16 +212,16 @@ export class BankTxService implements OnModuleInit {
     for (const tx of unassignedBankTx) {
       try {
         if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
-          // First check if virtualIban is linked to a specific buy
+          // check for dedicated asset vIBAN
           if (tx.virtualIban) {
-            const virtualIban = await this.virtualIbanService.getByIbanWithBuy(tx.virtualIban);
+            const virtualIban = await this.virtualIbanService.getByIban(tx.virtualIban);
             if (virtualIban?.buy) {
               await this.updateInternal(tx, { type: BankTxType.BUY_CRYPTO, buyId: virtualIban.buy.id });
               continue;
             }
           }
 
-          // Fall back to remittanceInfo (bankUsage) matching
+          // match by remittance info (bankUsage)
           const buy = this.findMatchingBuy(tx, buys);
 
           if (buy) {
@@ -207,10 +233,7 @@ export class BankTxService implements OnModuleInit {
 
         if (await this.bankTxRepo.existsBy({ id: tx.id, type: Not(IsNull()) })) continue;
 
-        await this.updateInternal(
-          tx,
-          tx.name === 'Payward Trading Ltd.' ? { type: BankTxType.KRAKEN } : { type: BankTxType.GSHEET },
-        );
+        await this.updateInternal(tx, { type: this.getType(tx) ?? BankTxType.GSHEET });
       } catch (e) {
         this.logger.error(`Error during bankTx ${tx.id} assign:`, e);
       }
@@ -275,6 +298,7 @@ export class BankTxService implements OnModuleInit {
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
     entity = this.createTx(bankTx, multiAccounts);
+    entity.type = this.getType(entity);
 
     entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
@@ -338,22 +362,14 @@ export class BankTxService implements OnModuleInit {
     const query = this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
-      .leftJoinAndSelect('bankTx.buyCrypto', 'buyCrypto')
-      .leftJoinAndSelect('buyCrypto.buy', 'buy')
-      .leftJoinAndSelect('buy.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('bankTx.buyFiats', 'buyFiats')
-      .leftJoinAndSelect('buyFiats.sell', 'sell')
-      .leftJoinAndSelect('sell.user', 'sellUser')
-      .leftJoinAndSelect('sellUser.userData', 'sellUserData')
+      .leftJoinAndSelect('bankTx.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.userData', 'userData')
       .where(`${key.includes('.') ? key : `bankTx.${key}`} = :param`, { param: value });
 
     if (!onlyDefaultRelation) {
       query
         .leftJoinAndSelect('userData.users', 'users')
         .leftJoinAndSelect('users.wallet', 'wallet')
-        .leftJoinAndSelect('sellUserData.users', 'sellUsers')
-        .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')
         .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
         .leftJoinAndSelect('userData.country', 'country')
         .leftJoinAndSelect('userData.nationality', 'nationality')
@@ -377,12 +393,20 @@ export class BankTxService implements OnModuleInit {
       .getOne();
   }
 
+  async getBankTxByEndToEndId(endToEndId: string): Promise<BankTx> {
+    return this.bankTxRepo.findOne({
+      where: { endToEndId, creditDebitIndicator: BankTxIndicator.DEBIT },
+      relations: { transaction: true },
+      order: { id: 'DESC' },
+    });
+  }
+
   async getBankTxByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
     return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
-  async getBankTxById(id: number): Promise<BankTx> {
-    return this.bankTxRepo.findOneBy({ id });
+  async getBankTxById(id: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
+    return this.bankTxRepo.findOne({ where: { id }, relations });
   }
 
   async getPendingTx(): Promise<BankTx[]> {
@@ -478,9 +502,17 @@ export class BankTxService implements OnModuleInit {
     return batch;
   }
 
-  private getType(tx: BankTx): BankTxType | null {
-    if (tx.name?.includes('Payward Ltd.')) {
+  getType(tx: BankTx): BankTxType | null {
+    if (tx.name?.includes('Payward Trading')) {
       return BankTxType.KRAKEN;
+    }
+
+    if (tx.name?.includes('Scrypt Digital Trading')) {
+      return BankTxType.SCRYPT;
+    }
+
+    if (tx.name?.includes('SCB AG')) {
+      return BankTxType.SCB;
     }
 
     return null;
@@ -488,20 +520,47 @@ export class BankTxService implements OnModuleInit {
 
   async getUnassignedBankTx(
     accounts: string[],
+    virtualIbans: string[],
     relations: FindOptionsRelations<BankTx> = { transaction: true },
   ): Promise<BankTx[]> {
+    const request: FindOptionsWhere<BankTx> = {
+      type: In(BankTxUnassignedTypes),
+      creditDebitIndicator: BankTxIndicator.CREDIT,
+    };
+
     return this.bankTxRepo.find({
-      where: {
-        type: In(BankTxUnassignedTypes),
-        senderAccount: In(accounts),
-        creditDebitIndicator: BankTxIndicator.CREDIT,
-      },
+      where: [
+        { ...request, senderAccount: In(accounts) },
+        { ...request, virtualIban: In(virtualIbans) },
+      ],
       relations,
     });
   }
 
+  async getBankTxsByVirtualIban(virtualIban: string): Promise<BankTx[]> {
+    return this.bankTxRepo.find({
+      where: { virtualIban },
+      relations: { transaction: { userData: true } },
+    });
+  }
+
+  async getBankTxsByName(name: string): Promise<BankTx[]> {
+    const request: FindOptionsWhere<BankTx> = {
+      type: In(BankTxUnassignedTypes),
+      creditDebitIndicator: BankTxIndicator.CREDIT,
+    };
+
+    return this.bankTxRepo.find({
+      where: [
+        { ...request, name: Like(`%${name}%`) },
+        { ...request, ultimateName: Like(`%${name}%`) },
+      ],
+      relations: { transaction: true },
+    });
+  }
+
   async checkAssignAndNotifyUserData(iban: string, userData: UserData): Promise<void> {
-    const bankTxs = await this.getUnassignedBankTx([iban], { transaction: { userData: true } });
+    const bankTxs = await this.getUnassignedBankTx([iban], [], { transaction: { userData: true } });
 
     for (const bankTx of bankTxs) {
       if (bankTx.transaction.userData) continue;
@@ -521,7 +580,7 @@ export class BankTxService implements OnModuleInit {
     const candidates = [tx.remittanceInfo, tx.endToEndId].filter((c) => c && c !== '-');
 
     for (const candidate of candidates) {
-      const normalized = candidate.replace(/[ -]/g, '').replace(/O/g, '0');
+      const normalized = candidate.replace(/[ -]/g, '').toUpperCase().replace(/O/g, '0');
       const buy = buys.find((b) => normalized.includes(b.bankUsage.replace(/-/g, '')));
       if (buy) return buy;
     }

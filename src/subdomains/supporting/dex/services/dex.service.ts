@@ -170,13 +170,15 @@ export class DexService {
   async checkOrderReady(
     context: LiquidityOrderContext,
     correlationId: string,
-  ): Promise<{ isReady: boolean; purchaseTxId: string }> {
+  ): Promise<{ isReady: boolean; purchaseTxId: string; targetAmount: number; targetAsset: string }> {
     const order = await this.liquidityOrderRepo.findOneBy({ context, correlationId });
 
-    const purchaseTxId = order && order.txId;
-    const isReady = order && order.isReady;
+    const purchaseTxId = order?.txId;
+    const isReady = order?.isReady ?? false;
+    const targetAmount = order?.targetAmount;
+    const targetAsset = order?.targetAsset?.name;
 
-    return { isReady, purchaseTxId };
+    return { isReady, purchaseTxId, targetAmount, targetAsset };
   }
 
   async checkOrderCompletion(
@@ -295,7 +297,7 @@ export class DexService {
     try {
       return await strategy.calculatePrice(from, to, poolFee);
     } catch (e) {
-      this.logger.error('Error while getting target amount:', e);
+      this.logger.error(`Error while getting target amount (${from.uniqueName} -> ${to.uniqueName}):`, e);
 
       // default public exception
       throw new Error(`Error while getting price from ${from.uniqueName} to ${to.uniqueName}.`);

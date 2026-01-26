@@ -6,10 +6,7 @@ import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
-import {
-  LiquidityManagementPipelineStatus,
-  LiquidityManagementRuleStatus,
-} from 'src/subdomains/core/liquidity-management/enums';
+import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
@@ -98,13 +95,11 @@ export class BuyCryptoBatchService {
           !t.userData.isSuspicious &&
           !t.userData.isRiskBlocked &&
           !t.userData.isRiskBuyCryptoBlocked &&
-          ((!t.liquidityPipeline &&
-            !txWithAssets.some((tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline)) ||
-            [
-              LiquidityManagementPipelineStatus.FAILED,
-              LiquidityManagementPipelineStatus.STOPPED,
-              LiquidityManagementPipelineStatus.COMPLETE,
-            ].includes(t.liquidityPipeline?.status)),
+          (t.liquidityPipeline
+            ? t.liquidityPipeline.isDone
+            : !txWithAssets.some(
+                (tx) => t.outputAsset.id === tx.outputAsset.id && tx.liquidityPipeline?.isDone === false,
+              )),
       );
 
       const txWithReferenceAmount = await this.defineReferenceAmount(filteredTx);
@@ -144,9 +139,10 @@ export class BuyCryptoBatchService {
             PriceValidity.VALID_ONLY,
           );
 
-          const exchangeOrders = tx.liquidityPipeline
-            ? await this.findAllExchangeOrders(tx.liquidityPipeline)
-            : undefined;
+          const exchangeOrders =
+            Config.liquidityManagement.usePipelinePriceForAllAssets && tx.liquidityPipeline
+              ? await this.findAllExchangeOrders(tx.liquidityPipeline)
+              : undefined;
 
           tx.calculateOutputReferenceAmount(price, exchangeOrders);
         }

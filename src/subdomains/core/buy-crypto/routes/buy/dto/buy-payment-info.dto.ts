@@ -16,8 +16,8 @@ export class BankInfoDto {
   @ApiProperty()
   street: string;
 
-  @ApiProperty()
-  number: string;
+  @ApiPropertyOptional()
+  number?: string;
 
   @ApiProperty()
   zip: string;
@@ -36,9 +36,6 @@ export class BankInfoDto {
 
   @ApiProperty()
   sepaInstant: boolean;
-
-  // Internal flag - indicates if this is a buy-specific IBAN (no remittance info needed)
-  isBuySpecificIban?: boolean;
 }
 
 export class BuyPaymentInfoDto extends BankInfoDto {

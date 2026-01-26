@@ -26,6 +26,7 @@ import { PayoutSepoliaService } from './services/payout-sepolia.service';
 import { PayoutSolanaService } from './services/payout-solana.service';
 import { PayoutTronService } from './services/payout-tron.service';
 import { PayoutZanoService } from './services/payout-zano.service';
+import { PayoutSparkService } from './services/payout-spark.service';
 import { PayoutService } from './services/payout.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPO } from './strategies/payout/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPO } from './strategies/payout/impl/arbitrum-token.strategy';
@@ -57,6 +58,7 @@ import { TronCoinStrategy as TronCoinStrategyPO } from './strategies/payout/impl
 import { TronTokenStrategy as TronTokenStrategyPO } from './strategies/payout/impl/tron-token.strategy';
 import { ZanoCoinStrategy as ZanoCoinStrategyPO } from './strategies/payout/impl/zano-coin.strategy';
 import { ZanoTokenStrategy as ZanoTokenStrategyPO } from './strategies/payout/impl/zano-token.strategy';
+import { SparkStrategy as SparkStrategyPO } from './strategies/payout/impl/spark.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyPR } from './strategies/prepare/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyPR } from './strategies/prepare/impl/base.strategy';
 import { PrepareStrategyRegistry } from './strategies/prepare/impl/base/prepare.strategy-registry';
@@ -74,6 +76,7 @@ import { SepoliaStrategy as SepoliaStrategyPR } from './strategies/prepare/impl/
 import { SolanaStrategy as SolanaStrategyPR } from './strategies/prepare/impl/solana.strategy';
 import { TronStrategy as TronStrategyPR } from './strategies/prepare/impl/tron.strategy';
 import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.strategy';
+import { SparkStrategy as SparkStrategyPR } from './strategies/prepare/impl/spark.strategy';
 
 @Module({
   imports: [
@@ -94,6 +97,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutLightningService,
     PayoutMoneroService,
     PayoutZanoService,
+    PayoutSparkService,
     PayoutArbitrumService,
     PayoutOptimismService,
     PayoutPolygonService,
@@ -117,6 +121,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     ZanoStrategyPR,
     ZanoCoinStrategyPO,
     ZanoTokenStrategyPO,
+    SparkStrategyPO,
     EthereumStrategyPR,
     EthereumCoinStrategyPO,
     EthereumTokenStrategyPO,
@@ -153,7 +158,15 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     CitreaTestnetStrategyPR,
     CitreaTestnetCoinStrategyPO,
     CitreaTestnetTokenStrategyPO,
+    SparkStrategyPR,
   ],
-  exports: [PayoutService, PayoutBitcoinService, PayoutMoneroService, PayoutZanoService, PayoutSolanaService],
+  exports: [
+    PayoutService,
+    PayoutBitcoinService,
+    PayoutMoneroService,
+    PayoutZanoService,
+    PayoutSparkService,
+    PayoutSolanaService,
+  ],
 })
 export class PayoutModule {}

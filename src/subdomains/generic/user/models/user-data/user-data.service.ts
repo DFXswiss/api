@@ -14,7 +14,6 @@ import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
@@ -170,7 +169,11 @@ export class UserDataService {
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
-  async getUsersByMail(mail: string, onlyValidUser = true): Promise<UserData[]> {
+  async getUsersByMail(
+    mail: string,
+    onlyValidUser = true,
+    relations: FindOptionsRelations<UserData> = { users: true, wallet: true },
+  ): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
         mail,
@@ -178,7 +181,7 @@ export class UserDataService {
           ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
           : undefined,
       },
-      relations: { users: true, wallet: true },
+      relations,
     });
   }
 
@@ -238,6 +241,7 @@ export class UserDataService {
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
       kycHash: randomUUID().toUpperCase(),
+      kycSteps: [],
     });
 
     await this.loadRelationsAndVerify(userData, dto);
@@ -647,6 +651,12 @@ export class UserDataService {
 
     await this.kycLogService.createMailChangeLog(userData, userData.mail, mail);
 
+    try {
+      await this.kycService.initializeProcess(userData);
+    } catch (e) {
+      this.logger.error(`Failed to initialize KYC process for account ${userData.id}:`, e);
+    }
+
     return userData;
   }
 
@@ -757,10 +767,6 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
-  private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return this.userRepo.existsBy({ userData: { id: userDataId }, role });
-  }
-
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
@@ -856,8 +862,18 @@ export class UserDataService {
   // --- VOLUMES --- //
   @DfxCron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
-    await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
+    await this.userDataRepo.update(
+      [{ annualBuyVolume: Not(0) }, { annualSellVolume: Not(0) }, { annualCryptoVolume: Not(0) }],
+      { annualBuyVolume: 0, annualSellVolume: 0, annualCryptoVolume: 0 },
+    );
+  }
+
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async resetMonthlyVolumes(): Promise<void> {
+    await this.userDataRepo.update(
+      [{ monthlyBuyVolume: Not(0) }, { monthlySellVolume: Not(0) }, { monthlyCryptoVolume: Not(0) }],
+      { monthlyBuyVolume: 0, monthlySellVolume: 0, monthlyCryptoVolume: 0 },
+    );
   }
 
   async updateVolumes(userDataId: number): Promise<void> {
@@ -865,27 +881,37 @@ export class UserDataService {
       .createQueryBuilder('user')
       .select('SUM(buyVolume)', 'buyVolume')
       .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
+      .addSelect('SUM(monthlyBuyVolume)', 'monthlyBuyVolume')
       .addSelect('SUM(sellVolume)', 'sellVolume')
       .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
+      .addSelect('SUM(monthlySellVolume)', 'monthlySellVolume')
       .addSelect('SUM(cryptoVolume)', 'cryptoVolume')
       .addSelect('SUM(annualCryptoVolume)', 'annualCryptoVolume')
+      .addSelect('SUM(monthlyCryptoVolume)', 'monthlyCryptoVolume')
+
       .where('userDataId = :id', { id: userDataId })
       .getRawOne<{
         buyVolume: number;
         annualBuyVolume: number;
+        monthlyBuyVolume: number;
         sellVolume: number;
         annualSellVolume: number;
+        monthlySellVolume: number;
         cryptoVolume: number;
         annualCryptoVolume: number;
+        monthlyCryptoVolume: number;
       }>();
 
     await this.userDataRepo.update(userDataId, {
       buyVolume: Util.round(volumes.buyVolume, Config.defaultVolumeDecimal),
       annualBuyVolume: Util.round(volumes.annualBuyVolume, Config.defaultVolumeDecimal),
+      monthlyBuyVolume: Util.round(volumes.monthlyBuyVolume, Config.defaultVolumeDecimal),
       sellVolume: Util.round(volumes.sellVolume, Config.defaultVolumeDecimal),
       annualSellVolume: Util.round(volumes.annualSellVolume, Config.defaultVolumeDecimal),
+      monthlySellVolume: Util.round(volumes.monthlySellVolume, Config.defaultVolumeDecimal),
       cryptoVolume: Util.round(volumes.cryptoVolume, Config.defaultVolumeDecimal),
       annualCryptoVolume: Util.round(volumes.annualCryptoVolume, Config.defaultVolumeDecimal),
+      monthlyCryptoVolume: Util.round(volumes.monthlyCryptoVolume, Config.defaultVolumeDecimal),
     });
   }
 
@@ -1036,6 +1062,12 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
+
+    // Adapt user used refs
+    for (const user of master.users) {
+      if (master.users.some((u) => u.ref === user.usedRef))
+        await this.userRepo.update(user.id, { usedRef: Config.defaultRef });
+    }
 
     // update slave status
     await this.userDataRepo.update(slave.id, {

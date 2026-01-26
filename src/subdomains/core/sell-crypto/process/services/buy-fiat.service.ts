@@ -14,13 +14,17 @@ import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
+import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -65,6 +69,8 @@ export class BuyFiatService {
     private readonly transactionHelper: TransactionHelper,
     @Inject(forwardRef(() => CustodyOrderService))
     private readonly custodyOrderService: CustodyOrderService,
+    private readonly supportLogService: SupportLogService,
+    private readonly payoutService: PayoutService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
@@ -129,7 +135,7 @@ export class BuyFiatService {
         sell: true,
         fiatOutput: true,
         bankTx: true,
-        cryptoInput: true,
+        cryptoInput: { route: { user: true }, transaction: true },
         transaction: { user: { wallet: true }, userData: true },
         bankData: true,
       },
@@ -138,6 +144,8 @@ export class BuyFiatService {
 
     const sellIdBefore = entity.sell?.id;
     const usedRefBefore = entity.usedRef;
+    const chargebackAllowedDateBefore = entity.chargebackAllowedDate;
+    const cryptoInputBefore = entity.cryptoInput;
 
     const update = this.buyFiatRepo.create(dto);
 
@@ -206,7 +214,46 @@ export class BuyFiatService {
     if (dto.amountInChf) await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
     if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
+    // Trigger return flow when chargebackAllowedDate is newly set via admin update
+    if (dto.chargebackAllowedDate && !chargebackAllowedDateBefore) {
+      await this.triggerBuyFiatReturn(entity, cryptoInputBefore);
+    }
+
     return entity;
+  }
+
+  private async triggerBuyFiatReturn(buyFiat: BuyFiat, cryptoInput: CryptoInput): Promise<void> {
+    const { chargebackAddress, chargebackAmount } = buyFiat;
+
+    if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset) return;
+
+    // Skip if return already in progress or completed
+    if (
+      [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(cryptoInput.status) ||
+      cryptoInput.returnTxId
+    )
+      return;
+
+    await this.returnCrypto(buyFiat, cryptoInput, chargebackAddress, chargebackAmount);
+  }
+
+  private async returnCrypto(
+    buyFiat: BuyFiat,
+    cryptoInput: CryptoInput,
+    returnAddress: string,
+    amount: number,
+  ): Promise<void> {
+    if (cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
+      await this.payoutService.doPayout({
+        context: PayoutOrderContext.BUY_FIAT_RETURN,
+        correlationId: `${buyFiat.id}`,
+        asset: cryptoInput.asset,
+        amount,
+        destinationAddress: returnAddress,
+      });
+    } else if (cryptoInput.action !== PayInAction.FORWARD) {
+      await this.payInService.returnPayIn(cryptoInput, returnAddress, amount);
+    }
   }
 
   async getBuyFiatByKey(key: string, value: any, onlyDefaultRelation = false): Promise<BuyFiat> {
@@ -298,11 +345,9 @@ export class BuyFiatService {
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
       blockchainFee = await this.transactionHelper.getBlockchainFee(buyFiat.cryptoInput.asset, true);
-      await this.payInService.returnPayIn(
-        buyFiat.cryptoInput,
-        refundUser.address ?? buyFiat.chargebackAddress,
-        chargebackAmount,
-      );
+
+      const returnAddress = refundUser.address ?? buyFiat.chargebackAddress;
+      await this.returnCrypto(buyFiat, buyFiat.cryptoInput, returnAddress, chargebackAmount);
     }
 
     await this.buyFiatRepo.update(
@@ -324,7 +369,10 @@ export class BuyFiatService {
   }
 
   async resetAmlCheck(id: number): Promise<void> {
-    const entity = await this.buyFiatRepo.findOne({ where: { id }, relations: { fiatOutput: true } });
+    const entity = await this.buyFiatRepo.findOne({
+      where: { id },
+      relations: { fiatOutput: true, transaction: { userData: true }, outputAsset: true },
+    });
     if (!entity) throw new NotFoundException('BuyFiat not found');
     if (entity.isComplete || entity.fiatOutput?.isComplete)
       throw new BadRequestException('BuyFiat is already complete');
@@ -332,8 +380,27 @@ export class BuyFiatService {
 
     const fiatOutputId = entity.fiatOutput?.id;
 
+    const resetDetails = {
+      buyFiatId: entity.id,
+      amlCheck: entity.amlCheck,
+      amlReason: entity.amlReason,
+      outputAmount: entity.outputAmount,
+      outputAsset: entity.outputAsset?.name,
+      fiatOutputId: fiatOutputId,
+      fiatOutputTransmitted: entity.fiatOutput?.isTransmittedDate,
+      priceDefinitionAllowedDate: entity.priceDefinitionAllowedDate,
+    };
+
     await this.buyFiatRepo.update(...entity.resetAmlCheck());
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
+
+    if (entity.transaction.userData) {
+      await this.supportLogService.createSupportLog(entity.transaction.userData, {
+        type: SupportLogType.SUPPORT,
+        message: `BuyFiat ${entity.id} reset`,
+        comment: `AML check reset. Previous state: ${JSON.stringify(resetDetails)}`,
+      });
+    }
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {
@@ -456,25 +523,28 @@ export class BuyFiatService {
   async updateSellVolume(sellIds: number[]): Promise<void> {
     sellIds = sellIds.filter((u, j) => sellIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
+    const startOfYear = Util.startOfYear();
+    const startOfMonth = Util.startOfMonth();
+
     for (const id of sellIds) {
-      const { volume } = await this.buyFiatRepo
+      const { volume, annualVolume, monthlyVolume } = await this.buyFiatRepo
         .createQueryBuilder('buyFiat')
-        .select('SUM(amountInChf)', 'volume')
-        .where('sellId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
-        .getRawOne<{ volume: number }>();
-
-      const newYear = new Date(new Date().getFullYear(), 0, 1);
-      const { annualVolume } = await this.buyFiatRepo
-        .createQueryBuilder('buyFiat')
-        .select('SUM(amountInChf)', 'annualVolume')
+        .select('SUM(buyFiat.amountInChf)', 'volume')
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfYear THEN buyFiat.amountInChf ELSE 0 END)',
+          'annualVolume',
+        )
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfMonth THEN buyFiat.amountInChf ELSE 0 END)',
+          'monthlyVolume',
+        )
         .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
-        .where('buyFiat.sellId = :id', { id: id })
+        .where('buyFiat.sellId = :id', { id })
         .andWhere('buyFiat.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('cryptoInput.created >= :year', { year: newYear })
-        .getRawOne<{ annualVolume: number }>();
+        .setParameters({ startOfYear, startOfMonth })
+        .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
 
-      await this.sellService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      await this.sellService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }
   }
 

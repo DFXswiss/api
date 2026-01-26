@@ -1,5 +1,6 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { isLiechtensteinBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
@@ -85,9 +86,19 @@ export class FiatOutputJobService {
   // --- HELPER METHODS --- //
 
   private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
-    if (!entity.remittanceInfo) return undefined;
+    // Try remittanceInfo first
+    if (entity.remittanceInfo) {
+      const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
+      if (bankTx) return bankTx;
+    }
 
-    return this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
+    // Fallback to endToEndId (used for Yapeal LiqManagement payments)
+    if (entity.endToEndId) {
+      const bankTx = await this.bankTxService.getBankTxByEndToEndId(entity.endToEndId);
+      if (bankTx) return bankTx;
+    }
+
+    return undefined;
   }
 
   private async getPayoutAccount(entity: FiatOutput, country: Country): Promise<{ accountIban: string; bank: Bank }> {
@@ -198,16 +209,26 @@ export class FiatOutputJobService {
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
+          if (entity.currency === 'EUR') continue;
+
           if (availableBalance > entity.bankAmount) {
             updatedFiatOutputAmount += entity.bankAmount;
             const ibanCountry = entity.iban.substring(0, 2);
 
             if (
               !entity.buyFiats.length ||
-              (entity.buyFiats?.[0]?.cryptoInput.isConfirmed &&
-                entity.buyFiats?.[0]?.cryptoInput.asset.blockchain &&
-                (asset.name !== 'CHF' || ['CH', 'LI'].includes(ibanCountry)))
+              (entity.buyFiats?.[0]?.cryptoInput.isConfirmed && entity.buyFiats?.[0]?.cryptoInput.asset.blockchain)
             ) {
+              if (ibanCountry === 'LI' && entity.type === FiatOutputType.LIQ_MANAGEMENT) {
+                if (
+                  isLiechtensteinBankHoliday() ||
+                  (isLiechtensteinBankHoliday(Util.daysAfter(1)) && new Date().getHours() >= 16)
+                ) {
+                  this.logger.verbose(`FiatOutput ${entity.id} blocked: Liechtenstein bank holiday`);
+                  continue;
+                }
+              }
+
               await this.fiatOutputRepo.update(entity.id, { isReadyDate: new Date() });
               this.logger.info(
                 `FiatOutput ${entity.id} ready: LiqBalance ${asset.balance.amount} ${
@@ -347,9 +368,19 @@ export class FiatOutputJobService {
           endToEndId,
           isTransmittedDate: new Date(),
           isApprovedDate: new Date(),
+          ...(entity.info?.startsWith('YAPEAL error') && { info: null }),
         });
       } catch (e) {
         this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
+
+        if (!entity.info) {
+          try {
+            const errorMsg = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || String(e);
+            await this.fiatOutputRepo.update(entity.id, { info: `YAPEAL error: ${errorMsg}`.substring(0, 256) });
+          } catch (updateError) {
+            this.logger.error(`Failed to persist YAPEAL error for fiat output ${entity.id}:`, updateError);
+          }
+        }
       }
     }
   }
@@ -362,7 +393,6 @@ export class FiatOutputJobService {
         amount: Not(IsNull()),
         isComplete: false,
         bankTx: { id: IsNull() },
-        isReadyDate: Not(IsNull()),
       },
       relations: { bankTx: { transaction: true }, bankTxReturn: true, bankTxRepeat: true },
     });
@@ -370,7 +400,7 @@ export class FiatOutputJobService {
     for (const entity of entities) {
       try {
         const bankTx = await this.getMatchingBankTx(entity);
-        if (!bankTx || entity.isReadyDate > bankTx.created) continue;
+        if (!bankTx || (entity.isReadyDate && entity.isReadyDate > bankTx.created)) continue;
 
         const updateData: Partial<FiatOutput> = {
           bankTx,
@@ -416,6 +446,11 @@ export class FiatOutputJobService {
 
       case FiatOutputType.BANK_TX_RETURN:
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
+
+      case FiatOutputType.LIQ_MANAGEMENT: {
+        const specificType = this.bankTxService.getType(bankTx);
+        if (specificType) return this.bankTxService.updateInternal(bankTx, { type: specificType });
+      }
     }
   }
 }

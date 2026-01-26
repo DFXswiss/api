@@ -323,9 +323,11 @@ export class FeeService {
     paymentMethodIn: PaymentMethod,
     userDataId?: number,
   ): Promise<InternalFeeDto> {
-    const blockchainFee =
-      (await this.getBlockchainFeeInChf(from, allowCachedBlockchainFee)) +
-      (await this.getBlockchainFeeInChf(to, allowCachedBlockchainFee));
+    const [fromFee, toFee] = await Promise.all([
+      this.getBlockchainFeeInChf(from, allowCachedBlockchainFee),
+      this.getBlockchainFeeInChf(to, allowCachedBlockchainFee),
+    ]);
+    const blockchainFee = fromFee + toFee;
 
     // get min special fee
     const specialFee = Util.minObj(

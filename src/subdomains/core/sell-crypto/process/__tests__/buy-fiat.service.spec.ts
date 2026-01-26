@@ -15,9 +15,11 @@ import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
@@ -55,6 +57,8 @@ describe('BuyFiatService', () => {
   let amlService: AmlService;
   let transactionHelper: TransactionHelper;
   let custodyOrderService: CustodyOrderService;
+  let supportLogService: SupportLogService;
+  let payoutService: PayoutService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -75,6 +79,8 @@ describe('BuyFiatService', () => {
     amlService = createMock<AmlService>();
     transactionHelper = createMock<TransactionHelper>();
     custodyOrderService = createMock<CustodyOrderService>();
+    supportLogService = createMock<SupportLogService>();
+    payoutService = createMock<PayoutService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -98,6 +104,8 @@ describe('BuyFiatService', () => {
         { provide: AmlService, useValue: amlService },
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: CustodyOrderService, useValue: custodyOrderService },
+        { provide: SupportLogService, useValue: supportLogService },
+        { provide: PayoutService, useValue: payoutService },
       ],
     }).compile();
 

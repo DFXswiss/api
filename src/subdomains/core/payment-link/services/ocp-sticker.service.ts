@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { I18nService } from 'nestjs-i18n';
 import { join } from 'path';
@@ -10,6 +10,8 @@ import { DepositRouteService } from 'src/subdomains/supporting/address-pool/rout
 import { PaymentLink } from '../entities/payment-link.entity';
 import { StickerQrMode, StickerType } from '../enums';
 import { PaymentLinkService } from './payment-link.service';
+
+const ALLOWED_LANGUAGES = ['en', 'de', 'fr', 'it'];
 
 @Injectable()
 export class OCPStickerService {
@@ -201,6 +203,11 @@ export class OCPStickerService {
     mode = StickerQrMode.CUSTOMER,
     userId?: number,
   ): Promise<Buffer> {
+    const validLang = ALLOWED_LANGUAGES.find((l) => l === lang.toLowerCase());
+    if (!validLang) {
+      throw new BadRequestException(`Invalid language: ${lang}. Allowed: ${ALLOWED_LANGUAGES.join(', ')}`);
+    }
+
     const links = await this.fetchPaymentLinks(routeIdOrLabel, externalIds, ids);
 
     const posUrls: Map<string, string> = new Map();
@@ -216,8 +223,8 @@ export class OCPStickerService {
     // Bitcoin Focus OCP Sticker
     const stickerFileName =
       mode === StickerQrMode.POS
-        ? `ocp-bitcoin-focus-sticker-pos_${lang.toLowerCase()}.png`
-        : `ocp-bitcoin-focus-sticker_${lang.toLowerCase()}.png`;
+        ? `ocp-bitcoin-focus-sticker-pos_${validLang}.png`
+        : `ocp-bitcoin-focus-sticker_${validLang}.png`;
     const stickerPath = join(process.cwd(), 'assets', stickerFileName);
     const stickerBuffer = readFileSync(stickerPath);
 

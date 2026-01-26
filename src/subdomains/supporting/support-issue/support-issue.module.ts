@@ -57,6 +57,6 @@ import { SupportIssueController } from './support-issue.controller';
     SupportLogService,
     SupportIssueJobService,
   ],
-  exports: [SupportIssueService, LimitRequestService],
+  exports: [SupportIssueService, LimitRequestService, SupportLogService],
 })
 export class SupportIssueModule {}

@@ -71,12 +71,12 @@ export class AccountMergeService {
           { key: `${MailTranslationKey.GENERAL}.welcome`, params: { name } },
           { key: MailKey.SPACE, params: { value: '2' } },
           {
-            key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.message`,
-            params: { url, urlText: url },
-          },
-          {
             key: `${MailTranslationKey.GENERAL}.button`,
             params: { url, button: 'true' },
+          },
+          {
+            key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.message`,
+            params: { url, urlText: url },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },

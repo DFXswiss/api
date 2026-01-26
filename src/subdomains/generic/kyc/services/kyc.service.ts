@@ -297,7 +297,7 @@ export class KycService {
 
         if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
           await this.kycStepRepo.update(...entity.ignored(comment));
-        } else if (errors.includes(KycError.MISSING_RESPONSE)) {
+        } else if (errors.includes(KycError.MISSING_INFO)) {
           await this.kycStepRepo.update(...entity.inProgress());
           await this.kycNotificationService.kycStepMissingData(
             entity.userData,
@@ -391,10 +391,6 @@ export class KycService {
     }
   }
 
-  async syncIdentStep(_kycStep: KycStep): Promise<void> {
-    throw new BadRequestException('IDnow integration has been removed. Use Sumsub or Manual ident instead.');
-  }
-
   async getInfo(kycHash: string): Promise<KycLevelDto> {
     const user = await this.getUser(kycHash);
     await this.verifyUserDuplication(user);
@@ -432,6 +428,13 @@ export class KycService {
       undefined,
       (e) => e.message?.includes('duplicate key'),
     );
+  }
+
+  async initializeProcess(userData: UserData): Promise<UserData> {
+    const user = await this.getUser(userData.kycHash);
+    if (user.getStepsWith(KycStepName.CONTACT_DATA).length > 0) return user;
+
+    return this.updateProgress(user, true, false);
   }
 
   public getMailFailedReason(comment: string, language: string): string {
@@ -731,11 +734,6 @@ export class KycService {
     );
   }
 
-  async updateIntrumIdent(_dto: IdNowResult): Promise<void> {
-    this.logger.warn('IDnow webhook called but integration has been removed');
-    throw new BadRequestException('IDnow integration has been removed');
-  }
-
   updateSumsubIdent(dto: SumSubWebhookResult): void {
     const { externalUserId: transactionId } = dto;
 
@@ -764,7 +762,7 @@ export class KycService {
       .catch((e) => this.logger.error(`Error during sumsub webhook update for applicant ${dto.applicantId}:`, e));
   }
 
-  private async updateKycStepAndLog(
+  async updateKycStepAndLog(
     kycStep: KycStep,
     user: UserData,
     data: KycStepResult,
@@ -935,13 +933,14 @@ export class KycService {
 
   // --- STEPPING METHODS --- //
   async getOrCreateStepInternal(
-    kycHash: string,
     name: KycStepName,
+    user?: UserData,
+    kycHash?: string,
     type?: KycStepType,
     sequence?: number,
     restartCompletedSteps = false,
   ): Promise<{ user: UserData; step: KycStep }> {
-    const user = await this.getUser(kycHash);
+    user = user ?? (await this.getUser(kycHash));
 
     let step =
       sequence != null
@@ -968,7 +967,7 @@ export class KycService {
     const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
     if (!name) throw new BadRequestException('Invalid step name');
 
-    const { user, step } = await this.getOrCreateStepInternal(kycHash, name, type, sequence, true);
+    const { user, step } = await this.getOrCreateStepInternal(name, undefined, kycHash, type, sequence, true);
 
     await this.verify2faIfRequired(user, ip);
 
@@ -1135,8 +1134,7 @@ export class KycService {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
           kycStep.sessionId = await this.sumsubService.initiateIdent(user, kycStep);
         } else if (!kycStep.isManual) {
-          // IDnow integration removed - only Sumsub and Manual ident supported
-          throw new BadRequestException('IDnow integration removed. Only Sumsub and Manual ident are supported.');
+          throw new Error(`Invalid ident step type ${kycStep.type}`);
         }
 
         break;
@@ -1173,7 +1171,9 @@ export class KycService {
 
   async trySetMail(user: UserData, step: KycStep, mail: string): Promise<UpdateResult<KycStep>> {
     try {
-      user = await this.userDataService.trySetUserMail(user, mail);
+      if (user.mail !== mail) {
+        await this.userDataService.trySetUserMail(user, mail);
+      }
       return step.complete({ mail });
     } catch (e) {
       const error = (e as Error).message?.includes('account merge request sent')
@@ -1227,6 +1227,13 @@ export class KycService {
 
   async getKycStepById(id: number): Promise<KycStep | null> {
     return this.kycStepRepo.findOne({ where: { id }, relations: { userData: true } });
+  }
+
+  async getStepsByUserData(userDataId: number): Promise<KycStep[]> {
+    return this.kycStepRepo.find({
+      where: { userData: { id: userDataId } },
+      order: { sequenceNumber: 'ASC' },
+    });
   }
 
   async saveKycStepUpdate(updateResult: UpdateResult<KycStep>): Promise<void> {
@@ -1349,7 +1356,7 @@ export class KycService {
     const financialStepResult = entity.getResult<KycFinancialResponse[]>();
 
     if (!FinancialService.isComplete(financialStepResult, entity.userData.accountType))
-      errors.push(KycError.MISSING_RESPONSE);
+      errors.push(KycError.MISSING_INFO);
     if (!financialStepResult.some((f) => f.key === 'risky_business' && f.value.includes('no')))
       errors.push(KycError.RISKY_BUSINESS);
 
@@ -1530,10 +1537,7 @@ export class KycService {
     const kycStep = await this.kycStepRepo.findOne({ where: { id: stepId }, relations: { userData: true } });
     if (!kycStep || kycStep.name !== KycStepName.IDENT) throw new NotFoundException('Invalid step');
 
-    // IDnow integration removed - only support Sumsub
-    if (!kycStep.isSumsub) {
-      throw new BadRequestException('File sync only available for Sumsub ident steps');
-    }
+    if (!kycStep.isSumsub) throw new Error(`Invalid ident step type ${kycStep.type}`);
 
     const userFiles = await this.documentService.listUserFiles(kycStep.userData.id);
     const documents = await this.sumsubService.getDocuments(kycStep);

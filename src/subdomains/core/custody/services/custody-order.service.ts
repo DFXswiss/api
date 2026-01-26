@@ -37,7 +37,7 @@ import { CustodyService } from './custody.service';
 
 @Injectable()
 export class CustodyOrderService {
-  private readonly CustodyChains = [Blockchain.ETHEREUM];
+  private readonly CustodyChains = [Blockchain.ETHEREUM, Blockchain.CITREA];
 
   constructor(
     private readonly userService: UserService,
@@ -114,10 +114,11 @@ export class CustodyOrderService {
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
           GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+          false,
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
-        orderDto.outputAsset = targetAsset;
+        orderDto.outputAsset = sourceAsset;
         orderDto.outputAmount = swapPaymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
@@ -142,10 +143,11 @@ export class CustodyOrderService {
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           targetUser.id,
           GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+          false,
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
-        orderDto.outputAsset = targetAsset;
+        orderDto.outputAsset = sourceAsset;
         orderDto.outputAmount = swapPaymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
@@ -160,6 +162,7 @@ export class CustodyOrderService {
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
           GetCustodyOrderDtoMapper.getSwapPaymentInfo(dto, sourceAsset, targetAsset),
+          false,
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);

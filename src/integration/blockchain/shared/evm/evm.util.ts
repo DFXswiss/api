@@ -35,6 +35,7 @@ export class EvmUtil {
     [Blockchain.BASE, this.blockchainConfig.base.baseChainId],
     [Blockchain.GNOSIS, this.blockchainConfig.gnosis.gnosisChainId],
     [Blockchain.BINANCE_SMART_CHAIN, this.blockchainConfig.bsc.bscChainId],
+    [Blockchain.CITREA, this.blockchainConfig.citrea.citreaChainId],
     [Blockchain.CITREA_TESTNET, this.blockchainConfig.citreaTestnet.citreaTestnetChainId],
   ]);
 
@@ -63,7 +64,7 @@ export class EvmUtil {
   static toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
     const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
 
-    return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
+    return decimals !== undefined ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
 
   static poolFeeFactor(amount: FeeAmount): number {

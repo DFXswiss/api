@@ -66,12 +66,12 @@ export class KycNotificationService {
                 { key: `${MailTranslationKey.KYC_REMINDER}.message` },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 {
-                  key: `${MailTranslationKey.KYC}.next_step`,
-                  params: { url: entity.userData.kycUrl, urlText: entity.userData.kycUrl },
-                },
-                {
                   key: `${MailTranslationKey.GENERAL}.button`,
                   params: { url: entity.userData.kycUrl, button: 'true' },
+                },
+                {
+                  key: `${MailTranslationKey.KYC}.next_step`,
+                  params: { url: entity.userData.kycUrl, urlText: entity.userData.kycUrl },
                 },
                 { key: MailKey.DFX_TEAM_CLOSING },
               ],
@@ -107,12 +107,12 @@ export class KycNotificationService {
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
-                key: `${MailTranslationKey.KYC}.retry`,
-                params: { url: userData.kycUrl, urlText: userData.kycUrl },
-              },
-              {
                 key: `${MailTranslationKey.GENERAL}.button`,
                 params: { url: userData.kycUrl, button: 'true' },
+              },
+              {
+                key: `${MailTranslationKey.KYC}.retry`,
+                params: { url: userData.kycUrl, urlText: userData.kycUrl },
               },
               { key: MailKey.DFX_TEAM_CLOSING },
             ],
@@ -149,12 +149,12 @@ export class KycNotificationService {
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               {
-                key: `${MailTranslationKey.KYC}.retry`,
-                params: { url: userData.kycUrl, urlText: userData.kycUrl },
-              },
-              {
                 key: `${MailTranslationKey.GENERAL}.button`,
                 params: { url: userData.kycUrl, button: 'true' },
+              },
+              {
+                key: `${MailTranslationKey.KYC}.retry`,
+                params: { url: userData.kycUrl, urlText: userData.kycUrl },
               },
               { key: MailKey.DFX_TEAM_CLOSING },
             ],

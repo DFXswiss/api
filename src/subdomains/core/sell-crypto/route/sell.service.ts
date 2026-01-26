@@ -9,6 +9,8 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { merge } from 'lodash';
 import { Config } from 'src/config/config';
+import { PimlicoBundlerService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-bundler.service';
+import { PimlicoPaymasterService } from 'src/integration/blockchain/shared/evm/paymaster/pimlico-paymaster.service';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -69,6 +71,8 @@ export class SellService {
     @Inject(forwardRef(() => TransactionRequestService))
     private readonly transactionRequestService: TransactionRequestService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly pimlicoPaymasterService: PimlicoPaymasterService,
+    private readonly pimlicoBundlerService: PimlicoBundlerService,
   ) {}
 
   // --- SELLS --- //
@@ -126,6 +130,13 @@ export class SellService {
     });
 
     return sells.filter((s) => s.deposit.blockchainList.some((b) => sellableBlockchains.includes(b)));
+  }
+
+  async getSellsByUserDataId(userDataId: number): Promise<Sell[]> {
+    return this.sellRepo.find({
+      where: { user: { userData: { id: userDataId } } },
+      relations: { fiat: true, user: true },
+    });
   }
 
   async getSellWithoutRoute(): Promise<Sell[]> {
@@ -213,10 +224,16 @@ export class SellService {
     await this.sellRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
-  async updateVolume(sellId: number, volume: number, annualVolume: number): Promise<void> {
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async resetMonthlyVolumes(): Promise<void> {
+    await this.sellRepo.update({ monthlyVolume: Not(0) }, { monthlyVolume: 0 });
+  }
+
+  async updateVolume(sellId: number, volume: number, annualVolume: number, monthlyVolume: number): Promise<void> {
     await this.sellRepo.update(sellId, {
       volume: Util.round(volume, Config.defaultVolumeDecimal),
       annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+      monthlyVolume: Util.round(monthlyVolume, Config.defaultVolumeDecimal),
     });
 
     // update user volume
@@ -226,16 +243,23 @@ export class SellService {
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
-    await this.userService.updateSellVolume(user.id, userVolume.volume, userVolume.annualVolume);
+
+    await this.userService.updateSellVolume(
+      user.id,
+      userVolume.volume,
+      userVolume.annualVolume,
+      userVolume.monthlyVolume,
+    );
   }
 
-  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
+  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number; monthlyVolume: number }> {
     return this.sellRepo
       .createQueryBuilder('sell')
       .select('SUM(volume)', 'volume')
       .addSelect('SUM(annualVolume)', 'annualVolume')
+      .addSelect('SUM(monthlyVolume)', 'monthlyVolume')
       .where('userId = :id', { id: userId })
-      .getRawOne<{ volume: number; annualVolume: number }>();
+      .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {
@@ -266,14 +290,35 @@ export class SellService {
     let payIn: CryptoInput;
 
     try {
-      if (dto.permit) {
+      if (dto.authorization) {
+        type = 'gasless transfer';
+        const asset = await this.assetService.getAssetById(request.sourceId);
+        if (!asset) throw new BadRequestException('Asset not found');
+
+        if (!this.pimlicoBundlerService.isGaslessSupported(asset.blockchain)) {
+          throw new BadRequestException(`Gasless transactions not supported for ${asset.blockchain}`);
+        }
+
+        const result = await this.pimlicoBundlerService.executeGaslessTransfer(
+          request.user.address,
+          asset,
+          route.deposit.address,
+          request.amount,
+          dto.authorization,
+        );
+
+        payIn = await this.transactionUtilService.handleTxHashInput(route, request, result.txHash);
+      } else if (dto.permit) {
         type = 'permit';
         payIn = await this.transactionUtilService.handlePermitInput(route, request, dto.permit);
       } else if (dto.signedTxHex) {
         type = 'signed transaction';
         payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
+      } else if (dto.txHash) {
+        type = 'EIP-5792 sponsored transfer';
+        payIn = await this.transactionUtilService.handleTxHashInput(route, request, dto.txHash);
       } else {
-        throw new BadRequestException('Either permit or signedTxHex must be provided');
+        throw new BadRequestException('Either permit, signedTxHex, txHash, or authorization must be provided');
       }
 
       const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
@@ -285,25 +330,48 @@ export class SellService {
     }
   }
 
-  async createDepositTx(request: TransactionRequest, route: Sell): Promise<UnsignedTxDto> {
+  async createDepositTx(
+    request: TransactionRequest,
+    route: Sell,
+    userAddress?: string,
+    includeEip5792 = false,
+  ): Promise<UnsignedTxDto> {
     const asset = await this.assetService.getAssetById(request.sourceId);
     if (!asset) throw new BadRequestException('Asset not found');
 
     const client = this.blockchainRegistryService.getEvmClient(asset.blockchain);
     if (!client) throw new BadRequestException(`Unsupported blockchain`);
 
-    const userAddress = request.user.address;
+    const fromAddress = userAddress ?? request.user?.address;
+    if (!fromAddress) throw new BadRequestException('User address not found');
+
+    if (!route.deposit?.address) throw new BadRequestException('Deposit address not found');
     const depositAddress = route.deposit.address;
 
+    // Check if Pimlico paymaster is available for this blockchain
+    const paymasterAvailable = this.pimlicoPaymasterService.isPaymasterAvailable(asset.blockchain);
+    const paymasterUrl = paymasterAvailable ? this.pimlicoPaymasterService.getBundlerUrl(asset.blockchain) : undefined;
+
     try {
-      return await client.prepareTransaction(asset, userAddress, depositAddress, request.amount);
+      const unsignedTx = await client.prepareTransaction(asset, fromAddress, depositAddress, request.amount);
+
+      // Add EIP-5792 paymaster data only if user has 0 native balance (needs gasless)
+      if (includeEip5792 && paymasterUrl) {
+        unsignedTx.eip5792 = {
+          paymasterUrl,
+          chainId: client.chainId,
+          calls: [{ to: unsignedTx.to, data: unsignedTx.data, value: unsignedTx.value }],
+        };
+      }
+
+      return unsignedTx;
     } catch (e) {
       this.logger.warn(`Failed to create deposit TX for sell request ${request.id}:`, e);
       throw new BadRequestException(`Failed to create deposit transaction: ${e.reason ?? e.message}`);
     }
   }
 
-  private async toPaymentInfoDto(
+  async toPaymentInfoDto(
     userId: number,
     sell: Sell,
     dto: GetSellPaymentInfoDto,
@@ -380,8 +448,36 @@ export class SellService {
       user.id,
     );
 
+    // Assign complete user object to ensure user.address is available for createDepositTx
+    transactionRequest.user = user;
+
+    // Check if user needs gasless transaction (0 native balance) - must be done BEFORE createDepositTx
+    let hasZeroBalance = false;
+    if (isValid && this.pimlicoBundlerService.isGaslessSupported(dto.asset.blockchain)) {
+      try {
+        hasZeroBalance = await this.pimlicoBundlerService.hasZeroNativeBalance(user.address, dto.asset.blockchain);
+        sellDto.gaslessAvailable = hasZeroBalance;
+
+        if (hasZeroBalance) {
+          sellDto.eip7702Authorization = await this.pimlicoBundlerService.prepareAuthorizationData(
+            user.address,
+            dto.asset.blockchain,
+          );
+        }
+      } catch (e) {
+        this.logger.warn(`Could not prepare gasless data for sell request ${sell.id}:`, e);
+        sellDto.gaslessAvailable = false;
+      }
+    }
+
+    // Create deposit transaction - only include EIP-5792 data if user has 0 native balance
     if (includeTx && isValid) {
-      sellDto.depositTx = await this.createDepositTx(transactionRequest, sell);
+      try {
+        sellDto.depositTx = await this.createDepositTx(transactionRequest, sell, user.address, hasZeroBalance);
+      } catch (e) {
+        this.logger.warn(`Could not create deposit transaction for sell request ${sell.id}, continuing without it:`, e);
+        sellDto.depositTx = undefined;
+      }
     }
 
     return sellDto;

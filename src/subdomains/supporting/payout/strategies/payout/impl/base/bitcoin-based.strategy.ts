@@ -112,11 +112,12 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     const result: Map<number, PayoutOrder[]> = new Map();
 
     orders.forEach((o) => {
-      // find nearest non-full group without repeating address
-      const suitableExistingGroups = [...result.entries()].filter(
-        ([_, _orders]) =>
-          _orders.length < maxGroupSize && !_orders.find((_o) => _o.destinationAddress === o.destinationAddress),
-      );
+      // find nearest non-full group (based on unique addresses)
+      const suitableExistingGroups = [...result.entries()].filter(([_, _orders]) => {
+        const uniqueAddresses = new Set(_orders.map((_o) => _o.destinationAddress));
+
+        return uniqueAddresses.has(o.destinationAddress) || uniqueAddresses.size < maxGroupSize;
+      });
 
       const [key, group] = suitableExistingGroups[0] ?? [result.size, []];
       result.set(key, [...group, o]);

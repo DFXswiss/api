@@ -7,7 +7,9 @@ import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@un
 import { AssetTransfersCategory, AssetTransfersWithMetadataResult, BigNumberish } from 'alchemy-sdk';
 import BigNumber from 'bignumber.js';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { hashMessage } from 'ethers/lib/utils';
 import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/services/alchemy.service';
+import ERC1271_ABI from 'src/integration/blockchain/shared/evm/abi/erc1271.abi.json';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
@@ -79,7 +81,7 @@ export abstract class EvmClient extends BlockchainClient {
     this.chainId = params.chainId;
 
     const url = `${params.gatewayUrl}/${params.apiKey ?? ''}`;
-    this.provider = new ethers.providers.JsonRpcProvider(url);
+    this.provider = new ethers.providers.StaticJsonRpcProvider(url, this.chainId);
 
     this.wallet = new ethers.Wallet(params.walletPrivateKey, this.provider);
 
@@ -170,8 +172,22 @@ export abstract class EvmClient extends BlockchainClient {
     return this.getTokenGasLimitForContact(contract, this.randomReceiverAddress);
   }
 
-  async getTokenGasLimitForContact(contract: Contract, to: string): Promise<EthersNumber> {
-    return contract.estimateGas.transfer(to, 1).then((l) => l.mul(12).div(10));
+  async getTokenGasLimitForContact(contract: Contract, to: string, amount?: EthersNumber): Promise<EthersNumber> {
+    // Use actual amount if provided, otherwise use 1 for gas estimation
+    // Some tokens may have minimum transfer amounts or balance checks that fail with 1 Wei
+    const estimateAmount = amount ?? 1;
+
+    try {
+      const gasEstimate = await contract.estimateGas.transfer(to, estimateAmount);
+      return gasEstimate.mul(12).div(10);
+    } catch (error) {
+      // If gas estimation fails (e.g., from EIP-7702 delegated address), use a safe default
+      // Standard ERC20 transfer is ~65k gas, using 100k as safe upper bound with buffer
+      this.logger.verbose(
+        `Gas estimation failed for token transfer to ${to}: ${error.message}. Using default gas limit of 100000`,
+      );
+      return ethers.BigNumber.from(100000);
+    }
   }
 
   async prepareTransaction(
@@ -223,7 +239,7 @@ export abstract class EvmClient extends BlockchainClient {
         to: asset.chainId,
         data: EvmUtil.encodeErc20Transfer(toAddress, amountWei),
         value: '0',
-        gasLimit: await this.getTokenGasLimitForContact(contract, toAddress),
+        gasLimit: await this.getTokenGasLimitForContact(contract, toAddress, amountWei),
       };
     }
   }
@@ -382,6 +398,20 @@ export abstract class EvmClient extends BlockchainClient {
 
   async getTxReceipt(txHash: string): Promise<ethers.providers.TransactionReceipt> {
     return this.provider.getTransactionReceipt(txHash);
+  }
+
+  async isContract(address: string): Promise<boolean> {
+    const code = await this.provider.getCode(address);
+    return code !== '0x';
+  }
+
+  async verifyErc1271Signature(message: string, address: string, signature: string): Promise<boolean> {
+    const ERC1271_MAGIC_VALUE = '0x1626ba7e';
+
+    const hash = hashMessage(message);
+    const contract = new Contract(address, ERC1271_ABI, this.provider);
+    const result = await contract.isValidSignature(hash, signature);
+    return result === ERC1271_MAGIC_VALUE;
   }
 
   // got from https://gist.github.com/gluk64/fdea559472d957f1138ed93bcbc6f78a
@@ -787,22 +817,15 @@ export abstract class EvmClient extends BlockchainClient {
     amount: number,
     nonce?: number,
   ): Promise<string> {
-    this.logger.verbose(`sendToken: fromAddress=${fromAddress}, toAddress=${toAddress}, amount=${amount}`);
     const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress));
-    this.logger.verbose(`sendToken: gasLimit=${gasLimit}`);
     const gasPrice = +(await this.getRecommendedGasPrice());
-    this.logger.verbose(`sendToken: gasPrice=${gasPrice}`);
     const currentNonce = await this.getNonce(fromAddress);
-    this.logger.verbose(`sendToken: currentNonce=${currentNonce}`);
     const txNonce = nonce ?? currentNonce;
 
     const token = await this.getTokenByContract(contract);
     const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
-    this.logger.verbose(`sendToken: token=${token.name}, targetAmount=${targetAmount.toString()}`);
 
-    this.logger.verbose(`sendToken: calling contract.transfer...`);
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
-    this.logger.verbose(`sendToken: contract.transfer returned, tx.hash=${tx.hash}`);
 
     if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 

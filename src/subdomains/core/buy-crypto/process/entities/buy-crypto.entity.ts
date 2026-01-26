@@ -57,6 +57,15 @@ export enum BuyCryptoStatus {
   STOPPED = 'Stopped',
 }
 
+export interface CreditorData {
+  name?: string;
+  address?: string;
+  houseNumber?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
+}
+
 @Entity()
 export class BuyCrypto extends IEntity {
   // References
@@ -217,6 +226,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  chargebackCreditorData?: string;
+
   @OneToOne(() => FiatOutput, { nullable: true })
   @JoinColumn()
   chargebackOutput?: FiatOutput;
@@ -270,10 +282,12 @@ export class BuyCrypto extends IEntity {
 
   calculateOutputReferenceAmount(price: Price, exchangeOrders?: LiquidityManagementOrder[]): this {
     // Use pipeline prices only if:
-    // 1. Pipeline exists and is COMPLETE
-    // 2. Exchange orders were found (actual trades happened)
+    // 1. Feature is enabled via config (USE_PIPELINE_PRICE_FOR_ALL_ASSETS=true)
+    // 2. Pipeline exists and is COMPLETE
+    // 3. Exchange orders were found (actual trades happened)
     // If no exchange orders exist, liquidity was available without trading -> use market price
     if (
+      Config.liquidityManagement.usePipelinePriceForAllAssets &&
       this.liquidityPipeline &&
       this.liquidityPipeline.status === LiquidityManagementPipelineStatus.COMPLETE &&
       exchangeOrders?.length
@@ -519,7 +533,10 @@ export class BuyCrypto extends IEntity {
     chargebackOutput?: FiatOutput,
     chargebackRemittanceInfo?: string,
     blockchainFee?: number,
+    creditorData?: CreditorData,
   ): UpdateResult<BuyCrypto> {
+    const hasCreditorData = creditorData && Object.values(creditorData).some((v) => v != null);
+
     const update: Partial<BuyCrypto> = {
       chargebackDate: chargebackAllowedDate ? new Date() : null,
       chargebackAllowedDate,
@@ -534,6 +551,7 @@ export class BuyCrypto extends IEntity {
       blockchainFee,
       isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
       status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
+      chargebackCreditorData: hasCreditorData ? JSON.stringify(creditorData) : undefined,
     };
 
     Object.assign(this, update);
@@ -719,6 +737,10 @@ export class BuyCrypto extends IEntity {
 
   get chargebackBankRemittanceInfo(): string {
     return `Buy Chargeback ${this.id} Zahlung kann nicht verarbeitet werden. Weitere Infos unter dfx.swiss/help`;
+  }
+
+  get creditorData(): CreditorData | undefined {
+    return this.chargebackCreditorData ? JSON.parse(this.chargebackCreditorData) : undefined;
   }
 
   get networkStartCorrelationId(): string {

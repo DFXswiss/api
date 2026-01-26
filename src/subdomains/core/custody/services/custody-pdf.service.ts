@@ -3,7 +3,7 @@ import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { BalanceEntry, PdfUtil } from 'src/shared/utils/pdf.util';
+import { BalanceEntry, LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
@@ -125,7 +125,7 @@ export class CustodyPdfService {
           resolve(base64PDF);
         });
 
-        PdfUtil.drawLogo(pdf);
+        PdfUtil.drawLogo(pdf, PdfBrand.DFX, LogoSize.SMALL);
         this.drawHeader(pdf, dto, language, verifiedName);
         PdfUtil.drawTable(pdf, balances, dto.currency, language, this.i18n);
         PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);

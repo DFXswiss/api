@@ -60,6 +60,8 @@ import { LogService } from './log.service';
 export class LogJobService {
   private readonly logger = new DfxLogger(LogJobService);
 
+  private readonly unavailableClientWarningsLogged = new Set<Blockchain>();
+
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
@@ -218,6 +220,13 @@ export class LogJobService {
       Array.from(customAssetMap.entries()).map(async ([b, a]) => {
         try {
           const client = this.blockchainRegistryService.getClient(b);
+          if (!client) {
+            if (!this.unavailableClientWarningsLogged.has(b)) {
+              this.logger.warn(`Blockchain client not configured for ${b} - skipping custom balances`);
+              this.unavailableClientWarningsLogged.add(b);
+            }
+            return { blockchain: b, balances: [] };
+          }
 
           const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
             b.flat(),
@@ -235,8 +244,8 @@ export class LogJobService {
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
-    const maerkiEurBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'EUR');
-    const maerkiChfBank = await this.bankService.getBankInternal(IbanBankName.MAERKI, 'CHF');
+    const yapealEurBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'EUR');
+    const yapealChfBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'CHF');
 
     // pending balances
     const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
@@ -266,6 +275,8 @@ export class LogJobService {
             financeLogPairIds?.fromKraken.eur.bankTxId,
             financeLogPairIds?.toKraken.chf.bankTxId,
             financeLogPairIds?.toKraken.eur.bankTxId,
+            financeLogPairIds?.toScrypt.chf.bankTxId,
+            financeLogPairIds?.toScrypt.eur.bankTxId,
           ],
         )
       : undefined;
@@ -276,83 +287,145 @@ export class LogJobService {
             financeLogPairIds?.fromKraken.eur.exchangeTxId,
             financeLogPairIds?.toKraken.chf.exchangeTxId,
             financeLogPairIds?.toKraken.eur.exchangeTxId,
+            financeLogPairIds?.toScrypt.chf.exchangeTxId,
+            financeLogPairIds?.toScrypt.eur.exchangeTxId,
           ],
         )
       : undefined;
 
     // pending internal balances
     // db requests
-    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, maerkiEurBank.iban);
+    const recentBankTxFromOlky = await this.bankTxService.getRecentBankToBankTx(olkyBank.iban, yapealEurBank.iban);
     const recentKrakenBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.KRAKEN);
     const recentKrakenExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
       minExchangeTxId,
       ExchangeName.KRAKEN,
       [ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL],
     );
+    const recentScryptBankTx = await this.bankTxService.getRecentExchangeTx(minBankTxId, BankTxType.SCRYPT);
+    const recentScryptExchangeTx = await this.exchangeTxService.getRecentExchangeTx(
+      minExchangeTxId,
+      ExchangeName.SCRYPT,
+      [ExchangeTxType.DEPOSIT, ExchangeTxType.WITHDRAWAL],
+    );
 
     // fixed sender and receiver data
 
-    // CHF: Kraken -> Maerki
+    // CHF: Kraken -> Yapeal
     const chfSenderExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.WITHDRAWAL &&
         k.method === 'Bank Frick (SIC) International' &&
-        k.address === 'Maerki Baumann',
+        k.address === 'YAPEAL AG',
     );
     const chfReceiverBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
-    // EUR: Kraken -> Maerki
+    // EUR: Kraken -> Yapeal
     const eurSenderExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.WITHDRAWAL &&
         k.method === 'Bank Frick (SEPA) International' &&
-        k.address === 'Maerki Baumann & Co. AG',
+        k.address === 'YAPEAL AG',
     );
     const eurReceiverBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
-    // CHF: Maerki -> Kraken
+    // CHF: Yapeal -> Kraken
     const chfSenderBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const chfReceiverExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
+        k.status !== 'pending' &&
         k.method === 'Bank Frick (SIC) International' &&
-        k.address === 'MAEBCHZZXXX',
+        k.address === yapealChfBank.bic.padEnd(11, 'XXX'),
     );
 
-    // EUR: Maerki -> Kraken
+    // EUR: Yapeal -> Kraken
     const eurSenderBankTx = recentKrakenBankTx.filter(
-      (b) => b.accountIban === maerkiEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const eurReceiverExchangeTx = recentKrakenExchangeTx.filter(
       (k) =>
         k.type === ExchangeTxType.DEPOSIT &&
+        k.status !== 'pending' &&
         k.method === 'Bank Frick (SEPA) International' &&
-        k.address === 'MAEBCHZZXXX',
+        k.address === yapealEurBank.bic.padEnd(11, 'XXX'),
+    );
+
+    // CHF: Yapeal -> Scrypt
+    const chfSenderScryptBankTx = recentScryptBankTx.filter(
+      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+    );
+    const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
+      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'CHF',
     );
 
     // sender and receiver data
-    const { sender: recentChfKrakenMaerkiTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
+    const { sender: recentChfKrakenYapealTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
       chfSenderExchangeTx,
       chfReceiverBankTx,
     );
-    const { sender: recentEurKrakenMaerkiTx, receiver: recentEurKrakenBankTx } = this.filterSenderPendingList(
+    const { sender: recentEurKrakenYapealTx, receiver: recentEurKrakenBankTx } = this.filterSenderPendingList(
       eurSenderExchangeTx,
       eurReceiverBankTx,
     );
 
-    const { sender: recentChfMaerkiKrakenTx, receiver: recentChfBankTxKraken } = this.filterSenderPendingList(
+    const { sender: recentChfYapealKrakenTx, receiver: recentChfBankTxKraken } = this.filterSenderPendingList(
       chfSenderBankTx,
       chfReceiverExchangeTx,
     );
-    const { sender: recentEurMaerkiKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
+    const { sender: recentEurYapealKrakenTx, receiver: recentEurBankTxKraken } = this.filterSenderPendingList(
       eurSenderBankTx,
       eurReceiverExchangeTx,
+    );
+
+    // EUR: Yapeal -> Scrypt
+    const eurSenderScryptBankTx = recentScryptBankTx.filter(
+      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+    );
+    const eurReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
+      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR',
+    );
+
+    // CHF: Scrypt -> Yapeal
+    const chfSenderScryptExchangeTx = recentScryptExchangeTx.filter(
+      (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status === 'ok' && k.currency === 'CHF',
+    );
+    const chfReceiverScryptBankTx = recentScryptBankTx.filter(
+      (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+    );
+
+    // EUR: Scrypt -> Yapeal
+    const eurSenderScryptExchangeTx = recentScryptExchangeTx.filter(
+      (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status === 'ok' && k.currency === 'EUR',
+    );
+    const eurReceiverScryptBankTx = recentScryptBankTx.filter(
+      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+    );
+
+    // sender and receiver data for Yapeal -> Scrypt
+    const { sender: recentChfYapealScryptTx, receiver: recentChfBankTxScrypt } = this.filterSenderPendingList(
+      chfSenderScryptBankTx,
+      chfReceiverScryptExchangeTx,
+    );
+    const { sender: recentEurYapealScryptTx, receiver: recentEurBankTxScrypt } = this.filterSenderPendingList(
+      eurSenderScryptBankTx,
+      eurReceiverScryptExchangeTx,
+    );
+
+    // sender and receiver data for Scrypt -> Yapeal
+    const { sender: recentChfScryptYapealTx, receiver: recentChfScryptBankTx } = this.filterSenderPendingList(
+      chfSenderScryptExchangeTx,
+      chfReceiverScryptBankTx,
+    );
+    const { sender: recentEurScryptYapealTx, receiver: recentEurScryptBankTx } = this.filterSenderPendingList(
+      eurSenderScryptExchangeTx,
+      eurReceiverScryptBankTx,
     );
 
     // assetLog
@@ -386,50 +459,50 @@ export class LogJobService {
         0,
       );
 
-      // Olky to Maerki
-      const pendingOlkyMaerkiAmount = this.getPendingBankAmount(
+      // Olky to Yapeal //
+      const pendingOlkyYapealAmount = this.getPendingBankAmount(
         [curr],
         recentBankTxFromOlky,
         BankTxType.INTERNAL,
         olkyBank.iban,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
 
-      // Kraken to Maerki
+      // Kraken to Yapeal //
 
       // filtered lists
-      const pendingChfKrakenMaerkiPlusAmount = this.getPendingBankAmount(
+      const pendingChfKrakenYapealPlusAmount = this.getPendingBankAmount(
         [curr],
-        recentChfKrakenMaerkiTx,
+        recentChfKrakenYapealTx,
         ExchangeTxType.WITHDRAWAL,
-        maerkiChfBank.iban,
+        yapealChfBank.iban,
       );
-      const pendingEurKrakenMaerkiPlusAmount = this.getPendingBankAmount(
+      const pendingEurKrakenYapealPlusAmount = this.getPendingBankAmount(
         [curr],
-        recentEurKrakenMaerkiTx,
+        recentEurKrakenYapealTx,
         ExchangeTxType.WITHDRAWAL,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
-      const pendingKrakenMaerkiMinusAmount = this.getPendingBankAmount(
+      const pendingKrakenYapealMinusAmount = this.getPendingBankAmount(
         [curr],
         [...recentEurKrakenBankTx, ...recentChfKrakenBankTx],
         BankTxType.KRAKEN,
       );
 
       // unfiltered lists
-      const pendingChfKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
+      const pendingChfKrakenYapealPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         chfSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.chf.exchangeTxId),
         ExchangeTxType.WITHDRAWAL,
-        maerkiChfBank.iban,
+        yapealChfBank.iban,
       );
-      const pendingEurKrakenMaerkiPlusAmountUnfiltered = this.getPendingBankAmount(
+      const pendingEurKrakenYapealPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         eurSenderExchangeTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.exchangeTxId),
         ExchangeTxType.WITHDRAWAL,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
-      const pendingKrakenMaerkiMinusAmountUnfiltered = this.getPendingBankAmount(
+      const pendingKrakenYapealMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         [
           ...eurReceiverBankTx.filter((t) => t.id >= financeLogPairIds.fromKraken.eur.bankTxId),
@@ -438,29 +511,29 @@ export class LogJobService {
         BankTxType.KRAKEN,
       );
 
-      // Maerki to Kraken
+      // Yapeal to Kraken //
 
       // filtered lists
-      const pendingMaerkiKrakenPlusAmount = this.getPendingBankAmount(
+      const pendingYapealKrakenPlusAmount = this.getPendingBankAmount(
         [curr],
-        [...recentChfMaerkiKrakenTx, ...recentEurMaerkiKrakenTx],
+        [...recentChfYapealKrakenTx, ...recentEurYapealKrakenTx],
         BankTxType.KRAKEN,
       );
-      const pendingChfMaerkiKrakenMinusAmount = this.getPendingBankAmount(
+      const pendingChfYapealKrakenMinusAmount = this.getPendingBankAmount(
         [curr],
         recentChfBankTxKraken,
         ExchangeTxType.DEPOSIT,
-        maerkiChfBank.iban,
+        yapealChfBank.iban,
       );
-      const pendingEurMaerkiKrakenMinusAmount = this.getPendingBankAmount(
+      const pendingEurYapealKrakenMinusAmount = this.getPendingBankAmount(
         [curr],
         recentEurBankTxKraken,
         ExchangeTxType.DEPOSIT,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
 
       // unfiltered lists
-      const pendingMaerkiKrakenPlusAmountUnfiltered = this.getPendingBankAmount(
+      const pendingYapealKrakenPlusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         [
           ...chfSenderBankTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.bankTxId),
@@ -468,32 +541,139 @@ export class LogJobService {
         ],
         BankTxType.KRAKEN,
       );
-      const pendingChfMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
+      const pendingChfYapealKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         chfReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.chf.exchangeTxId),
         ExchangeTxType.DEPOSIT,
-        maerkiChfBank.iban,
+        yapealChfBank.iban,
       );
-      const pendingEurMaerkiKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
+      const pendingEurYapealKrakenMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         eurReceiverExchangeTx.filter((t) => t.id >= financeLogPairIds.toKraken.eur.exchangeTxId),
         ExchangeTxType.DEPOSIT,
-        maerkiEurBank.iban,
+        yapealEurBank.iban,
       );
 
+      // Yapeal to Scrypt //
+
+      // filtered lists
+      const pendingYapealScryptPlusAmount = this.getPendingBankAmount(
+        [curr],
+        [...recentChfYapealScryptTx, ...recentEurYapealScryptTx],
+        BankTxType.SCRYPT,
+      );
+      const pendingChfYapealScryptMinusAmount = this.getPendingBankAmount(
+        [curr],
+        recentChfBankTxScrypt,
+        ExchangeTxType.DEPOSIT,
+        yapealChfBank.iban,
+      );
+      const pendingEurYapealScryptMinusAmount = this.getPendingBankAmount(
+        [curr],
+        recentEurBankTxScrypt,
+        ExchangeTxType.DEPOSIT,
+        yapealEurBank.iban,
+      );
+
+      // unfiltered lists
+      const pendingYapealScryptPlusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        [
+          ...chfSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.bankTxId),
+          ...eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
+        ],
+        BankTxType.SCRYPT,
+      );
+      const pendingChfYapealScryptMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        chfReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        yapealChfBank.iban,
+      );
+      const pendingEurYapealScryptMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        yapealEurBank.iban,
+      );
+
+      // Scrypt to Yapeal //
+
+      // filtered lists
+      const pendingChfScryptYapealPlusAmount = this.getPendingBankAmount(
+        [curr],
+        recentChfScryptYapealTx,
+        ExchangeTxType.WITHDRAWAL,
+        yapealChfBank.iban,
+      );
+      const pendingEurScryptYapealPlusAmount = this.getPendingBankAmount(
+        [curr],
+        recentEurScryptYapealTx,
+        ExchangeTxType.WITHDRAWAL,
+        yapealEurBank.iban,
+      );
+      const pendingScryptYapealMinusAmount = this.getPendingBankAmount(
+        [curr],
+        [...recentChfScryptBankTx, ...recentEurScryptBankTx],
+        BankTxType.SCRYPT,
+      );
+
+      // unfiltered lists
+      const pendingChfScryptYapealPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.chf?.exchangeTxId
+        ? this.getPendingBankAmount(
+            [curr],
+            chfSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.exchangeTxId),
+            ExchangeTxType.WITHDRAWAL,
+            yapealChfBank.iban,
+          )
+        : 0;
+      const pendingEurScryptYapealPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
+        ? this.getPendingBankAmount(
+            [curr],
+            eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+            ExchangeTxType.WITHDRAWAL,
+            yapealEurBank.iban,
+          )
+        : 0;
+      const pendingScryptYapealMinusAmountUnfiltered =
+        financeLogPairIds?.fromScrypt?.chf?.bankTxId || financeLogPairIds?.fromScrypt?.eur?.bankTxId
+          ? this.getPendingBankAmount(
+              [curr],
+              [
+                ...chfReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.bankTxId),
+                ...eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
+              ],
+              BankTxType.SCRYPT,
+            )
+          : 0;
+
       const fromKrakenUnfiltered =
-        pendingChfKrakenMaerkiPlusAmountUnfiltered +
-        pendingEurKrakenMaerkiPlusAmountUnfiltered +
-        pendingKrakenMaerkiMinusAmountUnfiltered;
+        pendingChfKrakenYapealPlusAmountUnfiltered +
+        pendingEurKrakenYapealPlusAmountUnfiltered +
+        pendingKrakenYapealMinusAmountUnfiltered;
       const toKrakenUnfiltered =
-        pendingMaerkiKrakenPlusAmountUnfiltered +
-        pendingChfMaerkiKrakenMinusAmountUnfiltered +
-        pendingEurMaerkiKrakenMinusAmountUnfiltered;
+        pendingYapealKrakenPlusAmountUnfiltered +
+        pendingChfYapealKrakenMinusAmountUnfiltered +
+        pendingEurYapealKrakenMinusAmountUnfiltered;
 
       let fromKraken =
-        pendingChfKrakenMaerkiPlusAmount + pendingEurKrakenMaerkiPlusAmount + pendingKrakenMaerkiMinusAmount;
+        pendingChfKrakenYapealPlusAmount + pendingEurKrakenYapealPlusAmount + pendingKrakenYapealMinusAmount;
       let toKraken =
-        pendingMaerkiKrakenPlusAmount + pendingChfMaerkiKrakenMinusAmount + pendingEurMaerkiKrakenMinusAmount;
+        pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
+
+      let fromScrypt =
+        pendingChfScryptYapealPlusAmount + pendingEurScryptYapealPlusAmount + pendingScryptYapealMinusAmount;
+      let toScrypt =
+        pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount;
+
+      const fromScryptUnfiltered =
+        pendingChfScryptYapealPlusAmountUnfiltered +
+        pendingEurScryptYapealPlusAmountUnfiltered +
+        pendingScryptYapealMinusAmountUnfiltered;
+      const toScryptUnfiltered =
+        pendingYapealScryptPlusAmountUnfiltered +
+        pendingChfYapealScryptMinusAmountUnfiltered +
+        pendingEurYapealScryptMinusAmountUnfiltered;
 
       const errors = [];
 
@@ -511,21 +691,55 @@ export class LogJobService {
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
       }
 
+      if (fromScrypt !== fromScryptUnfiltered) {
+        errors.push(`fromScrypt !== fromScryptUnfiltered`);
+        this.logger.verbose(
+          `Error in financial log, fromScrypt balance !== fromScryptUnfiltered balance for asset: ${curr.id}, fromScryptAmount: ${fromScrypt}, fromScryptUnfilteredAmount: ${fromScryptUnfiltered}`,
+        );
+      }
+
+      if (toScrypt !== toScryptUnfiltered) {
+        errors.push(`toScrypt !== toScryptUnfiltered`);
+        this.logger.verbose(
+          `Error in financial log, toScrypt balance !== toScryptUnfiltered balance for asset: ${curr.id}, toScryptAmount: ${toScrypt}, toScryptUnfilteredAmount: ${toScryptUnfiltered}`,
+        );
+      }
+
       if (fromKraken < 0) {
         errors.push(`fromKraken < 0`);
         this.logger.verbose(`Error in financial log, fromKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
-        ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
-        pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`);
+        ${pendingYapealKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealKrakenMinusAmount},
+        pendingEurMinusAmount: ${pendingEurYapealKrakenMinusAmount}`);
         fromKraken = 0;
       }
       if (toKraken < 0) {
         errors.push(`toKraken < 0`);
         this.logger.verbose(
           `Error in financial log, toKraken balance < 0 for asset: ${curr.id}, pendingPlusAmount:
-          ${pendingMaerkiKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfMaerkiKrakenMinusAmount},
-          pendingEurMinusAmount: ${pendingEurMaerkiKrakenMinusAmount}`,
+          ${pendingYapealKrakenPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealKrakenMinusAmount},
+          pendingEurMinusAmount: ${pendingEurYapealKrakenMinusAmount}`,
         );
         toKraken = 0;
+      }
+
+      if (toScrypt < 0) {
+        errors.push(`toScrypt < 0`);
+        this.logger.verbose(
+          `Error in financial log, toScrypt balance < 0 for asset: ${curr.id}, pendingPlusAmount:
+          ${pendingYapealScryptPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealScryptMinusAmount},
+          pendingEurMinusAmount: ${pendingEurYapealScryptMinusAmount}`,
+        );
+        toScrypt = 0;
+      }
+
+      if (fromScrypt < 0) {
+        errors.push(`fromScrypt < 0`);
+        this.logger.verbose(
+          `Error in financial log, fromScrypt balance < 0 for asset: ${curr.id}, pendingChfPlusAmount:
+          ${pendingChfScryptYapealPlusAmount}, pendingEurPlusAmount: ${pendingEurScryptYapealPlusAmount},
+          pendingMinusAmount: ${pendingScryptYapealMinusAmount}`,
+        );
+        fromScrypt = 0;
       }
 
       // total pending balance
@@ -533,9 +747,11 @@ export class LogJobService {
         cryptoInput +
         exchangeOrder +
         bridgeOrder +
-        pendingOlkyMaerkiAmount +
+        pendingOlkyYapealAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
-        (useUnfilteredTx ? toKrakenUnfiltered : toKraken);
+        (useUnfilteredTx ? toKrakenUnfiltered : toKraken) +
+        (useUnfilteredTx ? fromScryptUnfiltered : fromScrypt) +
+        (useUnfilteredTx ? toScryptUnfiltered : toScrypt);
 
       const totalPlus = liquidity + totalPlusPending + (totalCustomBalance ?? 0);
 
@@ -617,16 +833,18 @@ export class LogJobService {
                 cryptoInput: this.getJsonValue(cryptoInput, amountType(curr)),
                 exchangeOrder: this.getJsonValue(exchangeOrder, amountType(curr)),
                 bridgeOrder: this.getJsonValue(bridgeOrder, amountType(curr)),
-                fromOlky: this.getJsonValue(pendingOlkyMaerkiAmount, amountType(curr)),
+                fromOlky: this.getJsonValue(pendingOlkyYapealAmount, amountType(curr)),
                 fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
+                fromScrypt: this.getJsonValue(useUnfilteredTx ? fromScryptUnfiltered : fromScrypt, amountType(curr)),
+                toScrypt: this.getJsonValue(useUnfilteredTx ? toScryptUnfiltered : toScrypt, amountType(curr)),
               }
             : undefined,
           // monitoring: errors.length
           //   ? {
           //       fromKrakenBankTxIds: this.getTxIdMonitoringLog([...eurReceiverBankTx, ...chfReceiverBankTx]),
           //       fromKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfSenderExchangeTx, ...eurSenderExchangeTx]),
-          //       toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurMaerkiKrakenTx]),
+          //       toKrakenBankTxIds: this.getTxIdMonitoringLog([...chfSenderBankTx, ...recentEurYapealKrakenTx]),
           //       toKrakenExchangeTxIds: this.getTxIdMonitoringLog([...chfReceiverExchangeTx, ...eurReceiverExchangeTx]),
           //     }
           //   : undefined,
@@ -808,34 +1026,24 @@ export class LogJobService {
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
   ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
-    const before14Days = Util.daysBefore(14);
     const before21Days = Util.daysBefore(21);
 
-    before14Days.setHours(0, 0, 0, 0);
-
     let filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
-    let filtered14ReceiverTx = receiverTx.filter((r) => r.created > before14Days);
+    let filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
 
     if (!filtered21SenderTx.length) return { receiver: [], sender: [] };
-    if (!filtered14ReceiverTx?.length) {
-      const filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
-
-      const { receiverIndex: rawReceiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
-
+    if (!filtered21ReceiverTx?.length) {
       return {
         sender: filtered21SenderTx,
-        receiver:
-          rawReceiverIndex != null
-            ? filtered21ReceiverTx.filter((r) => r.id >= filtered21ReceiverTx[rawReceiverIndex]?.id)
-            : filtered14ReceiverTx,
+        receiver: [],
       };
     }
 
-    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx);
+    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
 
     if (filtered21SenderTx[0] instanceof BankTx) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${filtered14ReceiverTx?.[receiverIndex]?.id}/${filtered14ReceiverTx?.[
+        `FinanceLog receiverTxId/date: ${filtered21ReceiverTx?.[receiverIndex]?.id}/${filtered21ReceiverTx?.[
           receiverIndex
         ]?.created.toDateString()}; senderTx[0] id/date: ${
           filtered21SenderTx[0]?.id
@@ -849,18 +1057,18 @@ export class LogJobService {
 
     filtered21SenderTx = senderPair ? filtered21SenderTx.filter((s) => s.id >= senderPair.id) : filtered21SenderTx;
 
-    if (filtered14ReceiverTx.length > filtered21SenderTx.length) {
-      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx, true);
+    if (filtered21ReceiverTx.length > filtered21SenderTx.length) {
+      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx, true);
 
       const senderTxLength = senderPair
         ? filtered21SenderTx.filter((s) => s.id <= senderPair.id).length
-        : filtered14ReceiverTx.length;
+        : filtered21ReceiverTx.length;
 
-      filtered14ReceiverTx = filtered14ReceiverTx.slice(filtered14ReceiverTx.length - senderTxLength);
+      filtered21ReceiverTx = filtered21ReceiverTx.slice(filtered21ReceiverTx.length - senderTxLength);
     }
 
     return {
-      receiver: filtered14ReceiverTx.filter((r) => r.id >= (filtered14ReceiverTx[receiverIndex]?.id ?? 0)),
+      receiver: filtered21ReceiverTx.filter((r) => r.id >= (filtered21ReceiverTx[receiverIndex]?.id ?? 0)),
       sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
     };
   }
@@ -892,13 +1100,15 @@ export class LogJobService {
           ? (receiverTx[receiverIndex] as BankTx).instructedAmount
           : receiverTx[receiverIndex].amount;
 
-      const senderPair = senderTx.find((s) =>
-        s instanceof BankTx
-          ? s.instructedAmount === receiverAmount &&
-            receiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
-            receiverTx[receiverIndex].created > s.created
-          : s.amount === receiverAmount && receiverTx[receiverIndex].created > s.created,
-      );
+      const senderPair = senderTx.find((s) => {
+        const receiverCreated = receiverTx[receiverIndex].created;
+        const senderDate = s instanceof BankTx ? s.valueDate : s.created;
+        const daysDiff = Math.abs(Util.daysDiff(senderDate, receiverCreated));
+
+        return s instanceof BankTx
+          ? s.instructedAmount === receiverAmount && daysDiff <= 5 && receiverCreated > s.created
+          : s.amount === receiverAmount && receiverCreated > s.created;
+      });
 
       if (!senderPair) {
         receiverIndex++;

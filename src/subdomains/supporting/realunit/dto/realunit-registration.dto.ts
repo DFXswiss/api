@@ -57,7 +57,7 @@ export class AktionariatRegistrationDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
-  @IsLowercase({ message: 'email must be lowercase' })
+  @IsLowercase()
   @Transform(Util.trim)
   email: string;
 

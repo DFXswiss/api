@@ -2,29 +2,42 @@ import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
 import { bech32m } from 'bech32';
-import { BlockchainClient } from '../shared/util/blockchain-client';
 import { BlockchainService } from '../shared/util/blockchain.service';
-
-enum SparkNetwork {
-  MAINNET = 'mainnet',
-  TESTNET = 'testnet',
-  REG_TEST = 'regtest',
-  SIGNET = 'signet',
-  LOCAL = 'local',
-}
+import { SparkClient, SparkTransaction } from './spark-client';
 
 @Injectable()
 export class SparkService extends BlockchainService {
+  private readonly client: SparkClient;
+
   constructor() {
     super();
+    this.client = new SparkClient();
   }
 
-  getDefaultClient(): BlockchainClient {
-    return null;
+  getDefaultClient(): SparkClient {
+    return this.client;
   }
 
   async isHealthy(): Promise<boolean> {
-    return true;
+    return this.client.isHealthy();
+  }
+
+  // --- TRANSACTION METHODS --- //
+
+  async sendTransaction(to: string, amount: number): Promise<{ txid: string; fee: number }> {
+    return this.client.sendTransaction(to, amount);
+  }
+
+  async getTransaction(txId: string): Promise<SparkTransaction> {
+    return this.client.getTransaction(txId);
+  }
+
+  async getNativeFee(): Promise<number> {
+    return this.client.getNativeFee();
+  }
+
+  async getTxActualFee(txHash: string): Promise<number> {
+    return this.client.getTxActualFee(txHash);
   }
 
   // --- SIGNATURE VERIFICATION --- //
@@ -81,23 +94,20 @@ export class SparkService extends BlockchainService {
   }
 
   // --- PAYMENT REQUEST --- //
-  async getPaymentRequest(_address: string, _amount: number): Promise<string | undefined> {
-    // TODO: requires integration with Spark network
-    return undefined;
+  async getPaymentRequest(address: string, amount: number): Promise<string | undefined> {
+    // BIP-21 style payment URI
+    return `spark:${address}?amount=${amount.toFixed(8)}`;
   }
 
   // --- HELPER METHODS --- //
-  private readonly NETWORK_PREFIXES = new Map<SparkNetwork, string>([
-    [SparkNetwork.MAINNET, 'sp'],
-    [SparkNetwork.TESTNET, 'spt'],
-    [SparkNetwork.REG_TEST, 'sprt'],
-    [SparkNetwork.SIGNET, 'sps'],
-    [SparkNetwork.LOCAL, 'spl'],
-  ]);
-
   private getAddressPrefix(address: string): string {
+    // Type guard against parameter tampering
+    if (typeof address !== 'string' || address.length === 0) {
+      return 'sp';
+    }
+
     const separatorIndex = address.lastIndexOf('1');
-    if (separatorIndex === -1) return this.NETWORK_PREFIXES.get(SparkNetwork.MAINNET);
+    if (separatorIndex === -1) return 'sp';
 
     return address.substring(0, separatorIndex);
   }

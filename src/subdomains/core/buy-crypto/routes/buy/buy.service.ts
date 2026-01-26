@@ -24,6 +24,7 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -63,10 +64,16 @@ export class BuyService {
     await this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
-  async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
+  @DfxCron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async resetMonthlyVolumes(): Promise<void> {
+    await this.buyRepo.update({ monthlyVolume: Not(0) }, { monthlyVolume: 0 });
+  }
+
+  async updateVolume(buyId: number, volume: number, annualVolume: number, monthlyVolume: number): Promise<void> {
     await this.buyRepo.update(buyId, {
       volume: Util.round(volume, Config.defaultVolumeDecimal),
       annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+      monthlyVolume: Util.round(monthlyVolume, Config.defaultVolumeDecimal),
     });
 
     // update user volume
@@ -76,16 +83,23 @@ export class BuyService {
       select: ['id', 'user'],
     });
     const userVolume = await this.getUserVolume(user.id);
-    await this.userService.updateBuyVolume(user.id, userVolume.volume, userVolume.annualVolume);
+
+    await this.userService.updateBuyVolume(
+      user.id,
+      userVolume.volume,
+      userVolume.annualVolume,
+      userVolume.monthlyVolume,
+    );
   }
 
-  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
+  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number; monthlyVolume: number }> {
     return this.buyRepo
       .createQueryBuilder('buy')
       .select('SUM(volume)', 'volume')
       .addSelect('SUM(annualVolume)', 'annualVolume')
+      .addSelect('SUM(monthlyVolume)', 'monthlyVolume')
       .where('userId = :id', { id: userId })
-      .getRawOne<{ volume: number; annualVolume: number }>();
+      .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {
@@ -243,7 +257,7 @@ export class BuyService {
     return this.buyRepo;
   }
 
-  private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+  async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(userId, {
       userData: { users: true, organization: true },
       wallet: true,
@@ -316,11 +330,8 @@ export class BuyService {
       // bank info
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant,
-      // No remittanceInfo needed for buy-specific IBAN (asset is determined by IBAN)
-      remittanceInfo: bankInfo.isBuySpecificIban ? undefined : buy.active ? buy.bankUsage : undefined,
-      paymentRequest: isValid
-        ? this.generateQRCode(buy, bankInfo, dto, user.userData, bankInfo.isBuySpecificIban)
-        : undefined,
+      remittanceInfo: buy.active ? bankInfo.reference : undefined,
+      paymentRequest: isValid ? this.generateQRCode(bankInfo, dto, user.userData) : undefined,
       // card info
       paymentLink:
         isValid && buy.active && dto.paymentMethod === FiatPaymentMethod.CARD
@@ -344,65 +355,45 @@ export class BuyService {
     buy?: Buy,
     asset?: Asset,
     wallet?: Wallet,
-  ): Promise<BankInfoDto & { isPersonalIban: boolean }> {
-    // Asset-specific personal IBAN (auto-created for personalIbanEnabled assets and enabled wallets)
+    forInvoice?: boolean,
+  ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
+    // asset-specific personal IBAN
     if (
       buy &&
       asset?.personalIbanEnabled &&
       wallet?.buySpecificIbanEnabled &&
       selector.userData.kycLevel >= KycLevel.LEVEL_50
     ) {
-      // Check if vIBAN already exists for this buy
       let virtualIban = await this.virtualIbanService.getActiveForBuyAndCurrency(buy.id, selector.currency);
 
-      // If no existing vIBAN, check limit before creating new one (max 10 per user)
       if (!virtualIban) {
+        // max 10 vIBANs per user
         const activeCount = await this.virtualIbanService.countActiveForUser(selector.userData.id);
         if (activeCount < 10) {
           virtualIban = await this.virtualIbanService.createForBuy(selector.userData, buy, selector.currency);
         }
       }
 
-      // Return buy-specific IBAN info if available
       if (virtualIban) {
-        const { address } = selector.userData;
-        return {
-          name: selector.userData.completeName,
-          street: address.street,
-          number: address.houseNumber,
-          zip: address.zip,
-          city: address.city,
-          country: address.country?.name,
-          bank: virtualIban.bank.name,
-          iban: virtualIban.iban,
-          bic: virtualIban.bank.bic,
-          sepaInstant: virtualIban.bank.sctInst,
-          isPersonalIban: true,
-          isBuySpecificIban: true,
-        };
+        return this.buildVirtualIbanResponse(virtualIban, selector.userData);
       }
-      // If limit reached, fall through to normal bank selection below
     }
 
-    // User-level personal IBAN
-    const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
+    // user-level vIBAN
+    let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
+
+    // EUR/CHF: create vIBAN for KYC 50+
+    if (!virtualIban && ['EUR', 'CHF'].includes(selector.currency) && selector.userData.kycLevel >= KycLevel.LEVEL_50) {
+      virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
+    }
 
     if (virtualIban) {
-      const { address } = selector.userData;
-      return {
-        name: selector.userData.completeName,
-        street: address.street,
-        number: address.houseNumber,
-        zip: address.zip,
-        city: address.city,
-        country: address.country?.name,
-        bank: virtualIban.bank.name,
-        iban: virtualIban.iban,
-        bic: virtualIban.bank.bic,
-        sepaInstant: virtualIban.bank.sctInst,
-        isPersonalIban: true,
-        isBuySpecificIban: false,
-      };
+      return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
+    }
+
+    // EUR: vIBAN is mandatory (except for invoice generation)
+    if (selector.currency === 'EUR' && !forInvoice) {
+      throw new BadRequestException('KycRequired');
     }
 
     // normal bank selection
@@ -417,35 +408,46 @@ export class BuyService {
       bic: bank.bic,
       sepaInstant: bank.sctInst,
       isPersonalIban: false,
-      isBuySpecificIban: false,
+      reference: buy?.bankUsage,
+    };
+  }
+
+  private buildVirtualIbanResponse(
+    virtualIban: VirtualIban,
+    userData: UserData,
+    reference?: string,
+  ): BankInfoDto & { isPersonalIban: boolean; reference?: string } {
+    const { address } = userData;
+    return {
+      name: userData.completeName,
+      street: address.street,
+      ...(address.houseNumber && { number: address.houseNumber }),
+      zip: address.zip,
+      city: address.city,
+      country: address.country?.name,
+      bank: virtualIban.bank.name,
+      iban: virtualIban.iban,
+      bic: virtualIban.bank.bic,
+      sepaInstant: virtualIban.bank.sctInst,
+      isPersonalIban: true,
+      reference,
     };
   }
 
   private generateQRCode(
-    buy: Buy,
-    bankInfo: BankInfoDto,
+    bankInfo: BankInfoDto & { reference?: string },
     dto: GetBuyPaymentInfoDto,
     userData: UserData,
-    isBuySpecificIban = false,
   ): string {
-    // For buy-specific IBAN, no reference/bankUsage needed in QR code
-    const reference = isBuySpecificIban ? undefined : buy.bankUsage;
-
     if (dto.currency.name === 'CHF') {
-      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, reference, bankInfo, userData);
+      return this.swissQrService.createQrCode(dto.amount, dto.currency.name, bankInfo.reference, bankInfo, userData);
     } else {
-      return this.generateGiroCode(buy, bankInfo, dto, isBuySpecificIban);
+      return this.generateGiroCode(bankInfo, dto);
     }
   }
 
-  private generateGiroCode(
-    buy: Buy,
-    bankInfo: BankInfoDto,
-    dto: GetBuyPaymentInfoDto,
-    isBuySpecificIban = false,
-  ): string {
-    // For buy-specific IBAN, no reference/bankUsage needed in GiroCode
-    const reference = isBuySpecificIban ? '' : buy.bankUsage;
+  private generateGiroCode(bankInfo: BankInfoDto & { reference?: string }, dto: GetBuyPaymentInfoDto): string {
+    const reference = bankInfo.reference ?? '';
 
     return `
 ${Config.giroCode.service}

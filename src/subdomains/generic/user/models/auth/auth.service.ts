@@ -1,14 +1,16 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  forwardRef,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
@@ -25,6 +27,7 @@ import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -87,6 +90,7 @@ export class AuthService {
     private readonly settingService: SettingService,
     private readonly recommendationService: RecommendationService,
     private readonly kycAdminService: KycAdminService,
+    @Inject(forwardRef(() => KycService)) private readonly kycService: KycService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE)
@@ -143,7 +147,10 @@ export class AuthService {
     const primaryUser = userId && (await this.userService.getUser(userId));
 
     const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
-    if (!custodyProvider && !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key))) {
+    if (
+      !custodyProvider &&
+      !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, undefined, dto.blockchain))
+    ) {
       throw new BadRequestException('Invalid signature');
     }
 
@@ -201,7 +208,9 @@ export class AuthService {
 
   private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
     if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
-      if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
+      if (
+        !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature, dto.blockchain))
+      ) {
         throw new UnauthorizedException('Invalid credentials');
       } else if (!user.signature) {
         // TODO: temporary code to update empty signatures (remove?)
@@ -255,6 +264,11 @@ export class AuthService {
     const key = randomUUID();
     const loginUrl = `${Config.frontend.services}/mail-login?otp=${key}`;
 
+    // Log login URL in local environment for testing
+    if (Config.environment === Environment.LOC) {
+      this.logger.info(`[LOCAL DEV] Mail login URL for ${dto.mail}: ${loginUrl}`);
+    }
+
     this.mailKeyList.set(key, {
       created: new Date(),
       key,
@@ -276,16 +290,16 @@ export class AuthService {
         texts: [
           { key: MailKey.SPACE, params: { value: '1' } },
           {
+            key: `${MailTranslationKey.GENERAL}.button`,
+            params: { url: loginUrl, button: 'true' },
+          },
+          {
             key: `${MailTranslationKey.LOGIN}.message`,
             params: {
               url: loginUrl,
               urlText: loginUrl,
               expiration: `${Config.auth.mailLoginExpiresIn}`,
             },
-          },
-          {
-            key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url: loginUrl, button: 'true' },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },
@@ -299,7 +313,7 @@ export class AuthService {
       const entry = this.mailKeyList.get(code);
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
 
-      const account = await this.userDataService.getUserData(entry.userDataId, { users: true });
+      const account = await this.userDataService.getUserData(entry.userDataId, { users: true, wallet: true });
 
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail, undefined, account);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
@@ -311,9 +325,15 @@ export class AuthService {
       if (account.isDeactivated)
         await this.userDataService.updateUserDataInternal(account, account.reactivateUserData());
 
-      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account);
+      if (!account.tradeApprovalDate) await this.checkPendingRecommendation(account, account.wallet);
 
-      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
+      try {
+        await this.kycService.initializeProcess(account);
+      } catch (e) {
+        this.logger.error(`Failed to initialize KYC process for account ${account.id}:`, e);
+      }
+
+      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/account`);
       url.searchParams.set('session', token);
       return url.toString();
     } catch (e) {
@@ -323,9 +343,9 @@ export class AuthService {
 
   private async companySignIn(dto: SignInDto, ip: string): Promise<AuthResponseDto> {
     const wallet = await this.walletService.getByAddress(dto.address);
-    if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
+    if (!wallet) throw new NotFoundException('Wallet not found');
 
-    if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key)))
+    if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key, dto.blockchain)))
       throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateCompanyToken(wallet, ip) };
@@ -333,7 +353,7 @@ export class AuthService {
 
   async getCompanyChallenge(address: string): Promise<ChallengeDto> {
     const wallet = await this.walletService.getByAddress(address);
-    if (!wallet?.isKycClient) throw new BadRequestException('Wallet not found/invalid');
+    if (!wallet) throw new BadRequestException('Wallet not found/invalid');
 
     const challenge = randomUUID();
 
@@ -423,6 +443,7 @@ export class AuthService {
     isCustodial: boolean,
     key?: string,
     dbSignature?: string,
+    blockchain?: Blockchain,
   ): Promise<boolean> {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
 
@@ -434,22 +455,28 @@ export class AuthService {
     }
 
     if (blockchains.includes(Blockchain.DEFICHAIN)) {
-      // DeFiChain wallet, only comparison check (no new registrations)
+      // DeFiChain wallet, only comparison check
       return dbSignature && signature === dbSignature;
     }
 
-    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
-    if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
+    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key, blockchain);
+    if (!isValid)
+      isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key, blockchain);
 
     return isValid;
   }
 
-  private async verifyCompanySignature(address: string, signature: string, key?: string): Promise<boolean> {
+  private async verifyCompanySignature(
+    address: string,
+    signature: string,
+    key?: string,
+    blockchain?: Blockchain,
+  ): Promise<boolean> {
     const challengeData = this.challengeList.get(address);
     if (!this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
     this.challengeList.delete(address);
 
-    return this.cryptoService.verifySignature(challengeData.challenge, address, signature, key);
+    return this.cryptoService.verifySignature(challengeData.challenge, address, signature, key, blockchain);
   }
 
   private hasChallenge(address: string): boolean {
@@ -487,7 +514,7 @@ export class AuthService {
     const payload: JwtPayload = {
       user: wallet.id,
       address: wallet.address,
-      role: UserRole.KYC_CLIENT_COMPANY,
+      role: wallet.isKycClient ? UserRole.KYC_CLIENT_COMPANY : UserRole.CLIENT_COMPANY,
       ip,
     };
     return this.jwtService.sign(payload, { expiresIn: Config.auth.company.signOptions.expiresIn });

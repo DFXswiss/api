@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -32,6 +34,7 @@ export class KycService {
   private readonly logger = new DfxLogger(KycService);
 
   constructor(
+    @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,

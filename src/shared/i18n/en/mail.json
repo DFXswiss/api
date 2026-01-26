@@ -7,13 +7,13 @@
         "welcome": "Hi {name}",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
-        "button": "or<br>[url:Click here]",
+        "button": "[url:Click here]",
         "link": "or<br>[url:{urlText}]"
     },
     "login": {
         "title": "DFX Login",
         "salutation": "DFX Login",
-        "message": "Click the following link within {expiration} minutes to log in to DFX:<br>[url:{urlText}]"
+        "message": "or click the following link within {expiration} minutes to log in to DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -95,7 +95,8 @@
                 "manual_check_ip_phone": "We were unable to reach you at the phone number you provided",
                 "manual_check_ip_country_phone": "We were unable to reach you at the phone number you provided",
                 "merge_incomplete": "The email confirmation was not accepted",
-                "intermediary_without_sender": "The sender bank (Wise/Revolut) only transmitted the bank name, not the account holder's name. DFX is therefore unable to verify the actual sender and cannot process the transaction."
+                "intermediary_without_sender": "The sender bank (Wise/Revolut) only transmitted the bank name, not the account holder's name. DFX is therefore unable to verify the actual sender and cannot process the transaction.",
+                "name_too_short": "Your name is too short for bank processing. Banks require at least 4 letters in the account holder name."
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -331,7 +332,7 @@
             "salutation": "Assignment agreement",
             "message": "DFX offers its customers the option of assigning outstanding receivables from the sale of goods and services to DFX to enable payment using cryptocurrencies. The customer has the option of submitting an outstanding claim via our API (api.dfx.swiss) or via the front end on app.dfx.swiss.<br>The amount owed is paid out to the customer after deduction of a processing fee of 0.2%. Depending on the customer-specific configuration, the payout can be made either in cryptocurrencies or as fiat currency via bank transaction.<br>The DFX General Terms and Conditions apply to all transactions. The assignment ends automatically when the DFX account is closed or can be terminated immediately by DFX or the customer in the event of breaches of contract or insolvency.<br><br>Agreed on {date}"
         },
-        "retry": "Please try it again with the following URL:<br>[url:{urlText}]",
+        "retry": "or try it again with the following URL:<br>[url:{urlText}]",
         "next_step": "To proceed with your verification, click on the menu item at the top right of the DFX-Services website<br> and then on \"KYC\"<br> and click the \"Continue\" button or use the following link:<br>[url:{urlText}]",
         "step_names": {
             "ident": "Identification",
@@ -354,7 +355,7 @@
         "request": {
             "title": "Confirm mail",
             "salutation": "Confirm your mail",
-            "message": "Click the following link to confirm your mail for another account:<br>[url:{urlText}]"
+            "message": "or click the following link to confirm your mail for another account:<br>[url:{urlText}]"
         },
         "added_address": {
             "title": "Address added to account",

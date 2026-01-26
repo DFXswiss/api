@@ -53,6 +53,8 @@ export enum LiquidityOptimizationType {
 export const LiquidityManagementExchanges = [
   LiquidityManagementSystem.KRAKEN,
   LiquidityManagementSystem.BINANCE,
+  LiquidityManagementSystem.MEXC,
+  LiquidityManagementSystem.XT,
   LiquidityManagementSystem.SCRYPT,
   LiquidityManagementSystem.FRANKENCOIN,
   LiquidityManagementSystem.DEURO,

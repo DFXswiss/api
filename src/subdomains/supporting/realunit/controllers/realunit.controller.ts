@@ -1,4 +1,16 @@
-import { Body, Controller, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiAcceptedResponse,
@@ -12,29 +24,37 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import { Config, Environment } from 'src/config/config';
 import {
-  AllowlistStatusDto,
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { PdfBrand } from 'src/shared/utils/pdf.util';
+import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BalancePdfService } from '../../balance/services/balance-pdf.service';
+import { TxStatementType } from '../../payment/dto/transaction-helper/tx-statement-details.dto';
+import { SwissQRService } from '../../payment/services/swiss-qr.service';
+import { TransactionHelper } from '../../payment/services/transaction-helper';
+import { RealUnitBalancePdfDto } from '../dto/realunit-balance-pdf.dto';
 import {
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
 } from '../dto/realunit-registration.dto';
+import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
   AccountSummaryDto,
-  BankDetailsDto,
   HistoricalPriceDto,
   HistoricalPriceQueryDto,
   HoldersDto,
@@ -51,7 +71,10 @@ import { RealUnitService } from '../realunit.service';
 export class RealUnitController {
   constructor(
     private readonly realunitService: RealUnitService,
+    private readonly balancePdfService: BalancePdfService,
     private readonly userService: UserService,
+    private readonly transactionHelper: TransactionHelper,
+    private readonly swissQrService: SwissQRService,
   ) {}
 
   @Get('account/:address')
@@ -121,6 +144,54 @@ export class RealUnitController {
     return this.realunitService.getRealUnitInfo();
   }
 
+  // --- Balance PDF Endpoint ---
+
+  @Post('balance/pdf')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get balance report PDF',
+    description: 'Generates a PDF balance report for a specific address on Ethereum blockchain',
+  })
+  @ApiOkResponse({ type: PdfDto, description: 'Balance PDF report (base64 encoded)' })
+  async getBalancePdf(@Body() dto: RealUnitBalancePdfDto): Promise<PdfDto> {
+    const tokenBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? Blockchain.SEPOLIA
+      : Blockchain.ETHEREUM;
+    const pdfData = await this.balancePdfService.generateBalancePdf(
+      { ...dto, blockchain: tokenBlockchain },
+      PdfBrand.REALUNIT,
+    );
+    return { pdfData };
+  }
+
+  // --- Receipt PDF Endpoint ---
+
+  @Put('transaction/:id/receipt')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    description: 'Generates a PDF receipt for a completed RealUnit transaction',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction ID' })
+  @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
+  @ApiBadRequestResponse({ description: 'Transaction not found or not a RealUnit transaction' })
+  async generateReceipt(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
+      user.userData.id,
+      +id,
+      TxStatementType.RECEIPT,
+    );
+
+    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
+      throw new BadRequestException('PDF receipt is only available for CHF and EUR transactions');
+    }
+
+    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
+  }
+
   // --- Brokerbot Endpoints ---
 
   @Get('brokerbot/info')
@@ -165,34 +236,13 @@ export class RealUnitController {
     return this.realunitService.getBrokerbotShares(amount);
   }
 
-  @Get('allowlist/:address')
-  @ApiOperation({
-    summary: 'Check allowlist status',
-    description: 'Checks if a wallet address is allowed to receive REALU tokens',
-  })
-  @ApiParam({ name: 'address', description: 'Wallet address to check' })
-  @ApiOkResponse({ type: AllowlistStatusDto })
-  async getAllowlistStatus(@Param('address') address: string): Promise<AllowlistStatusDto> {
-    return this.realunitService.getAllowlistStatus(address);
-  }
-
-  @Get('bank')
-  @ApiOperation({
-    summary: 'Get bank details',
-    description: 'Retrieves bank account details for REALU purchases via bank transfer',
-  })
-  @ApiOkResponse({ type: BankDetailsDto })
-  getBankDetails(): BankDetailsDto {
-    return this.realunitService.getBankDetails();
-  }
-
   // --- Buy Payment Info Endpoint ---
 
-  @Put('paymentInfo')
+  @Put('buy')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    summary: 'Get payment info for RealUnit purchase',
+    summary: 'Get payment info for RealUnit buy',
     description:
       'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 50 and RealUnit registration.',
   })
@@ -201,6 +251,44 @@ export class RealUnitController {
   async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
     const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
     return this.realunitService.getPaymentInfo(user, dto);
+  }
+
+  // --- Sell Payment Info Endpoints ---
+
+  @Put('sell')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get payment info for RealUnit sell',
+    description:
+      'Returns EIP-7702 delegation data for gasless REALU transfer and fallback deposit info. Requires KYC Level 20 and RealUnit registration.',
+  })
+  @ApiOkResponse({ type: RealUnitSellPaymentInfoDto })
+  @ApiBadRequestResponse({ description: 'KYC Level 20 required or registration missing' })
+  async getSellPaymentInfo(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitSellDto,
+  ): Promise<RealUnitSellPaymentInfoDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    return this.realunitService.getSellPaymentInfo(user, dto);
+  }
+
+  @Put('sell/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Confirm RealUnit sell transaction',
+    description: 'Confirms the sell transaction with EIP-7702 signatures or manual transaction hash.',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ description: 'Transaction confirmed', schema: { properties: { txHash: { type: 'string' } } } })
+  @ApiBadRequestResponse({ description: 'Invalid transaction request or signatures' })
+  async confirmSell(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RealUnitSellConfirmDto,
+  ): Promise<{ txHash: string }> {
+    return this.realunitService.confirmSell(jwt.user, +id, dto);
   }
 
   // --- Registration Endpoint ---

@@ -12,6 +12,7 @@ import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { EvmClient } from '../shared/evm/evm-client';
+import { EvmUtil } from '../shared/evm/evm.util';
 import { DEuroDepsGraphDto, DEuroPositionGraphDto, DEuroSavingsInfoDto } from './dto/deuro.dto';
 
 interface GraphQLPageInfo {
@@ -209,17 +210,14 @@ export class DEuroClient {
     if (!asset.decimals) throw new Error(`Asset ${asset.name} has no decimals`);
     if (!asset.chainId) throw new Error(`Asset ${asset.name} has no chainId`);
 
-    const weiAmount = ethers.utils.parseUnits(amount.toString(), asset.decimals);
-
     const remainingCapacity = await this.getBridgeRemainingCapacity(asset.name);
-    if (remainingCapacity.lt(weiAmount)) {
+    if (remainingCapacity < amount) {
       throw new Error(
-        `Bridge capacity exceeded for ${
-          asset.name
-        } (remaining: ${remainingCapacity.toString()}, requested: ${weiAmount.toString()})`,
+        `Bridge capacity exceeded for ${asset.name} (remaining: ${remainingCapacity} DEURO, requested: ${amount} ${asset.name})`,
       );
     }
 
+    const weiAmount = EvmUtil.toWeiAmount(amount, asset.decimals);
     const eurTokenContract = this.getErc20Contract(asset.chainId);
 
     const allowance = await eurTokenContract.allowance(this.evmClient.wallet.address, bridgeContract.address);
@@ -232,10 +230,10 @@ export class DEuroClient {
     return tx.hash;
   }
 
-  private async getBridgeRemainingCapacity(assetName: string): Promise<ethers.BigNumber> {
+  private async getBridgeRemainingCapacity(assetName: string): Promise<number> {
     const bridgeContract = this.getBridgeContract(assetName);
     const limit = await bridgeContract.limit();
     const minted = await bridgeContract.minted();
-    return limit.sub(minted);
+    return EvmUtil.fromWeiAmount(limit.sub(minted), 18); // bridge capacity is in DEURO = 18 decimals
   }
 }

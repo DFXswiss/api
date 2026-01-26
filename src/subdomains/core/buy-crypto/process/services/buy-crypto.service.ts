@@ -275,12 +275,28 @@ export class BuyCryptoService {
       });
 
     if (dto.chargebackAllowedDate) {
-      if (entity.bankTx && !entity.chargebackOutput)
+      if (entity.bankTx && !entity.chargebackOutput) {
+        if (!dto.chargebackCreditorName && !entity.creditorData)
+          throw new BadRequestException('Creditor data is required for chargeback');
+
         update.chargebackOutput = await this.fiatOutputService.createInternal(
           FiatOutputType.BUY_CRYPTO_FAIL,
           { buyCrypto: entity },
           entity.id,
+          false,
+          {
+            iban: dto.chargebackIban ?? entity.chargebackIban,
+            amount: entity.chargebackAmount ?? entity.bankTx.amount,
+            currency: entity.bankTx.currency,
+            name: dto.chargebackCreditorName ?? entity.creditorData?.name,
+            address: dto.chargebackCreditorAddress ?? entity.creditorData?.address,
+            houseNumber: dto.chargebackCreditorHouseNumber ?? entity.creditorData?.houseNumber,
+            zip: dto.chargebackCreditorZip ?? entity.creditorData?.zip,
+            city: dto.chargebackCreditorCity ?? entity.creditorData?.city,
+            country: dto.chargebackCreditorCountry ?? entity.creditorData?.country,
+          },
         );
+      }
 
       if (entity.checkoutTx) {
         await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
@@ -529,11 +545,22 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
+    const creditorData = dto.creditorData ?? buyCrypto.creditorData;
+    if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
+      throw new BadRequestException('Creditor data is required for chargeback');
+
     if (dto.chargebackAllowedDate && chargebackAmount)
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
         { buyCrypto },
         buyCrypto.id,
+        false,
+        {
+          iban: chargebackIban,
+          amount: chargebackAmount,
+          currency: dto.chargebackCurrency ?? buyCrypto.bankTx?.currency,
+          ...creditorData,
+        },
       );
 
     await this.buyCryptoRepo.update(
@@ -545,6 +572,8 @@ export class BuyCryptoService {
         dto.chargebackAllowedBy,
         dto.chargebackOutput,
         buyCrypto.chargebackBankRemittanceInfo,
+        undefined,
+        creditorData,
       ),
     );
   }
@@ -835,50 +864,56 @@ export class BuyCryptoService {
   async updateBuyVolume(buyIds: number[]): Promise<void> {
     buyIds = buyIds.filter((u, j) => buyIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
+    const startOfYear = Util.startOfYear();
+    const startOfMonth = Util.startOfMonth();
+
     for (const id of buyIds) {
-      const { volume } = await this.buyCryptoRepo
+      const { volume, annualVolume, monthlyVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'volume')
-        .where('buyId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
-        .getRawOne<{ volume: number }>();
-
-      const newYear = new Date(new Date().getFullYear(), 0, 1);
-      const { annualVolume } = await this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'annualVolume')
+        .select('SUM(buyCrypto.amountInChf)', 'volume')
+        .addSelect(
+          'SUM(CASE WHEN bankTx.bookingDate >= :startOfYear THEN buyCrypto.amountInChf ELSE 0 END)',
+          'annualVolume',
+        )
+        .addSelect(
+          'SUM(CASE WHEN bankTx.bookingDate >= :startOfMonth THEN buyCrypto.amountInChf ELSE 0 END)',
+          'monthlyVolume',
+        )
         .leftJoin('buyCrypto.bankTx', 'bankTx')
-        .where('buyCrypto.buyId = :id', { id: id })
+        .where('buyCrypto.buyId = :id', { id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('bankTx.bookingDate >= :year', { year: newYear })
-        .getRawOne<{ annualVolume: number }>();
+        .setParameters({ startOfYear, startOfMonth })
+        .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
 
-      await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }
   }
 
   async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
     cryptoRouteIds = cryptoRouteIds.filter((u, j) => cryptoRouteIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
+    const startOfYear = Util.startOfYear();
+    const startOfMonth = Util.startOfMonth();
+
     for (const id of cryptoRouteIds) {
-      const { volume } = await this.buyCryptoRepo
+      const { volume, annualVolume, monthlyVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'volume')
-        .where('cryptoRouteId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
-        .getRawOne<{ volume: number }>();
-
-      const newYear = new Date(new Date().getFullYear(), 0, 1);
-      const { annualVolume } = await this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInChf)', 'annualVolume')
+        .select('SUM(buyCrypto.amountInChf)', 'volume')
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfYear THEN buyCrypto.amountInChf ELSE 0 END)',
+          'annualVolume',
+        )
+        .addSelect(
+          'SUM(CASE WHEN cryptoInput.created >= :startOfMonth THEN buyCrypto.amountInChf ELSE 0 END)',
+          'monthlyVolume',
+        )
         .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
-        .where('buyCrypto.cryptoRouteId = :id', { id: id })
+        .where('buyCrypto.cryptoRouteId = :id', { id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
-        .andWhere('cryptoInput.created >= :year', { year: newYear })
-        .getRawOne<{ annualVolume: number }>();
+        .setParameters({ startOfYear, startOfMonth })
+        .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
 
-      await this.swapService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      await this.swapService.updateVolume(id, volume ?? 0, annualVolume ?? 0, monthlyVolume ?? 0);
     }
   }
 

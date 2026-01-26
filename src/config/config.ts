@@ -46,7 +46,7 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   defaultRef = '000-000';
-  transactionRefundExpirySeconds = 30;
+  transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   refRewardManualCheckLimit = 3000; // EUR
   txRequestWaitingExpiryDays = 7;
   financeLogTotalBalanceChangeLimit = 5000;
@@ -55,6 +55,10 @@ export class Configuration {
 
   priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
   priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
+
+  isDomesticIban(iban: string): boolean {
+    return ['CH', 'LI'].includes(iban?.substring(0, 2));
+  }
 
   defaults = {
     currency: 'EUR',
@@ -101,6 +105,7 @@ export class Configuration {
     fiatOutput: {
       batchAmountLimit: 9500,
     },
+    usePipelinePriceForAllAssets: process.env.USE_PIPELINE_PRICE_FOR_ALL_ASSETS === 'true',
   };
 
   defaultVolumeDecimal = 2;
@@ -256,7 +261,6 @@ export class Configuration {
   };
 
   kyc = {
-    // IDnow integration removed - config keys kept for Sumsub
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
     identFailAfterDays: 30,
     reminderAfterDays: 2,
@@ -700,7 +704,7 @@ export class Configuration {
       walletPassword: process.env.NODE_WALLET_PASSWORD,
       utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
       minTxAmount: 0.00000297,
-      allowUnconfirmedUtxos: process.env.ALLOW_UNCONFIRMED_UTXOS === 'true',
+      allowUnconfirmedUtxos: true,
       cpfpFeeMultiplier: +(process.env.CPFP_FEE_MULTIPLIER ?? '2.0'),
       defaultFeeMultiplier: +(process.env.DEFAULT_FEE_MULTIPLIER ?? '1.5'),
     },
@@ -712,6 +716,9 @@ export class Configuration {
       // EIP-7702 Delegation (MetaMask EIP7702StatelessDeleGator v1.3.0)
       delegationEnabled: process.env.EVM_DELEGATION_ENABLED === 'true',
       delegatorAddress: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
+
+      // Pimlico Paymaster for EIP-5792 gasless transactions
+      pimlicoApiKey: process.env.PIMLICO_API_KEY,
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.evm.depositSeed,
@@ -789,6 +796,14 @@ export class Configuration {
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscApiKey: process.env.ALCHEMY_API_KEY,
       gasPrice: process.env.BSC_GAS_PRICE,
+    },
+    citrea: {
+      ...EVM_CHAINS.citrea,
+      citreaGatewayUrl: EVM_CHAINS.citrea.gatewayUrl,
+      citreaChainId: EVM_CHAINS.citrea.chainId,
+      citreaWalletAddress: process.env.CITREA_WALLET_ADDRESS,
+      citreaWalletPrivateKey: process.env.CITREA_WALLET_PRIVATE_KEY,
+      citreaApiKey: process.env.CITREA_API_KEY,
     },
     citreaTestnet: {
       ...EVM_CHAINS.citreaTestnet,
@@ -882,6 +897,9 @@ export class Configuration {
       coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
       fee: 0.01,
     },
+    spark: {
+      sparkWalletSeed: process.env.SPARK_WALLET_SEED,
+    },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {
@@ -904,10 +922,16 @@ export class Configuration {
       },
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
-        address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',
         iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
         bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
         name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
+      },
+      address: {
+        street: process.env.REALUNIT_ADDRESS_STREET ?? 'Schochenmühlestrasse',
+        number: process.env.REALUNIT_ADDRESS_NUMBER ?? '6',
+        zip: process.env.REALUNIT_ADDRESS_ZIP ?? '6340',
+        city: process.env.REALUNIT_ADDRESS_CITY ?? 'Baar',
+        country: process.env.REALUNIT_ADDRESS_COUNTRY ?? 'Switzerland',
       },
     },
     ebel2x: {
@@ -1004,6 +1028,10 @@ export class Configuration {
         .find((p) => p.includes('BlobEndpoint'))
         ?.replace('BlobEndpoint=', ''),
       connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    },
+    appInsights: {
+      appId: process.env.APPINSIGHTS_APP_ID,
+      apiKey: process.env.APPINSIGHTS_API_KEY,
     },
   };
 

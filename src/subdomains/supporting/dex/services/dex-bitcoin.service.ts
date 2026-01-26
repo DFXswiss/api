@@ -34,7 +34,7 @@ export class DexBitcoinService {
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {
     const transaction = await this.client.getTx(transferTxId);
 
-    return transaction && transaction.blockhash && transaction.confirmations > 0;
+    return transaction != null;
   }
 
   async getRecentHistory(txCount: number): Promise<TransactionHistory[]> {

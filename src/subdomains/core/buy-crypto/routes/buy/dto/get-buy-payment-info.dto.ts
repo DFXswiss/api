@@ -65,7 +65,6 @@ export class GetBuyPaymentInfoDto {
   @Transform(Util.sanitize)
   externalTransactionId?: string;
 
-   
   @ApiPropertyOptional({ description: 'Require an exact price (may take longer)' })
   @IsNotEmpty()
   @IsBoolean()

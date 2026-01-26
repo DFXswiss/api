@@ -44,7 +44,9 @@ import {
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TxStatementType } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-statement-details.dto';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction, TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -67,7 +69,6 @@ import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.s
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { PdfDto } from '../../buy-crypto/routes/buy/dto/pdf.dto';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
-import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
@@ -92,7 +93,6 @@ export class TransactionController {
     private readonly transactionService: TransactionService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly refRewardService: RefRewardService,
     private readonly bankDataService: BankDataService,
     private readonly bankTxService: BankTxService,
     private readonly fiatService: FiatService,
@@ -105,6 +105,7 @@ export class TransactionController {
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
     private readonly swissQrService: SwissQRService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   // --- JOBS --- //
@@ -246,8 +247,13 @@ export class TransactionController {
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
     const bankDatas = await this.bankDataService.getValidBankDatasForUser(jwt.account, false);
+    const virtualIbans = await this.virtualIbanService.getVirtualIbansForAccount(jwt.account);
 
-    const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((b) => b.iban));
+    const txList = await this.bankTxService.getUnassignedBankTx(
+      bankDatas.map((b) => b.iban),
+      virtualIbans.map((vI) => vI.iban),
+    );
+
     return Util.asyncMap(txList, async (tx) => {
       const currency = await this.fiatService.getFiatByName(tx.txCurrency);
       return TransactionDtoMapper.mapUnassignedTransaction(tx, currency);
@@ -318,9 +324,15 @@ export class TransactionController {
     if (transaction.refundTargetEntity instanceof BankTx) {
       // Unassigned transaction
       if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new NotFoundException('Transaction not found');
-      const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account);
-      if (jwt.account !== transaction.userData?.id || txOwner.id !== jwt.account)
+
+      // Check ownership (consistent with requestRefund logic)
+      if (transaction.userData && jwt.account !== transaction.userData.id)
         throw new ForbiddenException('You can only refund your own transaction');
+      if (!transaction.userData) {
+        const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account);
+        if (txOwner?.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
+      }
+
       if (transaction.refundTargetEntity.bankTxReturn)
         throw new BadRequestException('You can only refund a transaction once');
 
@@ -407,54 +419,16 @@ export class TransactionController {
       throw new ForbiddenException('You can only refund your own transaction');
     if (!transaction.targetEntity && !transaction.userData) {
       const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account);
-      if (txOwner.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
+      if (txOwner?.id !== jwt.account) throw new ForbiddenException('You can only refund your own transaction');
     }
 
     const refundData = this.refundList.get(transaction.id);
     if (!refundData) throw new BadRequestException('Request refund data first');
     if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data request invalid');
+
+    await this.executeRefund(transaction, transaction.targetEntity, refundData, dto);
+
     this.refundList.delete(transaction.id);
-
-    const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
-    if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
-
-    const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
-
-    if (!transaction.targetEntity) {
-      transaction.bankTxReturn = await this.bankTxService
-        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
-        .then((b) => b.bankTxReturn);
-    }
-
-    if (transaction.targetEntity instanceof BankTxReturn) {
-      return this.bankTxReturnService.refundBankTx(transaction.targetEntity, {
-        refundIban: refundData.refundTarget ?? dto.refundTarget,
-        ...refundDto,
-      });
-    }
-
-    if (NotRefundableAmlReasons.includes(transaction.targetEntity.amlReason))
-      throw new BadRequestException('You cannot refund with this reason');
-
-    if (transaction.targetEntity instanceof BuyFiat)
-      return this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, {
-        refundUserAddress: dto.refundTarget,
-        ...refundDto,
-      });
-
-    if (transaction.targetEntity.cryptoInput)
-      return this.buyCryptoService.refundCryptoInput(transaction.targetEntity, {
-        refundUserAddress: dto.refundTarget,
-        ...refundDto,
-      });
-
-    if (transaction.targetEntity.checkoutTx)
-      return this.buyCryptoService.refundCheckoutTx(transaction.targetEntity, { ...refundDto });
-
-    return this.buyCryptoService.refundBankTx(transaction.targetEntity, {
-      refundIban: refundData.refundTarget ?? dto.refundTarget,
-      ...refundDto,
-    });
   }
 
   @Put(':id/invoice')
@@ -462,9 +436,56 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txIdOrUid = isNaN(+id) ? id : +id;
+
+    // For string UIDs, first try to find a TransactionRequest (for pending transactions)
+    if (typeof txIdOrUid === 'string') {
+      const request = await this.transactionRequestService.getTransactionRequestByUid(txIdOrUid, {
+        user: { userData: { organization: true }, wallet: true },
+      });
+
+      if (request) {
+        // Validate ownership and state
+        if (request.user.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction request');
+        if (!request.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
+        if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+        // Generate invoice from request (pending transaction)
+        const currency = await this.fiatService.getFiat(request.sourceId);
+        if (!Config.invoice.currencies.includes(currency.name)) {
+          throw new Error('PDF invoice is only available for CHF and EUR transactions');
+        }
+
+        const buy = await this.buyService.get(jwt.account, request.routeId);
+        const bankInfo = await this.buyService.getBankInfo(
+          {
+            amount: request.amount,
+            currency: currency.name,
+            paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
+            userData: request.userData,
+          },
+          buy,
+          buy?.asset,
+          buy?.user?.wallet,
+          true,
+        );
+
+        return {
+          pdfData: await this.swissQrService.createInvoiceFromRequest(
+            request.amount,
+            currency.name,
+            bankInfo.reference,
+            bankInfo,
+            request,
+          ),
+        };
+      }
+    }
+
+    // Try to find a completed Transaction
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
       jwt.account,
-      +id,
+      txIdOrUid,
       TxStatementType.INVOICE,
     );
 
@@ -480,9 +501,10 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txIdOrUid = isNaN(+id) ? id : +id;
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
       jwt.account,
-      +id,
+      txIdOrUid,
       TxStatementType.RECEIPT,
     );
 
@@ -495,6 +517,64 @@ export class TransactionController {
 
   // --- HELPER METHODS --- //
 
+  private async executeRefund(
+    transaction: Transaction,
+    targetEntity: BuyCrypto | BuyFiat | BankTxReturn | undefined,
+    refundData: RefundDataDto,
+    dto: TransactionRefundDto,
+  ): Promise<void> {
+    const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
+    if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
+
+    const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
+
+    if (!targetEntity) {
+      targetEntity = await this.bankTxService
+        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
+        .then((b) => b.bankTxReturn);
+    }
+
+    const chargebackCurrency = refundData.refundAsset.name;
+
+    if (targetEntity instanceof BankTxReturn) {
+      if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
+
+      return this.bankTxReturnService.refundBankTx(targetEntity, {
+        refundIban: dto.refundTarget ?? refundData.refundTarget,
+        chargebackCurrency,
+        creditorData: dto.creditorData,
+        ...refundDto,
+      });
+    }
+
+    if (NotRefundableAmlReasons.includes(targetEntity.amlReason))
+      throw new BadRequestException('You cannot refund with this reason');
+
+    if (targetEntity instanceof BuyFiat)
+      return this.buyFiatService.refundBuyFiatInternal(targetEntity, {
+        refundUserAddress: dto.refundTarget,
+        ...refundDto,
+      });
+
+    if (targetEntity.cryptoInput)
+      return this.buyCryptoService.refundCryptoInput(targetEntity, {
+        refundUserAddress: dto.refundTarget,
+        ...refundDto,
+      });
+
+    if (targetEntity.checkoutTx) return this.buyCryptoService.refundCheckoutTx(targetEntity, { ...refundDto });
+
+    // BuyCrypto bank refund
+    if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
+
+    return this.buyCryptoService.refundBankTx(targetEntity, {
+      refundIban: dto.refundTarget ?? refundData.refundTarget,
+      chargebackCurrency,
+      creditorData: dto.creditorData,
+      ...refundDto,
+    });
+  }
+
   private async getTransactionDto(
     tx: Transaction | TransactionRequest | undefined,
     detailed = false,
@@ -506,18 +586,19 @@ export class TransactionController {
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
     if (transaction.refundTargetEntity instanceof BuyFiat) return transaction.refundTargetEntity.chargebackAddress;
 
-    try {
-      if (transaction.bankTx && (await this.validateIban(transaction.bankTx.iban))) return transaction.bankTx.iban;
-    } catch (_) {
-      return transaction.refundTargetEntity instanceof BankTx
-        ? undefined
-        : transaction.refundTargetEntity?.chargebackIban;
-    }
+    // For bank transactions, always return the original IBAN - refund must go to the sender
+    if (transaction.bankTx?.iban) return transaction.bankTx.iban;
 
-    if (transaction.refundTargetEntity instanceof BuyCrypto)
-      return transaction.refundTargetEntity.checkoutTx
-        ? `${transaction.refundTargetEntity.checkoutTx.cardBin}****${transaction.refundTargetEntity.checkoutTx.cardLast4}`
-        : transaction.refundTargetEntity.chargebackIban;
+    // For BuyCrypto with checkout (card), return masked card number
+    if (transaction.refundTargetEntity instanceof BuyCrypto && transaction.refundTargetEntity.checkoutTx)
+      return `${transaction.refundTargetEntity.checkoutTx.cardBin}****${transaction.refundTargetEntity.checkoutTx.cardLast4}`;
+
+    // For other cases, return existing chargeback IBAN
+    if (transaction.refundTargetEntity instanceof BankTx) return transaction.bankTx?.iban;
+    if (transaction.refundTargetEntity instanceof BuyCrypto) return transaction.refundTargetEntity.chargebackIban;
+    if (transaction.refundTargetEntity instanceof BankTxReturn) return transaction.refundTargetEntity.chargebackIban;
+
+    return undefined;
   }
 
   private async validateIban(iban: string): Promise<boolean> {

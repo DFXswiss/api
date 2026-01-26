@@ -125,8 +125,10 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     return {
       buyCrypto: await this.repos.buyCrypto
         .findOne({ where: {}, order: { outputDate: 'DESC' } })
-        .then((b) => b.outputDate),
-      buyFiat: await this.repos.buyFiat.findOne({ where: {}, order: { outputDate: 'DESC' } }).then((b) => b.outputDate),
+        .then((b) => b?.outputDate),
+      buyFiat: await this.repos.buyFiat
+        .findOne({ where: {}, order: { outputDate: 'DESC' } })
+        .then((b) => b?.outputDate),
     };
   }
 }

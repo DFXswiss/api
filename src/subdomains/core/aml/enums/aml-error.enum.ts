@@ -26,6 +26,7 @@ export enum AmlError {
   INVALID_KYC_TYPE = 'InvalidKycType',
   NO_VERIFIED_NAME = 'NoVerifiedName',
   NAME_MISSING = 'NameMissing',
+  NAME_TOO_SHORT = 'NameTooShort',
   VERIFIED_COUNTRY_NOT_ALLOWED = 'VerifiedCountryNotAllowed',
   IBAN_COUNTRY_FATF_NOT_ALLOWED = 'IbanCountryFatfNotAllowed',
   TX_COUNTRY_NOT_ALLOWED = 'TxCountryNotAllowed',
@@ -63,6 +64,7 @@ export enum AmlError {
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
+  FORCE_MANUAL_CHECK = 'ForceManualCheck',
 }
 
 export const DelayResultError = [
@@ -151,6 +153,11 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.KYC_DATA_NEEDED,
   },
+  [AmlError.NAME_TOO_SHORT]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.NAME_TOO_SHORT,
+  },
   [AmlError.VERIFIED_COUNTRY_NOT_ALLOWED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
@@ -200,7 +207,11 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.GSHEET,
     amlReason: null,
   },
-  [AmlError.BANK_DATA_USER_MISMATCH]: null,
+  [AmlError.BANK_DATA_USER_MISMATCH]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.USER_DATA_MISMATCH,
+  },
   [AmlError.VIRTUAL_IBAN_USER_MISMATCH]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
@@ -299,5 +310,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.INTERMEDIARY_WITHOUT_SENDER,
+  },
+  [AmlError.FORCE_MANUAL_CHECK]: {
+    type: AmlErrorType.SINGLE,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK,
   },
 };

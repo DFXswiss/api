@@ -2,7 +2,11 @@ import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException 
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { KycRecommendationData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -25,17 +29,19 @@ export class RecommendationService {
     @Inject(forwardRef(() => UserDataService))
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
+    @Inject(forwardRef(() => KycService))
+    private readonly kycService: KycService,
   ) {}
 
   async createRecommendationByRecommender(userDataId: number, dto: CreateRecommendationDto): Promise<Recommendation> {
-    const userData = await this.userDataService.getUserData(userDataId);
+    const userData = await this.userDataService.getUserData(userDataId, { users: true });
     if (!userData) throw new NotFoundException('Account not found');
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
     if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
 
     const mailUser = dto.recommendedMail
       ? await this.userDataService
-          .getUsersByMail(dto.recommendedMail, true)
+          .getUsersByMail(dto.recommendedMail, true, { users: true, wallet: true, kycSteps: true })
           .then((u) => u.find((us) => us.tradeApprovalDate) ?? u?.[0])
       : undefined;
 
@@ -78,6 +84,22 @@ export class RecommendationService {
       dto.recommendedAlias,
       dto.recommendedMail,
     );
+
+    if (recommended) {
+      const { step } = await this.kycService.getOrCreateStepInternal(
+        KycStepName.RECOMMENDATION,
+        recommended,
+        undefined,
+      );
+      // avoid circular reference
+      step.userData = undefined;
+
+      await this.kycService.updateKycStepAndLog(step, recommended, { key: entity.code }, ReviewStatus.COMPLETED);
+      await this.updateRecommendationInternal(entity, {
+        isConfirmed: true,
+        confirmationDate: new Date(),
+      });
+    }
 
     if (dto.recommendedMail) await this.sendInvitationMail(entity);
 
@@ -166,7 +188,7 @@ export class RecommendationService {
   async confirmRecommendation(userDataId: number, id: number, isConfirmed: boolean): Promise<Recommendation> {
     const entity = await this.recommendationRepo.findOne({
       where: { id },
-      relations: { recommender: true, recommended: true },
+      relations: { recommender: { users: true }, recommended: { users: true }, kycStep: true },
     });
     if (!entity) throw new NotFoundException('Recommendation not found');
     if (entity.recommender.id !== userDataId)
@@ -191,10 +213,21 @@ export class RecommendationService {
   async updateRecommendationInternal(entity: Recommendation, update: Partial<Recommendation>): Promise<Recommendation> {
     Object.assign(entity, update);
 
-    if (update.isConfirmed && entity.recommended)
-      await this.userDataService.updateUserDataInternal(update.recommended ?? entity.recommended, {
+    if (update.isConfirmed && entity.recommended) {
+      await this.userDataService.updateUserDataInternal(entity.recommended, {
         tradeApprovalDate: new Date(),
       });
+
+      const refCode =
+        entity.kycStep && entity.method === RecommendationMethod.REF_CODE
+          ? entity.kycStep.getResult<KycRecommendationData>().key
+          : (entity.recommender.users.find((u) => u.ref).ref ?? Config.defaultRef);
+
+      for (const user of entity.recommended.users ??
+        (await this.userService.getAllUserDataUsers(entity.recommended.id))) {
+        if (user.usedRef === Config.defaultRef) await this.userService.updateUserInternal(user, { usedRef: refCode });
+      }
+    }
 
     return this.recommendationRepo.save(entity);
   }
@@ -202,7 +235,11 @@ export class RecommendationService {
   async getAndCheckRecommendationByCode(code: string): Promise<Recommendation> {
     const entity = await this.recommendationRepo.findOne({
       where: { code },
-      relations: { recommended: true, recommender: true },
+      relations: {
+        recommended: { users: true },
+        recommender: { users: true },
+        kycStep: true,
+      },
     });
     if (!entity) throw new BadRequestException('Recommendation code not found');
     if (entity.isExpired) throw new BadRequestException('Recommendation code is expired');
@@ -223,7 +260,7 @@ export class RecommendationService {
   async checkAndConfirmRecommendInvitation(recommendedId: number): Promise<Recommendation> {
     const entity = await this.recommendationRepo.findOne({
       where: { recommended: { id: recommendedId }, isConfirmed: IsNull(), expirationDate: MoreThan(new Date()) },
-      relations: { recommended: true, recommender: true },
+      relations: { recommended: { users: true }, recommender: { users: true }, kycStep: true },
     });
     if (
       !entity ||

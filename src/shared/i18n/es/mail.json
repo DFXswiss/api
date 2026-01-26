@@ -7,13 +7,13 @@
         "welcome": "Hola {name}",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
-        "button": "o<br>[url:Haga clic aquí]",
+        "button": "[url:Haga clic aquí]",
         "link": "o<br>[url:{urlText}]"
     },
     "login": {
         "title": "DFX Entrar",
         "salutation": "DFX Entrar",
-        "message": "Haga clic en el siguiente enlace dentro de {expiration} minutos para iniciar sesión en DFX:<br>[url:{urlText}]"
+        "message": "o haga clic en el siguiente enlace dentro de {expiration} minutos para iniciar sesión en DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -95,7 +95,8 @@
                 "manual_check_ip_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
                 "manual_check_ip_country_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó",
                 "merge_incomplete": "El correo electrónico de confirmación no fue aceptado",
-                "intermediary_without_sender": "El banco emisor (Wise/Revolut) solo transmitió el nombre del banco, no el nombre del titular de la cuenta. Por lo tanto, DFX no puede verificar el remitente real y no puede procesar la transacción."
+                "intermediary_without_sender": "El banco emisor (Wise/Revolut) solo transmitió el nombre del banco, no el nombre del titular de la cuenta. Por lo tanto, DFX no puede verificar el remitente real y no puede procesar la transacción.",
+                "name_too_short": "Tu nombre es demasiado corto para el procesamiento bancario. Los bancos requieren al menos 4 letras en el nombre del titular de la cuenta."
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
@@ -331,7 +332,7 @@
             "salutation": "Acuerdo de cesión",
             "message": "DFX ofrece a sus clientes la opción de ceder a DFX los créditos pendientes de la venta de bienes y servicios para permitir el pago mediante criptomonedas. El cliente tiene la opción de presentar una reclamación pendiente a través de nuestra API (api.dfx.swiss) o a través del front-end en app.dfx.swiss.<br>El importe adeudado se abona al cliente una vez deducida una comisión de tramitación del 0,2%. Dependiendo de la configuración específica del cliente, el pago puede realizarse en criptomonedas o en moneda fiduciaria mediante una transacción bancaria.<br>Las Condiciones Generales de DFX se aplican a todas las transacciones. La cesión finaliza automáticamente cuando se cierra la cuenta DFX o puede ser rescindida inmediatamente por DFX o el cliente en caso de incumplimiento de contrato o insolvencia.<br><br>De acuerdo {date}"
         },
-        "retry": "Por favor, inténtelo de nuevo con la siguiente URL:<br>[url:{urlText}]",
+        "retry": "o inténtelo de nuevo con la siguiente URL:<br>[url:{urlText}]",
         "next_step": "Para proceder a su verificación, haga clic en el elemento de menú situado en la parte superior derecha del sitio web de DFX-Services<br> y, a continuación, en \"KYC\"<br> y haga clic en el botón \"Continuar\"<br> o utilice el siguiente enlace:<br>[url:{urlText}]",
         "step_names": {
             "ident": "Identificación",
@@ -354,7 +355,7 @@
         "request": {
             "title": "Confirmar correo electrónico",
             "salutation": "Confirme su correo electrónico",
-            "message": "Haga clic en el siguiente enlace para confirmar su correo para otra cuenta:<br>[url:{urlText}]"
+            "message": "o haga clic en el siguiente enlace para confirmar su correo para otra cuenta:<br>[url:{urlText}]"
         },
         "added_address": {
             "title": "Dirección añadida a la cuenta",

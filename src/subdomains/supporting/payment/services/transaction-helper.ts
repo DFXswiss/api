@@ -25,8 +25,6 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -49,6 +47,7 @@ import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/t
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
+import { Transaction } from '../entities/transaction.entity';
 import { TransactionService } from './transaction.service';
 
 @Injectable()
@@ -57,6 +56,7 @@ export class TransactionHelper implements OnModuleInit {
 
   private readonly addressBalanceCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
   private readonly user30dVolumeCache = new AsyncCache<number>(CacheItemResetPeriod.EVERY_HOUR);
+  private readonly unavailableClientWarningsLogged = new Set<Blockchain>();
 
   private transactionSpecifications: TransactionSpecification[];
 
@@ -320,8 +320,10 @@ export class TransactionHelper implements OnModuleInit {
       },
     };
 
-    const sourceSpecs = await this.getSourceSpecs(from, extendedSpecs, priceValidity);
-    const targetSpecs = await this.getTargetSpecs(to, extendedSpecs, priceValidity);
+    const [sourceSpecs, targetSpecs] = await Promise.all([
+      this.getSourceSpecs(from, extendedSpecs, priceValidity),
+      this.getTargetSpecs(to, extendedSpecs, priceValidity),
+    ]);
 
     const target = await this.getTargetEstimation(
       sourceAmount,
@@ -400,6 +402,12 @@ export class TransactionHelper implements OnModuleInit {
     const inputCurrency = await this.getRefundActive(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
+    // CHF refunds only to domestic IBANs
+    const refundCurrency =
+      isFiat && inputCurrency.name === 'CHF' && refundTarget && !Config.isDomesticIban(refundTarget)
+        ? await this.fiatService.getFiatByName('EUR')
+        : inputCurrency;
+
     const price =
       refundEntity.manualChfPrice ??
       (await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.PREFER_VALID));
@@ -420,7 +428,12 @@ export class TransactionHelper implements OnModuleInit {
     });
 
     const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
-    const networkFeeAmount = price.convert(chargebackFee.network);
+
+    let networkFeeAmount = price.convert(chargebackFee.network);
+
+    if (isAsset(inputCurrency) && inputCurrency.blockchain === Blockchain.SOLANA)
+      networkFeeAmount += await this.getSolanaRentExemptionFee(inputCurrency);
+
     const bankFeeAmount =
       refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
         ? price.convert(
@@ -428,11 +441,21 @@ export class TransactionHelper implements OnModuleInit {
           )
         : 0; // Bank fee buffer 1%
 
-    const totalFeeAmount = Util.roundReadable(dfxFeeAmount + networkFeeAmount + bankFeeAmount, feeAmountType);
+    const totalFeeAmount = dfxFeeAmount + networkFeeAmount + bankFeeAmount;
     if (totalFeeAmount >= inputAmount) throw new BadRequestException('Transaction fee is too expensive');
 
-    const refundAsset =
+    const inputAsset =
       inputCurrency instanceof Asset ? AssetDtoMapper.toDto(inputCurrency) : FiatDtoMapper.toDto(inputCurrency);
+    const refundAsset =
+      refundCurrency instanceof Asset ? AssetDtoMapper.toDto(refundCurrency) : FiatDtoMapper.toDto(refundCurrency);
+
+    // convert to refund currency
+    const refundPrice = await this.pricingService.getPrice(inputCurrency, refundCurrency, PriceValidity.VALID_ONLY);
+
+    const refundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
+    const feeDfx = Util.roundReadable(refundPrice.convert(dfxFeeAmount), feeAmountType);
+    const feeNetwork = Util.roundReadable(refundPrice.convert(networkFeeAmount), feeAmountType);
+    const feeBank = Util.roundReadable(refundPrice.convert(bankFeeAmount), feeAmountType);
 
     // Get bank details from the refund entity
     const bankTx = this.getBankTxFromRefundEntity(refundEntity);
@@ -440,12 +463,12 @@ export class TransactionHelper implements OnModuleInit {
     return {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       inputAmount: Util.roundReadable(inputAmount, amountType),
-      inputAsset: refundAsset,
-      refundAmount: Util.roundReadable(inputAmount - totalFeeAmount, amountType),
+      inputAsset,
+      refundAmount,
       fee: {
-        dfx: Util.roundReadable(dfxFeeAmount, feeAmountType),
-        network: Util.roundReadable(networkFeeAmount, feeAmountType),
-        bank: Util.roundReadable(bankFeeAmount, feeAmountType),
+        dfx: feeDfx,
+        network: feeNetwork,
+        bank: feeBank,
       },
       refundAsset,
       refundTarget,
@@ -471,43 +494,62 @@ export class TransactionHelper implements OnModuleInit {
 
   async getTxStatementDetails(
     userDataId: number,
-    txId: number,
+    txIdOrUid: number | string,
     statementType: TxStatementType,
   ): Promise<TxStatementDetails> {
-    const transaction = await this.transactionService.getTransactionById(txId, {
+    const relations = {
       userData: { organization: true },
       buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
-    });
+      request: true,
+    };
 
-    if (!transaction || !transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn)
-      throw new BadRequestException('Transaction not found');
-    if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
-    if (!transaction.targetEntity.isComplete) throw new BadRequestException('Transaction not completed');
+    const transaction =
+      typeof txIdOrUid === 'number'
+        ? await this.transactionService.getTransactionById(txIdOrUid, relations)
+        : await this.transactionService.getTransactionByUid(txIdOrUid, relations);
+
+    if (!transaction) throw new BadRequestException('Transaction not found');
+    if (!transaction.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
+
+    // Handle pending transactions (no targetEntity yet, but has request)
+    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn) {
+      if (statementType === TxStatementType.RECEIPT)
+        throw new BadRequestException('Receipt not available for pending transactions');
+      if (!transaction.request) throw new BadRequestException('Transaction not found');
+      return this.getTxStatementDetailsFromRequest(transaction, statementType);
+    }
+
+    if (statementType === TxStatementType.RECEIPT && !transaction.targetEntity.isComplete)
+      throw new BadRequestException('Transaction not completed');
 
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
       const buy = transaction.buyCrypto.buy;
+      const bankInfo =
+        statementType === TxStatementType.INVOICE &&
+        (await this.buyService.getBankInfo(
+          {
+            amount: transaction.buyCrypto.outputAmount,
+            currency: fiat.name,
+            paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
+            userData: transaction.userData,
+          },
+          buy,
+          buy?.asset,
+          buy?.user?.wallet,
+          true,
+        ));
+
       return {
         statementType,
         transactionType: TransactionType.BUY,
         transaction,
         currency: fiat.name,
-        bankInfo:
-          statementType === TxStatementType.INVOICE &&
-          (await this.buyService.getBankInfo(
-            {
-              amount: transaction.buyCrypto.outputAmount,
-              currency: fiat.name,
-              paymentMethod: transaction.buyCrypto.paymentMethodIn as FiatPaymentMethod,
-              userData: transaction.userData,
-            },
-            buy,
-            buy?.asset,
-            buy?.user?.wallet,
-          )),
+        bankInfo,
+        reference: bankInfo?.reference,
       };
     }
 
@@ -539,6 +581,39 @@ export class TransactionHelper implements OnModuleInit {
     }
 
     throw new BadRequestException('Transaction type not supported for invoice generation');
+  }
+
+  private async getTxStatementDetailsFromRequest(
+    transaction: Transaction,
+    statementType: TxStatementType,
+  ): Promise<TxStatementDetails> {
+    const request = transaction.request;
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    const currency = await this.fiatService.getFiat(request.sourceId);
+    const buy = await this.buyService.get(transaction.userData.id, request.routeId);
+    const bankInfo = await this.buyService.getBankInfo(
+      {
+        amount: request.amount,
+        currency: currency.name,
+        paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
+        userData: transaction.userData,
+      },
+      buy,
+      buy?.asset,
+      buy?.user?.wallet,
+      true,
+    );
+
+    return {
+      statementType,
+      transactionType: TransactionType.BUY,
+      transaction,
+      currency: currency.name,
+      bankInfo,
+      reference: bankInfo?.reference,
+      request,
+    };
   }
 
   async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
@@ -603,6 +678,14 @@ export class TransactionHelper implements OnModuleInit {
 
     try {
       const client = this.blockchainRegistryService.getClient(to.blockchain);
+      if (!client) {
+        if (!this.unavailableClientWarningsLogged.has(to.blockchain)) {
+          this.logger.warn(`Blockchain client not configured for ${to.blockchain} - skipping network start fee`);
+          this.unavailableClientWarningsLogged.add(to.blockchain);
+        }
+        return 0;
+      }
+
       const userBalance = await this.addressBalanceCache.get(`${user.address}-${to.blockchain}`, () =>
         client.getNativeCoinBalanceForAddress(user.address),
       );
@@ -624,6 +707,13 @@ export class TransactionHelper implements OnModuleInit {
 
     const price = await this.pricingService.getPrice(solanaCoin, PriceCurrency.CHF, PriceValidity.ANY);
     return price.convert(fee);
+  }
+
+  private async getSolanaRentExemptionFee(asset: Asset): Promise<number> {
+    if (asset.type !== AssetType.COIN) return 0;
+
+    const price = await this.pricingService.getPrice(asset, PriceCurrency.CHF, PriceValidity.ANY);
+    return price.convert(Config.blockchain.solana.minimalCoinAccountRent) * 1.05; // 5% buffer for rounding
   }
 
   private async getTronCreateAccountFee(user: User, asset: Asset): Promise<number> {
@@ -696,7 +786,7 @@ export class TransactionHelper implements OnModuleInit {
       timestamp: price.timestamp,
       exchangeRate: Util.roundReadable(price.price, amountType(from)),
       rate: targetAmount ? Util.roundReadable(sourceAmount / targetAmount, amountType(from)) : Number.MAX_VALUE,
-      sourceAmount: Util.roundReadable(sourceAmount, amountType(from)),
+      sourceAmount: Util.floorReadable(sourceAmount, amountType(from)),
       estimatedAmount: Util.roundReadable(targetAmount, amountType(to)),
       exactPrice: price.isValid,
       priceSteps: price.steps,
@@ -730,7 +820,7 @@ export class TransactionHelper implements OnModuleInit {
   static getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
     switch (paymentMethod) {
       case FiatPaymentMethod.BANK:
-        return IbanBankName.MAERKI;
+        return IbanBankName.YAPEAL;
       case FiatPaymentMethod.CARD:
         return CardBankName.CHECKOUT;
       case FiatPaymentMethod.INSTANT:
@@ -856,17 +946,18 @@ export class TransactionHelper implements OnModuleInit {
       user?.userData &&
       !user.userData.tradeApprovalDate &&
       !user.wallet.autoTradeApproval
-    )
-      return QuoteError.TRADING_NOT_ALLOWED;
+    ) {
+      return user.userData.kycLevel >= KycLevel.LEVEL_10
+        ? QuoteError.RECOMMENDATION_REQUIRED
+        : QuoteError.EMAIL_REQUIRED;
+    }
+
+    // Credit card payments disabled
+    if (paymentMethodIn === FiatPaymentMethod.CARD) return QuoteError.PAYMENT_METHOD_NOT_ALLOWED;
 
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
 
-    if (
-      nationality &&
-      ((isBuy && !nationality.bankEnable) ||
-        (paymentMethodIn === FiatPaymentMethod.CARD && !nationality.checkoutEnable) ||
-        ((isSell || isSwap) && !nationality.cryptoEnable))
-    )
+    if (nationality && ((isBuy && !nationality.bankEnable) || ((isSell || isSwap) && !nationality.cryptoEnable)))
       return QuoteError.NATIONALITY_NOT_ALLOWED;
 
     // KYC checks
@@ -904,22 +995,7 @@ export class TransactionHelper implements OnModuleInit {
 
     // verification checks
     if (
-      paymentMethodIn === FiatPaymentMethod.CARD &&
-      user &&
-      !user.userData.completeName &&
-      !user.userData.verifiedName
-    )
-      return QuoteError.NAME_REQUIRED;
-
-    if (
-      txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc &&
-      user?.userData?.accountType === AccountType.ORGANIZATION &&
-      user?.userData?.identificationType === KycIdentificationType.ONLINE_ID
-    )
-      return QuoteError.VIDEO_IDENT_REQUIRED;
-
-    if (
-      ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
+      ((isSell && to.name !== 'CHF') || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc

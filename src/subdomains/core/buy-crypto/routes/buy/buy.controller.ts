@@ -23,10 +23,12 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { KycLevel, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { CreateVirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/create-virtual-iban.dto';
 import { VirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/virtual-iban.dto';
+import { VirtualIbanMapper } from 'src/subdomains/supporting/bank/virtual-iban/dto/virtual-iban.mapper';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -59,6 +61,7 @@ export class BuyController {
     private readonly fiatService: FiatService,
     private readonly swissQrService: SwissQRService,
     private readonly virtualIbanService: VirtualIbanService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   @Get()
@@ -67,14 +70,6 @@ export class BuyController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
   async getAllBuy(@GetJwt() jwt: JwtPayload): Promise<BuyDto[]> {
     return this.buyService.getUserBuys(jwt.user).then((l) => this.toDtoList(jwt.user, l));
-  }
-
-  @Get(':id')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
-  @ApiOkResponse({ type: BuyDto })
-  async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
-    return this.buyService.get(jwt.account, +id).then((l) => this.toDto(jwt.user, l));
   }
 
   @Post()
@@ -161,7 +156,7 @@ export class BuyController {
   @ApiOkResponse({ type: PdfDto })
   async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
-    if (!request.userData.isDataComplete) throw new BadRequestException('User data is not complete');
+    if (!request.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
@@ -178,20 +173,18 @@ export class BuyController {
       buy,
       buy.asset,
       user.wallet,
+      true,
     );
 
     if (!Config.invoice.currencies.includes(currency.name)) {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
     }
 
-    // No reference needed for buy-specific IBAN
-    const reference = bankInfo.isBuySpecificIban ? undefined : buy.bankUsage;
-
     return {
       pdfData: await this.swissQrService.createInvoiceFromRequest(
         request.amount,
         currency.name,
-        reference,
+        bankInfo.reference,
         bankInfo,
         request,
       ),
@@ -213,11 +206,19 @@ export class BuyController {
     await this.transactionRequestService.confirmTransactionRequest(request);
   }
 
+  @Get('/personalIban')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: VirtualIbanDto, isArray: true })
+  async getAllPersonalIbans(@GetJwt() jwt: JwtPayload): Promise<VirtualIbanDto[]> {
+    return this.virtualIbanService.getVirtualIbansForAccount(jwt.account).then((vI) => vI.map(VirtualIbanMapper.toDto));
+  }
+
   @Post('/personalIban')
   @ApiBearerAuth()
   @UseGuards(
     AuthGuard(),
-    RoleGuard(UserRole.USER),
+    RoleGuard(UserRole.ACCOUNT),
     UserActiveGuard(
       [UserStatus.BLOCKED, UserStatus.DELETED],
       [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
@@ -226,23 +227,14 @@ export class BuyController {
   )
   @ApiOkResponse({ type: VirtualIbanDto })
   async createPersonalIban(@GetJwt() jwt: JwtPayload, @Body() dto: CreateVirtualIbanDto): Promise<VirtualIbanDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: true });
+    const userData = await this.userDataService.getUserData(jwt.account);
 
-    if (user.userData.kycLevel < KycLevel.LEVEL_50)
+    if (userData.kycLevel < KycLevel.LEVEL_50)
       throw new BadRequestException('KYC level 50 or higher required for personal IBAN');
 
-    const virtualIban = await this.virtualIbanService.createForUser(user.userData, dto.currency);
+    const virtualIban = await this.virtualIbanService.createForUser(userData, dto.currency);
 
-    return {
-      id: virtualIban.id,
-      iban: virtualIban.iban,
-      bban: virtualIban.bban,
-      currency: virtualIban.currency.name,
-      active: virtualIban.active,
-      status: virtualIban.status,
-      label: virtualIban.label,
-      activatedAt: virtualIban.activatedAt,
-    };
+    return VirtualIbanMapper.toDto(virtualIban);
   }
 
   @Put(':id')
@@ -251,6 +243,14 @@ export class BuyController {
   @ApiExcludeEndpoint()
   async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateBuyDto): Promise<BuyDto> {
     return this.buyService.updateBuy(jwt.user, +id, dto).then((b) => this.toDto(jwt.user, b));
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
+  @ApiOkResponse({ type: BuyDto })
+  async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
+    return this.buyService.get(jwt.account, +id).then((l) => this.toDto(jwt.user, l));
   }
 
   @Get(':id/history')

@@ -79,18 +79,18 @@ export abstract class FrankencoinBasedService {
     }
   }
 
-  async getCoinGeckoPrice(contractaddress: string): Promise<number | undefined> {
+  async getCoinGeckoPrice(contractAddress: string): Promise<number | undefined> {
     try {
       const price = await this.pricingService.getPriceFrom(
         PriceSource.COIN_GECKO,
-        contractaddress.toLowerCase(),
+        contractAddress.toLowerCase(),
         'usd',
         'contract',
       );
 
       if (price) return price.price;
     } catch (e) {
-      this.logger.error(`Failed to get CoinGecko price for collateral ${contractaddress}:`, e);
+      this.logger.error(`Failed to get CoinGecko price for collateral ${contractAddress}:`, e);
     }
   }
 
