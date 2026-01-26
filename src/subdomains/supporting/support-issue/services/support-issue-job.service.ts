@@ -52,7 +52,14 @@ export class SupportIssueJobService {
     for (const entity of entities) {
       const lang = entity.userData.language.symbol.toLowerCase();
       const message = this.mailFactory.translate(translationKey, lang);
-      await this.supportIssueService.createMessageSupport(entity.id, { message, author: AutoResponder });
+      await this.supportIssueService.createMessageInternal(entity, {
+        message: `Hi ${entity.userData.firstname ?? entity.name}
+
+${message}
+        
+Freundliche Grüsse / Kind Regards DFX Bot`,
+        author: AutoResponder,
+      });
       await this.supportIssueService.updateIssueInternal(entity, {
         state: SupportIssueInternalState.PENDING,
       });
