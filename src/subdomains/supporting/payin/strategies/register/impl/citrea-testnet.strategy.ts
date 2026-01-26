@@ -117,7 +117,7 @@ export class CitreaTestnetStrategy extends RegisterStrategy {
       txType: this.getTxType(depositAddress.address),
       txSequence: 0,
       blockHeight: parseInt(tx.blockNumber),
-      amount: parseFloat(tx.value),
+      amount: Util.floorByPrecision(EvmUtil.fromWeiAmount(tx.value), 15),
       asset: coinAsset,
     }));
   }
@@ -138,6 +138,9 @@ export class CitreaTestnetStrategy extends RegisterStrategy {
       for (let i = 0; i < txGroup.length; i++) {
         const tx = txGroup[i];
 
+        const asset = this.assetService.getByChainIdSync(supportedAssets, this.blockchain, tx.contractAddress);
+        const decimals = tx.tokenDecimal ? parseInt(tx.tokenDecimal) : asset?.decimals;
+
         entries.push({
           senderAddresses: tx.from,
           receiverAddress: depositAddress,
@@ -145,8 +148,8 @@ export class CitreaTestnetStrategy extends RegisterStrategy {
           txType: this.getTxType(depositAddress.address),
           txSequence: i,
           blockHeight: parseInt(tx.blockNumber),
-          amount: parseFloat(tx.value),
-          asset: this.assetService.getByChainIdSync(supportedAssets, this.blockchain, tx.contractAddress),
+          amount: Util.floorByPrecision(EvmUtil.fromWeiAmount(tx.value, decimals), 15),
+          asset,
         });
       }
     }
