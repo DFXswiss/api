@@ -916,8 +916,8 @@ export class Configuration {
       apiUrl: process.env.DEURO_API_URL,
     },
     juice: {
-      graphUrl: process.env.JUICE_GRAPH_URL,
-      apiUrl: process.env.JUICE_API_URL,
+      graphUrl: process.env.JUSD_GRAPH_URL,
+      apiUrl: process.env.JUSD_API_URL,
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
