@@ -54,13 +54,7 @@ export class SupportIssueJobService {
       const message = this.mailFactory.translate(translationKey, lang);
       const botHint = this.mailFactory.translate(SupportMessageTranslationKey.BOT_HINT, lang);
       await this.supportIssueService.createMessageInternal(entity, {
-        message: `Hi ${entity.userData.firstname ?? entity.name}
-
-${message}
-
-${botHint}
-        
-Freundliche Grüsse / Kind Regards DFX Bot`,
+        message: `Hi ${entity.userData.firstname ?? entity.name}\n\n${message}\n\n${botHint}\n\nFreundliche Grüsse / Kind Regards DFX Bot`,
         author: AutoResponder,
       });
       await this.supportIssueService.updateIssueInternal(entity, {
