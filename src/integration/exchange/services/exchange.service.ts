@@ -7,6 +7,7 @@ import {
   Exchange,
   Market,
   Order,
+  OrderBook,
   Trade,
   Transaction,
   WithdrawalResponse,
@@ -227,10 +228,14 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   // currency pairs
   private async getMarkets(): Promise<Market[]> {
     if (!this.markets) {
-      this.markets = await this.callApi((e) => e.fetchMarkets());
+      this.markets = await this.fetchMarkets();
     }
 
     return this.markets;
+  }
+
+  protected async fetchMarkets(): Promise<Market[]> {
+    return this.callApi((e) => e.fetchMarkets());
   }
 
   async getMinTradeAmount(pair: string): Promise<number> {
@@ -277,14 +282,22 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   private async fetchLastOrderPrice(from: string, to: string): Promise<number> {
     const pair = await this.getPair(from, to);
 
-    const trades = await this.callApi((e) => e.fetchTrades(pair, undefined, 1));
+    const trades = await this.fetchTrades(pair, 1);
     if (trades.length === 0) throw new Error(`${this.name}: no trades found for ${pair}`);
 
     return Util.sort(trades, 'timestamp', 'DESC')[0].price;
   }
 
+  protected async fetchTrades(pair: string, limit: number): Promise<Trade[]> {
+    return this.callApi((e) => e.fetchTrades(pair, undefined, limit));
+  }
+
+  protected async fetchOrderBook(pair: string): Promise<OrderBook> {
+    return this.callApi((e) => e.fetchOrderBook(pair));
+  }
+
   private async fetchCurrentOrderPrice(pair: string, direction: string): Promise<number> {
-    const orderBook = await this.callApi((e) => e.fetchOrderBook(pair));
+    const orderBook = await this.fetchOrderBook(pair);
 
     const { price: pricePrecision } = await this.getPrecision(pair);
 
@@ -298,7 +311,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const { pair, direction } = await this.getTradePair(from, to);
 
     const minAmount = await this.getMinTradeAmount(pair);
-    const orderBook = await this.callApi((e) => e.fetchOrderBook(pair));
+    const orderBook = await this.fetchOrderBook(pair);
     const { price: pricePrecision } = await this.getPrecision(pair);
 
     const orders = direction === OrderSide.SELL ? orderBook.bids : orderBook.asks;
