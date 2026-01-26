@@ -7,6 +7,7 @@ import {
 } from '../enums/support-issue.enum';
 
 export enum SupportMessageTranslationKey {
+  BOT_HINT = 'support-issue.bot_hint',
   MONERO_NOT_DISPLAYED = 'support-issue.monero_not_displayed',
 }
 
