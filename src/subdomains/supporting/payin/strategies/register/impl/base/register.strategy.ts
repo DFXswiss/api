@@ -1,6 +1,7 @@
 import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
@@ -28,6 +29,8 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
   }
 
   abstract get blockchain(): Blockchain;
+
+  pollAddress?(depositAddress: BlockchainAddress): Promise<void>;
 
   protected async createPayInsAndSave(transactions: PayInEntry[], log: PayInInputLog): Promise<void> {
     const payIns = await this.payInService.createPayIns(transactions);

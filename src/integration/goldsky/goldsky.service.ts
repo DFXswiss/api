@@ -28,6 +28,7 @@ export class GoldskyService {
     return {
       [GoldskyNetwork.CITREA_TESTNET]: Config.blockchain.citreaTestnet.goldskySubgraphUrl,
       [GoldskyNetwork.CITREA_DEVNET]: undefined,
+      [GoldskyNetwork.CITREA]: Config.blockchain.citrea.goldskySubgraphUrl,
     };
   }
 

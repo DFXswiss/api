@@ -13,17 +13,17 @@ import { Util } from 'src/shared/utils/util';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
-import { PayInCitreaTestnetService } from '../../../services/payin-citrea-testnet.service';
+import { PayInCitreaService } from '../../../services/payin-citrea.service';
 import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
-export class CitreaTestnetStrategy extends RegisterStrategy {
-  protected readonly logger = new DfxLogger(CitreaTestnetStrategy);
+export class CitreaStrategy extends RegisterStrategy {
+  protected readonly logger = new DfxLogger(CitreaStrategy);
 
   private readonly paymentDepositAddress: string;
 
   constructor(
-    private readonly payInCitreaTestnetService: PayInCitreaTestnetService,
+    private readonly payInCitreaService: PayInCitreaService,
     private readonly transactionRequestService: TransactionRequestService,
   ) {
     super();
@@ -31,7 +31,7 @@ export class CitreaTestnetStrategy extends RegisterStrategy {
   }
 
   get blockchain(): Blockchain {
-    return Blockchain.CITREA_TESTNET;
+    return Blockchain.CITREA;
   }
 
   // --- JOBS --- //
@@ -86,7 +86,7 @@ export class CitreaTestnetStrategy extends RegisterStrategy {
     lastCheckedBlockHeight: number,
   ): Promise<PayInEntry[]> {
     const fromBlock = lastCheckedBlockHeight + 1;
-    const [coinTransactions, tokenTransactions] = await this.payInCitreaTestnetService.getHistory(
+    const [coinTransactions, tokenTransactions] = await this.payInCitreaService.getHistory(
       depositAddress.address,
       fromBlock,
     );
@@ -162,6 +162,6 @@ export class CitreaTestnetStrategy extends RegisterStrategy {
   }
 
   protected getOwnAddresses(): string[] {
-    return [Config.blockchain.citreaTestnet.citreaTestnetWalletAddress];
+    return [Config.blockchain.citrea.citreaWalletAddress];
   }
 }
