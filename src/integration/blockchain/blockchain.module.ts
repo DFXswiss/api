@@ -8,6 +8,7 @@ import { ArweaveModule } from './arweave/arweave.module';
 import { BlockchainApiModule } from './api/blockchain-api.module';
 import { BaseModule } from './base/base.module';
 import { BscModule } from './bsc/bsc.module';
+import { CitreaModule } from './citrea/citrea.module';
 import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
 import { DEuroModule } from './deuro/deuro.module';
 import { Ebel2xModule } from './ebel2x/ebel2x.module';
@@ -56,6 +57,7 @@ import { ZanoModule } from './zano/zano.module';
     SolanaModule,
     TronModule,
     CardanoModule,
+    CitreaModule,
     CitreaTestnetModule,
     RealUnitBlockchainModule,
     Eip7702DelegationModule,
@@ -83,6 +85,7 @@ import { ZanoModule } from './zano/zano.module';
     SolanaModule,
     TronModule,
     CardanoModule,
+    CitreaModule,
     CitreaTestnetModule,
     CryptoService,
     BlockchainRegistryService,

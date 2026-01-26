@@ -804,6 +804,7 @@ export class Configuration {
       citreaWalletAddress: process.env.CITREA_WALLET_ADDRESS,
       citreaWalletPrivateKey: process.env.CITREA_WALLET_PRIVATE_KEY,
       citreaApiKey: process.env.CITREA_API_KEY,
+      goldskySubgraphUrl: process.env.CITREA_GOLDSKY_SUBGRAPH_URL,
     },
     citreaTestnet: {
       ...EVM_CHAINS.citreaTestnet,

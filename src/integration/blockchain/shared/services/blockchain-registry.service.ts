@@ -6,6 +6,7 @@ import { BitcoinNodeType, BitcoinService } from '../../bitcoin/node/bitcoin.serv
 import { BscService } from '../../bsc/bsc.service';
 import { CardanoClient } from '../../cardano/cardano-client';
 import { CardanoService } from '../../cardano/services/cardano.service';
+import { CitreaService } from '../../citrea/citrea.service';
 import { CitreaTestnetService } from '../../citrea-testnet/citrea-testnet.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
 import { GnosisService } from '../../gnosis/gnosis.service';
@@ -64,6 +65,7 @@ export class BlockchainRegistryService {
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
     private readonly cardanoService: CardanoService,
+    private readonly citreaService: CitreaService,
     private readonly citreaTestnetService: CitreaTestnetService,
   ) {}
 
@@ -116,6 +118,8 @@ export class BlockchainRegistryService {
         return this.tronService;
       case Blockchain.CARDANO:
         return this.cardanoService;
+      case Blockchain.CITREA:
+        return this.citreaService;
       case Blockchain.CITREA_TESTNET:
         return this.citreaTestnetService;
 
