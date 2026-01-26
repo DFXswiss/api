@@ -12,6 +12,7 @@ import { CitreaModule } from './citrea/citrea.module';
 import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
 import { DEuroModule } from './deuro/deuro.module';
 import { Ebel2xModule } from './ebel2x/ebel2x.module';
+import { JuiceModule } from './juice/juice.module';
 import { EthereumModule } from './ethereum/ethereum.module';
 import { FrankencoinModule } from './frankencoin/frankencoin.module';
 import { GnosisModule } from './gnosis/gnosis.module';
@@ -51,6 +52,7 @@ import { ZanoModule } from './zano/zano.module';
     ZanoModule,
     FrankencoinModule,
     DEuroModule,
+    JuiceModule,
     Ebel2xModule,
     ArweaveModule,
     RailgunModule,
@@ -80,6 +82,7 @@ import { ZanoModule } from './zano/zano.module';
     ZanoModule,
     FrankencoinModule,
     DEuroModule,
+    JuiceModule,
     Ebel2xModule,
     RailgunModule,
     SolanaModule,

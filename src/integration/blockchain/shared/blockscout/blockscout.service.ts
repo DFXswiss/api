@@ -41,11 +41,7 @@ export class BlockscoutService {
 
   constructor(private readonly http: HttpService) {}
 
-  async getTransactions(
-    apiUrl: string,
-    address: string,
-    fromBlock?: number,
-  ): Promise<BlockscoutTransaction[]> {
+  async getTransactions(apiUrl: string, address: string, fromBlock?: number): Promise<BlockscoutTransaction[]> {
     const allTransactions: BlockscoutTransaction[] = [];
     let nextPageParams: { block_number: number; index: number } | null = null;
 
@@ -64,9 +60,7 @@ export class BlockscoutService {
       const transactions = response.items || [];
 
       // Filter by fromBlock if specified
-      const filtered = fromBlock
-        ? transactions.filter((tx) => tx.block_number >= fromBlock)
-        : transactions;
+      const filtered = fromBlock ? transactions.filter((tx) => tx.block_number >= fromBlock) : transactions;
 
       allTransactions.push(...filtered);
 
@@ -81,11 +75,7 @@ export class BlockscoutService {
     return allTransactions;
   }
 
-  async getTokenTransfers(
-    apiUrl: string,
-    address: string,
-    fromBlock?: number,
-  ): Promise<BlockscoutTokenTransfer[]> {
+  async getTokenTransfers(apiUrl: string, address: string, fromBlock?: number): Promise<BlockscoutTokenTransfer[]> {
     const allTransfers: BlockscoutTokenTransfer[] = [];
     let nextPageParams: { block_number: number; index: number } | null = null;
 

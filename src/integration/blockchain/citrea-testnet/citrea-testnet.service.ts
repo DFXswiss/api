@@ -8,8 +8,13 @@ import { CitreaTestnetClient } from './citrea-testnet-client';
 @Injectable()
 export class CitreaTestnetService extends EvmService {
   constructor(http: HttpService, blockscoutService: BlockscoutService) {
-    const { citreaTestnetGatewayUrl, citreaTestnetApiKey, citreaTestnetWalletPrivateKey, citreaTestnetChainId, blockscoutApiUrl } =
-      GetConfig().blockchain.citreaTestnet;
+    const {
+      citreaTestnetGatewayUrl,
+      citreaTestnetApiKey,
+      citreaTestnetWalletPrivateKey,
+      citreaTestnetChainId,
+      blockscoutApiUrl,
+    } = GetConfig().blockchain.citreaTestnet;
 
     super(CitreaTestnetClient, {
       http,
