@@ -57,12 +57,10 @@ export class PricingDeuroService extends PricingProvider implements OnModuleInit
 
     let totalPrice = contractPrice;
 
-    for (const reference of PricingDeuroService.REFERENCE_ASSETS) {
-      if ([from, to].includes(reference)) {
-        const eurPrice = await this.krakenService.getPrice('EUR', reference);
-        totalPrice = eurPrice.convert(contractPrice);
-        break;
-      }
+    const referenceAsset = [from, to].find((a) => PricingDeuroService.REFERENCE_ASSETS.includes(a));
+    if (referenceAsset) {
+      const eurPrice = await this.krakenService.getPrice('EUR', referenceAsset);
+      totalPrice = eurPrice.convert(contractPrice);
     }
 
     const assetPrice = [PricingDeuroService.DEPS, PricingDeuroService.NDEPS].includes(from)

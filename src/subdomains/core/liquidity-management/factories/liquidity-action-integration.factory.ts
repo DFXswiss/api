@@ -5,6 +5,7 @@ import { BinanceAdapter } from '../adapters/actions/binance.adapter';
 import { DEuroAdapter } from '../adapters/actions/deuro.adapter';
 import { DfxDexAdapter } from '../adapters/actions/dfx-dex.adapter';
 import { FrankencoinAdapter } from '../adapters/actions/frankencoin.adapter';
+import { JuiceAdapter } from '../adapters/actions/juice.adapter';
 import { KrakenAdapter } from '../adapters/actions/kraken.adapter';
 import { LiquidityPipelineAdapter } from '../adapters/actions/liquidity-pipeline.adapter';
 import { MexcAdapter } from '../adapters/actions/mexc.adapter';
@@ -33,6 +34,7 @@ export class LiquidityActionIntegrationFactory {
     readonly liquidityPipelineAdapter: LiquidityPipelineAdapter,
     readonly frankencoinAdapter: FrankencoinAdapter,
     readonly deuroAdapter: DEuroAdapter,
+    readonly juiceAdapter: JuiceAdapter,
     readonly xtAdapter: XtAdapter,
   ) {
     this.adapters.set(LiquidityManagementSystem.DFX_DEX, dfxDexAdapter);
@@ -47,6 +49,7 @@ export class LiquidityActionIntegrationFactory {
     this.adapters.set(LiquidityManagementSystem.LIQUIDITY_PIPELINE, liquidityPipelineAdapter);
     this.adapters.set(LiquidityManagementSystem.FRANKENCOIN, frankencoinAdapter);
     this.adapters.set(LiquidityManagementSystem.DEURO, deuroAdapter);
+    this.adapters.set(LiquidityManagementSystem.JUICE, juiceAdapter);
     this.adapters.set(LiquidityManagementSystem.XT, xtAdapter);
   }
 

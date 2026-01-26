@@ -804,6 +804,7 @@ export class Configuration {
       citreaWalletAddress: process.env.CITREA_WALLET_ADDRESS,
       citreaWalletPrivateKey: process.env.CITREA_WALLET_PRIVATE_KEY,
       citreaApiKey: process.env.CITREA_API_KEY,
+      blockscoutApiUrl: process.env.CITREA_BLOCKSCOUT_API_URL,
     },
     citreaTestnet: {
       ...EVM_CHAINS.citreaTestnet,
@@ -812,7 +813,7 @@ export class Configuration {
       citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
       citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
-      goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
+      blockscoutApiUrl: process.env.CITREA_TESTNET_BLOCKSCOUT_API_URL,
     },
     lightning: {
       lnbits: {
@@ -913,6 +914,10 @@ export class Configuration {
     deuro: {
       graphUrl: process.env.DEURO_GRAPH_URL,
       apiUrl: process.env.DEURO_API_URL,
+    },
+    juice: {
+      graphUrl: process.env.JUSD_GRAPH_URL,
+      apiUrl: process.env.JUSD_API_URL,
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,

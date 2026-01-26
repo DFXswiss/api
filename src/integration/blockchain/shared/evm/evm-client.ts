@@ -13,7 +13,7 @@ import ERC1271_ABI from 'src/integration/blockchain/shared/evm/abi/erc1271.abi.j
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
-import { GoldskyService } from 'src/integration/goldsky/goldsky.service';
+import { BlockscoutService } from 'src/integration/blockchain/shared/blockscout/blockscout.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
@@ -30,7 +30,8 @@ import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 export interface EvmClientParams {
   http: HttpService;
   alchemyService?: AlchemyService;
-  goldskyService?: GoldskyService;
+  blockscoutService?: BlockscoutService;
+  blockscoutApiUrl?: string;
   gatewayUrl: string;
   apiKey: string;
   walletPrivateKey: string;
@@ -60,7 +61,8 @@ export abstract class EvmClient extends BlockchainClient {
 
   readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
-  protected readonly goldskyService?: GoldskyService;
+  protected readonly blockscoutService?: BlockscoutService;
+  protected readonly blockscoutApiUrl?: string;
   readonly chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
@@ -77,7 +79,8 @@ export abstract class EvmClient extends BlockchainClient {
     super();
     this.http = params.http;
     this.alchemyService = params.alchemyService;
-    this.goldskyService = params.goldskyService;
+    this.blockscoutService = params.blockscoutService;
+    this.blockscoutApiUrl = params.blockscoutApiUrl;
     this.chainId = params.chainId;
 
     const url = `${params.gatewayUrl}/${params.apiKey ?? ''}`;

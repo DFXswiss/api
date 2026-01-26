@@ -56,11 +56,11 @@ export const EVM_CHAINS = {
   },
   citreaTestnet: {
     chainId: 5115,
-    gatewayUrl: 'http://10.0.1.6:8085',
+    gatewayUrl: 'https://rpc.testnet.citreascan.com',
   },
   citrea: {
     chainId: 4114,
-    gatewayUrl: 'http://10.0.1.6:8085',
+    gatewayUrl: 'https://rpc.citreascan.com',
   },
 } satisfies Record<string, EvmChainStaticConfig>;
 
