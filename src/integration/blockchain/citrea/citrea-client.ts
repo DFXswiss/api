@@ -94,12 +94,7 @@ export class CitreaClient extends EvmClient {
     direction = Direction.BOTH,
   ): Promise<EvmTokenHistoryEntry[]> {
     try {
-      const transfers = await this.goldsky.getTokenTransfers(
-        GoldskyNetwork.CITREA,
-        walletAddress,
-        fromBlock,
-        toBlock,
-      );
+      const transfers = await this.goldsky.getTokenTransfers(GoldskyNetwork.CITREA, walletAddress, fromBlock, toBlock);
       return this.mapGoldskyToEvmTokenHistory(transfers, walletAddress, direction);
     } catch (error) {
       this.logger.warn(`Goldsky service failed, using RPC fallback: ${error.message}`);
