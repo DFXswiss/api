@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { GoldskyModule } from 'src/integration/goldsky/goldsky.module';
+import { BlockscoutModule } from 'src/integration/blockchain/shared/blockscout/blockscout.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { CitreaTestnetService } from './citrea-testnet.service';
 
 @Module({
-  imports: [SharedModule, GoldskyModule],
+  imports: [SharedModule, BlockscoutModule],
   providers: [CitreaTestnetService],
   exports: [CitreaTestnetService],
 })

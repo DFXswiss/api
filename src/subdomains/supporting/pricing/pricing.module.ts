@@ -19,6 +19,7 @@ import { FixerService } from './services/integration/fixer.service';
 import { PricingConstantService } from './services/integration/pricing-constant.service';
 import { PricingDeuroService } from './services/integration/pricing-deuro.service';
 import { PricingDexService } from './services/integration/pricing-dex.service';
+import { PricingJuiceService } from './services/integration/pricing-juice.service';
 import { PricingEbel2xService } from './services/integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './services/integration/pricing-frankencoin.service';
 import { PricingRealUnitService } from './services/integration/pricing-realunit.service';
@@ -47,6 +48,7 @@ import { PricingService } from './services/pricing.service';
     PricingDexService,
     PricingFrankencoinService,
     PricingDeuroService,
+    PricingJuiceService,
     PricingEbel2xService,
     PricingRealUnitService,
     PricingConstantService,

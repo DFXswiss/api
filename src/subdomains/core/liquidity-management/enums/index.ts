@@ -18,6 +18,7 @@ export enum LiquidityManagementSystem {
   LIQUIDITY_PIPELINE = 'LiquidityPipeline',
   FRANKENCOIN = 'Frankencoin',
   DEURO = 'dEURO',
+  JUICE = 'Juice',
   XT = 'XT',
 }
 
@@ -58,6 +59,7 @@ export const LiquidityManagementExchanges = [
   LiquidityManagementSystem.SCRYPT,
   LiquidityManagementSystem.FRANKENCOIN,
   LiquidityManagementSystem.DEURO,
+  LiquidityManagementSystem.JUICE,
 ];
 export const LiquidityManagementBridges = [
   LiquidityManagementSystem.BASE_L2_BRIDGE,
