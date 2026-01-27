@@ -17,7 +17,7 @@ export class CitreaService extends EvmService {
       swapContractAddress,
       swapFactoryAddress,
       quoteContractAddress,
-      juiceSwapGatewayAddress,
+      swapGatewayAddress,
     } = GetConfig().blockchain.citrea;
 
     super(CitreaClient, {
@@ -31,7 +31,7 @@ export class CitreaService extends EvmService {
       swapContractAddress,
       swapFactoryAddress,
       quoteContractAddress,
-      juiceSwapGatewayAddress,
+      swapGatewayAddress,
     });
   }
 }

@@ -39,7 +39,7 @@ export interface EvmClientParams {
   swapContractAddress?: string;
   quoteContractAddress?: string;
   swapFactoryAddress?: string;
-  juiceSwapGatewayAddress?: string;
+  swapGatewayAddress?: string;
 }
 
 interface UniswapPosition {
@@ -75,7 +75,7 @@ export abstract class EvmClient extends BlockchainClient {
   private readonly swapContractAddress: string;
   private readonly swapFactoryAddress: string;
   private readonly quoteContractAddress: string;
-  protected readonly juiceSwapGatewayAddress: string;
+  protected readonly swapGatewayAddress: string;
 
   constructor(params: EvmClientParams) {
     super();
@@ -100,7 +100,7 @@ export abstract class EvmClient extends BlockchainClient {
     this.swapContractAddress = params.swapContractAddress;
     this.quoteContractAddress = params.quoteContractAddress;
     this.swapFactoryAddress = params.swapFactoryAddress;
-    this.juiceSwapGatewayAddress = params.juiceSwapGatewayAddress;
+    this.swapGatewayAddress = params.swapGatewayAddress;
   }
 
   // --- PUBLIC API - GETTERS --- //

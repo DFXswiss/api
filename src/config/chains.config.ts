@@ -4,7 +4,7 @@ export interface EvmChainStaticConfig {
   swapContractAddress?: string;
   quoteContractAddress?: string;
   swapFactoryAddress?: string;
-  juiceSwapGatewayAddress?: string;
+  swapGatewayAddress?: string;
 }
 
 export const EVM_CHAINS = {
@@ -61,7 +61,7 @@ export const EVM_CHAINS = {
     swapContractAddress: '0x26C106BC45E0dd599cbDD871605497B2Fc87c185',
     swapFactoryAddress: '0xdd6Db52dB41CE2C03002bB1adFdCC8E91C594238',
     quoteContractAddress: '0x719a4C7B49E5361a39Dc83c23b353CA220D9B99d',
-    juiceSwapGatewayAddress: '0x8eE3Dd585752805A258ad3a963949a7c3fec44eB',
+    swapGatewayAddress: '0x8eE3Dd585752805A258ad3a963949a7c3fec44eB',
   },
   citrea: {
     chainId: 4114,
@@ -69,7 +69,7 @@ export const EVM_CHAINS = {
     swapContractAddress: '0x565eD3D57fe40f78A46f348C220121AE093c3cF8',
     swapFactoryAddress: '0xd809b1285aDd8eeaF1B1566Bf31B2B4C4Bba8e82',
     quoteContractAddress: '0x428f20dd8926Eabe19653815Ed0BE7D6c36f8425',
-    juiceSwapGatewayAddress: '0xAFcfD58Fe17BEb0c9D15C51D19519682dFcdaab9',
+    swapGatewayAddress: '0xAFcfD58Fe17BEb0c9D15C51D19519682dFcdaab9',
   },
 } satisfies Record<string, EvmChainStaticConfig>;
 

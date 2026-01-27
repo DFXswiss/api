@@ -183,10 +183,10 @@ export class CitreaClient extends EvmClient {
   // --- JUICESWAP GATEWAY --- //
 
   getJuiceSwapGatewayContract(): Contract {
-    if (!this.juiceSwapGatewayAddress) {
+    if (!this.swapGatewayAddress) {
       throw new Error('JuiceSwap Gateway address not configured');
     }
-    return new Contract(this.juiceSwapGatewayAddress, JUICESWAP_GATEWAY_ABI, this.wallet);
+    return new Contract(this.swapGatewayAddress, JUICESWAP_GATEWAY_ABI, this.wallet);
   }
 
   async swapViaGateway(
@@ -205,6 +205,7 @@ export class CitreaClient extends EvmClient {
     const weiAmountIn = EvmUtil.toWeiAmount(amountIn, decimalsIn);
     const weiMinAmountOut = EvmUtil.toWeiAmount(minAmountOut, decimalsOut);
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes
+    const gasPrice = await this.getRecommendedGasPrice();
 
     // Use zero address for native cBTC (gateway handles wrap/unwrap)
     const actualTokenIn = isInputNativeCoin ? ethers.constants.AddressZero : tokenIn;
@@ -213,9 +214,11 @@ export class CitreaClient extends EvmClient {
     // Approve token if not native cBTC
     if (!isInputNativeCoin) {
       const tokenContract = new Contract(tokenIn, ERC20_ABI, this.wallet);
-      const allowance = await tokenContract.allowance(this.wallet.address, this.juiceSwapGatewayAddress);
+      const allowance = await tokenContract.allowance(this.wallet.address, this.swapGatewayAddress);
       if (allowance.lt(weiAmountIn)) {
-        const approveTx = await tokenContract.approve(this.juiceSwapGatewayAddress, ethers.constants.MaxUint256);
+        const approveTx = await tokenContract.approve(this.swapGatewayAddress, ethers.constants.MaxUint256, {
+          gasPrice,
+        });
         await approveTx.wait();
       }
     }
@@ -229,7 +232,7 @@ export class CitreaClient extends EvmClient {
       weiMinAmountOut,
       this.wallet.address,
       deadline,
-      isInputNativeCoin ? { value: weiAmountIn } : {},
+      { gasPrice, ...(isInputNativeCoin ? { value: weiAmountIn } : {}) },
     );
 
     return tx.hash;
