@@ -1,10 +1,15 @@
-import { ethers } from 'ethers';
-import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
+import { Currency, CurrencyAmount, Token, TradeType } from '@uniswap/sdk-core';
+import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
+import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
+import { FeeAmount, Pool, Route, SwapQuoter } from '@uniswap/v3-sdk';
+import { Contract, ethers } from 'ethers';
 import {
   BlockscoutTokenTransfer,
   BlockscoutTransaction,
 } from 'src/integration/blockchain/shared/blockscout/blockscout.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
+import JUICESWAP_GATEWAY_ABI from 'src/integration/blockchain/shared/evm/abi/juiceswap-gateway.abi.json';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { Direction, EvmClient, EvmClientParams } from '../shared/evm/evm-client';
@@ -14,11 +19,20 @@ import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from '../shared/evm/interfa
 export class CitreaTestnetClient extends EvmClient {
   protected override readonly logger = new DfxLogger(CitreaTestnetClient);
 
+  private readonly citreaSwapContractAddress: string;
+  private readonly citreaQuoteContractAddress: string;
+  private readonly citreaSwapFactoryAddress: string;
+
   constructor(params: EvmClientParams) {
     super({
       ...params,
       alchemyService: undefined, // Citrea not supported by Alchemy
+      swapContractAddress: undefined, // Prevent AlphaRouter init (no Multicall on Citrea)
     });
+    // Store addresses for direct pool interactions
+    this.citreaSwapContractAddress = params.swapContractAddress;
+    this.citreaQuoteContractAddress = params.quoteContractAddress;
+    this.citreaSwapFactoryAddress = params.swapFactoryAddress;
   }
 
   // Alchemy method overrides
@@ -45,12 +59,39 @@ export class CitreaTestnetClient extends EvmClient {
     }
   }
 
-  async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
+  // For pool balance checks: pools hold svJUSD, so convert JUSD queries to svJUSD
+  protected async getPoolTokenBalance(asset: Asset, poolAddress: string): Promise<number> {
+    try {
+      const { jusd, svJusd } = await this.getGatewayTokenAddresses();
+      const isJusd = asset.chainId.toLowerCase() === jusd.toLowerCase();
+      const tokenAddress = isJusd ? svJusd : asset.chainId;
+
+      const contract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
+      const balance = await contract.balanceOf(poolAddress);
+      const decimals = await contract.decimals();
+
+      if (isJusd) {
+        const gateway = this.getJuiceSwapGatewayContract();
+        const jusdBalance = await gateway.svJusdToJusd(balance);
+        return EvmUtil.fromWeiAmount(jusdBalance.toString(), decimals);
+      }
+
+      return EvmUtil.fromWeiAmount(balance.toString(), decimals);
+    } catch (error) {
+      this.logger.error(`Failed to get pool token balance for ${asset.chainId}:`, error);
+      return 0;
+    }
+  }
+
+  override async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
     const owner = address ?? this.walletAddress;
+    const isPoolBalance = address !== undefined && address !== this.walletAddress;
     const balances: BlockchainTokenBalance[] = [];
 
     for (const asset of assets) {
-      const balance = await this.getTokenBalance(asset, owner);
+      const balance = isPoolBalance
+        ? await this.getPoolTokenBalance(asset, owner)
+        : await this.getTokenBalance(asset, owner);
       balances.push({
         owner,
         contractAddress: asset.chainId,
@@ -137,5 +178,219 @@ export class CitreaTestnetClient extends EvmClient {
         tokenName: tx.token.name || tx.token.symbol,
         tokenDecimal: tx.total.decimals || tx.token.decimals,
       }));
+  }
+
+  // --- JUICESWAP GATEWAY --- //
+
+  getJuiceSwapGatewayContract(): Contract {
+    if (!this.juiceSwapGatewayAddress) {
+      throw new Error('JuiceSwap Gateway address not configured');
+    }
+    return new Contract(this.juiceSwapGatewayAddress, JUICESWAP_GATEWAY_ABI, this.wallet);
+  }
+
+  async swapViaGateway(
+    tokenIn: string,
+    tokenOut: string,
+    amountIn: number,
+    minAmountOut: number,
+    fee: FeeAmount = FeeAmount.MEDIUM,
+    decimalsIn = 18,
+    decimalsOut = 18,
+    isInputNativeCoin = false,
+    isOutputNativeCoin = false,
+  ): Promise<string> {
+    const gateway = this.getJuiceSwapGatewayContract();
+
+    const weiAmountIn = EvmUtil.toWeiAmount(amountIn, decimalsIn);
+    const weiMinAmountOut = EvmUtil.toWeiAmount(minAmountOut, decimalsOut);
+    const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes
+
+    // Use zero address for native cBTC (gateway handles wrap/unwrap)
+    const actualTokenIn = isInputNativeCoin ? ethers.constants.AddressZero : tokenIn;
+    const actualTokenOut = isOutputNativeCoin ? ethers.constants.AddressZero : tokenOut;
+
+    // Approve token if not native cBTC
+    if (!isInputNativeCoin) {
+      const tokenContract = new Contract(tokenIn, ERC20_ABI, this.wallet);
+      const allowance = await tokenContract.allowance(this.wallet.address, this.juiceSwapGatewayAddress);
+      if (allowance.lt(weiAmountIn)) {
+        const approveTx = await tokenContract.approve(this.juiceSwapGatewayAddress, ethers.constants.MaxUint256);
+        await approveTx.wait();
+      }
+    }
+
+    // For native cBTC input: send value with transaction
+    const tx = await gateway.swapExactTokensForTokens(
+      actualTokenIn,
+      actualTokenOut,
+      fee,
+      weiAmountIn,
+      weiMinAmountOut,
+      this.wallet.address,
+      deadline,
+      isInputNativeCoin ? { value: weiAmountIn } : {},
+    );
+
+    return tx.hash;
+  }
+
+  async getGatewayTokenAddresses(): Promise<{ jusd: string; svJusd: string; wcbtc: string }> {
+    const gateway = this.getJuiceSwapGatewayContract();
+
+    const [jusd, svJusd, wcbtc] = await Promise.all([gateway.JUSD(), gateway.SV_JUSD(), gateway.WCBTC()]);
+
+    return { jusd, svJusd, wcbtc };
+  }
+
+  async getGatewayDefaultFee(): Promise<number> {
+    const gateway = this.getJuiceSwapGatewayContract();
+    return gateway.DEFAULT_FEE();
+  }
+
+  async getGatewayPool(tokenA: string, tokenB: string, fee: FeeAmount): Promise<string> {
+    const gateway = this.getJuiceSwapGatewayContract();
+    return gateway.getPool(tokenA, tokenB, fee);
+  }
+
+  // --- TRADING INTEGRATION (direct pool interactions, no AlphaRouter) --- //
+
+  // Override to always return Token (using WCBTC address for native cBTC) - gateway handles wrapping
+  override async getToken(asset: Asset): Promise<Currency> {
+    const contract = this.getERC20ContractForDex(asset.chainId);
+    return this.getTokenByContract(contract);
+  }
+
+  // Override to use gateway's getPool and handle JUSD → svJUSD conversion
+  override async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
+    const { jusd, svJusd } = await this.getGatewayTokenAddresses();
+
+    // Convert JUSD to svJUSD for pool lookup
+    const address1 = asset1.chainId.toLowerCase() === jusd.toLowerCase() ? svJusd : asset1.chainId;
+    const address2 = asset2.chainId.toLowerCase() === jusd.toLowerCase() ? svJusd : asset2.chainId;
+
+    return this.getGatewayPool(address1, address2, poolFee);
+  }
+
+  private async getTokenPairByAddresses(address1: string, address2: string): Promise<[Token, Token]> {
+    const contract1 = this.getERC20ContractForDex(address1);
+    const contract2 = this.getERC20ContractForDex(address2);
+
+    const [decimals1, decimals2] = await Promise.all([contract1.decimals(), contract2.decimals()]);
+
+    return [
+      new Token(this.chainId, address1, decimals1),
+      new Token(this.chainId, address2, decimals2),
+    ];
+  }
+
+  override async testSwapPool(
+    source: Asset,
+    sourceAmount: number,
+    target: Asset,
+    poolFee: FeeAmount,
+  ): Promise<{ targetAmount: number; feeAmount: number; priceImpact: number }> {
+    if (source.id === target.id) return { targetAmount: sourceAmount, feeAmount: 0, priceImpact: 0 };
+
+    // Get gateway token addresses - pool uses svJUSD, gateway wraps/unwraps JUSD
+    const { jusd, svJusd } = await this.getGatewayTokenAddresses();
+    const gateway = this.getJuiceSwapGatewayContract();
+
+    // Check if source or target is JUSD - pool uses svJUSD
+    const sourceIsJusd = source.chainId.toLowerCase() === jusd.toLowerCase();
+    const targetIsJusd = target.chainId.toLowerCase() === jusd.toLowerCase();
+
+    // Convert JUSD to svJUSD for pool interactions
+    const sourceAddress = sourceIsJusd ? svJusd : source.chainId;
+    const targetAddress = targetIsJusd ? svJusd : target.chainId;
+
+    // If source is JUSD, convert input amount to svJUSD equivalent
+    let poolSourceAmount = sourceAmount;
+    if (sourceIsJusd) {
+      const sourceAmountWei = EvmUtil.toWeiAmount(sourceAmount, source.decimals);
+      const svJusdAmountWei = await gateway.jusdToSvJusd(sourceAmountWei);
+      poolSourceAmount = EvmUtil.fromWeiAmount(svJusdAmountWei, 18); // svJUSD has 18 decimals
+    }
+
+    // chainId has WCBTC address for native cBTC
+    const [sourceToken, targetToken] = await this.getTokenPairByAddresses(sourceAddress, targetAddress);
+
+    // Use gateway to get actual pool address (JuiceSwap may use different init code hash)
+    const poolAddress = await this.getGatewayPool(sourceAddress, targetAddress, poolFee);
+    const poolContract = new ethers.Contract(poolAddress, IUniswapV3PoolABI.abi, this.wallet);
+
+    const token0IsInToken = sourceToken.address.toLowerCase() === (await poolContract.token0()).toLowerCase();
+    const [liquidity, slot0] = await Promise.all([poolContract.liquidity(), poolContract.slot0()]);
+    const sqrtPriceX96 = slot0.sqrtPriceX96;
+
+    // Create pool and route for quoting
+    const pool = new Pool(sourceToken, targetToken, poolFee, slot0[0].toString(), liquidity.toString(), slot0[1]);
+    const route = new Route([pool], sourceToken, targetToken);
+
+    const sourceAmountWei = EvmUtil.toWeiAmount(poolSourceAmount, sourceToken.decimals);
+    const currencyAmount = CurrencyAmount.fromRawAmount(sourceToken, sourceAmountWei.toString());
+
+    const { calldata } = SwapQuoter.quoteCallParameters(route, currencyAmount, TradeType.EXACT_INPUT, {
+      useQuoterV2: true,
+    });
+
+    const quoteCallReturnData = await this.provider.call({
+      to: this.citreaQuoteContractAddress,
+      data: calldata,
+    });
+
+    // Decode response - JuiceSwap QuoterV2 has non-standard format (100 bytes)
+    // Just extract the first 32 bytes as amountOut
+    const amountOutHex = ethers.utils.hexDataSlice(quoteCallReturnData, 0, 32);
+    const amountOut = ethers.BigNumber.from(amountOutHex);
+
+    // If target is JUSD, convert svJUSD output to JUSD
+    let finalAmountOut = amountOut;
+    if (targetIsJusd) {
+      finalAmountOut = await gateway.svJusdToJusd(amountOut);
+    }
+
+    // Calculate price impact from pool state change
+    const expectedOut = sourceAmountWei.mul(sqrtPriceX96).mul(sqrtPriceX96).div(ethers.BigNumber.from(2).pow(192));
+    const priceImpact = token0IsInToken
+      ? Math.abs(1 - +amountOut / +expectedOut)
+      : Math.abs(1 - +expectedOut / +amountOut);
+
+    const gasPrice = await this.getRecommendedGasPrice();
+    const estimatedGas = ethers.BigNumber.from(200000); // Estimate for swap
+
+    return {
+      targetAmount: EvmUtil.fromWeiAmount(finalAmountOut, target.decimals),
+      feeAmount: EvmUtil.fromWeiAmount(estimatedGas.mul(gasPrice)),
+      priceImpact,
+    };
+  }
+
+  override async swapPool(
+    source: Asset,
+    target: Asset,
+    sourceAmount: number,
+    poolFee: FeeAmount,
+    maxSlippage: number,
+  ): Promise<string> {
+    // Get quote to calculate minimum output
+    const quote = await this.testSwapPool(source, sourceAmount, target, poolFee);
+    const minAmountOut = quote.targetAmount * (1 - maxSlippage);
+
+    const isInputNativeCoin = source.type === AssetType.COIN;
+    const isOutputNativeCoin = target.type === AssetType.COIN;
+
+    // Execute swap via JuiceSwap gateway
+    return this.swapViaGateway(
+      source.chainId,
+      target.chainId,
+      sourceAmount,
+      minAmountOut,
+      poolFee,
+      source.decimals,
+      target.decimals,
+      isInputNativeCoin,
+      isOutputNativeCoin,
+    );
   }
 }

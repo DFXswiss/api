@@ -1,3 +1,4 @@
+import { FeeAmount } from '@uniswap/v3-sdk';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { CronExpression } from '@nestjs/schedule';
@@ -11,6 +12,7 @@ import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { CitreaClient } from '../citrea/citrea-client';
 import { CollateralWithTotalBalance } from '../shared/dto/frankencoin-based.dto';
 import { Blockchain } from '../shared/enums/blockchain.enum';
 import { EvmClient } from '../shared/evm/evm-client';
@@ -262,6 +264,35 @@ export class JuiceService extends FrankencoinBasedService implements OnModuleIni
 
   async bridgeToJusd(asset: Asset, amount: number): Promise<string> {
     return this.juiceClient.bridgeToJusd(asset, amount);
+  }
+
+  async swapViaGateway(
+    tokenIn: Asset,
+    tokenOut: Asset,
+    amountIn: number,
+    minAmountOut: number,
+    fee: FeeAmount = FeeAmount.MEDIUM,
+  ): Promise<string> {
+    const client = this.getEvmClient() as CitreaClient;
+    return client.swapViaGateway(
+      tokenIn.chainId,
+      tokenOut.chainId,
+      amountIn,
+      minAmountOut,
+      fee,
+      tokenIn.decimals,
+      tokenOut.decimals,
+    );
+  }
+
+  async getGatewayTokenAddresses(): Promise<{ jusd: string; svJusd: string; wcbtc: string }> {
+    const client = this.getEvmClient() as CitreaClient;
+    return client.getGatewayTokenAddresses();
+  }
+
+  async getGatewayDefaultFee(): Promise<number> {
+    const client = this.getEvmClient() as CitreaClient;
+    return client.getGatewayDefaultFee();
   }
 
   async getJuiceInfo(): Promise<JuiceInfoDto> {
