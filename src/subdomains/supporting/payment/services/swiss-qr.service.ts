@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { PDFColumn, PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
@@ -13,15 +14,6 @@ import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/t
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionRequest } from '../entities/transaction-request.entity';
 import { Transaction } from '../entities/transaction.entity';
-
-const dfxLogoBall1 =
-  'M86.1582 126.274C109.821 126.274 129.004 107.092 129.004 83.4287C129.004 59.7657 109.821 40.583 86.1582 40.583C62.4952 40.583 43.3126 59.7657 43.3126 83.4287C43.3126 107.092 62.4952 126.274 86.1582 126.274Z';
-
-const dfxLogoBall2 =
-  'M47.1374 132.146C73.1707 132.146 94.2748 111.042 94.2748 85.009C94.2748 58.9757 73.1707 37.8716 47.1374 37.8716C21.1041 37.8716 0 58.9757 0 85.009C0 111.042 21.1041 132.146 47.1374 132.146Z';
-
-const dfxLogoText =
-  'M61.5031 0H124.245C170.646 0 208.267 36.5427 208.267 84.0393C208.267 131.536 169.767 170.018 122.288 170.018H61.5031V135.504H114.046C141.825 135.504 164.541 112.789 164.541 85.009C164.541 57.2293 141.825 34.5136 114.046 34.5136H61.5031V0ZM266.25 31.5686V76.4973H338.294V108.066H266.25V170H226.906V0H355.389V31.5686H266.25ZM495.76 170L454.71 110.975L414.396 170H369.216L432.12 83.5365L372.395 0H417.072L456.183 55.1283L494.557 0H537.061L477.803 82.082L541.191 170H495.778H495.76Z';
 
 enum SupportedInvoiceLanguage {
   DE = 'DE',
@@ -68,7 +60,6 @@ export class SwissQRService {
     }
 
     const data = this.generateQrData(amount, currency, bankInfo, reference, request.userData);
-    if (!data.debtor) throw new Error('Debtor is required');
 
     const userLanguage = request.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
@@ -82,22 +73,25 @@ export class SwissQRService {
         assetBlockchain: asset.blockchain,
       },
       fiatAmount: amount,
-      date: new Date(),
+      date: request.created,
     };
 
-    return this.generatePdfInvoice(tableData, language, data, true, TransactionType.BUY);
+    return this.generatePdfInvoice(
+      tableData,
+      language,
+      data,
+      true,
+      TransactionType.BUY,
+      PdfBrand.DFX,
+      request.userData.completeName,
+    );
   }
 
-  async createTxStatement({
-    statementType,
-    transactionType,
-    transaction,
-    currency,
-    bankInfo,
-    reference,
-  }: TxStatementDetails): Promise<string> {
+  async createTxStatement(
+    { statementType, transactionType, transaction, currency, bankInfo, reference, request }: TxStatementDetails,
+    brand: PdfBrand = PdfBrand.DFX,
+  ): Promise<string> {
     const debtor = this.getDebtor(transaction.userData);
-    if (!debtor) throw new Error('Debtor is required');
 
     currency = Config.invoice.currencies.includes(currency) ? currency : Config.invoice.defaultCurrency;
     if (!this.isSupportedInvoiceCurrency(currency)) {
@@ -106,17 +100,27 @@ export class SwissQRService {
 
     const userLanguage = transaction.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
-    const tableData = await this.getTableData(statementType, transactionType, transaction, currency);
+    const tableData = await this.getTableData(statementType, transactionType, transaction, currency, request);
 
+    const defaultCreditor = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
+    const amount = request?.amount ?? transaction.buyCrypto?.inputAmount;
     const billData: QrBillData = {
-      creditor: (bankInfo && this.getCreditor(bankInfo)) || (this.dfxCreditor() as unknown as Creditor),
+      creditor: (bankInfo && this.getCreditor(bankInfo)) || (defaultCreditor as unknown as Creditor),
       debtor,
       currency,
-      amount: bankInfo && transaction.buyCrypto?.inputAmount,
+      amount: bankInfo && amount,
       message: reference,
     };
 
-    return this.generatePdfInvoice(tableData, language, billData, !!bankInfo, transactionType);
+    return this.generatePdfInvoice(
+      tableData,
+      language,
+      billData,
+      !!bankInfo,
+      transactionType,
+      brand,
+      transaction.userData.completeName,
+    );
   }
 
   private generatePdfInvoice(
@@ -125,6 +129,8 @@ export class SwissQRService {
     billData: QrBillData,
     includeQrBill: boolean,
     transactionType: TransactionType,
+    brand: PdfBrand = PdfBrand.DFX,
+    debtorName?: string,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
@@ -141,26 +147,10 @@ export class SwissQRService {
         });
 
         // Logo
-        pdf.save();
-        pdf.translate(mm2pt(20), mm2pt(14));
-        pdf.scale(0.15);
-        const gradient1 = pdf.linearGradient(122.111, 64.6777, 45.9618, 103.949);
-        gradient1
-          .stop(0.04, '#F5516C')
-          .stop(0.14, '#C74863')
-          .stop(0.31, '#853B57')
-          .stop(0.44, '#55324E')
-          .stop(0.55, '#382D49')
-          .stop(0.61, '#2D2B47');
-        const gradient2 = pdf.linearGradient(75.8868, 50.7468, 15.2815, 122.952);
-        gradient2.stop(0.2, '#F5516C').stop(1, '#6B3753');
-        pdf.path(dfxLogoBall1).fill(gradient1);
-        pdf.path(dfxLogoBall2).fill(gradient2);
-        pdf.path(dfxLogoText).fill('#072440');
-        pdf.restore();
+        PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
 
-        // Sender address (always DFX AG)
-        const sender = this.dfxCreditor();
+        // Sender address
+        const sender = brand === PdfBrand.REALUNIT ? this.realunitCreditor() : this.dfxCreditor();
         pdf.fontSize(12);
         pdf.fillColor('black');
         pdf.font('Helvetica');
@@ -176,18 +166,20 @@ export class SwissQRService {
         );
 
         // Debtor address
-        pdf.fontSize(12);
-        pdf.font('Helvetica');
-        pdf.text(
-          `${billData.debtor.name}\n${billData.debtor.address} ${billData.debtor.buildingNumber}\n${billData.debtor.zip} ${billData.debtor.city}`,
-          mm2pt(130),
-          mm2pt(60),
-          {
+        const displayName = billData.debtor?.name ?? debtorName;
+        if (displayName) {
+          pdf.fontSize(12);
+          pdf.font('Helvetica');
+          const addressLine = billData.debtor
+            ? [billData.debtor.address, billData.debtor.buildingNumber].filter(Boolean).join(' ')
+            : '';
+          const cityLine = billData.debtor ? [billData.debtor.zip, billData.debtor.city].filter(Boolean).join(' ') : '';
+          pdf.text([displayName, addressLine, cityLine].filter(Boolean).join('\n'), mm2pt(130), mm2pt(60), {
             align: 'left',
             height: mm2pt(50),
             width: mm2pt(70),
-          },
-        );
+          });
+        }
 
         // Title
         pdf.fontSize(14);
@@ -378,6 +370,18 @@ export class SwissQRService {
     } as Creditor;
   }
 
+  private realunitCreditor(): Creditor {
+    const { bank, address } = Config.blockchain.realunit;
+    return {
+      name: bank.recipient,
+      address: address.street,
+      buildingNumber: address.number,
+      zip: address.zip,
+      city: address.city,
+      country: 'CH',
+    } as Creditor;
+  }
+
   private isSupportedInvoiceLanguage(lang: string): lang is SupportedInvoiceLanguage {
     return Object.keys(SupportedInvoiceLanguage).includes(lang);
   }
@@ -410,6 +414,7 @@ export class SwissQRService {
     statementType: TxStatementType,
     transactionType: TransactionType,
     transaction: Transaction,
+    request?: TransactionRequest,
   ): string {
     let titleKey: string;
 
@@ -421,8 +426,10 @@ export class SwissQRService {
       titleKey = 'invoice.title';
     }
 
+    const invoiceId = request?.id ?? transaction.id;
+
     return this.translate(titleKey, transaction.userData.language.symbol.toLowerCase(), {
-      invoiceId: transaction.id,
+      invoiceId,
     });
   }
 
@@ -445,17 +452,21 @@ export class SwissQRService {
   }
 
   private getDebtor(userData?: UserData): Debtor | undefined {
-    if (!userData?.isDataComplete) return undefined;
+    if (!userData?.isInvoiceDataComplete) return undefined;
 
     const name = userData.completeName;
     const address = userData.address;
 
+    // SwissQRBill requires country to be exactly 2 characters
+    // If no valid address, return undefined (debtor is optional in QR bill)
+    if (!address?.country?.symbol) return undefined;
+
     const debtor: Debtor = {
       name,
-      address: address.street,
-      city: address.city,
+      address: address.street ?? '',
+      city: address.city ?? '',
       country: address.country.symbol,
-      zip: address.zip,
+      zip: address.zip ?? '',
     };
     if (address.houseNumber != null) debtor.buildingNumber = address.houseNumber;
 
@@ -467,39 +478,63 @@ export class SwissQRService {
     transactionType: TransactionType,
     transaction: Transaction,
     currency: string,
+    request?: TransactionRequest,
   ): Promise<SwissQRBillTableData> {
     const titleAndDate = {
-      title: this.getStatementTitle(statementType, transactionType, transaction),
+      title: this.getStatementTitle(statementType, transactionType, transaction, request),
       date: this.getStatementDate(statementType, transaction),
     };
 
     switch (transactionType) {
       case TransactionType.BUY: {
+        // Handle pending transactions with request data
+        if (request) {
+          const asset = await this.assetService.getAssetById(request.targetId);
+          return {
+            quantity: request.estimatedAmount,
+            description: {
+              assetDescription: asset.description ?? asset.name,
+              assetName: asset.name,
+              assetBlockchain: asset.blockchain,
+            },
+            fiatAmount: request.amount,
+            ...titleAndDate,
+          };
+        }
+
         const outputAsset = transaction.buyCrypto?.outputAsset;
+        const fiatAmount = transaction.buyCrypto?.inputAmount;
+        const quantity = transaction.buyCrypto?.outputAmount;
+        if (!outputAsset || fiatAmount == null || quantity == null)
+          throw new BadRequestException('Missing invoice information');
 
         return {
-          quantity: transaction.buyCrypto?.outputAmount,
+          quantity,
           description: {
             assetDescription: outputAsset.description ?? outputAsset.name,
             assetName: outputAsset.name,
             assetBlockchain: outputAsset.blockchain,
           },
-          fiatAmount: transaction.buyCrypto?.inputAmount,
+          fiatAmount,
           ...titleAndDate,
         };
       }
 
       case TransactionType.SELL: {
         const inputAsset = transaction.buyFiat?.cryptoInput?.asset;
+        const fiatAmount = transaction.buyFiat?.outputAmount;
+        const quantity = transaction.buyFiat?.inputAmount;
+        if (!inputAsset || fiatAmount == null || quantity == null)
+          throw new BadRequestException('Missing invoice information');
 
         return {
-          quantity: transaction.buyFiat?.inputAmount,
+          quantity,
           description: {
             assetDescription: inputAsset.description ?? inputAsset.name,
             assetName: inputAsset.name,
             assetBlockchain: inputAsset.blockchain,
           },
-          fiatAmount: transaction.buyFiat?.outputAmount,
+          fiatAmount,
           ...titleAndDate,
         };
       }
@@ -507,36 +542,44 @@ export class SwissQRService {
       case TransactionType.SWAP: {
         const sourceAsset = transaction.buyCrypto?.cryptoInput?.asset;
         const targetAsset = transaction.buyCrypto?.outputAsset;
+        const fiatAmount = currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur;
+        const quantity = transaction.buyCrypto?.inputAmount;
+        const targetAmount = transaction.buyCrypto?.outputAmount;
+        if (!sourceAsset || !targetAsset || fiatAmount == null || quantity == null || targetAmount == null)
+          throw new BadRequestException('Missing invoice information');
 
         return {
-          quantity: transaction.buyCrypto?.inputAmount,
+          quantity,
           description: {
             sourceDescription: sourceAsset.description ?? sourceAsset.name,
             sourceName: sourceAsset.name,
             sourceBlockchain: sourceAsset.blockchain,
-            targetAmount: transaction.buyCrypto?.outputAmount,
+            targetAmount,
             targetDescription: targetAsset.description ?? targetAsset.name,
             targetName: targetAsset.name,
             targetBlockchain: targetAsset.blockchain,
           },
-          fiatAmount: currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur,
+          fiatAmount,
           ...titleAndDate,
         };
       }
 
       case TransactionType.REFERRAL: {
         const targetBlockchain = transaction.refReward?.targetBlockchain;
-        if (!targetBlockchain) throw new Error('Missing blockchain information for referral');
+        if (!targetBlockchain) throw new BadRequestException('Missing invoice information');
         const asset = await this.assetService.getNativeAsset(targetBlockchain);
-        if (!asset) throw new Error(`Native asset not found for blockchain ${targetBlockchain}`);
+        if (!asset) throw new BadRequestException('Missing invoice information');
+        const fiatAmount = currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur;
+        const quantity = transaction.refReward?.outputAmount;
+        if (fiatAmount == null || quantity == null) throw new BadRequestException('Missing invoice information');
 
         return {
-          quantity: transaction.refReward?.outputAmount,
+          quantity,
           description: {
             assetName: asset.name,
             assetBlockchain: targetBlockchain,
           },
-          fiatAmount: currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur,
+          fiatAmount,
           ...titleAndDate,
         };
       }

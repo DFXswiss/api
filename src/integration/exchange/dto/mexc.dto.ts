@@ -61,3 +61,68 @@ export interface Withdrawal {
   coinId: string;
   vcoinId: string;
 }
+
+// --- ZCHF Assessment Period - can be removed once assessment ends --- //
+export interface MexcSymbol {
+  symbol: string;
+  status: string;
+  baseAsset: string;
+  baseAssetPrecision: number;
+  quoteAsset: string;
+  quotePrecision: number;
+  quoteAssetPrecision: number;
+  baseCommissionPrecision: number;
+  quoteCommissionPrecision: number;
+  orderTypes: string[];
+  isSpotTradingAllowed: boolean;
+  isMarginTradingAllowed: boolean;
+  quoteAmountPrecision: string;
+  baseSizePrecision: string;
+  permissions: string[];
+  filters: unknown[];
+  maxQuoteAmount: string;
+  makerCommission: string;
+  takerCommission: string;
+  quoteAmountPrecisionMarket: string;
+  maxQuoteAmountMarket: string;
+  fullName: string;
+}
+
+export interface MexcExchangeInfo {
+  timezone: string;
+  serverTime: number;
+  rateLimits: unknown[];
+  exchangeFilters: unknown[];
+  symbols: MexcSymbol[];
+}
+
+export interface MexcOrderBook {
+  lastUpdateId: number;
+  bids: [string, string][]; // [price, quantity]
+  asks: [string, string][]; // [price, quantity]
+}
+
+export interface MexcTrade {
+  id: number | null;
+  price: string;
+  qty: string;
+  quoteQty: string;
+  time: number;
+  isBuyerMaker: boolean;
+  isBestMatch: boolean;
+}
+
+export interface MexcMyTrade {
+  symbol: string;
+  id: number;
+  orderId: number;
+  price: string;
+  qty: string;
+  quoteQty: string;
+  commission: string;
+  commissionAsset: string;
+  time: number;
+  isBuyer: boolean;
+  isMaker: boolean;
+  isBestMatch: boolean;
+}

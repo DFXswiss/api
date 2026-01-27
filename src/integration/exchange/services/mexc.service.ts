@@ -1,12 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
-import { mexc, Transaction } from 'ccxt';
+import { Market, mexc, OrderBook, Trade, Transaction } from 'ccxt';
 import { Config, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { Deposit, DepositStatus, Withdrawal, WithdrawalStatus } from '../dto/mexc.dto';
+import {
+  Deposit,
+  DepositStatus,
+  MexcExchangeInfo,
+  MexcMyTrade,
+  MexcOrderBook,
+  MexcSymbol,
+  MexcTrade,
+  Withdrawal,
+  WithdrawalStatus,
+} from '../dto/mexc.dto';
 import { ExchangeService } from './exchange.service';
 
 @Injectable()
@@ -37,6 +47,7 @@ export class MexcService extends ExchangeService {
     KucoinPay: undefined,
     Solana: 'SOL',
     Tron: 'TRX',
+    Citrea: undefined,
     CitreaTestnet: undefined,
     Kraken: undefined,
     Binance: undefined,
@@ -128,7 +139,7 @@ export class MexcService extends ExchangeService {
           ? 'ok'
           : 'pending',
       updated: undefined,
-      fee: undefined,
+      fee: d.transactionFee ? { cost: parseFloat(d.transactionFee), currency: d.coin.split('-')[0] } : undefined,
       network: d.network,
       comment: d.memo,
       internal: undefined,
@@ -157,5 +168,124 @@ export class MexcService extends ExchangeService {
       method,
       headers: { 'X-MEXC-APIKEY': Config.mexc.apiKey, 'Content-Type': 'application/json' },
     });
+  }
+
+  // --- ZCHF Assessment Period - can be removed once assessment ends --- //
+
+  protected async fetchMarkets(): Promise<Market[]> {
+    const data = await this.request<MexcExchangeInfo>('GET', 'exchangeInfo', {});
+    return data.symbols.map((s) => this.toMarket(s));
+  }
+
+  private toMarket(symbol: MexcSymbol): Market {
+    return {
+      id: symbol.symbol,
+      symbol: `${symbol.baseAsset}/${symbol.quoteAsset}`,
+      base: symbol.baseAsset,
+      quote: symbol.quoteAsset,
+      baseId: symbol.baseAsset,
+      quoteId: symbol.quoteAsset,
+      active: symbol.status === '1' && symbol.isSpotTradingAllowed,
+      type: 'spot',
+      spot: true,
+      margin: symbol.isMarginTradingAllowed,
+      swap: false,
+      future: false,
+      option: false,
+      contract: false,
+      settle: undefined,
+      settleId: undefined,
+      contractSize: undefined,
+      linear: undefined,
+      inverse: undefined,
+      expiry: undefined,
+      expiryDatetime: undefined,
+      strike: undefined,
+      optionType: undefined,
+      taker: parseFloat(symbol.takerCommission),
+      maker: parseFloat(symbol.makerCommission),
+      percentage: true,
+      tierBased: false,
+      feeSide: 'get',
+      precision: {
+        amount: this.parsePrecision(symbol.baseAssetPrecision),
+        price: this.parsePrecision(symbol.quoteAssetPrecision),
+      },
+      limits: {
+        amount: { min: parseFloat(symbol.baseSizePrecision), max: undefined },
+        price: { min: undefined, max: undefined },
+        cost: { min: parseFloat(symbol.quoteAmountPrecision), max: parseFloat(symbol.maxQuoteAmount) },
+        leverage: { min: undefined, max: undefined },
+      },
+      created: undefined,
+      info: symbol,
+    } as Market;
+  }
+
+  protected async fetchOrderBook(pair: string): Promise<OrderBook> {
+    const symbol = pair.replace('/', '');
+    const data = await this.request<MexcOrderBook>('GET', 'depth', { symbol });
+
+    return {
+      symbol: pair,
+      bids: data.bids.map(([price, amount]) => [parseFloat(price), parseFloat(amount)]),
+      asks: data.asks.map(([price, amount]) => [parseFloat(price), parseFloat(amount)]),
+      timestamp: undefined,
+      datetime: undefined,
+      nonce: data.lastUpdateId,
+    };
+  }
+
+  protected async fetchTrades(pair: string, limit: number): Promise<Trade[]> {
+    const symbol = pair.replace('/', '');
+    const data = await this.request<MexcTrade[]>('GET', 'trades', { symbol, limit: limit.toString() });
+
+    return data.map((t) => ({
+      id: t.id?.toString(),
+      info: t,
+      timestamp: t.time,
+      datetime: new Date(t.time).toISOString(),
+      symbol: pair,
+      order: undefined,
+      type: undefined,
+      side: t.isBuyerMaker ? 'sell' : 'buy',
+      takerOrMaker: t.isBuyerMaker ? 'maker' : 'taker',
+      price: parseFloat(t.price),
+      amount: parseFloat(t.qty),
+      cost: parseFloat(t.quoteQty),
+      fee: undefined,
+      fees: [],
+    }));
+  }
+
+  private parsePrecision(precision: number): number {
+    if (precision === 0) return 1;
+    return parseFloat('0.' + '0'.repeat(precision - 1) + '1');
+  }
+
+  async getTrades(from: string, to: string, since?: Date): Promise<Trade[]> {
+    const pair = await this.getPair(from, to);
+
+    const params: Record<string, string> = { symbol: pair.replace('/', '') };
+    if (since) params.startTime = since.getTime().toString();
+
+    const data = await this.request<MexcMyTrade[]>('GET', 'myTrades', params);
+
+    return data.map((t) => ({
+      id: t.id?.toString(),
+      info: t,
+      timestamp: t.time,
+      datetime: new Date(t.time).toISOString(),
+      symbol: pair,
+      order: t.orderId?.toString(),
+      type: undefined,
+      side: t.isBuyer ? 'buy' : 'sell',
+      takerOrMaker: t.isMaker ? 'maker' : 'taker',
+      price: parseFloat(t.price),
+      amount: parseFloat(t.qty),
+      cost: parseFloat(t.quoteQty),
+      fee: t.commission ? { cost: parseFloat(t.commission), currency: t.commissionAsset } : undefined,
+      fees: t.commission ? [{ cost: parseFloat(t.commission), currency: t.commissionAsset }] : [],
+    }));
   }
 }

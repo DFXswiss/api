@@ -3,6 +3,7 @@ import { BinanceService } from 'src/integration/exchange/services/binance.servic
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { MexcService } from 'src/integration/exchange/services/mexc.service';
+import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { XtService } from 'src/integration/exchange/services/xt.service';
 import { Active, activesEqual, isAsset, isFiat } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -26,6 +27,7 @@ import { PricingConstantService } from './integration/pricing-constant.service';
 import { PricingDeuroService } from './integration/pricing-deuro.service';
 import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
+import { PricingJuiceService } from './integration/pricing-juice.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 import { PricingRealUnitService } from './integration/pricing-realunit.service';
 
@@ -61,12 +63,14 @@ export class PricingService implements OnModuleInit {
     readonly kucoinService: KucoinService,
     readonly mexcService: MexcService,
     readonly xtService: XtService,
+    readonly scryptService: ScryptService,
     readonly coinGeckoService: CoinGeckoService,
     readonly dexService: PricingDexService,
     readonly fixerService: FixerService,
     readonly currencyService: CurrencyService,
     readonly frankencoinService: PricingFrankencoinService,
     readonly deuroService: PricingDeuroService,
+    readonly juiceService: PricingJuiceService,
     readonly ebel2xService: PricingEbel2xService,
     readonly realunitService: PricingRealUnitService,
     readonly constantService: PricingConstantService,
@@ -77,12 +81,14 @@ export class PricingService implements OnModuleInit {
       [PriceSource.KUCOIN]: kucoinService,
       [PriceSource.MEXC]: mexcService,
       [PriceSource.XT]: xtService,
+      [PriceSource.SCRYPT]: scryptService,
       [PriceSource.COIN_GECKO]: coinGeckoService,
       [PriceSource.DEX]: dexService,
       [PriceSource.FIXER]: fixerService,
       [PriceSource.CURRENCY]: currencyService,
       [PriceSource.FRANKENCOIN]: frankencoinService,
       [PriceSource.DEURO]: deuroService,
+      [PriceSource.JUICE]: juiceService,
       [PriceSource.EBEL2X]: ebel2xService,
       [PriceSource.REALUNIT]: realunitService,
       [PriceSource.CONSTANT]: constantService,

@@ -53,7 +53,9 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
         this.nodeCallQueue.handle(async () => {
           const command = `getrawtransaction "${utxo.txid}" 2`;
           const transaction = <BitcoinTransaction>await this.client.sendCliCommand(command);
-          const senderAddresses = transaction.vin.map((vin) => vin.prevout.scriptPubKey.address);
+          const senderAddresses = transaction.vin
+            .filter((vin) => vin.prevout?.scriptPubKey?.address)
+            .map((vin) => vin.prevout.scriptPubKey.address);
           utxo.prevoutAddresses = [...new Set(senderAddresses)];
           utxo.isUnconfirmed = utxo.confirmations === 0;
         }),

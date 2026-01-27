@@ -66,10 +66,6 @@ export class LiquidityManagementService {
   ): Promise<LiquidityManagementPipeline> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
 
-    if (!rule.deficitStartAction) {
-      throw new BadRequestException(`Rule ${rule.id} does not support liquidity deficit path`);
-    }
-
     if (targetOptimal) maxAmount = Util.round(maxAmount + rule.optimal, 6);
 
     const liquidityState: LiquidityState = {
@@ -88,10 +84,6 @@ export class LiquidityManagementService {
     targetOptimal: boolean,
   ): Promise<LiquidityManagementPipeline> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
-
-    if (!rule.redundancyStartAction) {
-      throw new BadRequestException(`Rule ${rule.id} does not support liquidity redundancy path`);
-    }
 
     if (targetOptimal) maxAmount = Util.round(maxAmount - rule.optimal, 6);
 
@@ -175,6 +167,10 @@ export class LiquidityManagementService {
 
     if (rule.status !== LiquidityManagementRuleStatus.ACTIVE) {
       throw new ConflictException(`Pipeline for rule ${rule.id} cannot be started (status ${rule.status})`);
+    }
+
+    if (!rule.hasStartAction(result.action)) {
+      throw new BadRequestException(`Rule ${rule.id} does not support ${result.action.toLowerCase()} path`);
     }
 
     this.logRuleExecution(rule, result);

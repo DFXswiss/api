@@ -797,6 +797,15 @@ export class Configuration {
       bscApiKey: process.env.ALCHEMY_API_KEY,
       gasPrice: process.env.BSC_GAS_PRICE,
     },
+    citrea: {
+      ...EVM_CHAINS.citrea,
+      citreaGatewayUrl: EVM_CHAINS.citrea.gatewayUrl,
+      citreaChainId: EVM_CHAINS.citrea.chainId,
+      citreaWalletAddress: process.env.CITREA_WALLET_ADDRESS,
+      citreaWalletPrivateKey: process.env.CITREA_WALLET_PRIVATE_KEY,
+      citreaApiKey: process.env.CITREA_API_KEY,
+      blockscoutApiUrl: process.env.CITREA_BLOCKSCOUT_API_URL,
+    },
     citreaTestnet: {
       ...EVM_CHAINS.citreaTestnet,
       citreaTestnetGatewayUrl: EVM_CHAINS.citreaTestnet.gatewayUrl,
@@ -804,7 +813,7 @@ export class Configuration {
       citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
       citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
-      goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
+      blockscoutApiUrl: process.env.CITREA_TESTNET_BLOCKSCOUT_API_URL,
     },
     lightning: {
       lnbits: {
@@ -906,6 +915,10 @@ export class Configuration {
       graphUrl: process.env.DEURO_GRAPH_URL,
       apiUrl: process.env.DEURO_API_URL,
     },
+    juice: {
+      graphUrl: process.env.JUSD_GRAPH_URL,
+      apiUrl: process.env.JUSD_API_URL,
+    },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,
       api: {
@@ -914,10 +927,16 @@ export class Configuration {
       },
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
-        address: process.env.REALUNIT_BANK_ADDRESS ?? 'Schochenmühlestrasse 6, 6340 Baar, Switzerland',
         iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
         bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
         name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
+      },
+      address: {
+        street: process.env.REALUNIT_ADDRESS_STREET ?? 'Schochenmühlestrasse',
+        number: process.env.REALUNIT_ADDRESS_NUMBER ?? '6',
+        zip: process.env.REALUNIT_ADDRESS_ZIP ?? '6340',
+        city: process.env.REALUNIT_ADDRESS_CITY ?? 'Baar',
+        country: process.env.REALUNIT_ADDRESS_COUNTRY ?? 'Switzerland',
       },
     },
     ebel2x: {

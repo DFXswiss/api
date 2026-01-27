@@ -297,7 +297,7 @@ export class KycService {
 
         if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
           await this.kycStepRepo.update(...entity.ignored(comment));
-        } else if (errors.includes(KycError.MISSING_RESPONSE)) {
+        } else if (errors.includes(KycError.MISSING_INFO)) {
           await this.kycStepRepo.update(...entity.inProgress());
           await this.kycNotificationService.kycStepMissingData(
             entity.userData,
@@ -762,7 +762,7 @@ export class KycService {
       .catch((e) => this.logger.error(`Error during sumsub webhook update for applicant ${dto.applicantId}:`, e));
   }
 
-  private async updateKycStepAndLog(
+  async updateKycStepAndLog(
     kycStep: KycStep,
     user: UserData,
     data: KycStepResult,
@@ -933,13 +933,14 @@ export class KycService {
 
   // --- STEPPING METHODS --- //
   async getOrCreateStepInternal(
-    kycHash: string,
     name: KycStepName,
+    user?: UserData,
+    kycHash?: string,
     type?: KycStepType,
     sequence?: number,
     restartCompletedSteps = false,
   ): Promise<{ user: UserData; step: KycStep }> {
-    const user = await this.getUser(kycHash);
+    user = user ?? (await this.getUser(kycHash));
 
     let step =
       sequence != null
@@ -966,7 +967,7 @@ export class KycService {
     const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
     if (!name) throw new BadRequestException('Invalid step name');
 
-    const { user, step } = await this.getOrCreateStepInternal(kycHash, name, type, sequence, true);
+    const { user, step } = await this.getOrCreateStepInternal(name, undefined, kycHash, type, sequence, true);
 
     await this.verify2faIfRequired(user, ip);
 
@@ -1228,6 +1229,13 @@ export class KycService {
     return this.kycStepRepo.findOne({ where: { id }, relations: { userData: true } });
   }
 
+  async getStepsByUserData(userDataId: number): Promise<KycStep[]> {
+    return this.kycStepRepo.find({
+      where: { userData: { id: userDataId } },
+      order: { sequenceNumber: 'ASC' },
+    });
+  }
+
   async saveKycStepUpdate(updateResult: UpdateResult<KycStep>): Promise<void> {
     await this.kycStepRepo.update(...updateResult);
   }
@@ -1348,7 +1356,7 @@ export class KycService {
     const financialStepResult = entity.getResult<KycFinancialResponse[]>();
 
     if (!FinancialService.isComplete(financialStepResult, entity.userData.accountType))
-      errors.push(KycError.MISSING_RESPONSE);
+      errors.push(KycError.MISSING_INFO);
     if (!financialStepResult.some((f) => f.key === 'risky_business' && f.value.includes('no')))
       errors.push(KycError.RISKY_BUSINESS);
 

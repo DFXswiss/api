@@ -60,7 +60,6 @@ export const DebugBlockedCols: Record<string, string[]> = {
     'ultimateName',
     'iban',
     'country',
-    'accountIban',
     'senderAccount',
     'bic',
     'addressLine1',
@@ -79,7 +78,6 @@ export const DebugBlockedCols: Record<string, string[]> = {
   fiat_output: [
     'name',
     'iban',
-    'accountIban',
     'accountNumber',
     'bic',
     'aba',

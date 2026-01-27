@@ -16,6 +16,7 @@ export enum AmlRule {
   RULE_13 = 13, // Checkout BankTransactionVerificationDate & KycLevel 50
   RULE_14 = 14, // No phoneCallCheck
   RULE_15 = 15, // Force Manual Check
+  RULE_16 = 16, // Force phoneCallCheck for personal accounts
 }
 
 export const SpecialIpCountries = ['CH'];

@@ -71,6 +71,7 @@ export const TransactionBankTxTypeMapper: {
   [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: TransactionTypeInternal.BANK_TX_REPEAT_CHARGEBACK,
   [BankTxType.FIAT_FIAT]: TransactionTypeInternal.FIAT_FIAT,
   [BankTxType.KRAKEN]: TransactionTypeInternal.KRAKEN,
+  [BankTxType.SCRYPT]: TransactionTypeInternal.SCRYPT,
   [BankTxType.SCB]: TransactionTypeInternal.SCB,
   [BankTxType.CHECKOUT_LTD]: TransactionTypeInternal.CHECKOUT_LTD,
   [BankTxType.BANK_ACCOUNT_FEE]: TransactionTypeInternal.BANK_ACCOUNT_FEE,
@@ -125,18 +126,23 @@ export class BankTxService implements OnModuleInit {
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX })
   async enrichYapealTransactions(): Promise<void> {
-    const transactions = await this.bankTxRepo.findBy([
-      { created: MoreThan(Util.minutesBefore(30)), familyCode: 'CCRD' }, // credit card => wrong data
-    ]);
+    const transactions = await this.bankTxRepo.find({
+      where: { familyCode: 'CCRD' }, // credit card => wrong data
+      order: { id: 'DESC' },
+      take: 100,
+    });
 
     if (transactions.length === 0) return;
 
-    const today = new Date();
     const ibanGroups = Util.groupBy<BankTx, string>(transactions, 'accountIban');
 
     for (const [accountIban, groupTransactions] of ibanGroups) {
       try {
-        const yapealTransactions = await this.yapealService.getTransactions(accountIban, today, today);
+        const dates = groupTransactions.map((tx) => (tx.bookingDate ?? tx.created).getTime());
+        const fromDate = new Date(Math.min(...dates));
+        const toDate = Util.daysAfter(1, new Date(Math.max(...dates)));
+
+        const yapealTransactions = await this.yapealService.getTransactions(accountIban, fromDate, toDate);
 
         for (const transaction of groupTransactions) {
           const yapealTx = yapealTransactions.find((tx) => tx.accountServiceRef === transaction.accountServiceRef);
@@ -496,9 +502,17 @@ export class BankTxService implements OnModuleInit {
     return batch;
   }
 
-  private getType(tx: BankTx): BankTxType | null {
+  getType(tx: BankTx): BankTxType | null {
     if (tx.name?.includes('Payward Trading')) {
       return BankTxType.KRAKEN;
+    }
+
+    if (tx.name?.includes('Scrypt Digital Trading')) {
+      return BankTxType.SCRYPT;
+    }
+
+    if (tx.name?.includes('SCB AG')) {
+      return BankTxType.SCB;
     }
 
     return null;

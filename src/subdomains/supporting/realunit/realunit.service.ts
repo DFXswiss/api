@@ -242,18 +242,18 @@ export class RealUnitService {
     });
 
     // 5. Override recipient info with RealUnit company address
-    const { bank: realunitBank } = GetConfig().blockchain.realunit;
+    const { bank: realunitBank, address: realunitAddress } = GetConfig().blockchain.realunit;
     const response: RealUnitPaymentInfoDto = {
       id: buyPaymentInfo.id,
       routeId: buyPaymentInfo.routeId,
       timestamp: buyPaymentInfo.timestamp,
       // Override recipient fields with RealUnit company address
       name: realunitBank.recipient,
-      street: 'Schochenmühlestrasse',
-      number: '6',
-      zip: '6340',
-      city: 'Baar',
-      country: 'Switzerland',
+      street: realunitAddress.street,
+      number: realunitAddress.number,
+      zip: realunitAddress.zip,
+      city: realunitAddress.city,
+      country: realunitAddress.country,
       // Bank info from BuyService
       iban: buyPaymentInfo.iban,
       bic: buyPaymentInfo.bic,

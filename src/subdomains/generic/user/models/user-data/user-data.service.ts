@@ -14,7 +14,6 @@ import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
@@ -170,7 +169,11 @@ export class UserDataService {
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
-  async getUsersByMail(mail: string, onlyValidUser = true): Promise<UserData[]> {
+  async getUsersByMail(
+    mail: string,
+    onlyValidUser = true,
+    relations: FindOptionsRelations<UserData> = { users: true, wallet: true },
+  ): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
         mail,
@@ -178,7 +181,7 @@ export class UserDataService {
           ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
           : undefined,
       },
-      relations: { users: true, wallet: true },
+      relations,
     });
   }
 
@@ -238,6 +241,7 @@ export class UserDataService {
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
       kycHash: randomUUID().toUpperCase(),
+      kycSteps: [],
     });
 
     await this.loadRelationsAndVerify(userData, dto);
@@ -763,10 +767,6 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
-  private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return this.userRepo.existsBy({ userData: { id: userDataId }, role });
-  }
-
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,

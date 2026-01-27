@@ -209,6 +209,8 @@ export class FiatOutputJobService {
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
+          if (entity.currency === 'EUR') continue;
+
           if (availableBalance > entity.bankAmount) {
             updatedFiatOutputAmount += entity.bankAmount;
             const ibanCountry = entity.iban.substring(0, 2);
@@ -391,7 +393,6 @@ export class FiatOutputJobService {
         amount: Not(IsNull()),
         isComplete: false,
         bankTx: { id: IsNull() },
-        isReadyDate: Not(IsNull()),
       },
       relations: { bankTx: { transaction: true }, bankTxReturn: true, bankTxRepeat: true },
     });
@@ -399,7 +400,7 @@ export class FiatOutputJobService {
     for (const entity of entities) {
       try {
         const bankTx = await this.getMatchingBankTx(entity);
-        if (!bankTx || entity.isReadyDate > bankTx.created) continue;
+        if (!bankTx || (entity.isReadyDate && entity.isReadyDate > bankTx.created)) continue;
 
         const updateData: Partial<FiatOutput> = {
           bankTx,
@@ -446,8 +447,10 @@ export class FiatOutputJobService {
       case FiatOutputType.BANK_TX_RETURN:
         return this.bankTxService.updateInternal(bankTx, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
 
-      case FiatOutputType.LIQ_MANAGEMENT:
-        return this.bankTxService.updateInternal(bankTx, { type: BankTxType.INTERNAL });
+      case FiatOutputType.LIQ_MANAGEMENT: {
+        const specificType = this.bankTxService.getType(bankTx);
+        if (specificType) return this.bankTxService.updateInternal(bankTx, { type: specificType });
+      }
     }
   }
 }

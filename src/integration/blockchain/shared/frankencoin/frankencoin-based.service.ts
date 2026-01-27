@@ -19,7 +19,7 @@ export abstract class FrankencoinBasedService {
   protected readonly logger = new DfxLogger(this.constructor.name);
 
   private pricingService: PricingService;
-  private registryService: BlockchainRegistryService;
+  protected registryService: BlockchainRegistryService;
 
   getEvmClient(): EvmClient {
     return this.registryService.getClient(Blockchain.ETHEREUM) as EvmClient;

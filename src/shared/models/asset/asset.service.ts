@@ -229,6 +229,14 @@ export class AssetService {
     });
   }
 
+  async getCitreaCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'cBTC',
+      blockchain: Blockchain.CITREA,
+      type: AssetType.COIN,
+    });
+  }
+
   async getCitreaTestnetCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'cBTC',
