@@ -43,7 +43,7 @@ const LAYERZERO_OFT_ADAPTERS: Record<string, { ethereum: string; citrea: string 
 // Citrea LayerZero Endpoint ID
 const CITREA_LZ_ENDPOINT_ID = 30291;
 
-enum LayerZeroBridgeCommands {
+export enum LayerZeroBridgeCommands {
   DEPOSIT = 'deposit', // Ethereum -> Citrea
 }
 
@@ -117,8 +117,14 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
   }
 
   validateParams(command: string, params: Record<string, unknown>): boolean {
-    // LayerZero bridge doesn't require additional params
-    return command === LayerZeroBridgeCommands.DEPOSIT && (!params || Object.keys(params).length === 0);
+    switch (command) {
+      case LayerZeroBridgeCommands.DEPOSIT:
+        // LayerZero bridge doesn't require additional params
+        return !params || Object.keys(params).length === 0;
+
+      default:
+        throw new Error(`Command ${command} not supported by LayerZeroBridgeAdapter`);
+    }
   }
 
   //*** COMMANDS IMPLEMENTATIONS ***//
