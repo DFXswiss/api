@@ -16,6 +16,7 @@ import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiExcludeEndpoint,
   ApiOkResponse,
   ApiOperation,
@@ -46,6 +47,8 @@ import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { TransactionHelper } from '../../payment/services/transaction-helper';
 import { RealUnitBalancePdfDto } from '../dto/realunit-balance-pdf.dto';
 import {
+  RealUnitEmailRegistrationDto,
+  RealUnitEmailRegistrationResponseDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
@@ -291,7 +294,55 @@ export class RealUnitController {
     return this.realunitService.confirmSell(jwt.user, +id, dto);
   }
 
-  // --- Registration Endpoint ---
+  // --- Registration Endpoints ---
+
+  @Post('register/email')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Step 1: Register email for RealUnit',
+    description:
+      'First step of RealUnit registration. Checks if email exists in DFX system. If exists and merge is possible, sends merge confirmation email. Otherwise registers email and sets KYC Level 10.',
+  })
+  @ApiOkResponse({ type: RealUnitEmailRegistrationResponseDto })
+  @ApiBadRequestResponse({ description: 'Email does not match verified email' })
+  @ApiConflictResponse({ description: 'Account already exists and merge not possible' })
+  async registerEmail(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitEmailRegistrationDto,
+  ): Promise<RealUnitEmailRegistrationResponseDto> {
+    const status = await this.realunitService.registerEmail(jwt.account, dto);
+    return { status };
+  }
+
+  @Post('register/complete')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Step 2: Complete RealUnit registration',
+    description:
+      'Second step of RealUnit registration. Requires email registration to be completed. Validates personal data against DFX system and forwards to Aktionariat.',
+  })
+  @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
+  @ApiAcceptedResponse({
+    type: RealUnitRegistrationResponseDto,
+    description: 'Registration accepted, manual review needed or forwarding to Aktionariat failed',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid signature, wallet mismatch, email registration not completed, or data mismatch',
+  })
+  async completeRegistration(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitRegistrationDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const status = await this.realunitService.completeRegistration(jwt.account, dto);
+    const response: RealUnitRegistrationResponseDto = {
+      status: status,
+    };
+    const statusCode = status === RealUnitRegistrationStatus.COMPLETED ? HttpStatus.CREATED : HttpStatus.ACCEPTED;
+    res.status(statusCode).json(response);
+  }
 
   @Post('register')
   @ApiBearerAuth()
