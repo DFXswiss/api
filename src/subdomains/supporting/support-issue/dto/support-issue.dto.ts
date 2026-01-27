@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -143,11 +144,17 @@ export class SupportIssueInternalTransactionDataDto {
   @ApiProperty()
   inputAsset: string;
 
+  @ApiPropertyOptional({ enum: Blockchain })
+  inputBlockchain?: Blockchain;
+
   @ApiProperty()
   outputAmount: number;
 
   @ApiProperty()
   outputAsset: string;
+
+  @ApiPropertyOptional({ enum: Blockchain })
+  outputBlockchain?: Blockchain;
 
   @ApiProperty({ type: SupportIssueInternalWalletDto })
   wallet: SupportIssueInternalWalletDto;

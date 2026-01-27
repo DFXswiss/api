@@ -1,3 +1,4 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
@@ -32,7 +33,7 @@ export class SupportIssueDtoMapper {
     return Object.assign(new SupportIssueDto(), dto);
   }
 
-  static mapSupportIssueData(supportIssue: SupportIssue): SupportIssueInternalDataDto {
+  static mapSupportIssueData(supportIssue: SupportIssue, transactionInput?: Asset): SupportIssueInternalDataDto {
     const dto: SupportIssueInternalDataDto = {
       id: supportIssue.id,
       created: supportIssue.created,
@@ -43,7 +44,7 @@ export class SupportIssueDtoMapper {
       state: supportIssue.state,
       name: supportIssue.name,
       account: SupportIssueDtoMapper.mapUserData(supportIssue.userData),
-      transaction: SupportIssueDtoMapper.mapTransactionData(supportIssue.transaction),
+      transaction: SupportIssueDtoMapper.mapTransactionData(supportIssue.transaction, transactionInput),
     };
 
     return Object.assign(new SupportIssueInternalDataDto(), dto);
@@ -76,7 +77,7 @@ export class SupportIssueDtoMapper {
     };
   }
 
-  static mapTransactionData(transaction: Transaction): SupportIssueInternalTransactionDataDto {
+  static mapTransactionData(transaction: Transaction, inputCurrency?: Asset): SupportIssueInternalTransactionDataDto {
     if (!transaction?.id) return undefined;
 
     const targetEntity = transaction.buyCrypto ?? transaction.buyFiat;
@@ -90,13 +91,15 @@ export class SupportIssueDtoMapper {
       comment: targetEntity?.comment,
       inputAmount: targetEntity?.inputAmount,
       inputAsset: targetEntity?.inputAsset,
+      inputBlockchain: inputCurrency?.blockchain,
       outputAmount: targetEntity?.outputAmount,
-      outputAsset: targetEntity?.amlReason,
-      wallet: targetEntity?.wallet
+      outputAsset: targetEntity?.outputAsset.name,
+      outputBlockchain: transaction?.buyCrypto?.outputAsset.blockchain,
+      wallet: transaction.user?.wallet
         ? {
-            name: targetEntity.wallet.displayName ?? targetEntity.wallet.name,
-            amlRules: targetEntity.wallet.amlRules,
-            isKycClient: targetEntity.wallet.isKycClient,
+            name: transaction.user.wallet.displayName ?? transaction.user.wallet.name,
+            amlRules: transaction.user.wallet.amlRules,
+            isKycClient: transaction.user.wallet.isKycClient,
           }
         : undefined,
       isComplete: targetEntity?.isComplete,
