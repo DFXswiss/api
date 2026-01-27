@@ -228,7 +228,7 @@ export class SupportIssueService {
     });
     if (!issue) throw new NotFoundException('Support issue not found');
 
-    const transactionInput = (issue.transaction?.buyCrypto ?? issue.transaction?.buyFiat)?.cryptoInput.asset;
+    const transactionInput = (issue.transaction?.buyCrypto ?? issue.transaction?.buyFiat)?.cryptoInput?.asset;
 
     return SupportIssueDtoMapper.mapSupportIssueData(issue, transactionInput);
   }
