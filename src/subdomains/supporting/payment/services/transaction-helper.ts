@@ -46,8 +46,8 @@ import { TxMinSpec, TxSpec } from '../dto/transaction-helper/tx-spec.dto';
 import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/tx-statement-details.dto';
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
-import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 import { Transaction } from '../entities/transaction.entity';
+import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 import { TransactionService } from './transaction.service';
 
 @Injectable()
@@ -581,6 +581,20 @@ export class TransactionHelper implements OnModuleInit {
     }
 
     throw new BadRequestException('Transaction type not supported for invoice generation');
+  }
+
+  async getTxStatementDetailsMulti(
+    userDataId: number,
+    txIds: number[],
+    statementType: TxStatementType,
+  ): Promise<TxStatementDetails[]> {
+    const details: TxStatementDetails[] = [];
+    for (const txId of txIds) {
+      const txDetails = await this.getTxStatementDetails(userDataId, txId, statementType);
+
+      details.push(txDetails);
+    }
+    return details;
   }
 
   private async getTxStatementDetailsFromRequest(

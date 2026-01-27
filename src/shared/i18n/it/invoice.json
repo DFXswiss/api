@@ -2,10 +2,16 @@
   "title": "Fattura No. {invoiceId}",
   "credit_title": "Credito No. {invoiceId}",
   "receipt_title": "Conferma di Transazione No. {invoiceId}",
+  "multi_receipt_title": "Conferma di Transazione",
+  "section": {
+    "buy": "Acquisti",
+    "sell": "Vendite"
+  },
   "table": {
     "headers": {
       "quantity": "Quantità",
       "description": "Descrizione",
+      "date": "Data",
       "total": "Totale"
     },
     "position_row": {
