@@ -282,7 +282,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
 
       this.logger.info(`Approval confirmed for ${ethereumAsset.name}`);
     } catch (e) {
-      throw new OrderFailedException(`Token approval failed: ${e.message}`);
+      throw e instanceof OrderFailedException ? e : new OrderFailedException(`Token approval failed: ${e.message}`);
     }
   }
 
