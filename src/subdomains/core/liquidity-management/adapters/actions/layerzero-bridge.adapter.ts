@@ -74,6 +74,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
       pipeline: {
         rule: { target: asset },
       },
+      outputAmount,
     } = order;
 
     if (!isAsset(asset)) {
@@ -81,31 +82,45 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     }
 
     try {
-      // Check if the tokens have arrived on Citrea by comparing balances
+      // Step 1: Verify the Ethereum transaction succeeded
       // The correlationId contains the Ethereum TX hash
       const txReceipt = await this.ethereumClient.getTxReceipt(order.correlationId);
 
-      if (!txReceipt || txReceipt.status !== 1) {
+      if (!txReceipt) {
+        this.logger.verbose(`LayerZero TX not found: ${order.correlationId}`);
         return false;
       }
 
-      // For LayerZero, we check if the destination chain has received the tokens
-      // by verifying the balance increased on Citrea
-      // This is a simplified check - in production you might want to use LayerZero's message tracking API
+      if (txReceipt.status !== 1) {
+        this.logger.warn(`LayerZero TX failed on Ethereum: ${order.correlationId}`);
+        return false;
+      }
+
+      // Step 2: Check if the tokens have arrived on Citrea
+      // Note: LayerZero message finality typically takes 2-5 minutes
+      // A more robust solution would use LayerZero Scan API to track the message GUID
       const citreaBalance = await this.citreaClient.getTokenBalance(asset);
 
-      // If we have balance on Citrea, consider it complete
-      // A more robust solution would track the LayerZero message GUID
-      return citreaBalance > 0;
+      // Verify we have at least the expected output amount on Citrea
+      // This is a heuristic check - if wallet had pre-existing balance, this may return true early
+      const hasExpectedBalance = citreaBalance >= (outputAmount ?? 0);
+
+      if (hasExpectedBalance) {
+        this.logger.info(
+          `LayerZero bridge complete: ${order.correlationId}, balance: ${citreaBalance} ${asset.name}`,
+        );
+      }
+
+      return hasExpectedBalance;
     } catch (e) {
-      this.logger.warn(`LayerZero checkCompletion failed: ${e.message}`);
+      this.logger.warn(`LayerZero checkCompletion failed for ${order.correlationId}: ${e.message}`);
       return false;
     }
   }
 
   validateParams(command: string, params: Record<string, unknown>): boolean {
     // LayerZero bridge doesn't require additional params
-    return command === LayerZeroBridgeCommands.DEPOSIT && Object.keys(params).length === 0;
+    return command === LayerZeroBridgeCommands.DEPOSIT && (!params || Object.keys(params).length === 0);
   }
 
   //*** COMMANDS IMPLEMENTATIONS ***//
@@ -217,7 +232,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     };
 
     // Get quote for LayerZero fees
-    const [messagingFee] = await oftAdapter.quoteSend(sendParam, false);
+    const messagingFee = await oftAdapter.quoteSend(sendParam, false);
     const nativeFee = messagingFee.nativeFee;
 
     this.logger.info(`LayerZero fee: ${EvmUtil.fromWeiAmount(nativeFee.toString())} ETH`);
