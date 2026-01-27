@@ -92,8 +92,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
       }
 
       if (txReceipt.status !== 1) {
-        this.logger.warn(`LayerZero TX failed on Ethereum: ${order.correlationId}`);
-        return false;
+        throw new OrderFailedException(`LayerZero TX failed on Ethereum: ${order.correlationId}`);
       }
 
       // Step 2: Check if the tokens have arrived on Citrea
@@ -111,6 +110,9 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
 
       return hasExpectedBalance;
     } catch (e) {
+      if (e instanceof OrderFailedException) {
+        throw e;
+      }
       this.logger.warn(`LayerZero checkCompletion failed for ${order.correlationId}: ${e.message}`);
       return false;
     }
@@ -207,19 +209,8 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     // Create OFT adapter contract instance
     const oftAdapter = new ethers.Contract(oftAdapterAddress, LAYERZERO_OFT_ADAPTER_ABI, wallet);
 
-    // Check if approval is required
-    const approvalRequired = await oftAdapter.approvalRequired();
-    if (approvalRequired) {
-      // Approve the OFT adapter to spend tokens
-      const tokenContract = new ethers.Contract(ethereumAsset.chainId, ERC20_ABI, wallet);
-      const currentAllowance = await tokenContract.allowance(wallet.address, oftAdapterAddress);
-
-      if (currentAllowance.lt(amountWei)) {
-        this.logger.info(`Approving ${oftAdapterAddress} to spend ${ethereumAsset.name}`);
-        const approveTx = await tokenContract.approve(oftAdapterAddress, ethers.constants.MaxUint256);
-        await approveTx.wait();
-      }
-    }
+    // Check if approval is required and handle it
+    await this.ensureTokenApproval(ethereumAsset, oftAdapterAddress, amountWei, oftAdapter, wallet);
 
     // Prepare send parameters
     // Convert recipient address to bytes32 format (left-padded with zeros)
@@ -238,13 +229,25 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     // Get quote for LayerZero fees
     const messagingFee = await oftAdapter.quoteSend(sendParam, false);
     const nativeFee = messagingFee.nativeFee;
+    const nativeFeeEth = EvmUtil.fromWeiAmount(nativeFee.toString());
 
-    this.logger.info(`LayerZero fee: ${EvmUtil.fromWeiAmount(nativeFee.toString())} ETH`);
+    // Verify sufficient ETH balance for LayerZero fee + gas
+    const ethBalance = await this.ethereumClient.getNativeCoinBalance();
+    const estimatedGasCost = 0.05; // Conservative estimate for gas costs
+    const requiredEth = nativeFeeEth + estimatedGasCost;
+
+    if (ethBalance < requiredEth) {
+      throw new OrderNotProcessableException(
+        `Insufficient ETH for LayerZero fee (balance: ${ethBalance} ETH, required: ~${requiredEth} ETH)`,
+      );
+    }
+
+    this.logger.info(`LayerZero fee: ${nativeFeeEth} ETH`);
 
     // Execute the send transaction
     const sendTx = await oftAdapter.send(sendParam, { nativeFee, lzTokenFee: 0 }, wallet.address, {
       value: nativeFee,
-      gasLimit: 500000, // Set a reasonable gas limit
+      gasLimit: 500000, // Set a reasonable gas limit for OFT transfers
     });
 
     this.logger.info(`LayerZero bridge TX submitted: ${sendTx.hash}`);
@@ -257,6 +260,40 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     }
 
     return sendTx.hash;
+  }
+
+  /**
+   * Ensure token approval for the OFT adapter
+   */
+  private async ensureTokenApproval(
+    ethereumAsset: Asset,
+    oftAdapterAddress: string,
+    amountWei: ethers.BigNumber,
+    oftAdapter: ethers.Contract,
+    wallet: ethers.Wallet,
+  ): Promise<void> {
+    const approvalRequired = await oftAdapter.approvalRequired();
+    if (!approvalRequired) return;
+
+    const tokenContract = new ethers.Contract(ethereumAsset.chainId, ERC20_ABI, wallet);
+    const currentAllowance = await tokenContract.allowance(wallet.address, oftAdapterAddress);
+
+    if (currentAllowance.gte(amountWei)) return;
+
+    this.logger.info(`Approving ${oftAdapterAddress} to spend ${ethereumAsset.name}`);
+
+    try {
+      const approveTx = await tokenContract.approve(oftAdapterAddress, ethers.constants.MaxUint256);
+      const approveReceipt = await approveTx.wait();
+
+      if (approveReceipt.status !== 1) {
+        throw new OrderFailedException(`Token approval failed for ${ethereumAsset.name}`);
+      }
+
+      this.logger.info(`Approval confirmed for ${ethereumAsset.name}`);
+    } catch (e) {
+      throw new OrderFailedException(`Token approval failed: ${e.message}`);
+    }
   }
 
   /**
