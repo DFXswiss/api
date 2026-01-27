@@ -57,8 +57,8 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
   private readonly citreaClient: CitreaClient;
 
   constructor(
-    private readonly ethereumService: EthereumService,
-    private readonly citreaService: CitreaService,
+    ethereumService: EthereumService,
+    citreaService: CitreaService,
     private readonly assetService: AssetService,
   ) {
     super(LiquidityManagementSystem.LAYERZERO_BRIDGE);
@@ -110,23 +110,13 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
 
       return hasExpectedBalance;
     } catch (e) {
-      if (e instanceof OrderFailedException) {
-        throw e;
-      }
-      this.logger.warn(`LayerZero checkCompletion failed for ${order.correlationId}: ${e.message}`);
-      return false;
+      throw e instanceof OrderFailedException ? e : new OrderFailedException(e.message);
     }
   }
 
-  validateParams(command: string, params: Record<string, unknown>): boolean {
-    switch (command) {
-      case LayerZeroBridgeCommands.DEPOSIT:
-        // LayerZero bridge doesn't require additional params
-        return !params || Object.keys(params).length === 0;
-
-      default:
-        throw new Error(`Command ${command} not supported by LayerZeroBridgeAdapter`);
-    }
+  validateParams(_command: string, _params: Record<string, unknown>): boolean {
+    // LayerZero bridge doesn't require additional params
+    return true;
   }
 
   //*** COMMANDS IMPLEMENTATIONS ***//
