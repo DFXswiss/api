@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
@@ -57,11 +57,6 @@ export class SwissQRService {
     currency = Config.invoice.currencies.includes(currency) ? currency : Config.invoice.defaultCurrency;
     if (!this.isSupportedInvoiceCurrency(currency)) {
       throw new Error('PDF invoice is only available for CHF and EUR transactions');
-    }
-
-    // Use EUR-specific IBAN for EUR invoices
-    if (currency === 'EUR') {
-      bankInfo = { ...bankInfo, iban: 'CH8583019DFXSWISSEURX' };
     }
 
     const data = this.generateQrData(amount, currency, bankInfo, reference, request.userData);
@@ -508,30 +503,38 @@ export class SwissQRService {
         }
 
         const outputAsset = transaction.buyCrypto?.outputAsset;
+        const fiatAmount = transaction.buyCrypto?.inputAmount;
+        const quantity = transaction.buyCrypto?.outputAmount;
+        if (!outputAsset || fiatAmount == null || quantity == null)
+          throw new BadRequestException('Missing invoice information');
 
         return {
-          quantity: transaction.buyCrypto?.outputAmount,
+          quantity,
           description: {
             assetDescription: outputAsset.description ?? outputAsset.name,
             assetName: outputAsset.name,
             assetBlockchain: outputAsset.blockchain,
           },
-          fiatAmount: transaction.buyCrypto?.inputAmount,
+          fiatAmount,
           ...titleAndDate,
         };
       }
 
       case TransactionType.SELL: {
         const inputAsset = transaction.buyFiat?.cryptoInput?.asset;
+        const fiatAmount = transaction.buyFiat?.outputAmount;
+        const quantity = transaction.buyFiat?.inputAmount;
+        if (!inputAsset || fiatAmount == null || quantity == null)
+          throw new BadRequestException('Missing invoice information');
 
         return {
-          quantity: transaction.buyFiat?.inputAmount,
+          quantity,
           description: {
             assetDescription: inputAsset.description ?? inputAsset.name,
             assetName: inputAsset.name,
             assetBlockchain: inputAsset.blockchain,
           },
-          fiatAmount: transaction.buyFiat?.outputAmount,
+          fiatAmount,
           ...titleAndDate,
         };
       }
@@ -539,36 +542,44 @@ export class SwissQRService {
       case TransactionType.SWAP: {
         const sourceAsset = transaction.buyCrypto?.cryptoInput?.asset;
         const targetAsset = transaction.buyCrypto?.outputAsset;
+        const fiatAmount = currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur;
+        const quantity = transaction.buyCrypto?.inputAmount;
+        const targetAmount = transaction.buyCrypto?.outputAmount;
+        if (!sourceAsset || !targetAsset || fiatAmount == null || quantity == null || targetAmount == null)
+          throw new BadRequestException('Missing invoice information');
 
         return {
-          quantity: transaction.buyCrypto?.inputAmount,
+          quantity,
           description: {
             sourceDescription: sourceAsset.description ?? sourceAsset.name,
             sourceName: sourceAsset.name,
             sourceBlockchain: sourceAsset.blockchain,
-            targetAmount: transaction.buyCrypto?.outputAmount,
+            targetAmount,
             targetDescription: targetAsset.description ?? targetAsset.name,
             targetName: targetAsset.name,
             targetBlockchain: targetAsset.blockchain,
           },
-          fiatAmount: currency === 'CHF' ? transaction.buyCrypto?.amountInChf : transaction.buyCrypto?.amountInEur,
+          fiatAmount,
           ...titleAndDate,
         };
       }
 
       case TransactionType.REFERRAL: {
         const targetBlockchain = transaction.refReward?.targetBlockchain;
-        if (!targetBlockchain) throw new Error('Missing blockchain information for referral');
+        if (!targetBlockchain) throw new BadRequestException('Missing invoice information');
         const asset = await this.assetService.getNativeAsset(targetBlockchain);
-        if (!asset) throw new Error(`Native asset not found for blockchain ${targetBlockchain}`);
+        if (!asset) throw new BadRequestException('Missing invoice information');
+        const fiatAmount = currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur;
+        const quantity = transaction.refReward?.outputAmount;
+        if (fiatAmount == null || quantity == null) throw new BadRequestException('Missing invoice information');
 
         return {
-          quantity: transaction.refReward?.outputAmount,
+          quantity,
           description: {
             assetName: asset.name,
             assetBlockchain: targetBlockchain,
           },
-          fiatAmount: currency === 'CHF' ? transaction.refReward?.amountInChf : transaction.refReward?.amountInEur,
+          fiatAmount,
           ...titleAndDate,
         };
       }

@@ -338,7 +338,7 @@ export class TransactionRequestService {
       .where('tr.type IN (:...types)', { types: [TransactionRequestType.SELL, TransactionRequestType.SWAP] })
       .andWhere('tr.status = :status', { status: TransactionRequestStatus.CREATED })
       .andWhere('tr.created > :created', { created })
-      .andWhere('d.blockchains = :blockchain', { blockchain })
+      .andWhere('d.blockchains LIKE :blockchain', { blockchain: `%${blockchain}%` })
       .getRawMany<{ address: string }>()
       .then((transactionRequests) => transactionRequests.map((deposit) => deposit.address));
   }

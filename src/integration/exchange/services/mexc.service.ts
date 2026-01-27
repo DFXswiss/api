@@ -10,6 +10,7 @@ import {
   Deposit,
   DepositStatus,
   MexcExchangeInfo,
+  MexcMyTrade,
   MexcOrderBook,
   MexcSymbol,
   MexcTrade,
@@ -260,5 +261,31 @@ export class MexcService extends ExchangeService {
   private parsePrecision(precision: number): number {
     if (precision === 0) return 1;
     return parseFloat('0.' + '0'.repeat(precision - 1) + '1');
+  }
+
+  async getTrades(from: string, to: string, since?: Date): Promise<Trade[]> {
+    const pair = await this.getPair(from, to);
+
+    const params: Record<string, string> = { symbol: pair.replace('/', '') };
+    if (since) params.startTime = since.getTime().toString();
+
+    const data = await this.request<MexcMyTrade[]>('GET', 'myTrades', params);
+
+    return data.map((t) => ({
+      id: t.id?.toString(),
+      info: t,
+      timestamp: t.time,
+      datetime: new Date(t.time).toISOString(),
+      symbol: pair,
+      order: t.orderId?.toString(),
+      type: undefined,
+      side: t.isBuyer ? 'buy' : 'sell',
+      takerOrMaker: t.isMaker ? 'maker' : 'taker',
+      price: parseFloat(t.price),
+      amount: parseFloat(t.qty),
+      cost: parseFloat(t.quoteQty),
+      fee: t.commission ? { cost: parseFloat(t.commission), currency: t.commissionAsset } : undefined,
+      fees: t.commission ? [{ cost: parseFloat(t.commission), currency: t.commissionAsset }] : [],
+    }));
   }
 }

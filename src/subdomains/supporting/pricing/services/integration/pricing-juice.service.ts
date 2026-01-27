@@ -18,7 +18,7 @@ export class PricingJuiceService extends PricingProvider implements OnModuleInit
     PricingJuiceService.BTC,
   ];
 
-  private static readonly CONTRACT_FEE = 0.01;
+  private static readonly CONTRACT_FEE = 0.02;
 
   private juiceService: JuiceService;
   private krakenService: KrakenService;
