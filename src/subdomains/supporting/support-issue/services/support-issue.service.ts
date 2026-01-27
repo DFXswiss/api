@@ -216,7 +216,12 @@ export class SupportIssueService {
   async getIssueData(id: number): Promise<SupportIssueInternalDataDto> {
     const issue = await this.supportIssueRepo.findOne({
       where: { id },
-      relations: { transaction: { buyCrypto: true, buyFiat: true, user: { wallet: true } } },
+      relations: {
+        transaction: {
+          buyCrypto: { transaction: { user: { wallet: true } } },
+          buyFiat: { transaction: { user: { wallet: true } } },
+        },
+      },
     });
     if (!issue) throw new NotFoundException('Support issue not found');
 
