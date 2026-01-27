@@ -106,9 +106,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
       const hasExpectedBalance = citreaBalance >= (outputAmount ?? 0);
 
       if (hasExpectedBalance) {
-        this.logger.info(
-          `LayerZero bridge complete: ${order.correlationId}, balance: ${citreaBalance} ${asset.name}`,
-        );
+        this.logger.info(`LayerZero bridge complete: ${order.correlationId}, balance: ${citreaBalance} ${asset.name}`);
       }
 
       return hasExpectedBalance;
