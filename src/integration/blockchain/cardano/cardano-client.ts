@@ -17,7 +17,6 @@ import {
   Value,
   Vkeywitnesses,
 } from '@emurgo/cardano-serialization-lib-nodejs';
-import { ApiVersion, CardanoRosetta, Network as TatumNetwork, TatumSDK } from '@tatumio/tatum';
 import blake from 'blakejs';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -31,7 +30,13 @@ import { BlockchainClient } from '../shared/util/blockchain-client';
 import { CardanoWallet } from './cardano-wallet';
 import { CardanoUtil } from './cardano.util';
 import { CardanoTransactionMapper } from './dto/cardano-transaction.mapper';
-import { CardanoBlockResponse, CardanoTransactionDto, CardanoTransactionResponse } from './dto/cardano.dto';
+import {
+  CardanoBalanceResponse,
+  CardanoBlockResponse,
+  CardanoInfoResponse,
+  CardanoTransactionDto,
+  CardanoTransactionResponse,
+} from './dto/cardano.dto';
 
 interface NetworkParameterStaticInfo {
   min_fee_a: number;
@@ -41,9 +46,6 @@ interface NetworkParameterStaticInfo {
 export class CardanoClient extends BlockchainClient {
   private readonly wallet: CardanoWallet;
 
-  private readonly networkIdentifier = { blockchain: 'cardano', network: 'mainnet' };
-
-  private tatumSdk: CardanoRosetta;
   private blockFrostApi: BlockFrostAPI;
 
   private readonly networkParameterCache = new AsyncCache<NetworkParameterStaticInfo>(
@@ -61,11 +63,8 @@ export class CardanoClient extends BlockchainClient {
   }
 
   async getBlockHeight(): Promise<number> {
-    const tatumSdk = await this.getTatumSdk();
-    const networkStatus = await tatumSdk.rpc.getNetworkStatus({
-      networkIdentifier: this.networkIdentifier,
-    });
-    return networkStatus.current_block_identifier.index;
+    const info = await this.getNetworkInfo();
+    return info.tip;
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -73,13 +72,8 @@ export class CardanoClient extends BlockchainClient {
   }
 
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
-    const tatumSdk = await this.getTatumSdk();
-    const accountBalance = await tatumSdk.rpc.getAccountBalance({
-      networkIdentifier: this.networkIdentifier,
-      accountIdentifier: { address },
-    });
-
-    const adaBalance = accountBalance.balances.find((b) => b.currency.symbol === 'ADA');
+    const balances = await this.getAccountBalances(address);
+    const adaBalance = balances.find((b) => b.currency.symbol === 'ADA');
     if (!adaBalance) return 0;
 
     return CardanoUtil.fromLovelaceAmount(adaBalance.value, adaBalance.currency.decimals);
@@ -93,20 +87,12 @@ export class CardanoClient extends BlockchainClient {
 
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
     const owner = address ?? this.walletAddress;
-
-    const tatumSdk = await this.getTatumSdk();
-    const accountBalance = await tatumSdk.rpc.getAccountBalance({
-      networkIdentifier: this.networkIdentifier,
-      accountIdentifier: { address: owner },
-    });
+    const balances = await this.getAccountBalances(owner);
 
     const tokenBalances: BlockchainTokenBalance[] = [];
 
     for (const asset of assets) {
-      // Cardano native tokens use policy_id.asset_name format
-      const tokenBalance = accountBalance.balances.find(
-        (b) => b.currency.symbol === asset.chainId || b.currency.metadata?.policyId === asset.chainId,
-      );
+      const tokenBalance = balances.find((b) => b.currency.symbol === asset.chainId);
 
       if (tokenBalance) {
         const balance = CardanoUtil.fromLovelaceAmount(tokenBalance.value, tokenBalance.currency.decimals);
@@ -333,16 +319,14 @@ export class CardanoClient extends BlockchainClient {
   }
 
   // --- HELPER METHODS --- //
-  private async getTatumSdk(): Promise<CardanoRosetta> {
-    if (!this.tatumSdk) {
-      this.tatumSdk = await TatumSDK.init<CardanoRosetta>({
-        version: ApiVersion.V3,
-        network: TatumNetwork.CARDANO_ROSETTA,
-        apiKey: Config.blockchain.cardano.cardanoTatumApiKey,
-      });
-    }
+  private async getNetworkInfo(): Promise<CardanoInfoResponse> {
+    const url = Config.blockchain.cardano.cardanoApiUrl;
+    return this.http.get<CardanoInfoResponse>(`${url}/info`, this.httpConfig());
+  }
 
-    return this.tatumSdk;
+  private async getAccountBalances(address: string): Promise<CardanoBalanceResponse[]> {
+    const url = Config.blockchain.cardano.cardanoApiUrl;
+    return this.http.get<CardanoBalanceResponse[]>(`${url}/account/${address}`, this.httpConfig());
   }
 
   private getBlockFrostAPI(): BlockFrostAPI {
