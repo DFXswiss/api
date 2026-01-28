@@ -1,5 +1,3 @@
-import { AddressBalance, ApiVersion, Network as TatumNetwork, TatumSDK, Tron } from '@tatumio/tatum';
-import { TronWalletProvider } from '@tatumio/tron-wallet-provider';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
@@ -9,14 +7,18 @@ import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transa
 import { WalletAccount } from '../shared/evm/domain/wallet-account';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 import { TronTransactionMapper } from './dto/tron-transaction.mapper';
-import { TronChainParameterDto, TronTransactionDto, TronTransactionResponse } from './dto/tron.dto';
+import {
+  TronAccountResponse,
+  TronAddressBalance,
+  TronChainParameterDto,
+  TronTransactionDto,
+  TronTransactionResponse,
+} from './dto/tron.dto';
 import { TronWallet } from './tron-wallet';
 import { TronUtil } from './tron.util';
 
 export class TronClient extends BlockchainClient {
   private readonly wallet: TronWallet;
-
-  private tatumSdk: Tron;
 
   constructor(private readonly http: HttpService) {
     super();
@@ -29,8 +31,9 @@ export class TronClient extends BlockchainClient {
   }
 
   async getBlockHeight(): Promise<number> {
-    const tatumSdk = await this.getTatumSdk();
-    return tatumSdk.rpc.getNowBlock().then((nb) => nb.block_header.raw_data.number);
+    const url = Config.blockchain.tron.tronApiUrl;
+    const info = await this.http.get<{ blockNumber: number }>(`${url}/info`, this.httpConfig());
+    return info.blockNumber;
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -38,18 +41,9 @@ export class TronClient extends BlockchainClient {
   }
 
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
-    const tatumSdk = await this.getTatumSdk();
-    const addressBalanceResponse = await tatumSdk.address.getBalance({ address });
-    if (addressBalanceResponse.error)
-      throw new Error(
-        `Cannot detect native coin balance of address ${address}: ${addressBalanceResponse.error.message.join('; ')}`,
-      );
-
-    const allAddressBalanceCoinData = addressBalanceResponse.data.filter(
-      (d) => d.asset === 'TRX' && Util.equalsIgnoreCase(d.type, 'native'),
-    );
-
-    return Util.sum(allAddressBalanceCoinData.map((d) => TronUtil.fromSunAmount(d.balance, d.decimals)));
+    const balances = await this.getAddressBalances(address);
+    const trxBalance = balances.find((d) => d.asset === 'TRX' && Util.equalsIgnoreCase(d.type, 'native'));
+    return trxBalance ? TronUtil.fromSunAmount(trxBalance.balance, trxBalance.decimals) : 0;
   }
 
   async getTokenBalance(asset: Asset, address?: string): Promise<number> {
@@ -60,13 +54,10 @@ export class TronClient extends BlockchainClient {
 
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
     const owner = address ?? this.walletAddress;
+    const balances = await this.getAddressBalances(owner);
 
-    const tatumSdk = await this.getTatumSdk();
-    const addressBalanceResponse = await tatumSdk.address.getBalance({ address: owner });
-    if (addressBalanceResponse.error) throw new Error(`Cannot detect token balances of owner ${owner}`);
-
-    const allAddressBalanceTokenMap: Map<string, AddressBalance> = new Map(
-      addressBalanceResponse.data.filter((ab) => ab.tokenAddress).map((ab) => [ab.tokenAddress.toLowerCase(), ab]),
+    const allAddressBalanceTokenMap: Map<string, TronAddressBalance> = new Map(
+      balances.filter((ab) => ab.tokenAddress).map((ab) => [ab.tokenAddress.toLowerCase(), ab]),
     );
 
     const tokenBalances: BlockchainTokenBalance[] = [];
@@ -310,17 +301,37 @@ export class TronClient extends BlockchainClient {
   }
 
   // --- HELPER METHODS --- //
-  private async getTatumSdk(): Promise<Tron> {
-    if (!this.tatumSdk) {
-      this.tatumSdk = await TatumSDK.init<Tron>({
-        version: ApiVersion.V3,
-        network: TatumNetwork.TRON,
-        apiKey: Config.blockchain.tron.tronApiKey,
-        configureWalletProviders: [TronWalletProvider],
-      });
+  private async getAddressBalances(address: string): Promise<TronAddressBalance[]> {
+    const url = Config.blockchain.tron.tronApiUrl;
+    const response = await this.http.get<TronAccountResponse>(`${url}/account/${address}`, this.httpConfig());
+
+    const balances: TronAddressBalance[] = [];
+
+    // Native TRX balance (in SUN, 6 decimals)
+    balances.push({
+      asset: 'TRX',
+      type: 'native',
+      balance: response.balance?.toString() ?? '0',
+      decimals: 6,
+    });
+
+    // TRC10 tokens
+    if (response.trc10) {
+      for (const token of response.trc10) {
+        balances.push({ asset: token.key, type: 'trc10', balance: token.value.toString(), decimals: 0 });
+      }
     }
 
-    return this.tatumSdk;
+    // TRC20 tokens
+    if (response.trc20) {
+      for (const tokenObj of response.trc20) {
+        for (const [contractAddress, balance] of Object.entries(tokenObj)) {
+          balances.push({ asset: contractAddress, type: 'trc20', balance, decimals: 6, tokenAddress: contractAddress });
+        }
+      }
+    }
+
+    return balances;
   }
 
   private httpConfig(): HttpRequestConfig {
