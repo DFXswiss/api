@@ -359,10 +359,11 @@ export class RealUnitService {
         await this.userDataService.trySetUserMail(userData, dto.email);
       } catch (e) {
         if (e instanceof ConflictException) {
-          return RealUnitEmailRegistrationStatus.MERGE_REQUESTED;
-        } else {
-          throw e;
+          if (e.message.includes('account merge request sent')) {
+            return RealUnitEmailRegistrationStatus.MERGE_REQUESTED;
+          }
         }
+        throw e;
       }
     } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
       throw new BadRequestException('Email does not match verified email');
