@@ -1,4 +1,4 @@
-import { Currency, CurrencyAmount, Token, TradeType } from '@uniswap/sdk-core';
+import { CurrencyAmount, Token, TradeType } from '@uniswap/sdk-core';
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import { FeeAmount, Pool, Route, SwapQuoter } from '@uniswap/v3-sdk';
 import { Contract, ethers } from 'ethers';
@@ -173,30 +173,25 @@ export abstract class CitreaBaseClient extends EvmClient {
 
   // --- SWAP GATEWAY METHODS --- //
 
-  getSwapGatewayContract(): Contract {
+  private getSwapGatewayContract(): Contract {
     if (!this.swapGatewayAddress) {
       throw new Error('Swap Gateway address not configured');
     }
     return new Contract(this.swapGatewayAddress, SWAP_GATEWAY_ABI, this.wallet);
   }
 
-  async getGatewayTokenAddresses(): Promise<{ jusd: string; svJusd: string; wcbtc: string }> {
+  private async getGatewayTokenAddresses(): Promise<{ jusd: string; svJusd: string }> {
     const gateway = this.getSwapGatewayContract();
-    const [jusd, svJusd, wcbtc] = await Promise.all([gateway.JUSD(), gateway.SV_JUSD(), gateway.WCBTC()]);
-    return { jusd, svJusd, wcbtc };
+    const [jusd, svJusd] = await Promise.all([gateway.JUSD(), gateway.SV_JUSD()]);
+    return { jusd, svJusd };
   }
 
-  async getGatewayDefaultFee(): Promise<number> {
-    const gateway = this.getSwapGatewayContract();
-    return gateway.DEFAULT_FEE();
-  }
-
-  async getGatewayPool(tokenA: string, tokenB: string, fee: FeeAmount): Promise<string> {
+  private async getGatewayPool(tokenA: string, tokenB: string, fee: FeeAmount): Promise<string> {
     const gateway = this.getSwapGatewayContract();
     return gateway.getPool(tokenA, tokenB, fee);
   }
 
-  async swapViaGateway(
+  private async swapViaGateway(
     tokenIn: string,
     tokenOut: string,
     amountIn: number,
@@ -214,23 +209,9 @@ export abstract class CitreaBaseClient extends EvmClient {
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes
     const gasPrice = await this.getRecommendedGasPrice();
 
-    // Use zero address for native cBTC (gateway handles wrap/unwrap)
     const actualTokenIn = isInputNativeCoin ? ethers.constants.AddressZero : tokenIn;
     const actualTokenOut = isOutputNativeCoin ? ethers.constants.AddressZero : tokenOut;
 
-    // Approve token if not native cBTC
-    if (!isInputNativeCoin) {
-      const tokenContract = new Contract(tokenIn, ERC20_ABI, this.wallet);
-      const allowance = await tokenContract.allowance(this.wallet.address, this.swapGatewayAddress);
-      if (allowance.lt(weiAmountIn)) {
-        const approveTx = await tokenContract.approve(this.swapGatewayAddress, ethers.constants.MaxUint256, {
-          gasPrice,
-        });
-        await approveTx.wait();
-      }
-    }
-
-    // For native cBTC input: send value with transaction
     const tx = await gateway.swapExactTokensForTokens(
       actualTokenIn,
       actualTokenOut,
@@ -246,11 +227,6 @@ export abstract class CitreaBaseClient extends EvmClient {
   }
 
   // --- TRADING INTEGRATION --- //
-
-  override async getToken(asset: Asset): Promise<Currency> {
-    const contract = this.getERC20ContractForDex(asset.chainId);
-    return this.getTokenByContract(contract);
-  }
 
   override async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
     const { jusd, svJusd } = await this.getGatewayTokenAddresses();
@@ -320,7 +296,6 @@ export abstract class CitreaBaseClient extends EvmClient {
       data: calldata,
     });
 
-    // Decode response - JuiceSwap QuoterV2 has non-standard format (100 bytes)
     const amountOutHex = ethers.utils.hexDataSlice(quoteCallReturnData, 0, 32);
     const amountOut = ethers.BigNumber.from(amountOutHex);
 
@@ -337,7 +312,7 @@ export abstract class CitreaBaseClient extends EvmClient {
       : Math.abs(1 - +expectedOut / +amountOut);
 
     const gasPrice = await this.getRecommendedGasPrice();
-    const estimatedGas = ethers.BigNumber.from(200000);
+    const estimatedGas = ethers.BigNumber.from(300000);
 
     return {
       targetAmount: EvmUtil.fromWeiAmount(finalAmountOut, target.decimals),
