@@ -186,6 +186,23 @@ export abstract class CitreaBaseClient extends EvmClient {
     return { jusd, svJusd };
   }
 
+  private async resolvePoolTokenAddresses(
+    asset1: Asset,
+    asset2: Asset,
+  ): Promise<{ address1: string; address2: string; isJusd1: boolean; isJusd2: boolean }> {
+    const { jusd, svJusd } = await this.getGatewayTokenAddresses();
+
+    const isJusd1 = asset1.chainId.toLowerCase() === jusd.toLowerCase();
+    const isJusd2 = asset2.chainId.toLowerCase() === jusd.toLowerCase();
+
+    return {
+      address1: isJusd1 ? svJusd : asset1.chainId,
+      address2: isJusd2 ? svJusd : asset2.chainId,
+      isJusd1,
+      isJusd2,
+    };
+  }
+
   private async getGatewayPool(tokenA: string, tokenB: string, fee: FeeAmount): Promise<string> {
     const gateway = this.getSwapGatewayContract();
     return gateway.getPool(tokenA, tokenB, fee);
@@ -229,12 +246,7 @@ export abstract class CitreaBaseClient extends EvmClient {
   // --- TRADING INTEGRATION --- //
 
   override async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
-    const { jusd, svJusd } = await this.getGatewayTokenAddresses();
-
-    // Convert JUSD to svJUSD for pool lookup
-    const address1 = asset1.chainId.toLowerCase() === jusd.toLowerCase() ? svJusd : asset1.chainId;
-    const address2 = asset2.chainId.toLowerCase() === jusd.toLowerCase() ? svJusd : asset2.chainId;
-
+    const { address1, address2 } = await this.resolvePoolTokenAddresses(asset1, asset2);
     return this.getGatewayPool(address1, address2, poolFee);
   }
 
@@ -255,14 +267,13 @@ export abstract class CitreaBaseClient extends EvmClient {
   ): Promise<{ targetAmount: number; feeAmount: number; priceImpact: number }> {
     if (source.id === target.id) return { targetAmount: sourceAmount, feeAmount: 0, priceImpact: 0 };
 
-    const { jusd, svJusd } = await this.getGatewayTokenAddresses();
+    const {
+      address1: sourceAddress,
+      address2: targetAddress,
+      isJusd1: sourceIsJusd,
+      isJusd2: targetIsJusd,
+    } = await this.resolvePoolTokenAddresses(source, target);
     const gateway = this.getSwapGatewayContract();
-
-    const sourceIsJusd = source.chainId.toLowerCase() === jusd.toLowerCase();
-    const targetIsJusd = target.chainId.toLowerCase() === jusd.toLowerCase();
-
-    const sourceAddress = sourceIsJusd ? svJusd : source.chainId;
-    const targetAddress = targetIsJusd ? svJusd : target.chainId;
 
     // If source is JUSD, convert input amount to svJUSD equivalent
     let poolSourceAmount = sourceAmount;
