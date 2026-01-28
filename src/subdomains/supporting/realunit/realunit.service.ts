@@ -34,7 +34,6 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
-import { MergeReason } from 'src/subdomains/generic/user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -355,34 +354,22 @@ export class RealUnitService {
     const userData = await this.userDataService.getUserData(userDataId, { users: true });
     if (!userData) throw new NotFoundException('User not found');
 
-    // check if email already exists in DFX
-    const mailUsers = await this.userDataService.getUsersByMail(dto.email);
-    const conflictUsers = mailUsers.filter((u) => u.id !== userData.id);
-
-    if (conflictUsers.length > 0) {
-      const sortedUsers = AccountMergeService.masterFirst(mailUsers);
-      // email exists and current user is not master - try merge
-      if (sortedUsers[0].id !== userData.id) {
-        const mergeUser = conflictUsers.find((u) => u.isMergePossibleWith(userData));
-        if (mergeUser) {
-          const mergeRequested = await this.accountMergeService.sendMergeRequest(mergeUser, userData, MergeReason.MAIL);
-          if (mergeRequested) {
-            return RealUnitEmailRegistrationStatus.MERGE_REQUESTED;
-          }
-        }
-        throw new ConflictException('Account already exists');
-      }
-    }
-
-    // email doesn't exist or current user is master - register email
     if (!userData.mail) {
-      await this.userDataService.trySetUserMail(userData, dto.email);
+      try {
+        await this.userDataService.trySetUserMail(userData, dto.email);
+      } catch (e) {
+        if (e instanceof ConflictException) {
+          return RealUnitEmailRegistrationStatus.MERGE_REQUESTED;
+        } else {
+          throw e;
+        }
+      }
     } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
       throw new BadRequestException('Email does not match verified email');
     }
 
     if (userData.kycLevel < KycLevel.LEVEL_10) {
-      await this.userDataService.updateUserDataInternal(userData, { kycLevel: KycLevel.LEVEL_10 });
+      await this.kycService.initializeProcess(userData);
     }
 
     return RealUnitEmailRegistrationStatus.EMAIL_REGISTERED;
