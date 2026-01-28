@@ -27,7 +27,7 @@ export enum RealUnitRegistrationStatus {
   COMPLETED = 'completed',
   PENDING_REVIEW = 'pending_review',
   MANUAL_REVIEW_DATA_MISMATCH = 'manual_review_data_mismatch',
-  FORWARD_FAILED = 'forward_failed',
+  FORWARDING_FAILED = 'forwarding_failed',
 }
 
 export class RealUnitRegistrationResponseDto {

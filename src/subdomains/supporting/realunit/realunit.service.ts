@@ -434,7 +434,7 @@ export class RealUnitService {
 
     // forward to Aktionariat
     const success = await this.forwardRegistration(kycStep, dto);
-    if (!success) return RealUnitRegistrationStatus.FORWARD_FAILED;
+    if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
 
     // only update after successful forward
     await this.userDataService.updateUserDataInternal(userData, {
