@@ -27,7 +27,7 @@ export enum KycError {
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
   COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
-  CHECK_RESIDENCE_PERMIT = 'CheckResidencePermit',
+  RESIDENCE_PERMIT_CHECK_REQUIRED = 'ResidencePermitCheckRequired',
 
   // Recommendation errors
   EXPIRED_RECOMMENDATION = 'ExpiredRecommendation',
@@ -88,7 +88,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.RECOMMENDER_BLOCKED]: 'Unknown error',
   [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee not paid',
   [KycError.INCORRECT_INFO]: 'Incorrect response',
-  [KycError.CHECK_RESIDENCE_PERMIT]: undefined,
+  [KycError.RESIDENCE_PERMIT_CHECK_REQUIRED]: undefined,
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

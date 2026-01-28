@@ -1439,7 +1439,7 @@ export class KycService {
         errors.push(KycError.NATIONALITY_NOT_MATCHING);
 
       if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) {
-        errors.push(KycError.CHECK_RESIDENCE_PERMIT);
+        errors.push(KycError.RESIDENCE_PERMIT_CHECK_REQUIRED);
         if (data.documentType !== IdentDocumentType.PASSPORT) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
       } else {
         if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
