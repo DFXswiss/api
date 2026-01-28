@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
-import { Market, mexc, OrderBook, Trade, Transaction } from 'ccxt';
+import { Market, mexc, Order, OrderBook, Trade, Transaction } from 'ccxt';
 import { Config, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -12,12 +12,13 @@ import {
   MexcExchangeInfo,
   MexcMyTrade,
   MexcOrderBook,
+  MexcOrderResponse,
   MexcSymbol,
   MexcTrade,
   Withdrawal,
   WithdrawalStatus,
 } from '../dto/mexc.dto';
-import { ExchangeService } from './exchange.service';
+import { ExchangeService, OrderSide } from './exchange.service';
 
 @Injectable()
 export class MexcService extends ExchangeService {
@@ -287,5 +288,19 @@ export class MexcService extends ExchangeService {
       fee: t.commission ? { cost: parseFloat(t.commission), currency: t.commissionAsset } : undefined,
       fees: t.commission ? [{ cost: parseFloat(t.commission), currency: t.commissionAsset }] : [],
     }));
+  }
+
+  protected async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {
+    const symbol = pair.replace('/', '');
+
+    const response = await this.request<MexcOrderResponse>('POST', 'order', {
+      symbol,
+      side: direction.toUpperCase(),
+      type: 'LIMIT',
+      quantity: amount.toString(),
+      price: price.toString(),
+    });
+
+    return { id: response.orderId } as Order;
   }
 }

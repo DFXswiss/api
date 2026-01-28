@@ -149,18 +149,18 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const availableBalance = await this.getAvailableTradeBalance(tradeAsset, targetAssetEntity.name);
     let effectiveMax = Math.min(maxSellAmount, availableBalance);
 
+    if (availableBalance < minSellAmount) {
+      throw new OrderNotProcessableException(
+        `${this.exchangeService.name}: not enough balance for ${tradeAsset} (balance: ${availableBalance}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
+      );
+    }
+
     if (liquidityLimited) {
       const { amount: liquidity, price: liquidityPrice } = await this.getBestPriceLiquidity(
         tradeAsset,
         targetAssetEntity.name,
       );
       effectiveMax = Math.min(effectiveMax, Util.floor(liquidity * liquidityPrice, 6));
-    }
-
-    if (effectiveMax < minSellAmount) {
-      throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance/liquidity for ${tradeAsset} (balance: ${effectiveMax}, min. requested: ${minSellAmount}, max. requested: ${maxSellAmount})`,
-      );
     }
 
     const amount = effectiveMax;
@@ -197,15 +197,15 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const availableBalance = await this.getAvailableTradeBalance(asset, tradeAsset);
     let effectiveMax = Math.min(order.maxAmount, availableBalance);
 
+    if (availableBalance < order.minAmount) {
+      throw new OrderNotProcessableException(
+        `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+      );
+    }
+
     if (liquidityLimited) {
       const { amount: liquidity } = await this.getBestPriceLiquidity(asset, tradeAsset);
       effectiveMax = Math.min(effectiveMax, liquidity);
-    }
-
-    if (effectiveMax < order.minAmount) {
-      throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance/liquidity for ${asset} (balance: ${effectiveMax}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
-      );
     }
 
     const amount = effectiveMax;
