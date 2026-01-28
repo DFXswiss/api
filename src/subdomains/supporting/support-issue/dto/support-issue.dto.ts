@@ -6,6 +6,11 @@ import {
   SupportIssueType,
 } from '../enums/support-issue.enum';
 
+export enum SupportMessageTranslationKey {
+  BOT_HINT = 'support-issue.bot_hint',
+  MONERO_NOT_DISPLAYED = 'support-issue.monero_not_displayed',
+}
+
 export class SupportMessageDto {
   @ApiProperty()
   id: number;

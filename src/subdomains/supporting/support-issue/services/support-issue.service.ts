@@ -24,7 +24,7 @@ import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
-import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
+import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
@@ -161,6 +161,10 @@ export class SupportIssueService {
     const entity = await this.supportIssueRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Support issue not found');
 
+    return this.updateIssueInternal(entity, dto);
+  }
+
+  async updateIssueInternal(entity: SupportIssue, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     Object.assign(entity, dto);
 
     await this.supportLogService.createSupportLog(entity.userData, {
@@ -182,8 +186,11 @@ export class SupportIssueService {
     return this.createMessageInternal(issue, { ...dto, author: CustomerAuthor });
   }
 
-  async createMessageSupport(id: number, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
-    const issue = await this.supportIssueRepo.findOne({ where: { id }, relations: { userData: { wallet: true } } });
+  async createMessageSupport(issueId: number, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: { id: issueId },
+      relations: { userData: { wallet: true } },
+    });
     if (!issue) throw new NotFoundException('Support issue not found');
 
     return this.createMessageInternal(issue, dto);
@@ -235,7 +242,7 @@ export class SupportIssueService {
 
   // --- HELPER METHODS --- //
 
-  private async createMessageInternal(issue: SupportIssue, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
+  async createMessageInternal(issue: SupportIssue, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
     if (!dto.author) throw new BadRequestException('Author for message is missing');
     if (dto.message?.length > 4000) throw new BadRequestException('Message has too many characters');
 
@@ -259,6 +266,8 @@ export class SupportIssueService {
     if (dto.author !== CustomerAuthor) {
       await this.supportIssueRepo.update(...issue.setClerk(dto.author));
       await this.supportIssueNotificationService.newSupportMessage(entity);
+    } else if (issue.clerk === AutoResponder) {
+      await this.supportIssueRepo.update(...issue.setClerk(null));
     }
 
     if (
