@@ -126,3 +126,14 @@ export interface MexcMyTrade {
   isMaker: boolean;
   isBestMatch: boolean;
 }
+
+export interface MexcOrderResponse {
+  symbol: string;
+  orderId: string;
+  orderListId: number;
+  price: string;
+  origQty: string;
+  type: string;
+  side: string;
+  transactTime: number;
+}
