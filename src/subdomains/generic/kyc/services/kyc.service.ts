@@ -1431,8 +1431,13 @@ export class KycService {
         (NationalityDocType.includes(data.documentType) && nationalityStepResult.nationality.id !== nationality?.id)
       )
         errors.push(KycError.NATIONALITY_NOT_MATCHING);
-      if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
-      if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
+
+      if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) {
+        errors.push(KycError.CHECK_RESIDENCE_PERMIT);
+      } else {
+        if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+        if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
+      }
     }
 
     // Ident doc check
