@@ -44,7 +44,11 @@ import { BalancePdfService } from '../../balance/services/balance-pdf.service';
 import { TxStatementType } from '../../payment/dto/transaction-helper/tx-statement-details.dto';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { TransactionHelper } from '../../payment/services/transaction-helper';
-import { RealUnitBalancePdfDto } from '../dto/realunit-balance-pdf.dto';
+import {
+  RealUnitBalancePdfDto,
+  RealUnitMultiReceiptPdfDto,
+  RealUnitSingleReceiptPdfDto,
+} from '../dto/realunit-pdf.dto';
 import {
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
@@ -167,7 +171,7 @@ export class RealUnitController {
 
   // --- Receipt PDF Endpoint ---
 
-  @Put('transaction/:id/receipt')
+  @Post('transactions/receipt/single')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
@@ -176,12 +180,12 @@ export class RealUnitController {
   @ApiParam({ name: 'id', description: 'Transaction ID' })
   @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
   @ApiBadRequestResponse({ description: 'Transaction not found or not a RealUnit transaction' })
-  async generateReceipt(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+  async generateReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitSingleReceiptPdfDto): Promise<PdfDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
 
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
       user.userData.id,
-      +id,
+      dto.transactionId,
       TxStatementType.RECEIPT,
     );
 
@@ -190,6 +194,30 @@ export class RealUnitController {
     }
 
     return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
+  }
+
+  @Post('transactions/receipt/multi')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    description: 'Generates a single PDF receipt for multiple completed RealUnit transactions',
+  })
+  @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
+  @ApiBadRequestResponse({ description: 'Transaction not found, currency mismatch, or not a RealUnit transaction' })
+  async generateMultiReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitMultiReceiptPdfDto): Promise<PdfDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetailsMulti(
+      user.userData.id,
+      dto.transactionIds,
+      TxStatementType.RECEIPT,
+    );
+
+    if (txStatementDetails.length > 0 && !Config.invoice.currencies.includes(txStatementDetails[0].currency)) {
+      throw new BadRequestException('PDF receipt is only available for CHF and EUR transactions');
+    }
+
+    return { pdfData: await this.swissQrService.createMultiTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
   }
 
   // --- Brokerbot Endpoints ---
