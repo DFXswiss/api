@@ -137,3 +137,17 @@ export interface MexcOrderResponse {
   side: string;
   transactTime: number;
 }
+
+export interface MexcOrderQueryResponse {
+  symbol: string;
+  orderId: string;
+  price: string;
+  origQty: string;
+  executedQty: string;
+  cummulativeQuoteQty: string;
+  status: string;
+  type: string;
+  side: string;
+  time: number;
+  updateTime: number;
+}
