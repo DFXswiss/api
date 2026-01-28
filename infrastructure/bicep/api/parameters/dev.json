@@ -276,7 +276,7 @@
       "value": "xxx"
     },
     "citreaTestnetGatewayUrl": {
-      "value": "https://rpc.testnet.citrea.xyz"
+      "value": "https://rpc.testnet.citreascan.com"
     },
     "citreaTestnetApiKey": {
       "value": "100"
