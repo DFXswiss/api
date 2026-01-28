@@ -34,6 +34,7 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -52,7 +53,14 @@ import {
   TokenInfoClientResponse,
 } from './dto/client.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
-import { AktionariatRegistrationDto, RealUnitRegistrationDto, RealUnitUserType } from './dto/realunit-registration.dto';
+import {
+  AktionariatRegistrationDto,
+  RealUnitEmailRegistrationDto,
+  RealUnitEmailRegistrationStatus,
+  RealUnitRegistrationDto,
+  RealUnitRegistrationStatus,
+  RealUnitUserType,
+} from './dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from './dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
@@ -98,6 +106,7 @@ export class RealUnitService {
     private readonly sellService: SellService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly accountMergeService: AccountMergeService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -339,6 +348,91 @@ export class RealUnitService {
     // forward to Aktionariat
     const success = await this.forwardRegistration(kycStep, dto);
     return !success;
+  }
+
+  async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: true });
+    if (!userData) throw new NotFoundException('User not found');
+
+    if (!userData.mail) {
+      try {
+        await this.userDataService.trySetUserMail(userData, dto.email);
+      } catch (e) {
+        if (e instanceof ConflictException) {
+          if (e.message.includes('account merge request sent')) {
+            return RealUnitEmailRegistrationStatus.MERGE_REQUESTED;
+          }
+        }
+        throw e;
+      }
+    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+      throw new BadRequestException('Email does not match verified email');
+    }
+
+    if (userData.kycLevel < KycLevel.LEVEL_10) {
+      await this.kycService.initializeProcess(userData);
+    }
+
+    return RealUnitEmailRegistrationStatus.EMAIL_REGISTERED;
+  }
+
+  async completeRegistration(userDataId: number, dto: RealUnitRegistrationDto): Promise<RealUnitRegistrationStatus> {
+    await this.validateRegistrationDto(dto);
+
+    // get and validate user
+    const userData = await this.userService
+      .getUserByAddress(dto.walletAddress, {
+        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
+      })
+      .then((u) => u?.userData);
+
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
+
+    if (userData.kycLevel < KycLevel.LEVEL_10 || !userData.mail) {
+      throw new BadRequestException('Email registration must be completed first');
+    }
+    if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+      throw new BadRequestException('Email does not match registered email');
+    }
+
+    // duplicate check
+    if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
+      throw new BadRequestException('RealUnit registration already exists');
+    }
+
+    // store data with internal review
+    const kycStep = await this.kycService.createCustomKycStep(
+      userData,
+      KycStepName.REALUNIT_REGISTRATION,
+      ReviewStatus.INTERNAL_REVIEW,
+      dto,
+    );
+
+    const hasExistingData = userData.firstname != null;
+    if (hasExistingData) {
+      const dataMatches = this.isPersonalDataMatching(userData, dto);
+      if (!dataMatches) {
+        await this.kycService.saveKycStepUpdate(kycStep.manualReview('Existing KYC data does not match'));
+        return RealUnitRegistrationStatus.MANUAL_REVIEW_DATA_MISMATCH;
+      }
+    } else {
+      await this.userDataService.updatePersonalData(userData, dto.kycData);
+    }
+
+    // forward to Aktionariat
+    const success = await this.forwardRegistration(kycStep, dto);
+    if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    // only update after successful forward
+    await this.userDataService.updateUserDataInternal(userData, {
+      nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
+      birthday: new Date(dto.birthday),
+      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
+      tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
+    });
+
+    return RealUnitRegistrationStatus.COMPLETED;
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
