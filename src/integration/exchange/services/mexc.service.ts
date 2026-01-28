@@ -12,6 +12,7 @@ import {
   MexcExchangeInfo,
   MexcMyTrade,
   MexcOrderBook,
+  MexcOrderQueryResponse,
   MexcOrderResponse,
   MexcSymbol,
   MexcTrade,
@@ -302,5 +303,56 @@ export class MexcService extends ExchangeService {
     });
 
     return { id: response.orderId } as Order;
+  }
+
+  async getTrade(id: string, from: string, to: string): Promise<Order> {
+    const pair = await this.getPair(from, to);
+    const symbol = pair.replace('/', '');
+
+    const response = await this.request<MexcOrderQueryResponse>('GET', 'order', {
+      symbol,
+      orderId: id,
+    });
+
+    return {
+      id: response.orderId,
+      symbol: pair,
+      side: response.side.toLowerCase(),
+      type: response.type.toLowerCase(),
+      status: this.mapOrderStatus(response.status),
+      price: parseFloat(response.price),
+      amount: parseFloat(response.origQty),
+      filled: parseFloat(response.executedQty),
+      remaining: parseFloat(response.origQty) - parseFloat(response.executedQty),
+      cost: parseFloat(response.cummulativeQuoteQty),
+      timestamp: response.time,
+      datetime: new Date(response.time).toISOString(),
+    } as Order;
+  }
+
+  private mapOrderStatus(status: string): string {
+    const statusMap: Record<string, string> = {
+      NEW: 'open',
+      PARTIALLY_FILLED: 'open',
+      FILLED: 'closed',
+      CANCELED: 'canceled',
+      PENDING_CANCEL: 'open',
+      REJECTED: 'canceled',
+      EXPIRED: 'canceled',
+    };
+    return statusMap[status] ?? 'open';
+  }
+
+  protected async updateOrderPrice(order: Order, amount: number, price: number): Promise<string> {
+    // MEXC doesn't support editOrder, so cancel and create new
+    await this.cancelOrderById(order.id, order.symbol);
+
+    const newOrder = await this.createOrder(order.symbol, order.side as OrderSide, amount, price);
+    return newOrder.id;
+  }
+
+  private async cancelOrderById(orderId: string, pair: string): Promise<void> {
+    const symbol = pair.replace('/', '');
+    await this.request<unknown>('DELETE', 'order', { symbol, orderId });
   }
 }
