@@ -1,5 +1,6 @@
 import { CurrencyAmount, Token, TradeType } from '@uniswap/sdk-core';
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
+import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, Pool, Route, SwapQuoter } from '@uniswap/v3-sdk';
 import { Contract, ethers } from 'ethers';
 import {
@@ -53,9 +54,7 @@ export abstract class CitreaBaseClient extends EvmClient {
 
   protected async getPoolTokenBalance(asset: Asset, poolAddress: string): Promise<number> {
     try {
-      const { jusd, svJusd } = await this.getGatewayTokenAddresses();
-      const isJusd = asset.chainId.toLowerCase() === jusd.toLowerCase();
-      const tokenAddress = isJusd ? svJusd : asset.chainId;
+      const { address: tokenAddress, isJusd } = await this.resolvePoolTokenAddress(asset);
 
       const contract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
       const balance = await contract.balanceOf(poolAddress);
@@ -180,27 +179,19 @@ export abstract class CitreaBaseClient extends EvmClient {
     return new Contract(this.swapGatewayAddress, SWAP_GATEWAY_ABI, this.wallet);
   }
 
-  private async getGatewayTokenAddresses(): Promise<{ jusd: string; svJusd: string }> {
+  private async getGatewayTokenAddresses(): Promise<{ jusd: string; svJusd: string; wcbtc: string }> {
     const gateway = this.getSwapGatewayContract();
-    const [jusd, svJusd] = await Promise.all([gateway.JUSD(), gateway.SV_JUSD()]);
-    return { jusd, svJusd };
+    const [jusd, svJusd, wcbtc] = await Promise.all([gateway.JUSD(), gateway.SV_JUSD(), gateway.WCBTC()]);
+    return { jusd, svJusd, wcbtc };
   }
 
-  private async resolvePoolTokenAddresses(
-    asset1: Asset,
-    asset2: Asset,
-  ): Promise<{ address1: string; address2: string; isJusd1: boolean; isJusd2: boolean }> {
-    const { jusd, svJusd } = await this.getGatewayTokenAddresses();
+  private async resolvePoolTokenAddress(asset: Asset): Promise<{ address: string; isJusd: boolean }> {
+    const { jusd, svJusd, wcbtc } = await this.getGatewayTokenAddresses();
+    const isJusd = asset.chainId.toLowerCase() === jusd.toLowerCase();
 
-    const isJusd1 = asset1.chainId.toLowerCase() === jusd.toLowerCase();
-    const isJusd2 = asset2.chainId.toLowerCase() === jusd.toLowerCase();
-
-    return {
-      address1: isJusd1 ? svJusd : asset1.chainId,
-      address2: isJusd2 ? svJusd : asset2.chainId,
-      isJusd1,
-      isJusd2,
-    };
+    if (isJusd) return { address: svJusd, isJusd: true };
+    if (asset.type === AssetType.COIN) return { address: wcbtc, isJusd: false };
+    return { address: asset.chainId, isJusd: false };
   }
 
   private async getGatewayPool(tokenA: string, tokenB: string, fee: FeeAmount): Promise<string> {
@@ -246,7 +237,10 @@ export abstract class CitreaBaseClient extends EvmClient {
   // --- TRADING INTEGRATION --- //
 
   override async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
-    const { address1, address2 } = await this.resolvePoolTokenAddresses(asset1, asset2);
+    const [{ address: address1 }, { address: address2 }] = await Promise.all([
+      this.resolvePoolTokenAddress(asset1),
+      this.resolvePoolTokenAddress(asset2),
+    ]);
     return this.getGatewayPool(address1, address2, poolFee);
   }
 
@@ -267,12 +261,8 @@ export abstract class CitreaBaseClient extends EvmClient {
   ): Promise<{ targetAmount: number; feeAmount: number; priceImpact: number }> {
     if (source.id === target.id) return { targetAmount: sourceAmount, feeAmount: 0, priceImpact: 0 };
 
-    const {
-      address1: sourceAddress,
-      address2: targetAddress,
-      isJusd1: sourceIsJusd,
-      isJusd2: targetIsJusd,
-    } = await this.resolvePoolTokenAddresses(source, target);
+    const [{ address: sourceAddress, isJusd: sourceIsJusd }, { address: targetAddress, isJusd: targetIsJusd }] =
+      await Promise.all([this.resolvePoolTokenAddress(source), this.resolvePoolTokenAddress(target)]);
     const gateway = this.getSwapGatewayContract();
 
     // If source is JUSD, convert input amount to svJUSD equivalent
@@ -307,8 +297,10 @@ export abstract class CitreaBaseClient extends EvmClient {
       data: calldata,
     });
 
-    const amountOutHex = ethers.utils.hexDataSlice(quoteCallReturnData, 0, 32);
-    const amountOut = ethers.BigNumber.from(amountOutHex);
+    const [amountOut, sqrtPriceX96After] = ethers.utils.defaultAbiCoder.decode(
+      QuoterV2ABI.abi.find((f) => f.name === 'quoteExactInputSingle')?.outputs.map((o) => o.type),
+      quoteCallReturnData,
+    );
 
     // If target is JUSD, convert svJUSD output to JUSD
     let finalAmountOut = amountOut;
@@ -316,11 +308,10 @@ export abstract class CitreaBaseClient extends EvmClient {
       finalAmountOut = await gateway.svJusdToJusd(amountOut);
     }
 
-    // Calculate price impact
-    const expectedOut = sourceAmountWei.mul(sqrtPriceX96).mul(sqrtPriceX96).div(ethers.BigNumber.from(2).pow(192));
-    const priceImpact = token0IsInToken
-      ? Math.abs(1 - +amountOut / +expectedOut)
-      : Math.abs(1 - +expectedOut / +amountOut);
+    // Calculate price impact by comparing sqrtPriceX96 before and after the swap
+    let sqrtPriceRatio = +sqrtPriceX96After / +sqrtPriceX96;
+    if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
+    const priceImpact = Math.abs(1 - sqrtPriceRatio);
 
     const gasPrice = await this.getRecommendedGasPrice();
     const estimatedGas = ethers.BigNumber.from(300000);
