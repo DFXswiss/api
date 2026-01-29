@@ -7,10 +7,7 @@ import { CitreaBaseStrategy } from './base/citrea.strategy';
 
 @Injectable()
 export class CitreaStrategy extends CitreaBaseStrategy {
-  constructor(
-    payInCitreaService: PayInCitreaService,
-    transactionRequestService: TransactionRequestService,
-  ) {
+  constructor(payInCitreaService: PayInCitreaService, transactionRequestService: TransactionRequestService) {
     super(payInCitreaService, transactionRequestService);
   }
 

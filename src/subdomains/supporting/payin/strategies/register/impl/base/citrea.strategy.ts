@@ -105,8 +105,7 @@ export abstract class CitreaBaseStrategy extends RegisterStrategy {
     const ownAddresses = this.getOwnAddresses();
     const relevantTransactions = transactions.filter(
       (t) =>
-        t.to.toLowerCase() === depositAddress.address.toLowerCase() &&
-        !Util.includesIgnoreCase(ownAddresses, t.from),
+        t.to.toLowerCase() === depositAddress.address.toLowerCase() && !Util.includesIgnoreCase(ownAddresses, t.from),
     );
 
     const coinAsset = supportedAssets.find((a) => a.type === AssetType.COIN);
@@ -131,8 +130,7 @@ export abstract class CitreaBaseStrategy extends RegisterStrategy {
     const ownAddresses = this.getOwnAddresses();
     const relevantTransactions = transactions.filter(
       (t) =>
-        t.to.toLowerCase() === depositAddress.address.toLowerCase() &&
-        !Util.includesIgnoreCase(ownAddresses, t.from),
+        t.to.toLowerCase() === depositAddress.address.toLowerCase() && !Util.includesIgnoreCase(ownAddresses, t.from),
     );
 
     const entries: PayInEntry[] = [];
