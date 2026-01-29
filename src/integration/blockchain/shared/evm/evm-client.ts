@@ -663,7 +663,11 @@ export abstract class EvmClient extends BlockchainClient {
   async getSwapResult(txId: string, asset: Asset): Promise<number> {
     const receipt = await this.getTxReceipt(txId);
 
-    const swapLog = receipt?.logs?.find((l) => l.address.toLowerCase() === asset.chainId);
+    const walletTopic = ethers.utils.hexZeroPad(this.walletAddress.toLowerCase(), 32);
+
+    const swapLog = receipt?.logs?.find(
+      (l) => l.address.toLowerCase() === asset.chainId.toLowerCase() && l.topics[2]?.toLowerCase() === walletTopic,
+    );
     if (!swapLog) throw new Error(`Failed to get swap result for TX ${txId}`);
 
     const token = await this.getToken(asset);

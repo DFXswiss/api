@@ -159,9 +159,9 @@ export abstract class CitreaBaseClient extends EvmClient {
       .map((tx) => ({
         blockNumber: tx.block_number.toString(),
         timeStamp: tx.timestamp,
-        hash: tx.tx_hash,
+        hash: tx.transaction_hash,
         from: tx.from.hash,
-        contractAddress: tx.token.address,
+        contractAddress: tx.token.address_hash,
         to: tx.to.hash,
         value: tx.total.value,
         tokenName: tx.token.name || tx.token.symbol,
