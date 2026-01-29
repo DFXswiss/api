@@ -1,4 +1,3 @@
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
@@ -33,7 +32,7 @@ export class SupportIssueDtoMapper {
     return Object.assign(new SupportIssueDto(), dto);
   }
 
-  static mapSupportIssueData(supportIssue: SupportIssue, transactionInput?: Asset): SupportIssueInternalDataDto {
+  static mapSupportIssueData(supportIssue: SupportIssue): SupportIssueInternalDataDto {
     const dto: SupportIssueInternalDataDto = {
       id: supportIssue.id,
       created: supportIssue.created,
@@ -44,7 +43,7 @@ export class SupportIssueDtoMapper {
       state: supportIssue.state,
       name: supportIssue.name,
       account: SupportIssueDtoMapper.mapUserData(supportIssue.userData),
-      transaction: SupportIssueDtoMapper.mapTransactionData(supportIssue.transaction, transactionInput),
+      transaction: SupportIssueDtoMapper.mapTransactionData(supportIssue.transaction),
     };
 
     return Object.assign(new SupportIssueInternalDataDto(), dto);
@@ -77,7 +76,7 @@ export class SupportIssueDtoMapper {
     };
   }
 
-  static mapTransactionData(transaction: Transaction, inputCurrency?: Asset): SupportIssueInternalTransactionDataDto {
+  static mapTransactionData(transaction: Transaction): SupportIssueInternalTransactionDataDto {
     if (!transaction?.id) return undefined;
 
     const targetEntity = transaction.buyCrypto ?? transaction.buyFiat;
@@ -91,7 +90,7 @@ export class SupportIssueDtoMapper {
       comment: targetEntity?.comment,
       inputAmount: targetEntity?.inputAmount,
       inputAsset: targetEntity?.inputAsset,
-      inputBlockchain: inputCurrency?.blockchain,
+      inputBlockchain: targetEntity?.cryptoInput?.asset?.blockchain,
       outputAmount: targetEntity?.outputAmount,
       outputAsset: targetEntity?.outputAsset.name,
       outputBlockchain: transaction?.buyCrypto?.outputAsset.blockchain,

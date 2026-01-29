@@ -228,9 +228,7 @@ export class SupportIssueService {
     });
     if (!issue) throw new NotFoundException('Support issue not found');
 
-    const transactionInput = (issue.transaction?.buyCrypto ?? issue.transaction?.buyFiat)?.cryptoInput?.asset;
-
-    return SupportIssueDtoMapper.mapSupportIssueData(issue, transactionInput);
+    return SupportIssueDtoMapper.mapSupportIssueData(issue);
   }
 
   async getIssueFile(id: string, messageId: number, userDataId?: number): Promise<BlobContent> {
