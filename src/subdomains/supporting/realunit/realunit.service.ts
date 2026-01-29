@@ -210,8 +210,7 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (!hasRegistration) {
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
       throw new RegistrationRequiredException();
     }
 
@@ -396,9 +395,8 @@ export class RealUnitService {
       throw new BadRequestException('Email does not match registered email');
     }
 
-    // duplicate check
-    if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
-      throw new BadRequestException('RealUnit registration already exists');
+    if (this.hasRegistrationForWallet(userData, dto.walletAddress)) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet');
     }
 
     // store data with internal review
@@ -571,6 +569,16 @@ export class RealUnitService {
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
+  private hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
+    return userData
+      .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
+      .filter((s) => !(s.isFailed || s.isCanceled))
+      .some((s) => {
+        const result = s.getResult<AktionariatRegistrationDto>();
+        return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
+      });
+  }
+
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
     const kycData = dto.kycData;
 
@@ -656,8 +664,7 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (!hasRegistration) {
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
       throw new RegistrationRequiredException();
     }
 
