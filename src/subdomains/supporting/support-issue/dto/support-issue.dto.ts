@@ -9,6 +9,8 @@ import {
 export enum SupportMessageTranslationKey {
   BOT_HINT = 'support-issue.bot_hint',
   MONERO_NOT_DISPLAYED = 'support-issue.monero_not_displayed',
+  SEPA_STANDARD = 'support-issue.sepa_standard',
+  SEPA_WEEKEND = 'support-issue.sepa_weekend',
 }
 
 export class SupportMessageDto {

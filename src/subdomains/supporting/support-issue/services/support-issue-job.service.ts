@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Process } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { MailFactory } from '../../notification/factories/mail.factory';
+import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
 import { SupportMessageTranslationKey } from '../dto/support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder } from '../entities/support-message.entity';
@@ -24,10 +25,41 @@ export class SupportIssueJobService {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
   async sendAutoResponses() {
     await this.moneroComplete();
+    if (!DisabledProcess(Process.SUPPORT_BOT_SEPA)) await this.sepa();
+  }
+
+  async sepa(): Promise<void> {
+    const issues = await this.getAutoResponseIssues({
+      type: SupportIssueType.TRANSACTION_ISSUE,
+      reason: In([SupportIssueReason.FUNDS_NOT_RECEIVED, SupportIssueReason.TRANSACTION_MISSING]),
+      transactionRequest: { type: TransactionRequestType.BUY },
+      transaction: { id: IsNull() },
+    });
+    if (!issues.length) return;
+
+    await this.sendAutoResponse(
+      SupportMessageTranslationKey.SEPA_STANDARD,
+      issues.filter((i) => {
+        const day = i.created.getDay();
+        const hour = i.created.getHours();
+
+        return (day === 2 && hour >= 14) || (day > 2 && day < 5) || (day === 5 && hour < 14);
+      }),
+    );
+
+    await this.sendAutoResponse(
+      SupportMessageTranslationKey.SEPA_WEEKEND,
+      issues.filter((i) => {
+        const day = i.created.getDay();
+        const hour = i.created.getHours();
+
+        return (day === 2 && hour < 14) || (day > 5 && day < 2) || (day === 5 && hour >= 14);
+      }),
+    );
   }
 
   async moneroComplete(): Promise<void> {
-    await this.sendAutoResponse(SupportMessageTranslationKey.MONERO_NOT_DISPLAYED, {
+    const issues = await this.getAutoResponseIssues({
       type: SupportIssueType.TRANSACTION_ISSUE,
       reason: In([SupportIssueReason.FUNDS_NOT_RECEIVED, SupportIssueReason.TRANSACTION_MISSING]),
       transaction: {
@@ -35,20 +67,24 @@ export class SupportIssueJobService {
       },
       created: MoreThan(Util.daysBefore(2)),
     });
+    await this.sendAutoResponse(SupportMessageTranslationKey.MONERO_NOT_DISPLAYED, issues);
   }
 
-  private async sendAutoResponse(
-    translationKey: SupportMessageTranslationKey,
-    where: FindOptionsWhere<SupportIssue>,
-  ): Promise<void> {
-    const entities = await this.supportIssueRepo.find({
+  // --- HELPER METHODS --- //
+  private async getAutoResponseIssues(where: FindOptionsWhere<SupportIssue>): Promise<SupportIssue[]> {
+    return await this.supportIssueRepo.find({
       where: {
         state: SupportIssueInternalState.CREATED,
         messages: { author: Not(AutoResponder) },
         ...where,
       },
     });
+  }
 
+  private async sendAutoResponse(
+    translationKey: SupportMessageTranslationKey,
+    entities: SupportIssue[],
+  ): Promise<void> {
     for (const entity of entities) {
       const lang = entity.userData.language.symbol.toLowerCase();
       const message = this.mailFactory.translate(translationKey, lang);
