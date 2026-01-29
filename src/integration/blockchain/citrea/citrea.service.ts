@@ -8,8 +8,17 @@ import { CitreaClient } from './citrea-client';
 @Injectable()
 export class CitreaService extends EvmService {
   constructor(http: HttpService, blockscoutService: BlockscoutService) {
-    const { citreaGatewayUrl, citreaApiKey, citreaWalletPrivateKey, citreaChainId, blockscoutApiUrl } =
-      GetConfig().blockchain.citrea;
+    const {
+      citreaGatewayUrl,
+      citreaApiKey,
+      citreaWalletPrivateKey,
+      citreaChainId,
+      blockscoutApiUrl,
+      swapContractAddress,
+      swapFactoryAddress,
+      quoteContractAddress,
+      swapGatewayAddress,
+    } = GetConfig().blockchain.citrea;
 
     super(CitreaClient, {
       http,
@@ -19,6 +28,10 @@ export class CitreaService extends EvmService {
       chainId: citreaChainId,
       blockscoutService,
       blockscoutApiUrl,
+      swapContractAddress,
+      swapFactoryAddress,
+      quoteContractAddress,
+      swapGatewayAddress,
     });
   }
 }

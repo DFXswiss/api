@@ -2,10 +2,16 @@
   "title": "Rechnung Nr. {invoiceId}",
   "credit_title": "Gutschrift Nr. {invoiceId}",
   "receipt_title": "Transaktionsbestätigung Nr. {invoiceId}",
+  "multi_receipt_title": "Transaktionsbestätigung",
+  "section": {
+    "buy": "Käufe",
+    "sell": "Verkäufe"
+  },
   "table": {
     "headers": {
       "quantity": "Menge",
       "description": "Beschreibung",
+      "date": "Datum",
       "total": "Gesamt"
     },
     "position_row": {

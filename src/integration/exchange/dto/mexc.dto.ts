@@ -111,3 +111,43 @@ export interface MexcTrade {
   isBuyerMaker: boolean;
   isBestMatch: boolean;
 }
+
+export interface MexcMyTrade {
+  symbol: string;
+  id: number;
+  orderId: number;
+  price: string;
+  qty: string;
+  quoteQty: string;
+  commission: string;
+  commissionAsset: string;
+  time: number;
+  isBuyer: boolean;
+  isMaker: boolean;
+  isBestMatch: boolean;
+}
+
+export interface MexcOrderResponse {
+  symbol: string;
+  orderId: string;
+  orderListId: number;
+  price: string;
+  origQty: string;
+  type: string;
+  side: string;
+  transactTime: number;
+}
+
+export interface MexcOrderQueryResponse {
+  symbol: string;
+  orderId: string;
+  price: string;
+  origQty: string;
+  executedQty: string;
+  cummulativeQuoteQty: string;
+  status: string;
+  type: string;
+  side: string;
+  time: number;
+  updateTime: number;
+}

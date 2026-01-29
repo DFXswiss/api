@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
-import { Market, mexc, OrderBook, Trade, Transaction } from 'ccxt';
+import { Market, mexc, Order, OrderBook, Trade, Transaction } from 'ccxt';
 import { Config, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -10,13 +10,16 @@ import {
   Deposit,
   DepositStatus,
   MexcExchangeInfo,
+  MexcMyTrade,
   MexcOrderBook,
+  MexcOrderQueryResponse,
+  MexcOrderResponse,
   MexcSymbol,
   MexcTrade,
   Withdrawal,
   WithdrawalStatus,
 } from '../dto/mexc.dto';
-import { ExchangeService } from './exchange.service';
+import { ExchangeService, OrderSide } from './exchange.service';
 
 @Injectable()
 export class MexcService extends ExchangeService {
@@ -260,5 +263,96 @@ export class MexcService extends ExchangeService {
   private parsePrecision(precision: number): number {
     if (precision === 0) return 1;
     return parseFloat('0.' + '0'.repeat(precision - 1) + '1');
+  }
+
+  async getTrades(from: string, to: string, since?: Date): Promise<Trade[]> {
+    const pair = await this.getPair(from, to);
+
+    const params: Record<string, string> = { symbol: pair.replace('/', '') };
+    if (since) params.startTime = since.getTime().toString();
+
+    const data = await this.request<MexcMyTrade[]>('GET', 'myTrades', params);
+
+    return data.map((t) => ({
+      id: t.id?.toString(),
+      info: t,
+      timestamp: t.time,
+      datetime: new Date(t.time).toISOString(),
+      symbol: pair,
+      order: t.orderId?.toString(),
+      type: undefined,
+      side: t.isBuyer ? 'buy' : 'sell',
+      takerOrMaker: t.isMaker ? 'maker' : 'taker',
+      price: parseFloat(t.price),
+      amount: parseFloat(t.qty),
+      cost: parseFloat(t.quoteQty),
+      fee: t.commission ? { cost: parseFloat(t.commission), currency: t.commissionAsset } : undefined,
+      fees: t.commission ? [{ cost: parseFloat(t.commission), currency: t.commissionAsset }] : [],
+    }));
+  }
+
+  protected async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {
+    const symbol = pair.replace('/', '');
+
+    const response = await this.request<MexcOrderResponse>('POST', 'order', {
+      symbol,
+      side: direction.toUpperCase(),
+      type: 'LIMIT',
+      quantity: amount.toString(),
+      price: price.toString(),
+    });
+
+    return { id: response.orderId } as Order;
+  }
+
+  async getTrade(id: string, from: string, to: string): Promise<Order> {
+    const pair = await this.getPair(from, to);
+    const symbol = pair.replace('/', '');
+
+    const response = await this.request<MexcOrderQueryResponse>('GET', 'order', {
+      symbol,
+      orderId: id,
+    });
+
+    return {
+      id: response.orderId,
+      symbol: pair,
+      side: response.side.toLowerCase(),
+      type: response.type.toLowerCase(),
+      status: this.mapOrderStatus(response.status),
+      price: parseFloat(response.price),
+      amount: parseFloat(response.origQty),
+      filled: parseFloat(response.executedQty),
+      remaining: parseFloat(response.origQty) - parseFloat(response.executedQty),
+      cost: parseFloat(response.cummulativeQuoteQty),
+      timestamp: response.time,
+      datetime: new Date(response.time).toISOString(),
+    } as Order;
+  }
+
+  private mapOrderStatus(status: string): string {
+    const statusMap: Record<string, string> = {
+      NEW: 'open',
+      PARTIALLY_FILLED: 'open',
+      FILLED: 'closed',
+      CANCELED: 'canceled',
+      PENDING_CANCEL: 'open',
+      REJECTED: 'canceled',
+      EXPIRED: 'canceled',
+    };
+    return statusMap[status] ?? 'open';
+  }
+
+  protected async updateOrderPrice(order: Order, amount: number, price: number): Promise<string> {
+    // MEXC doesn't support editOrder, so cancel and create new
+    await this.cancelOrderById(order.id, order.symbol);
+
+    const newOrder = await this.createOrder(order.symbol, order.side as OrderSide, amount, price);
+    return newOrder.id;
+  }
+
+  private async cancelOrderById(orderId: string, pair: string): Promise<void> {
+    const symbol = pair.replace('/', '');
+    await this.request<unknown>('DELETE', 'order', { symbol, orderId });
   }
 }

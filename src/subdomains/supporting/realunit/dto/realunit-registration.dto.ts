@@ -26,11 +26,32 @@ export enum RealUnitUserType {
 export enum RealUnitRegistrationStatus {
   COMPLETED = 'completed',
   PENDING_REVIEW = 'pending_review',
+  MANUAL_REVIEW_DATA_MISMATCH = 'manual_review_data_mismatch',
+  FORWARDING_FAILED = 'forwarding_failed',
 }
 
 export class RealUnitRegistrationResponseDto {
   @ApiProperty({ enum: RealUnitRegistrationStatus })
   status: RealUnitRegistrationStatus;
+}
+
+export enum RealUnitEmailRegistrationStatus {
+  EMAIL_REGISTERED = 'email_registered',
+  MERGE_REQUESTED = 'merge_requested',
+}
+
+export class RealUnitEmailRegistrationDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsEmail()
+  @IsLowercase()
+  @Transform(Util.trim)
+  email: string;
+}
+
+export class RealUnitEmailRegistrationResponseDto {
+  @ApiProperty({ enum: RealUnitEmailRegistrationStatus })
+  status: RealUnitEmailRegistrationStatus;
 }
 
 export enum RealUnitLanguage {

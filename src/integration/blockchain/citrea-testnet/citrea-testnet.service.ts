@@ -14,6 +14,10 @@ export class CitreaTestnetService extends EvmService {
       citreaTestnetWalletPrivateKey,
       citreaTestnetChainId,
       blockscoutApiUrl,
+      swapContractAddress,
+      swapFactoryAddress,
+      quoteContractAddress,
+      swapGatewayAddress,
     } = GetConfig().blockchain.citreaTestnet;
 
     super(CitreaTestnetClient, {
@@ -24,6 +28,10 @@ export class CitreaTestnetService extends EvmService {
       chainId: citreaTestnetChainId,
       blockscoutService,
       blockscoutApiUrl,
+      swapContractAddress,
+      swapFactoryAddress,
+      quoteContractAddress,
+      swapGatewayAddress,
     });
   }
 }

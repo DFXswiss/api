@@ -13,13 +13,13 @@ export interface BlockscoutTransaction {
 }
 
 export interface BlockscoutTokenTransfer {
-  tx_hash: string;
+  transaction_hash: string;
   block_number: number;
   timestamp: string;
   from: { hash: string };
   to: { hash: string };
   token: {
-    address: string;
+    address_hash: string;
     symbol: string;
     name: string;
     decimals: string;

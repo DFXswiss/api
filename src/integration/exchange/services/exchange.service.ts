@@ -354,7 +354,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.createOrder(pair, direction, amount, price).then((o) => o.id);
   }
 
-  private async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {
+  protected async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {
     return this.callApi((e) => e.createOrder(pair, 'limit', direction, amount, price));
   }
 
