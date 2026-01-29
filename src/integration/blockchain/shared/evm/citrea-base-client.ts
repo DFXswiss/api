@@ -1,8 +1,7 @@
 import { CurrencyAmount, Token, TradeType } from '@uniswap/sdk-core';
-import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, Pool, Route, SwapQuoter } from '@uniswap/v3-sdk';
-import { Contract, ethers } from 'ethers';
+import { Contract, ethers, BigNumber as EthersNumber } from 'ethers';
 import {
   BlockscoutTokenTransfer,
   BlockscoutTransaction,
@@ -253,14 +252,16 @@ export abstract class CitreaBaseClient extends EvmClient {
     return [new Token(this.chainId, address1, decimals1), new Token(this.chainId, address2, decimals2)];
   }
 
-  override async testSwapPool(
+  protected override async assetPoolQuote(
     source: Asset,
-    sourceAmount: number,
     target: Asset,
+    sourceAmount: number,
     poolFee: FeeAmount,
-  ): Promise<{ targetAmount: number; feeAmount: number; priceImpact: number }> {
-    if (source.id === target.id) return { targetAmount: sourceAmount, feeAmount: 0, priceImpact: 0 };
-
+  ): Promise<{
+    amountOut: EthersNumber;
+    gasEstimate: EthersNumber;
+    priceImpact: number;
+  }> {
     const [{ address: sourceAddress, isJusd: sourceIsJusd }, { address: targetAddress, isJusd: targetIsJusd }] =
       await Promise.all([this.resolvePoolTokenAddress(source), this.resolvePoolTokenAddress(target)]);
     const gateway = this.getSwapGatewayContract();
@@ -276,11 +277,15 @@ export abstract class CitreaBaseClient extends EvmClient {
     const [sourceToken, targetToken] = await this.getTokenPairByAddresses(sourceAddress, targetAddress);
 
     const poolAddress = await this.getGatewayPool(sourceAddress, targetAddress, poolFee);
-    const poolContract = new ethers.Contract(poolAddress, IUniswapV3PoolABI.abi, this.wallet);
+    const poolContract = this.getPoolContract(poolAddress);
 
-    const token0IsInToken = sourceToken.address.toLowerCase() === (await poolContract.token0()).toLowerCase();
-    const [liquidity, slot0] = await Promise.all([poolContract.liquidity(), poolContract.slot0()]);
-    const sqrtPriceX96 = slot0.sqrtPriceX96;
+    const [liquidity, slot0, token0] = await Promise.all([
+      poolContract.liquidity(),
+      poolContract.slot0(),
+      poolContract.token0(),
+    ]);
+    const sqrtPriceX96Before = slot0.sqrtPriceX96;
+    const token0IsInToken = sourceToken.address.toLowerCase() === token0.toLowerCase();
 
     const pool = new Pool(sourceToken, targetToken, poolFee, slot0[0].toString(), liquidity.toString(), slot0[1]);
     const route = new Route([pool], sourceToken, targetToken);
@@ -308,18 +313,10 @@ export abstract class CitreaBaseClient extends EvmClient {
       finalAmountOut = await gateway.svJusdToJusd(amountOut);
     }
 
-    // Calculate price impact by comparing sqrtPriceX96 before and after the swap
-    let sqrtPriceRatio = +sqrtPriceX96After / +sqrtPriceX96;
-    if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
-    const priceImpact = Math.abs(1 - sqrtPriceRatio);
-
-    const gasPrice = await this.getRecommendedGasPrice();
-    const estimatedGas = ethers.BigNumber.from(300000);
-
     return {
-      targetAmount: EvmUtil.fromWeiAmount(finalAmountOut, target.decimals),
-      feeAmount: EvmUtil.fromWeiAmount(estimatedGas.mul(gasPrice)),
-      priceImpact,
+      amountOut: finalAmountOut,
+      gasEstimate: ethers.BigNumber.from(300000),
+      priceImpact: this.calcPriceImpact(sqrtPriceX96Before, sqrtPriceX96After, token0IsInToken),
     };
   }
 
