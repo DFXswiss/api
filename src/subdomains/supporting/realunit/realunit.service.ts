@@ -210,8 +210,7 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (!hasRegistration) {
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
       throw new RegistrationRequiredException();
     }
 
@@ -396,9 +395,25 @@ export class RealUnitService {
       throw new BadRequestException('Email does not match registered email');
     }
 
-    // duplicate check
-    if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
-      throw new BadRequestException('RealUnit registration already exists');
+    if (this.hasRegistrationForWallet(userData, dto.walletAddress)) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet');
+    }
+
+    // validate personal data
+    const hasExistingData = userData.firstname != null;
+    if (hasExistingData && !this.isPersonalDataMatching(userData, dto)) {
+      throw new BadRequestException('Personal data does not match existing data');
+    }
+
+    // save personal data
+    if (!hasExistingData) {
+      await this.userDataService.updatePersonalData(userData, dto.kycData);
+      await this.userDataService.updateUserDataInternal(userData, {
+        nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
+        birthday: new Date(dto.birthday),
+        language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
+        tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
+      });
     }
 
     // store data with internal review
@@ -409,28 +424,9 @@ export class RealUnitService {
       dto,
     );
 
-    const hasExistingData = userData.firstname != null;
-    if (hasExistingData) {
-      const dataMatches = this.isPersonalDataMatching(userData, dto);
-      if (!dataMatches) {
-        await this.kycService.saveKycStepUpdate(kycStep.manualReview('Existing KYC data does not match'));
-        return RealUnitRegistrationStatus.MANUAL_REVIEW_DATA_MISMATCH;
-      }
-    } else {
-      await this.userDataService.updatePersonalData(userData, dto.kycData);
-    }
-
     // forward to Aktionariat
     const success = await this.forwardRegistration(kycStep, dto);
     if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
-
-    // only update after successful forward
-    await this.userDataService.updateUserDataInternal(userData, {
-      nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
-      birthday: new Date(dto.birthday),
-      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
-      tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
-    });
 
     return RealUnitRegistrationStatus.COMPLETED;
   }
@@ -571,6 +567,16 @@ export class RealUnitService {
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
+  private hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
+    return userData
+      .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
+      .filter((s) => !(s.isFailed || s.isCanceled))
+      .some((s) => {
+        const result = s.getResult<AktionariatRegistrationDto>();
+        return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
+      });
+  }
+
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
     const kycData = dto.kycData;
 
@@ -656,8 +662,7 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (!hasRegistration) {
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
       throw new RegistrationRequiredException();
     }
 
