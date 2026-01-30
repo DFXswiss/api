@@ -233,6 +233,40 @@ export abstract class CitreaBaseClient extends EvmClient {
     return tx.hash;
   }
 
+  override async getSwapResult(txId: string, asset: Asset): Promise<number> {
+    if (asset.type === AssetType.COIN) {
+      const receipt = await this.getTxReceipt(txId);
+      const withdrawalTopic = ethers.utils.id('Withdrawal(address,uint256)');
+
+      const withdrawalLog = receipt?.logs?.find((l) => l.topics[0] === withdrawalTopic);
+      if (!withdrawalLog) throw new Error(`Failed to get withdrawal swap result for TX ${txId}`);
+
+      return EvmUtil.fromWeiAmount(withdrawalLog.data);
+    }
+
+    return super.getSwapResult(txId, asset);
+  }
+
+  // --- FEE METHODS --- //
+
+  override async getTxActualFee(txHash: string): Promise<number> {
+    // Use raw RPC call to get l1DiffSize and l1FeeRate (not exposed by ethers.js)
+    const receipt = await this.provider.send('eth_getTransactionReceipt', [txHash]);
+
+    const gasUsed = ethers.BigNumber.from(receipt.gasUsed);
+    const effectiveGasPrice = ethers.BigNumber.from(receipt.effectiveGasPrice);
+    const l2Fee = gasUsed.mul(effectiveGasPrice);
+
+    let l1Fee = ethers.BigNumber.from(0);
+    if (receipt.l1DiffSize && receipt.l1FeeRate) {
+      const l1DiffSize = ethers.BigNumber.from(receipt.l1DiffSize);
+      const l1FeeRate = ethers.BigNumber.from(receipt.l1FeeRate);
+      l1Fee = l1DiffSize.mul(l1FeeRate);
+    }
+
+    return EvmUtil.fromWeiAmount(l1Fee.add(l2Fee));
+  }
+
   // --- TRADING INTEGRATION --- //
 
   override async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
