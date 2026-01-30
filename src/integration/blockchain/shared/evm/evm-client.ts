@@ -670,8 +670,7 @@ export abstract class EvmClient extends BlockchainClient {
     );
     if (!swapLog) throw new Error(`Failed to get swap result for TX ${txId}`);
 
-    const token = await this.getToken(asset);
-    return EvmUtil.fromWeiAmount(swapLog.data, token.decimals);
+    return EvmUtil.fromWeiAmount(swapLog.data, asset.decimals);
   }
 
   private async getRoute(source: Asset, target: Asset, sourceAmount: number, maxSlippage: number): Promise<SwapRoute> {

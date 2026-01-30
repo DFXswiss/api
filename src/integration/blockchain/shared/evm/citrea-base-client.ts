@@ -233,6 +233,19 @@ export abstract class CitreaBaseClient extends EvmClient {
     return tx.hash;
   }
 
+  override async getSwapResult(txId: string, asset: Asset): Promise<number> {
+    if (asset.type === AssetType.COIN) {
+      const receipt = await this.getTxReceipt(txId);
+      const withdrawalTopic = ethers.utils.id('Withdrawal(address,uint256)');
+
+      const withdrawalLog = receipt?.logs?.find((l) => l.topics[0] === withdrawalTopic);
+      if (!withdrawalLog) throw new Error(`Failed to get withdrawal swap result for TX ${txId}`);
+
+      return EvmUtil.fromWeiAmount(withdrawalLog.data);
+    }
+
+    return super.getSwapResult(txId, asset);
+  }
   // --- TRADING INTEGRATION --- //
 
   override async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
