@@ -391,8 +391,18 @@ export class KycService {
       if (approvalStep?.isOnHold) {
         await this.kycStepRepo.update(...approvalStep.manualReview());
       } else if (!approvalStep) {
-        const newStep = await this.initiateStep(kycStep.userData, KycStepName.DFX_APPROVAL);
-        await this.kycStepRepo.update(...newStep.manualReview());
+        const newStep = await this.initiateStep(kycStep.userData, KycStepName.DFX_APPROVAL).catch((e) => {
+          if (e.message.includes('Cannot insert duplicate key'))
+            return this.kycStepRepo.findOneBy({
+              name: KycStepName.DFX_APPROVAL,
+              status: ReviewStatus.ON_HOLD,
+              userData: { id: kycStep.userData.id },
+            });
+
+          throw e;
+        });
+
+        if (newStep) await this.kycStepRepo.update(...newStep.manualReview());
       }
     }
   }
