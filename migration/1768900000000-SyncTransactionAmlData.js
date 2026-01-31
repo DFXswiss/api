@@ -4,17 +4,15 @@
  */
 
 /**
- * Sync transaction AML data for buy_crypto records with mismatched amlCheck status.
+ * Sync transaction AML data for buy_crypto and buy_fiat records with mismatched amlCheck status.
  *
- * This fixes two data synchronization issues:
+ * This fixes data synchronization issues caused by a bug where transactions could be
+ * batched and completed before their AML check passed. When the AML check was later
+ * set to Pass, the postProcessing method was not called because isComplete was already true.
  *
- * 1. bc.amlCheck='Pass' but t.amlCheck=NULL (10 records, ~160k CHF)
- *    Caused by transactions being batched/completed before AML check passed.
- *    Fix: Copy AML data from buy_crypto to transaction.
- *
- * 2. bc.amlCheck='Fail' but t.amlCheck='Pass' (11 records, ~127k CHF)
- *    Caused by AML status changing to Fail after transaction was already updated.
- *    Fix: Reset transaction AML fields to NULL (standard behavior for Fail).
+ * Affected:
+ * - BuyCrypto: 10 records, ~160k CHF (amlCheck='Pass' but transaction.amlCheck=NULL)
+ * - BuyFiat: 1 record, ~371 CHF (amlCheck='Pass' but transaction.amlCheck=NULL)
  *
  * Related issue: https://github.com/DFXswiss/api/issues/3086
  *
@@ -28,8 +26,13 @@ module.exports = class SyncTransactionAmlData1768900000000 {
    * @param {QueryRunner} queryRunner
    */
   async up(queryRunner) {
-    // First, check for any affected transactions with incomplete source data
-    const incompleteData = await queryRunner.query(`
+    // =====================================================================
+    // PART 1: Fix BuyCrypto transactions (outputAsset -> asset table)
+    // =====================================================================
+    console.log('=== PART 1: BuyCrypto ===\n');
+
+    // Check for incomplete source data
+    const incompleteBuyCrypto = await queryRunner.query(`
       SELECT
         t.id AS transactionId,
         bc.id AS buyCryptoId,
@@ -42,28 +45,21 @@ module.exports = class SyncTransactionAmlData1768900000000 {
         AND (bc.inputReferenceAsset IS NULL OR bc.outputAssetId IS NULL)
     `);
 
-    if (incompleteData.length > 0) {
-      console.log(`WARNING: Found ${incompleteData.length} transactions with incomplete source data:`);
-      for (const tx of incompleteData) {
-        console.log(
-          `  - Transaction ${tx.transactionId}, BuyCrypto ${tx.buyCryptoId}: ` +
-            `inputReferenceAsset=${tx.inputReferenceAsset}, outputAssetId=${tx.outputAssetId}`,
-        );
+    if (incompleteBuyCrypto.length > 0) {
+      console.log(`WARNING: Found ${incompleteBuyCrypto.length} BuyCrypto with incomplete source data (SKIPPED):`);
+      for (const tx of incompleteBuyCrypto) {
+        console.log(`  - Transaction ${tx.transactionId}, BuyCrypto ${tx.buyCryptoId}`);
       }
-      console.log('These transactions will be SKIPPED.');
     }
 
-    // Find all transactions that can be fixed (complete source data)
-    const affectedTransactions = await queryRunner.query(`
+    // Find BuyCrypto transactions to fix
+    const buyCryptoToFix = await queryRunner.query(`
       SELECT
         t.id AS transactionId,
         bc.id AS buyCryptoId,
-        bc.amlCheck,
         bc.inputReferenceAsset,
         a.name AS outputAssetName,
-        bc.amountInChf,
-        bc.highRisk,
-        bc.created
+        bc.amountInChf
       FROM dbo.[transaction] t
       INNER JOIN dbo.buy_crypto bc ON bc.transactionId = t.id
       INNER JOIN dbo.asset a ON bc.outputAssetId = a.id
@@ -72,81 +68,111 @@ module.exports = class SyncTransactionAmlData1768900000000 {
         AND bc.inputReferenceAsset IS NOT NULL
     `);
 
-    console.log(`Found ${affectedTransactions.length} transactions to fix:`);
-    for (const tx of affectedTransactions) {
+    console.log(`Found ${buyCryptoToFix.length} BuyCrypto transactions to fix:`);
+    for (const tx of buyCryptoToFix) {
       console.log(
         `  - Transaction ${tx.transactionId}, BuyCrypto ${tx.buyCryptoId}: ` +
           `${tx.amountInChf} CHF, assets=${tx.inputReferenceAsset}-${tx.outputAssetName}`,
       );
     }
 
-    if (affectedTransactions.length > 0) {
-      // Update the transaction records with the missing AML data
+    if (buyCryptoToFix.length > 0) {
       const result = await queryRunner.query(`
-      UPDATE t
-      SET
-        t.amlCheck = 'Pass',
-        t.assets = bc.inputReferenceAsset + '-' + a.name,
-        t.amountInChf = bc.amountInChf,
-        t.highRisk = COALESCE(bc.highRisk, 0),
-        t.eventDate = bc.created,
-        t.amlType = t.type,
-        t.updated = GETDATE()
-      FROM dbo.[transaction] t
-      INNER JOIN dbo.buy_crypto bc ON bc.transactionId = t.id
-      INNER JOIN dbo.asset a ON bc.outputAssetId = a.id
-      WHERE bc.amlCheck = 'Pass'
-        AND t.amlCheck IS NULL
-        AND bc.inputReferenceAsset IS NOT NULL
-      `);
-
-      console.log(`Updated ${result?.rowsAffected ?? affectedTransactions.length} transaction records (Pass)`);
-    }
-
-    // --- Part 2: Fix transactions where bc.amlCheck='Fail' but t.amlCheck='Pass' ---
-    // These had Pass initially, then bc.amlCheck was changed to Fail, but transaction wasn't reset.
-    // Standard behavior: when amlCheck is not Pass, transaction AML fields remain NULL.
-
-    const failTransactions = await queryRunner.query(`
-      SELECT
-        t.id AS transactionId,
-        bc.id AS buyCryptoId,
-        bc.amlCheck AS bcAmlCheck,
-        bc.amlReason,
-        t.amlCheck AS tAmlCheck,
-        bc.amountInChf
-      FROM dbo.[transaction] t
-      INNER JOIN dbo.buy_crypto bc ON bc.transactionId = t.id
-      WHERE bc.amlCheck = 'Fail'
-        AND t.amlCheck = 'Pass'
-    `);
-
-    console.log(`\nFound ${failTransactions.length} transactions with Fail/Pass mismatch to reset:`);
-    for (const tx of failTransactions) {
-      console.log(
-        `  - Transaction ${tx.transactionId}, BuyCrypto ${tx.buyCryptoId}: ` +
-          `${tx.amountInChf} CHF, reason=${tx.amlReason}`,
-      );
-    }
-
-    if (failTransactions.length > 0) {
-      const resetResult = await queryRunner.query(`
         UPDATE t
         SET
-          t.amlCheck = NULL,
-          t.assets = NULL,
-          t.highRisk = NULL,
-          t.eventDate = NULL,
-          t.amlType = NULL,
+          t.amlCheck = 'Pass',
+          t.assets = bc.inputReferenceAsset + '-' + a.name,
+          t.amountInChf = bc.amountInChf,
+          t.highRisk = COALESCE(bc.highRisk, 0),
+          t.eventDate = bc.created,
+          t.amlType = t.type,
           t.updated = GETDATE()
         FROM dbo.[transaction] t
         INNER JOIN dbo.buy_crypto bc ON bc.transactionId = t.id
-        WHERE bc.amlCheck = 'Fail'
-          AND t.amlCheck = 'Pass'
+        INNER JOIN dbo.asset a ON bc.outputAssetId = a.id
+        WHERE bc.amlCheck = 'Pass'
+          AND t.amlCheck IS NULL
+          AND bc.inputReferenceAsset IS NOT NULL
       `);
-
-      console.log(`Reset ${resetResult?.rowsAffected ?? failTransactions.length} transaction records (Fail)`);
+      console.log(`Updated ${result?.rowsAffected ?? buyCryptoToFix.length} BuyCrypto transaction records\n`);
     }
+
+    // =====================================================================
+    // PART 2: Fix BuyFiat transactions (outputAsset -> fiat table)
+    // =====================================================================
+    console.log('=== PART 2: BuyFiat ===\n');
+
+    // Check for incomplete source data
+    const incompleteBuyFiat = await queryRunner.query(`
+      SELECT
+        t.id AS transactionId,
+        bf.id AS buyFiatId,
+        bf.inputReferenceAsset,
+        bf.outputAssetId
+      FROM dbo.[transaction] t
+      INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
+      WHERE bf.amlCheck = 'Pass'
+        AND t.amlCheck IS NULL
+        AND (bf.inputReferenceAsset IS NULL OR bf.outputAssetId IS NULL)
+    `);
+
+    if (incompleteBuyFiat.length > 0) {
+      console.log(`WARNING: Found ${incompleteBuyFiat.length} BuyFiat with incomplete source data (SKIPPED):`);
+      for (const tx of incompleteBuyFiat) {
+        console.log(`  - Transaction ${tx.transactionId}, BuyFiat ${tx.buyFiatId}`);
+      }
+    }
+
+    // Find BuyFiat transactions to fix (note: outputAsset joins to fiat table, not asset)
+    const buyFiatToFix = await queryRunner.query(`
+      SELECT
+        t.id AS transactionId,
+        bf.id AS buyFiatId,
+        bf.inputReferenceAsset,
+        f.name AS outputAssetName,
+        bf.amountInChf
+      FROM dbo.[transaction] t
+      INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
+      INNER JOIN dbo.fiat f ON bf.outputAssetId = f.id
+      WHERE bf.amlCheck = 'Pass'
+        AND t.amlCheck IS NULL
+        AND bf.inputReferenceAsset IS NOT NULL
+    `);
+
+    console.log(`Found ${buyFiatToFix.length} BuyFiat transactions to fix:`);
+    for (const tx of buyFiatToFix) {
+      console.log(
+        `  - Transaction ${tx.transactionId}, BuyFiat ${tx.buyFiatId}: ` +
+          `${tx.amountInChf} CHF, assets=${tx.inputReferenceAsset}-${tx.outputAssetName}`,
+      );
+    }
+
+    if (buyFiatToFix.length > 0) {
+      const result = await queryRunner.query(`
+        UPDATE t
+        SET
+          t.amlCheck = 'Pass',
+          t.assets = bf.inputReferenceAsset + '-' + f.name,
+          t.amountInChf = bf.amountInChf,
+          t.highRisk = COALESCE(bf.highRisk, 0),
+          t.eventDate = bf.created,
+          t.amlType = t.type,
+          t.updated = GETDATE()
+        FROM dbo.[transaction] t
+        INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
+        INNER JOIN dbo.fiat f ON bf.outputAssetId = f.id
+        WHERE bf.amlCheck = 'Pass'
+          AND t.amlCheck IS NULL
+          AND bf.inputReferenceAsset IS NOT NULL
+      `);
+      console.log(`Updated ${result?.rowsAffected ?? buyFiatToFix.length} BuyFiat transaction records\n`);
+    }
+
+    // =====================================================================
+    // Summary
+    // =====================================================================
+    const totalFixed = buyCryptoToFix.length + buyFiatToFix.length;
+    console.log(`=== SUMMARY: Fixed ${totalFixed} transactions total ===`);
   }
 
   /**
