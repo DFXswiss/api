@@ -14,8 +14,7 @@ environmentOptions=("loc" "dev" "prd")
 # "cmn": Citrea Mainnet Node
 # "cmeb": Citrea Mainnet Explorer Backend
 # "cmef": Citrea Mainnet Explorer Frontend
-# "cmdef": Citrea Mainnet Explorer Frontend (nur auf DEV)
-nodeNameOptions=("ctn" "cteb" "ctef" "cmn" "cmeb" "cmef" "cmdef")
+nodeNameOptions=("ctn" "cteb" "ctef" "cmn" "cmeb" "cmef")
 
 # --- FUNCTIONS --- #
 selectOption() {
