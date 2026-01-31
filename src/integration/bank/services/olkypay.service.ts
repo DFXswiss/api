@@ -17,10 +17,10 @@ import {
   OlkypayTransaction,
   OlkypayTransactionType,
 } from '../dto/olkypay.dto';
-import { OlkyPayerAccount } from '../entities/olky-payer-account.entity';
-import { OlkyPayerAccountRepository } from '../repositories/olky-payer-account.repository';
+import { OlkyRecipient } from '../entities/olky-recipient.entity';
+import { OlkyRecipientRepository } from '../repositories/olky-recipient.repository';
 
-export interface OlkyPayerAccountData {
+export interface OlkyRecipientData {
   iban: string;
   name: string;
   address?: string;
@@ -40,7 +40,7 @@ export class OlkypayService {
 
   constructor(
     private readonly http: HttpService,
-    private readonly olkyPayerAccountRepo: OlkyPayerAccountRepository,
+    private readonly olkyRecipientRepo: OlkyRecipientRepository,
   ) {}
 
   private cachedSupplierId: number;
@@ -92,26 +92,26 @@ export class OlkypayService {
     return this.callApi<OlkypayBalance>(url);
   }
 
-  // --- PAYER ACCOUNT METHODS --- //
+  // --- RECIPIENT METHODS --- //
 
-  async getOrCreatePayerAccount(data: OlkyPayerAccountData): Promise<OlkyPayerAccount> {
+  async getOrCreateRecipient(data: OlkyRecipientData): Promise<OlkyRecipient> {
     const account =
-      (await this.olkyPayerAccountRepo.findOneBy({
+      (await this.olkyRecipientRepo.findOneBy({
         iban: data.iban,
         name: data.name,
         address: data.address ?? null,
         zip: data.zip ?? null,
         city: data.city ?? null,
         country: data.country ?? null,
-      })) ?? (await this.createPayerAccount(data));
+      })) ?? (await this.createRecipient(data));
 
     if (account.olkyPayerId && account.olkyBankAccountId) return account;
 
     return this.registerAtOlkypay(account);
   }
 
-  private async createPayerAccount(data: OlkyPayerAccountData): Promise<OlkyPayerAccount> {
-    const account = this.olkyPayerAccountRepo.create({
+  private async createRecipient(data: OlkyRecipientData): Promise<OlkyRecipient> {
+    const account = this.olkyRecipientRepo.create({
       iban: data.iban,
       name: data.name,
       address: data.address,
@@ -120,14 +120,14 @@ export class OlkypayService {
       country: data.country,
     });
 
-    return this.olkyPayerAccountRepo.save(account);
+    return this.olkyRecipientRepo.save(account);
   }
 
-  private async registerAtOlkypay(account: OlkyPayerAccount): Promise<OlkyPayerAccount> {
+  private async registerAtOlkypay(account: OlkyRecipient): Promise<OlkyRecipient> {
     // Create payer if not exists
     if (!account.olkyPayerId) {
       const payerResponse = await this.createPayer({
-        externalClientCode: `OPA-${account.id}`,
+        externalClientCode: `OR-${account.id}`,
         fullName: account.name,
         moralPerson: true,
         zipCode: account.zip,
@@ -139,7 +139,7 @@ export class OlkypayService {
       });
 
       account.olkyPayerId = payerResponse.id;
-      await this.olkyPayerAccountRepo.update(account.id, { olkyPayerId: payerResponse.id });
+      await this.olkyRecipientRepo.update(account.id, { olkyPayerId: payerResponse.id });
     }
 
     // Create bank account if not exists
@@ -151,7 +151,7 @@ export class OlkypayService {
       });
 
       account.olkyBankAccountId = bankAccountResponse.id;
-      await this.olkyPayerAccountRepo.update(account.id, { olkyBankAccountId: bankAccountResponse.id });
+      await this.olkyRecipientRepo.update(account.id, { olkyBankAccountId: bankAccountResponse.id });
     }
 
     return account;

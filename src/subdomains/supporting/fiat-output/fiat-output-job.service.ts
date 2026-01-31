@@ -403,8 +403,8 @@ export class FiatOutputJobService {
 
     for (const entity of entities) {
       try {
-        // create payer account
-        const payerAccount = await this.olkypayService.getOrCreatePayerAccount({
+        // create recipient
+        const recipient = await this.olkypayService.getOrCreateRecipient({
           iban: entity.iban,
           name: entity.name,
           address: entity.address
@@ -418,7 +418,7 @@ export class FiatOutputJobService {
         // send payment order
         const externalId = entity.endToEndId ?? `DFX-${entity.id}-${Date.now()}`;
         const orderResponse = await this.olkypayService.createPaymentOrder({
-          clientId: +payerAccount.olkyPayerId,
+          clientId: +recipient.olkyPayerId,
           comment: entity.remittanceInfo ?? `DFX Payout ${entity.id}`,
           currencyCode: entity.currency,
           executionDate: Util.isoDate(new Date()),

@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { OlkyPayerAccount } from '../entities/olky-payer-account.entity';
+import { OlkyRecipient } from '../entities/olky-recipient.entity';
 
 @Injectable()
-export class OlkyPayerAccountRepository extends BaseRepository<OlkyPayerAccount> {
+export class OlkyRecipientRepository extends BaseRepository<OlkyRecipient> {
   constructor(manager: EntityManager) {
-    super(OlkyPayerAccount, manager);
+    super(OlkyRecipient, manager);
   }
 }

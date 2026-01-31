@@ -2,8 +2,8 @@ import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, Index } from 'typeorm';
 
 @Entity()
-@Index((o: OlkyPayerAccount) => [o.iban, o.name, o.address, o.zip, o.city, o.country], { unique: true })
-export class OlkyPayerAccount extends IEntity {
+@Index((o: OlkyRecipient) => [o.iban, o.name, o.address, o.zip, o.city, o.country], { unique: true })
+export class OlkyRecipient extends IEntity {
   @Column()
   iban: string;
 
