@@ -266,7 +266,7 @@ export class FiatOutputJobService {
       isReadyDate: Not(IsNull()),
       batchId: IsNull(),
       isComplete: false,
-      bank: { name: Not(IbanBankName.YAPEAL) },
+      bank: { name: Not(In([IbanBankName.YAPEAL, IbanBankName.OLKY])) },
     });
 
     let currentBatch: FiatOutput[] = [];
@@ -416,21 +416,19 @@ export class FiatOutputJobService {
         });
 
         // send payment order
-        const externalId = entity.endToEndId ?? `DFX-${entity.id}-${Date.now()}`;
         const orderResponse = await this.olkypayService.createPaymentOrder({
           clientId: +recipient.olkyPayerId,
           comment: entity.remittanceInfo ?? `DFX Payout ${entity.id}`,
           currencyCode: entity.currency,
           executionDate: Util.isoDate(new Date()),
-          externalId,
+          externalId: `${entity.id}`,
           nominalAmount: Math.round(entity.amount * 100), // Convert to cents
-          packageNumber: `DFX-${entity.id}`,
+          packageNumber: `${entity.id}`,
           recidivism: false,
         });
 
         await this.fiatOutputRepo.update(entity.id, {
           olkyOrderId: orderResponse.id,
-          endToEndId: externalId,
           isTransmittedDate: new Date(),
           ...(entity.info?.startsWith('OLKYPAY error') && { info: null }),
         });
@@ -468,7 +466,7 @@ export class FiatOutputJobService {
           isComplete: true,
         };
 
-        if (entity.yapealMsgId && !entity.isConfirmedDate) {
+        if ((entity.yapealMsgId || entity.olkyOrderId) && !entity.isConfirmedDate) {
           updateData.isConfirmedDate = bankTx.created;
         }
 
