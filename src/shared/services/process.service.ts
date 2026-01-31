@@ -69,6 +69,7 @@ export enum Process {
   FIAT_OUTPUT_BANK_TX_SEARCH = 'FiatOutputBankTxSearch',
   FIAT_OUTPUT_YAPEAL_TRANSMISSION = 'FiatOutputYapealTransmission',
   FIAT_OUTPUT_YAPEAL_STATUS_CHECK = 'FiatOutputYapealStatusCheck',
+  FIAT_OUTPUT_OLKYPAY_TRANSMISSION = 'FiatOutputOlkypayTransmission',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TX_REQUEST = 'TxRequest',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',

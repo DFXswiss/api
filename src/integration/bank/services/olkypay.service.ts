@@ -6,51 +6,56 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import {
+  OlkypayBalance,
+  OlkypayBankAccountRequest,
+  OlkypayEntityResponse,
+  OlkypayOrderResponse,
+  OlkypayPayerRequest,
+  OlkypayPaymentOrderRequest,
+  OlkypayTokenAuth,
+  OlkypayTransaction,
+  OlkypayTransactionType,
+} from '../dto/olkypay.dto';
+import { OlkyPayerAccount } from '../entities/olky-payer-account.entity';
+import { OlkyPayerAccountRepository } from '../repositories/olky-payer-account.repository';
 
-interface Transaction {
-  idCtp: number;
-  dateEcriture: number[];
-  dateValeur: number[];
-  codeInterbancaireInterne: TransactionType;
-  codeInterbancaire: string;
-  credit: number;
-  debit: number;
-  line1: string;
-  line2: string;
-  instructingIban: string;
-}
-
-interface Balance {
-  balance: number;
-  balanceOperationYesterday: number;
-}
-
-interface TokenAuth {
-  access_token: string;
-  expires_in: number;
-  refresh_expires_in: number;
-  refresh_token: string;
-  token_type: string;
-  id_token: string;
-  session_state: string;
-}
-
-enum TransactionType {
-  RECEIVED = 'SCT_RECEIVED',
-  SENT = 'SCT_SENT',
-  BILLING = 'BILLING',
+export interface OlkyPayerAccountData {
+  iban: string;
+  name: string;
+  address?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
 }
 
 @Injectable()
 export class OlkypayService {
   private readonly logger = new DfxLogger(OlkypayService);
 
-  private readonly baseUrl = 'https://ws.olkypay.com/reporting';
+  private readonly baseUrl = 'https://ws.olkypay.com';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
 
   private accessToken = 'access-token-will-be-updated';
 
-  constructor(private readonly http: HttpService) {}
+  constructor(
+    private readonly http: HttpService,
+    private readonly olkyPayerAccountRepo: OlkyPayerAccountRepository,
+  ) {}
+
+  private cachedSupplierId: number;
+
+  isAvailable(): boolean {
+    return !!Config.bank.olkypay.credentials.clientId;
+  }
+
+  async getSupplierId(): Promise<number> {
+    if (!this.cachedSupplierId) {
+      const balance = await this.getBalanceRaw();
+      this.cachedSupplierId = balance.supplierId;
+    }
+    return this.cachedSupplierId;
+  }
 
   async getOlkyTransactions(lastModificationTime: string, accountIban: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.olkypay.credentials.clientId) return [];
@@ -66,25 +71,112 @@ export class OlkypayService {
     }
   }
 
-  private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
-    const url = `ecritures/${Config.bank.olkypay.credentials.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(
+  private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<OlkypayTransaction[]> {
+    const url = `reporting/ecritures/${Config.bank.olkypay.credentials.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(
       toDate,
     )}`;
 
-    return this.callApi<Transaction[]>(url);
+    return this.callApi<OlkypayTransaction[]>(url);
   }
 
-  async getBalance(): Promise<Balance> {
-    const url = `balance/today/${Config.bank.olkypay.credentials.clientId}`;
-    const balance = await this.callApi<Balance>(url);
+  async getBalance(): Promise<{ balance: number; balanceOperationYesterday: number }> {
+    const balance = await this.getBalanceRaw();
     return {
       balance: Util.round(balance.balance / 100, 2),
       balanceOperationYesterday: Util.round(balance.balanceOperationYesterday / 100, 2),
     };
   }
 
+  private async getBalanceRaw(): Promise<OlkypayBalance> {
+    const url = `reporting/balance/today/${Config.bank.olkypay.credentials.clientId}`;
+    return this.callApi<OlkypayBalance>(url);
+  }
+
+  // --- PAYER ACCOUNT METHODS --- //
+
+  async getOrCreatePayerAccount(data: OlkyPayerAccountData): Promise<OlkyPayerAccount> {
+    const account =
+      (await this.olkyPayerAccountRepo.findOneBy({
+        iban: data.iban,
+        name: data.name,
+        address: data.address ?? null,
+        zip: data.zip ?? null,
+        city: data.city ?? null,
+        country: data.country ?? null,
+      })) ?? (await this.createPayerAccount(data));
+
+    if (account.olkyPayerId && account.olkyBankAccountId) return account;
+
+    return this.registerAtOlkypay(account);
+  }
+
+  private async createPayerAccount(data: OlkyPayerAccountData): Promise<OlkyPayerAccount> {
+    const account = this.olkyPayerAccountRepo.create({
+      iban: data.iban,
+      name: data.name,
+      address: data.address,
+      zip: data.zip,
+      city: data.city,
+      country: data.country,
+    });
+
+    return this.olkyPayerAccountRepo.save(account);
+  }
+
+  private async registerAtOlkypay(account: OlkyPayerAccount): Promise<OlkyPayerAccount> {
+    // Create payer if not exists
+    if (!account.olkyPayerId) {
+      const payerResponse = await this.createPayer({
+        externalClientCode: `OPA-${account.id}`,
+        fullName: account.name,
+        moralPerson: true,
+        zipCode: account.zip,
+        city: account.city,
+        supplierId: await this.getSupplierId(),
+        countryCode: account.country,
+        address1: account.address,
+        beneficiary: true,
+      });
+
+      account.olkyPayerId = payerResponse.id;
+      await this.olkyPayerAccountRepo.update(account.id, { olkyPayerId: payerResponse.id });
+    }
+
+    // Create bank account if not exists
+    if (!account.olkyBankAccountId) {
+      const bankAccountResponse = await this.createBankAccount({
+        clientId: +account.olkyPayerId,
+        name: account.name,
+        iban: account.iban,
+      });
+
+      account.olkyBankAccountId = bankAccountResponse.id;
+      await this.olkyPayerAccountRepo.update(account.id, { olkyBankAccountId: bankAccountResponse.id });
+    }
+
+    return account;
+  }
+
+  private async createPayer(payer: OlkypayPayerRequest): Promise<OlkypayEntityResponse> {
+    return this.callApi<OlkypayEntityResponse>('payer', 'POST', payer);
+  }
+
+  private async createBankAccount(bankAccount: OlkypayBankAccountRequest): Promise<OlkypayEntityResponse> {
+    return this.callApi<OlkypayEntityResponse>('bankaccount', 'POST', bankAccount);
+  }
+
+  // --- PAYMENT ORDER METHODS --- //
+
+  async createPaymentOrder(order: OlkypayPaymentOrderRequest): Promise<OlkypayEntityResponse> {
+    return this.callApi<OlkypayEntityResponse>('order/vir', 'POST', order);
+  }
+
+  async getPaymentOrder(orderId: number): Promise<OlkypayOrderResponse> {
+    return this.callApi<OlkypayOrderResponse>(`order/${orderId}`, 'GET');
+  }
+
   // --- PARSING --- //
-  private parseTransaction(tx: Transaction, accountIban: string): Partial<BankTx> {
+  private parseTransaction(tx: OlkypayTransaction, accountIban: string): Partial<BankTx> {
     if (tx.debit > 0 && tx.credit > 0)
       throw new Error(`Transaction ${tx.idCtp} with debit (${tx.debit} EUR) and credit (${tx.credit} EUR)`);
 
@@ -112,7 +204,7 @@ export class OlkypayService {
         txRaw: JSON.stringify(tx),
         remittanceInfo: tx.line2,
         accountIban: accountIban,
-        type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.BANK_ACCOUNT_FEE : null,
+        type: tx.codeInterbancaireInterne === OlkypayTransactionType.BILLING ? BankTxType.BANK_ACCOUNT_FEE : null,
         bankReleaseDate: new Date(),
       };
     } catch (e) {
@@ -124,13 +216,13 @@ export class OlkypayService {
     return new Date(olkypayDate[0], olkypayDate[1] - 1, olkypayDate[2]);
   }
 
-  private getNameAndAddress(tx: Transaction): { name?: string; addressLine1?: string } {
+  private getNameAndAddress(tx: OlkypayTransaction): { name?: string; addressLine1?: string } {
     switch (tx.codeInterbancaireInterne) {
-      case TransactionType.SENT:
+      case OlkypayTransactionType.SENT:
         return {
           name: tx.line1.split('Virement Inst Client : ')[1] ?? tx.line1.split('Virement SEPA Client : ')[1],
         };
-      case TransactionType.RECEIVED:
+      case OlkypayTransactionType.RECEIVED:
         return {
           name: tx.line1.split(' Recu ')[1]?.split(' [ Adresse débiteur : ')[0],
           addressLine1: tx.line1.split(' [ Adresse débiteur : ')[1]?.replace(/[[\]]/g, '').trim(),
@@ -141,11 +233,13 @@ export class OlkypayService {
   }
 
   // --- HELPER METHODS --- //
-  private async callApi<T>(url: string, method: Method = 'GET', data?: any): Promise<T> {
-    return this.request<T>(url, method, data);
-  }
-
-  private async request<T>(url: string, method: Method, data?: any, nthTry = 3, getNewAccessToken = false): Promise<T> {
+  private async callApi<T>(
+    url: string,
+    method: Method = 'GET',
+    data?: any,
+    nthTry = 3,
+    getNewAccessToken = false,
+  ): Promise<T> {
     try {
       if (getNewAccessToken) {
         const tokenAuth = await this.getTokenAuth();
@@ -157,19 +251,20 @@ export class OlkypayService {
         data: data,
         headers: {
           Accept: 'application/json',
+          'Content-Type': 'application/json',
           'x-pay-token': this.accessToken,
           'network-id': 19077,
         },
       });
     } catch (e) {
       if (nthTry > 1 && e.response?.status === 403) {
-        return this.request(url, method, data, nthTry - 1, true);
+        return this.callApi(url, method, data, nthTry - 1, true);
       }
       throw e;
     }
   }
 
-  private async getTokenAuth(): Promise<TokenAuth> {
+  private async getTokenAuth(): Promise<OlkypayTokenAuth> {
     const data = stringify({
       grant_type: 'password',
       client_id: 'wsapi',
@@ -179,7 +274,7 @@ export class OlkypayService {
       client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
     });
 
-    return this.http.request<TokenAuth>({
+    return this.http.request<OlkypayTokenAuth>({
       url: `${this.loginUrl}`,
       method: 'POST',
       data: data,

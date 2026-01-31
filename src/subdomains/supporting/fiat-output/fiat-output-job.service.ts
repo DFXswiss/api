@@ -3,6 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { isLiechtensteinBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
+import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -43,6 +44,7 @@ export class FiatOutputJobService {
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly yapealService: YapealService,
+    private readonly olkypayService: OlkypayService,
     private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
@@ -53,6 +55,7 @@ export class FiatOutputJobService {
     await this.createBatches();
     await this.checkTransmission();
     await this.transmitYapealPayments();
+    await this.transmitOlkypayPayments();
     await this.searchOutgoingBankTx();
   }
 
@@ -191,7 +194,9 @@ export class FiatOutputJobService {
 
       const pendingFiatOutputs = accountIbanGroup.filter(
         (tx) =>
-          tx.isReadyDate && !tx.bankTx && (!tx.bank || tx.bank.name !== IbanBankName.YAPEAL || !tx.isTransmittedDate),
+          tx.isReadyDate &&
+          !tx.bankTx &&
+          (!tx.bank || ![IbanBankName.YAPEAL, IbanBankName.OLKY].includes(tx.bank.name) || !tx.isTransmittedDate),
       );
       const pendingBalance = Util.sumObjValue(pendingFiatOutputs, 'bankAmount');
 
@@ -209,7 +214,8 @@ export class FiatOutputJobService {
           const availableBalance =
             asset.balance.amount - pendingBalance - updatedFiatOutputAmount - Config.liquidityManagement.bankMinBalance;
 
-          if (entity.currency === 'EUR') continue;
+          // Skip EUR transactions that are not routed through Olkypay
+          if (entity.currency === 'EUR' && entity.bank?.name !== IbanBankName.OLKY) continue;
 
           if (availableBalance > entity.bankAmount) {
             updatedFiatOutputAmount += entity.bankAmount;
@@ -374,12 +380,66 @@ export class FiatOutputJobService {
         this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
 
         if (!entity.info) {
-          try {
-            const errorMsg = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || String(e);
-            await this.fiatOutputRepo.update(entity.id, { info: `YAPEAL error: ${errorMsg}`.substring(0, 256) });
-          } catch (updateError) {
-            this.logger.error(`Failed to persist YAPEAL error for fiat output ${entity.id}:`, updateError);
-          }
+          const errorMsg = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || String(e);
+          await this.fiatOutputRepo.update(entity.id, { info: `YAPEAL error: ${errorMsg}`.substring(0, 256) });
+        }
+      }
+    }
+  }
+
+  private async transmitOlkypayPayments(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_OLKYPAY_TRANSMISSION)) return;
+    if (!this.olkypayService.isAvailable()) return;
+
+    const entities = await this.fiatOutputRepo.find({
+      where: {
+        isReadyDate: Not(IsNull()),
+        isTransmittedDate: IsNull(),
+        olkyOrderId: IsNull(),
+        isComplete: false,
+        bank: { name: IbanBankName.OLKY },
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        // create payer account
+        const payerAccount = await this.olkypayService.getOrCreatePayerAccount({
+          iban: entity.iban,
+          name: entity.name,
+          address: entity.address
+            ? `${entity.address}${entity.houseNumber ? ' ' + entity.houseNumber : ''}`
+            : undefined,
+          zip: entity.zip,
+          city: entity.city,
+          country: entity.country,
+        });
+
+        // send payment order
+        const externalId = entity.endToEndId ?? `DFX-${entity.id}-${Date.now()}`;
+        const orderResponse = await this.olkypayService.createPaymentOrder({
+          clientId: +payerAccount.olkyPayerId,
+          comment: entity.remittanceInfo ?? `DFX Payout ${entity.id}`,
+          currencyCode: entity.currency,
+          executionDate: Util.isoDate(new Date()),
+          externalId,
+          nominalAmount: Math.round(entity.amount * 100), // Convert to cents
+          packageNumber: `DFX-${entity.id}`,
+          recidivism: false,
+        });
+
+        await this.fiatOutputRepo.update(entity.id, {
+          olkyOrderId: orderResponse.id,
+          endToEndId: externalId,
+          isTransmittedDate: new Date(),
+          ...(entity.info?.startsWith('OLKYPAY error') && { info: null }),
+        });
+      } catch (e) {
+        this.logger.error(`Failed to transmit OLKYPAY payment for fiat output ${entity.id}:`, e);
+
+        if (!entity.info) {
+          const errorMsg = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || String(e);
+          await this.fiatOutputRepo.update(entity.id, { info: `OLKYPAY error: ${errorMsg}`.substring(0, 256) });
         }
       }
     }
