@@ -14,10 +14,11 @@
  *    - BuyCrypto: 13 records, ~162k CHF (amlCheck='Pass' but t.amlCheck is NULL or 'Fail')
  *    - BuyFiat: 1 record, ~371 CHF (amlCheck='Pass' but t.amlCheck is NULL)
  *
- * 2. HISTORICAL CLEANUP (Parts 3-4): Chargebacks and blocks that set amlCheck to 'Fail'
- *    after the transaction was already marked as Pass in the transaction table.
- *    - BuyCrypto: 25 records, ~150k CHF (amlCheck='Fail' but t.amlCheck='Pass')
- *    - BuyFiat: 7 records, ~201k CHF (amlCheck='Fail' but t.amlCheck='Pass')
+ * 2. HISTORICAL CLEANUP (Parts 3-5): Chargebacks, blocks, and manual stops that changed
+ *    amlCheck after the transaction was already marked as Pass in the transaction table.
+ *    - BuyCrypto Fail: 25 records, ~150k CHF (amlCheck='Fail' but t.amlCheck='Pass')
+ *    - BuyFiat Fail: 7 records, ~201k CHF (amlCheck='Fail' but t.amlCheck='Pass')
+ *    - BuyFiat ManualStop: 115 records, ~2k CHF (amlCheck='ManualStop' but t.amlCheck='Pass')
  *
  * Related issue: https://github.com/DFXswiss/api/issues/3086
  *
@@ -267,13 +268,56 @@ module.exports = class SyncTransactionAmlData1768900000000 {
     }
 
     // =====================================================================
+    // PART 5: Reset BuyFiat transactions where bf.amlCheck='ManualStop' but t.amlCheck='Pass'
+    // These are manually stopped transactions that should not count as Pass
+    // =====================================================================
+    console.log('=== PART 5: BuyFiat ManualStop/Pass Cleanup ===\n');
+
+    const buyFiatManualStopPass = await queryRunner.query(`
+      SELECT
+        t.id AS transactionId,
+        bf.id AS buyFiatId,
+        bf.amlReason,
+        bf.amountInChf
+      FROM dbo.[transaction] t
+      INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
+      WHERE bf.amlCheck = 'ManualStop' AND t.amlCheck = 'Pass'
+    `);
+
+    console.log(`Found ${buyFiatManualStopPass.length} BuyFiat with ManualStop/Pass mismatch to reset:`);
+    for (const tx of buyFiatManualStopPass) {
+      console.log(
+        `  - Transaction ${tx.transactionId}, BuyFiat ${tx.buyFiatId}: ` +
+          `${tx.amountInChf} CHF, reason=${tx.amlReason}`,
+      );
+    }
+
+    if (buyFiatManualStopPass.length > 0) {
+      const result = await queryRunner.query(`
+        UPDATE t
+        SET
+          t.amlCheck = NULL,
+          t.assets = NULL,
+          t.amountInChf = NULL,
+          t.highRisk = NULL,
+          t.eventDate = NULL,
+          t.amlType = NULL,
+          t.updated = GETDATE()
+        FROM dbo.[transaction] t
+        INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
+        WHERE bf.amlCheck = 'ManualStop' AND t.amlCheck = 'Pass'
+      `);
+      console.log(`Reset ${result?.rowsAffected ?? buyFiatManualStopPass.length} BuyFiat ManualStop transaction records\n`);
+    }
+
+    // =====================================================================
     // Summary
     // =====================================================================
     const totalFixed = buyCryptoToFix.length + buyFiatToFix.length;
-    const totalReset = buyCryptoFailPass.length + buyFiatFailPass.length;
+    const totalReset = buyCryptoFailPass.length + buyFiatFailPass.length + buyFiatManualStopPass.length;
     console.log(`=== SUMMARY ===`);
     console.log(`  Pass sync: ${totalFixed} transactions (Parts 1-2)`);
-    console.log(`  Fail reset: ${totalReset} transactions (Parts 3-4)`);
+    console.log(`  Fail/ManualStop reset: ${totalReset} transactions (Parts 3-5)`);
     console.log(`  Total: ${totalFixed + totalReset} transactions`);
   }
 
