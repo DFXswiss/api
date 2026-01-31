@@ -107,10 +107,8 @@ export class SupportService {
     };
   }
 
-  async getKycFileList(): Promise<KycFileListEntry[]> {
-    const userDatas = await this.userDataService.getUserDatasWithKycFile();
-
-    return userDatas.map((u) => this.toKycFileListEntry(u));
+  getKycFileList(): Promise<KycFileListEntry[]> {
+    return this.userDataService.getUserDatasWithKycFile().then((u) => u.map((d) => this.toKycFileListEntry(d)));
   }
 
   // --- MAPPING METHODS --- //
