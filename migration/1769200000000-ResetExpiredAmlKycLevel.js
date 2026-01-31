@@ -12,7 +12,12 @@
  *
  * This migration sets their KycLevel back to 20 (basic level).
  *
- * Affected users: 359 (as of 2026-01-31)
+ * IMPORTANT: Excludes 43 users who have a completed DfxApproval after their
+ * amlListExpiredDate - these users legitimately re-verified but the
+ * amlListReactivatedDate was not set (separate bug to fix).
+ *
+ * Affected users: 318 (as of 2026-01-31)
+ * Excluded users: 43 (have DfxApproval after expiry)
  *
  * @class
  * @implements {MigrationInterface}
@@ -31,16 +36,30 @@ module.exports = class ResetExpiredAmlKycLevel1769200000000 {
       WHERE "kycLevel" >= 30
         AND "amlListExpiredDate" IS NOT NULL
         AND "amlListReactivatedDate" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "dbo"."kyc_step"
+          WHERE "userDataId" = "user_data"."id"
+            AND "name" = 'DfxApproval'
+            AND "status" = 'Completed'
+            AND "created" > "user_data"."amlListExpiredDate"
+        )
     `);
     console.log(`Resetting KYC level for ${result[0].count} users with expired AML and no reactivation`);
 
-    // Update KycLevel to 20 for all affected users
+    // Update KycLevel to 20 for affected users (excluding those with DfxApproval after expiry)
     await queryRunner.query(`
       UPDATE "dbo"."user_data"
       SET "kycLevel" = 20
       WHERE "kycLevel" >= 30
         AND "amlListExpiredDate" IS NOT NULL
         AND "amlListReactivatedDate" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "dbo"."kyc_step"
+          WHERE "userDataId" = "user_data"."id"
+            AND "name" = 'DfxApproval'
+            AND "status" = 'Completed'
+            AND "created" > "user_data"."amlListExpiredDate"
+        )
     `);
   }
 
@@ -60,6 +79,13 @@ module.exports = class ResetExpiredAmlKycLevel1769200000000 {
         AND "amlListExpiredDate" IS NOT NULL
         AND "amlListReactivatedDate" IS NULL
         AND "kycStatus" = 'Completed'
+        AND NOT EXISTS (
+          SELECT 1 FROM "dbo"."kyc_step"
+          WHERE "userDataId" = "user_data"."id"
+            AND "name" = 'DfxApproval'
+            AND "status" = 'Completed'
+            AND "created" > "user_data"."amlListExpiredDate"
+        )
     `);
   }
 };
