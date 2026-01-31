@@ -111,16 +111,6 @@ export interface OlkypayPaymentOrderRequest {
   packageDate?: string;
 }
 
-// --- Instant Payment DTOs --- //
-
-export interface OlkypayInstantPaymentRequest {
-  clientId: number;
-  comment: string;
-  paymentId: number; // obtained from bank account creation
-  externalId: string;
-  nominalAmount: number; // in euro cents
-}
-
 // --- Order Status DTOs --- //
 
 export enum OlkypayOrderStatus {
@@ -150,7 +140,3 @@ export interface OlkypayOrderResponse {
   orderStatus: OlkypayOrderStatus;
   category: OlkypayOrderCategory;
 }
-
-// --- IBAN Eligibility DTOs --- //
-
-export type OlkypayIbanEligibilityResponse = boolean;

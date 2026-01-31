@@ -13,7 +13,14 @@ import { YapealService } from './services/yapeal.service';
 @Module({
   imports: [TypeOrmModule.forFeature([OlkyRecipient]), SharedModule],
   controllers: [YapealWebhookController],
-  providers: [IbanService, OlkypayService, OlkyRecipientRepository, RaiffeisenService, YapealService, YapealWebhookService],
+  providers: [
+    IbanService,
+    OlkypayService,
+    OlkyRecipientRepository,
+    RaiffeisenService,
+    YapealService,
+    YapealWebhookService,
+  ],
   exports: [IbanService, OlkypayService, RaiffeisenService, YapealService, YapealWebhookService],
 })
 export class BankIntegrationModule {}

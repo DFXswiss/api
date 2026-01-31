@@ -37,25 +37,18 @@ export class OlkypayService {
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
 
   private accessToken = 'access-token-will-be-updated';
+  private cachedSupplierId: number;
 
   constructor(
     private readonly http: HttpService,
     private readonly olkyRecipientRepo: OlkyRecipientRepository,
   ) {}
 
-  private cachedSupplierId: number;
-
   isAvailable(): boolean {
     return !!Config.bank.olkypay.credentials.clientId;
   }
 
-  async getSupplierId(): Promise<number> {
-    if (!this.cachedSupplierId) {
-      const balance = await this.getBalanceRaw();
-      this.cachedSupplierId = balance.supplierId;
-    }
-    return this.cachedSupplierId;
-  }
+  // --- TRANSACTION METHODS --- //
 
   async getOlkyTransactions(lastModificationTime: string, accountIban: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.olkypay.credentials.clientId) return [];
@@ -77,6 +70,8 @@ export class OlkypayService {
     )}`;
 
     return this.callApi<OlkypayTransaction[]>(url);
+
+    // --- BALANCE METHODS --- //
   }
 
   async getBalance(): Promise<{ balance: number; balanceOperationYesterday: number }> {
@@ -90,6 +85,14 @@ export class OlkypayService {
   private async getBalanceRaw(): Promise<OlkypayBalance> {
     const url = `reporting/balance/today/${Config.bank.olkypay.credentials.clientId}`;
     return this.callApi<OlkypayBalance>(url);
+  }
+
+  private async getSupplierId(): Promise<number> {
+    if (!this.cachedSupplierId) {
+      const balance = await this.getBalanceRaw();
+      this.cachedSupplierId = balance.supplierId;
+    }
+    return this.cachedSupplierId;
   }
 
   // --- RECIPIENT METHODS --- //
