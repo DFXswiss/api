@@ -28,6 +28,7 @@ module.exports = class SyncTransactionAmlData1768900000000 {
   async up(queryRunner) {
     // =====================================================================
     // PART 1: Fix BuyCrypto transactions (outputAsset -> asset table)
+    // Fixes cases where bc.amlCheck='Pass' but t.amlCheck is NULL or different
     // =====================================================================
     console.log('=== PART 1: BuyCrypto ===\n');
 
@@ -41,7 +42,7 @@ module.exports = class SyncTransactionAmlData1768900000000 {
       FROM dbo.[transaction] t
       INNER JOIN dbo.buy_crypto bc ON bc.transactionId = t.id
       WHERE bc.amlCheck = 'Pass'
-        AND t.amlCheck IS NULL
+        AND (t.amlCheck IS NULL OR t.amlCheck <> 'Pass')
         AND (bc.inputReferenceAsset IS NULL OR bc.outputAssetId IS NULL)
     `);
 
@@ -52,11 +53,12 @@ module.exports = class SyncTransactionAmlData1768900000000 {
       }
     }
 
-    // Find BuyCrypto transactions to fix
+    // Find BuyCrypto transactions to fix (where bc.amlCheck='Pass' but t.amlCheck is not 'Pass')
     const buyCryptoToFix = await queryRunner.query(`
       SELECT
         t.id AS transactionId,
         bc.id AS buyCryptoId,
+        t.amlCheck AS currentTxAmlCheck,
         bc.inputReferenceAsset,
         a.name AS outputAssetName,
         bc.amountInChf
@@ -64,7 +66,7 @@ module.exports = class SyncTransactionAmlData1768900000000 {
       INNER JOIN dbo.buy_crypto bc ON bc.transactionId = t.id
       INNER JOIN dbo.asset a ON bc.outputAssetId = a.id
       WHERE bc.amlCheck = 'Pass'
-        AND t.amlCheck IS NULL
+        AND (t.amlCheck IS NULL OR t.amlCheck <> 'Pass')
         AND bc.inputReferenceAsset IS NOT NULL
     `);
 
@@ -72,7 +74,8 @@ module.exports = class SyncTransactionAmlData1768900000000 {
     for (const tx of buyCryptoToFix) {
       console.log(
         `  - Transaction ${tx.transactionId}, BuyCrypto ${tx.buyCryptoId}: ` +
-          `${tx.amountInChf} CHF, assets=${tx.inputReferenceAsset}-${tx.outputAssetName}`,
+          `${tx.amountInChf} CHF, assets=${tx.inputReferenceAsset}-${tx.outputAssetName}, ` +
+          `current t.amlCheck=${tx.currentTxAmlCheck}`,
       );
     }
 
@@ -91,7 +94,7 @@ module.exports = class SyncTransactionAmlData1768900000000 {
         INNER JOIN dbo.buy_crypto bc ON bc.transactionId = t.id
         INNER JOIN dbo.asset a ON bc.outputAssetId = a.id
         WHERE bc.amlCheck = 'Pass'
-          AND t.amlCheck IS NULL
+          AND (t.amlCheck IS NULL OR t.amlCheck <> 'Pass')
           AND bc.inputReferenceAsset IS NOT NULL
       `);
       console.log(`Updated ${result?.rowsAffected ?? buyCryptoToFix.length} BuyCrypto transaction records\n`);
@@ -99,6 +102,7 @@ module.exports = class SyncTransactionAmlData1768900000000 {
 
     // =====================================================================
     // PART 2: Fix BuyFiat transactions (outputAsset -> fiat table)
+    // Fixes cases where bf.amlCheck='Pass' but t.amlCheck is NULL or different
     // =====================================================================
     console.log('=== PART 2: BuyFiat ===\n');
 
@@ -112,7 +116,7 @@ module.exports = class SyncTransactionAmlData1768900000000 {
       FROM dbo.[transaction] t
       INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
       WHERE bf.amlCheck = 'Pass'
-        AND t.amlCheck IS NULL
+        AND (t.amlCheck IS NULL OR t.amlCheck <> 'Pass')
         AND (bf.inputReferenceAsset IS NULL OR bf.outputAssetId IS NULL)
     `);
 
@@ -123,11 +127,12 @@ module.exports = class SyncTransactionAmlData1768900000000 {
       }
     }
 
-    // Find BuyFiat transactions to fix (note: outputAsset joins to fiat table, not asset)
+    // Find BuyFiat transactions to fix (where bf.amlCheck='Pass' but t.amlCheck is not 'Pass')
     const buyFiatToFix = await queryRunner.query(`
       SELECT
         t.id AS transactionId,
         bf.id AS buyFiatId,
+        t.amlCheck AS currentTxAmlCheck,
         bf.inputReferenceAsset,
         f.name AS outputAssetName,
         bf.amountInChf
@@ -135,7 +140,7 @@ module.exports = class SyncTransactionAmlData1768900000000 {
       INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
       INNER JOIN dbo.fiat f ON bf.outputAssetId = f.id
       WHERE bf.amlCheck = 'Pass'
-        AND t.amlCheck IS NULL
+        AND (t.amlCheck IS NULL OR t.amlCheck <> 'Pass')
         AND bf.inputReferenceAsset IS NOT NULL
     `);
 
@@ -143,7 +148,8 @@ module.exports = class SyncTransactionAmlData1768900000000 {
     for (const tx of buyFiatToFix) {
       console.log(
         `  - Transaction ${tx.transactionId}, BuyFiat ${tx.buyFiatId}: ` +
-          `${tx.amountInChf} CHF, assets=${tx.inputReferenceAsset}-${tx.outputAssetName}`,
+          `${tx.amountInChf} CHF, assets=${tx.inputReferenceAsset}-${tx.outputAssetName}, ` +
+          `current t.amlCheck=${tx.currentTxAmlCheck}`,
       );
     }
 
@@ -162,7 +168,7 @@ module.exports = class SyncTransactionAmlData1768900000000 {
         INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
         INNER JOIN dbo.fiat f ON bf.outputAssetId = f.id
         WHERE bf.amlCheck = 'Pass'
-          AND t.amlCheck IS NULL
+          AND (t.amlCheck IS NULL OR t.amlCheck <> 'Pass')
           AND bf.inputReferenceAsset IS NOT NULL
       `);
       console.log(`Updated ${result?.rowsAffected ?? buyFiatToFix.length} BuyFiat transaction records\n`);
