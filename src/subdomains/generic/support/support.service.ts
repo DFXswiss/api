@@ -39,6 +39,7 @@ import {
   BankTxSupportInfo,
   BuySupportInfo,
   ComplianceSearchType,
+  KycFileListEntry,
   KycStepSupportInfo,
   SellSupportInfo,
   TransactionSupportInfo,
@@ -106,7 +107,22 @@ export class SupportService {
     };
   }
 
+  async getKycFileList(): Promise<KycFileListEntry[]> {
+    const userDatas = await this.userDataService.getUserDatasWithKycFile();
+
+    return userDatas.map((u) => this.toKycFileListEntry(u));
+  }
+
   // --- MAPPING METHODS --- //
+
+  private toKycFileListEntry(userData: UserData): KycFileListEntry {
+    return {
+      kycFileId: userData.kycFileId,
+      id: userData.id,
+      amlAccountType: userData.amlAccountType,
+      verifiedName: userData.verifiedName,
+    };
+  }
 
   private toKycStepSupportInfo(step: KycStep): KycStepSupportInfo {
     return {
