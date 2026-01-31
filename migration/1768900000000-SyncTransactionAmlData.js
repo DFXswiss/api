@@ -6,13 +6,18 @@
 /**
  * Sync transaction AML data for buy_crypto and buy_fiat records with mismatched amlCheck status.
  *
- * This fixes data synchronization issues caused by a bug where transactions could be
- * batched and completed before their AML check passed. When the AML check was later
- * set to Pass, the postProcessing method was not called because isComplete was already true.
+ * This migration fixes two types of data synchronization issues:
  *
- * Affected:
- * - BuyCrypto: 13 records, ~162k CHF (amlCheck='Pass' but transaction.amlCheck is NULL or 'Fail')
- * - BuyFiat: 1 record, ~371 CHF (amlCheck='Pass' but transaction.amlCheck is NULL)
+ * 1. BUG FIX (Parts 1-2): Transactions completed before AML check passed.
+ *    When the AML check was later set to Pass, postProcessing was not called
+ *    because isComplete was already true.
+ *    - BuyCrypto: 13 records, ~162k CHF (amlCheck='Pass' but t.amlCheck is NULL or 'Fail')
+ *    - BuyFiat: 1 record, ~371 CHF (amlCheck='Pass' but t.amlCheck is NULL)
+ *
+ * 2. HISTORICAL CLEANUP (Parts 3-4): Chargebacks and blocks that set amlCheck to 'Fail'
+ *    after the transaction was already marked as Pass in the transaction table.
+ *    - BuyCrypto: 25 records, ~150k CHF (amlCheck='Fail' but t.amlCheck='Pass')
+ *    - BuyFiat: 7 records, ~201k CHF (amlCheck='Fail' but t.amlCheck='Pass')
  *
  * Related issue: https://github.com/DFXswiss/api/issues/3086
  *
@@ -175,10 +180,101 @@ module.exports = class SyncTransactionAmlData1768900000000 {
     }
 
     // =====================================================================
+    // PART 3: Reset BuyCrypto transactions where bc.amlCheck='Fail' but t.amlCheck='Pass'
+    // These are chargebacks/blocks that happened after transaction was marked Pass
+    // =====================================================================
+    console.log('=== PART 3: BuyCrypto Fail/Pass Cleanup ===\n');
+
+    const buyCryptoFailPass = await queryRunner.query(`
+      SELECT
+        t.id AS transactionId,
+        bc.id AS buyCryptoId,
+        bc.amlReason,
+        bc.chargebackDate,
+        bc.amountInChf
+      FROM dbo.[transaction] t
+      INNER JOIN dbo.buy_crypto bc ON bc.transactionId = t.id
+      WHERE bc.amlCheck = 'Fail' AND t.amlCheck = 'Pass'
+    `);
+
+    console.log(`Found ${buyCryptoFailPass.length} BuyCrypto with Fail/Pass mismatch to reset:`);
+    for (const tx of buyCryptoFailPass) {
+      console.log(
+        `  - Transaction ${tx.transactionId}, BuyCrypto ${tx.buyCryptoId}: ` +
+          `${tx.amountInChf} CHF, reason=${tx.amlReason}, chargeback=${tx.chargebackDate ?? 'none'}`,
+      );
+    }
+
+    if (buyCryptoFailPass.length > 0) {
+      const result = await queryRunner.query(`
+        UPDATE t
+        SET
+          t.amlCheck = NULL,
+          t.assets = NULL,
+          t.amountInChf = NULL,
+          t.highRisk = NULL,
+          t.eventDate = NULL,
+          t.amlType = NULL,
+          t.updated = GETDATE()
+        FROM dbo.[transaction] t
+        INNER JOIN dbo.buy_crypto bc ON bc.transactionId = t.id
+        WHERE bc.amlCheck = 'Fail' AND t.amlCheck = 'Pass'
+      `);
+      console.log(`Reset ${result?.rowsAffected ?? buyCryptoFailPass.length} BuyCrypto transaction records\n`);
+    }
+
+    // =====================================================================
+    // PART 4: Reset BuyFiat transactions where bf.amlCheck='Fail' but t.amlCheck='Pass'
+    // These are chargebacks/blocks that happened after transaction was marked Pass
+    // =====================================================================
+    console.log('=== PART 4: BuyFiat Fail/Pass Cleanup ===\n');
+
+    const buyFiatFailPass = await queryRunner.query(`
+      SELECT
+        t.id AS transactionId,
+        bf.id AS buyFiatId,
+        bf.amlReason,
+        bf.amountInChf
+      FROM dbo.[transaction] t
+      INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
+      WHERE bf.amlCheck = 'Fail' AND t.amlCheck = 'Pass'
+    `);
+
+    console.log(`Found ${buyFiatFailPass.length} BuyFiat with Fail/Pass mismatch to reset:`);
+    for (const tx of buyFiatFailPass) {
+      console.log(
+        `  - Transaction ${tx.transactionId}, BuyFiat ${tx.buyFiatId}: ` +
+          `${tx.amountInChf} CHF, reason=${tx.amlReason}`,
+      );
+    }
+
+    if (buyFiatFailPass.length > 0) {
+      const result = await queryRunner.query(`
+        UPDATE t
+        SET
+          t.amlCheck = NULL,
+          t.assets = NULL,
+          t.amountInChf = NULL,
+          t.highRisk = NULL,
+          t.eventDate = NULL,
+          t.amlType = NULL,
+          t.updated = GETDATE()
+        FROM dbo.[transaction] t
+        INNER JOIN dbo.buy_fiat bf ON bf.transactionId = t.id
+        WHERE bf.amlCheck = 'Fail' AND t.amlCheck = 'Pass'
+      `);
+      console.log(`Reset ${result?.rowsAffected ?? buyFiatFailPass.length} BuyFiat transaction records\n`);
+    }
+
+    // =====================================================================
     // Summary
     // =====================================================================
     const totalFixed = buyCryptoToFix.length + buyFiatToFix.length;
-    console.log(`=== SUMMARY: Fixed ${totalFixed} transactions total ===`);
+    const totalReset = buyCryptoFailPass.length + buyFiatFailPass.length;
+    console.log(`=== SUMMARY ===`);
+    console.log(`  Pass sync: ${totalFixed} transactions (Parts 1-2)`);
+    console.log(`  Fail reset: ${totalReset} transactions (Parts 3-4)`);
+    console.log(`  Total: ${totalFixed + totalReset} transactions`);
   }
 
   /**
