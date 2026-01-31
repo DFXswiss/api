@@ -80,6 +80,13 @@ export class SellSupportInfo {
   volume: number;
 }
 
+export class KycFileListEntry {
+  kycFileId: number;
+  id: number;
+  amlAccountType?: string;
+  verifiedName?: string;
+}
+
 export class UserDataSupportInfoDetails {
   userData: UserData;
   kycFiles: KycFile[];

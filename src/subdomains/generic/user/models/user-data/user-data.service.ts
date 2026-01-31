@@ -218,6 +218,15 @@ export class UserDataService {
     return this.userDataRepo.findBy({ phone });
   }
 
+  async getUserDatasWithKycFile(): Promise<UserData[]> {
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .select(['userData.id', 'userData.kycFileId', 'userData.amlAccountType', 'userData.verifiedName'])
+      .where('userData.kycFileId > 0')
+      .orderBy('userData.kycFileId', 'ASC')
+      .getMany();
+  }
+
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
