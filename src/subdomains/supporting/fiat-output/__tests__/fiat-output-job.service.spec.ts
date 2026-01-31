@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -43,6 +44,7 @@ describe('FiatOutputJobService', () => {
   let bankTxReturnService: BankTxReturnService;
   let bankTxRepeatService: BankTxRepeatService;
   let yapealService: YapealService;
+  let olkypayService: OlkypayService;
   let virtualIbanService: VirtualIbanService;
 
   beforeEach(async () => {
@@ -56,6 +58,7 @@ describe('FiatOutputJobService', () => {
     bankTxReturnService = createMock<BankTxReturnService>();
     bankTxRepeatService = createMock<BankTxRepeatService>();
     yapealService = createMock<YapealService>();
+    olkypayService = createMock<OlkypayService>();
     virtualIbanService = createMock<VirtualIbanService>();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
 
@@ -77,6 +80,7 @@ describe('FiatOutputJobService', () => {
         { provide: BankTxReturnService, useValue: bankTxReturnService },
         { provide: BankTxRepeatService, useValue: bankTxRepeatService },
         { provide: YapealService, useValue: yapealService },
+        { provide: OlkypayService, useValue: olkypayService },
         { provide: VirtualIbanService, useValue: virtualIbanService },
 
         TestUtil.provideConfig(),
