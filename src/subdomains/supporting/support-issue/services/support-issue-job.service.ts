@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -14,18 +15,28 @@ import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from 
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportIssueService } from './support-issue.service';
 
+enum TemplateNames {
+  MONERO_COMPLETE = 'MoneroComplete',
+  SEPA = 'Sepa',
+}
+
 @Injectable()
 export class SupportIssueJobService {
   constructor(
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly supportIssueService: SupportIssueService,
     private readonly mailFactory: MailFactory,
+    private readonly settingsService: SettingService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
   async sendAutoResponses() {
-    await this.moneroComplete();
-    if (!DisabledProcess(Process.SUPPORT_BOT_SEPA)) await this.sepa();
+    const disabledTemplates = await this.settingsService
+      .getObj<string>('SupportBot')
+      .then((s) => s?.split(',') as TemplateNames[]);
+
+    if (!disabledTemplates.includes(TemplateNames.MONERO_COMPLETE)) await this.moneroComplete();
+    if (!disabledTemplates.includes(TemplateNames.SEPA)) await this.sepa();
   }
 
   async sepa(): Promise<void> {
@@ -37,25 +48,15 @@ export class SupportIssueJobService {
     });
     if (!issues.length) return;
 
-    await this.sendAutoResponse(
-      SupportMessageTranslationKey.SEPA_STANDARD,
-      issues.filter((i) => {
-        const day = i.created.getDay();
-        const hour = i.created.getHours();
+    const [standard, weekend] = Util.partition(issues, (i) => {
+      const day = i.created.getDay();
+      const hour = i.created.getHours();
 
-        return (day === 2 && hour >= 14) || (day > 2 && day < 5) || (day === 5 && hour < 14);
-      }),
-    );
+      return (day === 2 && hour >= 14) || (day > 2 && day < 5) || (day === 5 && hour < 14);
+    });
 
-    await this.sendAutoResponse(
-      SupportMessageTranslationKey.SEPA_WEEKEND,
-      issues.filter((i) => {
-        const day = i.created.getDay();
-        const hour = i.created.getHours();
-
-        return (day === 2 && hour < 14) || (day > 5 && day < 2) || (day === 5 && hour >= 14);
-      }),
-    );
+    await this.sendAutoResponse(SupportMessageTranslationKey.SEPA_STANDARD, standard);
+    await this.sendAutoResponse(SupportMessageTranslationKey.SEPA_WEEKEND, weekend);
   }
 
   async moneroComplete(): Promise<void> {
