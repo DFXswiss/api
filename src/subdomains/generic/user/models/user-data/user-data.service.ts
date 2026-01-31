@@ -46,7 +46,7 @@ import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -219,12 +219,11 @@ export class UserDataService {
   }
 
   async getUserDatasWithKycFile(): Promise<UserData[]> {
-    return this.userDataRepo
-      .createQueryBuilder('userData')
-      .select(['userData.id', 'userData.kycFileId', 'userData.amlAccountType', 'userData.verifiedName'])
-      .where('userData.kycFileId > 0')
-      .orderBy('userData.kycFileId', 'ASC')
-      .getMany();
+    return this.userDataRepo.find({
+      select: ['id', 'kycFileId', 'amlAccountType', 'verifiedName'],
+      where: { kycFileId: MoreThan(0) },
+      order: { kycFileId: 'ASC' },
+    });
   }
 
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
