@@ -11,8 +11,8 @@
  * set to Pass, the postProcessing method was not called because isComplete was already true.
  *
  * Affected:
- * - BuyCrypto: 10 records, ~160k CHF (amlCheck='Pass' but transaction.amlCheck=NULL)
- * - BuyFiat: 1 record, ~371 CHF (amlCheck='Pass' but transaction.amlCheck=NULL)
+ * - BuyCrypto: 13 records, ~162k CHF (amlCheck='Pass' but transaction.amlCheck is NULL or 'Fail')
+ * - BuyFiat: 1 record, ~371 CHF (amlCheck='Pass' but transaction.amlCheck is NULL)
  *
  * Related issue: https://github.com/DFXswiss/api/issues/3086
  *
