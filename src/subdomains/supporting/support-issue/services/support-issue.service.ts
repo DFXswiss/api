@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -21,7 +22,7 @@ import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
-import { SupportIssueDto, SupportMessageDto } from '../dto/support-issue.dto';
+import { SupportIssueDto, SupportIssueInternalDataDto, SupportMessageDto } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
@@ -48,6 +49,7 @@ export class SupportIssueService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly supportLogService: SupportLogService,
     private readonly bankDataService: BankDataService,
+    private readonly fiatService: FiatService,
   ) {}
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
@@ -218,6 +220,22 @@ export class SupportIssueService {
     });
 
     return SupportIssueDtoMapper.mapSupportIssue(issue);
+  }
+
+  async getIssueData(id: number): Promise<SupportIssueInternalDataDto> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: { id },
+      relations: {
+        transaction: {
+          user: { wallet: true },
+          buyCrypto: { transaction: true, cryptoInput: true },
+          buyFiat: { transaction: true, cryptoInput: true },
+        },
+      },
+    });
+    if (!issue) throw new NotFoundException('Support issue not found');
+
+    return SupportIssueDtoMapper.mapSupportIssueData(issue);
   }
 
   async getIssueFile(id: string, messageId: number, userDataId?: number): Promise<BlobContent> {
