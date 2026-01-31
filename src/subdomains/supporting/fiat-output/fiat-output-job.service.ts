@@ -2,6 +2,7 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { isLiechtensteinBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
+import { OlkypayOrderStatus } from 'src/integration/bank/dto/olkypay.dto';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
@@ -56,6 +57,7 @@ export class FiatOutputJobService {
     await this.checkTransmission();
     await this.transmitYapealPayments();
     await this.transmitOlkypayPayments();
+    await this.checkOlkypayOrderStatus();
     await this.searchOutgoingBankTx();
   }
 
@@ -439,6 +441,31 @@ export class FiatOutputJobService {
           const errorMsg = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || String(e);
           await this.fiatOutputRepo.update(entity.id, { info: `OLKYPAY error: ${errorMsg}`.substring(0, 256) });
         }
+      }
+    }
+  }
+
+  private async checkOlkypayOrderStatus(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_OLKYPAY_STATUS_CHECK)) return;
+    if (!this.olkypayService.isAvailable()) return;
+
+    const entities = await this.fiatOutputRepo.find({
+      where: {
+        olkyOrderId: Not(IsNull()),
+        isApprovedDate: IsNull(),
+        isComplete: false,
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        const order = await this.olkypayService.getPaymentOrder(+entity.olkyOrderId);
+
+        if (order.orderStatus !== OlkypayOrderStatus.TO_VALIDATE) {
+          await this.fiatOutputRepo.update(entity.id, { isApprovedDate: new Date() });
+        }
+      } catch (e) {
+        this.logger.error(`Failed to check OLKYPAY order status for fiat output ${entity.id}:`, e);
       }
     }
   }
