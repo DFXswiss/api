@@ -45,7 +45,7 @@
         },
         {
           "name": "PONDER_PROFILE",
-          "value": "testnet"
+          "value": "mainnet"
         },
         {
           "name": "PONDER_SCHEMA_VERSION",
@@ -56,8 +56,8 @@
           "value": "[DATABASE_URL]"
         },
         {
-          "name": "RPC_URL_TESTNET",
-          "value": "http://10.0.1.6:8085"
+          "name": "RPC_URL_MAINNET",
+          "value": "https://rpc.juiceswap.com"
         }
       ]
     },
