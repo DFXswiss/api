@@ -1138,4 +1138,55 @@ export class UserDataService {
         { updated: new Date() },
       );
   }
+
+  // --- KYC FILE STATISTICS --- //
+
+  async getKycFileYearlyStats(startYear: number, endYear: number): Promise<Map<number, KycFileYearlyStatsData>> {
+    const stats = new Map<number, KycFileYearlyStatsData>();
+
+    // Query counts per year from database
+    for (let year = startYear; year <= endYear; year++) {
+      const yearStart = new Date(year, 0, 1);
+      const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+
+      const [reopened, newFiles, closedDuringYear, highestFileNr] = await Promise.all([
+        this.countByDateRange('amlListReactivatedDate', yearStart, yearEnd),
+        this.countByDateRange('amlListAddedDate', yearStart, yearEnd),
+        this.countByDateRange('amlListExpiredDate', yearStart, yearEnd),
+        this.getMaxKycFileIdByDateRange('amlListAddedDate', yearStart, yearEnd),
+      ]);
+
+      stats.set(year, { reopened, newFiles, closedDuringYear, highestFileNr });
+    }
+
+    return stats;
+  }
+
+  private async countByDateRange(field: string, start: Date, end: Date): Promise<number> {
+    const result = await this.userDataRepo
+      .createQueryBuilder('userData')
+      .where(`userData.${field} >= :start`, { start })
+      .andWhere(`userData.${field} <= :end`, { end })
+      .getCount();
+
+    return result;
+  }
+
+  private async getMaxKycFileIdByDateRange(field: string, start: Date, end: Date): Promise<number> {
+    const result = await this.userDataRepo
+      .createQueryBuilder('userData')
+      .select('MAX(userData.kycFileId)', 'maxKycFileId')
+      .where(`userData.${field} >= :start`, { start })
+      .andWhere(`userData.${field} <= :end`, { end })
+      .getRawOne();
+
+    return result?.maxKycFileId ?? 0;
+  }
+}
+
+export interface KycFileYearlyStatsData {
+  reopened: number;
+  newFiles: number;
+  closedDuringYear: number;
+  highestFileNr: number;
 }
