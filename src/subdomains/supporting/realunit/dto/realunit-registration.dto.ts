@@ -46,6 +46,12 @@ export class RealUnitEmailRegistrationDto {
   @IsLowercase()
   @Transform(Util.trim)
   email: string;
+
+  @ApiProperty({ description: 'Ethereum wallet address (0x...)' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^0x[a-fA-F0-9]{40}$/, { message: 'walletAddress must be a valid Ethereum address' })
+  walletAddress: string;
 }
 
 export class RealUnitEmailRegistrationResponseDto {

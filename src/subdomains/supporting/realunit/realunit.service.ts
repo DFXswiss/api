@@ -349,11 +349,26 @@ export class RealUnitService {
     return !success;
   }
 
-  async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
-    const userData = await this.userDataService.getUserData(userDataId, { users: true });
+  async registerEmail(
+    userDataId: number,
+    jwtAddress: string,
+    dto: RealUnitEmailRegistrationDto,
+  ): Promise<RealUnitEmailRegistrationStatus> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true });
     if (!userData) throw new NotFoundException('User not found');
 
-    if (!userData.mail) {
+    // Validate wallet address matches authenticated wallet
+    if (!Util.equalsIgnoreCase(dto.walletAddress, jwtAddress)) {
+      throw new BadRequestException('Wallet address does not match authenticated wallet');
+    }
+
+    const isNewEmail = !userData.mail || !Util.equalsIgnoreCase(dto.email, userData.mail);
+
+    if (isNewEmail) {
+      if (userData.mail && this.hasRegistrationForWallet(userData, dto.walletAddress)) {
+        throw new BadRequestException('Not allowed to register a new email for this address');
+      }
+
       try {
         await this.userDataService.trySetUserMail(userData, dto.email);
       } catch (e) {
@@ -364,8 +379,6 @@ export class RealUnitService {
         }
         throw e;
       }
-    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
-      throw new BadRequestException('Email does not match verified email');
     }
 
     if (userData.kycLevel < KycLevel.LEVEL_10) {
