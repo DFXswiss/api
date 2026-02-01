@@ -43,6 +43,12 @@ const CORRELATION_PREFIX = {
 // 12 hours in milliseconds for optimistic withdrawal timeout
 const OPTIMISTIC_TIMEOUT_MS = 12 * 60 * 60 * 1000;
 
+// Bitcoin address prefixes by network
+const BTC_ADDRESS_PREFIXES = {
+  mainnet: ['bc1', '1', '3'],
+  testnet: ['tb1', 'bcrt1', 'm', 'n', '2'],
+};
+
 interface WithdrawCorrelationData {
   step: string;
   signerAddress: string;
@@ -64,6 +70,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   private readonly citreaClient: CitreaClient;
   private readonly recoveryTaprootAddress: string;
   private readonly signerAddress: string;
+  private readonly network: 'mainnet' | 'testnet';
 
   constructor(
     clementineService: ClementineService,
@@ -75,6 +82,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     super(LiquidityManagementSystem.CLEMENTINE_BRIDGE);
 
     const config = GetConfig().blockchain.clementine;
+    this.network = config.network;
     this.recoveryTaprootAddress = config.recoveryTaprootAddress;
     this.signerAddress = config.signerAddress;
 
@@ -84,6 +92,9 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
     this.commands.set(ClementineBridgeCommands.DEPOSIT, this.deposit.bind(this));
     this.commands.set(ClementineBridgeCommands.WITHDRAW, this.withdraw.bind(this));
+
+    // Validate network consistency on startup
+    this.validateNetworkConsistency();
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
@@ -469,5 +480,55 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
   private decodeWithdrawCorrelation(encoded: string): WithdrawCorrelationData {
     return JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'));
+  }
+
+  //*** NETWORK VALIDATION ***//
+
+  /**
+   * Validates that all configured addresses match the expected network (mainnet/testnet).
+   * Throws an error on startup if there's a network mismatch to prevent fund loss.
+   */
+  private validateNetworkConsistency(): void {
+    const errors: string[] = [];
+
+    // Validate Bitcoin wallet address
+    const btcWalletAddress = this.bitcoinClient.walletAddress;
+    if (btcWalletAddress && !this.isAddressForNetwork(btcWalletAddress, this.network)) {
+      errors.push(`Bitcoin wallet address '${btcWalletAddress}' does not match Clementine network '${this.network}'`);
+    }
+
+    // Validate recovery taproot address (dep-prefixed, but underlying address should match network)
+    if (this.recoveryTaprootAddress) {
+      const underlyingRecoveryAddress = this.recoveryTaprootAddress.replace(/^dep/, '');
+      if (!this.isAddressForNetwork(underlyingRecoveryAddress, this.network)) {
+        errors.push(
+          `Recovery taproot address '${this.recoveryTaprootAddress}' does not match Clementine network '${this.network}'`,
+        );
+      }
+    }
+
+    // Validate signer address (wit-prefixed, but underlying address should match network)
+    if (this.signerAddress) {
+      const underlyingSignerAddress = this.signerAddress.replace(/^wit/, '');
+      if (!this.isAddressForNetwork(underlyingSignerAddress, this.network)) {
+        errors.push(`Signer address '${this.signerAddress}' does not match Clementine network '${this.network}'`);
+      }
+    }
+
+    if (errors.length > 0) {
+      const errorMsg = `Clementine network configuration mismatch:\n${errors.join('\n')}`;
+      this.logger.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    this.logger.info(`Clementine network validation passed for '${this.network}'`);
+  }
+
+  /**
+   * Checks if a Bitcoin address matches the expected network based on its prefix.
+   */
+  private isAddressForNetwork(address: string, network: 'mainnet' | 'testnet'): boolean {
+    const prefixes = BTC_ADDRESS_PREFIXES[network];
+    return prefixes.some((prefix) => address.startsWith(prefix));
   }
 }
