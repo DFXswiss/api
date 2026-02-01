@@ -71,6 +71,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   private readonly recoveryTaprootAddress: string;
   private readonly signerAddress: string;
   private readonly network: 'mainnet' | 'testnet';
+  private networkValidated = false;
 
   constructor(
     clementineService: ClementineService,
@@ -92,9 +93,6 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
     this.commands.set(ClementineBridgeCommands.DEPOSIT, this.deposit.bind(this));
     this.commands.set(ClementineBridgeCommands.WITHDRAW, this.withdraw.bind(this));
-
-    // Validate network consistency on startup
-    this.validateNetworkConsistency();
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
@@ -138,6 +136,9 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     if (!this.recoveryTaprootAddress) {
       throw new OrderNotProcessableException('Clementine recovery taproot address not configured');
     }
+
+    // Validate network consistency on first use
+    this.validateNetworkConsistency();
 
     // Get the corresponding Bitcoin asset
     const bitcoinAsset = await this.assetService.getBtcCoin();
@@ -197,6 +198,9 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     if (!this.signerAddress) {
       throw new OrderNotProcessableException('Clementine signer address not configured');
     }
+
+    // Validate network consistency on first use
+    this.validateNetworkConsistency();
 
     // Get the corresponding Citrea cBTC asset
     const citreaAsset = await this.assetService.getCitreaCoin();
@@ -486,9 +490,12 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
   /**
    * Validates that all configured addresses match the expected network (mainnet/testnet).
-   * Throws an error on startup if there's a network mismatch to prevent fund loss.
+   * Throws an error on first use if there's a network mismatch to prevent fund loss.
+   * Only validates once, subsequent calls are skipped.
    */
   private validateNetworkConsistency(): void {
+    if (this.networkValidated) return;
+
     const errors: string[] = [];
 
     // Validate Bitcoin wallet address
@@ -518,9 +525,10 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     if (errors.length > 0) {
       const errorMsg = `Clementine network configuration mismatch:\n${errors.join('\n')}`;
       this.logger.error(errorMsg);
-      throw new Error(errorMsg);
+      throw new OrderNotProcessableException(errorMsg);
     }
 
+    this.networkValidated = true;
     this.logger.info(`Clementine network validation passed for '${this.network}'`);
   }
 
