@@ -1123,7 +1123,7 @@ export class UserDataService {
 
   private async updateBankTxTime(userDataId: number): Promise<void> {
     const txList = await this.repos.bankTx.find({
-      select: ['id'],
+      select: { id: true },
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
         { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },
