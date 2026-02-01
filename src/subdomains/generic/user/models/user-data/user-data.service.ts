@@ -220,7 +220,7 @@ export class UserDataService {
 
   async getUserDatasWithKycFile(): Promise<UserData[]> {
     return this.userDataRepo.find({
-      select: ['id', 'kycFileId', 'amlAccountType', 'verifiedName'],
+      select: { id: true, kycFileId: true, amlAccountType: true, verifiedName: true },
       where: { kycFileId: MoreThan(0) },
       order: { kycFileId: 'ASC' },
     });
