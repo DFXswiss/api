@@ -815,6 +815,14 @@ export class Configuration {
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
       blockscoutApiUrl: process.env.CITREA_TESTNET_BLOCKSCOUT_API_URL,
     },
+    clementine: {
+      network: (process.env.CLEMENTINE_NETWORK as 'mainnet' | 'testnet') ?? 'mainnet',
+      cliPath: process.env.CLEMENTINE_CLI_PATH ?? 'clementine-cli',
+      recoveryTaprootAddress: process.env.CLEMENTINE_RECOVERY_TAPROOT_ADDRESS,
+      signerAddress: process.env.CLEMENTINE_SIGNER_ADDRESS,
+      timeoutMs: parseInt(process.env.CLEMENTINE_TIMEOUT_MS ?? '60000'),
+      signingTimeoutMs: parseInt(process.env.CLEMENTINE_SIGNING_TIMEOUT_MS ?? '300000'),
+    },
     lightning: {
       lnbits: {
         apiKey: process.env.LIGHTNING_LNBITS_API_KEY,

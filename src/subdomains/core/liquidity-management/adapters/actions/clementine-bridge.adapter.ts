@@ -1,0 +1,473 @@
+import { Injectable } from '@nestjs/common';
+import { GetConfig } from 'src/config/config';
+import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
+import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
+import { CitreaClient } from 'src/integration/blockchain/citrea/citrea-client';
+import { CitreaService } from 'src/integration/blockchain/citrea/citrea.service';
+import {
+  CLEMENTINE_BRIDGE_AMOUNT_BTC,
+  CLEMENTINE_WITHDRAWAL_DUST_BTC,
+  ClementineClient,
+} from 'src/integration/blockchain/clementine/clementine-client';
+import { ClementineService } from 'src/integration/blockchain/clementine/clementine.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { isAsset } from 'src/shared/models/active';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
+import { LiquidityManagementSystem } from '../../enums';
+import { OrderFailedException } from '../../exceptions/order-failed.exception';
+import { OrderNotProcessableException } from '../../exceptions/order-not-processable.exception';
+import { Command, CorrelationId } from '../../interfaces';
+import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
+
+export enum ClementineBridgeCommands {
+  DEPOSIT = 'deposit', // BTC -> cBTC (10 BTC fixed)
+  WITHDRAW = 'withdraw', // cBTC -> BTC (10 cBTC fixed)
+}
+
+/**
+ * Correlation ID format for tracking operations:
+ * - Deposit: clementine:deposit:{depositAddress}:{btcTxId}
+ * - Withdraw: clementine:withdraw:{step}:{signerAddress}:{destinationAddress}:{withdrawalUtxo}:{optimisticSig}:{operatorSig}
+ *
+ * Withdrawal steps: dust_sent, scanning, signatures_generated, sent_to_bridge, waiting_optimistic, sent_to_operators
+ */
+const CORRELATION_PREFIX = {
+  DEPOSIT: 'clementine:deposit:',
+  WITHDRAW: 'clementine:withdraw:',
+};
+
+// 12 hours in milliseconds for optimistic withdrawal timeout
+const OPTIMISTIC_TIMEOUT_MS = 12 * 60 * 60 * 1000;
+
+interface WithdrawCorrelationData {
+  step: string;
+  signerAddress: string;
+  destinationAddress: string;
+  withdrawalUtxo?: string;
+  optimisticSignature?: string;
+  operatorPaidSignature?: string;
+  sentToBridgeAt?: number;
+}
+
+@Injectable()
+export class ClementineBridgeAdapter extends LiquidityActionAdapter {
+  private readonly logger = new DfxLogger(ClementineBridgeAdapter);
+
+  protected commands = new Map<string, Command>();
+
+  private readonly clementineClient: ClementineClient;
+  private readonly bitcoinClient: BitcoinClient;
+  private readonly citreaClient: CitreaClient;
+  private readonly recoveryTaprootAddress: string;
+  private readonly signerAddress: string;
+
+  constructor(
+    clementineService: ClementineService,
+    bitcoinService: BitcoinService,
+    citreaService: CitreaService,
+    private readonly assetService: AssetService,
+    private readonly bitcoinFeeService: BitcoinFeeService,
+  ) {
+    super(LiquidityManagementSystem.CLEMENTINE_BRIDGE);
+
+    const config = GetConfig().blockchain.clementine;
+    this.recoveryTaprootAddress = config.recoveryTaprootAddress;
+    this.signerAddress = config.signerAddress;
+
+    this.clementineClient = clementineService.getDefaultClient();
+    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
+    this.citreaClient = citreaService.getDefaultClient<CitreaClient>();
+
+    this.commands.set(ClementineBridgeCommands.DEPOSIT, this.deposit.bind(this));
+    this.commands.set(ClementineBridgeCommands.WITHDRAW, this.withdraw.bind(this));
+  }
+
+  async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const {
+      action: { command },
+    } = order;
+
+    if (command === ClementineBridgeCommands.DEPOSIT) {
+      return this.checkDepositCompletion(order);
+    } else if (command === ClementineBridgeCommands.WITHDRAW) {
+      return this.checkWithdrawCompletion(order);
+    }
+
+    throw new OrderFailedException(`Unknown command: ${command}`);
+  }
+
+  validateParams(_command: string, _params: Record<string, unknown>): boolean {
+    // Clementine bridge doesn't require additional params
+    return true;
+  }
+
+  //*** COMMANDS IMPLEMENTATIONS ***//
+
+  /**
+   * Deposit BTC to receive cBTC on Citrea
+   * Note: Clementine uses a fixed bridge amount of 10 BTC
+   */
+  private async deposit(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const {
+      pipeline: {
+        rule: { targetAsset: citreaAsset },
+      },
+    } = order;
+
+    // Validate asset is cBTC on Citrea
+    if (citreaAsset.type !== AssetType.COIN || citreaAsset.blockchain !== Blockchain.CITREA) {
+      throw new OrderNotProcessableException('Clementine deposit only supports cBTC (native coin) on Citrea');
+    }
+
+    // Validate configuration
+    if (!this.recoveryTaprootAddress) {
+      throw new OrderNotProcessableException('Clementine recovery taproot address not configured');
+    }
+
+    // Get the corresponding Bitcoin asset
+    const bitcoinAsset = await this.assetService.getBtcCoin();
+
+    // Check BTC balance on Bitcoin node - must have at least 10 BTC (fixed bridge amount)
+    const btcBalance = await this.bitcoinClient.getNativeCoinBalance();
+    if (btcBalance < CLEMENTINE_BRIDGE_AMOUNT_BTC) {
+      throw new OrderNotProcessableException(
+        `Not enough BTC for Clementine bridge (balance: ${btcBalance}, required: ${CLEMENTINE_BRIDGE_AMOUNT_BTC} BTC)`,
+      );
+    }
+
+    // Start deposit with Clementine CLI
+    const citreaAddress = this.citreaClient.walletAddress;
+    const { depositAddress } = await this.clementineClient.depositStart(this.recoveryTaprootAddress, citreaAddress);
+
+    this.logger.verbose(`Deposit started: sending ${CLEMENTINE_BRIDGE_AMOUNT_BTC} BTC to ${depositAddress}`);
+
+    // Update order with fixed amount
+    order.inputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
+    order.inputAsset = bitcoinAsset.name;
+    order.outputAsset = citreaAsset.name;
+
+    // Send BTC to the deposit address
+    const btcTxId = await this.sendBtcToAddress(depositAddress, CLEMENTINE_BRIDGE_AMOUNT_BTC);
+
+    // Store deposit address and txId in correlation ID for status checks
+    return `${CORRELATION_PREFIX.DEPOSIT}${depositAddress}:${btcTxId}`;
+  }
+
+  /**
+   * Withdraw cBTC to receive BTC on Bitcoin
+   * Note: Clementine uses a fixed bridge amount of 10 BTC
+   *
+   * Withdrawal is a multi-step process:
+   * 1. Call withdraw start
+   * 2. Send 330 satoshis to signer address
+   * 3. Scan for UTXO
+   * 4. Generate signatures
+   * 5. Send to bridge contract (burns cBTC)
+   * 6. Wait for optimistic withdrawal (12 hours)
+   * 7. If not complete, send to operators
+   */
+  private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const {
+      pipeline: {
+        rule: { targetAsset: bitcoinAsset },
+      },
+    } = order;
+
+    // Validate asset is BTC on Bitcoin
+    if (bitcoinAsset.type !== AssetType.COIN || bitcoinAsset.blockchain !== Blockchain.BITCOIN) {
+      throw new OrderNotProcessableException('Clementine withdraw only supports BTC (native coin) on Bitcoin');
+    }
+
+    // Validate configuration
+    if (!this.signerAddress) {
+      throw new OrderNotProcessableException('Clementine signer address not configured');
+    }
+
+    // Get the corresponding Citrea cBTC asset
+    const citreaAsset = await this.assetService.getCitreaCoin();
+
+    // Check cBTC balance on Citrea - must have at least 10 cBTC (fixed bridge amount)
+    const cbtcBalance = await this.citreaClient.getNativeCoinBalance();
+    if (cbtcBalance < CLEMENTINE_BRIDGE_AMOUNT_BTC) {
+      throw new OrderNotProcessableException(
+        `Not enough cBTC for Clementine bridge (balance: ${cbtcBalance}, required: ${CLEMENTINE_BRIDGE_AMOUNT_BTC} cBTC)`,
+      );
+    }
+
+    // Get destination address (our Bitcoin wallet)
+    const destinationAddress = this.bitcoinClient.walletAddress;
+
+    // Step 1: Start withdrawal
+    await this.clementineClient.withdrawStart(this.signerAddress, destinationAddress);
+    this.logger.verbose(`Withdrawal started for ${this.signerAddress} -> ${destinationAddress}`);
+
+    // Step 2: Send 330 satoshis to signer address to create withdrawal UTXO
+    const dustTxId = await this.sendBtcToAddress(this.signerAddress, CLEMENTINE_WITHDRAWAL_DUST_BTC);
+    this.logger.verbose(`Sent ${CLEMENTINE_WITHDRAWAL_DUST_BTC} BTC (330 sats) to signer: ${dustTxId}`);
+
+    // Update order with fixed amount
+    order.inputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
+    order.inputAsset = citreaAsset.name;
+    order.outputAsset = bitcoinAsset.name;
+
+    // Store withdrawal state in correlation ID
+    const correlationData: WithdrawCorrelationData = {
+      step: 'dust_sent',
+      signerAddress: this.signerAddress,
+      destinationAddress,
+    };
+
+    return `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(correlationData)}`;
+  }
+
+  //*** COMPLETION CHECKS ***//
+
+  private async checkDepositCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const {
+      pipeline: {
+        rule: { target: asset },
+      },
+    } = order;
+
+    if (!isAsset(asset)) {
+      throw new Error('ClementineBridgeAdapter.checkDepositCompletion(...) supports only Asset instances as an input.');
+    }
+
+    try {
+      // Extract deposit address and BTC txId from correlation ID
+      const correlationData = order.correlationId.replace(CORRELATION_PREFIX.DEPOSIT, '');
+      const [depositAddress, btcTxId] = correlationData.split(':');
+
+      // Step 1: Verify the Bitcoin transaction is confirmed
+      if (btcTxId) {
+        const isConfirmed = await this.bitcoinClient.isTxComplete(btcTxId, 6); // Clementine requires 6+ confirmations
+        if (!isConfirmed) {
+          this.logger.verbose(`Deposit ${depositAddress}: BTC transaction not yet confirmed (need 6+)`);
+          return false;
+        }
+      }
+
+      // Step 2: Check Clementine deposit status
+      const depositStatus = await this.clementineClient.depositStatus(depositAddress);
+      this.logger.verbose(`Deposit ${depositAddress}: Clementine status = ${depositStatus.status}`);
+
+      if (depositStatus.status === 'failed') {
+        throw new OrderFailedException(`Clementine deposit failed: ${depositStatus.errorMessage ?? 'Unknown error'}`);
+      }
+
+      if (depositStatus.status === 'completed') {
+        order.outputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      throw e instanceof OrderFailedException ? e : new OrderFailedException(e.message);
+    }
+  }
+
+  private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const {
+      pipeline: {
+        rule: { target: asset },
+      },
+    } = order;
+
+    if (!isAsset(asset)) {
+      throw new Error(
+        'ClementineBridgeAdapter.checkWithdrawCompletion(...) supports only Asset instances as an input.',
+      );
+    }
+
+    try {
+      const correlationData = this.decodeWithdrawCorrelation(
+        order.correlationId.replace(CORRELATION_PREFIX.WITHDRAW, ''),
+      );
+
+      this.logger.verbose(`Withdrawal check: step=${correlationData.step}`);
+
+      // Process based on current step
+      switch (correlationData.step) {
+        case 'dust_sent':
+          return this.processWithdrawScanStep(order, correlationData);
+
+        case 'scanning':
+          return this.processWithdrawScanStep(order, correlationData);
+
+        case 'signatures_generated':
+          return this.processWithdrawSendStep(order, correlationData);
+
+        case 'sent_to_bridge':
+          return this.processWithdrawWaitStep(order, correlationData);
+
+        case 'waiting_optimistic':
+          return this.processWithdrawOptimisticStep(order, correlationData);
+
+        case 'sent_to_operators':
+          return this.processWithdrawFinalStep(order, correlationData);
+
+        default:
+          throw new OrderFailedException(`Unknown withdrawal step: ${correlationData.step}`);
+      }
+    } catch (e) {
+      throw e instanceof OrderFailedException ? e : new OrderFailedException(e.message);
+    }
+  }
+
+  private async processWithdrawScanStep(
+    order: LiquidityManagementOrder,
+    data: WithdrawCorrelationData,
+  ): Promise<boolean> {
+    // Scan for withdrawal UTXO
+    const scanResult = await this.clementineClient.withdrawScan(data.signerAddress, data.destinationAddress);
+
+    if (!scanResult) {
+      this.logger.verbose(`Withdrawal: no UTXO found yet, still scanning`);
+      data.step = 'scanning';
+      order.correlationId = `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(data)}`;
+      return false;
+    }
+
+    this.logger.verbose(`Withdrawal: found UTXO ${scanResult.withdrawalUtxo}`);
+    data.withdrawalUtxo = scanResult.withdrawalUtxo;
+
+    // Generate signatures
+    const signatures = await this.clementineClient.withdrawGenerateSignatures(
+      data.signerAddress,
+      data.destinationAddress,
+      data.withdrawalUtxo,
+    );
+
+    data.optimisticSignature = signatures.optimisticSignature;
+    data.operatorPaidSignature = signatures.operatorPaidSignature;
+    data.step = 'signatures_generated';
+
+    this.logger.verbose(`Withdrawal: signatures generated`);
+    order.correlationId = `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(data)}`;
+    return false;
+  }
+
+  private async processWithdrawSendStep(
+    order: LiquidityManagementOrder,
+    data: WithdrawCorrelationData,
+  ): Promise<boolean> {
+    // Send to bridge contract (burns cBTC)
+    await this.clementineClient.withdrawSend(
+      data.signerAddress,
+      data.destinationAddress,
+      data.withdrawalUtxo,
+      data.optimisticSignature,
+    );
+
+    data.step = 'sent_to_bridge';
+    data.sentToBridgeAt = Date.now();
+
+    this.logger.verbose(`Withdrawal: sent to bridge contract`);
+    order.correlationId = `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(data)}`;
+    return false;
+  }
+
+  private async processWithdrawWaitStep(
+    order: LiquidityManagementOrder,
+    data: WithdrawCorrelationData,
+  ): Promise<boolean> {
+    // Check status
+    const status = await this.clementineClient.withdrawStatus(data.withdrawalUtxo);
+    this.logger.verbose(`Withdrawal: status = ${status.status}`);
+
+    if (status.status === 'failed') {
+      throw new OrderFailedException(`Clementine withdrawal failed: ${status.errorMessage ?? 'Unknown error'}`);
+    }
+
+    if (status.status === 'completed') {
+      order.outputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
+      return true;
+    }
+
+    // Move to waiting_optimistic state
+    data.step = 'waiting_optimistic';
+    order.correlationId = `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(data)}`;
+    return false;
+  }
+
+  private async processWithdrawOptimisticStep(
+    order: LiquidityManagementOrder,
+    data: WithdrawCorrelationData,
+  ): Promise<boolean> {
+    // Check status
+    const status = await this.clementineClient.withdrawStatus(data.withdrawalUtxo);
+    this.logger.verbose(`Withdrawal: optimistic status = ${status.status}`);
+
+    if (status.status === 'failed') {
+      throw new OrderFailedException(`Clementine withdrawal failed: ${status.errorMessage ?? 'Unknown error'}`);
+    }
+
+    if (status.status === 'completed') {
+      order.outputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
+      return true;
+    }
+
+    // Check if 12 hours have passed - if so, send to operators
+    const elapsed = Date.now() - (data.sentToBridgeAt ?? 0);
+    if (elapsed > OPTIMISTIC_TIMEOUT_MS) {
+      this.logger.verbose(`Withdrawal: 12 hours elapsed, sending to operators`);
+
+      await this.clementineClient.withdrawSendToOperators(
+        data.signerAddress,
+        data.destinationAddress,
+        data.withdrawalUtxo,
+        data.operatorPaidSignature,
+      );
+
+      data.step = 'sent_to_operators';
+      order.correlationId = `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(data)}`;
+    }
+
+    return false;
+  }
+
+  private async processWithdrawFinalStep(
+    order: LiquidityManagementOrder,
+    data: WithdrawCorrelationData,
+  ): Promise<boolean> {
+    // Check status after sending to operators
+    const status = await this.clementineClient.withdrawStatus(data.withdrawalUtxo);
+    this.logger.verbose(`Withdrawal: final status = ${status.status}`);
+
+    if (status.status === 'failed') {
+      throw new OrderFailedException(`Clementine withdrawal failed: ${status.errorMessage ?? 'Unknown error'}`);
+    }
+
+    if (status.status === 'completed') {
+      order.outputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
+      return true;
+    }
+
+    return false;
+  }
+
+  //*** HELPER METHODS ***//
+
+  private async sendBtcToAddress(address: string, amount: number): Promise<string> {
+    const feeRate = await this.bitcoinFeeService.getRecommendedFeeRate();
+    const txId = await this.bitcoinClient.sendMany([{ addressTo: address, amount }], feeRate);
+
+    if (!txId) {
+      throw new OrderFailedException(`Failed to send BTC to address ${address}`);
+    }
+
+    return txId;
+  }
+
+  private encodeWithdrawCorrelation(data: WithdrawCorrelationData): string {
+    return Buffer.from(JSON.stringify(data)).toString('base64');
+  }
+
+  private decodeWithdrawCorrelation(encoded: string): WithdrawCorrelationData {
+    return JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'));
+  }
+}

@@ -10,6 +10,7 @@ import { BaseModule } from './base/base.module';
 import { BscModule } from './bsc/bsc.module';
 import { CitreaModule } from './citrea/citrea.module';
 import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
+import { ClementineModule } from './clementine/clementine.module';
 import { DEuroModule } from './deuro/deuro.module';
 import { Ebel2xModule } from './ebel2x/ebel2x.module';
 import { JuiceModule } from './juice/juice.module';
@@ -61,6 +62,7 @@ import { ZanoModule } from './zano/zano.module';
     CardanoModule,
     CitreaModule,
     CitreaTestnetModule,
+    ClementineModule,
     RealUnitBlockchainModule,
     Eip7702DelegationModule,
     PimlicoPaymasterModule,
@@ -90,6 +92,7 @@ import { ZanoModule } from './zano/zano.module';
     CardanoModule,
     CitreaModule,
     CitreaTestnetModule,
+    ClementineModule,
     CryptoService,
     BlockchainRegistryService,
     TxValidationService,
