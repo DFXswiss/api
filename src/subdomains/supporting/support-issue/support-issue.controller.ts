@@ -69,8 +69,8 @@ export class SupportIssueController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async getIssueData(@Param('id') id: string): Promise<SupportIssueInternalDataDto> {
-    return this.supportIssueService.getIssueData(+id);
+  async getIssueData(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SupportIssueInternalDataDto> {
+    return this.supportIssueService.getIssueData(+id, jwt.role);
   }
 
   @Post(':id/message')

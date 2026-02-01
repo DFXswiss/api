@@ -6,6 +6,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { FundOrigin, InvestmentDate, LimitRequestDecision } from '../entities/limit-request.entity';
 import { Department } from '../enums/department.enum';
 import {
   SupportIssueInternalState,
@@ -164,8 +165,24 @@ export class SupportIssueInternalTransactionDataDto {
   @ApiProperty({ type: SupportIssueInternalWalletDto })
   wallet: SupportIssueInternalWalletDto;
 
+export class SupportIssueInternalLimitRequestDataDto {
   @ApiProperty()
-  isComplete: boolean;
+  id: number;
+
+  @ApiProperty()
+  limit: number;
+
+  @ApiPropertyOptional()
+  acceptedLimit?: number;
+
+  @ApiProperty()
+  investmentDate: InvestmentDate;
+
+  @ApiProperty()
+  fundOrigin: FundOrigin;
+
+  @ApiPropertyOptional()
+  decision?: LimitRequestDecision;
 }
 
 export class SupportIssueInternalDataDto {
@@ -198,6 +215,9 @@ export class SupportIssueInternalDataDto {
 
   @ApiProperty({ type: SupportIssueInternalTransactionDataDto })
   transaction: SupportIssueInternalTransactionDataDto;
+
+  @ApiPropertyOptional({ type: SupportIssueInternalLimitRequestDataDto })
+  limitRequest?: SupportIssueInternalLimitRequestDataDto;
 }
 
 export const SupportIssueStateMapper: {

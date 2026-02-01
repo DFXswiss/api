@@ -1,3 +1,4 @@
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
@@ -8,6 +9,7 @@ import {
   SupportIssueDto,
   SupportIssueInternalAccountDataDto,
   SupportIssueInternalDataDto,
+  SupportIssueInternalLimitRequestDataDto,
   SupportIssueInternalTransactionDataDto,
   SupportIssueLimitRequestDto,
   SupportIssueStateMapper,
@@ -32,7 +34,7 @@ export class SupportIssueDtoMapper {
     return Object.assign(new SupportIssueDto(), dto);
   }
 
-  static mapSupportIssueData(supportIssue: SupportIssue): SupportIssueInternalDataDto {
+  static mapSupportIssueData(supportIssue: SupportIssue, role: UserRole): SupportIssueInternalDataDto {
     const dto: SupportIssueInternalDataDto = {
       id: supportIssue.id,
       created: supportIssue.created,
@@ -44,6 +46,8 @@ export class SupportIssueDtoMapper {
       name: supportIssue.name,
       account: SupportIssueDtoMapper.mapUserData(supportIssue.userData),
       transaction: SupportIssueDtoMapper.mapTransactionData(supportIssue.transaction),
+      limitRequest:
+        role === UserRole.SUPPORT ? undefined : SupportIssueDtoMapper.mapLimitRequestData(supportIssue.limitRequest),
     };
 
     return Object.assign(new SupportIssueInternalDataDto(), dto);
@@ -59,6 +63,17 @@ export class SupportIssueDtoMapper {
     };
 
     return Object.assign(new SupportMessageDto(), dto);
+  }
+
+  static mapLimitRequestData(limitRequest: LimitRequest): SupportIssueInternalLimitRequestDataDto {
+    return {
+      id: limitRequest.id,
+      fundOrigin: limitRequest.fundOrigin,
+      investmentDate: limitRequest.investmentDate,
+      limit: limitRequest.limit,
+      acceptedLimit: limitRequest.acceptedLimit,
+      decision: limitRequest.decision,
+    };
   }
 
   static mapUserData(userData: UserData): SupportIssueInternalAccountDataDto {
