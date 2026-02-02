@@ -609,16 +609,16 @@ describe('BitcoinClient', () => {
   // --- Unimplemented Methods Tests --- //
 
   describe('Unimplemented Token Methods', () => {
-    it('getToken() should throw "Bitcoin has no token"', async () => {
-      await expect(client.getToken({} as any)).rejects.toThrow('Bitcoin has no token');
+    it('getToken() should throw "Bitcoin-based chain has no token"', async () => {
+      await expect(client.getToken({} as any)).rejects.toThrow('Bitcoin-based chain has no token');
     });
 
-    it('getTokenBalance() should throw "Bitcoin has no token"', async () => {
-      await expect(client.getTokenBalance({} as any)).rejects.toThrow('Bitcoin has no token');
+    it('getTokenBalance() should throw "Bitcoin-based chain has no token"', async () => {
+      await expect(client.getTokenBalance({} as any)).rejects.toThrow('Bitcoin-based chain has no token');
     });
 
-    it('getTokenBalances() should throw "Bitcoin has no token"', async () => {
-      await expect(client.getTokenBalances([])).rejects.toThrow('Bitcoin has no token');
+    it('getTokenBalances() should throw "Bitcoin-based chain has no token"', async () => {
+      await expect(client.getTokenBalances([])).rejects.toThrow('Bitcoin-based chain has no token');
     });
   });
 });
