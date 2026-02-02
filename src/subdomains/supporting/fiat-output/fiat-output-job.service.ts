@@ -196,9 +196,7 @@ export class FiatOutputJobService {
 
       const pendingFiatOutputs = accountIbanGroup.filter(
         (tx) =>
-          tx.isReadyDate &&
-          !tx.bankTx &&
-          (!tx.bank || tx.bank.name !== IbanBankName.YAPEAL || !tx.isTransmittedDate),
+          tx.isReadyDate && !tx.bankTx && (!tx.bank || tx.bank.name !== IbanBankName.YAPEAL || !tx.isTransmittedDate),
       );
       const pendingBalance = Util.sumObjValue(pendingFiatOutputs, 'bankAmount');
 
