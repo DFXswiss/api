@@ -349,7 +349,11 @@ export class RealUnitService {
     return !success;
   }
 
-  async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
+  async registerEmail(
+    userDataId: number,
+    walletAddress: string,
+    dto: RealUnitEmailRegistrationDto,
+  ): Promise<RealUnitEmailRegistrationStatus> {
     const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true, wallet: true });
     if (!userData) throw new NotFoundException('User not found');
 
@@ -360,7 +364,7 @@ export class RealUnitService {
     const isNewEmail = !userData.mail || !Util.equalsIgnoreCase(dto.email, userData.mail);
 
     if (isNewEmail) {
-      if (userData.mail && this.hasRegistrationForWallet(userData, dto.walletAddress)) {
+      if (userData.mail && this.hasRegistrationForWallet(userData, walletAddress)) {
         throw new BadRequestException('Not allowed to register a new email for this address');
       }
 
