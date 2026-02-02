@@ -57,8 +57,33 @@ export class FiatOutputJobService {
     await this.checkTransmission();
     await this.transmitYapealPayments();
     await this.transmitOlkypayPayments();
-    await this.checkOlkypayOrderStatus();
     await this.searchOutgoingBankTx();
+  }
+
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT })
+  async checkOlkypayOrderStatus(): Promise<void> {
+    if (DisabledProcess(Process.FIAT_OUTPUT_OLKYPAY_STATUS_CHECK)) return;
+    if (!this.olkypayService.isAvailable()) return;
+
+    const entities = await this.fiatOutputRepo.find({
+      where: {
+        olkyOrderId: Not(IsNull()),
+        isApprovedDate: IsNull(),
+        isComplete: false,
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        const order = await this.olkypayService.getPaymentOrder(+entity.olkyOrderId);
+
+        if (order.orderStatus !== OlkypayOrderStatus.TO_VALIDATE) {
+          await this.fiatOutputRepo.update(entity.id, { isApprovedDate: new Date() });
+        }
+      } catch (e) {
+        this.logger.error(`Failed to check OLKYPAY order status for fiat output ${entity.id}:`, e);
+      }
+    }
   }
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -439,31 +464,6 @@ export class FiatOutputJobService {
           const errorMsg = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || String(e);
           await this.fiatOutputRepo.update(entity.id, { info: `OLKYPAY error: ${errorMsg}`.substring(0, 256) });
         }
-      }
-    }
-  }
-
-  private async checkOlkypayOrderStatus(): Promise<void> {
-    if (DisabledProcess(Process.FIAT_OUTPUT_OLKYPAY_STATUS_CHECK)) return;
-    if (!this.olkypayService.isAvailable()) return;
-
-    const entities = await this.fiatOutputRepo.find({
-      where: {
-        olkyOrderId: Not(IsNull()),
-        isApprovedDate: IsNull(),
-        isComplete: false,
-      },
-    });
-
-    for (const entity of entities) {
-      try {
-        const order = await this.olkypayService.getPaymentOrder(+entity.olkyOrderId);
-
-        if (order.orderStatus !== OlkypayOrderStatus.TO_VALIDATE) {
-          await this.fiatOutputRepo.update(entity.id, { isApprovedDate: new Date() });
-        }
-      } catch (e) {
-        this.logger.error(`Failed to check OLKYPAY order status for fiat output ${entity.id}:`, e);
       }
     }
   }
