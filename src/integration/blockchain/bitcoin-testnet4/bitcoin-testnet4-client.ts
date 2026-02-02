@@ -2,9 +2,9 @@ import { Currency } from '@uniswap/sdk-core';
 import { Config, GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
-import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
-import { BlockchainSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
-import { NodeClient, NodeClientConfig } from './node-client';
+import { NodeClient, NodeClientConfig } from '../bitcoin/node/node-client';
+import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
+import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 
 export interface TransactionHistory {
   address: string;
@@ -25,22 +25,22 @@ export interface TestMempoolResult {
   'reject-reason': string;
 }
 
-export class BitcoinClient extends NodeClient {
+export class BitcoinTestnet4Client extends NodeClient {
   constructor(http: HttpService, url: string) {
-    const defaultConfig = GetConfig().blockchain.default;
+    const testnet4Config = GetConfig().blockchain.bitcoinTestnet4;
 
     const config: NodeClientConfig = {
-      user: defaultConfig.user,
-      password: defaultConfig.password,
-      walletPassword: defaultConfig.walletPassword,
-      allowUnconfirmedUtxos: defaultConfig.allowUnconfirmedUtxos,
+      user: testnet4Config.user,
+      password: testnet4Config.password,
+      walletPassword: testnet4Config.walletPassword,
+      allowUnconfirmedUtxos: true,
     };
 
     super(http, url, config);
   }
 
   get walletAddress(): string {
-    return Config.blockchain.default.btcOutput.address;
+    return Config.blockchain.bitcoinTestnet4.btcTestnet4Output.address;
   }
 
   async send(
@@ -149,14 +149,14 @@ export class BitcoinClient extends NodeClient {
 
   // --- UNIMPLEMENTED METHODS --- //
   async getToken(_: Asset): Promise<Currency> {
-    throw new Error('Bitcoin has no token');
+    throw new Error('Bitcoin Testnet4 has no token');
   }
 
   async getTokenBalance(_: Asset, __?: string): Promise<number> {
-    throw new Error('Bitcoin has no token');
+    throw new Error('Bitcoin Testnet4 has no token');
   }
 
   async getTokenBalances(_: Asset[], __?: string): Promise<BlockchainTokenBalance[]> {
-    throw new Error('Bitcoin has no token');
+    throw new Error('Bitcoin Testnet4 has no token');
   }
 }

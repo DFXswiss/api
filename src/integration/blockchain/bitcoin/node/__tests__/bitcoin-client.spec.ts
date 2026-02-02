@@ -8,9 +8,9 @@
 import { HttpService } from 'src/shared/services/http.service';
 import { BitcoinClient } from '../bitcoin-client';
 
-// Mock Config
-jest.mock('src/config/config', () => ({
-  Config: {
+// Mock Config and GetConfig
+jest.mock('src/config/config', () => {
+  const mockConfig = {
     blockchain: {
       default: {
         user: 'testuser',
@@ -22,8 +22,12 @@ jest.mock('src/config/config', () => ({
         },
       },
     },
-  },
-}));
+  };
+  return {
+    Config: mockConfig,
+    GetConfig: () => mockConfig,
+  };
+});
 
 describe('BitcoinClient', () => {
   let client: BitcoinClient;
