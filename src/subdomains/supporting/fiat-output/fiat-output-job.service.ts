@@ -198,7 +198,7 @@ export class FiatOutputJobService {
         (tx) =>
           tx.isReadyDate &&
           !tx.bankTx &&
-          (!tx.bank || ![IbanBankName.YAPEAL, IbanBankName.OLKY].includes(tx.bank.name) || !tx.isTransmittedDate),
+          (!tx.bank || tx.bank.name !== IbanBankName.YAPEAL || !tx.isTransmittedDate),
       );
       const pendingBalance = Util.sumObjValue(pendingFiatOutputs, 'bankAmount');
 
