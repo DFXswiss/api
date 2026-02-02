@@ -1,4 +1,4 @@
-import { spawnSync, SpawnSyncReturns } from 'child_process';
+import { spawn } from 'child_process';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface ClementineConfig {
@@ -60,7 +60,7 @@ export class ClementineClient {
    * Creates ~/.clementine/bridge_cli_config.toml
    */
   async init(): Promise<void> {
-    this.executeCommand(['init']);
+    await this.executeCommand(['init']);
   }
 
   /**
@@ -78,7 +78,7 @@ export class ClementineClient {
    * @param type Wallet type: 'deposit' or 'withdrawal'
    */
   async walletCreate(name: string, type: 'deposit' | 'withdrawal'): Promise<void> {
-    this.executeCommand(['wallet', 'create', name, type]);
+    await this.executeCommand(['wallet', 'create', name, type]);
   }
 
   // --- DEPOSIT OPERATIONS --- //
@@ -91,7 +91,7 @@ export class ClementineClient {
    * @returns The deposit address to send 10 BTC to
    */
   async depositStart(recoveryTaprootAddress: string, citreaAddress: string): Promise<DepositStartResult> {
-    const output = this.executeCommand(['deposit', 'start', recoveryTaprootAddress, citreaAddress]);
+    const output = await this.executeCommand(['deposit', 'start', recoveryTaprootAddress, citreaAddress]);
 
     // Parse the deposit address from CLI output
     const addressMatch =
@@ -111,7 +111,7 @@ export class ClementineClient {
    * @param depositAddress The deposit address to check
    */
   async depositStatus(depositAddress: string): Promise<DepositStatusResult> {
-    const output = this.executeCommand(['deposit', 'status', depositAddress]);
+    const output = await this.executeCommand(['deposit', 'status', depositAddress]);
     return this.parseDepositStatus(output, depositAddress);
   }
 
@@ -162,7 +162,7 @@ export class ClementineClient {
    * @returns The signer address (user must send 330 sats to this)
    */
   async withdrawStart(signerAddress: string, destinationAddress: string): Promise<WithdrawStartResult> {
-    this.executeCommand(['withdraw', 'start', signerAddress, destinationAddress]);
+    await this.executeCommand(['withdraw', 'start', signerAddress, destinationAddress]);
     return { signerAddress };
   }
 
@@ -174,7 +174,7 @@ export class ClementineClient {
    * @returns The withdrawal UTXO if found
    */
   async withdrawScan(signerAddress: string, destinationAddress: string): Promise<WithdrawScanResult | null> {
-    const output = this.executeCommand(['withdraw', 'scan', signerAddress, destinationAddress]);
+    const output = await this.executeCommand(['withdraw', 'scan', signerAddress, destinationAddress]);
 
     // Parse withdrawal UTXO from output (format: txid:vout)
     const utxoMatch = output.match(/([a-f0-9]{64}:\d+)/i);
@@ -203,7 +203,7 @@ export class ClementineClient {
     destinationAddress: string,
     withdrawalUtxo: string,
   ): Promise<WithdrawSignaturesResult> {
-    const output = this.executeCommand(
+    const output = await this.executeCommand(
       ['withdraw', 'generate-withdrawal-signatures', signerAddress, destinationAddress, withdrawalUtxo],
       this.config.signingTimeoutMs,
     );
@@ -236,7 +236,14 @@ export class ClementineClient {
     withdrawalUtxo: string,
     optimisticSignature: string,
   ): Promise<void> {
-    this.executeCommand(['withdraw', 'send', signerAddress, destinationAddress, withdrawalUtxo, optimisticSignature]);
+    await this.executeCommand([
+      'withdraw',
+      'send',
+      signerAddress,
+      destinationAddress,
+      withdrawalUtxo,
+      optimisticSignature,
+    ]);
   }
 
   /**
@@ -245,7 +252,7 @@ export class ClementineClient {
    * @param withdrawalUtxo The withdrawal UTXO to check (format: txid:vout)
    */
   async withdrawStatus(withdrawalUtxo: string): Promise<WithdrawStatusResult> {
-    const output = this.executeCommand(['withdraw', 'status', withdrawalUtxo]);
+    const output = await this.executeCommand(['withdraw', 'status', withdrawalUtxo]);
     return this.parseWithdrawStatus(output, withdrawalUtxo);
   }
 
@@ -263,7 +270,7 @@ export class ClementineClient {
     withdrawalUtxo: string,
     operatorPaidSignature: string,
   ): Promise<void> {
-    this.executeCommand([
+    await this.executeCommand([
       'withdraw',
       'send-withdrawal-signature-to-operators',
       signerAddress,
@@ -275,32 +282,84 @@ export class ClementineClient {
 
   // --- INTERNAL METHODS --- //
 
-  private executeCommand(args: string[], timeout?: number): string {
+  private async executeCommand(args: string[], timeout?: number): Promise<string> {
     const fullArgs = this.buildArgs(args);
     this.logger.verbose(`Executing: ${this.config.cliPath} ${fullArgs.join(' ')}`);
 
-    const result = this.spawnCommand(fullArgs, timeout ?? this.config.timeoutMs);
-
-    if (result.error) {
-      this.logger.error(`Clementine CLI spawn error: ${result.error.message}`);
-      throw new Error(`Clementine CLI spawn error: ${result.error.message}`);
+    try {
+      const output = await this.spawnAsync(fullArgs, timeout ?? this.config.timeoutMs);
+      return output;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Clementine CLI error: ${message}`);
+      throw new Error(`Clementine CLI failed: ${message}`);
     }
-
-    if (result.status !== 0) {
-      const stderr = result.stderr?.toString() ?? '';
-      const stdout = result.stdout?.toString() ?? '';
-      this.logger.error(`Clementine CLI failed (exit code ${result.status}): ${stderr || stdout}`);
-      throw new Error(`Clementine CLI failed (exit code ${result.status}): ${stderr || stdout}`);
-    }
-
-    return result.stdout?.toString() ?? '';
   }
 
-  private spawnCommand(args: string[], timeout: number): SpawnSyncReturns<Buffer> {
-    return spawnSync(this.config.cliPath, args, {
-      timeout,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      encoding: 'buffer',
+  private spawnAsync(args: string[], timeout: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let stdout = '';
+      let stderr = '';
+      let timeoutId: NodeJS.Timeout | null = null;
+      let isSettled = false;
+
+      const proc = spawn(this.config.cliPath, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      const cleanup = (): void => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      };
+
+      const settle = (error?: Error, result?: string): void => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanup();
+
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result ?? '');
+        }
+      };
+
+      // Timeout handling
+      timeoutId = setTimeout(() => {
+        proc.kill('SIGTERM');
+
+        // Force kill after 5 seconds if process doesn't respond to SIGTERM
+        setTimeout(() => {
+          if (proc.exitCode === null) {
+            // Process still running, force kill
+            proc.kill('SIGKILL');
+          }
+        }, 5000);
+
+        settle(new Error(`Command timed out after ${timeout}ms`));
+      }, timeout);
+
+      proc.stdout.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      proc.on('error', (error: Error) => {
+        settle(new Error(`Spawn error: ${error.message}`));
+      });
+
+      proc.on('close', (code: number | null) => {
+        if (code === 0) {
+          settle(undefined, stdout);
+        } else {
+          settle(new Error(`Exit code ${code}: ${stderr || stdout}`));
+        }
+      });
     });
   }
 
