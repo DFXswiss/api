@@ -349,17 +349,12 @@ export class RealUnitService {
     return !success;
   }
 
-  async registerEmail(
-    userDataId: number,
-    jwtAddress: string,
-    dto: RealUnitEmailRegistrationDto,
-  ): Promise<RealUnitEmailRegistrationStatus> {
-    const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true });
+  async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true, wallet: true });
     if (!userData) throw new NotFoundException('User not found');
 
-    // Validate wallet address matches authenticated wallet
-    if (!Util.equalsIgnoreCase(dto.walletAddress, jwtAddress)) {
-      throw new BadRequestException('Wallet address does not match authenticated wallet');
+    if (userData.wallet?.name !== 'RealUnit') {
+      throw new BadRequestException('Registration is only allowed from RealUnit wallet');
     }
 
     const isNewEmail = !userData.mail || !Util.equalsIgnoreCase(dto.email, userData.mail);

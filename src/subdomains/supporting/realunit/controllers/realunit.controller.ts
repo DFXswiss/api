@@ -339,7 +339,7 @@ export class RealUnitController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitEmailRegistrationDto,
   ): Promise<RealUnitEmailRegistrationResponseDto> {
-    const status = await this.realunitService.registerEmail(jwt.account, jwt.address, dto);
+    const status = await this.realunitService.registerEmail(jwt.account, dto);
     return { status };
   }
 
