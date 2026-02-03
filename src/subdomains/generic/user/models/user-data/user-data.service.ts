@@ -1163,24 +1163,21 @@ export class UserDataService {
   }
 
   private async countByDateRange(field: string, start: Date, end: Date): Promise<number> {
-    const result = await this.userDataRepo
+    return this.userDataRepo
       .createQueryBuilder('userData')
       .where(`userData.${field} >= :start`, { start })
       .andWhere(`userData.${field} <= :end`, { end })
       .getCount();
-
-    return result;
   }
 
   private async getMaxKycFileIdByDateRange(field: string, start: Date, end: Date): Promise<number> {
-    const result = await this.userDataRepo
+    return this.userDataRepo
       .createQueryBuilder('userData')
       .select('MAX(userData.kycFileId)', 'maxKycFileId')
       .where(`userData.${field} >= :start`, { start })
       .andWhere(`userData.${field} <= :end`, { end })
-      .getRawOne();
-
-    return result?.maxKycFileId ?? 0;
+      .getRawOne<{ maxKycFileId: number }>()
+      .then((r) => r?.maxKycFileId ?? 0);
   }
 }
 
