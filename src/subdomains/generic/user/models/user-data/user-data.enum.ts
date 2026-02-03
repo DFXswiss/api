@@ -28,7 +28,7 @@ export enum PhoneCallPreferredTimes {
 
 export enum PhoneCallStatus {
   REPEAT = 'Repeat',
-  DENIED = 'Denied',
+  REJECTED = 'Rejected',
   UNAVAILABLE = 'Unavailable',
   FAILED = 'Failed',
   COMPLETED = 'Completed',

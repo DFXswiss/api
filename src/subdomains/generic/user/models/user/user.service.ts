@@ -209,12 +209,12 @@ export class UserService {
   async updatePhoneCall(userDataId: number, dto: UpdatePhoneCallDto): Promise<void> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     if (!userData) throw new NotFoundException('Account not found');
-    if (userData.phoneCallStatus && (dto.denyCall || dto.repeatCall))
+    if (userData.phoneCallStatus && (dto.rejectCall || dto.repeatCall))
       throw new BadRequestException('Phone call status is already set');
 
     const update: Partial<UserData> = {
       phoneCallTimes: dto.preferredTimes ? dto.preferredTimes.join(';') : undefined,
-      phoneCallStatus: dto.denyCall ? PhoneCallStatus.DENIED : dto.repeatCall ? PhoneCallStatus.REPEAT : undefined,
+      phoneCallStatus: dto.rejectCall ? PhoneCallStatus.REJECTED : dto.repeatCall ? PhoneCallStatus.REPEAT : undefined,
     };
 
     await this.userDataRepo.update(userData.id, update);

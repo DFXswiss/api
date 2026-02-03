@@ -28,7 +28,7 @@ export enum SupportIssueReason {
   // verification call
   REJECT_CALL = 'RejectCall',
   REPEAT_CALL = 'RepeatCall',
-  CALL_TIME = 'CallTime',
+  PREFERRED_CALL_TIME = 'PreferredCallTime',
 
   // notification of changes issue
   NAME_CHANGED = 'NameChanged',

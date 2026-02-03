@@ -73,13 +73,13 @@ export class UpdatePhoneCallDto {
 
   @ApiPropertyOptional()
   @IsNotEmpty()
-  @ValidateIf((a: UpdatePhoneCallDto) => Boolean(a.denyCall || !a.repeatCall))
+  @ValidateIf((a: UpdatePhoneCallDto) => Boolean(a.rejectCall || !a.repeatCall))
   @IsBoolean()
-  denyCall?: boolean;
+  rejectCall?: boolean;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
-  @ValidateIf((a: UpdatePhoneCallDto) => Boolean(a.repeatCall || !a.denyCall))
+  @ValidateIf((a: UpdatePhoneCallDto) => Boolean(a.repeatCall || !a.rejectCall))
   @IsBoolean()
   repeatCall?: boolean;
 }
