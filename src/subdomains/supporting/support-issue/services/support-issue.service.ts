@@ -26,7 +26,6 @@ import { SupportIssueDto, SupportIssueInternalDataDto, SupportMessageDto } from 
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
-import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
