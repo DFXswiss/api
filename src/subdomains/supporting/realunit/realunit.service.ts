@@ -641,6 +641,7 @@ export class RealUnitService {
       // Set KYC Level 20 if not already higher (same as NATIONALITY_DATA step)
       if (kycStep.userData.kycLevel < KycLevel.LEVEL_20) {
         await this.userDataService.updateUserDataInternal(kycStep.userData, { kycLevel: KycLevel.LEVEL_20 });
+        await this.kycService.createKycLevelLog(kycStep.userData, kycStep.userData.kycLevel);
       }
 
       return true;
