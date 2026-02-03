@@ -43,7 +43,6 @@ export const DebugBlockedCols: Record<string, string[]> = {
     'legalEntity',
     'signatoryPower',
     'kycHash',
-    'kycFileId',
     'apiKeyCT',
     'totpSecret',
     'internalAmlNote',

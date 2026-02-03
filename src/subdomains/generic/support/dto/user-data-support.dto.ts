@@ -80,6 +80,25 @@ export class SellSupportInfo {
   volume: number;
 }
 
+export class KycFileListEntry {
+  kycFileId: number;
+  id: number;
+  amlAccountType?: string;
+  verifiedName?: string;
+}
+
+export class KycFileYearlyStats {
+  year: number;
+  startCount: number;
+  reopened: number;
+  newFiles: number;
+  addedDuringYear: number;
+  activeDuringYear: number;
+  closedDuringYear: number;
+  endCount: number;
+  highestFileNr: number;
+}
+
 export class UserDataSupportInfoDetails {
   userData: UserData;
   kycFiles: KycFile[];

@@ -69,6 +69,8 @@ export enum Process {
   FIAT_OUTPUT_BANK_TX_SEARCH = 'FiatOutputBankTxSearch',
   FIAT_OUTPUT_YAPEAL_TRANSMISSION = 'FiatOutputYapealTransmission',
   FIAT_OUTPUT_YAPEAL_STATUS_CHECK = 'FiatOutputYapealStatusCheck',
+  FIAT_OUTPUT_OLKYPAY_TRANSMISSION = 'FiatOutputOlkypayTransmission',
+  FIAT_OUTPUT_OLKYPAY_STATUS_CHECK = 'FiatOutputOlkypayStatusCheck',
   BLOCKCHAIN_FEE_UPDATE = 'BlockchainFeeUpdate',
   TX_REQUEST = 'TxRequest',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
@@ -87,6 +89,7 @@ export enum Process {
   AML_RECHECK_MAIL_RESET = 'AmlRecheckMailReset',
   ZANO_ASSET_WHITELIST = 'ZanoAssetWhitelist',
   TRADE_APPROVAL_DATE = 'TradeApprovalDate',
+  SUPPORT_BOT = 'SupportBot',
 }
 
 const safetyProcesses: Process[] = [

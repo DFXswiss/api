@@ -30,42 +30,22 @@ export class VirtualIbanService {
     const existing = await this.getActiveForUserAndCurrency(userData, currencyName);
     if (existing) throw new ConflictException('User already has an active personal IBAN for this currency');
 
-    const currency = await this.fiatService.getFiatByName(currencyName);
-    if (!currency) throw new BadRequestException('Currency not found');
-
-    const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
-    if (!bank) throw new BadRequestException('No bank available for this currency');
-
-    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal(bank.iban);
-
-    const virtualIban = this.virtualIbanRepo.create({
-      userData,
-      bank,
-      currency,
-      iban,
-      bban,
-      yapealAccountUid: accountUid,
-      status: VirtualIbanStatus.ACTIVE,
-      active: true,
-      activatedAt: new Date(),
-    });
-
-    const saved = await this.virtualIbanRepo.save(virtualIban);
-
-    this.virtualIbanRepo.invalidateCache();
-
-    return saved;
+    return this.createVirtualIban(userData, currencyName);
   }
 
   async createForBuy(userData: UserData, buy: Buy, currencyName: string): Promise<VirtualIban> {
     const existingForBuy = await this.getActiveForBuyAndCurrency(buy.id, currencyName);
     if (existingForBuy) throw new ConflictException('Buy already has an active personal IBAN for this currency');
 
+    return this.createVirtualIban(userData, currencyName, buy);
+  }
+
+  private async createVirtualIban(userData: UserData, currencyName: string, buy?: Buy): Promise<VirtualIban> {
     const currency = await this.fiatService.getFiatByName(currencyName);
     if (!currency) throw new BadRequestException('Currency not found');
 
     const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
-    if (!bank) throw new BadRequestException('No bank available for this currency');
+    if (!bank?.receive) throw new BadRequestException('No bank available for this currency');
 
     const { iban, bban, accountUid } = await this.reserveVibanFromYapeal(bank.iban);
 
@@ -80,7 +60,7 @@ export class VirtualIbanService {
       active: true,
       activatedAt: new Date(),
       buy,
-      label: buy.asset?.name,
+      label: buy?.asset?.name,
     });
 
     const saved = await this.virtualIbanRepo.save(virtualIban);

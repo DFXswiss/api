@@ -47,6 +47,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.TRON]: undefined,
   [Blockchain.CITREA]: undefined,
   [Blockchain.CITREA_TESTNET]: undefined,
+  [Blockchain.BITCOIN_TESTNET4]: undefined,
   [Blockchain.KRAKEN]: undefined,
   [Blockchain.BINANCE]: undefined,
   [Blockchain.XT]: undefined,

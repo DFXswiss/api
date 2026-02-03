@@ -17,6 +17,8 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { BankRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import {
+  KycFileListEntry,
+  KycFileYearlyStats,
   UserDataSupportInfoDetails,
   UserDataSupportInfoResult,
   UserDataSupportQuery,
@@ -33,6 +35,22 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async searchUserByKey(@Query() query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     return this.supportService.searchUserDataByKey(query);
+  }
+
+  @Get('kycFileList')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getKycFileList(): Promise<KycFileListEntry[]> {
+    return this.supportService.getKycFileList();
+  }
+
+  @Get('kycFileStats')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getKycFileStats(): Promise<KycFileYearlyStats[]> {
+    return this.supportService.getKycFileStats();
   }
 
   @Get(':id')

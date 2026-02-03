@@ -8,9 +8,9 @@
 import { HttpService } from 'src/shared/services/http.service';
 import { BitcoinClient } from '../bitcoin-client';
 
-// Mock Config
-jest.mock('src/config/config', () => ({
-  Config: {
+// Mock Config and GetConfig
+jest.mock('src/config/config', () => {
+  const mockConfig = {
     blockchain: {
       default: {
         user: 'testuser',
@@ -22,8 +22,12 @@ jest.mock('src/config/config', () => ({
         },
       },
     },
-  },
-}));
+  };
+  return {
+    Config: mockConfig,
+    GetConfig: () => mockConfig,
+  };
+});
 
 describe('BitcoinClient', () => {
   let client: BitcoinClient;
@@ -605,16 +609,16 @@ describe('BitcoinClient', () => {
   // --- Unimplemented Methods Tests --- //
 
   describe('Unimplemented Token Methods', () => {
-    it('getToken() should throw "Bitcoin has no token"', async () => {
-      await expect(client.getToken({} as any)).rejects.toThrow('Bitcoin has no token');
+    it('getToken() should throw "Bitcoin chain has no token"', async () => {
+      await expect(client.getToken({} as any)).rejects.toThrow('Bitcoin chain has no token');
     });
 
-    it('getTokenBalance() should throw "Bitcoin has no token"', async () => {
-      await expect(client.getTokenBalance({} as any)).rejects.toThrow('Bitcoin has no token');
+    it('getTokenBalance() should throw "Bitcoin chain has no token"', async () => {
+      await expect(client.getTokenBalance({} as any)).rejects.toThrow('Bitcoin chain has no token');
     });
 
-    it('getTokenBalances() should throw "Bitcoin has no token"', async () => {
-      await expect(client.getTokenBalances([])).rejects.toThrow('Bitcoin has no token');
+    it('getTokenBalances() should throw "Bitcoin chain has no token"', async () => {
+      await expect(client.getTokenBalances([])).rejects.toThrow('Bitcoin chain has no token');
     });
   });
 });

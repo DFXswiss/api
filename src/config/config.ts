@@ -815,6 +815,17 @@ export class Configuration {
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
       blockscoutApiUrl: process.env.CITREA_TESTNET_BLOCKSCOUT_API_URL,
     },
+    bitcoinTestnet4: {
+      btcTestnet4Output: {
+        active: process.env.NODE_BTC_TESTNET4_OUT_URL_ACTIVE,
+        passive: process.env.NODE_BTC_TESTNET4_OUT_URL_PASSIVE,
+        address: process.env.BTC_TESTNET4_OUT_WALLET_ADDRESS,
+      },
+      user: process.env.NODE_BTC_TESTNET4_USER,
+      password: process.env.NODE_BTC_TESTNET4_PASSWORD,
+      walletPassword: process.env.NODE_BTC_TESTNET4_WALLET_PASSWORD,
+      minTxAmount: 0.00000297,
+    },
     lightning: {
       lnbits: {
         apiKey: process.env.LIGHTNING_LNBITS_API_KEY,

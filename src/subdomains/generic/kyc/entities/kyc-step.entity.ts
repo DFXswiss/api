@@ -195,6 +195,10 @@ export class KycStep extends IEntity {
     return this.status === ReviewStatus.CANCELED;
   }
 
+  get isOutdated(): boolean {
+    return this.status === ReviewStatus.OUTDATED;
+  }
+
   get isDone(): boolean {
     return this.isInReview || this.isCompleted;
   }

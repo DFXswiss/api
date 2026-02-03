@@ -39,6 +39,8 @@ import {
   BankTxSupportInfo,
   BuySupportInfo,
   ComplianceSearchType,
+  KycFileListEntry,
+  KycFileYearlyStats,
   KycStepSupportInfo,
   SellSupportInfo,
   TransactionSupportInfo,
@@ -106,7 +108,52 @@ export class SupportService {
     };
   }
 
+  getKycFileList(): Promise<KycFileListEntry[]> {
+    return this.userDataService.getUserDatasWithKycFile().then((u) => u.map((d) => this.toKycFileListEntry(d)));
+  }
+
+  async getKycFileStats(startYear = 2021, endYear = new Date().getFullYear()): Promise<KycFileYearlyStats[]> {
+    const dbStats = await this.userDataService.getKycFileYearlyStats(startYear, endYear);
+    const result: KycFileYearlyStats[] = [];
+
+    let previousEndCount = 0;
+
+    for (let year = startYear; year <= endYear; year++) {
+      const yearStats = dbStats.get(year) ?? { reopened: 0, newFiles: 0, closedDuringYear: 0, highestFileNr: 0 };
+
+      const startCount = previousEndCount;
+      const addedDuringYear = yearStats.reopened + yearStats.newFiles;
+      const activeDuringYear = startCount + addedDuringYear;
+      const endCount = activeDuringYear - yearStats.closedDuringYear;
+
+      result.push({
+        year,
+        startCount,
+        reopened: yearStats.reopened,
+        newFiles: yearStats.newFiles,
+        addedDuringYear,
+        activeDuringYear,
+        closedDuringYear: yearStats.closedDuringYear,
+        endCount,
+        highestFileNr: yearStats.highestFileNr,
+      });
+
+      previousEndCount = endCount;
+    }
+
+    return result;
+  }
+
   // --- MAPPING METHODS --- //
+
+  private toKycFileListEntry(userData: UserData): KycFileListEntry {
+    return {
+      kycFileId: userData.kycFileId,
+      id: userData.id,
+      amlAccountType: userData.amlAccountType,
+      verifiedName: userData.verifiedName,
+    };
+  }
 
   private toKycStepSupportInfo(step: KycStep): KycStepSupportInfo {
     return {

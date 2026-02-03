@@ -447,7 +447,7 @@ export abstract class EvmClient extends BlockchainClient {
     return EvmUtil.getGasPriceLimitFromHex(txHex, currentGasPrice);
   }
 
-  async approveContract(asset: Asset, contractAddress: string): Promise<string> {
+  async approveContract(asset: Asset, contractAddress: string, wait = false): Promise<string> {
     const contract = this.getERC20ContractForDex(asset.chainId);
 
     const transaction = await contract.populateTransaction.approve(contractAddress, ethers.constants.MaxInt256);
@@ -464,7 +464,18 @@ export abstract class EvmClient extends BlockchainClient {
 
     this.setNonce(this.walletAddress, nonce + 1);
 
+    if (wait) await tx.wait();
+
     return tx.hash;
+  }
+
+  async checkAndApproveContract(asset: Asset, contractAddress: string, amount: EthersNumber): Promise<string | null> {
+    const contract = this.getERC20ContractForDex(asset.chainId);
+    const allowance = await contract.allowance(this.walletAddress, contractAddress);
+
+    if (allowance.gte(amount)) return null;
+
+    return this.approveContract(asset, contractAddress, true);
   }
 
   // --- PUBLIC API - SWAPS --- //
@@ -670,8 +681,7 @@ export abstract class EvmClient extends BlockchainClient {
     );
     if (!swapLog) throw new Error(`Failed to get swap result for TX ${txId}`);
 
-    const token = await this.getToken(asset);
-    return EvmUtil.fromWeiAmount(swapLog.data, token.decimals);
+    return EvmUtil.fromWeiAmount(swapLog.data, asset.decimals);
   }
 
   private async getRoute(source: Asset, target: Asset, sourceAmount: number, maxSlippage: number): Promise<SwapRoute> {
