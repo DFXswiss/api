@@ -540,7 +540,6 @@ export class TransactionHelper implements OnModuleInit {
           buy,
           buy?.asset,
           buy?.user?.wallet,
-          true,
         ));
 
       return {
@@ -616,7 +615,6 @@ export class TransactionHelper implements OnModuleInit {
       buy,
       buy?.asset,
       buy?.user?.wallet,
-      true,
     );
 
     return {
