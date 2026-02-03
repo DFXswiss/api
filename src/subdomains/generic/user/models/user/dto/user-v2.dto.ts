@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmptyObject, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsNotEmptyObject,
+  IsOptional,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -9,7 +17,7 @@ import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycLevel } from '../../user-data/user-data.enum';
+import { KycLevel, PhoneCallPreferredTimes } from '../../user-data/user-data.enum';
 import { TradingLimit, VolumeInformation } from './user.dto';
 
 export class VolumesDto {
@@ -55,6 +63,25 @@ export class UpdateRefDto {
   @ValidateNested()
   @Type(() => EntityDto)
   payoutAsset: Asset;
+}
+
+export class UpdatePhoneCallDto {
+  @ApiPropertyOptional({ type: String, isArray: true })
+  @IsOptional()
+  @IsEnum(PhoneCallPreferredTimes)
+  preferredTimes?: PhoneCallPreferredTimes[];
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: UpdatePhoneCallDto) => Boolean(a.denyCall || !a.repeatCall))
+  @IsBoolean()
+  denyCall?: boolean;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: UpdatePhoneCallDto) => Boolean(a.repeatCall || !a.denyCall))
+  @IsBoolean()
+  repeatCall?: boolean;
 }
 
 export class UserAddressDto {

@@ -32,7 +32,7 @@ import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-met
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
-import { KycLevel, KycState, KycType, Moderator, UserDataStatus } from '../user-data/user-data.enum';
+import { KycLevel, KycState, KycType, Moderator, PhoneCallStatus, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
@@ -43,7 +43,7 @@ import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
-import { ReferralDto, UpdateRefDto, UserV2Dto } from './dto/user-v2.dto';
+import { ReferralDto, UpdatePhoneCallDto, UpdateRefDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
@@ -204,6 +204,20 @@ export class UserService {
     const savedUser = await this.userRepo.save(user);
 
     return this.mapRefDtoV2(savedUser);
+  }
+
+  async updatePhoneCall(userDataId: number, dto: UpdatePhoneCallDto): Promise<void> {
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+    if (!userData) throw new NotFoundException('Account not found');
+    if (userData.phoneCallStatus && (dto.denyCall || dto.repeatCall))
+      throw new BadRequestException('Phone call status is already set');
+
+    const update: Partial<UserData> = {
+      phoneCallTimes: dto.preferredTimes ? dto.preferredTimes.join(';') : undefined,
+      phoneCallStatus: dto.denyCall ? PhoneCallStatus.DENIED : dto.repeatCall ? PhoneCallStatus.REPEAT : undefined,
+    };
+
+    await this.userDataRepo.update(userData.id, update);
   }
 
   private async mapRefDtoV2(user: User): Promise<ReferralDto> {

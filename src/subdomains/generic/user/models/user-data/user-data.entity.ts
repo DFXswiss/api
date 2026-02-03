@@ -41,6 +41,8 @@ import {
   LegalEntity,
   LimitPeriod,
   Moderator,
+  PhoneCallPreferredTimes,
+  PhoneCallStatus,
   RiskStatus,
   SignatoryPower,
   UserDataStatus,
@@ -242,6 +244,12 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   phoneCallIpCountryCheckDate?: Date;
+
+  @Column({ length: 256, nullable: true })
+  phoneCallTimes: string; // PhoneCallPreferredTimes array
+
+  @Column({ length: 256, nullable: true })
+  phoneCallStatus: PhoneCallStatus;
 
   @Column({ type: 'datetime2', nullable: true })
   tradeApprovalDate?: Date;

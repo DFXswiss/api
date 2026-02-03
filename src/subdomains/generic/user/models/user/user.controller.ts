@@ -46,7 +46,7 @@ import { UpdateUserInternalDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto, UpdateUserMailDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
-import { ReferralDto, UpdateRefDto, UserV2Dto } from './dto/user-v2.dto';
+import { ReferralDto, UpdatePhoneCallDto, UpdateRefDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
 import { UpdateMailStatus, VerifyMailDto } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
@@ -333,5 +333,13 @@ export class UserV2Controller {
   @ApiOkResponse({ type: UserProfileDto })
   async getProfile(@GetJwt() jwt: JwtPayload): Promise<UserProfileDto> {
     return this.userService.getUserProfile(jwt.account);
+  }
+
+  @Put('phoneCall')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: ReferralDto })
+  async updatePhoneCall(@GetJwt() jwt: JwtPayload, @Body() dto: UpdatePhoneCallDto): Promise<void> {
+    return this.userService.updatePhoneCall(jwt.account, dto);
   }
 }

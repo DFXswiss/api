@@ -15,6 +15,26 @@ export enum RiskStatus {
   RELEASED = 'Released',
 }
 
+export enum PhoneCallPreferredTimes {
+  BETWEEN_9_AND_10 = 'Between9And10',
+  BETWEEN_10_AND_11 = 'Between10And11',
+  BETWEEN_11_AND_12 = 'Between11And12',
+  BETWEEN_12_AND_13 = 'Between12And13',
+  BETWEEN_13_AND_14 = 'Between13And14',
+  BETWEEN_14_AND_15 = 'Between14And15',
+  BETWEEN_15_AND_16 = 'Between15And16',
+  BETWEEN_9_AND_16 = 'Between9And16',
+}
+
+export enum PhoneCallStatus {
+  REPEAT = 'Repeat',
+  DENIED = 'Denied',
+  UNAVAILABLE = 'Unavailable',
+  FAILED = 'Failed',
+  COMPLETED = 'Completed',
+  SUSPICIOUS = 'Suspicious',
+}
+
 export enum KycLevel {
   // automatic levels
   LEVEL_0 = 0, // nothing
