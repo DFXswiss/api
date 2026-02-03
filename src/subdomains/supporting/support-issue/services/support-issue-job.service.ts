@@ -15,7 +15,7 @@ import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from 
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportIssueService } from './support-issue.service';
 
-enum TemplateNames {
+enum AutoResponse {
   MONERO_COMPLETE = 'MoneroComplete',
   SEPA = 'Sepa',
 }
@@ -31,12 +31,10 @@ export class SupportIssueJobService {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
   async sendAutoResponses() {
-    const disabledTemplates = await this.settingsService
-      .getObj<string>('SupportBot')
-      .then((s) => s?.split(',') as TemplateNames[]);
+    const disabledTemplates = await this.settingsService.get('SupportBot').then((s) => s?.split(',') as AutoResponse[]);
 
-    if (!disabledTemplates.includes(TemplateNames.MONERO_COMPLETE)) await this.moneroComplete();
-    if (!disabledTemplates.includes(TemplateNames.SEPA)) await this.sepa();
+    if (!disabledTemplates.includes(AutoResponse.MONERO_COMPLETE)) await this.moneroComplete();
+    if (!disabledTemplates.includes(AutoResponse.SEPA)) await this.sepa();
   }
 
   async sepa(): Promise<void> {
