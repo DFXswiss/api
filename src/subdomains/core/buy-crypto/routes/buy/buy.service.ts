@@ -370,7 +370,9 @@ export class BuyService {
         // max 10 vIBANs per user
         const activeCount = await this.virtualIbanService.countActiveForUser(selector.userData.id);
         if (activeCount < 10) {
-          virtualIban = await this.virtualIbanService.createForBuy(selector.userData, buy, selector.currency).catch(() => null);
+          virtualIban = await this.virtualIbanService
+            .createForBuy(selector.userData, buy, selector.currency)
+            .catch(() => null);
         }
       }
 
