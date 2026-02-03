@@ -80,7 +80,7 @@ export class BuyService {
     const { user } = await this.buyRepo.findOne({
       where: { id: buyId },
       relations: { user: true },
-      select: ['id', 'user'],
+      select: { id: true, user: true },
     });
     const userVolume = await this.getUserVolume(user.id);
 

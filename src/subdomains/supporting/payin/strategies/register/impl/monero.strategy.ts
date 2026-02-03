@@ -53,7 +53,7 @@ export class MoneroStrategy extends PollingStrategy {
   private async getLastCheckedBlockHeight(): Promise<number> {
     return this.payInRepository
       .findOne({
-        select: ['id', 'blockHeight'],
+        select: { id: true, blockHeight: true },
         where: { address: { blockchain: this.blockchain } },
         order: { blockHeight: 'DESC' },
         loadEagerRelations: false,
