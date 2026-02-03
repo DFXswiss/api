@@ -301,6 +301,7 @@ export class ClementineClient {
       let stdout = '';
       let stderr = '';
       let timeoutId: NodeJS.Timeout | null = null;
+      let killTimeoutId: NodeJS.Timeout | null = null;
       let isSettled = false;
 
       const proc = spawn(this.config.cliPath, args, {
@@ -311,6 +312,10 @@ export class ClementineClient {
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
+        }
+        if (killTimeoutId) {
+          clearTimeout(killTimeoutId);
+          killTimeoutId = null;
         }
       };
 
@@ -331,7 +336,7 @@ export class ClementineClient {
         proc.kill('SIGTERM');
 
         // Force kill after 5 seconds if process doesn't respond to SIGTERM
-        setTimeout(() => {
+        killTimeoutId = setTimeout(() => {
           if (proc.exitCode === null) {
             // Process still running, force kill
             proc.kill('SIGKILL');
