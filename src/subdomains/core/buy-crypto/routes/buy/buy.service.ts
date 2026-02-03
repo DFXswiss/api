@@ -393,8 +393,8 @@ export class BuyService {
       return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
     }
 
-    // EUR: vIBAN is mandatory (except for invoice generation)
-    if (selector.currency === 'EUR' && !forInvoice) {
+    // EUR: vIBAN is mandatory for low KYC users (except for invoice generation)
+    if (selector.currency === 'EUR' && selector.userData.kycLevel < KycLevel.LEVEL_50 && !forInvoice) {
       throw new BadRequestException('KycRequired');
     }
 
