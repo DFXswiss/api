@@ -60,7 +60,7 @@ import {
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError, KycStepIgnoringErrors } from '../dto/kyc-error.enum';
-import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
+import { FileSubType, FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
@@ -207,7 +207,7 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: { users: true, wallet: true } },
+      relations: { userData: { users: true, wallet: true, kycFiles: true } },
     });
 
     for (const entity of entities) {
@@ -271,6 +271,12 @@ export class KycService {
 
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
+
+        if (
+          !entity.userData.kycFiles.some((f) => f.subType === FileSubType.IDENT_REPORT) &&
+          (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW)
+        )
+          await this.syncIdentFilesInternal(entity);
 
         if (entity.isCompleted) {
           await this.completeIdent(entity, nationality);
@@ -1557,6 +1563,11 @@ export class KycService {
 
   async syncIdentFiles(stepId: number): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({ where: { id: stepId }, relations: { userData: true } });
+
+    return this.syncIdentFilesInternal(kycStep);
+  }
+
+  async syncIdentFilesInternal(kycStep: KycStep): Promise<void> {
     if (!kycStep || kycStep.name !== KycStepName.IDENT) throw new NotFoundException('Invalid step');
 
     if (!kycStep.isSumsub) throw new Error(`Invalid ident step type ${kycStep.type}`);
