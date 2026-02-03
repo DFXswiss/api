@@ -1,5 +1,4 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
@@ -9,6 +8,13 @@ import { UTXO } from './dto/bitcoin-transaction.dto';
 import { BitcoinRpcClient, BitcoinRpcConfig, BlockchainInfo, RawTransaction } from './rpc';
 
 export type AddressType = 'legacy' | 'p2sh-segwit' | 'bech32';
+
+export interface NodeClientConfig {
+  user: string;
+  password: string;
+  walletPassword: string;
+  allowUnconfirmedUtxos?: boolean;
+}
 
 export interface InWalletTransaction {
   txid: string;
@@ -27,8 +33,6 @@ export interface Block {
   tx: string[];
 }
 
-export { BlockchainInfo };
-
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
   SEND_UTXO = 'sendutxosfrom',
@@ -43,16 +47,20 @@ export abstract class NodeClient extends BlockchainClient {
 
   protected readonly rpc: BitcoinRpcClient;
   private readonly queue: QueueHandler;
+  protected readonly nodeConfig: NodeClientConfig;
 
-  constructor(http: HttpService, url: string) {
+  constructor(http: HttpService, url: string, config: NodeClientConfig) {
     super();
 
-    const config: BitcoinRpcConfig = {
+    this.nodeConfig = config;
+
+    const rpcConfig: BitcoinRpcConfig = {
       url,
-      username: Config.blockchain.default.user,
-      password: Config.blockchain.default.password,
+      username: this.nodeConfig.user,
+      password: this.nodeConfig.password,
     };
-    this.rpc = new BitcoinRpcClient(http, config);
+
+    this.rpc = new BitcoinRpcClient(http, rpcConfig);
     this.queue = new QueueHandler(180000, 60000);
   }
 
@@ -159,7 +167,7 @@ export abstract class NodeClient extends BlockchainClient {
     }
     // Return confirmed + unconfirmed balances when allowUnconfirmedUtxos is enabled
     const baseBalance = balances.mine.trusted;
-    const unconfirmedBalance = Config.blockchain.default.allowUnconfirmedUtxos ? balances.mine.untrusted_pending : 0;
+    const unconfirmedBalance = this.nodeConfig.allowUnconfirmedUtxos ? balances.mine.untrusted_pending : 0;
     return baseBalance + unconfirmedBalance;
   }
 
@@ -254,7 +262,7 @@ export abstract class NodeClient extends BlockchainClient {
 
   private async unlock(timeout = 60): Promise<void> {
     try {
-      await this.rpc.walletPassphrase(Config.blockchain.default.walletPassword, timeout);
+      await this.rpc.walletPassphrase(this.nodeConfig.walletPassword, timeout);
     } catch (e) {
       this.logger.verbose('Wallet unlock attempt:', e.message);
     }

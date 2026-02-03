@@ -51,6 +51,7 @@ export class MexcService extends ExchangeService {
     Tron: 'TRX',
     Citrea: undefined,
     CitreaTestnet: undefined,
+    BitcoinTestnet4: undefined,
     Kraken: undefined,
     Binance: undefined,
     XT: undefined,
