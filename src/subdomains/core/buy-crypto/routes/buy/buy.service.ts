@@ -355,7 +355,6 @@ export class BuyService {
     buy?: Buy,
     asset?: Asset,
     wallet?: Wallet,
-    forInvoice?: boolean,
   ): Promise<BankInfoDto & { isPersonalIban: boolean; reference?: string }> {
     // asset-specific personal IBAN
     if (
@@ -370,11 +369,13 @@ export class BuyService {
         // max 10 vIBANs per user
         const activeCount = await this.virtualIbanService.countActiveForUser(selector.userData.id);
         if (activeCount < 10) {
-          virtualIban = await this.virtualIbanService.createForBuy(selector.userData, buy, selector.currency);
+          virtualIban = await this.virtualIbanService
+            .createForBuy(selector.userData, buy, selector.currency)
+            .catch(() => null);
         }
       }
 
-      if (virtualIban) {
+      if (virtualIban?.bank.receive) {
         return this.buildVirtualIbanResponse(virtualIban, selector.userData);
       }
     }
@@ -384,16 +385,11 @@ export class BuyService {
 
     // EUR/CHF: create vIBAN for KYC 50+
     if (!virtualIban && ['EUR', 'CHF'].includes(selector.currency) && selector.userData.kycLevel >= KycLevel.LEVEL_50) {
-      virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
+      virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency).catch(() => null);
     }
 
-    if (virtualIban) {
+    if (virtualIban?.bank.receive) {
       return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
-    }
-
-    // EUR: vIBAN is mandatory (except for invoice generation)
-    if (selector.currency === 'EUR' && !forInvoice) {
-      throw new BadRequestException('KycRequired');
     }
 
     // normal bank selection
