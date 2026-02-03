@@ -219,10 +219,18 @@ export class FiatOutputJobService {
         return a.bankAmount - b.bankAmount;
       });
 
-      const pendingFiatOutputs = accountIbanGroup.filter(
-        (tx) =>
-          tx.isReadyDate && !tx.bankTx && (!tx.bank || tx.bank.name !== IbanBankName.YAPEAL || !tx.isTransmittedDate),
-      );
+      const pendingFiatOutputs = accountIbanGroup.filter((tx) => {
+        if (!tx.isReadyDate) return false;
+
+        switch (tx.bank?.name) {
+          case IbanBankName.YAPEAL:
+            return !tx.isTransmittedDate;
+          case IbanBankName.OLKY:
+            return !tx.bankTx || tx.bankTx.created > Util.minutesBefore(5);
+          default:
+            return !tx.bankTx;
+        }
+      });
       const pendingBalance = Util.sumObjValue(pendingFiatOutputs, 'bankAmount');
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
