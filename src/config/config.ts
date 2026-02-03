@@ -823,6 +823,17 @@ export class Configuration {
       timeoutMs: parseInt(process.env.CLEMENTINE_TIMEOUT_MS ?? '60000'),
       signingTimeoutMs: parseInt(process.env.CLEMENTINE_SIGNING_TIMEOUT_MS ?? '300000'),
     },
+    bitcoinTestnet4: {
+      btcTestnet4Output: {
+        active: process.env.NODE_BTC_TESTNET4_OUT_URL_ACTIVE,
+        passive: process.env.NODE_BTC_TESTNET4_OUT_URL_PASSIVE,
+        address: process.env.BTC_TESTNET4_OUT_WALLET_ADDRESS,
+      },
+      user: process.env.NODE_BTC_TESTNET4_USER,
+      password: process.env.NODE_BTC_TESTNET4_PASSWORD,
+      walletPassword: process.env.NODE_BTC_TESTNET4_WALLET_PASSWORD,
+      minTxAmount: 0.00000297,
+    },
     lightning: {
       lnbits: {
         apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
