@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -48,7 +47,6 @@ export class SupportIssueService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly supportLogService: SupportLogService,
     private readonly bankDataService: BankDataService,
-    private readonly fiatService: FiatService,
   ) {}
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
