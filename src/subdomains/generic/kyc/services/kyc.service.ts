@@ -1112,7 +1112,7 @@ export class KycService {
         if (
           (approvalSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) &&
             !approvalSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED))) ||
-          (lastTry && !lastTry.isFailed && !lastTry.isCanceled)
+          (lastTry && !lastTry.isFailed && !lastTry.isCanceled && !lastTry.isOutdated)
         )
           return { nextStep: undefined };
 
