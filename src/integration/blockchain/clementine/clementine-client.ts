@@ -1,8 +1,13 @@
 import { spawn } from 'child_process';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
+export enum ClementineNetwork {
+  BITCOIN = 'bitcoin',
+  TESTNET4 = 'testnet4',
+}
+
 export interface ClementineConfig {
-  network: 'mainnet' | 'testnet';
+  network: ClementineNetwork;
   cliPath: string;
   timeoutMs: number;
   signingTimeoutMs: number;
@@ -371,13 +376,11 @@ export class ClementineClient {
   private buildArgs(baseArgs: string[]): string[] {
     const args = [...baseArgs];
 
-    if (this.config.network === 'testnet') {
-      // Insert --network flag after the subcommand, before positional arguments
-      // For commands with subcommand (e.g., 'deposit start'): insert at position 2
-      // For single commands (e.g., 'show-config'): insert at position 1
-      const insertPosition = baseArgs.length >= 2 ? 2 : 1;
-      args.splice(insertPosition, 0, '--network', 'testnet');
-    }
+    // Insert --network flag after the subcommand, before positional arguments
+    // For commands with subcommand (e.g., 'deposit start'): insert at position 2
+    // For single commands (e.g., 'show-config'): insert at position 1
+    const insertPosition = baseArgs.length >= 2 ? 2 : 1;
+    args.splice(insertPosition, 0, '--network', this.config.network);
 
     return args;
   }

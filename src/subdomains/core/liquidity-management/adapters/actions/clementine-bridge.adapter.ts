@@ -9,6 +9,7 @@ import {
   CLEMENTINE_BRIDGE_AMOUNT_BTC,
   CLEMENTINE_WITHDRAWAL_DUST_BTC,
   ClementineClient,
+  ClementineNetwork,
 } from 'src/integration/blockchain/clementine/clementine-client';
 import { ClementineService } from 'src/integration/blockchain/clementine/clementine.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -44,9 +45,9 @@ const CORRELATION_PREFIX = {
 const OPTIMISTIC_TIMEOUT_MS = 12 * 60 * 60 * 1000;
 
 // Bitcoin address prefixes by network
-const BTC_ADDRESS_PREFIXES = {
-  mainnet: ['bc1', '1', '3'],
-  testnet: ['tb1', 'bcrt1', 'm', 'n', '2'],
+const BTC_ADDRESS_PREFIXES: Record<ClementineNetwork, string[]> = {
+  [ClementineNetwork.BITCOIN]: ['bc1', '1', '3'],
+  [ClementineNetwork.TESTNET4]: ['tb1', 'bcrt1', 'm', 'n', '2'],
 };
 
 interface WithdrawCorrelationData {
@@ -70,7 +71,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   private readonly citreaClient: CitreaClient;
   private readonly recoveryTaprootAddress: string;
   private readonly signerAddress: string;
-  private readonly network: 'mainnet' | 'testnet';
+  private readonly network: ClementineNetwork;
   private networkValidated = false;
 
   constructor(
@@ -308,22 +309,22 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
       // Process based on current step
       switch (correlationData.step) {
         case 'dust_sent':
-          return this.processWithdrawScanStep(order, correlationData);
+          return await this.processWithdrawScanStep(order, correlationData);
 
         case 'scanning':
-          return this.processWithdrawScanStep(order, correlationData);
+          return await this.processWithdrawScanStep(order, correlationData);
 
         case 'signatures_generated':
-          return this.processWithdrawSendStep(order, correlationData);
+          return await this.processWithdrawSendStep(order, correlationData);
 
         case 'sent_to_bridge':
-          return this.processWithdrawWaitStep(order, correlationData);
+          return await this.processWithdrawWaitStep(order, correlationData);
 
         case 'waiting_optimistic':
-          return this.processWithdrawOptimisticStep(order, correlationData);
+          return await this.processWithdrawOptimisticStep(order, correlationData);
 
         case 'sent_to_operators':
-          return this.processWithdrawFinalStep(order, correlationData);
+          return await this.processWithdrawFinalStep(order, correlationData);
 
         default:
           throw new OrderFailedException(`Unknown withdrawal step: ${correlationData.step}`);
@@ -535,7 +536,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   /**
    * Checks if a Bitcoin address matches the expected network based on its prefix.
    */
-  private isAddressForNetwork(address: string, network: 'mainnet' | 'testnet'): boolean {
+  private isAddressForNetwork(address: string, network: ClementineNetwork): boolean {
     const prefixes = BTC_ADDRESS_PREFIXES[network];
     return prefixes.some((prefix) => address.startsWith(prefix));
   }
