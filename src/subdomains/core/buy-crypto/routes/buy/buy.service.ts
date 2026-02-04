@@ -15,6 +15,7 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -443,20 +444,11 @@ export class BuyService {
   }
 
   private generateGiroCode(bankInfo: BankInfoDto & { reference?: string }, dto: GetBuyPaymentInfoDto): string {
-    const reference = bankInfo.reference ?? '';
-
-    return `
-${Config.giroCode.service}
-${Config.giroCode.version}
-${Config.giroCode.encoding}
-${Config.giroCode.transfer}
-${bankInfo.bic}
-${bankInfo.name}, ${bankInfo.street} ${bankInfo.number}, ${bankInfo.zip} ${bankInfo.city}, ${bankInfo.country}
-${bankInfo.iban}
-${dto.currency.name}${dto.amount}
-${Config.giroCode.char}
-${Config.giroCode.ref}
-${reference}
-`.trim();
+    return PdfUtil.generateGiroCode({
+      ...bankInfo,
+      currency: dto.currency.name,
+      amount: dto.amount,
+      reference: bankInfo.reference,
+    });
   }
 }

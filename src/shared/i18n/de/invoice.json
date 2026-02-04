@@ -35,5 +35,10 @@
     }
   },
   "info": "* Info: Der effektive Wechselkurs und damit die effektiv gelieferte Menge wird bestimmt, wenn das Geld bei DFX eingeht und verarbeitet wird.",
-  "terms": "Es gelten unsere Allgemeinen Geschäftsbedingungen: https://docs.dfx.swiss/de/tnc.html."
+  "terms": "Es gelten unsere Allgemeinen Geschäftsbedingungen: https://docs.dfx.swiss/de/tnc.html.",
+  "payment_info": "Zahlungsinformationen",
+  "payment_info_iban": "IBAN",
+  "payment_info_bic": "BIC",
+  "payment_info_recipient": "Empfänger",
+  "payment_info_reference": "Referenz"
 }

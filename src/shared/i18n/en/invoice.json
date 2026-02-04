@@ -35,5 +35,10 @@
     }
   },
   "info": "* Info: The effective exchange rate and thus the effectively delivered quantity is determined when the money is received and processed by DFX.",
-  "terms": "Our General Terms and Conditions apply: https://docs.dfx.swiss/en/tnc.html."
+  "terms": "Our General Terms and Conditions apply: https://docs.dfx.swiss/en/tnc.html.",
+  "payment_info": "Payment Information",
+  "payment_info_iban": "IBAN",
+  "payment_info_bic": "BIC",
+  "payment_info_recipient": "Recipient",
+  "payment_info_reference": "Reference"
 }
