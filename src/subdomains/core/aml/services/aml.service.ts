@@ -43,14 +43,13 @@ export class AmlService {
     private readonly ipLogService: IpLogService,
   ) {}
 
-  async postProcessing(
-    entity: BuyFiat | BuyCrypto,
-    amlCheckBefore: CheckStatus,
-    last30dVolume: number | undefined,
-  ): Promise<void> {
+  async postProcessing(entity: BuyFiat | BuyCrypto, last30dVolume: number | undefined): Promise<void> {
     if (entity.cryptoInput) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
 
-    if (amlCheckBefore !== entity.amlCheck && entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
+    if (
+      [CheckStatus.PENDING, CheckStatus.GSHEET].includes(entity.amlCheck) &&
+      entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED
+    )
       await this.userDataService.triggerVideoIdent(entity.userData);
 
     if (entity.amlCheck === CheckStatus.PASS) {
