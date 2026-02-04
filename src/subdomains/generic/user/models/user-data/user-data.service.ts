@@ -1056,6 +1056,7 @@ export class UserDataService {
       .catch((e) => this.logger.critical(`Error in document copy files for master ${master.id}:`, e));
 
     // optional master updates
+    if (master.status === UserDataStatus.KYC_ONLY && slave.users && slave.wallet) master.wallet = slave.wallet;
     if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
