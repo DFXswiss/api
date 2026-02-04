@@ -66,6 +66,8 @@ export class SupportIssueDtoMapper {
   }
 
   static mapLimitRequestData(limitRequest: LimitRequest): SupportIssueInternalLimitRequestDataDto {
+    if (!limitRequest?.id) return undefined;
+
     return {
       id: limitRequest.id,
       fundOrigin: limitRequest.fundOrigin,
