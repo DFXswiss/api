@@ -728,8 +728,8 @@ export class UserDataService {
     return userWithCustomMethod?.wallet.identMethod;
   }
 
-  async triggerVideoIdent(userData: UserData): Promise<void> {
-    await this.kycAdminService.triggerVideoIdentInternal(userData);
+  async checkOrTriggerVideoIdent(userData: UserData): Promise<void> {
+    await this.kycAdminService.checkOrTriggerVideoIdentInternal(userData);
   }
 
   async setCheckIpRisk(ip: string): Promise<void> {
