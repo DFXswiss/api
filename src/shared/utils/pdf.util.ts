@@ -1,11 +1,26 @@
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { mm2pt } from 'swissqrbill/utils';
 import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from './logos/dfx-logo';
 import { realunitLogoColor, realunitLogoPath } from './logos/realunit-logo';
+
+export interface GiroCodeData {
+  name: string;
+  street?: string;
+  number?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
+  iban: string;
+  bic?: string;
+  currency?: string;
+  amount?: number;
+  reference?: string;
+}
 
 export enum PdfBrand {
   DFX = 'DFX',
@@ -209,5 +224,26 @@ export class PdfUtil {
       if (b.value == null) return -1;
       return b.value - a.value;
     });
+  }
+
+  static generateGiroCode(data: GiroCodeData): string {
+    const addressLine = [data.name, data.street, data.number, data.zip, data.city, data.country]
+      .filter(Boolean)
+      .join(', ');
+    const amountStr = data.amount && data.currency ? `${data.currency}${data.amount}` : '';
+
+    return `
+${Config.giroCode.service}
+${Config.giroCode.version}
+${Config.giroCode.encoding}
+${Config.giroCode.transfer}
+${data.bic ?? ''}
+${addressLine}
+${data.iban}
+${amountStr}
+${Config.giroCode.char}
+${Config.giroCode.ref}
+${data.reference ?? ''}
+`.trim();
   }
 }
