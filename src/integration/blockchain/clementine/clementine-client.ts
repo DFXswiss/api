@@ -13,8 +13,21 @@ export interface ClementineConfig {
   signingTimeoutMs: number;
 }
 
-export type DepositStatus = 'pending' | 'confirming' | 'completed' | 'failed';
-export type WithdrawStatus = 'pending' | 'scanning' | 'signing' | 'broadcasting' | 'completed' | 'failed';
+export enum DepositStatus {
+  PENDING = 'pending',
+  CONFIRMING = 'confirming',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+}
+
+export enum WithdrawStatus {
+  PENDING = 'pending',
+  SCANNING = 'scanning',
+  SIGNING = 'signing',
+  BROADCASTING = 'broadcasting',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+}
 
 export interface DepositStartResult {
   depositAddress: string;
@@ -229,7 +242,8 @@ export class ClementineClient {
 
   /**
    * Send withdrawal request to bridge contract (burns cBTC)
-   * Command: clementine-cli withdraw send <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPTIMISTIC_SIGNATURE>
+   * Command: clementine-cli withdraw send-safe-withdraw <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPTIMISTIC_SIGNATURE>
+   * Note: Uses send-safe-withdraw (non-interactive) instead of send (opens browser)
    * @param signerAddress Signer address (wit-prefixed)
    * @param destinationAddress Bitcoin destination address
    * @param withdrawalUtxo The withdrawal UTXO (format: txid:vout)
@@ -243,7 +257,7 @@ export class ClementineClient {
   ): Promise<void> {
     await this.executeCommand([
       'withdraw',
-      'send',
+      'send-safe-withdraw',
       signerAddress,
       destinationAddress,
       withdrawalUtxo,
@@ -388,17 +402,17 @@ export class ClementineClient {
   private parseDepositStatus(output: string, depositAddress: string): DepositStatusResult {
     const lowerOutput = output.toLowerCase();
 
-    let status: DepositStatus = 'pending';
+    let status: DepositStatus = DepositStatus.PENDING;
     if (lowerOutput.includes('completed') || lowerOutput.includes('success') || lowerOutput.includes('minted')) {
-      status = 'completed';
+      status = DepositStatus.COMPLETED;
     } else if (
       lowerOutput.includes('confirming') ||
       lowerOutput.includes('waiting') ||
       lowerOutput.includes('confirmation')
     ) {
-      status = 'confirming';
+      status = DepositStatus.CONFIRMING;
     } else if (lowerOutput.includes('failed') || lowerOutput.includes('error')) {
-      status = 'failed';
+      status = DepositStatus.FAILED;
     }
 
     // Try to parse BTC transaction ID
@@ -407,7 +421,7 @@ export class ClementineClient {
 
     // Try to parse error message
     const errorMatch = output.match(/error[:\s]+(.+)/i);
-    const errorMessage = status === 'failed' ? errorMatch?.[1]?.trim() : undefined;
+    const errorMessage = status === DepositStatus.FAILED ? errorMatch?.[1]?.trim() : undefined;
 
     return {
       depositAddress,
@@ -420,17 +434,17 @@ export class ClementineClient {
   private parseWithdrawStatus(output: string, withdrawalUtxo: string): WithdrawStatusResult {
     const lowerOutput = output.toLowerCase();
 
-    let status: WithdrawStatus = 'pending';
+    let status: WithdrawStatus = WithdrawStatus.PENDING;
     if (lowerOutput.includes('completed') || lowerOutput.includes('success')) {
-      status = 'completed';
+      status = WithdrawStatus.COMPLETED;
     } else if (lowerOutput.includes('broadcasting') || lowerOutput.includes('broadcast')) {
-      status = 'broadcasting';
+      status = WithdrawStatus.BROADCASTING;
     } else if (lowerOutput.includes('signing') || lowerOutput.includes('signature')) {
-      status = 'signing';
+      status = WithdrawStatus.SIGNING;
     } else if (lowerOutput.includes('scanning') || lowerOutput.includes('scan')) {
-      status = 'scanning';
+      status = WithdrawStatus.SCANNING;
     } else if (lowerOutput.includes('failed') || lowerOutput.includes('error')) {
-      status = 'failed';
+      status = WithdrawStatus.FAILED;
     }
 
     // Try to parse BTC transaction ID
@@ -439,7 +453,7 @@ export class ClementineClient {
 
     // Try to parse error message
     const errorMatch = output.match(/error[:\s]+(.+)/i);
-    const errorMessage = status === 'failed' ? errorMatch?.[1]?.trim() : undefined;
+    const errorMessage = status === WithdrawStatus.FAILED ? errorMatch?.[1]?.trim() : undefined;
 
     return {
       withdrawalUtxo,
