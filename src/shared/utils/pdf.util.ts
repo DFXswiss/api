@@ -227,9 +227,9 @@ export class PdfUtil {
   }
 
   static generateGiroCode(data: GiroCodeData): string {
-    const addressLine = [data.name, data.street, data.number, data.zip, data.city, data.country]
-      .filter(Boolean)
-      .join(', ');
+    const streetNumber = [data.street, data.number].filter(Boolean).join(' ');
+    const zipCity = [data.zip, data.city].filter(Boolean).join(' ');
+    const addressLine = [data.name, streetNumber, zipCity, data.country].filter(Boolean).join(', ');
     const amountStr = data.amount && data.currency ? `${data.currency}${data.amount}` : '';
 
     return `
