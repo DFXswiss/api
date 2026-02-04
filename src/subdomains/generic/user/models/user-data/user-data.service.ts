@@ -221,7 +221,22 @@ export class UserDataService {
   async getUserDatasWithKycFile(): Promise<UserData[]> {
     return this.userDataRepo
       .createQueryBuilder('userData')
-      .select(['userData.id', 'userData.kycFileId', 'userData.amlAccountType', 'userData.verifiedName'])
+      .leftJoinAndSelect('userData.country', 'country')
+      .select([
+        'userData.id',
+        'userData.kycFileId',
+        'userData.amlAccountType',
+        'userData.verifiedName',
+        'userData.allBeneficialOwnersDomicile',
+        'userData.amlListAddedDate',
+        'userData.amlListExpiredDate',
+        'userData.amlListReactivatedDate',
+        'userData.highRisk',
+        'userData.pep',
+        'userData.complexOrgStructure',
+        'userData.totalVolumeChfAuditPeriod',
+        'country.name',
+      ])
       .where('userData.kycFileId > 0')
       .orderBy('userData.kycFileId', 'ASC')
       .getMany();

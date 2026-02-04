@@ -85,6 +85,15 @@ export class KycFileListEntry {
   id: number;
   amlAccountType?: string;
   verifiedName?: string;
+  country?: { name: string };
+  allBeneficialOwnersDomicile?: string;
+  amlListAddedDate?: Date;
+  amlListExpiredDate?: Date;
+  amlListReactivatedDate?: Date;
+  highRisk?: boolean;
+  pep?: boolean;
+  complexOrgStructure?: boolean;
+  totalVolumeChfAuditPeriod?: number;
 }
 
 export class KycFileYearlyStats {
