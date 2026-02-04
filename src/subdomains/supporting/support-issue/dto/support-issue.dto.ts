@@ -6,6 +6,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { FundOrigin, InvestmentDate, LimitRequestDecision } from '../entities/limit-request.entity';
 import { Department } from '../enums/department.enum';
 import {
   SupportIssueInternalState,
@@ -88,20 +89,20 @@ export class SupportIssueInternalAccountDataDto {
   @ApiProperty({ enum: UserDataStatus })
   status: UserDataStatus;
 
-  @ApiProperty()
-  verifiedName: string;
+  @ApiPropertyOptional()
+  verifiedName?: string;
 
-  @ApiProperty()
-  completeName: string;
+  @ApiPropertyOptional()
+  completeName?: string;
 
-  @ApiProperty({ enum: AccountType })
-  accountType: AccountType;
+  @ApiPropertyOptional({ enum: AccountType })
+  accountType?: AccountType;
 
   @ApiProperty({ enum: KycLevel })
   kycLevel: KycLevel;
 
-  @ApiProperty()
-  depositLimit: number;
+  @ApiPropertyOptional()
+  depositLimit?: number;
 
   @ApiProperty()
   annualVolume: number;
@@ -109,8 +110,8 @@ export class SupportIssueInternalAccountDataDto {
   @ApiProperty()
   kycHash: string;
 
-  @ApiProperty({ type: CountryDto })
-  country: CountryDto;
+  @ApiPropertyOptional({ type: CountryDto })
+  country?: CountryDto;
 }
 
 export class SupportIssueInternalWalletDto {
@@ -134,38 +135,58 @@ export class SupportIssueInternalTransactionDataDto {
   @ApiProperty({ enum: TransactionTypeInternal })
   type: TransactionTypeInternal;
 
-  @ApiProperty({ enum: CheckStatus })
-  amlCheck: CheckStatus;
+  @ApiPropertyOptional({ enum: CheckStatus })
+  amlCheck?: CheckStatus;
 
-  @ApiProperty({ enum: AmlReason })
-  amlReason: AmlReason;
+  @ApiPropertyOptional({ enum: AmlReason })
+  amlReason?: AmlReason;
 
-  @ApiProperty()
-  comment: string;
+  @ApiPropertyOptional()
+  comment?: string;
 
-  @ApiProperty()
-  inputAmount: number;
+  @ApiPropertyOptional()
+  inputAmount?: number;
 
-  @ApiProperty()
-  inputAsset: string;
+  @ApiPropertyOptional()
+  inputAsset?: string;
 
   @ApiPropertyOptional({ enum: Blockchain })
   inputBlockchain?: Blockchain;
 
-  @ApiProperty()
-  outputAmount: number;
+  @ApiPropertyOptional()
+  outputAmount?: number;
 
-  @ApiProperty()
-  outputAsset: string;
+  @ApiPropertyOptional()
+  outputAsset?: string;
 
   @ApiPropertyOptional({ enum: Blockchain })
   outputBlockchain?: Blockchain;
 
-  @ApiProperty({ type: SupportIssueInternalWalletDto })
-  wallet: SupportIssueInternalWalletDto;
+  @ApiPropertyOptional({ type: SupportIssueInternalWalletDto })
+  wallet?: SupportIssueInternalWalletDto;
+
+  @ApiPropertyOptional()
+  isComplete?: boolean;
+}
+
+export class SupportIssueInternalLimitRequestDataDto {
+  @ApiProperty()
+  id: number;
 
   @ApiProperty()
-  isComplete: boolean;
+  limit: number;
+
+  @ApiPropertyOptional()
+  acceptedLimit?: number;
+
+  @ApiProperty()
+  investmentDate: InvestmentDate;
+
+  @ApiProperty()
+  fundOrigin: FundOrigin;
+
+  @ApiPropertyOptional()
+  decision?: LimitRequestDecision;
 }
 
 export class SupportIssueInternalDataDto {
@@ -181,7 +202,7 @@ export class SupportIssueInternalDataDto {
   @ApiProperty({ enum: SupportIssueType })
   type: SupportIssueType;
 
-  @ApiProperty({ enum: Department })
+  @ApiPropertyOptional({ enum: Department })
   department?: Department;
 
   @ApiProperty({ enum: SupportIssueReason })
@@ -196,8 +217,11 @@ export class SupportIssueInternalDataDto {
   @ApiProperty({ type: SupportIssueInternalAccountDataDto })
   account: SupportIssueInternalAccountDataDto;
 
-  @ApiProperty({ type: SupportIssueInternalTransactionDataDto })
-  transaction: SupportIssueInternalTransactionDataDto;
+  @ApiPropertyOptional({ type: SupportIssueInternalTransactionDataDto })
+  transaction?: SupportIssueInternalTransactionDataDto;
+
+  @ApiPropertyOptional({ type: SupportIssueInternalLimitRequestDataDto })
+  limitRequest?: SupportIssueInternalLimitRequestDataDto;
 }
 
 export const SupportIssueStateMapper: {

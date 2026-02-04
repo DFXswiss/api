@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
@@ -222,7 +223,7 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportIssue(issue);
   }
 
-  async getIssueData(id: number): Promise<SupportIssueInternalDataDto> {
+  async getIssueData(id: number, role: UserRole): Promise<SupportIssueInternalDataDto> {
     const issue = await this.supportIssueRepo.findOne({
       where: { id },
       relations: {
@@ -231,11 +232,12 @@ export class SupportIssueService {
           buyCrypto: { transaction: true, cryptoInput: true },
           buyFiat: { transaction: true, cryptoInput: true },
         },
+        limitRequest: true,
       },
     });
     if (!issue) throw new NotFoundException('Support issue not found');
 
-    return SupportIssueDtoMapper.mapSupportIssueData(issue);
+    return SupportIssueDtoMapper.mapSupportIssueData(issue, role);
   }
 
   async getIssueFile(id: string, messageId: number, userDataId?: number): Promise<BlobContent> {
