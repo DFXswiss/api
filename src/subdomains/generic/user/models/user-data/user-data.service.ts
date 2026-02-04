@@ -1071,6 +1071,11 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
+    if (!master.tradeApprovalDate && slave.tradeApprovalDate) master.tradeApprovalDate = slave.tradeApprovalDate;
+
+    const pendingRecommendation = master.kycSteps.find((k) => k.name === KycStepName.RECOMMENDATION && !k.isDone);
+    if (master.tradeApprovalDate && pendingRecommendation)
+      await this.kycAdminService.updateKycStepInternal(pendingRecommendation.update(ReviewStatus.COMPLETED));
 
     // Adapt user used refs
     for (const user of master.users) {
