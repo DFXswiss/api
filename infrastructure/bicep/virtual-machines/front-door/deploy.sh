@@ -11,7 +11,10 @@ environmentOptions=("loc" "dev" "prd")
 # "ctn": Citrea Testnet Node
 # "cteb": Citrea Testnet Explorer Backend
 # "ctef": Citrea Testnet Explorer Frontend
-nodeNameOptions=("ctn" "cteb" "ctef")
+# "cmn": Citrea Mainnet Node
+# "cmeb": Citrea Mainnet Explorer Backend
+# "cmef": Citrea Mainnet Explorer Frontend
+nodeNameOptions=("ctn" "cteb" "ctef" "cmn" "cmeb" "cmef")
 
 # --- FUNCTIONS --- #
 selectOption() {
