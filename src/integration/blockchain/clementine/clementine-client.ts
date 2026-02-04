@@ -325,6 +325,7 @@ export class ClementineClient {
 
       const proc = spawn(this.config.cliPath, args, {
         stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, HOME: '/home' },
       });
 
       const cleanup = (): void => {
