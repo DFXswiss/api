@@ -37,6 +37,8 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "                                Show balance history for asset (default: 10)"
   echo "  -R, --referral-chain <userDataId>"
   echo "                                Show complete referral chain for user"
+  echo "  -T, --referral-tree <userDataId>"
+  echo "                                Show complete referral tree (all branches)"
   echo ""
   echo "Examples:"
   echo "  ./scripts/db-debug.sh --anomalies 50"
@@ -45,6 +47,7 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  ./scripts/db-debug.sh --asset-history Yapeal/EUR 20"
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
   echo "  ./scripts/db-debug.sh --referral-chain 370625"
+  echo "  ./scripts/db-debug.sh --referral-tree 370625"
   echo "  ./scripts/db-debug.sh \"SELECT TOP 10 * FROM asset\""
   exit 0
 fi
@@ -76,6 +79,7 @@ ASSET_ID=""
 ASSET_INPUT=""
 ASSET_LIMIT="10"
 REFERRAL_CHAIN_MODE=""
+REFERRAL_TREE_MODE=""
 TARGET_USER_ID=""
 
 case "${1:-}" in
@@ -110,6 +114,15 @@ case "${1:-}" in
       exit 1
     fi
     REFERRAL_CHAIN_MODE="1"
+    TARGET_USER_ID="$2"
+    ;;
+  -T|--referral-tree)
+    if [ -z "${2:-}" ]; then
+      echo "Error: --referral-tree requires a userDataId"
+      echo "Usage: ./scripts/db-debug.sh --referral-tree <userDataId>"
+      exit 1
+    fi
+    REFERRAL_TREE_MODE="1"
     TARGET_USER_ID="$2"
     ;;
   *)
@@ -233,6 +246,131 @@ if [ -n "$REFERRAL_CHAIN_MODE" ]; then
       fi
     fi
   done
+
+  exit 0
+fi
+
+# --- Referral tree mode ---
+if [ -n "$REFERRAL_TREE_MODE" ]; then
+  if ! command -v jq &> /dev/null; then
+    echo "Error: jq is required for --referral-tree"
+    exit 1
+  fi
+
+  # First, find the root by walking up
+  CURRENT_ID="$TARGET_USER_ID"
+  ROOT_ID=""
+
+  while [ -n "$CURRENT_ID" ]; do
+    ROOT_ID="$CURRENT_ID"
+    RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"sql\":\"SELECT recommenderId FROM recommendation WHERE recommendedId = $CURRENT_ID\"}")
+    REFERRER_ID=$(echo "$RESULT" | jq -r '.[0].recommenderId // empty')
+    if [ -n "$REFERRER_ID" ] && [ "$REFERRER_ID" != "null" ]; then
+      CURRENT_ID="$REFERRER_ID"
+    else
+      CURRENT_ID=""
+    fi
+  done
+
+  echo "=== Referral Tree for UserDataId $TARGET_USER_ID (Root: $ROOT_ID) ==="
+  echo ""
+
+  # Recursive function to print tree
+  print_tree() {
+    local user_id="$1"
+    local prefix="$2"
+    local is_last="$3"
+    local is_root="$4"
+
+    # Get user status
+    local status_result=$(curl -s -X POST "$API_URL/gs/debug" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"sql\":\"SELECT status, kycStatus FROM user_data WHERE id = $user_id\"}")
+    local status=$(echo "$status_result" | jq -r '.[0].status // "?"')
+    local kyc_status=$(echo "$status_result" | jq -r '.[0].kycStatus // "?"')
+
+    # Build display line
+    local marker=""
+    if [ "$user_id" == "$TARGET_USER_ID" ]; then
+      marker=" ← (target)"
+    fi
+    local status_info="($status, $kyc_status)"
+
+    if [ "$is_root" == "1" ]; then
+      echo "$user_id $status_info$marker"
+    else
+      if [ "$is_last" == "1" ]; then
+        echo "${prefix}└── $user_id $status_info$marker"
+      else
+        echo "${prefix}├── $user_id $status_info$marker"
+      fi
+    fi
+
+    # Get children
+    local children_result=$(curl -s -X POST "$API_URL/gs/debug" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"sql\":\"SELECT recommendedId FROM recommendation WHERE recommenderId = $user_id ORDER BY created\"}")
+    local children=$(echo "$children_result" | jq -r '.[].recommendedId // empty' 2>/dev/null)
+
+    if [ -n "$children" ]; then
+      local children_array=($children)
+      local num_children=${#children_array[@]}
+      local child_index=0
+
+      for child_id in "${children_array[@]}"; do
+        child_index=$((child_index + 1))
+        local child_is_last="0"
+        if [ $child_index -eq $num_children ]; then
+          child_is_last="1"
+        fi
+
+        local new_prefix=""
+        if [ "$is_root" == "1" ]; then
+          new_prefix=""
+        elif [ "$is_last" == "1" ]; then
+          new_prefix="${prefix}    "
+        else
+          new_prefix="${prefix}│   "
+        fi
+
+        print_tree "$child_id" "$new_prefix" "$child_is_last" "0"
+      done
+    fi
+  }
+
+  # Start printing from root
+  print_tree "$ROOT_ID" "" "" "1"
+
+  # Count total users
+  echo ""
+  KNOWN_IDS="$ROOT_ID"
+  TO_CHECK="$ROOT_ID"
+
+  while [ -n "$TO_CHECK" ]; do
+    NEW_TO_CHECK=""
+    for check_id in $TO_CHECK; do
+      count_children_result=$(curl -s -X POST "$API_URL/gs/debug" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"sql\":\"SELECT recommendedId FROM recommendation WHERE recommenderId = $check_id\"}")
+      count_children=$(echo "$count_children_result" | jq -r '.[].recommendedId // empty' 2>/dev/null)
+      for child in $count_children; do
+        if [[ ! " $KNOWN_IDS " =~ " $child " ]]; then
+          KNOWN_IDS="$KNOWN_IDS $child"
+          NEW_TO_CHECK="$NEW_TO_CHECK $child"
+        fi
+      done
+    done
+    TO_CHECK="$NEW_TO_CHECK"
+  done
+
+  TOTAL_COUNT=$(echo $KNOWN_IDS | wc -w | tr -d ' ')
+  echo "Total users in tree: $TOTAL_COUNT"
 
   exit 0
 fi
