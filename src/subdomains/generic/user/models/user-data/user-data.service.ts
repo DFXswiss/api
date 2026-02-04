@@ -349,16 +349,23 @@ export class UserDataService {
     const downloadTargets = Config.fileDownloadConfig.reverse();
     const errors: { userDataId: number; errorType: string; folder: string; details: string }[] = [];
 
+    const escapeCsvValue = (value: string): string => {
+      if (value.includes(';') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+
     for (const userDataId of userDataIds.reverse()) {
       const userData = await this.getUserData(userDataId, { kycSteps: true });
 
       if (!userData) {
-        errors.push({ userDataId, errorType: 'NotFound', folder: '', details: 'UserData not found' });
+        errors.push({ userDataId, errorType: 'NotFound', folder: '', details: '' });
         continue;
       }
 
       if (!userData.verifiedName) {
-        errors.push({ userDataId, errorType: 'NoVerifiedName', folder: '', details: 'UserData has no verifiedName' });
+        errors.push({ userDataId, errorType: 'NoVerifiedName', folder: '', details: '' });
         continue;
       }
 
@@ -388,15 +395,18 @@ export class UserDataService {
           continue;
         }
 
-        for (const { name: fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
+        for (const { name: fileNameFn, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
           const files = allFiles
             .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
             .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
             .filter((f) => !filter || filter(f, userData));
 
           if (!files.length) {
-            if (!checkOnly && handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
-            if (checkOnly && handleFileNotFound) continue;
+            if (handleFileNotFound) {
+              // Evaluate handleFileNotFound with a temp folder to check if it would handle the case
+              const tempFolder = checkOnly ? new JSZip().folder('temp') : subFolder;
+              if (handleFileNotFound(tempFolder, userData)) continue;
+            }
             errors.push({ userDataId, errorType: 'FileMissing', folder: folderName, details: '' });
             continue;
           }
@@ -412,7 +422,7 @@ export class UserDataService {
               selectedFile.type,
               selectedFile.name,
             );
-            const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
+            const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
             subFolder.file(filePath, fileData.data);
           } catch {
             errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
@@ -422,7 +432,9 @@ export class UserDataService {
     }
 
     const csvHeader = 'UserDataId;ErrorType;Folder;Details';
-    const csvRows = errors.map((e) => `${e.userDataId};${e.errorType};${e.folder};${e.details}`);
+    const csvRows = errors.map(
+      (e) => `${e.userDataId};${e.errorType};${escapeCsvValue(e.folder)};${escapeCsvValue(e.details)}`,
+    );
     const csvContent = errors.length > 0 ? [csvHeader, ...csvRows].join('\n') : 'No_Error';
     zip.file('error_log.csv', csvContent);
 
