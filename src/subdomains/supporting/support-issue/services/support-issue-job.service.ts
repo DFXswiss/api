@@ -31,7 +31,9 @@ export class SupportIssueJobService {
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
   async sendAutoResponses() {
-    const disabledTemplates = await this.settingsService.get('SupportBot').then((s) => s?.split(',') as AutoResponse[]);
+    const disabledTemplates = await this.settingsService
+      .get('SupportBot')
+      .then((s) => (s?.split(',') ?? []) as AutoResponse[]);
 
     if (!disabledTemplates.includes(AutoResponse.MONERO_COMPLETE)) await this.moneroComplete();
     if (!disabledTemplates.includes(AutoResponse.SEPA)) await this.sepa();
