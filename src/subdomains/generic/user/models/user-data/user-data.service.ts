@@ -343,7 +343,7 @@ export class UserDataService {
     return userData;
   }
 
-  async downloadUserData(userDataIds: number[]): Promise<Buffer> {
+  async downloadUserData(userDataIds: number[], checkOnly = false): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
     const downloadTargets = Config.fileDownloadConfig.reverse();
@@ -362,9 +362,9 @@ export class UserDataService {
       const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${
         userData.verifiedName
       }`.replace(/\./g, '');
-      const parentFolder = zip.folder(baseFolderName);
+      const parentFolder = checkOnly ? null : zip.folder(baseFolderName);
 
-      if (!parentFolder) {
+      if (!checkOnly && !parentFolder) {
         errorLog += `Error: Failed to create folder for UserData ${userDataId}\n`;
         continue;
       }
@@ -378,9 +378,9 @@ export class UserDataService {
 
       for (const { id, name, files: fileConfig } of applicableTargets) {
         const folderName = `${id.toString().padStart(2, '0')}_${name}`;
-        const subFolder = parentFolder.folder(folderName);
+        const subFolder = checkOnly ? null : parentFolder.folder(folderName);
 
-        if (!subFolder) {
+        if (!checkOnly && !subFolder) {
           errorLog += `Error: Failed to create folder '${folderName}' for UserData ${userDataId}\n`;
           continue;
         }
@@ -392,10 +392,13 @@ export class UserDataService {
             .filter((f) => !filter || filter(f, userData));
 
           if (!files.length) {
-            if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
+            if (!checkOnly && handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
+            if (checkOnly && handleFileNotFound) continue;
             errorLog += `Error: File missing for folder '${folderName}' for UserData ${userDataId}\n`;
             continue;
           }
+
+          if (checkOnly) continue;
 
           const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
 
@@ -415,7 +418,7 @@ export class UserDataService {
       }
     }
 
-    if (errorLog) zip.file('error_log.txt', errorLog);
+    zip.file('error_log.txt', errorLog || 'No_Error');
 
     return zip.generateAsync({ type: 'nodebuffer' });
   }
