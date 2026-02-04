@@ -178,8 +178,8 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
       case OrderStatus.CANCELED: {
         // check for min. amount
-        const minAmount = await this.getMinTradeAmount(order.symbol);
-        if (order.remaining < minAmount) {
+        const { amount: minAmount, cost: minCost } = await this.getMinTradeAmount(order.symbol);
+        if (order.remaining < minAmount || order.remaining * order.price < minCost) {
           return true;
         }
 
@@ -238,8 +238,12 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.callApi((e) => e.fetchMarkets());
   }
 
-  async getMinTradeAmount(pair: string): Promise<number> {
-    return this.getMarket(pair).then((m) => m.limits.amount.min);
+  async getMinTradeAmount(pair: string): Promise<{ amount: number; cost: number }> {
+    const market = await this.getMarket(pair);
+    return {
+      amount: market.limits.amount.min ?? 0,
+      cost: market.limits.cost?.min ?? 0,
+    };
   }
 
   private async getPrecision(pair: string): Promise<{ price: number; amount: number }> {
@@ -296,8 +300,8 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.callApi((e) => e.fetchOrderBook(pair));
   }
 
-  private async fetchCurrentOrderPrice(pair: string, direction: string): Promise<number> {
-    const orderBook = await this.fetchOrderBook(pair);
+  private async fetchCurrentOrderPrice(pair: string, direction: string, orderBook?: OrderBook): Promise<number> {
+    orderBook ??= await this.fetchOrderBook(pair);
 
     const { price: pricePrecision } = await this.getPrecision(pair);
 
@@ -310,15 +314,14 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   async getBestBidLiquidity(from: string, to: string): Promise<{ price: number; amount: number } | undefined> {
     const { pair, direction } = await this.getTradePair(from, to);
 
-    const minAmount = await this.getMinTradeAmount(pair);
+    const { amount: minAmount, cost: minCost } = await this.getMinTradeAmount(pair);
     const orderBook = await this.fetchOrderBook(pair);
     const { price: pricePrecision } = await this.getPrecision(pair);
 
     const orders = direction === OrderSide.SELL ? orderBook.bids : orderBook.asks;
 
     // Find first order that meets minimum amount requirement
-    const validOrder = orders.find(([, amount]) => amount >= minAmount);
-
+    const validOrder = orders.find(([price, amount]) => amount >= minAmount && price * amount >= minCost);
     if (!validOrder) return undefined;
 
     const [price, amount] = validOrder;
@@ -335,9 +338,18 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     // place the order
     const { pair, direction } = await this.getTradePair(from, to);
     const { amount: amountPrecision } = await this.getPrecision(pair);
-    const price = await this.fetchCurrentOrderPrice(pair, direction);
+    const orderBook = await this.fetchOrderBook(pair);
+    const price = await this.fetchCurrentOrderPrice(pair, direction, orderBook);
 
-    const orderAmount = Util.floorToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
+    const orders = direction === OrderSide.BUY ? orderBook.asks : orderBook.bids;
+
+    let orderAmount = Util.floorToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
+
+    // Snap to nearby order book amount to avoid leaving dust
+    const matchingOrder = orders.find(([, amt]) => Math.abs(amt - orderAmount) <= 2 * amountPrecision);
+    if (matchingOrder) {
+      orderAmount = matchingOrder[1];
+    }
 
     const id = await this.placeOrder(pair, direction, orderAmount, price);
 
