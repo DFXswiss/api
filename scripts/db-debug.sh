@@ -35,6 +35,8 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  -s, --stats                   Show log statistics by system/subsystem"
   echo "  -A, --asset-history <ID|Blockchain/Name> [N]"
   echo "                                Show balance history for asset (default: 10)"
+  echo "  -R, --referral-chain <userDataId>"
+  echo "                                Show complete referral chain for user"
   echo ""
   echo "Examples:"
   echo "  ./scripts/db-debug.sh --anomalies 50"
@@ -42,6 +44,7 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  ./scripts/db-debug.sh --asset-history 405 20"
   echo "  ./scripts/db-debug.sh --asset-history Yapeal/EUR 20"
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
+  echo "  ./scripts/db-debug.sh --referral-chain 370625"
   echo "  ./scripts/db-debug.sh \"SELECT TOP 10 * FROM asset\""
   exit 0
 fi
@@ -72,6 +75,8 @@ ASSET_HISTORY_MODE=""
 ASSET_ID=""
 ASSET_INPUT=""
 ASSET_LIMIT="10"
+REFERRAL_CHAIN_MODE=""
+TARGET_USER_ID=""
 
 case "${1:-}" in
   -a|--anomalies)
@@ -97,6 +102,15 @@ case "${1:-}" in
     ASSET_HISTORY_MODE="1"
     ASSET_INPUT="$2"
     ASSET_LIMIT="${3:-10}"
+    ;;
+  -R|--referral-chain)
+    if [ -z "${2:-}" ]; then
+      echo "Error: --referral-chain requires a userDataId"
+      echo "Usage: ./scripts/db-debug.sh --referral-chain <userDataId>"
+      exit 1
+    fi
+    REFERRAL_CHAIN_MODE="1"
+    TARGET_USER_ID="$2"
     ;;
   *)
     SQL="${1:-SELECT TOP 5 id, name, blockchain FROM asset ORDER BY id DESC}"
@@ -142,6 +156,86 @@ fi
 ROLE=$(echo "$TOKEN" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq -r '.role' 2>/dev/null || echo "unknown")
 echo "Authenticated with role: $ROLE"
 echo ""
+
+# --- Referral chain mode ---
+if [ -n "$REFERRAL_CHAIN_MODE" ]; then
+  if ! command -v jq &> /dev/null; then
+    echo "Error: jq is required for --referral-chain"
+    exit 1
+  fi
+
+  echo "=== Referral Chain for UserDataId $TARGET_USER_ID ==="
+  echo ""
+
+  # Collect chain by walking up (store as space-separated string for POSIX compatibility)
+  CHAIN=""
+  METHODS=""
+  CURRENT_ID="$TARGET_USER_ID"
+
+  while [ -n "$CURRENT_ID" ]; do
+    if [ -z "$CHAIN" ]; then
+      CHAIN="$CURRENT_ID"
+    else
+      CHAIN="$CHAIN $CURRENT_ID"
+    fi
+
+    # Query recommendation for current user
+    RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"sql\":\"SELECT recommenderId, method, created FROM recommendation WHERE recommendedId = $CURRENT_ID\"}")
+
+    REFERRER_ID=$(echo "$RESULT" | jq -r '.[0].recommenderId // empty')
+    METHOD=$(echo "$RESULT" | jq -r '.[0].method // empty')
+    CREATED=$(echo "$RESULT" | jq -r '.[0].created // empty' | cut -d'T' -f1)
+
+    if [ -n "$REFERRER_ID" ] && [ "$REFERRER_ID" != "null" ]; then
+      # Store method/date for display (format: userId:method:date)
+      if [ -z "$METHODS" ]; then
+        METHODS="$CURRENT_ID:$METHOD:$CREATED"
+      else
+        METHODS="$METHODS $CURRENT_ID:$METHOD:$CREATED"
+      fi
+      CURRENT_ID="$REFERRER_ID"
+    else
+      CURRENT_ID=""
+    fi
+  done
+
+  # Convert to array and print chain (reversed, root first)
+  CHAIN_ARRAY=($CHAIN)
+  CHAIN_LEN=${#CHAIN_ARRAY[@]}
+
+  for ((i=CHAIN_LEN-1; i>=0; i--)); do
+    USER_ID="${CHAIN_ARRAY[$i]}"
+
+    if [ $i -eq $((CHAIN_LEN-1)) ]; then
+      # Root user (no referrer)
+      echo "$USER_ID (Root - no referrer)"
+    else
+      # Find method for this user
+      METHOD_INFO=""
+      for entry in $METHODS; do
+        entry_id=$(echo "$entry" | cut -d':' -f1)
+        if [ "$entry_id" == "$USER_ID" ]; then
+          entry_method=$(echo "$entry" | cut -d':' -f2)
+          entry_date=$(echo "$entry" | cut -d':' -f3)
+          METHOD_INFO="$entry_method ($entry_date)"
+          break
+        fi
+      done
+
+      echo "   ↓ $METHOD_INFO"
+      if [ "$USER_ID" == "$TARGET_USER_ID" ]; then
+        echo "$USER_ID ← (target)"
+      else
+        echo "$USER_ID"
+      fi
+    fi
+  done
+
+  exit 0
+fi
 
 # --- Resolve asset ID if needed ---
 if [ -n "$ASSET_HISTORY_MODE" ]; then
