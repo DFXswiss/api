@@ -819,6 +819,7 @@ export class Configuration {
     clementine: {
       network: (process.env.CLEMENTINE_NETWORK as ClementineNetwork) ?? ClementineNetwork.BITCOIN,
       cliPath: process.env.CLEMENTINE_CLI_PATH ?? 'clementine-cli',
+      homeDir: process.env.CLEMENTINE_HOME_DIR ?? '/home',
       recoveryTaprootAddress: process.env.CLEMENTINE_RECOVERY_TAPROOT_ADDRESS,
       signerAddress: process.env.CLEMENTINE_SIGNER_ADDRESS,
       timeoutMs: parseInt(process.env.CLEMENTINE_TIMEOUT_MS ?? '60000'),

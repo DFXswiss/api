@@ -166,11 +166,20 @@ export class MexcService extends ExchangeService {
 
     const url = `${this.baseUrl}/${path}?${searchParams}`;
 
-    return this.http.request<T>({
-      url,
-      method,
-      headers: { 'X-MEXC-APIKEY': Config.mexc.apiKey, 'Content-Type': 'application/json' },
-    });
+    try {
+      return await this.http.request<T>({
+        url,
+        method,
+        headers: { 'X-MEXC-APIKEY': Config.mexc.apiKey, 'Content-Type': 'application/json' },
+      });
+    } catch (e) {
+      // Extract MEXC error details from response body
+      const mexcError = e.response?.data;
+      if (mexcError) {
+        throw new Error(`MEXC API error: ${mexcError.msg ?? JSON.stringify(mexcError)} (code: ${mexcError.code})`);
+      }
+      throw e;
+    }
   }
 
   // --- ZCHF Assessment Period - can be removed once assessment ends --- //
