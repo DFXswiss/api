@@ -9,6 +9,7 @@ export enum ClementineNetwork {
 export interface ClementineConfig {
   network: ClementineNetwork;
   cliPath: string;
+  homeDir: string;
   timeoutMs: number;
   signingTimeoutMs: number;
 }
@@ -325,7 +326,7 @@ export class ClementineClient {
 
       const proc = spawn(this.config.cliPath, args, {
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, HOME: '/home' },
+        env: { ...process.env, HOME: this.config.homeDir },
       });
 
       const cleanup = (): void => {
