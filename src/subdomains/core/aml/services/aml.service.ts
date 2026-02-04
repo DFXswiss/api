@@ -50,7 +50,7 @@ export class AmlService {
       [CheckStatus.PENDING, CheckStatus.GSHEET].includes(entity.amlCheck) &&
       entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED
     )
-      await this.userDataService.triggerVideoIdent(entity.userData);
+      await this.userDataService.checkOrTriggerVideoIdent(entity.userData);
 
     if (entity.amlCheck === CheckStatus.PASS) {
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);

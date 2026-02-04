@@ -728,7 +728,7 @@ export class UserDataService {
     return userWithCustomMethod?.wallet.identMethod;
   }
 
-  async triggerVideoIdent(userData: UserData): Promise<void> {
+  async checkOrTriggerVideoIdent(userData: UserData): Promise<void> {
     await this.kycAdminService.triggerVideoIdentInternal(userData);
   }
 
