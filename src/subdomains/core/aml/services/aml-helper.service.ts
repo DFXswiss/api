@@ -437,7 +437,11 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_16:
-        if (entity.userData.accountType === AccountType.PERSONAL && !entity.userData.phoneCallCheckDate)
+        if (
+          entity instanceof BuyCrypto &&
+          entity.userData.accountType === AccountType.PERSONAL &&
+          !entity.userData.phoneCallCheckDate
+        )
           errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
         break;
     }
