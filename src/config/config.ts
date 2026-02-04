@@ -5,6 +5,7 @@ import { ConstructorArgs } from 'ccxt';
 import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
+import { ClementineNetwork } from 'src/integration/blockchain/clementine/clementine-client';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -814,6 +815,14 @@ export class Configuration {
       citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
       blockscoutApiUrl: process.env.CITREA_TESTNET_BLOCKSCOUT_API_URL,
+    },
+    clementine: {
+      network: (process.env.CLEMENTINE_NETWORK as ClementineNetwork) ?? ClementineNetwork.BITCOIN,
+      cliPath: process.env.CLEMENTINE_CLI_PATH ?? 'clementine-cli',
+      recoveryTaprootAddress: process.env.CLEMENTINE_RECOVERY_TAPROOT_ADDRESS,
+      signerAddress: process.env.CLEMENTINE_SIGNER_ADDRESS,
+      timeoutMs: parseInt(process.env.CLEMENTINE_TIMEOUT_MS ?? '60000'),
+      signingTimeoutMs: parseInt(process.env.CLEMENTINE_SIGNING_TIMEOUT_MS ?? '300000'),
     },
     bitcoinTestnet4: {
       btcTestnet4Output: {
