@@ -53,6 +53,18 @@ const BTC_ADDRESS_PREFIXES: Record<ClementineNetwork, string[]> = {
   [ClementineNetwork.TESTNET4]: ['tb1', 'bcrt1', 'm', 'n', '2'],
 };
 
+// Expected Bitcoin chain names by network
+const BTC_CHAIN_NAMES: Record<ClementineNetwork, string> = {
+  [ClementineNetwork.BITCOIN]: 'main',
+  [ClementineNetwork.TESTNET4]: 'testnet4',
+};
+
+// Expected Citrea chain IDs by network
+const CITREA_CHAIN_IDS: Record<ClementineNetwork, number> = {
+  [ClementineNetwork.BITCOIN]: 4114, // Citrea mainnet
+  [ClementineNetwork.TESTNET4]: 5115, // Citrea testnet
+};
+
 interface WithdrawCorrelationData {
   step: string;
   signerAddress: string;
@@ -151,7 +163,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Validate network consistency on first use
-    this.validateNetworkConsistency();
+    await this.validateNetworkConsistency();
 
     // Get the corresponding Bitcoin asset
     const bitcoinAsset = await this.getBtcAsset();
@@ -215,7 +227,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Validate network consistency on first use
-    this.validateNetworkConsistency();
+    await this.validateNetworkConsistency();
 
     // Get the corresponding Citrea cBTC asset
     const citreaAsset = await this.getCitreaAsset();
@@ -444,7 +456,11 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Check if 12 hours have passed - if so, send to operators
-    const elapsed = Date.now() - (data.sentToBridgeAt ?? 0);
+    if (!data.sentToBridgeAt) {
+      this.logger.warn('Withdrawal: sentToBridgeAt missing, skipping operator escalation check');
+      return false;
+    }
+    const elapsed = Date.now() - data.sentToBridgeAt;
     if (elapsed > OPTIMISTIC_TIMEOUT_MS) {
       this.logger.verbose(`Withdrawal: 12 hours elapsed, sending to operators`);
 
@@ -506,14 +522,35 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   //*** NETWORK VALIDATION ***//
 
   /**
-   * Validates that all configured addresses match the expected network (mainnet/testnet).
+   * Validates that all configured addresses and connected nodes match the expected network (mainnet/testnet).
    * Throws an error on first use if there's a network mismatch to prevent fund loss.
    * Only validates once, subsequent calls are skipped.
    */
-  private validateNetworkConsistency(): void {
+  private async validateNetworkConsistency(): Promise<void> {
     if (this.networkValidated) return;
 
     const errors: string[] = [];
+
+    // Validate Bitcoin node is on correct network
+    try {
+      const btcInfo = await this.bitcoinClient.getInfo();
+      const expectedChain = BTC_CHAIN_NAMES[this.network];
+      if (btcInfo.chain !== expectedChain) {
+        errors.push(
+          `Bitcoin node is on '${btcInfo.chain}' but Clementine network is '${this.network}' (expected '${expectedChain}')`,
+        );
+      }
+    } catch (e) {
+      errors.push(`Failed to verify Bitcoin node network: ${e.message}`);
+    }
+
+    // Validate Citrea client is on correct network
+    const expectedCitreaChainId = CITREA_CHAIN_IDS[this.network];
+    if (this.citreaClient.chainId !== expectedCitreaChainId) {
+      errors.push(
+        `Citrea client chainId is ${this.citreaClient.chainId} but expected ${expectedCitreaChainId} for Clementine network '${this.network}'`,
+      );
+    }
 
     // Validate Bitcoin wallet address
     const btcWalletAddress = this.bitcoinClient.walletAddress;
