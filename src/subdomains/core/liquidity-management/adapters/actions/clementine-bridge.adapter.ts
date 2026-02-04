@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { GetConfig } from 'src/config/config';
-import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
+import { BitcoinTestnet4Service } from 'src/integration/blockchain/bitcoin-testnet4/bitcoin-testnet4.service';
+import { BitcoinTestnet4FeeService } from 'src/integration/blockchain/bitcoin-testnet4/services/bitcoin-testnet4-fee.service';
+import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
+import { CitreaTestnetService } from 'src/integration/blockchain/citrea-testnet/citrea-testnet.service';
 import { CitreaClient } from 'src/integration/blockchain/citrea/citrea-client';
 import { CitreaService } from 'src/integration/blockchain/citrea/citrea.service';
 import {
@@ -14,7 +17,7 @@ import {
 import { ClementineService } from 'src/integration/blockchain/clementine/clementine.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { isAsset } from 'src/shared/models/active';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
@@ -50,6 +53,18 @@ const BTC_ADDRESS_PREFIXES: Record<ClementineNetwork, string[]> = {
   [ClementineNetwork.TESTNET4]: ['tb1', 'bcrt1', 'm', 'n', '2'],
 };
 
+// Expected Bitcoin chain names by network
+const BTC_CHAIN_NAMES: Record<ClementineNetwork, string> = {
+  [ClementineNetwork.BITCOIN]: 'main',
+  [ClementineNetwork.TESTNET4]: 'testnet4',
+};
+
+// Expected Citrea chain IDs by network
+const CITREA_CHAIN_IDS: Record<ClementineNetwork, number> = {
+  [ClementineNetwork.BITCOIN]: 4114, // Citrea mainnet
+  [ClementineNetwork.TESTNET4]: 5115, // Citrea testnet
+};
+
 interface WithdrawCorrelationData {
   step: string;
   signerAddress: string;
@@ -67,7 +82,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   protected commands = new Map<string, Command>();
 
   private readonly clementineClient: ClementineClient;
-  private readonly bitcoinClient: BitcoinClient;
+  private readonly bitcoinClient: BitcoinBasedClient;
   private readonly citreaClient: CitreaClient;
   private readonly recoveryTaprootAddress: string;
   private readonly signerAddress: string;
@@ -77,9 +92,12 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   constructor(
     clementineService: ClementineService,
     bitcoinService: BitcoinService,
+    bitcoinTestnet4Service: BitcoinTestnet4Service,
     citreaService: CitreaService,
+    citreaTestnetService: CitreaTestnetService,
     private readonly assetService: AssetService,
     private readonly bitcoinFeeService: BitcoinFeeService,
+    private readonly bitcoinTestnet4FeeService: BitcoinTestnet4FeeService,
   ) {
     super(LiquidityManagementSystem.CLEMENTINE_BRIDGE);
 
@@ -89,8 +107,12 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     this.signerAddress = config.signerAddress;
 
     this.clementineClient = clementineService.getDefaultClient();
-    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
-    this.citreaClient = citreaService.getDefaultClient<CitreaClient>();
+    this.bitcoinClient = this.isTestnet
+      ? bitcoinTestnet4Service.getDefaultClient()
+      : bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
+    this.citreaClient = this.isTestnet
+      ? citreaTestnetService.getDefaultClient<CitreaClient>()
+      : citreaService.getDefaultClient<CitreaClient>();
 
     this.commands.set(ClementineBridgeCommands.DEPOSIT, this.deposit.bind(this));
     this.commands.set(ClementineBridgeCommands.WITHDRAW, this.withdraw.bind(this));
@@ -129,8 +151,10 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     } = order;
 
     // Validate asset is cBTC on Citrea
-    if (citreaAsset.type !== AssetType.COIN || citreaAsset.blockchain !== Blockchain.CITREA) {
-      throw new OrderNotProcessableException('Clementine deposit only supports cBTC (native coin) on Citrea');
+    if (citreaAsset.type !== AssetType.COIN || citreaAsset.blockchain !== this.citreaBlockchain) {
+      throw new OrderNotProcessableException(
+        `Clementine deposit only supports cBTC (native coin) on ${this.citreaBlockchain}`,
+      );
     }
 
     // Validate configuration
@@ -139,10 +163,10 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Validate network consistency on first use
-    this.validateNetworkConsistency();
+    await this.validateNetworkConsistency();
 
     // Get the corresponding Bitcoin asset
-    const bitcoinAsset = await this.assetService.getBtcCoin();
+    const bitcoinAsset = await this.getBtcAsset();
 
     // Check BTC balance on Bitcoin node - must have at least 10 BTC (fixed bridge amount)
     const btcBalance = await this.bitcoinClient.getNativeCoinBalance();
@@ -191,8 +215,10 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     } = order;
 
     // Validate asset is BTC on Bitcoin
-    if (bitcoinAsset.type !== AssetType.COIN || bitcoinAsset.blockchain !== Blockchain.BITCOIN) {
-      throw new OrderNotProcessableException('Clementine withdraw only supports BTC (native coin) on Bitcoin');
+    if (bitcoinAsset.type !== AssetType.COIN || bitcoinAsset.blockchain !== this.btcBlockchain) {
+      throw new OrderNotProcessableException(
+        `Clementine withdraw only supports BTC (native coin) on ${this.btcBlockchain}`,
+      );
     }
 
     // Validate configuration
@@ -201,10 +227,10 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Validate network consistency on first use
-    this.validateNetworkConsistency();
+    await this.validateNetworkConsistency();
 
     // Get the corresponding Citrea cBTC asset
-    const citreaAsset = await this.assetService.getCitreaCoin();
+    const citreaAsset = await this.getCitreaAsset();
 
     // Check cBTC balance on Citrea - must have at least 10 cBTC (fixed bridge amount)
     const cbtcBalance = await this.citreaClient.getNativeCoinBalance();
@@ -222,7 +248,9 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     this.logger.verbose(`Withdrawal started for ${this.signerAddress} -> ${destinationAddress}`);
 
     // Step 2: Send 330 satoshis to signer address to create withdrawal UTXO
-    const dustTxId = await this.sendBtcToAddress(this.signerAddress, CLEMENTINE_WITHDRAWAL_DUST_BTC);
+    // Strip 'wit' prefix as Bitcoin nodes only accept standard addresses
+    const signerBtcAddress = this.signerAddress.replace(/^wit/, '');
+    const dustTxId = await this.sendBtcToAddress(signerBtcAddress, CLEMENTINE_WITHDRAWAL_DUST_BTC);
     this.logger.verbose(`Sent ${CLEMENTINE_WITHDRAWAL_DUST_BTC} BTC (330 sats) to signer: ${dustTxId}`);
 
     // Update order with fixed amount
@@ -428,7 +456,11 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Check if 12 hours have passed - if so, send to operators
-    const elapsed = Date.now() - (data.sentToBridgeAt ?? 0);
+    if (!data.sentToBridgeAt) {
+      this.logger.warn('Withdrawal: sentToBridgeAt missing, skipping operator escalation check');
+      return false;
+    }
+    const elapsed = Date.now() - data.sentToBridgeAt;
     if (elapsed > OPTIMISTIC_TIMEOUT_MS) {
       this.logger.verbose(`Withdrawal: 12 hours elapsed, sending to operators`);
 
@@ -469,7 +501,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   //*** HELPER METHODS ***//
 
   private async sendBtcToAddress(address: string, amount: number): Promise<string> {
-    const feeRate = await this.bitcoinFeeService.getRecommendedFeeRate();
+    const feeRate = await this.getFeeRate();
     const txId = await this.bitcoinClient.sendMany([{ addressTo: address, amount }], feeRate);
 
     if (!txId) {
@@ -490,14 +522,35 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   //*** NETWORK VALIDATION ***//
 
   /**
-   * Validates that all configured addresses match the expected network (mainnet/testnet).
+   * Validates that all configured addresses and connected nodes match the expected network (mainnet/testnet).
    * Throws an error on first use if there's a network mismatch to prevent fund loss.
    * Only validates once, subsequent calls are skipped.
    */
-  private validateNetworkConsistency(): void {
+  private async validateNetworkConsistency(): Promise<void> {
     if (this.networkValidated) return;
 
     const errors: string[] = [];
+
+    // Validate Bitcoin node is on correct network
+    try {
+      const btcInfo = await this.bitcoinClient.getInfo();
+      const expectedChain = BTC_CHAIN_NAMES[this.network];
+      if (btcInfo.chain !== expectedChain) {
+        errors.push(
+          `Bitcoin node is on '${btcInfo.chain}' but Clementine network is '${this.network}' (expected '${expectedChain}')`,
+        );
+      }
+    } catch (e) {
+      errors.push(`Failed to verify Bitcoin node network: ${e.message}`);
+    }
+
+    // Validate Citrea client is on correct network
+    const expectedCitreaChainId = CITREA_CHAIN_IDS[this.network];
+    if (this.citreaClient.chainId !== expectedCitreaChainId) {
+      errors.push(
+        `Citrea client chainId is ${this.citreaClient.chainId} but expected ${expectedCitreaChainId} for Clementine network '${this.network}'`,
+      );
+    }
 
     // Validate Bitcoin wallet address
     const btcWalletAddress = this.bitcoinClient.walletAddress;
@@ -539,5 +592,33 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   private isAddressForNetwork(address: string, network: ClementineNetwork): boolean {
     const prefixes = BTC_ADDRESS_PREFIXES[network];
     return prefixes.some((prefix) => address.startsWith(prefix));
+  }
+
+  //*** NETWORK HELPERS ***//
+
+  private get isTestnet(): boolean {
+    return this.network === ClementineNetwork.TESTNET4;
+  }
+
+  private get btcBlockchain(): Blockchain {
+    return this.isTestnet ? Blockchain.BITCOIN_TESTNET4 : Blockchain.BITCOIN;
+  }
+
+  private get citreaBlockchain(): Blockchain {
+    return this.isTestnet ? Blockchain.CITREA_TESTNET : Blockchain.CITREA;
+  }
+
+  private getBtcAsset(): Promise<Asset> {
+    return this.isTestnet ? this.assetService.getBitcoinTestnet4Coin() : this.assetService.getBtcCoin();
+  }
+
+  private getCitreaAsset(): Promise<Asset> {
+    return this.isTestnet ? this.assetService.getCitreaTestnetCoin() : this.assetService.getCitreaCoin();
+  }
+
+  private getFeeRate(): Promise<number> {
+    return this.isTestnet
+      ? this.bitcoinTestnet4FeeService.getRecommendedFeeRate()
+      : this.bitcoinFeeService.getRecommendedFeeRate();
   }
 }
