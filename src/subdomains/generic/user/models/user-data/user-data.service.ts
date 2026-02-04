@@ -347,15 +347,18 @@ export class UserDataService {
     let count = userDataIds.length;
     const zip = new JSZip();
     const downloadTargets = Config.fileDownloadConfig.reverse();
-    let errorLog = '';
+    const errors: { userDataId: number; errorType: string; folder: string; details: string }[] = [];
 
     for (const userDataId of userDataIds.reverse()) {
       const userData = await this.getUserData(userDataId, { kycSteps: true });
 
-      if (!userData?.verifiedName) {
-        errorLog += !userData
-          ? `Error: UserData ${userDataId} not found\n`
-          : `Error: UserData ${userDataId} has no verifiedName\n`;
+      if (!userData) {
+        errors.push({ userDataId, errorType: 'NotFound', folder: '', details: 'UserData not found' });
+        continue;
+      }
+
+      if (!userData.verifiedName) {
+        errors.push({ userDataId, errorType: 'NoVerifiedName', folder: '', details: 'UserData has no verifiedName' });
         continue;
       }
 
@@ -365,7 +368,7 @@ export class UserDataService {
       const parentFolder = checkOnly ? null : zip.folder(baseFolderName);
 
       if (!checkOnly && !parentFolder) {
-        errorLog += `Error: Failed to create folder for UserData ${userDataId}\n`;
+        errors.push({ userDataId, errorType: 'FolderCreationFailed', folder: baseFolderName, details: '' });
         continue;
       }
 
@@ -378,10 +381,10 @@ export class UserDataService {
 
       for (const { id, name, files: fileConfig } of applicableTargets) {
         const folderName = `${id.toString().padStart(2, '0')}_${name}`;
-        const subFolder = checkOnly ? null : parentFolder.folder(folderName);
+        const subFolder = checkOnly ? null : parentFolder?.folder(folderName);
 
         if (!checkOnly && !subFolder) {
-          errorLog += `Error: Failed to create folder '${folderName}' for UserData ${userDataId}\n`;
+          errors.push({ userDataId, errorType: 'FolderCreationFailed', folder: folderName, details: '' });
           continue;
         }
 
@@ -394,7 +397,7 @@ export class UserDataService {
           if (!files.length) {
             if (!checkOnly && handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
             if (checkOnly && handleFileNotFound) continue;
-            errorLog += `Error: File missing for folder '${folderName}' for UserData ${userDataId}\n`;
+            errors.push({ userDataId, errorType: 'FileMissing', folder: folderName, details: '' });
             continue;
           }
 
@@ -412,13 +415,16 @@ export class UserDataService {
             const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
             subFolder.file(filePath, fileData.data);
           } catch {
-            errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
+            errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
           }
         }
       }
     }
 
-    zip.file('error_log.txt', errorLog || 'No_Error');
+    const csvHeader = 'UserDataId;ErrorType;Folder;Details';
+    const csvRows = errors.map((e) => `${e.userDataId};${e.errorType};${e.folder};${e.details}`);
+    const csvContent = errors.length > 0 ? [csvHeader, ...csvRows].join('\n') : 'No_Error';
+    zip.file('error_log.csv', csvContent);
 
     return zip.generateAsync({ type: 'nodebuffer' });
   }
