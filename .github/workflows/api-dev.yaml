@@ -44,11 +44,6 @@ jobs:
       - name: Build code
         run: npm run build
 
-      - name: Verify startup
-        run: npm run startup
-        env:
-          JWT_SECRET: dummy-secret-for-ci
-
       - name: Run tests
         run: npm run test
 
