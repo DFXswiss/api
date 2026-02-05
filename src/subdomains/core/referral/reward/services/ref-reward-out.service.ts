@@ -27,7 +27,7 @@ export class RefRewardOutService {
     try {
       const transactionsPaidOut = await this.refRewardRepo.find({
         where: { status: RewardStatus.PAYING_OUT },
-        relations: { user: true },
+        relations: { user: true, transaction: true },
       });
 
       await this.checkCompletion(transactionsPaidOut);
