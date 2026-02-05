@@ -90,6 +90,7 @@ export class KycFileListEntry {
   amlListAddedDate?: Date;
   amlListExpiredDate?: Date;
   amlListReactivatedDate?: Date;
+  newOpeningInAuditPeriod?: boolean;
   highRisk?: boolean;
   pep?: boolean;
   complexOrgStructure?: boolean;

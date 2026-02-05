@@ -54,6 +54,14 @@ export class UserDataController {
     return this.userDataRepo.find();
   }
 
+  @Put('auditPeriodNumbers')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async calculateAuditPeriodNumbers(): Promise<{ updatedVolumes: number; updatedCustody: number }> {
+    return this.userDataService.calculateAuditPeriodNumbers();
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
