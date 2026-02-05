@@ -130,11 +130,14 @@ export class TransactionService {
   }
 
   async getTransactionList(): Promise<Transaction[]> {
-    return this.repo.find({
-      where: { type: Not(IsNull()) },
-      relations: { userData: true },
-      order: { id: 'DESC' },
-    });
+    return this.repo
+      .createQueryBuilder('transaction')
+      .select('transaction')
+      .leftJoinAndSelect('transaction.userData', 'userData')
+      .leftJoinAndSelect('userData.country', 'country')
+      .where('transaction.type IS NOT NULL')
+      .orderBy('transaction.id', 'DESC')
+      .getMany();
   }
 
   async getTransactionsForAccount(userDataId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
