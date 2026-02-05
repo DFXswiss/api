@@ -44,6 +44,7 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
@@ -110,6 +111,8 @@ export class UserDataService {
     @Inject(forwardRef(() => KycService))
     private readonly kycService: KycService,
     private readonly ipLogService: IpLogService,
+    @Inject(forwardRef(() => CustodyService))
+    private readonly custodyService: CustodyService,
   ) {}
 
   // --- GETTERS --- //
@@ -959,6 +962,50 @@ export class UserDataService {
       annualCryptoVolume: Util.round(volumes.annualCryptoVolume, Config.defaultVolumeDecimal),
       monthlyCryptoVolume: Util.round(volumes.monthlyCryptoVolume, Config.defaultVolumeDecimal),
     });
+  }
+
+  // --- AUDIT PERIOD --- //
+
+  async calculateAuditPeriodNumbers(): Promise<{ updatedVolumes: number; updatedCustody: number }> {
+    const startDateStr = await this.settingService.get('AuditNumberCalculationStartDate');
+    const endDateStr = await this.settingService.get('AuditNumberCalculationEndDate');
+    if (!startDateStr || !endDateStr) throw new BadRequestException('Audit calculation dates not configured');
+
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+
+    // Reset all audit values
+    await this.userDataRepo
+      .createQueryBuilder()
+      .update()
+      .set({ totalVolumeChfAuditPeriod: 0, totalCustodyBalanceChfAuditPeriod: 0 })
+      .execute();
+
+    // Calculate totalVolumeChfAuditPeriod
+    const volumeResults = await this.transactionService.getAuditPeriodVolumes(startDate, endDate);
+
+    let updatedVolumes = 0;
+    for (const { userDataId, totalVolume } of volumeResults) {
+      await this.userDataRepo.update(userDataId, {
+        totalVolumeChfAuditPeriod: Util.round(totalVolume, Config.defaultVolumeDecimal),
+      });
+      updatedVolumes++;
+    }
+
+    // Calculate totalCustodyBalanceChfAuditPeriod
+    const custodyBalances = await this.custodyService.calculateAllCustodyBalancesChf(endDate);
+
+    let updatedCustody = 0;
+    for (const [userDataId, balanceChf] of custodyBalances.entries()) {
+      await this.userDataRepo.update(userDataId, {
+        totalCustodyBalanceChfAuditPeriod: Util.round(balanceChf, Config.defaultVolumeDecimal),
+      });
+      updatedCustody++;
+    }
+
+    this.logger.info(`Audit period numbers calculated: ${updatedVolumes} volumes, ${updatedCustody} custody balances`);
+
+    return { updatedVolumes, updatedCustody };
   }
 
   // --- MERGING --- //
