@@ -29,6 +29,7 @@ export enum DepositStatus {
 }
 
 export enum WithdrawStatus {
+  NOT_FOUND = 'not_found',
   PENDING = 'pending',
   SCANNING = 'scanning',
   SIGNING = 'signing',
@@ -314,9 +315,20 @@ export class ClementineClient {
    * Get the status of a withdrawal operation
    * Command: clementine-cli withdraw status <WITHDRAWAL_UTXO>
    * @param withdrawalUtxo The withdrawal UTXO to check (format: txid:vout)
+   * @returns Status result with NOT_FOUND if no withdrawal exists for this UTXO
    */
   async withdrawStatus(withdrawalUtxo: string): Promise<WithdrawStatusResult> {
     const output = await this.executeCommand(['withdraw', 'status', withdrawalUtxo]);
+
+    // Check if no withdrawal exists for this UTXO
+    // CLI outputs "No withdrawals found for OutPoint ..." if never submitted
+    if (output.toLowerCase().includes('no withdrawals found')) {
+      return {
+        withdrawalUtxo,
+        status: WithdrawStatus.NOT_FOUND,
+      };
+    }
+
     return this.parseWithdrawStatus(output, withdrawalUtxo);
   }
 

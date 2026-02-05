@@ -13,6 +13,7 @@ import {
   CLEMENTINE_WITHDRAWAL_DUST_BTC,
   ClementineClient,
   ClementineNetwork,
+  WithdrawStatus,
 } from 'src/integration/blockchain/clementine/clementine-client';
 import { ClementineService } from 'src/integration/blockchain/clementine/clementine.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -406,7 +407,10 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     // This prevents double cBTC burning if the process crashes after withdrawSend()
     // but before the correlationId is persisted
     const existingStatus = await this.clementineClient.withdrawStatus(data.withdrawalUtxo);
-    if (existingStatus.status !== 'pending' && existingStatus.status !== 'failed') {
+
+    // Only proceed with withdrawSend() if NO withdrawal exists for this UTXO
+    // If status is anything other than NOT_FOUND, the withdrawal was already submitted
+    if (existingStatus.status !== WithdrawStatus.NOT_FOUND) {
       this.logger.info(
         `Withdrawal: already submitted to bridge (status: ${existingStatus.status}), skipping withdrawSend()`,
       );
