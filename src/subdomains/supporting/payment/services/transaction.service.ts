@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -202,8 +202,7 @@ export class TransactionService {
       .leftJoin('tx.refReward', 'refReward')
       .where('tx.userDataId IS NOT NULL')
       .andWhere('tx.amountInChf IS NOT NULL')
-      .andWhere('tx.created >= :startDate', { startDate })
-      .andWhere('tx.created <= :endDate', { endDate })
+      .andWhere('tx.created BETWEEN :startDate AND :endDate', { startDate, endDate })
       .andWhere(
         new Brackets((qb) =>
           qb
