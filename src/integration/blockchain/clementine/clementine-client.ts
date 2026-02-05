@@ -362,7 +362,7 @@ export class ClementineClient {
   // --- INTERNAL METHODS --- //
 
   private async executeCommand(args: string[], timeout?: number, addNetworkFlag = true): Promise<string> {
-    const finalArgs = addNetworkFlag ? this.buildArgs(args) : args;
+    const finalArgs = addNetworkFlag ? this.addNetworkFlag(args) : args;
     this.logger.verbose(`Executing: ${this.config.cliPath} ${finalArgs.join(' ')}`);
 
     try {
@@ -447,7 +447,7 @@ export class ClementineClient {
     });
   }
 
-  private buildArgs(baseArgs: string[]): string[] {
+  private addNetworkFlag(baseArgs: string[]): string[] {
     const args = [...baseArgs];
 
     // Insert --network flag after the subcommand, before positional arguments
