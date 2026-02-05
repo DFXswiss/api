@@ -152,6 +152,15 @@ export class SupportService {
       id: userData.id,
       amlAccountType: userData.amlAccountType,
       verifiedName: userData.verifiedName,
+      country: userData.country ? { name: userData.country.name } : undefined,
+      allBeneficialOwnersDomicile: userData.allBeneficialOwnersDomicile,
+      amlListAddedDate: userData.amlListAddedDate,
+      amlListExpiredDate: userData.amlListExpiredDate,
+      amlListReactivatedDate: userData.amlListReactivatedDate,
+      highRisk: userData.highRisk,
+      pep: userData.pep,
+      complexOrgStructure: userData.complexOrgStructure,
+      totalVolumeChfAuditPeriod: userData.totalVolumeChfAuditPeriod,
     };
   }
 
