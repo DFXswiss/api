@@ -87,6 +87,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   private readonly recoveryTaprootAddress: string;
   private readonly signerAddress: string;
   private readonly network: ClementineNetwork;
+  private readonly expectedCliVersion: string;
   private networkValidated = false;
 
   constructor(
@@ -105,6 +106,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     this.network = config.network;
     this.recoveryTaprootAddress = config.recoveryTaprootAddress;
     this.signerAddress = config.signerAddress;
+    this.expectedCliVersion = config.expectedVersion;
 
     this.clementineClient = clementineService.getDefaultClient();
     this.bitcoinClient = this.isTestnet
@@ -618,6 +620,27 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     if (this.networkValidated) return;
 
     const errors: string[] = [];
+
+    // Validate CLI version
+    if (!this.expectedCliVersion) {
+      errors.push('CLEMENTINE_CLI_VERSION environment variable is not configured');
+    } else {
+      try {
+        const versionInfo = await this.clementineClient.getVersion();
+        this.logger.info(
+          `Clementine CLI version: ${versionInfo.version}` +
+            (versionInfo.commit ? ` (commit: ${versionInfo.commit})` : ''),
+        );
+
+        if (versionInfo.version !== this.expectedCliVersion) {
+          errors.push(
+            `Clementine CLI version mismatch: expected '${this.expectedCliVersion}', got '${versionInfo.version}'`,
+          );
+        }
+      } catch (e) {
+        errors.push(`Failed to verify Clementine CLI version: ${e.message}`);
+      }
+    }
 
     // Validate Bitcoin node is on correct network
     try {

@@ -12,6 +12,13 @@ export interface ClementineConfig {
   homeDir: string;
   timeoutMs: number;
   signingTimeoutMs: number;
+  expectedVersion: string;
+}
+
+export interface ClementineVersionInfo {
+  version: string;
+  commit?: string;
+  rawOutput: string;
 }
 
 export enum DepositStatus {
@@ -87,6 +94,26 @@ export class ClementineClient {
    */
   async showConfig(): Promise<string> {
     return this.executeCommand(['show-config']);
+  }
+
+  /**
+   * Get the CLI version information
+   * @returns Version info including semver version and optional commit hash
+   */
+  async getVersion(): Promise<ClementineVersionInfo> {
+    const output = await this.executeCommand(['--version'], undefined, false);
+
+    // Try to parse semver version (e.g., "1.2.3", "v1.2.3", "clementine-cli 1.2.3")
+    const versionMatch = output.match(/v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)/);
+
+    // Try to parse commit hash (e.g., "commit: abc123", "git: abc123def")
+    const commitMatch = output.match(/(?:commit|git)[:\s]+([a-f0-9]{7,40})/i);
+
+    return {
+      version: versionMatch?.[1] ?? 'unknown',
+      commit: commitMatch?.[1],
+      rawOutput: output.trim(),
+    };
   }
 
   // --- WALLET OPERATIONS --- //
@@ -302,13 +329,12 @@ export class ClementineClient {
 
   // --- INTERNAL METHODS --- //
 
-  private async executeCommand(args: string[], timeout?: number): Promise<string> {
-    const fullArgs = this.buildArgs(args);
-    this.logger.verbose(`Executing: ${this.config.cliPath} ${fullArgs.join(' ')}`);
+  private async executeCommand(args: string[], timeout?: number, addNetworkFlag = true): Promise<string> {
+    const finalArgs = addNetworkFlag ? this.buildArgs(args) : args;
+    this.logger.verbose(`Executing: ${this.config.cliPath} ${finalArgs.join(' ')}`);
 
     try {
-      const output = await this.spawnAsync(fullArgs, timeout ?? this.config.timeoutMs);
-      return output;
+      return await this.spawnAsync(finalArgs, timeout ?? this.config.timeoutMs);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Clementine CLI error: ${message}`);
