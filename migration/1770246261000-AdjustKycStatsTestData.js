@@ -18,17 +18,17 @@
  * PRD state vs target (as of 2026-02-04):
  *   - 2021: 229 newFiles -> 250 (need +21, kycFileId 230-250 belong to 2021)
  *   - 2022: 1968 newFiles -> 1947 (need -21), 0 closed -> 5 (need +5)
- *   - 2023: 2049 closed -> 2127 (need +78, plus 5 moved to 2022 = +83)
+ *   - 2023: 2049 closed -> 2127 (need +78, plus 5 moved to 2022 = +83, via 83 new closures)
  *
  * Data source verification:
  *   - Jan 2024 CSV: DFX Kundenliste_SRO inkl. Kypto Stichtag 15. Januar 2024
- *   - 82 records identified as "geschlossen" in CSV but amlListExpiredDate=NULL in PRD
- *   - 22 of these have amlListReactivatedDate (~2024-02-02) - were reopened after closure
+ *   - 83 records identified as "geschlossen" in CSV but amlListExpiredDate=NULL in PRD
+ *   - 23 of these have amlListReactivatedDate (~2024-02-02) - were reopened after closure
  *   - Post-reactivation transactions verified and expected (not a concern)
  *   - 5 business accounts (kycFileId 54,71,374,473,649) need 2022 closing date
  *   - 21 records (kycFileId 230-250) need amlListAddedDate moved to 2021
  *
- * Expected result: 2022=5 closed, 2023=2049-5+82=2126 closed (target 2127, delta 1).
+ * Expected result: 2022=5 closed, 2023=2049-5+83=2127 closed (target 2127).
  *
  * @class
  * @implements {MigrationInterface}
@@ -47,10 +47,11 @@ module.exports = class AdjustKycStatsTestData1770246261000 {
   closed2022Ids = [1358, 1945, 998, 5365, 6617];
 
   // Records to close in 2023 (set amlListExpiredDate = 2023-12-31)
-  // Verified: These 82 records are "geschlossen" in Jan 2024 CSV AND have amlListExpiredDate=NULL in PRD
+  // Verified: These 83 records are "geschlossen" in Jan 2024 CSV AND have amlListExpiredDate=NULL in PRD
   // Cross-referenced PRD NULL list (411 records) with CSV "geschlossen" status
-  // 22 of these were reactivated (~2024-02-02, amlListReactivatedDate already set in PRD)
+  // 23 of these were reactivated (~2024-02-02, amlListReactivatedDate already set in PRD)
   // Post-reactivation transactions are expected and not a concern
+  // Note: id 8968 holds kycFileId 1129 (transferred from id 7698 which CSV references)
   closed2023Ids = [
     803, 914, 915, 979, 983, 984, 1068, 1144, 1161, 1174,
     1200, 1289, 1412, 1437, 1449, 1502, 1508, 1548, 1559, 1599,
@@ -59,8 +60,8 @@ module.exports = class AdjustKycStatsTestData1770246261000 {
     4801, 4910, 5076, 5128, 5163, 5170, 5213, 5219, 5373, 5427,
     5479, 5615, 5649, 5662, 5733, 5798, 5951, 6230, 6533, 6568,
     6874, 7183, 7274, 7466, 7549, 8419, 8461, 8570, 8879, 8938,
-    9146, 9327, 9388, 11104, 11123, 11195, 11531, 11827, 13566, 29059,
-    31928, 185384
+    8968, 9146, 9327, 9388, 11104, 11123, 11195, 11531, 11827, 13566,
+    29059, 31928, 185384
   ];
 
   /**
@@ -96,8 +97,8 @@ module.exports = class AdjustKycStatsTestData1770246261000 {
     `);
     console.log(`  Affected: ${closed2022?.rowsAffected?.[0] ?? this.closed2022Ids.length} records`);
 
-    // 3. Close 82 records in 2023 (22 of these will also have amlListReactivatedDate set)
-    console.log('\nStep 3: Closing 82 records in 2023...');
+    // 3. Close 83 records in 2023 (23 of these will also have amlListReactivatedDate set)
+    console.log('\nStep 3: Closing 83 records in 2023...');
     const closed2023 = await queryRunner.query(`
       UPDATE dbo.user_data
       SET amlListExpiredDate = '2023-12-31',
@@ -122,7 +123,7 @@ module.exports = class AdjustKycStatsTestData1770246261000 {
     console.log('=== Reverting KYC Stats Test Data ===\n');
 
     // 1. Reset amlListExpiredDate for 2023 records back to NULL
-    console.log('Step 1: Resetting 82 records back to NULL...');
+    console.log('Step 1: Resetting 83 records back to NULL...');
     await queryRunner.query(`
       UPDATE dbo.user_data
       SET amlListExpiredDate = NULL,
