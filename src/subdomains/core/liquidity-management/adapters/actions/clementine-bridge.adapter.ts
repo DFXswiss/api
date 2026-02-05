@@ -158,9 +158,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Validate configuration
-    if (!this.recoveryTaprootAddress) {
-      throw new OrderNotProcessableException('Clementine recovery taproot address not configured');
-    }
+    this.validateRecoveryAddress();
 
     // Validate network consistency on first use
     await this.validateNetworkConsistency();
@@ -180,7 +178,9 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     const citreaAddress = this.citreaClient.walletAddress;
     const { depositAddress } = await this.clementineClient.depositStart(this.recoveryTaprootAddress, citreaAddress);
 
-    this.logger.verbose(`Deposit started: sending ${CLEMENTINE_BRIDGE_AMOUNT_BTC} BTC to ${depositAddress}`);
+    this.logger.info(
+      `Deposit address generated: ${depositAddress}, recovery: ${this.recoveryTaprootAddress}, citrea: ${citreaAddress}`,
+    );
 
     // Update order with fixed amount
     order.inputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
@@ -222,9 +222,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Validate configuration
-    if (!this.signerAddress) {
-      throw new OrderNotProcessableException('Clementine signer address not configured');
-    }
+    this.validateSignerAddress();
 
     // Validate network consistency on first use
     await this.validateNetworkConsistency();
@@ -390,7 +388,10 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     data.operatorPaidSignature = signatures.operatorPaidSignature;
     data.step = 'signatures_generated';
 
-    this.logger.verbose(`Withdrawal: signatures generated`);
+    this.logger.info(
+      `Withdrawal signatures generated for UTXO ${data.withdrawalUtxo}, ` +
+        `signer: ${data.signerAddress}, destination: ${data.destinationAddress}`,
+    );
     order.correlationId = `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(data)}`;
     return false;
   }
@@ -501,6 +502,11 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   //*** HELPER METHODS ***//
 
   private async sendBtcToAddress(address: string, amount: number): Promise<string> {
+    // Validate address format before sending
+    if (!this.isValidBitcoinAddress(address)) {
+      throw new OrderFailedException(`Invalid Bitcoin address format: ${address}`);
+    }
+
     const feeRate = await this.getFeeRate();
     const txId = await this.bitcoinClient.sendMany([{ addressTo: address, amount }], feeRate);
 
@@ -508,7 +514,33 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
       throw new OrderFailedException(`Failed to send BTC to address ${address}`);
     }
 
+    this.logger.info(`Sent ${amount} BTC to ${address}, txId: ${txId}`);
+
     return txId;
+  }
+
+  /**
+   * Validates Bitcoin address format (basic validation).
+   * Checks length and prefix for the configured network.
+   */
+  private isValidBitcoinAddress(address: string): boolean {
+    if (!address || address.length < 26 || address.length > 90) {
+      return false;
+    }
+
+    // Must match expected network prefixes
+    if (!this.isAddressForNetwork(address, this.network)) {
+      return false;
+    }
+
+    // Bech32/Bech32m addresses (bc1/tb1) should be lowercase
+    if (address.startsWith('bc1') || address.startsWith('tb1') || address.startsWith('bcrt1')) {
+      if (address !== address.toLowerCase()) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private encodeWithdrawCorrelation(data: WithdrawCorrelationData): string {
@@ -517,6 +549,62 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
   private decodeWithdrawCorrelation(encoded: string): WithdrawCorrelationData {
     return JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'));
+  }
+
+  //*** ADDRESS VALIDATION ***//
+
+  /**
+   * Validates the recovery taproot address configuration.
+   * Must be present, have 'dep' prefix, and underlying address must match network.
+   */
+  private validateRecoveryAddress(): void {
+    if (!this.recoveryTaprootAddress) {
+      throw new OrderNotProcessableException('Clementine recovery taproot address not configured');
+    }
+
+    // Must have 'dep' prefix
+    if (!this.recoveryTaprootAddress.startsWith('dep')) {
+      throw new OrderNotProcessableException(
+        `Clementine recovery address must have 'dep' prefix, got: ${this.recoveryTaprootAddress}`,
+      );
+    }
+
+    // Underlying address must be valid
+    const underlyingAddress = this.recoveryTaprootAddress.replace(/^dep/, '');
+    if (!this.isValidBitcoinAddress(underlyingAddress)) {
+      throw new OrderNotProcessableException(
+        `Clementine recovery address has invalid underlying Bitcoin address: ${underlyingAddress}`,
+      );
+    }
+
+    this.logger.verbose(`Recovery address validated: ${this.recoveryTaprootAddress}`);
+  }
+
+  /**
+   * Validates the signer address configuration.
+   * Must be present, have 'wit' prefix, and underlying address must match network.
+   */
+  private validateSignerAddress(): void {
+    if (!this.signerAddress) {
+      throw new OrderNotProcessableException('Clementine signer address not configured');
+    }
+
+    // Must have 'wit' prefix
+    if (!this.signerAddress.startsWith('wit')) {
+      throw new OrderNotProcessableException(
+        `Clementine signer address must have 'wit' prefix, got: ${this.signerAddress}`,
+      );
+    }
+
+    // Underlying address must be valid
+    const underlyingAddress = this.signerAddress.replace(/^wit/, '');
+    if (!this.isValidBitcoinAddress(underlyingAddress)) {
+      throw new OrderNotProcessableException(
+        `Clementine signer address has invalid underlying Bitcoin address: ${underlyingAddress}`,
+      );
+    }
+
+    this.logger.verbose(`Signer address validated: ${this.signerAddress}`);
   }
 
   //*** NETWORK VALIDATION ***//
