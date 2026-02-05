@@ -129,15 +129,44 @@ export class TransactionService {
     });
   }
 
-  async getTransactionList(): Promise<Transaction[]> {
-    return this.repo
+  async getTransactionList(dateFrom?: Date, dateTo?: Date, outputFrom?: Date, outputTo?: Date): Promise<Transaction[]> {
+    const query = this.repo
       .createQueryBuilder('transaction')
       .select('transaction')
       .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.country', 'country')
-      .where('transaction.type IS NOT NULL')
-      .orderBy('transaction.id', 'DESC')
-      .getMany();
+      .where('transaction.type IS NOT NULL');
+
+    if (dateFrom || dateTo || outputFrom || outputTo) {
+      query.andWhere(
+        new Brackets((qb) => {
+          if (dateFrom && dateTo) {
+            qb.where('transaction.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+          } else if (dateFrom) {
+            qb.where('transaction.created >= :dateFrom', { dateFrom });
+          } else if (dateTo) {
+            qb.where('transaction.created <= :dateTo', { dateTo });
+          }
+
+          if (outputFrom || outputTo) {
+            const outputCondition =
+              outputFrom && outputTo
+                ? 'transaction.outputDate BETWEEN :outputFrom AND :outputTo'
+                : outputFrom
+                  ? 'transaction.outputDate >= :outputFrom'
+                  : 'transaction.outputDate <= :outputTo';
+
+            if (dateFrom || dateTo) {
+              qb.orWhere(outputCondition, { outputFrom, outputTo });
+            } else {
+              qb.where(outputCondition, { outputFrom, outputTo });
+            }
+          }
+        }),
+      );
+    }
+
+    return query.orderBy('transaction.id', 'DESC').getMany();
   }
 
   async getTransactionsForAccount(userDataId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {

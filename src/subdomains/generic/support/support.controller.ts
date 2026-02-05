@@ -16,6 +16,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { BankRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
   KycFileListEntry,
   KycFileYearlyStats,
@@ -58,8 +59,8 @@ export class SupportController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getTransactionList(): Promise<TransactionListEntry[]> {
-    return this.supportService.getTransactionList();
+  async getTransactionList(@Query() query: TransactionListQuery): Promise<TransactionListEntry[]> {
+    return this.supportService.getTransactionList(query);
   }
 
   @Get(':id')
