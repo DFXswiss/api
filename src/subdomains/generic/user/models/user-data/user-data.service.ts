@@ -235,6 +235,7 @@ export class UserDataService {
         'userData.pep',
         'userData.complexOrgStructure',
         'userData.totalVolumeChfAuditPeriod',
+        'userData.totalCustodyBalanceChfAuditPeriod',
         'country.name',
       ])
       .where('userData.kycFileId > 0')
