@@ -161,6 +161,7 @@ export class SupportService {
       pep: userData.pep,
       complexOrgStructure: userData.complexOrgStructure,
       totalVolumeChfAuditPeriod: userData.totalVolumeChfAuditPeriod,
+      totalCustodyBalanceChfAuditPeriod: userData.totalCustodyBalanceChfAuditPeriod,
     };
   }
 

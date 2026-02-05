@@ -250,6 +250,10 @@ export class UpdateUserDataDto {
   totalVolumeChfAuditPeriod?: number;
 
   @IsOptional()
+  @IsNumber()
+  totalCustodyBalanceChfAuditPeriod?: number;
+
+  @IsOptional()
   @IsBoolean()
   olkypayAllowed?: boolean;
 
