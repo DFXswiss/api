@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
+import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
@@ -80,7 +81,7 @@ export class SwissQRService {
       tableData,
       language,
       data,
-      true,
+      bankInfo,
       TransactionType.BUY,
       PdfBrand.DFX,
       request.userData.completeName,
@@ -109,7 +110,7 @@ export class SwissQRService {
       tableData,
       language,
       billData,
-      !!bankInfo,
+      bankInfo,
       transactionType,
       brand,
       transaction.userData.completeName,
@@ -146,11 +147,11 @@ export class SwissQRService {
     return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand);
   }
 
-  private generatePdfInvoice(
+  private async generatePdfInvoice(
     tableData: SwissQRBillTableData,
     language: string,
     billData: QrBillData,
-    includeQrBill: boolean,
+    bankInfo: BankInfoDto | undefined,
     transactionType: TransactionType,
     brand: PdfBrand = PdfBrand.DFX,
     debtorName?: string,
@@ -176,7 +177,7 @@ export class SwissQRService {
         backgroundColor: '#4A4D51',
         columns: [
           {
-            text: this.translate('invoice.table.headers.quantity', language) + (includeQrBill ? ' *' : ''),
+            text: this.translate('invoice.table.headers.quantity', language) + (bankInfo ? ' *' : ''),
             width: mm2pt(40),
           },
           {
@@ -292,9 +293,7 @@ export class SwissQRService {
 
     const termsAndConditions = this.getTermsAndConditions(language);
 
-    // QR-Bill
-    let qrBill: SwissQRBill = null;
-    if (includeQrBill) {
+    if (bankInfo) {
       rows.push({
         columns: [
           {
@@ -305,16 +304,60 @@ export class SwissQRService {
           },
         ],
       });
-
-      rows.push({ columns: [termsAndConditions] });
-      qrBill = new SwissQRBill(billData, { language: language as SupportedInvoiceLanguage });
-    } else {
-      rows.push({ columns: [termsAndConditions] });
     }
+    rows.push({ columns: [termsAndConditions] });
 
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
-    qrBill?.attachTo(pdf);
+
+    // QR-Bill (Swiss/LI IBAN) or GiroCode (other IBANs)
+    const isDomesticTransfer = bankInfo && Config.isDomesticIban(bankInfo.iban);
+    if (isDomesticTransfer) {
+      const qrBill = new SwissQRBill(billData, { language: language as SupportedInvoiceLanguage });
+      qrBill.attachTo(pdf);
+    } else if (bankInfo) {
+      const qrSize = 25; // mm
+      const qrX = mm2pt(20);
+      const textX = mm2pt(20 + qrSize + 5);
+      const startY = pdf.y + 15;
+
+      // GiroCode QR
+      const giroCode = PdfUtil.generateGiroCode({
+        ...bankInfo,
+        currency: billData.currency,
+        amount: billData.amount,
+        reference: billData.message,
+      });
+      const qrDataUrl = await QRCode.toDataURL(giroCode, { width: 150, margin: 1 });
+      const qrImage = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+
+      pdf.image(Buffer.from(qrImage, 'base64'), qrX, startY, { width: mm2pt(qrSize) });
+
+      // Payment info text
+      const recipientAddress = [bankInfo.street, bankInfo.number].filter(Boolean).join(' ');
+      const recipientCity = [bankInfo.zip, bankInfo.city].filter(Boolean).join(' ');
+      const recipientFull = [bankInfo.name, recipientAddress, recipientCity, bankInfo.country]
+        .filter(Boolean)
+        .join(', ');
+
+      pdf.font('Helvetica-Bold').fontSize(11);
+      pdf.text(this.translate('invoice.payment_info', language), textX, startY);
+
+      const paymentInfoData = [
+        { label: this.translate('invoice.payment_info_recipient', language), value: recipientFull },
+        { label: this.translate('invoice.payment_info_iban', language), value: bankInfo.iban },
+        { label: this.translate('invoice.payment_info_bic', language), value: bankInfo.bic ?? '' },
+        { label: this.translate('invoice.payment_info_reference', language), value: billData.message ?? '' },
+      ];
+
+      pdf.fontSize(10);
+      let currentY = startY + 18;
+      for (const { label, value } of paymentInfoData) {
+        pdf.font('Helvetica-Bold').text(label, textX, currentY, { continued: true });
+        pdf.font('Helvetica').text(`  ${value}`);
+        currentY += 14;
+      }
+    }
 
     pdf.end();
 

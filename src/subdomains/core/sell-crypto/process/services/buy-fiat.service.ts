@@ -199,7 +199,7 @@ export class BuyFiatService {
     if (forceUpdate.amlCheck || (!amlCheckBefore && update.amlCheck)) {
       if (update.amlCheck === CheckStatus.PASS) await this.buyFiatNotificationService.paymentProcessing(entity);
 
-      await this.amlService.postProcessing(entity, amlCheckBefore, undefined);
+      await this.amlService.postProcessing(entity, undefined);
     }
 
     // payment webhook

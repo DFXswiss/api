@@ -112,7 +112,7 @@ export class KycAdminService {
     }
   }
 
-  async triggerVideoIdentInternal(userData: UserData): Promise<void> {
+  async checkOrTriggerVideoIdentInternal(userData: UserData): Promise<void> {
     try {
       await this.kycService.getOrCreateStepInternal(KycStepName.IDENT, userData, undefined, KycStepType.SUMSUB_VIDEO);
     } catch (e) {

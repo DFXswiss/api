@@ -1,0 +1,111 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 1
+    },
+    "containerImage": {
+      "value": "juicedollar-api:latest"
+    },
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/app/.api"
+        }
+      ]
+    },
+    "containerCPU": {
+      "value": "0.5"
+    },
+    "containerMemory": {
+      "value": "1Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 3000
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "API_ENVIRONMENT",
+          "value": "prd"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "info"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "CONFIG_CHAIN",
+          "value": "mainnet"
+        },
+        {
+          "name": "CONFIG_APP_URL",
+          "value": "https://bapp.juicedollar.com"
+        },
+        {
+          "name": "CONFIG_INDEXER_URL",
+          "value": "https://ponder.juicedollar.com"
+        },
+        {
+          "name": "COINGECKO_API_KEY",
+          "value": "[API-KEY]"
+        },
+        {
+          "name": "RPC_URL_MAINNET",
+          "value": "https://rpc.juiceswap.com"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "value": "[API-KEY]"
+        },
+        {
+          "name": "TELEGRAM_GROUPS_JSON",
+          "value": "/app/.api/telegram.groups.json"
+        },
+        {
+          "name": "TWITTER_CLIENT_APP_KEY",
+          "value": "[TWITTER_CLIENT_APP_KEY]"
+        },
+        {
+          "name": "TWITTER_CLIENT_APP_SECRET",
+          "value": "[TWITTER_CLIENT_APP_SECRET]"
+        },
+        {
+          "name": "TWITTER_ACCESS_TOKEN",
+          "value": "[TWITTER_ACCESS_TOKEN]"
+        },
+        {
+          "name": "TWITTER_ACCESS_SECRET",
+          "value": "[TWITTER_ACCESS_SECRET]"
+        },
+        {
+          "name": "TWITTER_IMAGES_DIR",
+          "value": "/app/.api/images/twitter"
+        }
+      ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": []
+    }
+  }
+}

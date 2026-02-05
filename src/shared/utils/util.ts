@@ -577,6 +577,17 @@ export class Util {
     return Promise.allSettled(tasks).then((results) => results.filter(this.filterFulfilledCalls).map((r) => r.value));
   }
 
+  static partition<T>(list: T[], accessor: (item: T) => boolean): [T[], T[]] {
+    const truthy: T[] = [];
+    const falsy: T[] = [];
+
+    for (const item of list) {
+      (accessor(item) ? truthy : falsy).push(item);
+    }
+
+    return [truthy, falsy];
+  }
+
   private static filterFulfilledCalls<T>(result: PromiseSettledResult<T>): result is PromiseFulfilledResult<T> {
     return result.status === 'fulfilled';
   }

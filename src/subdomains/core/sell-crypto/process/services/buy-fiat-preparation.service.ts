@@ -151,7 +151,7 @@ export class BuyFiatPreparationService {
           ),
         );
 
-        await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
+        await this.amlService.postProcessing(entity, last30dVolume);
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
 
