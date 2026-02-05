@@ -51,6 +51,9 @@ jobs:
         run: npm audit --audit-level=high
         continue-on-error: true
 
+      - name: Write version file
+        run: echo "${{ github.sha }}" > dist/version.txt
+
       - name: Deploy to Azure App Service (PRD)
         uses: azure/webapps-deploy@v3
         with:
