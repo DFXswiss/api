@@ -23,8 +23,8 @@
  * Data source verification:
  *   - Jan 2024 CSV: DFX Kundenliste_SRO inkl. Kypto Stichtag 15. Januar 2024
  *   - 83 records identified as "geschlossen" in CSV but amlListExpiredDate=NULL in PRD
- *   - 23 of these have amlListReactivatedDate (~2024-02-02) - were reopened after closure
- *   - Post-reactivation transactions verified and expected (not a concern)
+ *   - All 83 have amlListReactivatedDate (~2024-02-02) - reactivation cleared expiredDate
+ *   - Migration restores the historical closure date while keeping reactivatedDate intact
  *   - 5 business accounts (kycFileId 54,71,374,473,649) need 2022 closing date
  *   - 21 records (kycFileId 230-250) need amlListAddedDate moved to 2021
  *
@@ -49,8 +49,8 @@ module.exports = class AdjustKycStatsTestData1770246261000 {
   // Records to close in 2023 (set amlListExpiredDate = 2023-12-31)
   // Verified: These 83 records are "geschlossen" in Jan 2024 CSV AND have amlListExpiredDate=NULL in PRD
   // Cross-referenced PRD NULL list (411 records) with CSV "geschlossen" status
-  // 23 of these were reactivated (~2024-02-02, amlListReactivatedDate already set in PRD)
-  // Post-reactivation transactions are expected and not a concern
+  // All 83 were reactivated (~2024-02-02) which cleared their expiredDate in PRD
+  // Migration restores the historical 2023 closure while keeping reactivatedDate intact
   // Note: id 8968 holds kycFileId 1129 (transferred from id 7698 which CSV references)
   closed2023Ids = [
     803, 914, 915, 979, 983, 984, 1068, 1144, 1161, 1174,
@@ -97,7 +97,7 @@ module.exports = class AdjustKycStatsTestData1770246261000 {
     `);
     console.log(`  Affected: ${closed2022?.rowsAffected?.[0] ?? this.closed2022Ids.length} records`);
 
-    // 3. Close 83 records in 2023 (23 of these will also have amlListReactivatedDate set)
+    // 3. Close 83 records in 2023 (all have amlListReactivatedDate set from ~2024-02-02)
     console.log('\nStep 3: Closing 83 records in 2023...');
     const closed2023 = await queryRunner.query(`
       UPDATE dbo.user_data
