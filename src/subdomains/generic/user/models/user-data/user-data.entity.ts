@@ -138,6 +138,9 @@ export class UserData extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalVolumeChfAuditPeriod?: number;
 
+  @Column({ type: 'float', nullable: true })
+  totalCustodyBalanceChfAuditPeriod?: number;
+
   // TODO remove
   @Column({ length: 256, nullable: true })
   allBeneficialOwnersName?: string;

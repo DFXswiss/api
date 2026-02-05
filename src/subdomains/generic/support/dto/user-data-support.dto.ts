@@ -94,6 +94,7 @@ export class KycFileListEntry {
   pep?: boolean;
   complexOrgStructure?: boolean;
   totalVolumeChfAuditPeriod?: number;
+  totalCustodyBalanceChfAuditPeriod?: number;
 }
 
 export class KycFileYearlyStats {
