@@ -3,8 +3,6 @@ import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -31,8 +29,6 @@ interface CustodyOrderSingle {
 
 @Injectable()
 export class CustodyService {
-  private readonly logger = new DfxLogger(CustodyService);
-
   constructor(
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
@@ -42,7 +38,6 @@ export class CustodyService {
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyBalanceRepo: CustodyBalanceRepository,
     private readonly assetPricesService: AssetPricesService,
-    private readonly assetService: AssetService,
   ) {}
 
   // --- ACCOUNT --- //
@@ -232,7 +227,7 @@ export class CustodyService {
       relations: { user: { userData: true }, asset: true },
     });
 
-    // Get historical prices
+    // Get historical prices (if available)
     const assetIds = [...new Set(balances.map((b) => b.asset.id))];
     const priceMap = await this.assetPricesService.getAssetPricesForDate(assetIds, date);
 

@@ -23,7 +23,7 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
@@ -47,7 +47,7 @@ import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -974,37 +974,34 @@ export class UserDataService {
     const endDate = new Date(auditPeriod.end);
 
     // Reset all audit values
-    await this.userDataRepo
-      .createQueryBuilder()
-      .update()
-      .set({ totalVolumeChfAuditPeriod: 0, totalCustodyBalanceChfAuditPeriod: 0 })
-      .execute();
+    await this.userDataRepo.update(
+      [{ totalVolumeChfAuditPeriod: MoreThan(0) }, { totalCustodyBalanceChfAuditPeriod: MoreThan(0) }],
+      { totalVolumeChfAuditPeriod: 0, totalCustodyBalanceChfAuditPeriod: 0 },
+    );
 
-    // Calculate totalVolumeChfAuditPeriod
+    // Update volumes
     const volumeResults = await this.transactionService.getAuditPeriodVolumes(startDate, endDate);
 
-    let updatedVolumes = 0;
-    for (const { userDataId, totalVolume } of volumeResults) {
+    for (const { userDataId, totalVolume: volume } of volumeResults) {
       await this.userDataRepo.update(userDataId, {
-        totalVolumeChfAuditPeriod: Util.round(totalVolume, Config.defaultVolumeDecimal),
+        totalVolumeChfAuditPeriod: Util.roundReadable(volume, AmountType.FIAT),
       });
-      updatedVolumes++;
     }
 
-    // Calculate totalCustodyBalanceChfAuditPeriod
+    // Update custody balances
     const custodyBalances = await this.custodyService.getUserTotalBalancesChf(endDate);
 
-    let updatedCustody = 0;
     for (const [userDataId, balanceChf] of custodyBalances.entries()) {
       await this.userDataRepo.update(userDataId, {
-        totalCustodyBalanceChfAuditPeriod: Util.round(balanceChf, Config.defaultVolumeDecimal),
+        totalCustodyBalanceChfAuditPeriod: Util.roundReadable(balanceChf, AmountType.FIAT),
       });
-      updatedCustody++;
     }
 
-    this.logger.info(`Audit period numbers calculated: ${updatedVolumes} volumes, ${updatedCustody} custody balances`);
+    this.logger.info(
+      `Audit period numbers calculated: ${volumeResults.length} volumes, ${custodyBalances.size} custody balances`,
+    );
 
-    return { updatedVolumes, updatedCustody };
+    return { updatedVolumes: volumeResults.length, updatedCustody: custodyBalances.size };
   }
 
   // --- MERGING --- //
