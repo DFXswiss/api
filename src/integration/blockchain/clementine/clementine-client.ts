@@ -12,6 +12,13 @@ export interface ClementineConfig {
   homeDir: string;
   timeoutMs: number;
   signingTimeoutMs: number;
+  expectedVersion: string;
+}
+
+export interface ClementineVersionInfo {
+  version: string;
+  commit?: string;
+  rawOutput: string;
 }
 
 export enum DepositStatus {
@@ -22,6 +29,7 @@ export enum DepositStatus {
 }
 
 export enum WithdrawStatus {
+  NOT_FOUND = 'not_found',
   PENDING = 'pending',
   SCANNING = 'scanning',
   SIGNING = 'signing',
@@ -87,6 +95,26 @@ export class ClementineClient {
    */
   async showConfig(): Promise<string> {
     return this.executeCommand(['show-config']);
+  }
+
+  /**
+   * Get the CLI version information
+   * @returns Version info including semver version and optional commit hash
+   */
+  async getVersion(): Promise<ClementineVersionInfo> {
+    const output = await this.executeCommand(['--version'], undefined, false);
+
+    // Try to parse semver version (e.g., "1.2.3", "v1.2.3", "clementine-cli 1.2.3")
+    const versionMatch = output.match(/v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)/);
+
+    // Try to parse commit hash (e.g., "commit: abc123", "git: abc123def")
+    const commitMatch = output.match(/(?:commit|git)[:\s]+([a-f0-9]{7,40})/i);
+
+    return {
+      version: versionMatch?.[1] ?? 'unknown',
+      commit: commitMatch?.[1],
+      rawOutput: output.trim(),
+    };
   }
 
   // --- WALLET OPERATIONS --- //
@@ -206,6 +234,9 @@ export class ClementineClient {
       return null;
     }
 
+    // Unknown output format - log warning and return null
+    this.logger.warn(`withdrawScan: unexpected CLI output format, treating as no UTXO found. Output: ${output}`);
+
     return null;
   }
 
@@ -227,7 +258,24 @@ export class ClementineClient {
       this.config.signingTimeoutMs,
     );
 
-    // Parse both signatures from output
+    // Try to parse signatures by their labels first (safer)
+    // CLI output format: "Optimistic withdrawal signature hex: {sig}" and "Operator-paid withdrawal signature hex: {sig}"
+    const optimisticMatch = output.match(/optimistic[^:]*signature[^:]*:\s*([a-f0-9]+)/i);
+    const operatorMatch = output.match(/operator[^:]*signature[^:]*:\s*([a-f0-9]+)/i);
+
+    if (optimisticMatch && operatorMatch) {
+      return {
+        optimisticSignature: optimisticMatch[1],
+        operatorPaidSignature: operatorMatch[1],
+      };
+    }
+
+    // Fallback: parse by order (less safe - assumes first is optimistic, second is operator)
+    this.logger.warn(
+      'Could not find labeled signatures in CLI output, falling back to order-based parsing. ' +
+        'This may cause issues if CLI output format changes.',
+    );
+
     const sigMatches = output.match(/signature[:\s]+([a-f0-9]+)/gi);
     if (!sigMatches || sigMatches.length < 2) {
       throw new Error(`Failed to parse withdrawal signatures from CLI output: ${output}`);
@@ -270,9 +318,20 @@ export class ClementineClient {
    * Get the status of a withdrawal operation
    * Command: clementine-cli withdraw status <WITHDRAWAL_UTXO>
    * @param withdrawalUtxo The withdrawal UTXO to check (format: txid:vout)
+   * @returns Status result with NOT_FOUND if no withdrawal exists for this UTXO
    */
   async withdrawStatus(withdrawalUtxo: string): Promise<WithdrawStatusResult> {
     const output = await this.executeCommand(['withdraw', 'status', withdrawalUtxo]);
+
+    // Check if no withdrawal exists for this UTXO
+    // CLI outputs "No withdrawals found for OutPoint ..." if never submitted
+    if (output.toLowerCase().includes('no withdrawals found')) {
+      return {
+        withdrawalUtxo,
+        status: WithdrawStatus.NOT_FOUND,
+      };
+    }
+
     return this.parseWithdrawStatus(output, withdrawalUtxo);
   }
 
@@ -302,13 +361,12 @@ export class ClementineClient {
 
   // --- INTERNAL METHODS --- //
 
-  private async executeCommand(args: string[], timeout?: number): Promise<string> {
-    const fullArgs = this.buildArgs(args);
-    this.logger.verbose(`Executing: ${this.config.cliPath} ${fullArgs.join(' ')}`);
+  private async executeCommand(args: string[], timeout?: number, addNetworkFlag = true): Promise<string> {
+    const finalArgs = addNetworkFlag ? this.addNetworkFlag(args) : args;
+    this.logger.verbose(`Executing: ${this.config.cliPath} ${finalArgs.join(' ')}`);
 
     try {
-      const output = await this.spawnAsync(fullArgs, timeout ?? this.config.timeoutMs);
-      return output;
+      return await this.spawnAsync(finalArgs, timeout ?? this.config.timeoutMs);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Clementine CLI error: ${message}`);
@@ -389,7 +447,7 @@ export class ClementineClient {
     });
   }
 
-  private buildArgs(baseArgs: string[]): string[] {
+  private addNetworkFlag(baseArgs: string[]): string[] {
     const args = [...baseArgs];
 
     // Insert --network flag after the subcommand, before positional arguments

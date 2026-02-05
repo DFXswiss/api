@@ -824,6 +824,7 @@ export class Configuration {
       signerAddress: process.env.CLEMENTINE_SIGNER_ADDRESS,
       timeoutMs: parseInt(process.env.CLEMENTINE_TIMEOUT_MS ?? '60000'),
       signingTimeoutMs: parseInt(process.env.CLEMENTINE_SIGNING_TIMEOUT_MS ?? '300000'),
+      expectedVersion: process.env.CLEMENTINE_CLI_VERSION ?? '',
     },
     bitcoinTestnet4: {
       btcTestnet4Output: {
