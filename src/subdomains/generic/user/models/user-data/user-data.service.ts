@@ -231,7 +231,6 @@ export class UserDataService {
         'userData.amlListAddedDate',
         'userData.amlListExpiredDate',
         'userData.amlListReactivatedDate',
-        'userData.amlListStatus',
         'userData.highRisk',
         'userData.pep',
         'userData.complexOrgStructure',
