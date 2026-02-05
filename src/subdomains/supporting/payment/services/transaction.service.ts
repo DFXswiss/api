@@ -157,7 +157,7 @@ export class TransactionService {
                   : 'transaction.outputDate <= :outputTo';
 
             if (dateFrom || dateTo) {
-              qb.orWhere(outputCondition, { outputFrom, outputTo });
+              qb.andWhere(outputCondition, { outputFrom, outputTo });
             } else {
               qb.where(outputCondition, { outputFrom, outputTo });
             }
