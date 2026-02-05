@@ -25,6 +25,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import {
   DefaultPaymentLinkConfig,
@@ -44,7 +45,6 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
@@ -967,12 +967,11 @@ export class UserDataService {
   // --- AUDIT PERIOD --- //
 
   async calculateAuditPeriodNumbers(): Promise<{ updatedVolumes: number; updatedCustody: number }> {
-    const startDateStr = await this.settingService.get('AuditNumberCalculationStartDate');
-    const endDateStr = await this.settingService.get('AuditNumberCalculationEndDate');
-    if (!startDateStr || !endDateStr) throw new BadRequestException('Audit calculation dates not configured');
+    const auditPeriod = await this.settingService.getObj<{ start: string; end: string }>('AuditPeriod');
+    if (!auditPeriod?.start || !auditPeriod?.end) throw new BadRequestException('Audit period not configured');
 
-    const startDate = new Date(startDateStr);
-    const endDate = new Date(endDateStr);
+    const startDate = new Date(auditPeriod.start);
+    const endDate = new Date(auditPeriod.end);
 
     // Reset all audit values
     await this.userDataRepo
@@ -993,7 +992,7 @@ export class UserDataService {
     }
 
     // Calculate totalCustodyBalanceChfAuditPeriod
-    const custodyBalances = await this.custodyService.calculateAllCustodyBalancesChf(endDate);
+    const custodyBalances = await this.custodyService.getUserTotalBalancesChf(endDate);
 
     let updatedCustody = 0;
     for (const [userDataId, balanceChf] of custodyBalances.entries()) {

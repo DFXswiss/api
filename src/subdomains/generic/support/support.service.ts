@@ -111,11 +111,11 @@ export class SupportService {
   }
 
   async getKycFileList(): Promise<KycFileListEntry[]> {
-    const [userData, auditStartDateStr] = await Promise.all([
+    const [userData, auditPeriod] = await Promise.all([
       this.userDataService.getUserDatasWithKycFile(),
-      this.settingService.get('AuditNumberCalculationStartDate'),
+      this.settingService.getObj<{ start: string; end: string }>('AuditPeriod'),
     ]);
-    const auditStartDate = auditStartDateStr ? new Date(auditStartDateStr) : undefined;
+    const auditStartDate = auditPeriod?.start ? new Date(auditPeriod.start) : undefined;
 
     return userData.map((d) => this.toKycFileListEntry(d, auditStartDate));
   }

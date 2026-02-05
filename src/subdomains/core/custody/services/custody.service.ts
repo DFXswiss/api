@@ -4,6 +4,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -11,8 +12,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { AssetPricesService } from 'src/subdomains/supporting/pricing/services/asset-prices.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { In } from 'typeorm';
+import { In, MoreThan } from 'typeorm';
 import { RefService } from '../../referral/process/ref.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
@@ -226,82 +226,31 @@ export class CustodyService {
     return { totalValue };
   }
 
-  // --- AUDIT --- //
+  async getUserTotalBalancesChf(date: Date): Promise<Map<number, number>> {
+    const balances = await this.custodyBalanceRepo.find({
+      where: { balance: MoreThan(0) },
+      relations: { user: { userData: true }, asset: true },
+    });
 
-  async calculateAllCustodyBalancesChf(endDate: Date): Promise<Map<number, number>> {
-    const deposits = await this.custodyOrderRepo
-      .createQueryBuilder('co')
-      .select('u.userDataId', 'userDataId')
-      .addSelect('co.inputAssetId', 'assetId')
-      .addSelect('SUM(co.inputAmount)', 'totalAmount')
-      .innerJoin('co.user', 'u')
-      .where('u.role = :role', { role: UserRole.CUSTODY })
-      .andWhere('co.status = :status', { status: CustodyOrderStatus.COMPLETED })
-      .andWhere('co.created <= :endDate', { endDate })
-      .andWhere('co.inputAssetId IS NOT NULL')
-      .groupBy('u.userDataId')
-      .addGroupBy('co.inputAssetId')
-      .getRawMany<{ userDataId: number; assetId: number; totalAmount: number }>();
+    // Get historical prices
+    const assetIds = [...new Set(balances.map((b) => b.asset.id))];
+    const priceMap = await this.assetPricesService.getAssetPricesForDate(assetIds, date);
 
-    const withdrawals = await this.custodyOrderRepo
-      .createQueryBuilder('co')
-      .select('u.userDataId', 'userDataId')
-      .addSelect('co.outputAssetId', 'assetId')
-      .addSelect('SUM(co.outputAmount)', 'totalAmount')
-      .innerJoin('co.user', 'u')
-      .where('u.role = :role', { role: UserRole.CUSTODY })
-      .andWhere('co.status != :status', { status: CustodyOrderStatus.CREATED })
-      .andWhere('co.created <= :endDate', { endDate })
-      .andWhere('co.outputAssetId IS NOT NULL')
-      .groupBy('u.userDataId')
-      .addGroupBy('co.outputAssetId')
-      .getRawMany<{ userDataId: number; assetId: number; totalAmount: number }>();
-
-    // Build balance map: userDataId -> assetId -> balance
-    const balanceMap = new Map<number, Map<number, number>>();
-
-    for (const d of deposits) {
-      if (!balanceMap.has(d.userDataId)) balanceMap.set(d.userDataId, new Map());
-      const assetMap = balanceMap.get(d.userDataId);
-      assetMap.set(d.assetId, (assetMap.get(d.assetId) ?? 0) + d.totalAmount);
-    }
-
-    for (const w of withdrawals) {
-      if (!balanceMap.has(w.userDataId)) balanceMap.set(w.userDataId, new Map());
-      const assetMap = balanceMap.get(w.userDataId);
-      assetMap.set(w.assetId, (assetMap.get(w.assetId) ?? 0) - w.totalAmount);
-    }
-
-    // Collect all unique asset IDs
-    const allAssetIds = new Set<number>();
-    for (const assetMap of balanceMap.values()) {
-      for (const assetId of assetMap.keys()) allAssetIds.add(assetId);
-    }
-
-    // Get historical prices for endDate with fallback to current prices
-    const priceMap = await this.assetPricesService.getAssetPricesForDate(Array.from(allAssetIds), endDate);
-
-    for (const assetId of allAssetIds) {
+    for (const assetId of assetIds) {
       if (!priceMap.has(assetId)) {
-        try {
-          const asset = await this.assetService.getAssetById(assetId);
-          if (asset?.approxPriceChf) priceMap.set(assetId, asset.approxPriceChf);
-        } catch (e) {
-          this.logger.error(`Failed to get fallback price for asset ${assetId}:`, e);
-        }
+        const asset = balances.find((b) => b.asset.id === assetId)?.asset;
+        if (asset?.approxPriceChf) priceMap.set(assetId, asset.approxPriceChf);
       }
     }
 
-    // Calculate CHF value per UserData
+    // Sum CHF values per user data
     const result = new Map<number, number>();
 
-    for (const [userDataId, assetMap] of balanceMap.entries()) {
-      let totalChf = 0;
-      for (const [assetId, balance] of assetMap.entries()) {
-        const priceChf = priceMap.get(assetId);
-        if (priceChf) totalChf += balance * priceChf;
+    for (const { user, asset, balance } of balances) {
+      const priceChf = priceMap.get(asset.id);
+      if (priceChf) {
+        result.set(user.userData.id, (result.get(user.userData.id) ?? 0) + balance * priceChf);
       }
-      if (totalChf > 0) result.set(userDataId, totalChf);
     }
 
     return result;
