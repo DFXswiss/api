@@ -12,8 +12,45 @@ permissions:
 
 env:
   NODE_VERSION: '20.x'
+  DEV_API_URL: https://dev.api.dfx.swiss
 
 jobs:
+  verify-dev-deployment:
+    name: Verify DEV Deployment
+    if: github.base_ref == 'main' && github.head_ref == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for DEV to be running latest develop commit
+        timeout-minutes: 15
+        run: |
+          EXPECTED=$(curl -s https://api.github.com/repos/${{ github.repository }}/commits/develop | jq -r '.sha')
+          echo "Expected commit: $EXPECTED"
+
+          for i in {1..30}; do
+            RESPONSE=$(curl -sf ${{ env.DEV_API_URL }}/version 2>&1) && \
+              ACTUAL=$(echo "$RESPONSE" | jq -r '.commit') || \
+              ACTUAL="unreachable"
+
+            echo "Attempt $i: DEV is running $ACTUAL"
+
+            if [ "$EXPECTED" == "$ACTUAL" ]; then
+              echo "DEV is running the latest develop commit"
+              exit 0
+            fi
+
+            if [ "$ACTUAL" == "unreachable" ]; then
+              echo "DEV API is not reachable, waiting..."
+            fi
+
+            echo "Waiting 30s for DEV deployment..."
+            sleep 30
+          done
+
+          echo "::error::DEV is not running the latest develop commit after 15 minutes"
+          echo "Expected: $EXPECTED"
+          echo "Actual:   $ACTUAL"
+          exit 1
+
   build:
     name: Build and test
     if: github.head_ref != 'develop'
