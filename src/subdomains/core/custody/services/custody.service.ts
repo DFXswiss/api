@@ -31,9 +31,9 @@ interface CustodyOrderSingle {
 @Injectable()
 export class CustodyService {
   constructor(
-    @Inject(forwardRef(() => UserService)) private readonly userService: UserService,
+    private readonly userService: UserService,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
-    @Inject(forwardRef(() => WalletService)) private readonly walletService: WalletService,
+    private readonly walletService: WalletService,
     private readonly refService: RefService,
     @Inject(forwardRef(() => AuthService)) private readonly authService: AuthService,
     private readonly custodyOrderRepo: CustodyOrderRepository,
