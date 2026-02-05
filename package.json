@@ -23,6 +23,7 @@
     "type-check": "tsc --noEmit",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "check": "npm run lint && npm run test",
+    "startup": "node dist/src/verify-startup",
     "migration": "bash migration/generate.sh"
   },
   "dependencies": {
