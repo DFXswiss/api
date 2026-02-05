@@ -188,6 +188,10 @@ export class TransactionService {
     return this.repo.find({ where: { userData: { id: userDataId } }, relations });
   }
 
+  async completeTransaction(transactionId: number, outputDate: Date): Promise<void> {
+    await this.repo.update(transactionId, { outputDate });
+  }
+
   async getTransactionByKey(key: string, value: any): Promise<Transaction> {
     return this.repo
       .createQueryBuilder('transaction')

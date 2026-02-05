@@ -17,6 +17,7 @@ import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import {
   PriceCurrency,
@@ -44,6 +45,7 @@ export class BuyFiatPreparationService {
     private readonly countryService: CountryService,
     private readonly buyFiatNotificationService: BuyFiatNotificationService,
     private readonly fiatOutputService: FiatOutputService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -364,6 +366,9 @@ export class BuyFiatPreparationService {
         await this.buyFiatRepo.update(
           ...entity.complete(entity.fiatOutput.remittanceInfo, entity.fiatOutput.outputDate, entity.fiatOutput.bankTx),
         );
+
+        if (entity.transaction)
+          await this.transactionService.completeTransaction(entity.transaction.id, entity.outputDate);
 
         // send webhook
         await this.buyFiatService.triggerWebhook(entity);
