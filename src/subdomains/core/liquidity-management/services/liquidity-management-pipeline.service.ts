@@ -239,13 +239,18 @@ export class LiquidityManagementPipelineService {
 
     if (isComplete) {
       order.complete();
-      await this.orderRepo.save(order);
-
-      this.logger.verbose(`Liquidity management order ${order.id} complete`);
-      return true;
     }
 
-    return false;
+    // Always save the order to persist correlationId changes from intermediate steps
+    // This is critical for multi-step processes like Clementine withdrawals where
+    // correlationId contains state machine data that must survive restarts
+    await this.orderRepo.save(order);
+
+    if (isComplete) {
+      this.logger.verbose(`Liquidity management order ${order.id} complete`);
+    }
+
+    return isComplete;
   }
 
   private async handlePipelineCompletion(pipeline: LiquidityManagementPipeline): Promise<void> {

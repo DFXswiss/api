@@ -402,6 +402,24 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     order: LiquidityManagementOrder,
     data: WithdrawCorrelationData,
   ): Promise<boolean> {
+    // Idempotency check: verify if withdrawal was already sent to bridge
+    // This prevents double cBTC burning if the process crashes after withdrawSend()
+    // but before the correlationId is persisted
+    const existingStatus = await this.clementineClient.withdrawStatus(data.withdrawalUtxo);
+    if (existingStatus.status !== 'pending' && existingStatus.status !== 'failed') {
+      this.logger.info(
+        `Withdrawal: already submitted to bridge (status: ${existingStatus.status}), skipping withdrawSend()`,
+      );
+
+      // Already submitted - move to next step without calling withdrawSend() again
+      data.step = 'sent_to_bridge';
+      // Use order.updated as fallback timestamp since we don't know the exact time
+      data.sentToBridgeAt = data.sentToBridgeAt ?? order.updated.getTime();
+
+      order.correlationId = `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(data)}`;
+      return false;
+    }
+
     // Send to bridge contract (burns cBTC)
     await this.clementineClient.withdrawSend(
       data.signerAddress,
@@ -459,11 +477,17 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Check if 12 hours have passed - if so, send to operators
-    if (!data.sentToBridgeAt) {
-      this.logger.warn('Withdrawal: sentToBridgeAt missing, skipping operator escalation check');
-      return false;
+    // Use order.updated as fallback if sentToBridgeAt is missing (e.g., due to data loss or migration)
+    let sentTimestamp = data.sentToBridgeAt;
+    if (!sentTimestamp) {
+      this.logger.warn('Withdrawal: sentToBridgeAt missing, using order.updated as fallback for timeout calculation');
+      sentTimestamp = order.updated.getTime();
+
+      // Persist the fallback timestamp for future checks
+      data.sentToBridgeAt = sentTimestamp;
+      order.correlationId = `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(data)}`;
     }
-    const elapsed = Date.now() - data.sentToBridgeAt;
+    const elapsed = Date.now() - sentTimestamp;
     if (elapsed > OPTIMISTIC_TIMEOUT_MS) {
       this.logger.verbose(`Withdrawal: 12 hours elapsed, sending to operators`);
 
