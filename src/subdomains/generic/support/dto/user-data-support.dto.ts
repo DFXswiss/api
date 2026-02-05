@@ -86,7 +86,9 @@ export class TransactionListEntry {
   accountId?: number;
   name?: string;
   domicile?: string;
+  created?: Date;
   eventDate?: Date;
+  outputDate?: Date;
   assets?: string;
   amountInChf?: number;
   highRisk?: boolean;
