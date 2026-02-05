@@ -79,7 +79,7 @@ export class BuyCryptoPreparationService {
         cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
         buy: true,
         cryptoRoute: true,
-        transaction: { user: { wallet: true }, userData: true },
+        transaction: { user: { wallet: true }, userData: { kycSteps: true } },
         bankData: true,
       },
     });

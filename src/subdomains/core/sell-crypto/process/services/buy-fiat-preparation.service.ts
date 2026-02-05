@@ -66,7 +66,7 @@ export class BuyFiatPreparationService {
       relations: {
         cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
         sell: true,
-        transaction: { user: { wallet: true }, userData: true },
+        transaction: { user: { wallet: true }, userData: { kycSteps: true } },
         bankData: true,
       },
     });
