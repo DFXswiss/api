@@ -254,7 +254,24 @@ export class ClementineClient {
       this.config.signingTimeoutMs,
     );
 
-    // Parse both signatures from output
+    // Try to parse signatures by their labels first (safer)
+    // CLI output format: "Optimistic withdrawal signature hex: {sig}" and "Operator-paid withdrawal signature hex: {sig}"
+    const optimisticMatch = output.match(/optimistic[^:]*signature[^:]*:\s*([a-f0-9]+)/i);
+    const operatorMatch = output.match(/operator[^:]*signature[^:]*:\s*([a-f0-9]+)/i);
+
+    if (optimisticMatch && operatorMatch) {
+      return {
+        optimisticSignature: optimisticMatch[1],
+        operatorPaidSignature: operatorMatch[1],
+      };
+    }
+
+    // Fallback: parse by order (less safe - assumes first is optimistic, second is operator)
+    this.logger.warn(
+      'Could not find labeled signatures in CLI output, falling back to order-based parsing. ' +
+        'This may cause issues if CLI output format changes.',
+    );
+
     const sigMatches = output.match(/signature[:\s]+([a-f0-9]+)/gi);
     if (!sigMatches || sigMatches.length < 2) {
       throw new Error(`Failed to parse withdrawal signatures from CLI output: ${output}`);
