@@ -234,6 +234,9 @@ export class ClementineClient {
       return null;
     }
 
+    // Unknown output format - log warning and return null
+    this.logger.warn(`withdrawScan: unexpected CLI output format, treating as no UTXO found. Output: ${output}`);
+
     return null;
   }
 
