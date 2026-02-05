@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
+import { Between, Brackets, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
@@ -190,6 +190,29 @@ export class TransactionService {
 
   async completeTransaction(transactionId: number, outputDate: Date): Promise<void> {
     await this.repo.update(transactionId, { outputDate });
+  }
+
+  async getAuditPeriodVolumes(startDate: Date, endDate: Date): Promise<{ userDataId: number; totalVolume: number }[]> {
+    return this.repo
+      .createQueryBuilder('tx')
+      .select('tx.userDataId', 'userDataId')
+      .addSelect('SUM(tx.amountInChf)', 'totalVolume')
+      .leftJoin('tx.buyCrypto', 'buyCrypto')
+      .leftJoin('tx.buyFiat', 'buyFiat')
+      .leftJoin('tx.refReward', 'refReward')
+      .where('tx.userDataId IS NOT NULL')
+      .andWhere('tx.amountInChf IS NOT NULL')
+      .andWhere('tx.created BETWEEN :startDate AND :endDate', { startDate, endDate })
+      .andWhere(
+        new Brackets((qb) =>
+          qb
+            .where('buyCrypto.outputDate BETWEEN :startDate AND :endDate')
+            .orWhere('buyFiat.outputDate BETWEEN :startDate AND :endDate')
+            .orWhere('refReward.outputDate BETWEEN :startDate AND :endDate'),
+        ),
+      )
+      .groupBy('tx.userDataId')
+      .getRawMany();
   }
 
   async getTransactionByKey(key: string, value: any): Promise<Transaction> {

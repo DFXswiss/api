@@ -3,6 +3,7 @@ import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -38,6 +39,7 @@ export class CustodyService {
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyBalanceRepo: CustodyBalanceRepository,
     private readonly assetPricesService: AssetPricesService,
+    private readonly assetService: AssetService,
   ) {}
 
   // --- ACCOUNT --- //
@@ -219,5 +221,72 @@ export class CustodyService {
     }
 
     return { totalValue };
+  }
+
+  async getUserTotalBalancesChf(date: Date): Promise<Map<number, number>> {
+    const balances = await this.getHistoricalBalances(date);
+    if (!balances.length) return new Map();
+
+    // Get historical prices
+    const assetIds = [...new Set(balances.map((b) => b.assetId))];
+    const priceMap = await this.assetPricesService.getAssetPricesForDate(assetIds, date);
+
+    // Sum CHF values per userDataId
+    const result = new Map<number, number>();
+
+    for (const { userDataId, assetId, balance } of balances) {
+      const priceChf =
+        priceMap.get(assetId) ?? (await this.assetService.getAssetById(assetId).then((a) => a?.approxPriceChf));
+      if (priceChf && balance > 0) {
+        result.set(userDataId, (result.get(userDataId) ?? 0) + balance * priceChf);
+      }
+    }
+
+    return result;
+  }
+
+  private async getHistoricalBalances(date: Date): Promise<{ userDataId: number; assetId: number; balance: number }[]> {
+    const deposits = await this.custodyOrderRepo
+      .createQueryBuilder('o')
+      .select('u.userDataId', 'userDataId')
+      .addSelect('o.inputAssetId', 'assetId')
+      .addSelect('SUM(o.inputAmount)', 'amount')
+      .innerJoin('o.user', 'u')
+      .where('o.status = :status', { status: CustodyOrderStatus.COMPLETED })
+      .andWhere('o.updated <= :date', { date })
+      .groupBy('u.userDataId')
+      .addGroupBy('o.inputAssetId')
+      .getRawMany<{ userDataId: number; assetId: number; amount: number }>();
+
+    const withdrawals = await this.custodyOrderRepo
+      .createQueryBuilder('o')
+      .select('u.userDataId', 'userDataId')
+      .addSelect('o.outputAssetId', 'assetId')
+      .addSelect('SUM(o.outputAmount)', 'amount')
+      .innerJoin('o.user', 'u')
+      .where('o.status != :status', { status: CustodyOrderStatus.CREATED })
+      .andWhere('o.outputAssetId IS NOT NULL')
+      .andWhere('o.updated <= :date', { date })
+      .groupBy('u.userDataId')
+      .addGroupBy('o.outputAssetId')
+      .getRawMany<{ userDataId: number; assetId: number; amount: number }>();
+
+    // Calculate net balances
+    const balanceMap = new Map<string, { userDataId: number; assetId: number; balance: number }>();
+
+    for (const d of deposits) {
+      const key = `${d.userDataId}-${d.assetId}`;
+      balanceMap.set(key, { userDataId: d.userDataId, assetId: d.assetId, balance: d.amount });
+    }
+
+    for (const w of withdrawals) {
+      const key = `${w.userDataId}-${w.assetId}`;
+      const existing = balanceMap.get(key);
+      if (existing) {
+        existing.balance -= w.amount;
+      }
+    }
+
+    return [...balanceMap.values()];
   }
 }
