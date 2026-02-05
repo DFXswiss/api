@@ -165,7 +165,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
             this.logger.verbose(`Could not update order ${order.id} price: ${JSON.stringify(updatedOrder)}`);
 
             if (updatedOrder.status === OrderStatus.OPEN)
-              await this.callApi((e) => e.cancelOrder(order.id, order.symbol)).catch((e) =>
+              await this.cancelOrder(order.id, order.symbol).catch((e) =>
                 this.logger.error(`Error while cancelling order ${order.id}:`, e),
               );
           }
@@ -374,6 +374,10 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, amount, price)).then(
       (o) => o.id,
     );
+  }
+
+  protected async cancelOrder(orderId: string, symbol: string): Promise<void> {
+    await this.callApi((e) => e.cancelOrder(orderId, symbol));
   }
 
   // other

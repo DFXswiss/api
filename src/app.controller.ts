@@ -28,6 +28,7 @@ enum Manufacturer {
 
 @Controller('')
 export class AppController {
+  private readonly startedAt = new Date();
   private readonly homepageUrl = 'https://dfx.swiss/';
   private readonly appleStoreUrl = 'https://apps.apple.com/app';
   private readonly googleStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details';
@@ -64,12 +65,15 @@ export class AppController {
   @Get('version')
   @ApiExcludeEndpoint()
   @Version(VERSION_NEUTRAL)
-  getVersion(): { commit: string } {
+  getVersion(): { commit: string; startedAt: Date } {
+    return { commit: this.getCommit(), startedAt: this.startedAt };
+  }
+
+  private getCommit(): string {
     try {
-      const commit = readFileSync('dist/version.txt', 'utf8').trim();
-      return { commit };
+      return readFileSync('dist/version.txt', 'utf8').trim();
     } catch {
-      return { commit: 'unknown' };
+      return 'unknown';
     }
   }
 
