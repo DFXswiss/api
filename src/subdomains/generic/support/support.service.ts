@@ -169,7 +169,7 @@ export class SupportService {
       domicile: tx.userData?.country?.name,
       created: tx.created,
       eventDate: tx.eventDate,
-      outputDate: tx.completionDate,
+      outputDate: tx.outputDate,
       assets: tx.assets,
       amountInChf: tx.amountInChf,
       highRisk: tx.highRisk,
