@@ -157,6 +157,7 @@ export class SupportService {
       amlListAddedDate: userData.amlListAddedDate,
       amlListExpiredDate: userData.amlListExpiredDate,
       amlListReactivatedDate: userData.amlListReactivatedDate,
+      amlListStatus: userData.amlListStatus,
       highRisk: userData.highRisk,
       pep: userData.pep,
       complexOrgStructure: userData.complexOrgStructure,
