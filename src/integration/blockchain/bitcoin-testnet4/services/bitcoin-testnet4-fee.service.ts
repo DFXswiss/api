@@ -35,7 +35,7 @@ export class BitcoinTestnet4FeeService {
           return 1;
         }
 
-        return feeRate;
+        return Math.max(feeRate, 1);
       },
       undefined,
       true, // fallbackToCache on error
