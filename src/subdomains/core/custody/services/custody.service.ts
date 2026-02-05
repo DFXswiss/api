@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -32,10 +32,10 @@ interface CustodyOrderSingle {
 export class CustodyService {
   constructor(
     private readonly userService: UserService,
-    private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
     private readonly refService: RefService,
-    private readonly authService: AuthService,
+    @Inject(forwardRef(() => AuthService)) private readonly authService: AuthService,
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyBalanceRepo: CustodyBalanceRepository,
     private readonly assetPricesService: AssetPricesService,
