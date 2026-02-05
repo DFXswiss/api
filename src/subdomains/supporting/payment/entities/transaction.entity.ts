@@ -91,6 +91,9 @@ export class Transaction extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   mailSendDate?: Date;
 
+  @Column({ type: 'datetime2', nullable: true })
+  outputDate?: Date;
+
   // References
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { nullable: true })
   buyCrypto?: BuyCrypto;
@@ -183,6 +186,6 @@ export class Transaction extends IEntity {
   }
 
   get completionDate(): Date | undefined {
-    return this.buyCrypto?.outputDate ?? this.buyFiat?.outputDate ?? this.refReward?.outputDate;
+    return this.outputDate ?? this.buyCrypto?.outputDate ?? this.buyFiat?.outputDate ?? this.refReward?.outputDate;
   }
 }

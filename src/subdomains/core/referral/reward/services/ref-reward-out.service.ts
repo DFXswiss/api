@@ -5,6 +5,7 @@ import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/li
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { RefReward, RewardStatus } from '../ref-reward.entity';
 import { RefRewardRepository } from '../ref-reward.repository';
@@ -19,13 +20,14 @@ export class RefRewardOutService {
     private readonly payoutService: PayoutService,
     private readonly dexService: DexService,
     private readonly refRewardService: RefRewardService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async checkPaidTransaction(): Promise<void> {
     try {
       const transactionsPaidOut = await this.refRewardRepo.find({
         where: { status: RewardStatus.PAYING_OUT },
-        relations: { user: true },
+        relations: { user: true, transaction: true },
       });
 
       await this.checkCompletion(transactionsPaidOut);
@@ -93,6 +95,8 @@ export class RefRewardOutService {
 
         if (isComplete) {
           await this.refRewardRepo.update(...tx.complete(payoutTxId));
+
+          if (tx.transaction) await this.transactionService.completeTransaction(tx.transaction.id, tx.outputDate);
 
           await this.dexService.completeOrders(LiquidityOrderContext.REF_PAYOUT, tx.id.toString());
 
