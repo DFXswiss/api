@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef 
 import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
@@ -79,6 +80,7 @@ export class SupportService {
     private readonly bankService: BankService,
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
+    private readonly settingService: SettingService,
   ) {}
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
@@ -108,8 +110,14 @@ export class SupportService {
     };
   }
 
-  getKycFileList(): Promise<KycFileListEntry[]> {
-    return this.userDataService.getUserDatasWithKycFile().then((u) => u.map((d) => this.toKycFileListEntry(d)));
+  async getKycFileList(): Promise<KycFileListEntry[]> {
+    const [userData, auditStartDateStr] = await Promise.all([
+      this.userDataService.getUserDatasWithKycFile(),
+      this.settingService.get('AuditNumberCalculationStartDate'),
+    ]);
+    const auditStartDate = auditStartDateStr ? new Date(auditStartDateStr) : undefined;
+
+    return userData.map((d) => this.toKycFileListEntry(d, auditStartDate));
   }
 
   async getKycFileStats(startYear = 2021, endYear = new Date().getFullYear()): Promise<KycFileYearlyStats[]> {
@@ -146,7 +154,7 @@ export class SupportService {
 
   // --- MAPPING METHODS --- //
 
-  private toKycFileListEntry(userData: UserData): KycFileListEntry {
+  private toKycFileListEntry(userData: UserData, auditStartDate?: Date): KycFileListEntry {
     return {
       kycFileId: userData.kycFileId,
       id: userData.id,
@@ -157,6 +165,8 @@ export class SupportService {
       amlListAddedDate: userData.amlListAddedDate,
       amlListExpiredDate: userData.amlListExpiredDate,
       amlListReactivatedDate: userData.amlListReactivatedDate,
+      newOpeningInAuditPeriod:
+        auditStartDate && userData.amlListAddedDate ? new Date(userData.amlListAddedDate) > auditStartDate : false,
       highRisk: userData.highRisk,
       pep: userData.pep,
       complexOrgStructure: userData.complexOrgStructure,
