@@ -129,6 +129,14 @@ export class TransactionService {
     });
   }
 
+  async getTransactionList(): Promise<Transaction[]> {
+    return this.repo.find({
+      where: { type: Not(IsNull()) },
+      relations: { userData: true },
+      order: { id: 'DESC' },
+    });
+  }
+
   async getTransactionsForAccount(userDataId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
     return this.repo.find({
       where: { userData: { id: userDataId }, type: Not(IsNull()), created: Between(from, to) },

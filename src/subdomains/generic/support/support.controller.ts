@@ -19,6 +19,7 @@ import { BankRefundDto } from 'src/subdomains/core/history/dto/transaction-refun
 import {
   KycFileListEntry,
   KycFileYearlyStats,
+  TransactionListEntry,
   UserDataSupportInfoDetails,
   UserDataSupportInfoResult,
   UserDataSupportQuery,
@@ -51,6 +52,14 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getKycFileStats(): Promise<KycFileYearlyStats[]> {
     return this.supportService.getKycFileStats();
+  }
+
+  @Get('transactionList')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getTransactionList(): Promise<TransactionListEntry[]> {
+    return this.supportService.getTransactionList();
   }
 
   @Get(':id')

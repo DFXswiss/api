@@ -44,6 +44,7 @@ import {
   KycFileYearlyStats,
   KycStepSupportInfo,
   SellSupportInfo,
+  TransactionListEntry,
   TransactionSupportInfo,
   UserDataSupportInfo,
   UserDataSupportInfoDetails,
@@ -152,7 +153,26 @@ export class SupportService {
     return result;
   }
 
+  async getTransactionList(): Promise<TransactionListEntry[]> {
+    const transactions = await this.transactionService.getTransactionList();
+    return transactions.map((t) => this.toTransactionListEntry(t));
+  }
+
   // --- MAPPING METHODS --- //
+
+  private toTransactionListEntry(tx: Transaction): TransactionListEntry {
+    return {
+      id: tx.id,
+      type: tx.type,
+      accountId: tx.userData?.id,
+      name: tx.userData?.verifiedName,
+      domicile: tx.userData?.country?.name,
+      eventDate: tx.eventDate ?? tx.created,
+      assets: tx.assets,
+      amountInChf: tx.amountInChf,
+      highRisk: tx.highRisk,
+    };
+  }
 
   private toKycFileListEntry(userData: UserData, auditStartDate?: Date): KycFileListEntry {
     return {
