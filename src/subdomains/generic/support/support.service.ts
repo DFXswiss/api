@@ -174,6 +174,7 @@ export class SupportService {
       id: tx.id,
       type: tx.type,
       accountId: tx.userData?.id,
+      kycFileId: tx.userData?.kycFileId,
       name: tx.userData?.verifiedName,
       domicile: tx.userData?.country?.name,
       created: tx.created,
