@@ -350,7 +350,7 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[], checkOnly = false): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.fileDownloadConfig.reverse();
+    const downloadTargets = [...Config.fileDownloadConfig].reverse();
     const errors: { userDataId: number; errorType: string; folder: string; details: string }[] = [];
 
     const escapeCsvValue = (value: string): string => {
@@ -360,7 +360,7 @@ export class UserDataService {
       return value;
     };
 
-    for (const userDataId of userDataIds.reverse()) {
+    for (const userDataId of [...userDataIds].reverse()) {
       const userData = await this.getUserData(userDataId, { kycSteps: true });
 
       if (!userData) {
