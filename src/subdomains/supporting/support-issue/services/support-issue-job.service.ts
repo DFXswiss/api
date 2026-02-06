@@ -5,6 +5,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { MailFactory } from '../../notification/factories/mail.factory';
 import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
@@ -18,6 +19,7 @@ import { SupportIssueService } from './support-issue.service';
 enum AutoResponse {
   MONERO_COMPLETE = 'MoneroComplete',
   SEPA = 'Sepa',
+  MISSING_LIQUIDITY = 'MissingLiquidity',
 }
 
 @Injectable()
@@ -37,6 +39,18 @@ export class SupportIssueJobService {
 
     if (!disabledTemplates.includes(AutoResponse.MONERO_COMPLETE)) await this.moneroComplete();
     if (!disabledTemplates.includes(AutoResponse.SEPA)) await this.sepa();
+    if (!disabledTemplates.includes(AutoResponse.MISSING_LIQUIDITY)) await this.missingLiquidity();
+  }
+
+  async missingLiquidity(): Promise<void> {
+    const issues = await this.getAutoResponseIssues({
+      type: SupportIssueType.TRANSACTION_ISSUE,
+      reason: In([SupportIssueReason.FUNDS_NOT_RECEIVED, SupportIssueReason.TRANSACTION_MISSING]),
+      transaction: {
+        buyCrypto: { id: Not(IsNull()), amlCheck: CheckStatus.PASS, status: BuyCryptoStatus.MISSING_LIQUIDITY },
+      },
+    });
+    await this.sendAutoResponse(SupportMessageTranslationKey.MISSING_LIQUIDITY, issues);
   }
 
   async sepa(): Promise<void> {
