@@ -135,6 +135,7 @@ export class TransactionService {
       .select('transaction')
       .leftJoinAndSelect('transaction.userData', 'userData')
       .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.verifiedCountry', 'verifiedCountry')
       .where('transaction.type IS NOT NULL');
 
     if (dateFrom || dateTo || outputFrom || outputTo) {
