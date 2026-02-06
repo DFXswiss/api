@@ -54,6 +54,14 @@ export class UserDataController {
     return this.userDataRepo.find();
   }
 
+  @Put('auditPeriodNumbers')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async calculateAuditPeriodNumbers(): Promise<{ updatedVolumes: number; updatedCustody: number }> {
+    return this.userDataService.calculateAuditPeriodNumbers();
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -171,11 +179,12 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async downloadUserData(@Body() data: DownloadUserDataDto, @Res({ passthrough: true }) res): Promise<StreamableFile> {
-    const zipContent = await this.userDataService.downloadUserData(data.userDataIds);
+    const zipContent = await this.userDataService.downloadUserData(data.userDataIds, data.checkOnly);
+    const prefix = data.checkOnly ? 'DFX_check' : 'DFX_export';
 
     res.set({
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="DFX_export_${Util.filenameDate()}.zip"`,
+      'Content-Disposition': `attachment; filename="${prefix}_${Util.filenameDate()}.zip"`,
     });
 
     return new StreamableFile(zipContent);

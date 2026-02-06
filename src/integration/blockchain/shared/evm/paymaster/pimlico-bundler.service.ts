@@ -13,11 +13,8 @@ import { EVM_CHAIN_CONFIG, getEvmChainConfig, isEvmBlockchainSupported } from '.
 // Source: https://github.com/MetaMask/delegation-framework
 const METAMASK_DELEGATOR_ADDRESS = '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b' as Address;
 
-// ERC-4337 EntryPoint v0.7 - canonical address on all chains
-const ENTRY_POINT_V07 = '0x0000000071727De22E5E9d8BAf0edAc6f37da032' as Address;
-
-// EIP-7702 factory marker - signals to bundler that this is an EIP-7702 UserOperation
-const EIP7702_FACTORY = '0x0000000000000000000000000000000000007702' as Address;
+// ERC-4337 EntryPoint v0.8 - required for EIP-7702 support
+const ENTRY_POINT_V08 = '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108' as Address;
 
 // MetaMask Delegator ABI - ERC-7821 BatchExecutor interface
 const DELEGATOR_ABI = parseAbi(['function execute((bytes32 mode, bytes executionData) execution) external payable']);
@@ -40,11 +37,11 @@ export interface GaslessTransferResult {
   userOpHash: string;
 }
 
-interface UserOperationV07 {
+interface UserOperationV08 {
   sender: Address;
   nonce: Hex;
-  factory: Address;
-  factoryData: Hex;
+  factory?: Address | null;
+  factoryData?: Hex;
   callData: Hex;
   callGasLimit: Hex;
   verificationGasLimit: Hex;
@@ -56,6 +53,16 @@ interface UserOperationV07 {
   paymasterPostOpGasLimit: Hex;
   paymasterData: Hex;
   signature: Hex;
+  // EIP-7702 authorization - separate field per ERC-7769
+  // Pimlico expects 'contractAddress' not 'address'
+  eip7702Auth?: {
+    contractAddress: Address;
+    chainId: Hex;
+    nonce: Hex;
+    r: Hex;
+    s: Hex;
+    yParity: Hex;
+  };
 }
 
 @Injectable()
@@ -234,19 +241,17 @@ export class PimlicoBundlerService {
     // 2. Encode the execute() call for MetaMask Delegator (ERC-7821 format)
     const callData = this.encodeExecuteCall(token.chainId as Address, transferData);
 
-    // 3. Encode the EIP-7702 authorization as factoryData
-    const factoryData = this.encodeAuthorizationAsFactoryData(authorization);
+    // 3. Build the UserOperation with EIP-7702 authorization
+    // Authorization is included before gas estimation for accurate estimates
+    const userOp = await this.buildUserOperation(userAddress as Address, callData, authorization, pimlicoUrl);
 
-    // 4. Build the UserOperation
-    const userOp = await this.buildUserOperation(userAddress as Address, callData, factoryData, pimlicoUrl);
-
-    // 5. Sponsor the UserOperation via Pimlico Paymaster
+    // 4. Sponsor the UserOperation via Pimlico Paymaster
     const sponsoredUserOp = await this.sponsorUserOperation(userOp, pimlicoUrl);
 
-    // 6. Submit the UserOperation via Pimlico Bundler
+    // 5. Submit the UserOperation via Pimlico Bundler
     const userOpHash = await this.sendUserOperation(sponsoredUserOp, pimlicoUrl);
 
-    // 7. Wait for the transaction to be mined
+    // 6. Wait for the transaction to be mined
     const txHash = await this.waitForUserOperation(userOpHash, pimlicoUrl);
 
     return { txHash, userOpHash };
@@ -298,49 +303,25 @@ export class PimlicoBundlerService {
   }
 
   /**
-   * Encode EIP-7702 authorization as factoryData for UserOperation
-   *
-   * When factory = 0x7702, the bundler expects factoryData to contain
-   * the signed EIP-7702 authorization that delegates the smart account
-   * implementation to the EOA.
-   */
-  private encodeAuthorizationAsFactoryData(authorization: Eip7702Authorization): Hex {
-    // factoryData format for EIP-7702:
-    // abi.encodePacked(address delegatee, uint256 nonce, bytes signature)
-    // where signature = abi.encodePacked(r, s, yParity)
-    const signature = concat([
-      authorization.r as Hex,
-      authorization.s as Hex,
-      toHex(authorization.yParity, { size: 1 }),
-    ]);
-
-    return concat([
-      authorization.address as Hex, // delegatee (MetaMask Delegator)
-      pad(toHex(BigInt(authorization.nonce)), { size: 32 }), // nonce
-      signature, // signature (r, s, yParity)
-    ]);
-  }
-
-  /**
-   * Build UserOperation v0.7 structure
+   * Build UserOperation v0.8 structure for EIP-7702
+   * Note: factory is intentionally left null/undefined - Pimlico expects this for EIP-7702
    */
   private async buildUserOperation(
     sender: Address,
     callData: Hex,
-    factoryData: Hex,
+    authorization: Eip7702Authorization,
     pimlicoUrl: string,
-  ): Promise<UserOperationV07> {
+  ): Promise<UserOperationV08> {
     // Get current gas prices from Pimlico
     const gasPrice = await this.getGasPrice(pimlicoUrl);
 
     // Get sender nonce from EntryPoint
     const nonce = await this.getSenderNonce(sender, pimlicoUrl);
 
-    const userOp: UserOperationV07 = {
+    const userOp: UserOperationV08 = {
       sender,
       nonce: toHex(nonce),
-      factory: EIP7702_FACTORY,
-      factoryData,
+      // For EIP-7702, do NOT set factory - Pimlico expects it to be null/undefined
       callData,
       callGasLimit: toHex(200000n),
       verificationGasLimit: toHex(500000n),
@@ -352,9 +333,19 @@ export class PimlicoBundlerService {
       paymasterPostOpGasLimit: toHex(0n),
       paymasterData: '0x' as Hex,
       signature: '0x' as Hex, // Will be filled by sponsorship or left empty for EIP-7702
+      // EIP-7702 authorization must be included BEFORE gas estimation
+      // Pimlico expects 'contractAddress' not 'address'
+      eip7702Auth: {
+        contractAddress: authorization.address as Address,
+        chainId: toHex(authorization.chainId),
+        nonce: toHex(authorization.nonce),
+        r: authorization.r as Hex,
+        s: authorization.s as Hex,
+        yParity: toHex(authorization.yParity),
+      },
     };
 
-    // Estimate gas limits
+    // Estimate gas limits (now includes eip7702Auth)
     const estimated = await this.estimateUserOperationGas(userOp, pimlicoUrl);
     userOp.callGasLimit = estimated.callGasLimit;
     userOp.verificationGasLimit = estimated.verificationGasLimit;
@@ -366,8 +357,8 @@ export class PimlicoBundlerService {
   /**
    * Sponsor UserOperation via Pimlico Paymaster
    */
-  private async sponsorUserOperation(userOp: UserOperationV07, pimlicoUrl: string): Promise<UserOperationV07> {
-    const response = await this.jsonRpc(pimlicoUrl, 'pm_sponsorUserOperation', [userOp, ENTRY_POINT_V07]);
+  private async sponsorUserOperation(userOp: UserOperationV08, pimlicoUrl: string): Promise<UserOperationV08> {
+    const response = await this.jsonRpc(pimlicoUrl, 'pm_sponsorUserOperation', [userOp, ENTRY_POINT_V08]);
 
     return {
       ...userOp,
@@ -384,8 +375,8 @@ export class PimlicoBundlerService {
   /**
    * Submit UserOperation to Pimlico Bundler
    */
-  private async sendUserOperation(userOp: UserOperationV07, pimlicoUrl: string): Promise<string> {
-    return this.jsonRpc(pimlicoUrl, 'eth_sendUserOperation', [userOp, ENTRY_POINT_V07]);
+  private async sendUserOperation(userOp: UserOperationV08, pimlicoUrl: string): Promise<string> {
+    return this.jsonRpc(pimlicoUrl, 'eth_sendUserOperation', [userOp, ENTRY_POINT_V08]);
   }
 
   /**
@@ -435,7 +426,7 @@ export class PimlicoBundlerService {
     try {
       const response = await this.jsonRpc(pimlicoUrl, 'eth_call', [
         {
-          to: ENTRY_POINT_V07,
+          to: ENTRY_POINT_V08,
           data: encodeFunctionData({
             abi: parseAbi(['function getNonce(address sender, uint192 key) view returns (uint256)']),
             functionName: 'getNonce',
@@ -454,11 +445,11 @@ export class PimlicoBundlerService {
    * Estimate gas for UserOperation
    */
   private async estimateUserOperationGas(
-    userOp: UserOperationV07,
+    userOp: UserOperationV08,
     pimlicoUrl: string,
   ): Promise<{ callGasLimit: Hex; verificationGasLimit: Hex; preVerificationGas: Hex }> {
     try {
-      const response = await this.jsonRpc(pimlicoUrl, 'eth_estimateUserOperationGas', [userOp, ENTRY_POINT_V07]);
+      const response = await this.jsonRpc(pimlicoUrl, 'eth_estimateUserOperationGas', [userOp, ENTRY_POINT_V08]);
       return {
         callGasLimit: response.callGasLimit,
         verificationGasLimit: response.verificationGasLimit,

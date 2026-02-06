@@ -2,10 +2,16 @@
   "title": "Facture No. {invoiceId}",
   "credit_title": "Crédit No. {invoiceId}",
   "receipt_title": "Confirmation de Transaction No. {invoiceId}",
+  "multi_receipt_title": "Confirmation de Transaction",
+  "section": {
+    "buy": "Achats",
+    "sell": "Ventes"
+  },
   "table": {
     "headers": {
       "quantity": "Quantité",
       "description": "Description",
+      "date": "Date",
       "total": "Total"
     },
     "position_row": {
@@ -29,5 +35,10 @@
     }
   },
   "info": "* Info: Le taux de change effectif et donc la quantité effectivement livrée sont déterminés lorsque l'argent est reçu et traité par DFX.",
-  "terms": "Nos conditions générales s'appliquent: https://docs.dfx.swiss/fr/tnc.html."
+  "terms": "Nos conditions générales s'appliquent: https://docs.dfx.swiss/fr/tnc.html.",
+  "payment_info": "Informations de paiement",
+  "payment_info_iban": "IBAN",
+  "payment_info_bic": "BIC",
+  "payment_info_recipient": "Bénéficiaire",
+  "payment_info_reference": "Référence"
 }

@@ -5,6 +5,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
@@ -29,6 +30,7 @@ describe('BuyController', () => {
   let fiatService: FiatService;
   let swissQrService: SwissQRService;
   let virtualIbanService: VirtualIbanService;
+  let userDataService: UserDataService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -42,6 +44,7 @@ describe('BuyController', () => {
     fiatService = createMock<FiatService>();
     swissQrService = createMock<SwissQRService>();
     virtualIbanService = createMock<VirtualIbanService>();
+    userDataService = createMock<UserDataService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -58,6 +61,7 @@ describe('BuyController', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: SwissQRService, useValue: swissQrService },
         { provide: VirtualIbanService, useValue: virtualIbanService },
+        { provide: UserDataService, useValue: userDataService },
 
         TestUtil.provideConfig(),
       ],

@@ -28,7 +28,6 @@ import {
 import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
 import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
-import { CardanoStrategy } from '../strategies/register/impl/cardano.strategy';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { SendStrategyRegistry } from '../strategies/send/impl/base/send.strategy-registry';
 import { PayInBitcoinService } from './payin-bitcoin.service';
@@ -72,11 +71,10 @@ export class PayInService {
   }
 
   async pollAddress(address: BlockchainAddress): Promise<void> {
-    if (address.blockchain !== Blockchain.CARDANO)
-      throw new BadRequestException(`Address poll not supported for ${address.blockchain}`);
+    const registerStrategy = this.registerStrategyRegistry.get(address.blockchain);
+    if (registerStrategy.pollAddress) return registerStrategy.pollAddress(address);
 
-    const registerStrategy = this.registerStrategyRegistry.get(address.blockchain) as CardanoStrategy;
-    return registerStrategy.pollAddress(address);
+    throw new BadRequestException(`Address poll not supported for ${address.blockchain}`);
   }
 
   async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {

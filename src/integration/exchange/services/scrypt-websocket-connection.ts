@@ -209,13 +209,12 @@ export class ScryptWebSocketConnection {
       });
 
       ws.on('close', (code, reason) => {
-        this.logger.warn(`Scrypt WebSocket closed (code: ${code}, reason: ${reason})`);
-        this.handleDisconnection();
+        this.handleDisconnection(code, reason);
       });
     });
   }
 
-  private handleDisconnection(): void {
+  private handleDisconnection(code?: number, reason?: string): void {
     const wasConnected = this.connectionState === ConnectionState.CONNECTED;
     this.connectionState = ConnectionState.DISCONNECTED;
     this.ws = undefined;
@@ -229,7 +228,9 @@ export class ScryptWebSocketConnection {
 
     // reconnect
     if (wasConnected) {
-      this.logger.warn(`Unexpected disconnection, attempting reconnect in ${this.reconnectDelay}ms`);
+      this.logger.warn(
+        `Scrypt WebSocket closed (code: ${code}, reason: ${reason}), attempting reconnect in ${this.reconnectDelay}ms`,
+      );
 
       setTimeout(() => {
         void this.connect()

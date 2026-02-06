@@ -15,25 +15,31 @@
 #   -h, --hours <n>    Time range in hours (default: 1, max: 168)
 #
 # Environment:
-#   Copy .env.db-debug.sample to .env.db-debug and fill in your credentials
+#   Uses the central .env file. Required variables:
+#   - DEBUG_ADDRESS: Wallet address with DEBUG role
+#   - DEBUG_SIGNATURE: Signature from signing the DFX login message
+#   - DEBUG_API_URL (optional): API URL, defaults to https://api.dfx.swiss/v1
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/.env.db-debug"
+ENV_FILE="$SCRIPT_DIR/../.env"
 
 # Load environment variables
-if [ -f "$ENV_FILE" ]; then
-  source "$ENV_FILE"
-else
+if [ ! -f "$ENV_FILE" ]; then
   echo "Error: Environment file not found: $ENV_FILE"
-  echo "Copy .env.db-debug.sample to .env.db-debug and fill in your credentials"
+  echo "Create .env in the api root directory"
   exit 1
 fi
 
+# Read specific variables (avoid sourcing to prevent bash keyword conflicts)
+DEBUG_ADDRESS=$(grep -E "^DEBUG_ADDRESS=" "$ENV_FILE" | cut -d'=' -f2-)
+DEBUG_SIGNATURE=$(grep -E "^DEBUG_SIGNATURE=" "$ENV_FILE" | cut -d'=' -f2-)
+DEBUG_API_URL=$(grep -E "^DEBUG_API_URL=" "$ENV_FILE" | cut -d'=' -f2-)
+
 # Validate required variables
 if [ -z "$DEBUG_ADDRESS" ] || [ -z "$DEBUG_SIGNATURE" ]; then
-  echo "Error: DEBUG_ADDRESS and DEBUG_SIGNATURE must be set in $ENV_FILE"
+  echo "Error: DEBUG_ADDRESS and DEBUG_SIGNATURE must be set in .env"
   exit 1
 fi
 
@@ -60,7 +66,7 @@ done
 
 # Get JWT Token
 echo "=== Authenticating to $API_URL ==="
-TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/auth/signIn" \
+TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/auth" \
   -H "Content-Type: application/json" \
   -d "{\"address\":\"$DEBUG_ADDRESS\",\"signature\":\"$DEBUG_SIGNATURE\"}")
 

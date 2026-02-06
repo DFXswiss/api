@@ -459,7 +459,7 @@ export class LogJobService {
         0,
       );
 
-      // Olky to Yapeal
+      // Olky to Yapeal //
       const pendingOlkyYapealAmount = this.getPendingBankAmount(
         [curr],
         recentBankTxFromOlky,
@@ -468,7 +468,7 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      // Kraken to Yapeal
+      // Kraken to Yapeal //
 
       // filtered lists
       const pendingChfKrakenYapealPlusAmount = this.getPendingBankAmount(
@@ -511,7 +511,7 @@ export class LogJobService {
         BankTxType.KRAKEN,
       );
 
-      // Yapeal to Kraken
+      // Yapeal to Kraken //
 
       // filtered lists
       const pendingYapealKrakenPlusAmount = this.getPendingBankAmount(
@@ -554,7 +554,9 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      // Yapeal to Scrypt
+      // Yapeal to Scrypt //
+
+      // filtered lists
       const pendingYapealScryptPlusAmount = this.getPendingBankAmount(
         [curr],
         [...recentChfYapealScryptTx, ...recentEurYapealScryptTx],
@@ -573,7 +575,31 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      // Scrypt to Yapeal
+      // unfiltered lists
+      const pendingYapealScryptPlusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        [
+          ...chfSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.bankTxId),
+          ...eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
+        ],
+        BankTxType.SCRYPT,
+      );
+      const pendingChfYapealScryptMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        chfReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        yapealChfBank.iban,
+      );
+      const pendingEurYapealScryptMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        yapealEurBank.iban,
+      );
+
+      // Scrypt to Yapeal //
+
+      // filtered lists
       const pendingChfScryptYapealPlusAmount = this.getPendingBankAmount(
         [curr],
         recentChfScryptYapealTx,
@@ -591,6 +617,35 @@ export class LogJobService {
         [...recentChfScryptBankTx, ...recentEurScryptBankTx],
         BankTxType.SCRYPT,
       );
+
+      // unfiltered lists
+      const pendingChfScryptYapealPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.chf?.exchangeTxId
+        ? this.getPendingBankAmount(
+            [curr],
+            chfSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.exchangeTxId),
+            ExchangeTxType.WITHDRAWAL,
+            yapealChfBank.iban,
+          )
+        : 0;
+      const pendingEurScryptYapealPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
+        ? this.getPendingBankAmount(
+            [curr],
+            eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+            ExchangeTxType.WITHDRAWAL,
+            yapealEurBank.iban,
+          )
+        : 0;
+      const pendingScryptYapealMinusAmountUnfiltered =
+        financeLogPairIds?.fromScrypt?.chf?.bankTxId || financeLogPairIds?.fromScrypt?.eur?.bankTxId
+          ? this.getPendingBankAmount(
+              [curr],
+              [
+                ...chfReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.bankTxId),
+                ...eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
+              ],
+              BankTxType.SCRYPT,
+            )
+          : 0;
 
       const fromKrakenUnfiltered =
         pendingChfKrakenYapealPlusAmountUnfiltered +
@@ -611,6 +666,15 @@ export class LogJobService {
       let toScrypt =
         pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount;
 
+      const fromScryptUnfiltered =
+        pendingChfScryptYapealPlusAmountUnfiltered +
+        pendingEurScryptYapealPlusAmountUnfiltered +
+        pendingScryptYapealMinusAmountUnfiltered;
+      const toScryptUnfiltered =
+        pendingYapealScryptPlusAmountUnfiltered +
+        pendingChfYapealScryptMinusAmountUnfiltered +
+        pendingEurYapealScryptMinusAmountUnfiltered;
+
       const errors = [];
 
       if (fromKraken !== fromKrakenUnfiltered) {
@@ -625,6 +689,20 @@ export class LogJobService {
         this.logger
           .verbose(`Error in financial log, toKraken balance !== toKrakenUnfiltered balance for asset: ${curr.id}, toKrakenAmount:
         ${toKraken}, toKrakenUnfilteredAmount: ${toKrakenUnfiltered}`);
+      }
+
+      if (fromScrypt !== fromScryptUnfiltered) {
+        errors.push(`fromScrypt !== fromScryptUnfiltered`);
+        this.logger.verbose(
+          `Error in financial log, fromScrypt balance !== fromScryptUnfiltered balance for asset: ${curr.id}, fromScryptAmount: ${fromScrypt}, fromScryptUnfilteredAmount: ${fromScryptUnfiltered}`,
+        );
+      }
+
+      if (toScrypt !== toScryptUnfiltered) {
+        errors.push(`toScrypt !== toScryptUnfiltered`);
+        this.logger.verbose(
+          `Error in financial log, toScrypt balance !== toScryptUnfiltered balance for asset: ${curr.id}, toScryptAmount: ${toScrypt}, toScryptUnfilteredAmount: ${toScryptUnfiltered}`,
+        );
       }
 
       if (fromKraken < 0) {
@@ -672,8 +750,8 @@ export class LogJobService {
         pendingOlkyYapealAmount +
         (useUnfilteredTx ? fromKrakenUnfiltered : fromKraken) +
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken) +
-        fromScrypt +
-        toScrypt;
+        (useUnfilteredTx ? fromScryptUnfiltered : fromScrypt) +
+        (useUnfilteredTx ? toScryptUnfiltered : toScrypt);
 
       const totalPlus = liquidity + totalPlusPending + (totalCustomBalance ?? 0);
 
@@ -758,8 +836,8 @@ export class LogJobService {
                 fromOlky: this.getJsonValue(pendingOlkyYapealAmount, amountType(curr)),
                 fromKraken: this.getJsonValue(useUnfilteredTx ? fromKrakenUnfiltered : fromKraken, amountType(curr)),
                 toKraken: this.getJsonValue(useUnfilteredTx ? toKrakenUnfiltered : toKraken, amountType(curr)),
-                fromScrypt: this.getJsonValue(fromScrypt, amountType(curr)),
-                toScrypt: this.getJsonValue(toScrypt, amountType(curr)),
+                fromScrypt: this.getJsonValue(useUnfilteredTx ? fromScryptUnfiltered : fromScrypt, amountType(curr)),
+                toScrypt: this.getJsonValue(useUnfilteredTx ? toScryptUnfiltered : toScrypt, amountType(curr)),
               }
             : undefined,
           // monitoring: errors.length
@@ -948,34 +1026,24 @@ export class LogJobService {
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
   ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
-    const before14Days = Util.daysBefore(14);
     const before21Days = Util.daysBefore(21);
 
-    before14Days.setHours(0, 0, 0, 0);
-
     let filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
-    let filtered14ReceiverTx = receiverTx.filter((r) => r.created > before14Days);
+    let filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
 
     if (!filtered21SenderTx.length) return { receiver: [], sender: [] };
-    if (!filtered14ReceiverTx?.length) {
-      const filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
-
-      const { receiverIndex: rawReceiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
-
+    if (!filtered21ReceiverTx?.length) {
       return {
         sender: filtered21SenderTx,
-        receiver:
-          rawReceiverIndex != null
-            ? filtered21ReceiverTx.filter((r) => r.id >= filtered21ReceiverTx[rawReceiverIndex]?.id)
-            : filtered14ReceiverTx,
+        receiver: [],
       };
     }
 
-    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx);
+    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
 
     if (filtered21SenderTx[0] instanceof BankTx) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${filtered14ReceiverTx?.[receiverIndex]?.id}/${filtered14ReceiverTx?.[
+        `FinanceLog receiverTxId/date: ${filtered21ReceiverTx?.[receiverIndex]?.id}/${filtered21ReceiverTx?.[
           receiverIndex
         ]?.created.toDateString()}; senderTx[0] id/date: ${
           filtered21SenderTx[0]?.id
@@ -989,18 +1057,18 @@ export class LogJobService {
 
     filtered21SenderTx = senderPair ? filtered21SenderTx.filter((s) => s.id >= senderPair.id) : filtered21SenderTx;
 
-    if (filtered14ReceiverTx.length > filtered21SenderTx.length) {
-      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered14ReceiverTx, true);
+    if (filtered21ReceiverTx.length > filtered21SenderTx.length) {
+      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx, true);
 
       const senderTxLength = senderPair
         ? filtered21SenderTx.filter((s) => s.id <= senderPair.id).length
-        : filtered14ReceiverTx.length;
+        : filtered21ReceiverTx.length;
 
-      filtered14ReceiverTx = filtered14ReceiverTx.slice(filtered14ReceiverTx.length - senderTxLength);
+      filtered21ReceiverTx = filtered21ReceiverTx.slice(filtered21ReceiverTx.length - senderTxLength);
     }
 
     return {
-      receiver: filtered14ReceiverTx.filter((r) => r.id >= (filtered14ReceiverTx[receiverIndex]?.id ?? 0)),
+      receiver: filtered21ReceiverTx.filter((r) => r.id >= (filtered21ReceiverTx[receiverIndex]?.id ?? 0)),
       sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
     };
   }
@@ -1032,13 +1100,15 @@ export class LogJobService {
           ? (receiverTx[receiverIndex] as BankTx).instructedAmount
           : receiverTx[receiverIndex].amount;
 
-      const senderPair = senderTx.find((s) =>
-        s instanceof BankTx
-          ? s.instructedAmount === receiverAmount &&
-            receiverTx[receiverIndex].created.toDateString() === s.valueDate.toDateString() &&
-            receiverTx[receiverIndex].created > s.created
-          : s.amount === receiverAmount && receiverTx[receiverIndex].created > s.created,
-      );
+      const senderPair = senderTx.find((s) => {
+        const receiverCreated = receiverTx[receiverIndex].created;
+        const senderDate = s instanceof BankTx ? s.valueDate : s.created;
+        const daysDiff = Math.abs(Util.daysDiff(senderDate, receiverCreated));
+
+        return s instanceof BankTx
+          ? s.instructedAmount === receiverAmount && daysDiff <= 5 && receiverCreated > s.created
+          : s.amount === receiverAmount && receiverCreated > s.created;
+      });
 
       if (!senderPair) {
         receiverIndex++;

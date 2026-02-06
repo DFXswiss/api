@@ -34,6 +34,7 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -52,7 +53,14 @@ import {
   TokenInfoClientResponse,
 } from './dto/client.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
-import { AktionariatRegistrationDto, RealUnitRegistrationDto, RealUnitUserType } from './dto/realunit-registration.dto';
+import {
+  AktionariatRegistrationDto,
+  RealUnitEmailRegistrationDto,
+  RealUnitEmailRegistrationStatus,
+  RealUnitRegistrationDto,
+  RealUnitRegistrationStatus,
+  RealUnitUserType,
+} from './dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from './dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
@@ -98,6 +106,7 @@ export class RealUnitService {
     private readonly sellService: SellService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly accountMergeService: AccountMergeService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -201,29 +210,28 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (!hasRegistration) {
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
       throw new RegistrationRequiredException();
     }
 
-    // 2. KYC Level check - Level 20 for amounts <= 1000 CHF, Level 50 for higher amounts
+    // 2. KYC Level check - Level 30 for amounts <= 1000 CHF, Level 50 for higher amounts
     const currency = await this.fiatService.getFiatByName(currencyName);
     const amountChf =
       currencyName === 'CHF'
         ? dto.amount
         : (await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY)).convert(dto.amount);
 
-    const maxAmountForLevel20 = Config.tradingLimits.monthlyDefaultWoKyc;
-    const requiresLevel50 = amountChf > maxAmountForLevel20;
-    const requiredLevel = requiresLevel50 ? KycLevel.LEVEL_50 : KycLevel.LEVEL_20;
+    const maxAmountForLevel30 = Config.tradingLimits.monthlyDefaultWoKyc;
+    const requiresLevel50 = amountChf > maxAmountForLevel30;
+    const requiredLevel = requiresLevel50 ? KycLevel.LEVEL_50 : KycLevel.LEVEL_30;
 
     if (userData.kycLevel < requiredLevel) {
       throw new KycLevelRequiredException(
         requiredLevel,
         userData.kycLevel,
         requiresLevel50
-          ? `KYC Level 50 required for amounts above ${maxAmountForLevel20} CHF`
-          : 'KYC Level 20 required for RealUnit',
+          ? `KYC Level 50 required for amounts above ${maxAmountForLevel30} CHF`
+          : 'KYC Level 30 required for RealUnit',
       );
     }
 
@@ -242,18 +250,18 @@ export class RealUnitService {
     });
 
     // 5. Override recipient info with RealUnit company address
-    const { bank: realunitBank } = GetConfig().blockchain.realunit;
+    const { bank: realunitBank, address: realunitAddress } = GetConfig().blockchain.realunit;
     const response: RealUnitPaymentInfoDto = {
       id: buyPaymentInfo.id,
       routeId: buyPaymentInfo.routeId,
       timestamp: buyPaymentInfo.timestamp,
       // Override recipient fields with RealUnit company address
       name: realunitBank.recipient,
-      street: 'Schochenmühlestrasse',
-      number: '6',
-      zip: '6340',
-      city: 'Baar',
-      country: 'Switzerland',
+      street: realunitAddress.street,
+      number: realunitAddress.number,
+      zip: realunitAddress.zip,
+      city: realunitAddress.city,
+      country: realunitAddress.country,
       // Bank info from BuyService
       iban: buyPaymentInfo.iban,
       bic: buyPaymentInfo.bic,
@@ -339,6 +347,100 @@ export class RealUnitService {
     // forward to Aktionariat
     const success = await this.forwardRegistration(kycStep, dto);
     return !success;
+  }
+
+  async registerEmail(
+    userDataId: number,
+    walletAddress: string,
+    dto: RealUnitEmailRegistrationDto,
+  ): Promise<RealUnitEmailRegistrationStatus> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true, wallet: true });
+    if (!userData) throw new NotFoundException('User not found');
+
+    if (userData.wallet?.name !== 'RealUnit') {
+      throw new BadRequestException('Registration is only allowed from RealUnit wallet');
+    }
+
+    const isNewEmail = !userData.mail || !Util.equalsIgnoreCase(dto.email, userData.mail);
+
+    if (isNewEmail) {
+      if (userData.mail && this.hasRegistrationForWallet(userData, walletAddress)) {
+        throw new BadRequestException('Not allowed to register a new email for this address');
+      }
+
+      try {
+        await this.userDataService.trySetUserMail(userData, dto.email);
+      } catch (e) {
+        if (e instanceof ConflictException) {
+          if (e.message.includes('account merge request sent')) {
+            return RealUnitEmailRegistrationStatus.MERGE_REQUESTED;
+          }
+        }
+        throw e;
+      }
+    }
+
+    if (userData.kycLevel < KycLevel.LEVEL_10) {
+      await this.kycService.initializeProcess(userData);
+    }
+
+    return RealUnitEmailRegistrationStatus.EMAIL_REGISTERED;
+  }
+
+  async completeRegistration(userDataId: number, dto: RealUnitRegistrationDto): Promise<RealUnitRegistrationStatus> {
+    await this.validateRegistrationDto(dto);
+
+    // get and validate user
+    const userData = await this.userService
+      .getUserByAddress(dto.walletAddress, {
+        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
+      })
+      .then((u) => u?.userData);
+
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
+
+    if (userData.kycLevel < KycLevel.LEVEL_10 || !userData.mail) {
+      throw new BadRequestException('Email registration must be completed first');
+    }
+    if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+      throw new BadRequestException('Email does not match registered email');
+    }
+
+    if (this.hasRegistrationForWallet(userData, dto.walletAddress)) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet');
+    }
+
+    // validate personal data
+    const hasExistingData = userData.firstname != null;
+    if (hasExistingData && !this.isPersonalDataMatching(userData, dto)) {
+      throw new BadRequestException('Personal data does not match existing data');
+    }
+
+    // save personal data
+    if (!hasExistingData) {
+      await this.userDataService.updatePersonalData(userData, dto.kycData);
+      await this.userDataService.updateUserDataInternal(userData, {
+        nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
+        birthday: new Date(dto.birthday),
+        language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
+        tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
+      });
+    }
+
+    // store data with internal review
+    const kycStep = await this.kycService.createCustomKycStep(
+      userData,
+      KycStepName.REALUNIT_REGISTRATION,
+      ReviewStatus.INTERNAL_REVIEW,
+      dto,
+    );
+
+    // forward to Aktionariat
+    const success = await this.forwardRegistration(kycStep, dto);
+    if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    return RealUnitRegistrationStatus.COMPLETED;
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
@@ -477,6 +579,16 @@ export class RealUnitService {
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
+  private hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
+    return userData
+      .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
+      .filter((s) => !(s.isFailed || s.isCanceled))
+      .some((s) => {
+        const result = s.getResult<AktionariatRegistrationDto>();
+        return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
+      });
+  }
+
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
     const kycData = dto.kycData;
 
@@ -562,15 +674,14 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (!hasRegistration) {
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
       throw new RegistrationRequiredException();
     }
 
-    // 2. KYC Level check - Level 20 minimum
-    const requiredLevel = KycLevel.LEVEL_20;
+    // 2. KYC Level check - Level 30 minimum
+    const requiredLevel = KycLevel.LEVEL_30;
     if (userData.kycLevel < requiredLevel) {
-      throw new KycLevelRequiredException(requiredLevel, userData.kycLevel, 'KYC Level 20 required for RealUnit sell');
+      throw new KycLevelRequiredException(requiredLevel, userData.kycLevel, 'KYC Level 30 required for RealUnit sell');
     }
 
     // 3. Get REALU asset

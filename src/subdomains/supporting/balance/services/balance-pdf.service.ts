@@ -7,7 +7,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { BalanceEntry, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { BalanceEntry, LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { CoinGeckoService } from '../../pricing/services/integration/coin-gecko.service';
@@ -165,7 +165,7 @@ export class BalancePdfService {
           resolve(base64PDF);
         });
 
-        PdfUtil.drawLogo(pdf, brand);
+        PdfUtil.drawLogo(pdf, brand, LogoSize.SMALL);
         this.drawHeader(pdf, dto, language);
         PdfUtil.drawTable(pdf, balances, dto.currency, language, this.i18n);
         PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);

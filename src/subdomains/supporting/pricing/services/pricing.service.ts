@@ -27,6 +27,7 @@ import { PricingConstantService } from './integration/pricing-constant.service';
 import { PricingDeuroService } from './integration/pricing-deuro.service';
 import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
+import { PricingJuiceService } from './integration/pricing-juice.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 import { PricingRealUnitService } from './integration/pricing-realunit.service';
 
@@ -69,6 +70,7 @@ export class PricingService implements OnModuleInit {
     readonly currencyService: CurrencyService,
     readonly frankencoinService: PricingFrankencoinService,
     readonly deuroService: PricingDeuroService,
+    readonly juiceService: PricingJuiceService,
     readonly ebel2xService: PricingEbel2xService,
     readonly realunitService: PricingRealUnitService,
     readonly constantService: PricingConstantService,
@@ -86,6 +88,7 @@ export class PricingService implements OnModuleInit {
       [PriceSource.CURRENCY]: currencyService,
       [PriceSource.FRANKENCOIN]: frankencoinService,
       [PriceSource.DEURO]: deuroService,
+      [PriceSource.JUICE]: juiceService,
       [PriceSource.EBEL2X]: ebel2xService,
       [PriceSource.REALUNIT]: realunitService,
       [PriceSource.CONSTANT]: constantService,

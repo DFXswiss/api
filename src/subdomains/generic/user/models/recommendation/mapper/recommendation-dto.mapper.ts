@@ -1,5 +1,5 @@
 import { RecommendationDto, RecommendationDtoStatus } from '../dto/recommendation.dto';
-import { Recommendation } from '../recommendation.entity';
+import { Recommendation, RecommendationMethod, RecommendationType } from '../recommendation.entity';
 
 export class RecommendationDtoMapper {
   static entityToDto(recommendation: Recommendation): RecommendationDto {
@@ -12,7 +12,10 @@ export class RecommendationDtoMapper {
       name: recommendation.recommended?.completeName ?? recommendation.recommendedAlias,
       mail: recommendation.recommended?.mail ?? recommendation.recommendedMail,
       confirmationDate: recommendation.confirmationDate,
-      expirationDate: recommendation.expirationDate,
+      expirationDate:
+        recommendation.method === RecommendationMethod.MAIL && recommendation.type === RecommendationType.INVITATION
+          ? undefined
+          : recommendation.expirationDate,
     };
 
     return Object.assign(new RecommendationDto(), dto);

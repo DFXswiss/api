@@ -36,7 +36,13 @@ import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/u
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { IdentResultData, IdentType, NationalityDocType, ValidDocType } from '../dto/ident-result-data.dto';
+import {
+  IdentDocumentType,
+  IdentResultData,
+  IdentType,
+  NationalityDocType,
+  ValidDocType,
+} from '../dto/ident-result-data.dto';
 import { IdNowReason, IdNowResult, IdentShortResult, getIdNowIdentReason } from '../dto/ident-result.dto';
 import { IdentDocument } from '../dto/ident.dto';
 import {
@@ -54,7 +60,7 @@ import {
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError, KycStepIgnoringErrors } from '../dto/kyc-error.enum';
-import { FileType, KycFileDataDto } from '../dto/kyc-file.dto';
+import { FileSubType, FileType, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
@@ -201,7 +207,7 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: { users: true, wallet: true } },
+      relations: { userData: { users: true, wallet: true, kycFiles: true } },
     });
 
     for (const entity of entities) {
@@ -265,6 +271,12 @@ export class KycService {
 
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
+
+        if (
+          !entity.userData.kycFiles.some((f) => f.subType === FileSubType.IDENT_REPORT) &&
+          (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW)
+        )
+          await this.syncIdentFilesInternal(entity);
 
         if (entity.isCompleted) {
           await this.completeIdent(entity, nationality);
@@ -385,8 +397,18 @@ export class KycService {
       if (approvalStep?.isOnHold) {
         await this.kycStepRepo.update(...approvalStep.manualReview());
       } else if (!approvalStep) {
-        const newStep = await this.initiateStep(kycStep.userData, KycStepName.DFX_APPROVAL);
-        await this.kycStepRepo.update(...newStep.manualReview());
+        const newStep = await this.initiateStep(kycStep.userData, KycStepName.DFX_APPROVAL).catch((e) => {
+          if (e.message.includes('Cannot insert duplicate key'))
+            return this.kycStepRepo.findOneBy({
+              name: KycStepName.DFX_APPROVAL,
+              status: ReviewStatus.ON_HOLD,
+              userData: { id: kycStep.userData.id },
+            });
+
+          throw e;
+        });
+
+        if (newStep) await this.kycStepRepo.update(...newStep.manualReview());
       }
     }
   }
@@ -762,7 +784,7 @@ export class KycService {
       .catch((e) => this.logger.error(`Error during sumsub webhook update for applicant ${dto.applicantId}:`, e));
   }
 
-  private async updateKycStepAndLog(
+  async updateKycStepAndLog(
     kycStep: KycStep,
     user: UserData,
     data: KycStepResult,
@@ -933,13 +955,14 @@ export class KycService {
 
   // --- STEPPING METHODS --- //
   async getOrCreateStepInternal(
-    kycHash: string,
     name: KycStepName,
+    user?: UserData,
+    kycHash?: string,
     type?: KycStepType,
     sequence?: number,
     restartCompletedSteps = false,
   ): Promise<{ user: UserData; step: KycStep }> {
-    const user = await this.getUser(kycHash);
+    user = user ?? (await this.getUser(kycHash));
 
     let step =
       sequence != null
@@ -966,7 +989,7 @@ export class KycService {
     const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
     if (!name) throw new BadRequestException('Invalid step name');
 
-    const { user, step } = await this.getOrCreateStepInternal(kycHash, name, type, sequence, true);
+    const { user, step } = await this.getOrCreateStepInternal(name, undefined, kycHash, type, sequence, true);
 
     await this.verify2faIfRequired(user, ip);
 
@@ -1089,7 +1112,7 @@ export class KycService {
         if (
           (approvalSteps.some((i) => i.comment?.split(';').includes(KycError.BLOCKED)) &&
             !approvalSteps.some((i) => i.comment?.split(';').includes(KycError.RELEASED))) ||
-          (lastTry && !lastTry.isFailed && !lastTry.isCanceled)
+          (lastTry && !lastTry.isFailed && !lastTry.isCanceled && !lastTry.isOutdated)
         )
           return { nextStep: undefined };
 
@@ -1430,8 +1453,14 @@ export class KycService {
         (NationalityDocType.includes(data.documentType) && nationalityStepResult.nationality.id !== nationality?.id)
       )
         errors.push(KycError.NATIONALITY_NOT_MATCHING);
-      if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
-      if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
+
+      if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) {
+        errors.push(KycError.RESIDENCE_PERMIT_CHECK_REQUIRED);
+        if (data.documentType !== IdentDocumentType.PASSPORT) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+      } else {
+        if (!nationality.isKycDocEnabled(data.documentType)) errors.push(KycError.DOCUMENT_TYPE_NOT_ALLOWED);
+        if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
+      }
     }
 
     // Ident doc check
@@ -1534,6 +1563,11 @@ export class KycService {
 
   async syncIdentFiles(stepId: number): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({ where: { id: stepId }, relations: { userData: true } });
+
+    return this.syncIdentFilesInternal(kycStep);
+  }
+
+  async syncIdentFilesInternal(kycStep: KycStep): Promise<void> {
     if (!kycStep || kycStep.name !== KycStepName.IDENT) throw new NotFoundException('Invalid step');
 
     if (!kycStep.isSumsub) throw new Error(`Invalid ident step type ${kycStep.type}`);

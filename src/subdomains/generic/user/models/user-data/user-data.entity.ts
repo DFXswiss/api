@@ -138,6 +138,9 @@ export class UserData extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalVolumeChfAuditPeriod?: number;
 
+  @Column({ type: 'float', nullable: true })
+  totalCustodyBalanceChfAuditPeriod?: number;
+
   // TODO remove
   @Column({ length: 256, nullable: true })
   allBeneficialOwnersName?: string;
@@ -746,6 +749,16 @@ export class UserData extends IEntity {
 
   get isDataComplete(): boolean {
     return this.requiredKycFields.every((f) => this[f]);
+  }
+
+  get requiredInvoiceFields(): string[] {
+    return ['accountType'].concat(
+      !this.accountType || this.accountType === AccountType.PERSONAL ? ['firstname', 'surname'] : ['organizationName'],
+    );
+  }
+
+  get isInvoiceDataComplete(): boolean {
+    return this.requiredInvoiceFields.every((f) => this[f]);
   }
 
   get hasBankTxVerification(): boolean {

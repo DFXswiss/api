@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
@@ -27,7 +27,7 @@ export class KycAdminService {
     private readonly webhookService: WebhookService,
     private readonly kycService: KycService,
     private readonly kycNotificationService: KycNotificationService,
-    private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
   async getKycSteps(userDataId: number, relations: FindOptionsRelations<KycStep> = {}): Promise<KycStep[]> {
@@ -112,9 +112,9 @@ export class KycAdminService {
     }
   }
 
-  async triggerVideoIdentInternal(userData: UserData): Promise<void> {
+  async checkOrTriggerVideoIdentInternal(userData: UserData): Promise<void> {
     try {
-      await this.kycService.getOrCreateStepInternal(userData.kycHash, KycStepName.IDENT, KycStepType.SUMSUB_VIDEO);
+      await this.kycService.getOrCreateStepInternal(KycStepName.IDENT, userData, undefined, KycStepType.SUMSUB_VIDEO);
     } catch (e) {
       this.logger.error(`Failed to trigger video ident internal for userData ${userData.id}:`, e);
     }

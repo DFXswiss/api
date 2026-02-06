@@ -37,10 +37,15 @@ export abstract class PayoutEvmService {
   }
 
   async isTxExpired(txHash: string): Promise<boolean> {
-    const receipt = await this.client.getTxReceipt(txHash);
-    if (receipt) return false; // TX was mined (success or fail)
+    if (!(await this.isRpcSynced())) return false;
 
     const tx = await this.client.getTx(txHash);
-    return tx === null; // TX does not exist anymore -> expired
+    return tx === null;
+  }
+
+  private async isRpcSynced(maxAgeSeconds = 300): Promise<boolean> {
+    const blockTimestamp = await this.client.getLatestBlockTimestamp();
+    const blockAge = Date.now() / 1000 - blockTimestamp;
+    return blockAge < maxAgeSeconds;
   }
 }

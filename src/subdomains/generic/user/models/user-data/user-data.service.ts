@@ -14,7 +14,6 @@ import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
@@ -24,8 +23,9 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import {
   DefaultPaymentLinkConfig,
@@ -47,7 +47,7 @@ import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { Equal, FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -111,6 +111,8 @@ export class UserDataService {
     @Inject(forwardRef(() => KycService))
     private readonly kycService: KycService,
     private readonly ipLogService: IpLogService,
+    @Inject(forwardRef(() => CustodyService))
+    private readonly custodyService: CustodyService,
   ) {}
 
   // --- GETTERS --- //
@@ -170,7 +172,11 @@ export class UserDataService {
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
-  async getUsersByMail(mail: string, onlyValidUser = true): Promise<UserData[]> {
+  async getUsersByMail(
+    mail: string,
+    onlyValidUser = true,
+    relations: FindOptionsRelations<UserData> = { users: true, wallet: true },
+  ): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
         mail,
@@ -178,7 +184,7 @@ export class UserDataService {
           ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
           : undefined,
       },
-      relations: { users: true, wallet: true },
+      relations,
     });
   }
 
@@ -215,6 +221,31 @@ export class UserDataService {
     return this.userDataRepo.findBy({ phone });
   }
 
+  async getUserDatasWithKycFile(): Promise<UserData[]> {
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .leftJoinAndSelect('userData.country', 'country')
+      .select([
+        'userData.id',
+        'userData.kycFileId',
+        'userData.amlAccountType',
+        'userData.verifiedName',
+        'userData.allBeneficialOwnersDomicile',
+        'userData.amlListAddedDate',
+        'userData.amlListExpiredDate',
+        'userData.amlListReactivatedDate',
+        'userData.highRisk',
+        'userData.pep',
+        'userData.complexOrgStructure',
+        'userData.totalVolumeChfAuditPeriod',
+        'userData.totalCustodyBalanceChfAuditPeriod',
+        'country.name',
+      ])
+      .where('userData.kycFileId > 0')
+      .orderBy('userData.kycFileId', 'ASC')
+      .getMany();
+  }
+
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
@@ -238,6 +269,7 @@ export class UserDataService {
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
       kycHash: randomUUID().toUpperCase(),
+      kycSteps: [],
     });
 
     await this.loadRelationsAndVerify(userData, dto);
@@ -315,29 +347,39 @@ export class UserDataService {
     return userData;
   }
 
-  async downloadUserData(userDataIds: number[]): Promise<Buffer> {
+  async downloadUserData(userDataIds: number[], checkOnly = false): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
     const downloadTargets = Config.fileDownloadConfig.reverse();
-    let errorLog = '';
+    const errors: { userDataId: number; errorType: string; folder: string; details: string }[] = [];
+
+    const escapeCsvValue = (value: string): string => {
+      if (value.includes(';') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
 
     for (const userDataId of userDataIds.reverse()) {
       const userData = await this.getUserData(userDataId, { kycSteps: true });
 
-      if (!userData?.verifiedName) {
-        errorLog += !userData
-          ? `Error: UserData ${userDataId} not found\n`
-          : `Error: UserData ${userDataId} has no verifiedName\n`;
+      if (!userData) {
+        errors.push({ userDataId, errorType: 'NotFound', folder: '', details: '' });
+        continue;
+      }
+
+      if (!userData.verifiedName) {
+        errors.push({ userDataId, errorType: 'NoVerifiedName', folder: '', details: '' });
         continue;
       }
 
       const baseFolderName = `${(count--).toString().padStart(2, '0')}_${String(userDataId)}_${
         userData.verifiedName
       }`.replace(/\./g, '');
-      const parentFolder = zip.folder(baseFolderName);
+      const parentFolder = checkOnly ? null : zip.folder(baseFolderName);
 
-      if (!parentFolder) {
-        errorLog += `Error: Failed to create folder for UserData ${userDataId}\n`;
+      if (!checkOnly && !parentFolder) {
+        errors.push({ userDataId, errorType: 'FolderCreationFailed', folder: baseFolderName, details: '' });
         continue;
       }
 
@@ -350,24 +392,30 @@ export class UserDataService {
 
       for (const { id, name, files: fileConfig } of applicableTargets) {
         const folderName = `${id.toString().padStart(2, '0')}_${name}`;
-        const subFolder = parentFolder.folder(folderName);
+        const subFolder = checkOnly ? null : parentFolder?.folder(folderName);
 
-        if (!subFolder) {
-          errorLog += `Error: Failed to create folder '${folderName}' for UserData ${userDataId}\n`;
+        if (!checkOnly && !subFolder) {
+          errors.push({ userDataId, errorType: 'FolderCreationFailed', folder: folderName, details: '' });
           continue;
         }
 
-        for (const { name: fileName, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
+        for (const { name: fileNameFn, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
           const files = allFiles
             .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
             .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
             .filter((f) => !filter || filter(f, userData));
 
           if (!files.length) {
-            if (handleFileNotFound && handleFileNotFound(subFolder, userData)) continue;
-            errorLog += `Error: File missing for folder '${folderName}' for UserData ${userDataId}\n`;
+            if (handleFileNotFound) {
+              // Evaluate handleFileNotFound with a temp folder to check if it would handle the case
+              const tempFolder = checkOnly ? new JSZip().folder('temp') : subFolder;
+              if (handleFileNotFound(tempFolder, userData)) continue;
+            }
+            errors.push({ userDataId, errorType: 'FileMissing', folder: folderName, details: '' });
             continue;
           }
+
+          if (checkOnly) continue;
 
           const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
 
@@ -378,16 +426,21 @@ export class UserDataService {
               selectedFile.type,
               selectedFile.name,
             );
-            const filePath = `${userDataId}-${fileName?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
+            const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
             subFolder.file(filePath, fileData.data);
           } catch {
-            errorLog += `Error: Failed to download file '${selectedFile.name}' for UserData ${userDataId}\n`;
+            errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
           }
         }
       }
     }
 
-    if (errorLog) zip.file('error_log.txt', errorLog);
+    const csvHeader = 'UserDataId;ErrorType;Folder;Details';
+    const csvRows = errors.map(
+      (e) => `${e.userDataId};${e.errorType};${escapeCsvValue(e.folder)};${escapeCsvValue(e.details)}`,
+    );
+    const csvContent = errors.length > 0 ? [csvHeader, ...csvRows].join('\n') : 'No_Error';
+    zip.file('error_log.csv', csvContent);
 
     return zip.generateAsync({ type: 'nodebuffer' });
   }
@@ -715,8 +768,8 @@ export class UserDataService {
     return userWithCustomMethod?.wallet.identMethod;
   }
 
-  async triggerVideoIdent(userData: UserData): Promise<void> {
-    await this.kycAdminService.triggerVideoIdentInternal(userData);
+  async checkOrTriggerVideoIdent(userData: UserData): Promise<void> {
+    await this.kycAdminService.checkOrTriggerVideoIdentInternal(userData);
   }
 
   async setCheckIpRisk(ip: string): Promise<void> {
@@ -763,10 +816,6 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
-  private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return this.userRepo.existsBy({ userData: { id: userDataId }, role });
-  }
-
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
@@ -915,6 +964,46 @@ export class UserDataService {
     });
   }
 
+  // --- AUDIT PERIOD --- //
+
+  async calculateAuditPeriodNumbers(): Promise<{ updatedVolumes: number; updatedCustody: number }> {
+    const auditPeriod = await this.settingService.getObj<{ start: string; end: string }>('AuditPeriod');
+    if (!auditPeriod?.start || !auditPeriod?.end) throw new BadRequestException('Audit period not configured');
+
+    const startDate = new Date(auditPeriod.start);
+    const endDate = new Date(auditPeriod.end);
+
+    // Reset all audit values
+    await this.userDataRepo.update(
+      [{ totalVolumeChfAuditPeriod: MoreThan(0) }, { totalCustodyBalanceChfAuditPeriod: MoreThan(0) }],
+      { totalVolumeChfAuditPeriod: 0, totalCustodyBalanceChfAuditPeriod: 0 },
+    );
+
+    // Update volumes
+    const volumeResults = await this.transactionService.getAuditPeriodVolumes(startDate, endDate);
+
+    for (const { userDataId, totalVolume: volume } of volumeResults) {
+      await this.userDataRepo.update(userDataId, {
+        totalVolumeChfAuditPeriod: Util.roundReadable(volume, AmountType.FIAT),
+      });
+    }
+
+    // Update custody balances
+    const custodyBalances = await this.custodyService.getUserTotalBalancesChf(endDate);
+
+    for (const [userDataId, balanceChf] of custodyBalances.entries()) {
+      await this.userDataRepo.update(userDataId, {
+        totalCustodyBalanceChfAuditPeriod: Util.roundReadable(balanceChf, AmountType.FIAT),
+      });
+    }
+
+    this.logger.info(
+      `Audit period numbers calculated: ${volumeResults.length} volumes, ${custodyBalances.size} custody balances`,
+    );
+
+    return { updatedVolumes: volumeResults.length, updatedCustody: custodyBalances.size };
+  }
+
   // --- MERGING --- //
   async mergeUserData(masterId: number, slaveId: number, mail?: string, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
@@ -1047,6 +1136,7 @@ export class UserDataService {
       .catch((e) => this.logger.critical(`Error in document copy files for master ${master.id}:`, e));
 
     // optional master updates
+    if (master.status === UserDataStatus.KYC_ONLY && slave.users.length && slave.wallet) master.wallet = slave.wallet;
     if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
@@ -1062,6 +1152,11 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
+    if (!master.tradeApprovalDate && slave.tradeApprovalDate) master.tradeApprovalDate = slave.tradeApprovalDate;
+
+    const pendingRecommendation = master.kycSteps.find((k) => k.name === KycStepName.RECOMMENDATION && !k.isDone);
+    if (master.tradeApprovalDate && pendingRecommendation)
+      await this.kycAdminService.updateKycStepInternal(pendingRecommendation.update(ReviewStatus.COMPLETED));
 
     // Adapt user used refs
     for (const user of master.users) {
@@ -1129,4 +1224,52 @@ export class UserDataService {
         { updated: new Date() },
       );
   }
+
+  // --- KYC FILE STATISTICS --- //
+
+  async getKycFileYearlyStats(startYear: number, endYear: number): Promise<Map<number, KycFileYearlyStatsData>> {
+    const stats = new Map<number, KycFileYearlyStatsData>();
+
+    // Query counts per year from database
+    for (let year = startYear; year <= endYear; year++) {
+      const yearStart = new Date(year, 0, 1);
+      const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+
+      const [reopened, newFiles, closedDuringYear, highestFileNr] = await Promise.all([
+        this.countByDateRange('amlListReactivatedDate', yearStart, yearEnd),
+        this.countByDateRange('amlListAddedDate', yearStart, yearEnd),
+        this.countByDateRange('amlListExpiredDate', yearStart, yearEnd),
+        this.getMaxKycFileIdByDateRange('amlListAddedDate', yearStart, yearEnd),
+      ]);
+
+      stats.set(year, { reopened, newFiles, closedDuringYear, highestFileNr });
+    }
+
+    return stats;
+  }
+
+  private async countByDateRange(field: string, start: Date, end: Date): Promise<number> {
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .where(`userData.${field} >= :start`, { start })
+      .andWhere(`userData.${field} <= :end`, { end })
+      .getCount();
+  }
+
+  private async getMaxKycFileIdByDateRange(field: string, start: Date, end: Date): Promise<number> {
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .select('MAX(userData.kycFileId)', 'maxKycFileId')
+      .where(`userData.${field} >= :start`, { start })
+      .andWhere(`userData.${field} <= :end`, { end })
+      .getRawOne<{ maxKycFileId: number }>()
+      .then((r) => r?.maxKycFileId ?? 0);
+  }
+}
+
+export interface KycFileYearlyStatsData {
+  reopened: number;
+  newFiles: number;
+  closedDuringYear: number;
+  highestFileNr: number;
 }

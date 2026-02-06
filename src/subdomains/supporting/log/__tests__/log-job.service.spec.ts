@@ -111,93 +111,94 @@ describe('LogJobService', () => {
   it('should filter same length sender & receiver', async () => {
     if (new Date().getHours() > 19) return;
 
+    // Items 0-6 are > 21 days old (will be filtered out), items 7-9 are < 21 days (will remain)
     const receiverTx = [
-      createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(409), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(409), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63191, created: Util.hoursBefore(409), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63232, created: Util.hoursBefore(407), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63277, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63278, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63279, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63280, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63281, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63282, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
+      createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
+      createCustomExchangeTx({ id: 63191, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
+      createCustomExchangeTx({ id: 63232, created: Util.hoursBefore(527), amount: 9500.0 }), // 22d
+      createCustomExchangeTx({ id: 63277, created: Util.hoursBefore(520), amount: 9500.0 }), // 21.6d
+      createCustomExchangeTx({ id: 63278, created: Util.hoursBefore(520), amount: 9500.0 }), // 21.6d
+      createCustomExchangeTx({ id: 63279, created: Util.hoursBefore(520), amount: 9500.0 }), // 21.6d
+      createCustomExchangeTx({ id: 63280, created: Util.hoursBefore(310), amount: 9500.0 }), // 13d
+      createCustomExchangeTx({ id: 63281, created: Util.hoursBefore(310), amount: 9500.0 }), // 13d
+      createCustomExchangeTx({ id: 63282, created: Util.hoursBefore(310), amount: 9500.0 }), // 13d
     ];
 
     const senderTx = [
       createCustomBankTx({
         id: 142006,
-        created: Util.hoursBefore(432),
-        valueDate: Util.hoursBefore(406),
+        created: Util.hoursBefore(552), // 23d
+        valueDate: Util.hoursBefore(526),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142007,
-        created: Util.hoursBefore(432),
-        valueDate: Util.hoursBefore(406),
+        created: Util.hoursBefore(552), // 23d
+        valueDate: Util.hoursBefore(526),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142008,
-        created: Util.hoursBefore(432),
-        valueDate: Util.hoursBefore(406),
+        created: Util.hoursBefore(552), // 23d
+        valueDate: Util.hoursBefore(526),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142153,
-        created: Util.hoursBefore(408),
-        valueDate: Util.hoursBefore(406),
+        created: Util.hoursBefore(528), // 22d
+        valueDate: Util.hoursBefore(526),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142199,
-        created: Util.hoursBefore(384),
-        valueDate: Util.hoursBefore(384),
+        created: Util.hoursBefore(520), // 21.6d
+        valueDate: Util.hoursBefore(520),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142218,
-        created: Util.hoursBefore(384),
-        valueDate: Util.hoursBefore(384),
+        created: Util.hoursBefore(520), // 21.6d
+        valueDate: Util.hoursBefore(520),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142265,
-        created: Util.hoursBefore(384),
-        valueDate: Util.hoursBefore(384),
+        created: Util.hoursBefore(520), // 21.6d
+        valueDate: Util.hoursBefore(520),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142396,
-        created: Util.hoursBefore(312),
+        created: Util.hoursBefore(312), // 13d
         valueDate: Util.hoursBefore(312),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142407,
-        created: Util.hoursBefore(312),
+        created: Util.hoursBefore(312), // 13d
         valueDate: Util.hoursBefore(312),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142408,
-        created: Util.hoursBefore(312),
+        created: Util.hoursBefore(312), // 13d
         valueDate: Util.hoursBefore(312),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142409,
-        created: Util.hoursBefore(309),
+        created: Util.hoursBefore(309), // 13d
         valueDate: Util.hoursBefore(309),
         instructedAmount: 9500.0,
         amount: 9500.0,
@@ -270,25 +271,25 @@ describe('LogJobService', () => {
     });
   });
 
-  it('should filter tx 14d or older', async () => {
+  it('should filter tx 21d or older', async () => {
     const senderTx = [
-      createCustomExchangeTx({ id: 1, created: Util.daysBefore(17), amount: 9999.0 }),
-      createCustomExchangeTx({ id: 2, created: Util.daysBefore(12), amount: 9999.0 }),
+      createCustomExchangeTx({ id: 1, created: Util.daysBefore(22), amount: 9999.0 }),
+      createCustomExchangeTx({ id: 2, created: Util.daysBefore(17), amount: 9999.0 }),
       createCustomExchangeTx({ id: 3, created: Util.daysBefore(7), amount: 9999.0 }),
     ];
 
     const receiverTx = [
       createCustomBankTx({
         id: 1,
-        created: Util.daysBefore(16),
-        valueDate: Util.daysBefore(16),
+        created: Util.daysBefore(21),
+        valueDate: Util.daysBefore(21),
         instructedAmount: 9999.0,
         amount: 9999.0,
       }),
       createCustomBankTx({
         id: 2,
-        created: Util.daysBefore(11),
-        valueDate: Util.daysBefore(11),
+        created: Util.daysBefore(16),
+        valueDate: Util.daysBefore(16),
         instructedAmount: 9999.0,
         amount: 9999.0,
       }),
@@ -337,118 +338,122 @@ describe('LogJobService', () => {
   });
 
   it('should filter receiver 21d or older', async () => {
+    // All senders created after receiver, so matching finds sender with highest id
     const senderTx = [
-      createCustomExchangeTx({ id: 3, created: Util.daysBefore(19), amount: 9999.0 }),
-      createCustomExchangeTx({ id: 2, created: Util.daysBefore(18), amount: 9999.0 }),
-      createCustomExchangeTx({ id: 1, created: Util.daysBefore(17), amount: 9999.0 }),
+      createCustomExchangeTx({ id: 3, created: Util.daysBefore(20), amount: 9999.0 }),
+      createCustomExchangeTx({ id: 2, created: Util.daysBefore(19), amount: 9999.0 }),
+      createCustomExchangeTx({ id: 1, created: Util.daysBefore(19), amount: 9999.0 }),
     ];
 
     const receiverTx = [
       createCustomBankTx({
         id: 1,
-        created: Util.daysBefore(21),
+        created: Util.daysBefore(21), // This will be filtered out (>= 21d)
         valueDate: Util.daysBefore(21),
         instructedAmount: 9999.0,
         amount: 9999.0,
       }),
       createCustomBankTx({
         id: 2,
-        created: Util.daysBefore(18),
+        created: Util.daysBefore(18), // This will remain (< 21d)
         valueDate: Util.daysBefore(18),
         instructedAmount: 9999.0,
         amount: 9999.0,
       }),
     ];
 
+    // Matching finds sender id=3 (oldest sender that's still older than receiver at 18d)
+    // Filter keeps only senders with id >= 3
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx,
+      sender: [senderTx[0]], // Only id=3 remains after matching
       receiver: [receiverTx[1]],
     });
   });
 
-  it('should filter same length sender & receiver', async () => {
+  it('should filter same length sender & receiver (reverse)', async () => {
     if (new Date().getHours() > 19) return;
 
+    // Items 0-6 are > 21 days old (will be filtered out), items 7-9 are < 21 days (will remain)
     const receiverTx = [
-      createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(409), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(409), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63191, created: Util.hoursBefore(409), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63232, created: Util.hoursBefore(407), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63277, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63278, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63279, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63280, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63281, created: Util.hoursBefore(310), amount: 9500.0 }),
-      createCustomExchangeTx({ id: 63282, created: Util.hoursBefore(310), amount: 9500.0 }),
+      createCustomExchangeTx({ id: 63189, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
+      createCustomExchangeTx({ id: 63190, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
+      createCustomExchangeTx({ id: 63191, created: Util.hoursBefore(529), amount: 9500.0 }), // 22d
+      createCustomExchangeTx({ id: 63232, created: Util.hoursBefore(527), amount: 9500.0 }), // 22d
+      createCustomExchangeTx({ id: 63277, created: Util.hoursBefore(520), amount: 9500.0 }), // 21.6d
+      createCustomExchangeTx({ id: 63278, created: Util.hoursBefore(520), amount: 9500.0 }), // 21.6d
+      createCustomExchangeTx({ id: 63279, created: Util.hoursBefore(520), amount: 9500.0 }), // 21.6d
+      createCustomExchangeTx({ id: 63280, created: Util.hoursBefore(310), amount: 9500.0 }), // 13d
+      createCustomExchangeTx({ id: 63281, created: Util.hoursBefore(310), amount: 9500.0 }), // 13d
+      createCustomExchangeTx({ id: 63282, created: Util.hoursBefore(310), amount: 9500.0 }), // 13d
     ];
 
     const senderTx = [
       createCustomBankTx({
         id: 142006,
-        created: Util.hoursBefore(432),
-        valueDate: Util.hoursBefore(406),
+        created: Util.hoursBefore(552), // 23d
+        valueDate: Util.hoursBefore(526),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142007,
-        created: Util.hoursBefore(432),
-        valueDate: Util.hoursBefore(406),
+        created: Util.hoursBefore(552), // 23d
+        valueDate: Util.hoursBefore(526),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142008,
-        created: Util.hoursBefore(432),
-        valueDate: Util.hoursBefore(406),
+        created: Util.hoursBefore(552), // 23d
+        valueDate: Util.hoursBefore(526),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142153,
-        created: Util.hoursBefore(408),
-        valueDate: Util.hoursBefore(406),
+        created: Util.hoursBefore(528), // 22d
+        valueDate: Util.hoursBefore(526),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142199,
-        created: Util.hoursBefore(384),
-        valueDate: Util.hoursBefore(384),
+        created: Util.hoursBefore(520), // 21.6d
+        valueDate: Util.hoursBefore(520),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142218,
-        created: Util.hoursBefore(384),
-        valueDate: Util.hoursBefore(384),
+        created: Util.hoursBefore(520), // 21.6d
+        valueDate: Util.hoursBefore(520),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142265,
-        created: Util.hoursBefore(384),
-        valueDate: Util.hoursBefore(384),
+        created: Util.hoursBefore(520), // 21.6d
+        valueDate: Util.hoursBefore(520),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142396,
-        created: Util.hoursBefore(312),
+        created: Util.hoursBefore(312), // 13d
         valueDate: Util.hoursBefore(312),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142407,
-        created: Util.hoursBefore(312),
+        created: Util.hoursBefore(312), // 13d
         valueDate: Util.hoursBefore(312),
         instructedAmount: 9500.0,
         amount: 9500.0,
       }),
       createCustomBankTx({
         id: 142408,
-        created: Util.hoursBefore(312),
+        created: Util.hoursBefore(312), // 13d
         valueDate: Util.hoursBefore(312),
         instructedAmount: 9500.0,
         amount: 9500.0,

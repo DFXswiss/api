@@ -6,7 +6,7 @@
       "value": 1
     },
     "containerImage": {
-      "value": "dfxswiss/deuro-ponder:beta"
+      "value": "juicedollar-ponder:latest"
     },
     "containerVolumeMounts": {
       "value": [
@@ -45,11 +45,19 @@
         },
         {
           "name": "PONDER_PROFILE",
-          "value": "mainnet"
+          "value": "testnet"
         },
         {
-          "name": "RPC_URL_MAINNET",
-          "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
+          "name": "PONDER_SCHEMA_VERSION",
+          "value": "6"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "[DATABASE_URL]"
+        },
+        {
+          "name": "RPC_URL_TESTNET",
+          "value": "https://rpc.testnet.juiceswap.com"
         }
       ]
     },

@@ -38,6 +38,20 @@ export class Util {
     }
   }
 
+  static floorReadable(amount: number, type: AmountType, assetPrecision?: number): number {
+    switch (type) {
+      case AmountType.ASSET:
+      case AmountType.ASSET_FEE:
+        return this.floorByPrecision(amount, assetPrecision ?? 5);
+
+      case AmountType.FIAT:
+        return this.floor(amount, 2);
+
+      case AmountType.FIAT_FEE:
+        return this.floor(amount, 2);
+    }
+  }
+
   static round(amount: number, decimals: number): number {
     return this.roundToValue(amount, Math.pow(10, -decimals));
   }
@@ -561,6 +575,17 @@ export class Util {
 
   static async doGetFulfilled<T>(tasks: Promise<T>[]): Promise<T[]> {
     return Promise.allSettled(tasks).then((results) => results.filter(this.filterFulfilledCalls).map((r) => r.value));
+  }
+
+  static partition<T>(list: T[], accessor: (item: T) => boolean): [T[], T[]] {
+    const truthy: T[] = [];
+    const falsy: T[] = [];
+
+    for (const item of list) {
+      (accessor(item) ? truthy : falsy).push(item);
+    }
+
+    return [truthy, falsy];
   }
 
   private static filterFulfilledCalls<T>(result: PromiseSettledResult<T>): result is PromiseFulfilledResult<T> {

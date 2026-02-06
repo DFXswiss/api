@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BitcoinModule } from 'src/integration/blockchain/bitcoin/bitcoin.module';
+import { BitcoinTestnet4Module } from 'src/integration/blockchain/bitcoin-testnet4/bitcoin-testnet4.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { LightningModule } from '../lightning/lightning.module';
 import { RailgunModule } from '../railgun/railgun.module';
@@ -8,9 +9,12 @@ import { ArweaveModule } from './arweave/arweave.module';
 import { BlockchainApiModule } from './api/blockchain-api.module';
 import { BaseModule } from './base/base.module';
 import { BscModule } from './bsc/bsc.module';
+import { CitreaModule } from './citrea/citrea.module';
 import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
+import { ClementineModule } from './clementine/clementine.module';
 import { DEuroModule } from './deuro/deuro.module';
 import { Ebel2xModule } from './ebel2x/ebel2x.module';
+import { JuiceModule } from './juice/juice.module';
 import { EthereumModule } from './ethereum/ethereum.module';
 import { FrankencoinModule } from './frankencoin/frankencoin.module';
 import { GnosisModule } from './gnosis/gnosis.module';
@@ -36,6 +40,7 @@ import { ZanoModule } from './zano/zano.module';
   imports: [
     SharedModule,
     BitcoinModule,
+    BitcoinTestnet4Module,
     BscModule,
     EthereumModule,
     SepoliaModule,
@@ -50,13 +55,16 @@ import { ZanoModule } from './zano/zano.module';
     ZanoModule,
     FrankencoinModule,
     DEuroModule,
+    JuiceModule,
     Ebel2xModule,
     ArweaveModule,
     RailgunModule,
     SolanaModule,
     TronModule,
     CardanoModule,
+    CitreaModule,
     CitreaTestnetModule,
+    ClementineModule,
     RealUnitBlockchainModule,
     Eip7702DelegationModule,
     PimlicoPaymasterModule,
@@ -64,6 +72,7 @@ import { ZanoModule } from './zano/zano.module';
   ],
   exports: [
     BitcoinModule,
+    BitcoinTestnet4Module,
     BscModule,
     EthereumModule,
     SepoliaModule,
@@ -78,12 +87,15 @@ import { ZanoModule } from './zano/zano.module';
     ZanoModule,
     FrankencoinModule,
     DEuroModule,
+    JuiceModule,
     Ebel2xModule,
     RailgunModule,
     SolanaModule,
     TronModule,
     CardanoModule,
+    CitreaModule,
     CitreaTestnetModule,
+    ClementineModule,
     CryptoService,
     BlockchainRegistryService,
     TxValidationService,

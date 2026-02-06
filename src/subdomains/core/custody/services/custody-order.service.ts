@@ -37,7 +37,7 @@ import { CustodyService } from './custody.service';
 
 @Injectable()
 export class CustodyOrderService {
-  private readonly CustodyChains = [Blockchain.ETHEREUM];
+  private readonly CustodyChains = [Blockchain.ETHEREUM, Blockchain.CITREA];
 
   constructor(
     private readonly userService: UserService,
@@ -118,7 +118,7 @@ export class CustodyOrderService {
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
-        orderDto.outputAsset = targetAsset;
+        orderDto.outputAsset = sourceAsset;
         orderDto.outputAmount = swapPaymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
@@ -147,7 +147,7 @@ export class CustodyOrderService {
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
-        orderDto.outputAsset = targetAsset;
+        orderDto.outputAsset = sourceAsset;
         orderDto.outputAmount = swapPaymentInfo.amount;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;

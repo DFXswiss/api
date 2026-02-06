@@ -1,3 +1,16 @@
+export interface CardanoInfoResponse {
+  testnet: boolean;
+  tip: number;
+}
+
+export interface CardanoBalanceResponse {
+  value: string;
+  currency: {
+    symbol: string;
+    decimals: number;
+  };
+}
+
 export interface CardanoBlockResponse {
   hash: string;
   number: number;

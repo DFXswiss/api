@@ -132,6 +132,7 @@ describe('CryptoService', () => {
       Blockchain.BASE,
       Blockchain.GNOSIS,
       Blockchain.HAQQ,
+      Blockchain.CITREA,
       Blockchain.CITREA_TESTNET,
     ]);
   });

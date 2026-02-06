@@ -81,7 +81,7 @@ export class AuthService {
     private readonly cryptoService: CryptoService,
     private readonly refService: RefService,
     private readonly feeService: FeeService,
-    private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
     private readonly ipLogService: IpLogService,
     private readonly siftService: SiftService,
@@ -89,7 +89,7 @@ export class AuthService {
     private readonly geoLocationService: GeoLocationService,
     private readonly settingService: SettingService,
     private readonly recommendationService: RecommendationService,
-    private readonly kycAdminService: KycAdminService,
+    @Inject(forwardRef(() => KycAdminService)) private readonly kycAdminService: KycAdminService,
     @Inject(forwardRef(() => KycService)) private readonly kycService: KycService,
   ) {}
 

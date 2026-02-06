@@ -3,6 +3,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { Util } from 'src/shared/utils/util';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
@@ -82,9 +83,11 @@ export abstract class EvmStrategy extends PayoutStrategy {
     }
   }
 
-  // Whitelisted failure type: Flashbots expired transactions (TX does not exist on-chain)
   override async canRetryFailedPayout(order: PayoutOrder): Promise<boolean> {
     if (!order.payoutTxId) return false;
+
+    if (Util.hoursDiff(order.updated) < 1) return false;
+
     return this.payoutEvmService.isTxExpired(order.payoutTxId);
   }
 }

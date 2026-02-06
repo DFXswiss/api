@@ -37,6 +37,7 @@ jest.mock('src/config/config', () => ({
       base: { baseChainId: 8453 },
       gnosis: { gnosisChainId: 100 },
       bsc: { bscChainId: 56 },
+      citrea: { citreaChainId: 4114 },
       citreaTestnet: { citreaTestnetChainId: 5115 },
     },
     payment: {
