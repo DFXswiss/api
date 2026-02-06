@@ -69,7 +69,7 @@ export class CustodyController {
 
   @Get('order')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOkResponse({ type: CustodyOrderHistoryDto, isArray: true })
   async getOrders(@GetJwt() jwt: JwtPayload): Promise<CustodyOrderHistoryDto[]> {
     return this.custodyOrderService.getOrdersByUserData(jwt.account);
