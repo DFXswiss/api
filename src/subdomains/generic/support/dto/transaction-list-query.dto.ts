@@ -1,19 +1,19 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsOptional } from 'class-validator';
 
 export class TransactionListQuery {
   @IsOptional()
-  @IsString()
+  @IsDateString()
   createdFrom?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   createdTo?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   outputFrom?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   outputTo?: string;
 }
