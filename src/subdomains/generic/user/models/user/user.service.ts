@@ -149,7 +149,7 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('user.refAsset', 'refAsset')
-      .where('user.refCredit - user.paidRefCredit > 0')
+      .where('user.partnerRefCredit + user.refCredit - user.paidRefCredit > 0')
       .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
         userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
@@ -677,8 +677,8 @@ export class UserService {
     return {
       ref: user.ref,
       refFeePercent: user.refFeePercent,
-      refVolume: user.completeRefVolume,
-      refCredit: user.completeRefCredit,
+      refVolume: user.totalRefVolume,
+      refCredit: user.totalRefCredit,
       paidRefCredit: user.paidRefCredit,
       ...(await this.getRefUserCounts(user)),
     };

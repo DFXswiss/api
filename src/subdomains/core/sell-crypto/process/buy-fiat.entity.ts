@@ -89,7 +89,7 @@ export class BuyFiat extends IEntity {
   usedRef?: string;
 
   @Column({ length: 256, nullable: true })
-  usedPartnerFeeRef?: string;
+  usedPartnerRef?: string;
 
   @Column({ type: 'float', nullable: true })
   refProvision?: number;
@@ -311,7 +311,7 @@ export class BuyFiat extends IEntity {
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
             partnerFeeAmount: fee.partner,
-            usedPartnerFeeRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
+            usedPartnerRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
             inputReferenceAmountMinusFee,
             usedRef: this.user.usedRef,
             refProvision: this.user.refFeePercent,
@@ -479,7 +479,7 @@ export class BuyFiat extends IEntity {
       chargebackAmount: null,
       chargebackAllowedBy: null,
       partnerFeeAmount: null,
-      usedPartnerFeeRef: null,
+      usedPartnerRef: null,
       priceSteps: null,
       priceDefinitionAllowedDate: null,
       usedFees: null,

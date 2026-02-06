@@ -135,7 +135,7 @@ export class BuyCrypto extends IEntity {
   usedRef?: string;
 
   @Column({ length: 256, nullable: true })
-  usedPartnerFeeRef?: string;
+  usedPartnerRef?: string;
 
   @Column({ type: 'float', nullable: true })
   refProvision?: number;
@@ -588,7 +588,7 @@ export class BuyCrypto extends IEntity {
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
             partnerFeeAmount: fee.partner,
-            usedPartnerFeeRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
+            usedPartnerRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
             inputReferenceAmountMinusFee,
             usedRef: this.user.usedRef,
             refProvision: this.user.refFeePercent,
@@ -690,7 +690,7 @@ export class BuyCrypto extends IEntity {
       chargebackOutput: null,
       priceDefinitionAllowedDate: null,
       partnerFeeAmount: null,
-      usedPartnerFeeRef: null,
+      usedPartnerRef: null,
     };
 
     Object.assign(this, update);

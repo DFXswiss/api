@@ -143,7 +143,7 @@ export class RefRewardService {
         const payoutAsset = user.refAsset ?? defaultAsset;
         if (payoutAsset.blockchain !== blockchain) throw new Error('User ref asset blockchain mismatch');
 
-        const refCreditEur = user.completeRefCredit - user.paidRefCredit;
+        const refCreditEur = user.totalRefCredit - user.paidRefCredit;
         const minCredit = PayoutLimits[blockchain];
 
         if (!(refCreditEur >= minCredit)) continue;
