@@ -5,6 +5,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -41,6 +42,7 @@ export class AmlService {
     private readonly userService: UserService,
     private readonly transactionService: TransactionService,
     private readonly ipLogService: IpLogService,
+    private readonly kycService: KycService,
   ) {}
 
   async postProcessing(entity: BuyFiat | BuyCrypto, last30dVolume: number | undefined): Promise<void> {
@@ -98,6 +100,7 @@ export class AmlService {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountNames();
 
+    entity.userData.kycSteps = await this.kycService.getStepsByUserData(entity.userData.id);
     entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);
     let bankData = await this.getBankData(entity);
     const refUser =
