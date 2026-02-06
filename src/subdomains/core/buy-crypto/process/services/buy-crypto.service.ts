@@ -234,7 +234,7 @@ export class BuyCryptoService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { user: { wallet: true }, userData: { users: true } },
+        transaction: { user: { wallet: true }, userData: { users: true, kycSteps: true } },
         chargebackOutput: true,
         bankData: true,
       },

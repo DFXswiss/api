@@ -66,10 +66,17 @@ const CITREA_CHAIN_IDS: Record<ClementineNetwork, number> = {
   [ClementineNetwork.TESTNET4]: 5115, // Citrea testnet
 };
 
+// Bitcoin confirmations required before block is relayed to Citrea's BitcoinLightClient
+const BITCOIN_RELAY_CONFIRMATIONS: Record<ClementineNetwork, number> = {
+  [ClementineNetwork.BITCOIN]: 6,
+  [ClementineNetwork.TESTNET4]: 100,
+};
+
 interface WithdrawCorrelationData {
   step: string;
   signerAddress: string;
   destinationAddress: string;
+  dustTxId?: string;
   withdrawalUtxo?: string;
   optimisticSignature?: string;
   operatorPaidSignature?: string;
@@ -264,6 +271,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
       step: 'dust_sent',
       signerAddress: this.signerAddress,
       destinationAddress,
+      dustTxId,
     };
 
     return `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(correlationData)}`;
@@ -287,13 +295,12 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
       const correlationData = order.correlationId.replace(CORRELATION_PREFIX.DEPOSIT, '');
       const [depositAddress, btcTxId] = correlationData.split(':');
 
-      // Step 1: Verify the Bitcoin transaction is confirmed
-      if (btcTxId) {
-        const isConfirmed = await this.bitcoinClient.isTxComplete(btcTxId, 6); // Clementine requires 6+ confirmations
-        if (!isConfirmed) {
-          this.logger.verbose(`Deposit ${depositAddress}: BTC transaction not yet confirmed (need 6+)`);
-          return false;
-        }
+      // Step 1: Verify the Bitcoin transaction has enough confirmations for block relay
+      if (btcTxId && !(await this.isBtcTxRelayConfirmed(btcTxId))) {
+        this.logger.verbose(
+          `Deposit ${depositAddress}: BTC TX not yet confirmed (need ${BITCOIN_RELAY_CONFIRMATIONS[this.network]}+)`,
+        );
+        return false;
       }
 
       // Step 2: Check Clementine deposit status
@@ -403,6 +410,14 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     order: LiquidityManagementOrder,
     data: WithdrawCorrelationData,
   ): Promise<boolean> {
+    // Check if the dust TX has enough confirmations for the block to be relayed to Citrea
+    if (data.dustTxId && !(await this.isBtcTxRelayConfirmed(data.dustTxId))) {
+      this.logger.verbose(
+        `Withdrawal: waiting for dust TX to reach ${BITCOIN_RELAY_CONFIRMATIONS[this.network]} confirmations`,
+      );
+      return false;
+    }
+
     // Idempotency check: verify if withdrawal was already sent to bridge
     // This prevents double cBTC burning if the process crashes after withdrawSend()
     // but before the correlationId is persisted
@@ -430,6 +445,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
       data.destinationAddress,
       data.withdrawalUtxo,
       data.optimisticSignature,
+      this.citreaPrivateKey,
     );
 
     data.step = 'sent_to_bridge';
@@ -739,6 +755,12 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     return this.network === ClementineNetwork.TESTNET4;
   }
 
+  private get citreaPrivateKey(): string {
+    return this.isTestnet
+      ? GetConfig().blockchain.citreaTestnet.citreaTestnetWalletPrivateKey
+      : GetConfig().blockchain.citrea.citreaWalletPrivateKey;
+  }
+
   private get citreaBlockchain(): Blockchain {
     return this.isTestnet ? Blockchain.CITREA_TESTNET : Blockchain.CITREA;
   }
@@ -751,5 +773,13 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     return this.isTestnet
       ? this.bitcoinTestnet4FeeService.getRecommendedFeeRate()
       : this.bitcoinFeeService.getRecommendedFeeRate();
+  }
+
+  /**
+   * Check if a Bitcoin TX has enough confirmations for its block to be relayed to Citrea.
+   */
+  private isBtcTxRelayConfirmed(txId: string): Promise<boolean> {
+    const requiredConfirmations = BITCOIN_RELAY_CONFIRMATIONS[this.network];
+    return this.bitcoinClient.isTxComplete(txId, requiredConfirmations);
   }
 }
