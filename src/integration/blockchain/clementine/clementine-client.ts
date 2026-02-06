@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import * as pty from 'node-pty';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum ClementineNetwork {
@@ -13,6 +13,7 @@ export interface ClementineConfig {
   timeoutMs: number;
   signingTimeoutMs: number;
   expectedVersion: string;
+  passphrase: string;
 }
 
 export interface ClementineVersionInfo {
@@ -223,6 +224,11 @@ export class ClementineClient {
   async withdrawScan(signerAddress: string, destinationAddress: string): Promise<WithdrawScanResult | null> {
     const output = await this.executeCommand(['withdraw', 'scan', signerAddress, destinationAddress]);
 
+    if (output.toLowerCase().includes('waiting for confirmation') || output.toLowerCase().includes('unconfirmed')) {
+      this.logger.verbose('withdrawScan: UTXO found but unconfirmed, waiting for confirmation');
+      return null;
+    }
+
     // Parse withdrawal UTXO from output (format: txid:vout)
     const utxoMatch = output.match(/([a-f0-9]{64}:\d+)/i);
     if (utxoMatch) {
@@ -363,10 +369,9 @@ export class ClementineClient {
 
   private async executeCommand(args: string[], timeout?: number, addNetworkFlag = true): Promise<string> {
     const finalArgs = addNetworkFlag ? this.addNetworkFlag(args) : args;
-    this.logger.verbose(`Executing: ${this.config.cliPath} ${finalArgs.join(' ')}`);
 
     try {
-      return await this.spawnAsync(finalArgs, timeout ?? this.config.timeoutMs);
+      return await this.spawnWithPty(finalArgs, timeout ?? this.config.timeoutMs);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Clementine CLI error: ${message}`);
@@ -374,17 +379,23 @@ export class ClementineClient {
     }
   }
 
-  private spawnAsync(args: string[], timeout: number): Promise<string> {
+  /**
+   * Spawn CLI with PTY to handle interactive passphrase prompts.
+   */
+  private spawnWithPty(args: string[], timeout: number): Promise<string> {
     return new Promise((resolve, reject) => {
-      let stdout = '';
-      let stderr = '';
+      let output = '';
       let timeoutId: NodeJS.Timeout | null = null;
-      let killTimeoutId: NodeJS.Timeout | null = null;
       let isSettled = false;
+      let passphraseSent = false;
 
-      const proc = spawn(this.config.cliPath, args, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, HOME: this.config.homeDir },
+      this.logger.verbose(`Executing (PTY): ${this.config.cliPath} ${args.join(' ')}`);
+
+      const proc = pty.spawn(this.config.cliPath, args, {
+        name: 'xterm',
+        cols: 200,
+        rows: 30,
+        env: { ...process.env, HOME: this.config.homeDir } as Record<string, string>,
       });
 
       const cleanup = (): void => {
@@ -392,16 +403,13 @@ export class ClementineClient {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
-        if (killTimeoutId) {
-          clearTimeout(killTimeoutId);
-          killTimeoutId = null;
-        }
       };
 
       const settle = (error?: Error, result?: string): void => {
         if (isSettled) return;
         isSettled = true;
         cleanup();
+        proc.kill();
 
         if (error) {
           reject(error);
@@ -410,38 +418,25 @@ export class ClementineClient {
         }
       };
 
-      // Timeout handling
       timeoutId = setTimeout(() => {
-        proc.kill('SIGTERM');
-
-        // Force kill after 5 seconds if process doesn't respond to SIGTERM
-        killTimeoutId = setTimeout(() => {
-          if (proc.exitCode === null) {
-            // Process still running, force kill
-            proc.kill('SIGKILL');
-          }
-        }, 5000);
-
         settle(new Error(`Command timed out after ${timeout}ms`));
       }, timeout);
 
-      proc.stdout.on('data', (data: Buffer) => {
-        stdout += data.toString();
+      proc.onData((data: string) => {
+        output += data;
+
+        // Send passphrase when prompted
+        if (!passphraseSent && data.toLowerCase().includes('passphrase')) {
+          passphraseSent = true;
+          proc.write(this.config.passphrase + '\r');
+        }
       });
 
-      proc.stderr.on('data', (data: Buffer) => {
-        stderr += data.toString();
-      });
-
-      proc.on('error', (error: Error) => {
-        settle(new Error(`Spawn error: ${error.message}`));
-      });
-
-      proc.on('close', (code: number | null) => {
-        if (code === 0) {
-          settle(undefined, stdout);
+      proc.onExit(({ exitCode }) => {
+        if (exitCode === 0) {
+          settle(undefined, output);
         } else {
-          settle(new Error(`Exit code ${code}: ${stderr || stdout}`));
+          settle(new Error(`Exit code ${exitCode}: ${output}`));
         }
       });
     });

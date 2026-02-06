@@ -825,6 +825,7 @@ export class Configuration {
       timeoutMs: parseInt(process.env.CLEMENTINE_TIMEOUT_MS ?? '60000'),
       signingTimeoutMs: parseInt(process.env.CLEMENTINE_SIGNING_TIMEOUT_MS ?? '300000'),
       expectedVersion: process.env.CLEMENTINE_CLI_VERSION ?? '',
+      passphrase: process.env.CLEMENTINE_PASSPHRASE ?? '',
     },
     bitcoinTestnet4: {
       btcTestnet4Output: {
