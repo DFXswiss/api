@@ -303,16 +303,20 @@ export class ClementineClient {
    * @param destinationAddress Bitcoin destination address
    * @param withdrawalUtxo The withdrawal UTXO (format: txid:vout)
    * @param optimisticSignature The optimistic withdrawal signature
+   * @param citreaPrivateKey Citrea private key for signing the withdrawal transaction (64 hex chars)
    */
   async withdrawSend(
     signerAddress: string,
     destinationAddress: string,
     withdrawalUtxo: string,
     optimisticSignature: string,
+    citreaPrivateKey: string,
   ): Promise<void> {
     await this.executeCommand(
       ['withdraw', 'send-safe-withdraw', signerAddress, destinationAddress, withdrawalUtxo, optimisticSignature],
       this.config.signingTimeoutMs,
+      true,
+      citreaPrivateKey,
     );
   }
 
@@ -366,11 +370,16 @@ export class ClementineClient {
 
   // --- INTERNAL METHODS --- //
 
-  private async executeCommand(args: string[], timeout?: number, addNetworkFlag = true): Promise<string> {
+  private async executeCommand(
+    args: string[],
+    timeout?: number,
+    addNetworkFlag = true,
+    citreaPrivateKey?: string,
+  ): Promise<string> {
     const finalArgs = addNetworkFlag ? this.addNetworkFlag(args) : args;
 
     try {
-      return await this.spawnWithPty(finalArgs, timeout ?? this.config.timeoutMs);
+      return await this.spawnWithPty(finalArgs, timeout ?? this.config.timeoutMs, citreaPrivateKey);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Clementine CLI error: ${message}`);
@@ -379,14 +388,18 @@ export class ClementineClient {
   }
 
   /**
-   * Spawn CLI with PTY to handle interactive passphrase prompts.
+   * Spawn CLI with PTY to handle interactive prompts.
+   * @param args CLI arguments
+   * @param timeout Timeout in milliseconds
+   * @param citreaPrivateKey Optional Citrea private key for signing withdrawals (64 hex chars)
    */
-  private spawnWithPty(args: string[], timeout: number): Promise<string> {
+  private spawnWithPty(args: string[], timeout: number, citreaPrivateKey?: string): Promise<string> {
     return new Promise((resolve, reject) => {
       let output = '';
       let timeoutId: NodeJS.Timeout | null = null;
       let isSettled = false;
-      let passphraseSent = false;
+      let passphraseHandled = false;
+      let citreaKeyHandled = false;
 
       this.logger.verbose(`Executing (PTY): ${this.config.cliPath} ${args.join(' ')}`);
 
@@ -423,14 +436,20 @@ export class ClementineClient {
 
       proc.onData((data: string) => {
         output += data;
+        const lowerData = data.toLowerCase();
 
-        // Send passphrase when prompted
-        if (
-          !passphraseSent &&
-          (data.toLowerCase().includes('passphrase') || data.toLowerCase().includes('secret key'))
-        ) {
-          passphraseSent = true;
+        if (!passphraseHandled && lowerData.includes('passphrase')) {
+          passphraseHandled = true;
           proc.write(this.config.passphrase + '\r');
+        }
+
+        if (!citreaKeyHandled && lowerData.includes('secret key')) {
+          citreaKeyHandled = true;
+          if (citreaPrivateKey) {
+            proc.write(citreaPrivateKey + '\r');
+          } else {
+            settle(new Error('CLI prompted for Citrea private key but none was provided'));
+          }
         }
       });
 
