@@ -474,7 +474,7 @@ export class Configuration {
         {
           prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
           fileTypes: [ContentType.PDF],
-          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-txaudit2026'),
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2026'.toLowerCase()),
         },
       ],
     },
