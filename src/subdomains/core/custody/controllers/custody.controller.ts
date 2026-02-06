@@ -8,13 +8,14 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { CustodySignupDto } from '../dto/input/custody-signup.dto';
 import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
 import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto, CustodyHistoryDto } from '../dto/output/custody-balance.dto';
+import { CustodyOrderHistoryDto } from '../dto/output/custody-order-history.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyOrderService } from '../services/custody-order.service';
 import { CustodyPdfService } from '../services/custody-pdf.service';
@@ -64,6 +65,14 @@ export class CustodyController {
     @RealIP() ip: string,
   ): Promise<CustodyAuthDto> {
     return this.service.createCustodyAccount(jwt.account, dto, ip);
+  }
+
+  @Get('order')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard())
+  @ApiOkResponse({ type: CustodyOrderHistoryDto, isArray: true })
+  async getOrders(@GetJwt() jwt: JwtPayload): Promise<CustodyOrderHistoryDto[]> {
+    return this.custodyOrderService.getOrdersByUserData(jwt.account);
   }
 
   @Post('order')
