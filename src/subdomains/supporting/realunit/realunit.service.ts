@@ -579,7 +579,7 @@ export class RealUnitService {
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
-  private hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
+  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
     return userData
       .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
       .filter((s) => !(s.isFailed || s.isCanceled))
