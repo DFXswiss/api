@@ -80,6 +80,20 @@ export class SellSupportInfo {
   volume: number;
 }
 
+export class TransactionListEntry {
+  id: number;
+  type?: string;
+  accountId?: number;
+  name?: string;
+  domicile?: string;
+  created?: Date;
+  eventDate?: Date;
+  outputDate?: Date;
+  assets?: string;
+  amountInChf?: number;
+  highRisk?: boolean;
+}
+
 export class KycFileListEntry {
   kycFileId: number;
   id: number;

@@ -35,6 +35,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
+import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
   BankDataSupportInfo,
   BankTxSupportInfo,
@@ -44,6 +45,7 @@ import {
   KycFileYearlyStats,
   KycStepSupportInfo,
   SellSupportInfo,
+  TransactionListEntry,
   TransactionSupportInfo,
   UserDataSupportInfo,
   UserDataSupportInfoDetails,
@@ -152,7 +154,36 @@ export class SupportService {
     return result;
   }
 
+  async getTransactionList(query: TransactionListQuery): Promise<TransactionListEntry[]> {
+    const dateFrom = new Date(query.createdFrom ?? new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString());
+    const dateTo = new Date(query.createdTo ?? new Date().toISOString());
+    dateTo.setHours(23, 59, 59, 999);
+
+    const outputFrom = query.outputFrom ? new Date(query.outputFrom) : undefined;
+    const outputTo = query.outputTo ? new Date(query.outputTo) : undefined;
+    if (outputTo) outputTo.setHours(23, 59, 59, 999);
+
+    const transactions = await this.transactionService.getTransactionList(dateFrom, dateTo, outputFrom, outputTo);
+    return transactions.map((t) => this.toTransactionListEntry(t));
+  }
+
   // --- MAPPING METHODS --- //
+
+  private toTransactionListEntry(tx: Transaction): TransactionListEntry {
+    return {
+      id: tx.id,
+      type: tx.type,
+      accountId: tx.userData?.id,
+      name: tx.userData?.verifiedName,
+      domicile: tx.userData?.country?.name,
+      created: tx.created,
+      eventDate: tx.eventDate,
+      outputDate: tx.outputDate,
+      assets: tx.assets,
+      amountInChf: tx.amountInChf,
+      highRisk: tx.highRisk,
+    };
+  }
 
   private toKycFileListEntry(userData: UserData, auditStartDate?: Date): KycFileListEntry {
     return {
