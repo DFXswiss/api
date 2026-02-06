@@ -213,14 +213,14 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
       pipeline: {
-        rule: { targetAsset: bitcoinAsset },
+        rule: { targetAsset: citreaAsset },
       },
     } = order;
 
-    // Validate asset is BTC on Bitcoin
-    if (bitcoinAsset.type !== AssetType.COIN || bitcoinAsset.blockchain !== this.btcBlockchain) {
+    // Validate asset is cBTC on Citrea (we withdraw FROM cBTC TO BTC)
+    if (citreaAsset.type !== AssetType.COIN || citreaAsset.blockchain !== this.citreaBlockchain) {
       throw new OrderNotProcessableException(
-        `Clementine withdraw only supports BTC (native coin) on ${this.btcBlockchain}`,
+        `Clementine withdraw only supports cBTC (native coin) on ${this.citreaBlockchain}`,
       );
     }
 
@@ -230,8 +230,8 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     // Validate network consistency on first use
     await this.validateNetworkConsistency();
 
-    // Get the corresponding Citrea cBTC asset
-    const citreaAsset = await this.getCitreaAsset();
+    // Get the corresponding Bitcoin BTC asset
+    const bitcoinAsset = await this.getBtcAsset();
 
     // Check cBTC balance on Citrea - must have at least 10 cBTC (fixed bridge amount)
     const cbtcBalance = await this.citreaClient.getNativeCoinBalance();
@@ -739,20 +739,12 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     return this.network === ClementineNetwork.TESTNET4;
   }
 
-  private get btcBlockchain(): Blockchain {
-    return this.isTestnet ? Blockchain.BITCOIN_TESTNET4 : Blockchain.BITCOIN;
-  }
-
   private get citreaBlockchain(): Blockchain {
     return this.isTestnet ? Blockchain.CITREA_TESTNET : Blockchain.CITREA;
   }
 
   private getBtcAsset(): Promise<Asset> {
     return this.isTestnet ? this.assetService.getBitcoinTestnet4Coin() : this.assetService.getBtcCoin();
-  }
-
-  private getCitreaAsset(): Promise<Asset> {
-    return this.isTestnet ? this.assetService.getCitreaTestnetCoin() : this.assetService.getCitreaCoin();
   }
 
   private getFeeRate(): Promise<number> {
