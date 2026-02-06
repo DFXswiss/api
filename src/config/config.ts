@@ -485,7 +485,7 @@ export class Configuration {
         {
           prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`, `user/${userData.id}/NameCheck`],
           fileTypes: [ContentType.PDF],
-          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-namecheck'),
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-NameCheck'.toLowerCase()),
         },
         {
           name: () => 'Dilisense Screening Report',
