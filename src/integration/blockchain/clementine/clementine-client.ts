@@ -310,14 +310,10 @@ export class ClementineClient {
     withdrawalUtxo: string,
     optimisticSignature: string,
   ): Promise<void> {
-    await this.executeCommand([
-      'withdraw',
-      'send-safe-withdraw',
-      signerAddress,
-      destinationAddress,
-      withdrawalUtxo,
-      optimisticSignature,
-    ]);
+    await this.executeCommand(
+      ['withdraw', 'send-safe-withdraw', signerAddress, destinationAddress, withdrawalUtxo, optimisticSignature],
+      this.config.signingTimeoutMs,
+    );
   }
 
   /**
@@ -355,14 +351,17 @@ export class ClementineClient {
     withdrawalUtxo: string,
     operatorPaidSignature: string,
   ): Promise<void> {
-    await this.executeCommand([
-      'withdraw',
-      'send-withdrawal-signature-to-operators',
-      signerAddress,
-      destinationAddress,
-      withdrawalUtxo,
-      operatorPaidSignature,
-    ]);
+    await this.executeCommand(
+      [
+        'withdraw',
+        'send-withdrawal-signature-to-operators',
+        signerAddress,
+        destinationAddress,
+        withdrawalUtxo,
+        operatorPaidSignature,
+      ],
+      this.config.signingTimeoutMs,
+    );
   }
 
   // --- INTERNAL METHODS --- //
@@ -426,7 +425,10 @@ export class ClementineClient {
         output += data;
 
         // Send passphrase when prompted
-        if (!passphraseSent && data.toLowerCase().includes('passphrase')) {
+        if (
+          !passphraseSent &&
+          (data.toLowerCase().includes('passphrase') || data.toLowerCase().includes('secret key'))
+        ) {
           passphraseSent = true;
           proc.write(this.config.passphrase + '\r');
         }
