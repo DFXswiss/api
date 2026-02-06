@@ -14,9 +14,10 @@ export class CustodyOrderHistoryDtoMapper {
     return {
       type: order.type,
       status: this.mapStatus(order),
-      inputAmount: isIncoming || isSwap ? order.inputAmount ?? order.transactionRequest?.estimatedAmount : order.inputAmount,
+      inputAmount:
+        isIncoming || isSwap ? (order.inputAmount ?? order.transactionRequest?.estimatedAmount) : order.inputAmount,
       inputAsset: order.inputAsset?.name,
-      outputAmount: isIncoming ? order.outputAmount : order.outputAmount ?? order.transactionRequest?.amount,
+      outputAmount: isIncoming ? order.outputAmount : (order.outputAmount ?? order.transactionRequest?.amount),
       outputAsset: order.outputAsset?.name,
     };
   }
