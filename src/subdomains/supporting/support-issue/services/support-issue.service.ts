@@ -8,11 +8,11 @@ import {
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { PhoneCallStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
@@ -27,8 +27,7 @@ import { SupportIssueDto, SupportIssueInternalDataDto, SupportMessageDto } from 
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
-import { Department } from '../enums/department.enum';
-import { SupportIssueInternalState } from '../enums/support-issue.enum';
+import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -50,7 +49,6 @@ export class SupportIssueService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly supportLogService: SupportLogService,
     private readonly bankDataService: BankDataService,
-    private readonly fiatService: FiatService,
   ) {}
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
@@ -145,9 +143,22 @@ export class SupportIssueService {
       }
 
       // create limit request
-      if (dto.limitRequest) {
-        newIssue.department = Department.COMPLIANCE;
+      if (dto.limitRequest)
         newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
+
+      if (
+        !userData.phoneCallStatus &&
+        dto.type === SupportIssueType.VERIFICATION_CALL &&
+        [SupportIssueReason.REJECT_CALL, SupportIssueReason.REPEAT_CALL].includes(dto.reason)
+      ) {
+        await this.userDataService.updateUserDataInternal(userData, {
+          phoneCallStatus:
+            dto.reason === SupportIssueReason.REJECT_CALL
+              ? PhoneCallStatus.REJECTED
+              : dto.reason === SupportIssueReason.REPEAT_CALL
+                ? PhoneCallStatus.REPEAT
+                : undefined,
+        });
       }
     }
 
