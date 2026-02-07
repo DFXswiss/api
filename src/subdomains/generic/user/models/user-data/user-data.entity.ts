@@ -41,7 +41,6 @@ import {
   LegalEntity,
   LimitPeriod,
   Moderator,
-  PhoneCallPreferredTimes,
   PhoneCallStatus,
   RiskStatus,
   SignatoryPower,
@@ -504,6 +503,8 @@ export class UserData extends IEntity {
       phone: dto.phone ?? this.phone,
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
+      phoneCallTimes: dto.preferredTimes ? dto.preferredTimes.join(';') : undefined,
+      phoneCallStatus: dto.rejectCall ? PhoneCallStatus.REJECTED : dto.repeatCall ? PhoneCallStatus.REPEAT : undefined,
     };
 
     Object.assign(this, update);

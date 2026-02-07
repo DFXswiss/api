@@ -15,7 +15,7 @@ export enum RiskStatus {
   RELEASED = 'Released',
 }
 
-export enum PhoneCallPreferredTimes {
+export enum PhoneCallPreferredTime {
   BETWEEN_9_AND_10 = 'Between9And10',
   BETWEEN_10_AND_11 = 'Between10And11',
   BETWEEN_11_AND_12 = 'Between11And12',
