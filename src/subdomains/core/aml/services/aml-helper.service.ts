@@ -6,7 +6,12 @@ import { Util } from 'src/shared/utils/util';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { BankData, BankDataVerificationError } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import {
+  KycLevel,
+  KycType,
+  PhoneCallStatus,
+  UserDataStatus,
+} from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -56,7 +61,11 @@ export class AmlHelperService {
       !entity.userData.tradeApprovalDate &&
       !entity.wallet.autoTradeApproval
     )
-      errors.push(AmlError.TRADE_APPROVAL_DATE_MISSING);
+      errors.push(
+        [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+          ? AmlError.USER_DATA_REJECTED_CALL
+          : AmlError.TRADE_APPROVAL_DATE_MISSING,
+      );
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
     if (entity.user.isDeleted) errors.push(AmlError.USER_DELETED);
@@ -88,7 +97,11 @@ export class AmlHelperService {
       errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
     if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate) {
       if (entity.userData.kycLevel >= KycLevel.LEVEL_50) {
-        errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED);
+        errors.push(
+          [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+            ? AmlError.USER_DATA_REJECTED_CALL
+            : AmlError.IP_PHONE_VERIFICATION_NEEDED,
+        );
       } else {
         errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
       }
@@ -194,7 +207,11 @@ export class AmlHelperService {
             ![l, entity.userData.country.symbol].every((c) => Config.allowedBorderRegions.includes(c)),
         )
       )
-        errors.push(AmlError.IP_COUNTRY_MISMATCH);
+        errors.push(
+          [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+            ? AmlError.USER_DATA_REJECTED_CALL
+            : AmlError.IP_COUNTRY_MISMATCH,
+        );
 
       if (
         entity.userData.hasSuspiciousMail &&
@@ -220,7 +237,11 @@ export class AmlHelperService {
         (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
         Util.yearsDiff(entity.userData.birthday) > 55
       )
-        errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
+        errors.push(
+          [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+            ? AmlError.USER_DATA_REJECTED_CALL
+            : AmlError.PHONE_VERIFICATION_NEEDED,
+        );
 
       if (entity.bankTx) {
         // bank
@@ -438,7 +459,11 @@ export class AmlHelperService {
 
       case AmlRule.RULE_16:
         if (entity.userData.accountType === AccountType.PERSONAL && !entity.userData.phoneCallCheckDate)
-          errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
+          errors.push(
+            [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+              ? AmlError.USER_DATA_REJECTED_CALL
+              : AmlError.PHONE_VERIFICATION_NEEDED,
+          );
         break;
     }
 

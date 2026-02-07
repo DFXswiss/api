@@ -62,6 +62,7 @@ export enum AmlError {
   IP_BLACKLISTED_WITHOUT_KYC = 'IpBlacklistedWithoutKyc',
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
+  USER_DATA_REJECTED_CALL = 'UserDataRejectedCall',
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
   FORCE_MANUAL_CHECK = 'ForceManualCheck',
@@ -300,6 +301,11 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  },
+  [AmlError.USER_DATA_REJECTED_CALL]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE_REJECTED,
   },
   [AmlError.TRADE_APPROVAL_DATE_MISSING]: {
     type: AmlErrorType.CRUCIAL,
