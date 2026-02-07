@@ -35,5 +35,10 @@
     }
   },
   "info": "* Info: Il tasso di cambio effettivo e quindi la quantità effettivamente consegnata vengono determinati quando il denaro viene ricevuto e elaborato da DFX.",
-  "terms": "Si applicano i nostri Termini e Condizioni Generali: https://docs.dfx.swiss/it/tnc.html."
+  "terms": "Si applicano i nostri Termini e Condizioni Generali: https://docs.dfx.swiss/it/tnc.html.",
+  "payment_info": "Informazioni di pagamento",
+  "payment_info_iban": "IBAN",
+  "payment_info_bic": "BIC",
+  "payment_info_recipient": "Beneficiario",
+  "payment_info_reference": "Riferimento"
 }

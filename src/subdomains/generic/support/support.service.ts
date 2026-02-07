@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef 
 import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
@@ -34,6 +35,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
+import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
   BankDataSupportInfo,
   BankTxSupportInfo,
@@ -43,6 +45,7 @@ import {
   KycFileYearlyStats,
   KycStepSupportInfo,
   SellSupportInfo,
+  TransactionListEntry,
   TransactionSupportInfo,
   UserDataSupportInfo,
   UserDataSupportInfoDetails,
@@ -79,6 +82,7 @@ export class SupportService {
     private readonly bankService: BankService,
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
+    private readonly settingService: SettingService,
   ) {}
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
@@ -108,8 +112,14 @@ export class SupportService {
     };
   }
 
-  getKycFileList(): Promise<KycFileListEntry[]> {
-    return this.userDataService.getUserDatasWithKycFile().then((u) => u.map((d) => this.toKycFileListEntry(d)));
+  async getKycFileList(): Promise<KycFileListEntry[]> {
+    const [userData, auditPeriod] = await Promise.all([
+      this.userDataService.getUserDatasWithKycFile(),
+      this.settingService.getObj<{ start: string; end: string }>('AuditPeriod'),
+    ]);
+    const auditStartDate = auditPeriod?.start ? new Date(auditPeriod.start) : undefined;
+
+    return userData.map((d) => this.toKycFileListEntry(d, auditStartDate));
   }
 
   async getKycFileStats(startYear = 2021, endYear = new Date().getFullYear()): Promise<KycFileYearlyStats[]> {
@@ -144,14 +154,56 @@ export class SupportService {
     return result;
   }
 
+  async getTransactionList(query: TransactionListQuery): Promise<TransactionListEntry[]> {
+    const dateFrom = new Date(query.createdFrom ?? new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString());
+    const dateTo = new Date(query.createdTo ?? new Date().toISOString());
+    dateTo.setHours(23, 59, 59, 999);
+
+    const outputFrom = query.outputFrom ? new Date(query.outputFrom) : undefined;
+    const outputTo = query.outputTo ? new Date(query.outputTo) : undefined;
+    if (outputTo) outputTo.setHours(23, 59, 59, 999);
+
+    const transactions = await this.transactionService.getTransactionList(dateFrom, dateTo, outputFrom, outputTo);
+    return transactions.map((t) => this.toTransactionListEntry(t));
+  }
+
   // --- MAPPING METHODS --- //
 
-  private toKycFileListEntry(userData: UserData): KycFileListEntry {
+  private toTransactionListEntry(tx: Transaction): TransactionListEntry {
+    return {
+      id: tx.id,
+      type: tx.type,
+      accountId: tx.userData?.id,
+      kycFileId: tx.userData?.kycFileId,
+      name: tx.userData?.verifiedName,
+      domicile: tx.userData?.country?.name ?? tx.userData?.verifiedCountry?.name,
+      created: tx.created,
+      eventDate: tx.eventDate,
+      outputDate: tx.outputDate,
+      assets: tx.assets,
+      amountInChf: tx.amountInChf,
+      highRisk: tx.highRisk,
+    };
+  }
+
+  private toKycFileListEntry(userData: UserData, auditStartDate?: Date): KycFileListEntry {
     return {
       kycFileId: userData.kycFileId,
       id: userData.id,
       amlAccountType: userData.amlAccountType,
       verifiedName: userData.verifiedName,
+      country: userData.country ? { name: userData.country.name } : undefined,
+      allBeneficialOwnersDomicile: userData.allBeneficialOwnersDomicile,
+      amlListAddedDate: userData.amlListAddedDate,
+      amlListExpiredDate: userData.amlListExpiredDate,
+      amlListReactivatedDate: userData.amlListReactivatedDate,
+      newOpeningInAuditPeriod:
+        auditStartDate && userData.amlListAddedDate ? new Date(userData.amlListAddedDate) > auditStartDate : false,
+      highRisk: userData.highRisk,
+      pep: userData.pep,
+      complexOrgStructure: userData.complexOrgStructure,
+      totalVolumeChfAuditPeriod: userData.totalVolumeChfAuditPeriod,
+      totalCustodyBalanceChfAuditPeriod: userData.totalCustodyBalanceChfAuditPeriod,
     };
   }
 

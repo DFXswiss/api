@@ -467,7 +467,6 @@ export class TransactionController {
           buy,
           buy?.asset,
           buy?.user?.wallet,
-          true,
         );
 
         return {

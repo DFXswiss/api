@@ -324,6 +324,19 @@ export class RealUnitController {
 
   // --- Registration Endpoints ---
 
+  @Get('register/status')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Check if wallet is registered for RealUnit',
+    description: 'Returns true if the connected wallet is registered for RealUnit, false otherwise',
+  })
+  @ApiOkResponse({ type: Boolean })
+  async isRegistered(@GetJwt() jwt: JwtPayload): Promise<boolean> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
+    return this.realunitService.hasRegistrationForWallet(user.userData, jwt.address);
+  }
+
   @Post('register/email')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
@@ -339,7 +352,7 @@ export class RealUnitController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitEmailRegistrationDto,
   ): Promise<RealUnitEmailRegistrationResponseDto> {
-    const status = await this.realunitService.registerEmail(jwt.account, dto);
+    const status = await this.realunitService.registerEmail(jwt.account, jwt.address, dto);
     return { status };
   }
 

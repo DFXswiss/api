@@ -166,11 +166,20 @@ export class MexcService extends ExchangeService {
 
     const url = `${this.baseUrl}/${path}?${searchParams}`;
 
-    return this.http.request<T>({
-      url,
-      method,
-      headers: { 'X-MEXC-APIKEY': Config.mexc.apiKey, 'Content-Type': 'application/json' },
-    });
+    try {
+      return await this.http.request<T>({
+        url,
+        method,
+        headers: { 'X-MEXC-APIKEY': Config.mexc.apiKey, 'Content-Type': 'application/json' },
+      });
+    } catch (e) {
+      // Extract MEXC error details from response body
+      const mexcError = e.response?.data;
+      if (mexcError) {
+        throw new Error(`MEXC API error: ${mexcError.msg ?? JSON.stringify(mexcError)} (code: ${mexcError.code})`);
+      }
+      throw e;
+    }
   }
 
   // --- ZCHF Assessment Period - can be removed once assessment ends --- //
@@ -346,14 +355,17 @@ export class MexcService extends ExchangeService {
 
   protected async updateOrderPrice(order: Order, amount: number, price: number): Promise<string> {
     // MEXC doesn't support editOrder, so cancel and create new
-    await this.cancelOrderById(order.id, order.symbol);
+    await this.cancelOrder(order.id, order.symbol);
 
     const newOrder = await this.createOrder(order.symbol, order.side as OrderSide, amount, price);
     return newOrder.id;
   }
 
-  private async cancelOrderById(orderId: string, pair: string): Promise<void> {
+  protected async cancelOrder(orderId: string, pair: string): Promise<void> {
     const symbol = pair.replace('/', '');
-    await this.request<unknown>('DELETE', 'order', { symbol, orderId });
+    await this.request<unknown>('DELETE', 'order', { symbol, orderId }).catch((e) => {
+      // -2011 means order is already cancelled
+      if (!e.message?.includes('-2011')) throw e;
+    });
   }
 }

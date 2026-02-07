@@ -2,6 +2,7 @@ import { Controller, Get, Param, Query, Redirect, Req, Res, VERSION_NEUTRAL, Ver
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { UserAgent } from 'express-useragent';
+import { readFileSync } from 'fs';
 import { RealIP } from 'nestjs-real-ip';
 import { Config } from './config/config';
 import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.dto';
@@ -27,6 +28,7 @@ enum Manufacturer {
 
 @Controller('')
 export class AppController {
+  private readonly startedAt = new Date();
   private readonly homepageUrl = 'https://dfx.swiss/';
   private readonly appleStoreUrl = 'https://apps.apple.com/app';
   private readonly googleStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details';
@@ -58,6 +60,21 @@ export class AppController {
   @Version(VERSION_NEUTRAL)
   async home(): Promise<any> {
     // nothing to do (redirect to Swagger UI)
+  }
+
+  @Get('version')
+  @ApiExcludeEndpoint()
+  @Version(VERSION_NEUTRAL)
+  getVersion(): { commit: string; startedAt: Date } {
+    return { commit: this.getCommit(), startedAt: this.startedAt };
+  }
+
+  private getCommit(): string {
+    try {
+      return readFileSync('dist/version.txt', 'utf8').trim();
+    } catch {
+      return 'unknown';
+    }
   }
 
   @Get('app/announcements')
