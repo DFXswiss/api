@@ -11,7 +11,7 @@ import { MailFactory } from '../../notification/factories/mail.factory';
 import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
 import { SupportMessageTranslationKey } from '../dto/support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
-import { AutoResponder } from '../entities/support-message.entity';
+import { AutoResponder, CustomerAuthor } from '../entities/support-message.entity';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportIssueService } from './support-issue.service';
@@ -87,13 +87,16 @@ export class SupportIssueJobService {
 
   // --- HELPER METHODS --- //
   private async getAutoResponseIssues(where: FindOptionsWhere<SupportIssue>): Promise<SupportIssue[]> {
-    return this.supportIssueRepo.find({
-      where: {
-        state: SupportIssueInternalState.CREATED,
-        messages: { author: Not(AutoResponder) },
-        ...where,
-      },
-    });
+    return this.supportIssueRepo
+      .find({
+        where: {
+          state: SupportIssueInternalState.CREATED,
+          messages: { author: Not(AutoResponder) },
+          ...where,
+        },
+        relations: { messages: true },
+      })
+      .then((issues) => issues.filter((i) => i.messages.at(-1).author === CustomerAuthor));
   }
 
   private async sendAutoResponse(
