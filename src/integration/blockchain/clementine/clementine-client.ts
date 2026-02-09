@@ -327,11 +327,17 @@ export class ClementineClient {
    * @returns Status result with NOT_FOUND if no withdrawal exists for this UTXO
    */
   async withdrawStatus(withdrawalUtxo: string): Promise<WithdrawStatusResult> {
-    const output = await this.executeCommand(['withdraw', 'status', withdrawalUtxo]);
+    const output = await this.executeCommand(['withdraw', 'status', withdrawalUtxo]).catch((e) => {
+      // Handle "Withdrawal not found for outpoint" error - return empty to trigger NOT_FOUND
+      if (e.message?.includes('not found for outpoint') || e.message?.includes('wait for confirmation')) {
+        this.logger.verbose(`withdrawStatus: withdrawal not found for ${withdrawalUtxo}, may need confirmation`);
+        return '';
+      }
+      throw e;
+    });
 
     // Check if no withdrawal exists for this UTXO
-    // CLI outputs "No withdrawals found for OutPoint ..." if never submitted
-    if (output.toLowerCase().includes('no withdrawals found')) {
+    if (!output || output.toLowerCase().includes('no withdrawals found')) {
       return {
         withdrawalUtxo,
         status: WithdrawStatus.NOT_FOUND,
