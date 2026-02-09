@@ -469,7 +469,7 @@ export class Configuration {
     },
     {
       id: 13,
-      name: 'Transaktionsliste Auditperiode 2025',
+      name: 'Transaktionsliste Auditperiode',
       files: [
         {
           prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
