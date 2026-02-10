@@ -284,6 +284,7 @@ export class Configuration {
       filter?: (file: KycFileBlob, userData: UserData) => boolean;
       sort?: (a: KycFileBlob, b: KycFileBlob) => KycFileBlob;
       handleFileNotFound?: (zip: JSZip, userData: UserData) => any | false;
+      selectAll?: boolean;
     }[];
   }[] = [
     {
@@ -308,6 +309,12 @@ export class Configuration {
             `spider/${userData.id}/video_identification`,
           ],
           fileTypes: [ContentType.PDF],
+        },
+        {
+          name: (file: KycFileBlob) => `IdentDoc_${file.name.split('/').pop()?.split('.')[0] ?? 'unknown'}`,
+          prefixes: (userData: UserData) => [`user/${userData.id}/Identification`],
+          fileTypes: [ContentType.PNG, ContentType.JPEG, ContentType.JPG],
+          selectAll: true,
         },
       ],
     },
