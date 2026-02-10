@@ -399,7 +399,15 @@ export class UserDataService {
           continue;
         }
 
-        for (const { name: fileNameFn, fileTypes, prefixes, filter, handleFileNotFound, sort, selectAll } of fileConfig) {
+        for (const {
+          name: fileNameFn,
+          fileTypes,
+          prefixes,
+          filter,
+          handleFileNotFound,
+          sort,
+          selectAll,
+        } of fileConfig) {
           const files = allFiles
             .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
             .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
@@ -429,7 +437,9 @@ export class UserDataService {
                 selectedFile.type,
                 selectedFile.name,
               );
-              const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
+              const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name
+                .split('.')
+                .pop()}`;
               subFolder.file(filePath, fileData.data);
             } catch {
               errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
