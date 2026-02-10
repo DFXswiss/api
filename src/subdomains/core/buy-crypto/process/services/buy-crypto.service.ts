@@ -954,7 +954,7 @@ export class BuyCryptoService {
     const { volume, credit } = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('SUM(amountInEur)', 'volume')
-      .addSelect('SUM(partnerFeeAmount * (amountInEur/amountInChf ))', 'credit')
+      .addSelect('SUM(partnerFeeAmount * (amountInEur/inputReferenceAmount ))', 'credit')
       .where('usedPartnerFeeRef = :ref', { ref })
       .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();

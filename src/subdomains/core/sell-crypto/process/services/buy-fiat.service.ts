@@ -585,7 +585,7 @@ export class BuyFiatService {
     const { volume, credit } = await this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('SUM(amountInEur)', 'volume')
-      .addSelect('SUM(partnerFeeAmount * (amountInEur/amountInChf ))', 'credit')
+      .addSelect('SUM(partnerFeeAmount * (amountInEur/inputAmount ))', 'credit')
       .where('usedPartnerFeeRef = :ref', { ref })
       .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
