@@ -528,6 +528,7 @@ export class TransactionController {
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!targetEntity) {
+      if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
       targetEntity = await this.bankTxService
         .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
         .then((b) => b.bankTxReturn);
