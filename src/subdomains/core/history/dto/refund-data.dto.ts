@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional, getSchemaPath } from '@nestjs/swagger
 import { ActiveDto } from 'src/shared/models/active';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
 export class RefundFeeDto {
   @ApiProperty({ description: 'Network fee in refundAsset' })
@@ -58,6 +59,9 @@ export class RefundDataDto {
 
   @ApiProperty({ oneOf: [{ $ref: getSchemaPath(AssetDto) }, { $ref: getSchemaPath(FiatDto) }] })
   refundAsset: ActiveDto;
+
+  @ApiPropertyOptional({ type: Price, description: 'Price refund asset in input asset' })
+  refundPrice?: Price;
 
   @ApiPropertyOptional({ description: 'IBAN for bank tx or blockchain address for crypto tx' })
   refundTarget?: string;

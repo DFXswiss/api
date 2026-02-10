@@ -408,7 +408,7 @@ export class TransactionHelper implements OnModuleInit {
         ? await this.fiatService.getFiatByName('EUR')
         : inputCurrency;
 
-    const price =
+    const chfPrice =
       refundEntity.manualChfPrice ??
       (await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.PREFER_VALID));
 
@@ -419,7 +419,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const chargebackFee = await this.feeService.getChargebackFee({
       from: inputCurrency,
-      txVolume: price.invert().convert(inputAmount),
+      txVolume: chfPrice.invert().convert(inputAmount),
       paymentMethodIn: refundEntity.paymentMethodIn,
       bankIn,
       specialCodes: [],
@@ -427,16 +427,16 @@ export class TransactionHelper implements OnModuleInit {
       userData,
     });
 
-    const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
+    const dfxFeeAmount = inputAmount * chargebackFee.rate + chfPrice.convert(chargebackFee.fixed);
 
-    let networkFeeAmount = price.convert(chargebackFee.network);
+    let networkFeeAmount = chfPrice.convert(chargebackFee.network);
 
     if (isAsset(inputCurrency) && inputCurrency.blockchain === Blockchain.SOLANA)
       networkFeeAmount += await this.getSolanaRentExemptionFee(inputCurrency);
 
     const bankFeeAmount =
       refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
-        ? price.convert(
+        ? chfPrice.convert(
             chargebackFee.bankRate * inputAmount + chargebackFee.bankFixed + refundEntity.chargebackBankFee * 1.01,
           )
         : 0; // Bank fee buffer 1%
@@ -465,6 +465,7 @@ export class TransactionHelper implements OnModuleInit {
       inputAmount: Util.roundReadable(inputAmount, amountType),
       inputAsset,
       refundAmount: refundAmount > refundEntity.refundAmount ? refundEntity.refundAmount : refundAmount,
+      refundPrice,
       fee: {
         dfx: feeDfx,
         network: feeNetwork,
