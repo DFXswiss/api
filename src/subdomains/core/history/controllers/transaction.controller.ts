@@ -525,13 +525,7 @@ export class TransactionController {
     const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
-    const refundDto = {
-      chargebackAmount: refundData.refundAmount,
-      chargebackAllowedDateUser: new Date(),
-      chargebackAmountInInputAsset: refundData.refundPrice
-        ? refundData.refundPrice.invert().convert(refundData.refundAmount)
-        : undefined,
-    };
+    const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!targetEntity) {
       if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
@@ -549,6 +543,7 @@ export class TransactionController {
         refundIban: dto.refundTarget ?? refundData.refundTarget,
         chargebackCurrency,
         creditorData: dto.creditorData,
+        chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
         ...refundDto,
       });
     }
@@ -577,6 +572,7 @@ export class TransactionController {
       refundIban: dto.refundTarget ?? refundData.refundTarget,
       chargebackCurrency,
       creditorData: dto.creditorData,
+      chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
       ...refundDto,
     });
   }

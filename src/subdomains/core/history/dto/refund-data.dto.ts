@@ -60,8 +60,7 @@ export class RefundDataDto {
   @ApiProperty({ oneOf: [{ $ref: getSchemaPath(AssetDto) }, { $ref: getSchemaPath(FiatDto) }] })
   refundAsset: ActiveDto;
 
-  @ApiPropertyOptional({ type: Price, description: 'Price refund asset in input asset' })
-  refundPrice?: Price;
+  refundPrice: Price;
 
   @ApiPropertyOptional({ description: 'IBAN for bank tx or blockchain address for crypto tx' })
   refundTarget?: string;
