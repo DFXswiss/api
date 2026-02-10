@@ -525,6 +525,7 @@ export class Configuration {
       name: 'TMER',
       files: [
         {
+          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'TMER',
           prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
           fileTypes: [ContentType.PDF],
           filter: (file: KycFileBlob) => file.name.includes('-TMER-'),
