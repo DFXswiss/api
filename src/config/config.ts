@@ -520,6 +520,19 @@ export class Configuration {
         },
       ],
     },
+    {
+      id: 16,
+      name: 'TMER',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('-TMER-'),
+          selectAll: true,
+          handleFileNotFound: () => true,
+        },
+      ],
+    },
   ];
 
   support = {
