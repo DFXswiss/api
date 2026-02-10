@@ -311,9 +311,15 @@ export class Configuration {
           fileTypes: [ContentType.PDF],
         },
         {
-          name: (file: KycFileBlob) => `IdentDoc_${file.name.split('/').pop()?.split('.')[0] ?? 'unknown'}`,
+          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'IdentDoc',
           prefixes: (userData: UserData) => [`user/${userData.id}/Identification`],
           fileTypes: [ContentType.PNG, ContentType.JPEG, ContentType.JPG],
+          filter: (file: KycFileBlob, userData: UserData) => {
+            const latestIdent = userData.kycSteps
+              .filter((s) => s.name === KycStepName.IDENT && s.isCompleted && s.transactionId)
+              .sort((a, b) => b.id - a.id)[0];
+            return latestIdent ? file.name.includes(latestIdent.transactionId) : false;
+          },
           selectAll: true,
           handleFileNotFound: () => true,
         },
@@ -511,6 +517,20 @@ export class Configuration {
           fileTypes: [ContentType.PDF],
           filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-AddressSignature'.toLowerCase()),
           sort: (a: KycFileBlob, b: KycFileBlob) => (a.name.split('-')[0] < b.name.split('-')[0] ? a : b),
+        },
+      ],
+    },
+    {
+      id: 16,
+      name: 'TMER',
+      files: [
+        {
+          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'TMER',
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('-TMER-'),
+          selectAll: true,
+          handleFileNotFound: () => true,
         },
       ],
     },
