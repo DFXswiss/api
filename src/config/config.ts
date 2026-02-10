@@ -315,6 +315,7 @@ export class Configuration {
           prefixes: (userData: UserData) => [`user/${userData.id}/Identification`],
           fileTypes: [ContentType.PNG, ContentType.JPEG, ContentType.JPG],
           selectAll: true,
+          handleFileNotFound: () => true,
         },
       ],
     },
