@@ -80,6 +80,9 @@ export class SepaParser {
 
       let data: Partial<BankTx> = {};
       try {
+        // AmtDtls can be at TxDtls level or Ntry level depending on the bank
+        const amtDtls = entry?.NtryDtls?.TxDtls?.AmtDtls ?? entry?.AmtDtls;
+
         data = {
           bookingDate: new Date(entry?.BookgDt?.Dt),
           valueDate: new Date(entry?.ValDt?.Dt),
@@ -90,13 +93,13 @@ export class SepaParser {
           amount: +entry?.NtryDtls?.TxDtls?.Amt?.['#text'],
           currency,
           creditDebitIndicator,
-          instructedAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['#text'],
-          instructedCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['@_Ccy']),
-          txAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt?.['#text'],
-          txCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt?.['@_Ccy']),
-          exchangeSourceCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.SrcCcy),
-          exchangeTargetCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.TrgtCcy),
-          exchangeRate: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.XchgRate,
+          instructedAmount: +amtDtls?.InstdAmt?.Amt?.['#text'],
+          instructedCurrency: this.toString(amtDtls?.InstdAmt?.Amt?.['@_Ccy']),
+          txAmount: +amtDtls?.TxAmt?.Amt?.['#text'],
+          txCurrency: this.toString(amtDtls?.TxAmt?.Amt?.['@_Ccy']),
+          exchangeSourceCurrency: this.toString(amtDtls?.TxAmt?.CcyXchg?.SrcCcy),
+          exchangeTargetCurrency: this.toString(amtDtls?.TxAmt?.CcyXchg?.TrgtCcy),
+          exchangeRate: +amtDtls?.TxAmt?.CcyXchg?.XchgRate,
           ...(await this.getTotalCharge(
             creditDebitIndicator === SepaCdi.CREDIT ? entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd : entry?.Chrgs?.Rcrd,
             currency,
