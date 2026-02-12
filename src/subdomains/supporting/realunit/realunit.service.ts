@@ -146,18 +146,13 @@ export class RealUnitService {
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
     const realuAsset = await this.getRealuAsset();
 
-    const [chfPrice, eurPriceDirect, usdPrice] = await Promise.all([
+    const [chfPrice, eurPrice, usdPrice] = await Promise.all([
       this.pricingService.getPrice(realuAsset, PriceCurrency.CHF, PriceValidity.ANY).catch(() => null),
-      this.blockchainService.getRealUnitPriceEur().catch(() => null),
+      this.pricingService.getPrice(realuAsset, PriceCurrency.EUR, PriceValidity.ANY).catch(() => null),
       this.pricingService.getPrice(realuAsset, PriceCurrency.USD, PriceValidity.ANY).catch(() => null),
     ]);
 
-    return {
-      timestamp: chfPrice?.timestamp ?? usdPrice?.timestamp ?? new Date(),
-      chf: chfPrice ? Util.round(chfPrice.convert(1), 8) : undefined,
-      eur: eurPriceDirect ?? undefined,
-      usd: usdPrice ? Util.round(usdPrice.convert(1), 8) : undefined,
-    };
+    return RealUnitDtoMapper.priceToHistoricalPriceDto(chfPrice, eurPrice, usdPrice);
   }
 
   private async getHistoricalPriceStartDate(timeFrame: TimeFrame): Promise<Date> {

@@ -187,6 +187,10 @@ export class PricingService implements OnModuleInit {
     try {
       if (activesEqual(from, to)) return Price.create(from.name, to.name, 1);
 
+      // Direct EUR price for REALU from Aktionariat API
+      const directPrice = await this.realunitService.getDirectEurPrice(from.name, to.name).catch(() => undefined);
+      if (directPrice) return directPrice;
+
       const shouldUpdate = validity !== PriceValidity.ANY;
 
       const [fromRules, toRules] = await Promise.all([
