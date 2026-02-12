@@ -45,6 +45,11 @@ export class RealUnitBlockchainService {
     return priceInCHF;
   }
 
+  async getRealUnitPriceEur(): Promise<number> {
+    const { priceInEUR } = await this.fetchPrice();
+    return priceInEUR;
+  }
+
   // --- Brokerbot Methods ---
 
   async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
