@@ -11,10 +11,7 @@ export class PricingRealUnitService extends PricingProvider implements OnModuleI
   private static readonly ZCHF = 'ZCHF';
   private static readonly EUR = 'EUR';
 
-  private static readonly ALLOWED_ASSETS = [
-    PricingRealUnitService.REALU,
-    PricingRealUnitService.ZCHF,
-  ];
+  private static readonly ALLOWED_ASSETS = [PricingRealUnitService.REALU, PricingRealUnitService.ZCHF];
 
   private realunitService: RealUnitBlockchainService;
 

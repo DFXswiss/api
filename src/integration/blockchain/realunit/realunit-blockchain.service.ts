@@ -20,6 +20,13 @@ interface AktionariatPriceResponse {
   availableShares: number;
 }
 
+interface PaymentInstructionsRequest {
+  currency: string;
+  address: string;
+  shares: number;
+  price: number;
+}
+
 @Injectable()
 export class RealUnitBlockchainService {
   private readonly priceCache = new AsyncCache<AktionariatPriceResponse>(CacheItemResetPeriod.EVERY_30_SECONDS);
@@ -48,6 +55,13 @@ export class RealUnitBlockchainService {
   async getRealUnitPriceEur(): Promise<number> {
     const { priceInEUR } = await this.fetchPrice();
     return priceInEUR;
+  }
+
+  async requestPaymentInstructions(request: PaymentInstructionsRequest): Promise<any> {
+    const { url, key } = GetConfig().blockchain.realunit.api;
+    return this.http.post(`${url}/realunit/directinvestment/requestPaymentInstructions`, request, {
+      headers: { 'x-api-key': key },
+    });
   }
 
   // --- Brokerbot Methods ---
