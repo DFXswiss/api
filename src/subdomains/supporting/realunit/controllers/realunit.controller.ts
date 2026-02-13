@@ -45,6 +45,7 @@ import { BalancePdfService } from '../../balance/services/balance-pdf.service';
 import { TxStatementType } from '../../payment/dto/transaction-helper/tx-statement-details.dto';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { TransactionHelper } from '../../payment/services/transaction-helper';
+import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
   RealUnitBalancePdfDto,
   RealUnitMultiReceiptPdfDto,
@@ -58,7 +59,6 @@ import {
   RealUnitRegistrationStatus,
 } from '../dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
-import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
@@ -411,6 +411,8 @@ export class RealUnitController {
   @Get('admin/quotes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Get RealUnit quotes' })
+  @ApiOkResponse({ type: [RealUnitQuoteDto], description: 'List of open RealUnit requests (quotes)' })
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getAdminQuotes(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitQuoteDto[]> {
     return this.realunitService.getAdminQuotes(limit, offset);
@@ -419,6 +421,8 @@ export class RealUnitController {
   @Get('admin/transactions')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Get RealUnit transactions' })
+  @ApiOkResponse({ type: [RealUnitTransactionDto], description: 'List of completed RealUnit transactions' })
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getAdminTransactions(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitTransactionDto[]> {
     return this.realunitService.getAdminTransactions(limit, offset);
