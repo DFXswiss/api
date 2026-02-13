@@ -107,7 +107,7 @@ export class SupportService {
     };
   }
 
-  getKycFileList(): Promise<KycFileListEntry[]> {
+  async getKycFileList(): Promise<KycFileListEntry[]> {
     return this.userDataService.getUserDatasWithKycFile().then((u) => u.map((d) => this.toKycFileListEntry(d)));
   }
 
