@@ -168,8 +168,6 @@ export class SupportIssueService {
   }
 
   async updateIssueInternal(entity: SupportIssue, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
-    Object.assign(entity, dto);
-
     await this.supportLogService.createSupportLog(entity.userData, {
       type: SupportLogType.SUPPORT,
       supportIssue: entity,
