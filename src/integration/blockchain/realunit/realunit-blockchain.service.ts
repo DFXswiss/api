@@ -31,6 +31,11 @@ interface PaymentInstructionsResponse {
   [key: string]: unknown;
 }
 
+interface PayAndAllocateRequest {
+  amount: number;
+  ref: string;
+}
+
 @Injectable()
 export class RealUnitBlockchainService {
   private readonly priceCache = new AsyncCache<AktionariatPriceResponse>(CacheItemResetPeriod.EVERY_30_SECONDS);
@@ -64,6 +69,13 @@ export class RealUnitBlockchainService {
   async requestPaymentInstructions(request: PaymentInstructionsRequest): Promise<PaymentInstructionsResponse> {
     const { url, key } = GetConfig().blockchain.realunit.api;
     return this.http.post(`${url}/directinvestment/requestPaymentInstructions`, request, {
+      headers: { 'x-api-key': key },
+    });
+  }
+
+  async payAndAllocate(request: PayAndAllocateRequest): Promise<void> {
+    const { url, key } = GetConfig().blockchain.realunit.api;
+    await this.http.post(`${url}/realunit/directinvestment/payAndAllocate`, request, {
       headers: { 'x-api-key': key },
     });
   }

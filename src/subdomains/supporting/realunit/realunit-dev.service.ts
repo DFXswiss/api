@@ -1,12 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Environment } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
@@ -18,7 +13,6 @@ import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import {
   TransactionRequest,
   TransactionRequestStatus,
-  TransactionRequestType,
 } from '../payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from '../payment/entities/transaction.entity';
 import { TransactionRequestRepository } from '../payment/repositories/transaction-request.repository';
@@ -28,16 +22,9 @@ import { TransactionService } from '../payment/services/transaction.service';
 @Injectable()
 export class RealUnitDevService {
   private readonly logger = new DfxLogger(RealUnitDevService);
-  private readonly tokenName = 'REALU';
-  private readonly tokenBlockchain = Blockchain.SEPOLIA;
-
-  private get isDevEnvironment(): boolean {
-    return [Environment.DEV, Environment.LOC].includes(Config.environment);
-  }
 
   constructor(
     private readonly transactionRequestRepo: TransactionRequestRepository,
-    private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly buyService: BuyService,
     private readonly bankTxService: BankTxService,
@@ -47,52 +34,7 @@ export class RealUnitDevService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(60)
-  async simulateRealuPayments(): Promise<void> {
-    if (!this.isDevEnvironment) return;
-
-    try {
-      await this.processWaitingRealuRequests();
-    } catch (e) {
-      this.logger.error('Error in REALU payment simulation:', e);
-    }
-  }
-
-  private async processWaitingRealuRequests(): Promise<void> {
-    const realuAsset = await this.assetService.getAssetByQuery({
-      name: this.tokenName,
-      blockchain: this.tokenBlockchain,
-      type: AssetType.TOKEN,
-    });
-
-    if (!realuAsset) {
-      this.logger.warn('REALU asset not found - skipping buy simulation');
-      return;
-    }
-
-    const waitingRequests = await this.transactionRequestRepo.find({
-      where: {
-        status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
-        type: TransactionRequestType.BUY,
-        targetId: realuAsset.id,
-      },
-    });
-
-    if (waitingRequests.length === 0) return;
-
-    this.logger.info(`Found ${waitingRequests.length} waiting REALU transaction requests to simulate`);
-
-    for (const request of waitingRequests) {
-      try {
-        await this.simulatePaymentForRequest(request, realuAsset);
-      } catch (e) {
-        this.logger.error(`Failed to simulate payment for TransactionRequest ${request.id}:`, e);
-      }
-    }
-  }
-
-  private async simulatePaymentForRequest(request: TransactionRequest, sepoliaRealuAsset: Asset): Promise<void> {
+  async simulatePaymentForRequest(request: TransactionRequest, sepoliaRealuAsset: Asset): Promise<void> {
     // Get Buy route with user relation
     const buy = await this.buyService.getBuyByKey('id', request.routeId);
     if (!buy) {
