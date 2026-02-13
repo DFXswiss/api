@@ -42,6 +42,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
@@ -286,6 +287,27 @@ export class RealUnitService {
     };
 
     return response;
+  }
+
+  async confirmBuy(userId: number, requestId: number): Promise<void> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
+      throw new ConflictException('Transaction request is already confirmed');
+    if (Util.daysDiff(request.created) >= Config.txRequestWaitingExpiryDays)
+      throw new BadRequestException('Transaction request is expired');
+
+    // Aktionariat API aufrufen
+    const fiat = await this.fiatService.getFiat(request.sourceId);
+    const aktionariatResponse = await this.blockchainService.requestPaymentInstructions({
+      currency: fiat.name,
+      address: request.user.address,
+      shares: Math.floor(request.estimatedAmount),
+      price: Math.round(request.exchangeRate * 100),
+    });
+
+    // Status + Response speichern
+    await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));
   }
 
   // --- Registration Methods ---

@@ -326,8 +326,11 @@ export class TransactionRequestService {
     }
   }
 
-  async confirmTransactionRequest(txRequest: TransactionRequest): Promise<void> {
-    await this.transactionRequestRepo.update(txRequest.id, { status: TransactionRequestStatus.WAITING_FOR_PAYMENT });
+  async confirmTransactionRequest(txRequest: TransactionRequest, aktionariatResponse?: string): Promise<void> {
+    await this.transactionRequestRepo.update(txRequest.id, {
+      status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
+      ...(aktionariatResponse && { aktionariatResponse }),
+    });
   }
 
   async getActiveDepositAddresses(created: Date, blockchain: Blockchain): Promise<string[]> {
