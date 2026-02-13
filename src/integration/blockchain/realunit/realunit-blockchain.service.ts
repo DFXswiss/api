@@ -27,6 +27,10 @@ interface PaymentInstructionsRequest {
   price: number;
 }
 
+interface PaymentInstructionsResponse {
+  [key: string]: unknown;
+}
+
 @Injectable()
 export class RealUnitBlockchainService {
   private readonly priceCache = new AsyncCache<AktionariatPriceResponse>(CacheItemResetPeriod.EVERY_30_SECONDS);
@@ -57,7 +61,7 @@ export class RealUnitBlockchainService {
     return priceInEUR;
   }
 
-  async requestPaymentInstructions(request: PaymentInstructionsRequest): Promise<any> {
+  async requestPaymentInstructions(request: PaymentInstructionsRequest): Promise<PaymentInstructionsResponse> {
     const { url, key } = GetConfig().blockchain.realunit.api;
     return this.http.post(`${url}/realunit/directinvestment/requestPaymentInstructions`, request, {
       headers: { 'x-api-key': key },

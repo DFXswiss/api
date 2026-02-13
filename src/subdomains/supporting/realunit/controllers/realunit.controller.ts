@@ -34,6 +34,7 @@ import {
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
@@ -282,6 +283,14 @@ export class RealUnitController {
   async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
     const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
     return this.realunitService.getPaymentInfo(user, dto);
+  }
+
+  @Put('buy/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
+  @ApiOkResponse()
+  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
+    await this.realunitService.confirmBuy(jwt.user, +id);
   }
 
   // --- Sell Payment Info Endpoints ---

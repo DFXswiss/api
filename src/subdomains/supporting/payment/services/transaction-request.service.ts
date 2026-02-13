@@ -1,7 +1,6 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -42,7 +41,6 @@ export class TransactionRequestService {
     private readonly siftService: SiftService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
-    private readonly realunitBlockchainService: RealUnitBlockchainService,
     @Inject(forwardRef(() => BuyService))
     private readonly buyService: BuyService,
     @Inject(forwardRef(() => SellService))
@@ -328,30 +326,10 @@ export class TransactionRequestService {
     }
   }
 
-  async confirmTransactionRequest(txRequest: TransactionRequest): Promise<void> {
-    if (txRequest.type === TransactionRequestType.BUY) {
-      const asset = await this.assetService.getAssetById(txRequest.targetId);
-      if (asset?.name === 'REALU') {
-        const aktionariatResponse = await this.submitRealUnitOrder(txRequest);
-        await this.transactionRequestRepo.update(txRequest.id, {
-          aktionariatResponse: JSON.stringify(aktionariatResponse),
-          status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
-        });
-        return;
-      }
-    }
-
-    await this.transactionRequestRepo.update(txRequest.id, { status: TransactionRequestStatus.WAITING_FOR_PAYMENT });
-  }
-
-  private async submitRealUnitOrder(txRequest: TransactionRequest): Promise<any> {
-    const fiat = await this.fiatService.getFiat(txRequest.sourceId);
-
-    return this.realunitBlockchainService.requestPaymentInstructions({
-      currency: fiat.name,
-      address: txRequest.user.address,
-      shares: Math.floor(txRequest.estimatedAmount),
-      price: Math.round(txRequest.exchangeRate * 100),
+  async confirmTransactionRequest(txRequest: TransactionRequest, aktionariatResponse?: string): Promise<void> {
+    await this.transactionRequestRepo.update(txRequest.id, {
+      status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
+      ...(aktionariatResponse && { aktionariatResponse }),
     });
   }
 
