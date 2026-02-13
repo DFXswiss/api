@@ -476,7 +476,12 @@ export class BuyCryptoPreparationService {
         const chargebackAllowedBy = 'API';
 
         if (entity.bankTx) {
-          await this.buyCryptoService.refundBankTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
+          if (
+            Util.includesSameName(entity.userData.verifiedName, entity.creditorData.name) ||
+            Util.includesSameName(entity.userData.completeName, entity.creditorData.name) ||
+            (!entity.userData.verifiedName && !entity.userData.completeName)
+          )
+            await this.buyCryptoService.refundBankTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
         } else if (entity.cryptoInput) {
           await this.buyCryptoService.refundCryptoInput(entity, { chargebackAllowedDate, chargebackAllowedBy });
         } else {
