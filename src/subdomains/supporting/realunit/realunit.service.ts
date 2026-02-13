@@ -27,6 +27,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
@@ -44,6 +45,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
@@ -113,6 +115,7 @@ export class RealUnitService {
     private readonly transactionService: TransactionService,
     private readonly accountMergeService: AccountMergeService,
     private readonly devService: RealUnitDevService,
+    private readonly swissQrService: SwissQRService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -286,12 +289,47 @@ export class RealUnitService {
       priceSteps: buyPaymentInfo.priceSteps,
       // RealUnit specific
       estimatedAmount: buyPaymentInfo.estimatedAmount,
-      paymentRequest: buyPaymentInfo.paymentRequest,
+      paymentRequest: buyPaymentInfo.isValid
+        ? this.generatePaymentRequest(currencyName, buyPaymentInfo.amount, buyPaymentInfo.remittanceInfo, realunitBank, realunitAddress, user.userData)
+        : undefined,
       isValid: buyPaymentInfo.isValid,
       error: buyPaymentInfo.error,
     };
 
     return response;
+  }
+
+  private generatePaymentRequest(
+    currency: string,
+    amount: number,
+    reference: string,
+    bank: { iban: string; bic: string; recipient: string; name: string },
+    address: { street: string; number: string; zip: string; city: string; country: string },
+    userData: UserData,
+  ): string {
+    const bankInfo = {
+      name: bank.recipient,
+      bank: bank.name,
+      street: address.street,
+      number: address.number,
+      zip: address.zip,
+      city: address.city,
+      country: address.country,
+      iban: bank.iban,
+      bic: bank.bic,
+      sepaInstant: false,
+    };
+
+    if (currency === 'CHF') {
+      return this.swissQrService.createQrCode(amount, 'CHF', reference, bankInfo, userData);
+    }
+
+    return PdfUtil.generateGiroCode({
+      ...bankInfo,
+      currency,
+      amount,
+      reference,
+    });
   }
 
   async confirmBuy(userId: number, requestId: number): Promise<void> {
@@ -813,8 +851,16 @@ export class RealUnitService {
       const reference = aktionariatResponse.reference;
       if (!reference) throw new BadRequestException('No reference found in aktionariat response');
 
+      // Convert amount to CHF Rappen for Aktionariat API
+      const fiat = await this.fiatService.getFiat(request.sourceId);
+      let amountChf = request.amount;
+      if (fiat.name !== 'CHF') {
+        const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
+        amountChf = price.convert(request.amount);
+      }
+
       await this.blockchainService.payAndAllocate({
-        amount: Math.round(request.amount * 100),
+        amount: Math.round(amountChf * 100),
         ref: reference,
       });
       await this.transactionRequestService.complete(request.id);
