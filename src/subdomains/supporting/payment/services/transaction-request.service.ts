@@ -352,6 +352,19 @@ export class TransactionRequestService {
       .then((transactionRequests) => transactionRequests.map((deposit) => deposit.address));
   }
 
+  async getByAssetId(assetId: number, limit = 50, offset = 0): Promise<TransactionRequest[]> {
+    return this.transactionRequestRepo.find({
+      where: [
+        { type: TransactionRequestType.BUY, targetId: assetId, isComplete: false },
+        { type: TransactionRequestType.SELL, sourceId: assetId, isComplete: false },
+      ],
+      order: { created: 'DESC' },
+      take: limit,
+      skip: offset,
+      relations: { user: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
 
   private currentStatus(entity: TransactionRequest, expiryDate: Date): TransactionRequestStatus {

@@ -44,6 +44,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -53,6 +54,7 @@ import {
   HoldersClientResponse,
   TokenInfoClientResponse,
 } from './dto/client.dto';
+import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
@@ -107,6 +109,7 @@ export class RealUnitService {
     private readonly sellService: SellService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly transactionService: TransactionService,
     private readonly accountMergeService: AccountMergeService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
@@ -789,6 +792,40 @@ export class RealUnitService {
     };
 
     return response;
+  }
+
+  // --- Admin Methods ---
+
+  async getAdminQuotes(limit = 50, offset = 0): Promise<RealUnitQuoteDto[]> {
+    const realuAsset = await this.getRealuAsset();
+    const requests = await this.transactionRequestService.getByAssetId(realuAsset.id, limit, offset);
+
+    return requests.map((r) => ({
+      id: r.id,
+      uid: r.uid,
+      type: r.type,
+      status: r.status,
+      amount: r.amount,
+      estimatedAmount: r.estimatedAmount,
+      created: r.created,
+      userAddress: r.user?.address,
+    }));
+  }
+
+  async getAdminTransactions(limit = 50, offset = 0): Promise<RealUnitTransactionDto[]> {
+    const realuAsset = await this.getRealuAsset();
+    const transactions = await this.transactionService.getByAssetId(realuAsset.id, limit, offset);
+
+    return transactions.map((t) => ({
+      id: t.id,
+      uid: t.uid,
+      type: t.type,
+      amountInChf: t.amountInChf,
+      assets: t.assets,
+      created: t.created,
+      outputDate: t.outputDate,
+      userAddress: t.user?.address,
+    }));
   }
 
   async confirmSell(userId: number, requestId: number, dto: RealUnitSellConfirmDto): Promise<{ txHash: string }> {
