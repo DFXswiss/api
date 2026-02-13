@@ -20,7 +20,7 @@ export const EvmBlockchains = [
 
 export const TestBlockchains =
   GetConfig().environment === Environment.PRD
-    ? [Blockchain.SEPOLIA, Blockchain.CITREA_TESTNET, Blockchain.HAQQ, Blockchain.ARWEAVE]
+    ? [Blockchain.SEPOLIA, Blockchain.CITREA_TESTNET, Blockchain.BITCOIN_TESTNET4, Blockchain.HAQQ, Blockchain.ARWEAVE]
     : [];
 
 export const PaymentLinkBlockchains = [
@@ -82,6 +82,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.TRON]: 'https://tronscan.org/#',
   [Blockchain.CITREA]: 'https://citreascan.com',
   [Blockchain.CITREA_TESTNET]: 'https://testnet.citreascan.com',
+  [Blockchain.BITCOIN_TESTNET4]: 'https://mempool.space/testnet4',
   [Blockchain.HAQQ]: 'https://explorer.haqq.network',
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
@@ -119,6 +120,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.TRON]: 'transaction',
   [Blockchain.CITREA]: 'tx',
   [Blockchain.CITREA_TESTNET]: 'tx',
+  [Blockchain.BITCOIN_TESTNET4]: 'tx',
   [Blockchain.HAQQ]: 'tx',
   [Blockchain.LIQUID]: 'tx',
   [Blockchain.ARWEAVE]: 'tx',
@@ -143,6 +145,7 @@ function assetPaths(asset: Asset): string | undefined {
       return `tokens/${asset.name}`;
 
     case Blockchain.BITCOIN:
+    case Blockchain.BITCOIN_TESTNET4:
     case Blockchain.LIGHTNING:
     case Blockchain.MONERO:
       return undefined;
@@ -178,6 +181,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
 
     case Blockchain.DEFICHAIN:
     case Blockchain.BITCOIN:
+    case Blockchain.BITCOIN_TESTNET4:
     case Blockchain.ETHEREUM:
     case Blockchain.BINANCE_SMART_CHAIN:
     case Blockchain.OPTIMISM:

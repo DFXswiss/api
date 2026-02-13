@@ -11,6 +11,8 @@ class RoleGuardClass implements CanActivate {
       UserRole.BETA,
       UserRole.ADMIN,
       UserRole.SUPER_ADMIN,
+      UserRole.SUPPORT,
+      UserRole.COMPLIANCE,
     ],
     [UserRole.USER]: [UserRole.VIP, UserRole.BETA, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CUSTODY],
     [UserRole.VIP]: [UserRole.ADMIN, UserRole.SUPER_ADMIN],

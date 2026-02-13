@@ -168,6 +168,11 @@ export abstract class EvmClient extends BlockchainClient {
     return this.provider.getBlockNumber();
   }
 
+  async getLatestBlockTimestamp(): Promise<number> {
+    const block = await this.provider.getBlock('latest');
+    return block.timestamp;
+  }
+
   async getTransactionCount(address: string): Promise<number> {
     return this.provider.getTransactionCount(address);
   }

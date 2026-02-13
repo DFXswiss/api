@@ -528,8 +528,10 @@ export class TransactionHelper implements OnModuleInit {
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
       const buy = transaction.buyCrypto.buy;
+      const isCardPayment = transaction.buyCrypto.paymentMethodIn === FiatPaymentMethod.CARD;
       const bankInfo =
         statementType === TxStatementType.INVOICE &&
+        !isCardPayment &&
         (await this.buyService.getBankInfo(
           {
             amount: transaction.buyCrypto.outputAmount,
@@ -540,7 +542,6 @@ export class TransactionHelper implements OnModuleInit {
           buy,
           buy?.asset,
           buy?.user?.wallet,
-          true,
         ));
 
       return {
@@ -616,7 +617,6 @@ export class TransactionHelper implements OnModuleInit {
       buy,
       buy?.asset,
       buy?.user?.wallet,
-      true,
     );
 
     return {

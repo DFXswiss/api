@@ -34,6 +34,7 @@ import {
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
@@ -45,6 +46,7 @@ import { BalancePdfService } from '../../balance/services/balance-pdf.service';
 import { TxStatementType } from '../../payment/dto/transaction-helper/tx-statement-details.dto';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { TransactionHelper } from '../../payment/services/transaction-helper';
+import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
   RealUnitBalancePdfDto,
   RealUnitMultiReceiptPdfDto,
@@ -284,6 +286,14 @@ export class RealUnitController {
     return this.realunitService.getPaymentInfo(user, dto);
   }
 
+  @Put('buy/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
+  @ApiOkResponse()
+  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
+    await this.realunitService.confirmBuy(jwt.user, +id);
+  }
+
   // --- Sell Payment Info Endpoints ---
 
   @Put('sell')
@@ -324,6 +334,19 @@ export class RealUnitController {
 
   // --- Registration Endpoints ---
 
+  @Get('register/status')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Check if wallet is registered for RealUnit',
+    description: 'Returns true if the connected wallet is registered for RealUnit, false otherwise',
+  })
+  @ApiOkResponse({ type: Boolean })
+  async isRegistered(@GetJwt() jwt: JwtPayload): Promise<boolean> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
+    return this.realunitService.hasRegistrationForWallet(user.userData, jwt.address);
+  }
+
   @Post('register/email')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
@@ -339,7 +362,7 @@ export class RealUnitController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitEmailRegistrationDto,
   ): Promise<RealUnitEmailRegistrationResponseDto> {
-    const status = await this.realunitService.registerEmail(jwt.account, dto);
+    const status = await this.realunitService.registerEmail(jwt.account, jwt.address, dto);
     return { status };
   }
 
@@ -393,6 +416,26 @@ export class RealUnitController {
   }
 
   // --- Admin Endpoints ---
+
+  @Get('admin/quotes')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Get RealUnit quotes' })
+  @ApiOkResponse({ type: [RealUnitQuoteDto], description: 'List of open RealUnit requests (quotes)' })
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getAdminQuotes(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitQuoteDto[]> {
+    return this.realunitService.getAdminQuotes(limit, offset);
+  }
+
+  @Get('admin/transactions')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Get RealUnit transactions' })
+  @ApiOkResponse({ type: [RealUnitTransactionDto], description: 'List of completed RealUnit transactions' })
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getAdminTransactions(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitTransactionDto[]> {
+    return this.realunitService.getAdminTransactions(limit, offset);
+  }
 
   @Put('admin/registration/:kycStepId/forward')
   @ApiBearerAuth()

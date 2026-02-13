@@ -45,7 +45,7 @@ export class LiquidityManagementOrder extends IEntity {
   @Column({ type: 'int', nullable: true })
   previousOrderId?: number;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   correlationId?: string;
 
   @Column({ length: 'MAX', nullable: true })

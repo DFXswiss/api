@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ArbitrumL2BridgeAdapter } from '../adapters/actions/arbitrum-l2-bridge.adapter';
 import { BaseL2BridgeAdapter } from '../adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from '../adapters/actions/binance.adapter';
+import { ClementineBridgeAdapter } from '../adapters/actions/clementine-bridge.adapter';
 import { DEuroAdapter } from '../adapters/actions/deuro.adapter';
 import { DfxDexAdapter } from '../adapters/actions/dfx-dex.adapter';
 import { FrankencoinAdapter } from '../adapters/actions/frankencoin.adapter';
@@ -29,6 +30,7 @@ export class LiquidityActionIntegrationFactory {
     readonly polygonL2BridgeAdapter: PolygonL2BridgeAdapter,
     readonly baseL2BridgeAdapter: BaseL2BridgeAdapter,
     readonly layerZeroBridgeAdapter: LayerZeroBridgeAdapter,
+    readonly clementineBridgeAdapter: ClementineBridgeAdapter,
     readonly krakenAdapter: KrakenAdapter,
     readonly binanceAdapter: BinanceAdapter,
     readonly mexcAdapter: MexcAdapter,
@@ -45,6 +47,7 @@ export class LiquidityActionIntegrationFactory {
     this.adapters.set(LiquidityManagementSystem.POLYGON_L2_BRIDGE, polygonL2BridgeAdapter);
     this.adapters.set(LiquidityManagementSystem.BASE_L2_BRIDGE, baseL2BridgeAdapter);
     this.adapters.set(LiquidityManagementSystem.LAYERZERO_BRIDGE, layerZeroBridgeAdapter);
+    this.adapters.set(LiquidityManagementSystem.CLEMENTINE_BRIDGE, clementineBridgeAdapter);
     this.adapters.set(LiquidityManagementSystem.KRAKEN, krakenAdapter);
     this.adapters.set(LiquidityManagementSystem.BINANCE, binanceAdapter);
     this.adapters.set(LiquidityManagementSystem.MEXC, mexcAdapter);

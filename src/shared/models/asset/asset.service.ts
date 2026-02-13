@@ -276,4 +276,12 @@ export class AssetService {
       type: AssetType.COIN,
     });
   }
+
+  async getBitcoinTestnet4Coin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'BTC',
+      blockchain: Blockchain.BITCOIN_TESTNET4,
+      type: AssetType.COIN,
+    });
+  }
 }

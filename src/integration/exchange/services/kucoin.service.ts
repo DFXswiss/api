@@ -35,6 +35,7 @@ export class KucoinService extends ExchangeService {
     Tron: undefined,
     Citrea: undefined,
     CitreaTestnet: undefined,
+    BitcoinTestnet4: undefined,
     Kraken: undefined,
     Binance: undefined,
     XT: undefined,

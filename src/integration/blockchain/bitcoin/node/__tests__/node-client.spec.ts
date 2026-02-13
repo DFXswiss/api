@@ -10,10 +10,14 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainTokenBalance } from '../../../shared/dto/blockchain-token-balance.dto';
 import { BitcoinRpcClient } from '../rpc/bitcoin-rpc-client';
-import { NodeClient } from '../node-client';
+import { NodeClient, NodeClientConfig } from '../node-client';
 
 // Concrete implementation for testing
 class TestNodeClient extends NodeClient {
+  constructor(http: HttpService, url: string) {
+    super(http, url, testConfig);
+  }
+
   // Required abstract implementations
   get walletAddress(): string {
     return 'bc1qtestwalletaddress';
@@ -63,9 +67,17 @@ class TestNodeClient extends NodeClient {
   }
 }
 
-// Mock Config
-jest.mock('src/config/config', () => ({
-  Config: {
+// Test config for NodeClient
+const testConfig: NodeClientConfig = {
+  user: 'testuser',
+  password: 'testpass',
+  walletPassword: 'walletpass123',
+  allowUnconfirmedUtxos: true,
+};
+
+// Mock Config and GetConfig
+jest.mock('src/config/config', () => {
+  const mockBlockchainConfig = {
     blockchain: {
       default: {
         user: 'testuser',
@@ -74,8 +86,12 @@ jest.mock('src/config/config', () => ({
         allowUnconfirmedUtxos: true,
       },
     },
-  },
-}));
+  };
+  return {
+    Config: mockBlockchainConfig,
+    GetConfig: () => mockBlockchainConfig,
+  };
+});
 
 describe('NodeClient', () => {
   let mockHttpService: jest.Mocked<HttpService>;

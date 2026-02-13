@@ -28,6 +28,7 @@ import { PayoutSolanaService } from './services/payout-solana.service';
 import { PayoutTronService } from './services/payout-tron.service';
 import { PayoutZanoService } from './services/payout-zano.service';
 import { PayoutSparkService } from './services/payout-spark.service';
+import { PayoutBitcoinTestnet4Service } from './services/payout-bitcoin-testnet4.service';
 import { PayoutService } from './services/payout.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPO } from './strategies/payout/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPO } from './strategies/payout/impl/arbitrum-token.strategy';
@@ -62,6 +63,7 @@ import { TronTokenStrategy as TronTokenStrategyPO } from './strategies/payout/im
 import { ZanoCoinStrategy as ZanoCoinStrategyPO } from './strategies/payout/impl/zano-coin.strategy';
 import { ZanoTokenStrategy as ZanoTokenStrategyPO } from './strategies/payout/impl/zano-token.strategy';
 import { SparkStrategy as SparkStrategyPO } from './strategies/payout/impl/spark.strategy';
+import { BitcoinTestnet4Strategy as BitcoinTestnet4StrategyPO } from './strategies/payout/impl/bitcoin-testnet4.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyPR } from './strategies/prepare/impl/arbitrum.strategy';
 import { BaseStrategy as BaseStrategyPR } from './strategies/prepare/impl/base.strategy';
 import { PrepareStrategyRegistry } from './strategies/prepare/impl/base/prepare.strategy-registry';
@@ -81,6 +83,7 @@ import { SolanaStrategy as SolanaStrategyPR } from './strategies/prepare/impl/so
 import { TronStrategy as TronStrategyPR } from './strategies/prepare/impl/tron.strategy';
 import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.strategy';
 import { SparkStrategy as SparkStrategyPR } from './strategies/prepare/impl/spark.strategy';
+import { BitcoinTestnet4Strategy as BitcoinTestnet4StrategyPR } from './strategies/prepare/impl/bitcoin-testnet4.strategy';
 
 @Module({
   imports: [
@@ -115,6 +118,7 @@ import { SparkStrategy as SparkStrategyPR } from './strategies/prepare/impl/spar
     PayoutCardanoService,
     PayoutCitreaService,
     PayoutCitreaTestnetService,
+    PayoutBitcoinTestnet4Service,
     PayoutStrategyRegistry,
     PrepareStrategyRegistry,
     BitcoinStrategyPR,
@@ -166,6 +170,8 @@ import { SparkStrategy as SparkStrategyPR } from './strategies/prepare/impl/spar
     CitreaTestnetStrategyPR,
     CitreaTestnetCoinStrategyPO,
     CitreaTestnetTokenStrategyPO,
+    BitcoinTestnet4StrategyPR,
+    BitcoinTestnet4StrategyPO,
     SparkStrategyPR,
   ],
   exports: [

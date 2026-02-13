@@ -5,6 +5,7 @@ export enum KycError {
   RESTARTED_STEP = 'RestartedStep',
   BLOCKED = 'Blocked',
   RELEASED = 'Released',
+  EXPIRED_STEP = 'ExpiredStep',
 
   // Ident errors
   USER_DATA_MERGED = 'UserDataMerged',
@@ -89,6 +90,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee not paid',
   [KycError.INCORRECT_INFO]: 'Incorrect response',
   [KycError.RESIDENCE_PERMIT_CHECK_REQUIRED]: undefined,
+  [KycError.EXPIRED_STEP]: 'Your documents are expired',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

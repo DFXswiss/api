@@ -173,7 +173,6 @@ export class BuyController {
       buy,
       buy.asset,
       user.wallet,
-      true,
     );
 
     if (!Config.invoice.currencies.includes(currency.name)) {

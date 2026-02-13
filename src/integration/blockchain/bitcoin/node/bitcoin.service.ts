@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { BlockchainInfo } from './node-client';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainService } from '../../shared/util/blockchain.service';
 import { BitcoinClient } from './bitcoin-client';
+import { BlockchainInfo } from './rpc';
 
 export enum BitcoinNodeType {
   BTC_INPUT = 'btc-inp',
