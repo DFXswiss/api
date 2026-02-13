@@ -437,6 +437,14 @@ export class RealUnitController {
     return this.realunitService.getAdminTransactions(limit, offset);
   }
 
+  @Put('admin/quotes/:id/confirm-payment')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async confirmPaymentReceived(@Param('id') id: string): Promise<void> {
+    await this.realunitService.confirmPaymentReceived(+id);
+  }
+
   @Put('admin/registration/:kycStepId/forward')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
