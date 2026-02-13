@@ -290,7 +290,14 @@ export class RealUnitService {
       // RealUnit specific
       estimatedAmount: buyPaymentInfo.estimatedAmount,
       paymentRequest: buyPaymentInfo.isValid
-        ? this.generatePaymentRequest(currencyName, buyPaymentInfo.amount, buyPaymentInfo.remittanceInfo, realunitBank, realunitAddress, user.userData)
+        ? this.generatePaymentRequest(
+            currencyName,
+            buyPaymentInfo.amount,
+            buyPaymentInfo.remittanceInfo,
+            realunitBank,
+            realunitAddress,
+            user.userData,
+          )
         : undefined,
       isValid: buyPaymentInfo.isValid,
       error: buyPaymentInfo.error,
