@@ -48,6 +48,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
+import { RealUnitDevService } from './realunit-dev.service';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
@@ -111,6 +112,7 @@ export class RealUnitService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
     private readonly accountMergeService: AccountMergeService,
+    private readonly devService: RealUnitDevService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -266,9 +268,9 @@ export class RealUnitService {
       zip: realunitAddress.zip,
       city: realunitAddress.city,
       country: realunitAddress.country,
-      // Bank info from BuyService
-      iban: buyPaymentInfo.iban,
-      bic: buyPaymentInfo.bic,
+      // Bank info from RealUnit config (not Yapeal/DFX)
+      iban: realunitBank.iban,
+      bic: realunitBank.bic,
       // Amount and currency
       amount: buyPaymentInfo.amount,
       currency: buyPaymentInfo.currency.name,
@@ -795,6 +797,29 @@ export class RealUnitService {
   }
 
   // --- Admin Methods ---
+
+  async confirmPaymentReceived(requestId: number): Promise<void> {
+    const request = await this.transactionRequestService.getTransactionRequest(requestId, { user: true });
+    if (!request) throw new NotFoundException('Transaction request not found');
+    if (request.status !== TransactionRequestStatus.WAITING_FOR_PAYMENT) {
+      throw new BadRequestException('Transaction request is not in WaitingForPayment status');
+    }
+
+    if ([Environment.DEV, Environment.LOC].includes(Config.environment)) {
+      const realuAsset = await this.getRealuAsset();
+      await this.devService.simulatePaymentForRequest(request, realuAsset);
+    } else {
+      const aktionariatResponse = JSON.parse(request.aktionariatResponse);
+      const reference = aktionariatResponse.reference;
+      if (!reference) throw new BadRequestException('No reference found in aktionariat response');
+
+      await this.blockchainService.payAndAllocate({
+        amount: Math.round(request.amount * 100),
+        ref: reference,
+      });
+      await this.transactionRequestService.complete(request.id);
+    }
+  }
 
   async getAdminQuotes(limit = 50, offset = 0): Promise<RealUnitQuoteDto[]> {
     const realuAsset = await this.getRealuAsset();
