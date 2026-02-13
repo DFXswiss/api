@@ -326,8 +326,11 @@ export class TransactionRequestService {
     }
   }
 
-  async confirmTransactionRequest(txRequest: TransactionRequest): Promise<void> {
-    await this.transactionRequestRepo.update(txRequest.id, { status: TransactionRequestStatus.WAITING_FOR_PAYMENT });
+  async confirmTransactionRequest(txRequest: TransactionRequest, aktionariatResponse?: string): Promise<void> {
+    await this.transactionRequestRepo.update(txRequest.id, {
+      status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
+      ...(aktionariatResponse && { aktionariatResponse }),
+    });
   }
 
   async getActiveDepositAddresses(created: Date, blockchain: Blockchain): Promise<string[]> {
@@ -347,6 +350,19 @@ export class TransactionRequestService {
       .andWhere('d.blockchains LIKE :blockchain', { blockchain: `%${blockchain}%` })
       .getRawMany<{ address: string }>()
       .then((transactionRequests) => transactionRequests.map((deposit) => deposit.address));
+  }
+
+  async getByAssetId(assetId: number, limit = 50, offset = 0): Promise<TransactionRequest[]> {
+    return this.transactionRequestRepo.find({
+      where: [
+        { type: TransactionRequestType.BUY, targetId: assetId, isComplete: false },
+        { type: TransactionRequestType.SELL, sourceId: assetId, isComplete: false },
+      ],
+      order: { created: 'DESC' },
+      take: limit,
+      skip: offset,
+      relations: { user: true },
+    });
   }
 
   // --- HELPER METHODS --- //

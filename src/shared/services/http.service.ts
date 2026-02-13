@@ -40,6 +40,7 @@ const MOCK_RESPONSES: { pattern: RegExp; response: any }[] = [
   },
   { pattern: /login\.microsoftonline\.com/, response: { access_token: 'mock-token', expires_in: 3600 } },
   { pattern: /api\.applicationinsights\.io/, response: { tables: [{ name: 'PrimaryResult', columns: [], rows: [] }] } },
+  { pattern: /aktionariat\.com/, response: { priceInCHF: 1.57, priceInEUR: 1.71, availableShares: 65488 } },
 ];
 
 @Injectable()

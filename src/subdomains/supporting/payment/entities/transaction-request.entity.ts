@@ -95,6 +95,9 @@ export class TransactionRequest extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   siftResponse?: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  aktionariatResponse?: string;
+
   @OneToOne(() => Transaction, (transaction) => transaction.request, { nullable: true })
   transaction?: Transaction;
 

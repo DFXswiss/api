@@ -256,6 +256,33 @@ export class TransactionService {
       .getRawMany();
   }
 
+  async getByAssetId(assetId: number, limit = 50, offset = 0): Promise<Transaction[]> {
+    return this.repo
+      .createQueryBuilder('transaction')
+      .select('transaction')
+      .leftJoinAndSelect('transaction.request', 'request')
+      .leftJoinAndSelect('transaction.user', 'user')
+      .leftJoinAndSelect('transaction.userData', 'userData')
+      .where('transaction.type IS NOT NULL')
+      .andWhere(
+        new Brackets((qb) =>
+          qb
+            .where('request.type = :buyType AND request.targetId = :assetId', {
+              buyType: 'Buy',
+              assetId,
+            })
+            .orWhere('request.type = :sellType AND request.sourceId = :assetId', {
+              sellType: 'Sell',
+              assetId,
+            }),
+        ),
+      )
+      .orderBy('transaction.created', 'DESC')
+      .take(limit)
+      .skip(offset)
+      .getMany();
+  }
+
   async getTransactionByKey(key: string, value: any): Promise<Transaction> {
     return this.repo
       .createQueryBuilder('transaction')

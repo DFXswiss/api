@@ -222,7 +222,10 @@ export class DexService {
   }
 
   async getPendingOrders(context: LiquidityOrderContext): Promise<string[]> {
-    const pending = await this.liquidityOrderRepo.find({ where: { context }, select: ['context', 'correlationId'] });
+    const pending = await this.liquidityOrderRepo.find({
+      where: { context },
+      select: { context: true, correlationId: true },
+    });
     return pending.map((o) => o.correlationId);
   }
 
