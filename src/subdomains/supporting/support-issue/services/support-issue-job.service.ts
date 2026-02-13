@@ -76,7 +76,11 @@ export class SupportIssueJobService {
   async moneroComplete(): Promise<void> {
     const issues = await this.getAutoResponseIssues({
       type: SupportIssueType.TRANSACTION_ISSUE,
-      reason: In([SupportIssueReason.FUNDS_NOT_RECEIVED, SupportIssueReason.TRANSACTION_MISSING]),
+      reason: In([
+        SupportIssueReason.FUNDS_NOT_RECEIVED,
+        SupportIssueReason.TRANSACTION_MISSING,
+        SupportIssueReason.OTHER,
+      ]),
       transaction: {
         buyCrypto: { id: Not(IsNull()), isComplete: true, amlCheck: CheckStatus.PASS, outputAsset: { name: 'XMR' } },
       },
@@ -92,11 +96,16 @@ export class SupportIssueJobService {
         where: {
           state: SupportIssueInternalState.CREATED,
           messages: { author: Not(AutoResponder) },
+          clerk: Not(AutoResponder),
           ...where,
         },
         relations: { messages: true },
       })
-      .then((issues) => issues.filter((i) => i.messages.at(-1).author === CustomerAuthor));
+      .then((issues) =>
+        issues.filter(
+          (i) => i.messages.at(-1).author === CustomerAuthor && i.messages.every((m) => m.author !== AutoResponder),
+        ),
+      );
   }
 
   private async sendAutoResponse(
