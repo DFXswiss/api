@@ -208,7 +208,7 @@ export class BuyCryptoBatchService {
 
       const existingBatch = await this.buyCryptoBatchRepo.findOneBy({
         outputAsset: { id: outputAsset.id },
-        status: Not(BuyCryptoBatchStatus.COMPLETE),
+        status: Not(In([BuyCryptoBatchStatus.PAYING_OUT, BuyCryptoBatchStatus.COMPLETE])),
       });
       const newBatch = filteredBatches.find((b) => b.outputAsset.id === outputAsset.id);
 
