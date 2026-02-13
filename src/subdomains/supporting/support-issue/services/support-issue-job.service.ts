@@ -91,14 +91,13 @@ export class SupportIssueJobService {
 
   // --- HELPER METHODS --- //
   private async getAutoResponseIssues(where: FindOptionsWhere<SupportIssue>): Promise<SupportIssue[]> {
+    const request: FindOptionsWhere<SupportIssue> = { state: SupportIssueInternalState.CREATED, ...where };
     return this.supportIssueRepo
       .find({
-        where: {
-          state: SupportIssueInternalState.CREATED,
-          messages: { author: Not(AutoResponder) },
-          clerk: Not(AutoResponder),
-          ...where,
-        },
+        where: [
+          { ...request, clerk: IsNull() },
+          { ...request, clerk: Not(AutoResponder) },
+        ],
         relations: { messages: true },
       })
       .then((issues) =>

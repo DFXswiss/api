@@ -176,7 +176,9 @@ export class SupportIssueService {
       ...dto,
     });
 
-    return this.supportIssueRepo.save(entity);
+    await this.supportIssueRepo.update(entity.id, { state: dto.state, clerk: dto.clerk, department: dto.department });
+
+    return Object.assign(entity, dto);
   }
 
   async createMessage(id: string, dto: CreateSupportMessageDto, userDataId?: number): Promise<SupportMessageDto> {
