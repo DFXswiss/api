@@ -42,7 +42,7 @@ export class RealUnitBlockchainService {
       'price',
       async () => {
         const { url, key } = GetConfig().blockchain.realunit.api;
-        return this.http.post<AktionariatPriceResponse>(`${url}/realunit/directinvestment/getPrice`, null, {
+        return this.http.post<AktionariatPriceResponse>(`${url}/directinvestment/getPrice`, null, {
           headers: { 'x-api-key': key },
         });
       },
@@ -63,7 +63,7 @@ export class RealUnitBlockchainService {
 
   async requestPaymentInstructions(request: PaymentInstructionsRequest): Promise<PaymentInstructionsResponse> {
     const { url, key } = GetConfig().blockchain.realunit.api;
-    return this.http.post(`${url}/realunit/directinvestment/requestPaymentInstructions`, request, {
+    return this.http.post(`${url}/directinvestment/requestPaymentInstructions`, request, {
       headers: { 'x-api-key': key },
     });
   }
