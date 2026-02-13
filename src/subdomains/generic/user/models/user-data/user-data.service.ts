@@ -223,9 +223,22 @@ export class UserDataService {
 
   async getUserDatasWithKycFile(): Promise<UserData[]> {
     return this.userDataRepo.find({
-      select: { id: true, kycFileId: true, amlAccountType: true, verifiedName: true, allBeneficialOwnersDomicile: true, amlListAddedDate: true, amlListExpiredDate: true, amlListReactivatedDate: true, highRisk: true,
-        pep: true, complexOrgStructure: true, totalVolumeChfAuditPeriod: true, totalCustodyBalanceChfAuditPeriod: true, country: {name: true}
-       },
+      select: {
+        id: true,
+        kycFileId: true,
+        amlAccountType: true,
+        verifiedName: true,
+        allBeneficialOwnersDomicile: true,
+        amlListAddedDate: true,
+        amlListExpiredDate: true,
+        amlListReactivatedDate: true,
+        highRisk: true,
+        pep: true,
+        complexOrgStructure: true,
+        totalVolumeChfAuditPeriod: true,
+        totalCustodyBalanceChfAuditPeriod: true,
+        country: { name: true },
+      },
       where: { kycFileId: MoreThan(0) },
       order: { kycFileId: 'ASC' },
     });
