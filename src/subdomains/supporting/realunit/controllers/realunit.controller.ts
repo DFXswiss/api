@@ -58,6 +58,7 @@ import {
   RealUnitRegistrationStatus,
 } from '../dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
+import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
@@ -406,6 +407,22 @@ export class RealUnitController {
   }
 
   // --- Admin Endpoints ---
+
+  @Get('admin/quotes')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getAdminQuotes(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitQuoteDto[]> {
+    return this.realunitService.getAdminQuotes(limit, offset);
+  }
+
+  @Get('admin/transactions')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getAdminTransactions(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitTransactionDto[]> {
+    return this.realunitService.getAdminTransactions(limit, offset);
+  }
 
   @Put('admin/registration/:kycStepId/forward')
   @ApiBearerAuth()
