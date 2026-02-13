@@ -218,25 +218,11 @@ export class RealUnitService {
       throw new RegistrationRequiredException();
     }
 
-    // 2. KYC Level check - Level 30 for amounts <= 1000 CHF, Level 50 for higher amounts
+    // 2. KYC Level check - Level 30 required for all RealUnit purchases
     const currency = await this.fiatService.getFiatByName(currencyName);
-    const amountChf =
-      currencyName === 'CHF'
-        ? dto.amount
-        : (await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY)).convert(dto.amount);
 
-    const maxAmountForLevel30 = Config.tradingLimits.monthlyDefaultWoKyc;
-    const requiresLevel50 = amountChf > maxAmountForLevel30;
-    const requiredLevel = requiresLevel50 ? KycLevel.LEVEL_50 : KycLevel.LEVEL_30;
-
-    if (userData.kycLevel < requiredLevel) {
-      throw new KycLevelRequiredException(
-        requiredLevel,
-        userData.kycLevel,
-        requiresLevel50
-          ? `KYC Level 50 required for amounts above ${maxAmountForLevel30} CHF`
-          : 'KYC Level 30 required for RealUnit',
-      );
+    if (userData.kycLevel < KycLevel.LEVEL_30) {
+      throw new KycLevelRequiredException(KycLevel.LEVEL_30, userData.kycLevel, 'KYC Level 30 required for RealUnit');
     }
 
     // 3. Get or create Buy route for REALU

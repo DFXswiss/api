@@ -277,10 +277,10 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get payment info for RealUnit buy',
     description:
-      'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 50 and RealUnit registration.',
+      'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 30 and RealUnit registration.',
   })
   @ApiOkResponse({ type: RealUnitPaymentInfoDto })
-  @ApiBadRequestResponse({ description: 'KYC Level 50 required, registration missing, or address not on allowlist' })
+  @ApiBadRequestResponse({ description: 'KYC Level 30 required, registration missing, or address not on allowlist' })
   async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
     const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
     return this.realunitService.getPaymentInfo(user, dto);
