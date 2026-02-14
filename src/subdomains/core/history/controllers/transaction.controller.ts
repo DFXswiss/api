@@ -543,6 +543,7 @@ export class TransactionController {
         refundIban: dto.refundTarget ?? refundData.refundTarget,
         chargebackCurrency,
         creditorData: dto.creditorData,
+        chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
         ...refundDto,
       });
     }
@@ -571,6 +572,7 @@ export class TransactionController {
       refundIban: dto.refundTarget ?? refundData.refundTarget,
       chargebackCurrency,
       creditorData: dto.creditorData,
+      chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
       ...refundDto,
     });
   }
