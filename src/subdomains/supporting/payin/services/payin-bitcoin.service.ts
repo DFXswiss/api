@@ -1,18 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { InWalletTransaction } from 'src/integration/blockchain/bitcoin/node/node-client';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { BitcoinTransaction, BitcoinUTXO } from 'src/integration/blockchain/bitcoin/node/dto/bitcoin-transaction.dto';
+import { InWalletTransaction } from 'src/integration/blockchain/bitcoin/node/node-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
+import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { CryptoInput, PayInStatus } from '../entities/crypto-input.entity';
-import { PayInBitcoinBasedService } from './base/payin-bitcoin-based.service';
-
-export interface UnconfirmedPayInFilterResult {
-  nextBlockCandidates: CryptoInput[];
-  failedPayIns: CryptoInput[];
-}
+import { PayInBitcoinBasedService, UnconfirmedPayInFilterResult } from './base/payin-bitcoin-based.service';
 
 @Injectable()
 export class PayInBitcoinService extends PayInBitcoinBasedService {
@@ -24,7 +19,7 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
   private readonly nodeCallQueue = QueueHandler.createParallelQueueHandler(5);
 
   constructor(
-    readonly bitcoinService: BitcoinService,
+    bitcoinService: BitcoinService,
     private readonly feeService: BitcoinFeeService,
   ) {
     super();

@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
-import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
+import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
@@ -43,8 +44,9 @@ export class PaymentQuoteService {
     Blockchain.GNOSIS,
     Blockchain.ETHEREUM,
     Blockchain.BINANCE_SMART_CHAIN,
-    Blockchain.MONERO,
     Blockchain.BITCOIN,
+    Blockchain.FIRO,
+    Blockchain.MONERO,
     Blockchain.ZANO,
     Blockchain.SOLANA,
     Blockchain.TRON,
@@ -387,7 +389,8 @@ export class PaymentQuoteService {
           break;
 
         case Blockchain.BITCOIN:
-          await this.doBitcoinHexPayment(transferInfo.method, transferInfo, quote);
+        case Blockchain.FIRO:
+          await this.doBitcoinBasedHexPayment(transferInfo.method, transferInfo, quote);
           break;
 
         default:
@@ -497,19 +500,22 @@ export class PaymentQuoteService {
     return result.isValid ? undefined : result.error;
   }
 
-  private async doBitcoinHexPayment(
+  private async doBitcoinBasedHexPayment(
     method: Blockchain,
     transferInfo: TransferInfo,
     quote: PaymentQuote,
   ): Promise<void> {
     try {
-      const transferAmount = quote.getTransferAmount(Blockchain.BITCOIN);
+      const transferAmount = quote.getTransferAmount(method);
       if (!transferAmount) {
-        quote.txFailed(`Quote ${quote.uniqueId}: No transfer amount for Bitcoin hex payment`);
+        quote.txFailed(`Quote ${quote.uniqueId}: No transfer amount for ${method} hex payment`);
         return;
       }
 
-      const client = this.blockchainRegistryService.getBitcoinClient(method, BitcoinNodeType.BTC_OUTPUT);
+      const client: BitcoinBasedClient =
+        method === Blockchain.BITCOIN
+          ? this.blockchainRegistryService.getBitcoinClient(method, BitcoinNodeType.BTC_OUTPUT)
+          : (this.blockchainRegistryService.getClient(method) as BitcoinBasedClient);
 
       const testMempoolResults = await client.testMempoolAccept(transferInfo.hex);
 

@@ -22,9 +22,10 @@ import {
   LnurlpLinkUpdateDto,
 } from './dto/lnurlp.dto';
 import { LnurlWithdrawRequestDto, LnurlwInvoiceDto, LnurlwLinkDto, LnurlwLinkRemoveDto } from './dto/lnurlw.dto';
+import { CoinOnly } from 'src/integration/blockchain/shared/util/blockchain-client';
 import { LightningHelper } from './lightning-helper';
 
-export class LightningClient {
+export class LightningClient implements CoinOnly {
   constructor(private readonly http: HttpService) {}
 
   // --- LND --- //
@@ -67,6 +68,10 @@ export class LightningClient {
       `${Config.blockchain.lightning.lnd.apiUrl}/balance/channels`,
       this.httpLndConfig(),
     );
+  }
+
+  async getNativeCoinBalance(): Promise<number> {
+    return this.getBalance();
   }
 
   async getBalance(): Promise<number> {

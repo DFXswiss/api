@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { CardanoClient } from 'src/integration/blockchain/cardano/cardano-client';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -9,8 +8,6 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
 import { TronClient } from 'src/integration/blockchain/tron/tron-client';
 import { ZanoClient } from 'src/integration/blockchain/zano/zano-client';
-import { LightningClient } from 'src/integration/lightning/lightning-client';
-import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { isAsset } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -32,18 +29,10 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private readonly updateCalls = new Map<Blockchain, Promise<void>>();
   private readonly updateTimestamps = new Map<Blockchain, Date>();
 
-  private readonly bitcoinClient: BitcoinClient;
-  private readonly lightningClient: LightningClient;
-
   constructor(
     private readonly dexService: DexService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
-    bitcoinService: BitcoinService,
-    lightningService: LightningService,
-  ) {
-    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
-    this.lightningClient = lightningService.getDefaultClient();
-  }
+  ) {}
 
   async getBalances(assets: (Asset & { context: LiquidityManagementContext })[]): Promise<LiquidityBalance[]> {
     if (!assets.every(isAsset)) {
@@ -93,10 +82,11 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     try {
       switch (blockchain) {
         case Blockchain.BITCOIN:
-        case Blockchain.LIGHTNING:
-          await this.updateBitcoinBalance(assets);
+          await this.updateCoinOnlyBalance(assets, BitcoinNodeType.BTC_OUTPUT);
           break;
 
+        case Blockchain.LIGHTNING:
+        case Blockchain.FIRO:
         case Blockchain.MONERO:
           await this.updateCoinOnlyBalance(assets);
           break;
@@ -144,28 +134,12 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   // --- BLOCKCHAIN INTEGRATIONS --- //
 
-  private async updateBitcoinBalance(assets: Asset[]): Promise<void> {
+  private async updateCoinOnlyBalance(assets: Asset[], bitcoinNodeType?: BitcoinNodeType.BTC_OUTPUT): Promise<void> {
     for (const asset of assets) {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
 
-        const client = asset.blockchain === Blockchain.BITCOIN ? this.bitcoinClient : this.lightningClient;
-
-        const balance = await client.getBalance();
-        this.balanceCache.set(asset.id, +balance);
-      } catch (e) {
-        this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
-        this.invalidateCacheFor([asset]);
-      }
-    }
-  }
-
-  private async updateCoinOnlyBalance(assets: Asset[]): Promise<void> {
-    for (const asset of assets) {
-      try {
-        if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
-
-        const client = this.blockchainRegistryService.getClient(asset.blockchain);
+        const client = this.blockchainRegistryService.getCoinOnlyClient(asset.blockchain, bitcoinNodeType);
         const balance = await client.getNativeCoinBalance();
         this.balanceCache.set(asset.id, balance);
       } catch (e) {
