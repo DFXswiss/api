@@ -8,6 +8,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
+import { PayoutFiroService } from 'src/subdomains/supporting/payout/services/payout-firo.service';
 import { BlockchainRegistryService } from '../../../../integration/blockchain/shared/services/blockchain-registry.service';
 
 interface FeeCacheData {
@@ -26,6 +27,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
   constructor(
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
+    private readonly payoutFiroService: PayoutFiroService,
   ) {
     this.feeCache = new Map();
   }
@@ -37,11 +39,9 @@ export class PaymentLinkFeeService implements OnModuleInit {
   // --- JOBS --- //
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.UPDATE_BLOCKCHAIN_FEE })
   async updateFees(): Promise<void> {
-    if (GetConfig().environment === Environment.LOC) return;
-
     for (const blockchain of PaymentLinkBlockchains) {
       try {
-        const fee = await this.calculateFee(blockchain);
+        const fee = GetConfig().environment === Environment.LOC ? 0 : await this.calculateFee(blockchain);
         this.feeCache.set(blockchain, {
           timestamp: new Date(),
           fee,
@@ -78,6 +78,9 @@ export class PaymentLinkFeeService implements OnModuleInit {
 
       case Blockchain.BITCOIN:
         return this.payoutBitcoinService.getCurrentFeeRate();
+      
+      case Blockchain.FIRO:
+        return this.payoutFiroService.getCurrentFeeRate();
     }
   }
 
