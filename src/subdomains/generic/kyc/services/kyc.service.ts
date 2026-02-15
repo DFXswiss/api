@@ -269,14 +269,14 @@ export class KycService {
           entity.manualReview(comment);
         }
 
-        await this.createStepLog(entity.userData, entity);
-        await this.kycStepRepo.save(entity);
-
         if (
           !entity.userData.kycFiles.some((f) => f.subType === FileSubType.IDENT_REPORT) &&
           (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW)
         )
           await this.syncIdentFilesInternal(entity);
+
+        await this.createStepLog(entity.userData, entity);
+        await this.kycStepRepo.save(entity);
 
         if (entity.isCompleted) {
           await this.completeIdent(entity, nationality);
