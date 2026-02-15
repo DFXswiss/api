@@ -78,7 +78,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
 
       case Blockchain.BITCOIN:
         return this.payoutBitcoinService.getCurrentFeeRate();
-      
+
       case Blockchain.FIRO:
         return this.payoutFiroService.getCurrentFeeRate();
     }

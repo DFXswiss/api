@@ -634,7 +634,11 @@ export class Configuration {
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
     minConfirmations: (blockchain: Blockchain) =>
-      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.FIRO, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
+      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.FIRO, Blockchain.MONERO, Blockchain.ZANO].includes(
+        blockchain,
+      )
+        ? 6
+        : 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
     cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF

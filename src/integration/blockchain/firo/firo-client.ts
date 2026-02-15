@@ -93,10 +93,7 @@ export class FiroClient extends BitcoinBasedClient {
     const feePerKb = (feeRate * 1000) / Math.pow(10, 8);
     await this.callNode(() => this.rpc.call<boolean>('settxfee', [feePerKb]), true);
 
-    const txid = await this.callNode(
-      () => this.rpc.call<string>('sendmany', ['', { [addressTo]: sendAmount }]),
-      true,
-    );
+    const txid = await this.callNode(() => this.rpc.call<string>('sendmany', ['', { [addressTo]: sendAmount }]), true);
 
     return { outTxId: txid ?? '', feeAmount };
   }
@@ -145,9 +142,7 @@ export class FiroClient extends BitcoinBasedClient {
   // Firo has no SegWit, so size == vsize.
   async testMempoolAccept(hex: string): Promise<TestMempoolResult[]> {
     try {
-      const decoded = await this.callNode(() =>
-        this.rpc.call<FiroRawTransaction>('decoderawtransaction', [hex]),
-      );
+      const decoded = await this.callNode(() => this.rpc.call<FiroRawTransaction>('decoderawtransaction', [hex]));
 
       const outputTotal = decoded.vout.reduce((sum, out) => sum + out.value, 0);
 
@@ -157,7 +152,9 @@ export class FiroClient extends BitcoinBasedClient {
         if (vin.value === undefined) {
           const prevTx = await this.getRawTx(vin.txid);
           if (!prevTx) {
-            return [{ txid: decoded.txid, allowed: false, vsize: 0, fees: { base: 0 }, 'reject-reason': 'missing-inputs' }];
+            return [
+              { txid: decoded.txid, allowed: false, vsize: 0, fees: { base: 0 }, 'reject-reason': 'missing-inputs' },
+            ];
           }
           inputTotal += prevTx.vout[vin.vout].value;
         } else {
@@ -167,13 +164,15 @@ export class FiroClient extends BitcoinBasedClient {
 
       const fee = this.roundAmount(inputTotal - outputTotal);
 
-      return [{
-        txid: decoded.txid,
-        allowed: fee > 0,
-        vsize: decoded.size,
-        fees: { base: fee },
-        'reject-reason': fee <= 0 ? 'insufficient-fee' : '',
-      }];
+      return [
+        {
+          txid: decoded.txid,
+          allowed: fee > 0,
+          vsize: decoded.size,
+          fees: { base: fee },
+          'reject-reason': fee <= 0 ? 'insufficient-fee' : '',
+        },
+      ];
     } catch (e) {
       return [{ txid: '', allowed: false, vsize: 0, fees: { base: 0 }, 'reject-reason': e.message ?? 'decode-failed' }];
     }

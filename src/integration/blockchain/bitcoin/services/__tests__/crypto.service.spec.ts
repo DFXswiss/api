@@ -124,9 +124,7 @@ describe('CryptoService', () => {
   });
 
   it('should return Blockchain.FIRO for address a8MuyHBKL3nYZKAa82x13FxqtExP2sQCqu', () => {
-    expect(
-      CryptoService.getBlockchainsBasedOn('a8MuyHBKL3nYZKAa82x13FxqtExP2sQCqu'),
-    ).toEqual([Blockchain.FIRO]);
+    expect(CryptoService.getBlockchainsBasedOn('a8MuyHBKL3nYZKAa82x13FxqtExP2sQCqu')).toEqual([Blockchain.FIRO]);
   });
 
   it('should return Blockchain.ETHEREUM and Blockchain.BINANCE_SMART_CHAIN for address 0x2d84553B3A4753009A314106d58F0CC21f441234', () => {

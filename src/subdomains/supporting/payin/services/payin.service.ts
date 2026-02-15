@@ -316,8 +316,16 @@ export class PayInService {
 
   private async getUnconfirmedNextBlockPayIns(): Promise<CryptoInput[]> {
     const chains = [
-      { blockchain: Blockchain.BITCOIN, enabled: Config.blockchain.default.allowUnconfirmedUtxos, service: this.payInBitcoinService },
-      { blockchain: Blockchain.FIRO, enabled: Config.blockchain.firo.allowUnconfirmedUtxos, service: this.payInFiroService },
+      {
+        blockchain: Blockchain.BITCOIN,
+        enabled: Config.blockchain.default.allowUnconfirmedUtxos,
+        service: this.payInBitcoinService,
+      },
+      {
+        blockchain: Blockchain.FIRO,
+        enabled: Config.blockchain.firo.allowUnconfirmedUtxos,
+        service: this.payInFiroService,
+      },
     ].filter((c) => c.enabled && c.service.isAvailable());
 
     if (chains.length === 0) return [];
@@ -343,8 +351,7 @@ export class PayInService {
       if (chainCandidates.length === 0) continue;
 
       try {
-        const { nextBlockCandidates, failedPayIns } =
-          await service.filterUnconfirmedPayInsForForward(chainCandidates);
+        const { nextBlockCandidates, failedPayIns } = await service.filterUnconfirmedPayInsForForward(chainCandidates);
         allNextBlockCandidates.push(...nextBlockCandidates);
         allFailedPayIns.push(...failedPayIns);
       } catch (e) {

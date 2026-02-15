@@ -49,9 +49,7 @@ export class PayInFiroService extends PayInBitcoinBasedService {
           const transaction = await this.client.getRawTx(utxo.txid);
           if (!transaction) return;
 
-          const senderAddresses = transaction.vin
-            .filter((vin) => vin.address)
-            .map((vin) => vin.address);
+          const senderAddresses = transaction.vin.filter((vin) => vin.address).map((vin) => vin.address);
           utxo.prevoutAddresses = [...new Set(senderAddresses)];
           utxo.isUnconfirmed = utxo.confirmations === 0;
         }),
