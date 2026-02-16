@@ -437,6 +437,17 @@ export class RealUnitController {
     return this.realunitService.getAdminTransactions(limit, offset);
   }
 
+  @Put('admin/quotes/:id/confirm-payment')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Confirm payment received for a open RealUnit request (quote)' })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ description: 'Payment confirmed and shares allocated' })
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async confirmPaymentReceived(@Param('id') id: string): Promise<void> {
+    await this.realunitService.confirmPaymentReceived(+id);
+  }
+
   @Put('admin/registration/:kycStepId/forward')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
