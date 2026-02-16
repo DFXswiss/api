@@ -27,8 +27,8 @@ import { PricingConstantService } from './integration/pricing-constant.service';
 import { PricingDeuroService } from './integration/pricing-deuro.service';
 import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingEbel2xService } from './integration/pricing-ebel2x.service';
-import { PricingJuiceService } from './integration/pricing-juice.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
+import { PricingJuiceService } from './integration/pricing-juice.service';
 import { PricingRealUnitService } from './integration/pricing-realunit.service';
 
 export enum PriceCurrency {
@@ -187,8 +187,7 @@ export class PricingService implements OnModuleInit {
     try {
       if (activesEqual(from, to)) return Price.create(from.name, to.name, 1);
 
-      // Direct EUR price for REALU from Aktionariat API
-      const directPrice = await this.realunitService.getDirectEurPrice(from.name, to.name).catch(() => undefined);
+      const directPrice = await this.getDirectPrice(from, to);
       if (directPrice) return directPrice;
 
       const shouldUpdate = validity !== PriceValidity.ANY;
@@ -316,6 +315,15 @@ export class PricingService implements OnModuleInit {
     }
 
     return true;
+  }
+
+  private getDirectPrice(from: Active, to: Active): Promise<Price> {
+    try {
+      if ([from.name, to.name].every((n) => ['EUR', 'REALU'].includes(n)))
+        return this.realunitService.getPrice(from.name, to.name);
+    } catch {
+      return undefined;
+    }
   }
 
   // --- HELPER METHODS --- //
