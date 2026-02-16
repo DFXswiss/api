@@ -27,6 +27,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
@@ -42,16 +43,21 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
+import { RealUnitDevService } from './realunit-dev.service';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
   HoldersClientResponse,
   TokenInfoClientResponse,
 } from './dto/client.dto';
+import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
@@ -106,7 +112,10 @@ export class RealUnitService {
     private readonly sellService: SellService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly transactionService: TransactionService,
     private readonly accountMergeService: AccountMergeService,
+    private readonly devService: RealUnitDevService,
+    private readonly swissQrService: SwissQRService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -214,25 +223,11 @@ export class RealUnitService {
       throw new RegistrationRequiredException();
     }
 
-    // 2. KYC Level check - Level 30 for amounts <= 1000 CHF, Level 50 for higher amounts
+    // 2. KYC Level check - Level 30 required for all RealUnit purchases
     const currency = await this.fiatService.getFiatByName(currencyName);
-    const amountChf =
-      currencyName === 'CHF'
-        ? dto.amount
-        : (await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY)).convert(dto.amount);
 
-    const maxAmountForLevel30 = Config.tradingLimits.monthlyDefaultWoKyc;
-    const requiresLevel50 = amountChf > maxAmountForLevel30;
-    const requiredLevel = requiresLevel50 ? KycLevel.LEVEL_50 : KycLevel.LEVEL_30;
-
-    if (userData.kycLevel < requiredLevel) {
-      throw new KycLevelRequiredException(
-        requiredLevel,
-        userData.kycLevel,
-        requiresLevel50
-          ? `KYC Level 50 required for amounts above ${maxAmountForLevel30} CHF`
-          : 'KYC Level 30 required for RealUnit',
-      );
+    if (userData.kycLevel < KycLevel.LEVEL_30) {
+      throw new KycLevelRequiredException(KycLevel.LEVEL_30, userData.kycLevel, 'KYC Level 30 required for RealUnit');
     }
 
     // 3. Get or create Buy route for REALU
@@ -262,9 +257,9 @@ export class RealUnitService {
       zip: realunitAddress.zip,
       city: realunitAddress.city,
       country: realunitAddress.country,
-      // Bank info from BuyService
-      iban: buyPaymentInfo.iban,
-      bic: buyPaymentInfo.bic,
+      // Bank info from RealUnit config (not Yapeal/DFX)
+      iban: realunitBank.iban,
+      bic: realunitBank.bic,
       // Amount and currency
       amount: buyPaymentInfo.amount,
       currency: buyPaymentInfo.currency.name,
@@ -280,12 +275,75 @@ export class RealUnitService {
       priceSteps: buyPaymentInfo.priceSteps,
       // RealUnit specific
       estimatedAmount: buyPaymentInfo.estimatedAmount,
-      paymentRequest: buyPaymentInfo.paymentRequest,
+      paymentRequest: buyPaymentInfo.isValid
+        ? this.generatePaymentRequest(
+            currencyName,
+            buyPaymentInfo.amount,
+            buyPaymentInfo.remittanceInfo,
+            realunitBank,
+            realunitAddress,
+            user.userData,
+          )
+        : undefined,
       isValid: buyPaymentInfo.isValid,
       error: buyPaymentInfo.error,
     };
 
     return response;
+  }
+
+  private generatePaymentRequest(
+    currency: string,
+    amount: number,
+    reference: string,
+    bank: { iban: string; bic: string; recipient: string; name: string },
+    address: { street: string; number: string; zip: string; city: string; country: string },
+    userData: UserData,
+  ): string {
+    const bankInfo = {
+      name: bank.recipient,
+      bank: bank.name,
+      street: address.street,
+      number: address.number,
+      zip: address.zip,
+      city: address.city,
+      country: address.country,
+      iban: bank.iban,
+      bic: bank.bic,
+      sepaInstant: false,
+    };
+
+    if (currency === 'CHF') {
+      return this.swissQrService.createQrCode(amount, 'CHF', reference, bankInfo, userData);
+    }
+
+    return PdfUtil.generateGiroCode({
+      ...bankInfo,
+      currency,
+      amount,
+      reference,
+    });
+  }
+
+  async confirmBuy(userId: number, requestId: number): Promise<void> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
+      throw new ConflictException('Transaction request is already confirmed');
+    if (Util.daysDiff(request.created) >= Config.txRequestWaitingExpiryDays)
+      throw new BadRequestException('Transaction request is expired');
+
+    // Aktionariat API aufrufen
+    const fiat = await this.fiatService.getFiat(request.sourceId);
+    const aktionariatResponse = await this.blockchainService.requestPaymentInstructions({
+      currency: fiat.name,
+      address: request.user.address,
+      shares: Math.floor(request.estimatedAmount),
+      price: Math.round(request.exchangeRate * 100),
+    });
+
+    // Status + Response speichern
+    await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));
   }
 
   // --- Registration Methods ---
@@ -767,6 +825,71 @@ export class RealUnitService {
     };
 
     return response;
+  }
+
+  // --- Admin Methods ---
+
+  async confirmPaymentReceived(requestId: number): Promise<void> {
+    const request = await this.transactionRequestService.getTransactionRequest(requestId, { user: true });
+    if (!request) throw new NotFoundException('Transaction request not found');
+    if (request.status !== TransactionRequestStatus.WAITING_FOR_PAYMENT) {
+      throw new BadRequestException('Transaction request is not in WaitingForPayment status');
+    }
+
+    if ([Environment.DEV, Environment.LOC].includes(Config.environment)) {
+      const realuAsset = await this.getRealuAsset();
+      await this.devService.simulatePaymentForRequest(request, realuAsset);
+    } else {
+      const aktionariatResponse = JSON.parse(request.aktionariatResponse);
+      const reference = aktionariatResponse.reference;
+      if (!reference) throw new BadRequestException('No reference found in aktionariat response');
+
+      // Convert amount to CHF Rappen for Aktionariat API
+      const fiat = await this.fiatService.getFiat(request.sourceId);
+      let amountChf = request.amount;
+      if (fiat.name !== 'CHF') {
+        const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
+        amountChf = price.convert(request.amount);
+      }
+
+      await this.blockchainService.payAndAllocate({
+        amount: Math.round(amountChf * 100),
+        ref: reference,
+      });
+      await this.transactionRequestService.complete(request.id);
+    }
+  }
+
+  async getAdminQuotes(limit = 50, offset = 0): Promise<RealUnitQuoteDto[]> {
+    const realuAsset = await this.getRealuAsset();
+    const requests = await this.transactionRequestService.getByAssetId(realuAsset.id, limit, offset);
+
+    return requests.map((r) => ({
+      id: r.id,
+      uid: r.uid,
+      type: r.type,
+      status: r.status,
+      amount: r.amount,
+      estimatedAmount: r.estimatedAmount,
+      created: r.created,
+      userAddress: r.user?.address,
+    }));
+  }
+
+  async getAdminTransactions(limit = 50, offset = 0): Promise<RealUnitTransactionDto[]> {
+    const realuAsset = await this.getRealuAsset();
+    const transactions = await this.transactionService.getByAssetId(realuAsset.id, limit, offset);
+
+    return transactions.map((t) => ({
+      id: t.id,
+      uid: t.uid,
+      type: t.type,
+      amountInChf: t.amountInChf,
+      assets: t.assets,
+      created: t.created,
+      outputDate: t.outputDate,
+      userAddress: t.user?.address,
+    }));
   }
 
   async confirmSell(userId: number, requestId: number, dto: RealUnitSellConfirmDto): Promise<{ txHash: string }> {

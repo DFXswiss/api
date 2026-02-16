@@ -222,28 +222,26 @@ export class UserDataService {
   }
 
   async getUserDatasWithKycFile(): Promise<UserData[]> {
-    return this.userDataRepo
-      .createQueryBuilder('userData')
-      .leftJoinAndSelect('userData.country', 'country')
-      .select([
-        'userData.id',
-        'userData.kycFileId',
-        'userData.amlAccountType',
-        'userData.verifiedName',
-        'userData.allBeneficialOwnersDomicile',
-        'userData.amlListAddedDate',
-        'userData.amlListExpiredDate',
-        'userData.amlListReactivatedDate',
-        'userData.highRisk',
-        'userData.pep',
-        'userData.complexOrgStructure',
-        'userData.totalVolumeChfAuditPeriod',
-        'userData.totalCustodyBalanceChfAuditPeriod',
-        'country.name',
-      ])
-      .where('userData.kycFileId > 0')
-      .orderBy('userData.kycFileId', 'ASC')
-      .getMany();
+    return this.userDataRepo.find({
+      select: {
+        id: true,
+        kycFileId: true,
+        amlAccountType: true,
+        verifiedName: true,
+        allBeneficialOwnersDomicile: true,
+        amlListAddedDate: true,
+        amlListExpiredDate: true,
+        amlListReactivatedDate: true,
+        highRisk: true,
+        pep: true,
+        complexOrgStructure: true,
+        totalVolumeChfAuditPeriod: true,
+        totalCustodyBalanceChfAuditPeriod: true,
+        country: { name: true },
+      },
+      where: { kycFileId: MoreThan(0) },
+      order: { kycFileId: 'ASC' },
+    });
   }
 
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
@@ -1224,7 +1222,7 @@ export class UserDataService {
 
   private async updateBankTxTime(userDataId: number): Promise<void> {
     const txList = await this.repos.bankTx.find({
-      select: ['id'],
+      select: { id: true },
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
         { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },
