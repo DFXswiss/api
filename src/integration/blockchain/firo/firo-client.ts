@@ -43,11 +43,13 @@ export class FiroClient extends BitcoinBasedClient {
     return this.callNode(() => this.rpc.call<string>('getnewaddress', [label]), true);
   }
 
-  // Firo does not support getbalances (Bitcoin Core 0.19+), use getbalance instead
-  // Firo's getbalance: (account, minconf, include_watchonly, addlocked)
+  // Firo's account-based getbalance with '' returns only the default account, which can be negative.
+  // Use listunspent filtered to the liquidity address for an accurate spendable balance.
   async getBalance(): Promise<number> {
-    const minconf = this.nodeConfig.allowUnconfirmedUtxos ? 0 : 1;
-    return this.callNode(() => this.rpc.call<number>('getbalance', ['', minconf]), true);
+    const minConf = this.nodeConfig.allowUnconfirmedUtxos ? 0 : 1;
+    const utxos = await this.callNode(() => this.rpc.listUnspent(minConf, 9999999, [this.walletAddress]), true);
+
+    return utxos?.reduce((sum, u) => sum + u.amount, 0) ?? 0;
   }
 
   // Firo's getblock uses boolean verbose, not int verbosity (0/1/2)
@@ -78,39 +80,90 @@ export class FiroClient extends BitcoinBasedClient {
   }
 
   // Firo does not have the 'send' RPC (Bitcoin Core 0.21+).
-  // Use settxfee + sendmany instead for single sends with specific UTXOs.
+  // Uses explicit input to ensure only the specified UTXO is spent (forwarding from deposit addresses).
   async send(
     addressTo: string,
-    _txId: string,
+    txId: string,
     amount: number,
-    _vout: number,
+    vout: number,
     feeRate: number,
   ): Promise<{ outTxId: string; feeAmount: number }> {
-    const feeAmount = (feeRate * 225) / Math.pow(10, 8);
+    const feeAmount = (feeRate * 225) / 1e8;
     const sendAmount = this.roundAmount(amount - feeAmount);
 
-    // Set fee rate via settxfee (FIRO/kB), feeRate is in sat/vB
-    const feePerKb = (feeRate * 1000) / Math.pow(10, 8);
-    await this.callNode(() => this.rpc.call<boolean>('settxfee', [feePerKb]), true);
+    const outTxId = await this.buildSignAndBroadcast([{ txid: txId, vout }], { [addressTo]: sendAmount });
 
-    const txid = await this.callNode(() => this.rpc.call<string>('sendmany', ['', { [addressTo]: sendAmount }]), true);
-
-    return { outTxId: txid ?? '', feeAmount };
+    return { outTxId, feeAmount };
   }
 
-  // Firo does not have the 'send' RPC. Use settxfee + sendmany instead.
+  // Only use UTXOs from the liquidity (wallet) address to avoid spending deposit/payment UTXOs.
   async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
-    const amounts = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: p.amount }), {} as Record<string, number>);
+    const outputs = payload.reduce(
+      (acc, p) => ({ ...acc, [p.addressTo]: this.roundAmount(p.amount) }),
+      {} as Record<string, number>,
+    );
+    const outputTotal = payload.reduce((sum, p) => sum + p.amount, 0);
 
-    // Set fee rate via settxfee (FIRO/kB), feeRate is in sat/vB
-    const feePerKb = (feeRate * 1000) / Math.pow(10, 8);
-    await this.callNode(() => this.rpc.call<boolean>('settxfee', [feePerKb]), true);
+    // Get UTXOs only from the liquidity address
+    const minConf = this.nodeConfig.allowUnconfirmedUtxos ? 0 : 1;
+    const utxos = await this.callNode(() => this.rpc.listUnspent(minConf, 9999999, [this.walletAddress]), true);
 
-    return this.callNode(() => this.rpc.call<string>('sendmany', ['', amounts]), true);
+    if (!utxos || utxos.length === 0) {
+      throw new Error('No UTXOs available on the liquidity address');
+    }
+
+    // Select UTXOs to cover outputs + estimated fee (225 bytes per input, 34 per output, 10 overhead)
+    const sortedUtxos = utxos.sort((a, b) => b.amount - a.amount);
+    const selectedInputs: { txid: string; vout: number }[] = [];
+    let inputTotal = 0;
+
+    for (const utxo of sortedUtxos) {
+      selectedInputs.push({ txid: utxo.txid, vout: utxo.vout });
+      inputTotal += utxo.amount;
+
+      const estimatedSize = selectedInputs.length * 225 + (payload.length + 1) * 34 + 10;
+      const estimatedFee = (feeRate * estimatedSize) / 1e8;
+
+      if (inputTotal >= outputTotal + estimatedFee) break;
+    }
+
+    // Calculate final fee and change
+    const txSize = selectedInputs.length * 225 + (payload.length + 1) * 34 + 10;
+    const fee = (feeRate * txSize) / 1e8;
+
+    if (inputTotal < outputTotal + fee) {
+      throw new Error(`Insufficient funds on liquidity address: have ${inputTotal}, need ${outputTotal + fee}`);
+    }
+
+    const change = this.roundAmount(inputTotal - outputTotal - fee);
+    if (change > 0.00001) {
+      outputs[this.walletAddress] = (outputs[this.walletAddress] ?? 0) + change;
+      outputs[this.walletAddress] = this.roundAmount(outputs[this.walletAddress]);
+    }
+
+    return this.buildSignAndBroadcast(selectedInputs, outputs);
   }
 
-  // Firo's sendmany only accepts 5 params (no replaceable/conf_target/estimate_mode).
-  // Delegates to sendMany to ensure settxfee is called with a current fee rate estimate.
+  // Creates, signs, and broadcasts a raw transaction with explicit inputs.
+  private async buildSignAndBroadcast(
+    inputs: { txid: string; vout: number }[],
+    outputs: Record<string, number>,
+  ): Promise<string> {
+    const rawTx = await this.callNode(() => this.rpc.call<string>('createrawtransaction', [inputs, outputs]), true);
+
+    const signedResult = await this.callNode(
+      () => this.rpc.call<{ hex: string; complete: boolean }>('signrawtransaction', [rawTx]),
+      true,
+    );
+
+    if (!signedResult.complete) {
+      throw new Error('Failed to sign Firo transaction');
+    }
+
+    return this.callNode(() => this.rpc.call<string>('sendrawtransaction', [signedResult.hex]), true);
+  }
+
+  // Delegates to sendMany which uses manual coin selection from the liquidity address only.
   async sendUtxoToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {
     if (payload.length > 100) {
       throw new Error('Too many addresses in one transaction batch, allowed max 100 for UTXO');
