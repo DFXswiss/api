@@ -56,14 +56,12 @@ export class RealUnitBlockchainService {
     );
   }
 
-  async getRealUnitPrice(): Promise<number> {
-    const { priceInCHF } = await this.fetchPrice();
-    return priceInCHF;
+  async getRealUnitPriceChf(): Promise<number> {
+    return this.fetchPrice().then((r) => r.priceInCHF);
   }
 
   async getRealUnitPriceEur(): Promise<number> {
-    const { priceInEUR } = await this.fetchPrice();
-    return priceInEUR;
+    return this.fetchPrice().then((r) => r.priceInEUR);
   }
 
   async requestPaymentInstructions(request: PaymentInstructionsRequest): Promise<PaymentInstructionsResponse> {
