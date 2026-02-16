@@ -16,14 +16,14 @@ export enum RiskStatus {
 }
 
 export enum PhoneCallPreferredTime {
-  BETWEEN_9_AND_10 = 'Between9And10',
-  BETWEEN_10_AND_11 = 'Between10And11',
-  BETWEEN_11_AND_12 = 'Between11And12',
-  BETWEEN_12_AND_13 = 'Between12And13',
-  BETWEEN_13_AND_14 = 'Between13And14',
-  BETWEEN_14_AND_15 = 'Between14And15',
-  BETWEEN_15_AND_16 = 'Between15And16',
-  BETWEEN_9_AND_16 = 'Between9And16',
+  H_9_TO_10 = 'H9To10',
+  H_10_TO_11 = 'H10To11',
+  H_11_TO_12 = 'H11To12',
+  H_12_TO_13 = 'H12To13',
+  H_13_TO_14 = 'H13To14',
+  H_14_TO_15 = 'H14To15',
+  H_15_TO_16 = 'H15To16',
+  H_9_TO_16 = 'H9To16',
 }
 
 export enum PhoneCallStatus {
