@@ -75,7 +75,7 @@ export class RealUnitBlockchainService {
 
   async payAndAllocate(request: PayAndAllocateRequest): Promise<void> {
     const { url, key } = GetConfig().blockchain.realunit.api;
-    await this.http.post(`${url}/realunit/directinvestment/payAndAllocate`, request, {
+    await this.http.post(`${url}/directinvestment/payAndAllocate`, request, {
       headers: { 'x-api-key': key },
     });
   }
