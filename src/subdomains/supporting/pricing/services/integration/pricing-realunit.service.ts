@@ -9,6 +9,7 @@ import { PricingProvider } from './pricing-provider';
 export class PricingRealUnitService extends PricingProvider implements OnModuleInit {
   private static readonly REALU = 'REALU';
   private static readonly ZCHF = 'ZCHF';
+  private static readonly EUR = 'EUR';
 
   private static readonly ALLOWED_ASSETS = [PricingRealUnitService.REALU, PricingRealUnitService.ZCHF];
 
@@ -31,5 +32,18 @@ export class PricingRealUnitService extends PricingProvider implements OnModuleI
     const assetPrice = from === PricingRealUnitService.REALU ? 1 / realunitPrice : realunitPrice;
 
     return Price.create(from, to, Util.round(assetPrice, 8));
+  }
+
+  async getDirectEurPrice(from: string, to: string): Promise<Price | undefined> {
+    const isRealuToEur = from === PricingRealUnitService.REALU && to === PricingRealUnitService.EUR;
+    const isEurToRealu = from === PricingRealUnitService.EUR && to === PricingRealUnitService.REALU;
+
+    if (!isRealuToEur && !isEurToRealu) return undefined;
+
+    const eurPrice = await this.realunitService.getRealUnitPriceEur();
+    if (eurPrice == null) return undefined;
+
+    const price = isRealuToEur ? 1 / eurPrice : eurPrice;
+    return Price.create(from, to, Util.round(price, 8));
   }
 }

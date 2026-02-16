@@ -535,6 +535,7 @@ export class BuyCryptoService {
     TransactionUtilService.validateRefund(buyCrypto, {
       refundIban: chargebackIban,
       chargebackAmount,
+      chargebackAmountInInputAsset: dto.chargebackAmountInInputAsset,
     });
 
     if (

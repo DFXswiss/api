@@ -222,28 +222,26 @@ export class UserDataService {
   }
 
   async getUserDatasWithKycFile(): Promise<UserData[]> {
-    return this.userDataRepo
-      .createQueryBuilder('userData')
-      .leftJoinAndSelect('userData.country', 'country')
-      .select([
-        'userData.id',
-        'userData.kycFileId',
-        'userData.amlAccountType',
-        'userData.verifiedName',
-        'userData.allBeneficialOwnersDomicile',
-        'userData.amlListAddedDate',
-        'userData.amlListExpiredDate',
-        'userData.amlListReactivatedDate',
-        'userData.highRisk',
-        'userData.pep',
-        'userData.complexOrgStructure',
-        'userData.totalVolumeChfAuditPeriod',
-        'userData.totalCustodyBalanceChfAuditPeriod',
-        'country.name',
-      ])
-      .where('userData.kycFileId > 0')
-      .orderBy('userData.kycFileId', 'ASC')
-      .getMany();
+    return this.userDataRepo.find({
+      select: {
+        id: true,
+        kycFileId: true,
+        amlAccountType: true,
+        verifiedName: true,
+        allBeneficialOwnersDomicile: true,
+        amlListAddedDate: true,
+        amlListExpiredDate: true,
+        amlListReactivatedDate: true,
+        highRisk: true,
+        pep: true,
+        complexOrgStructure: true,
+        totalVolumeChfAuditPeriod: true,
+        totalCustodyBalanceChfAuditPeriod: true,
+        country: { name: true },
+      },
+      where: { kycFileId: MoreThan(0) },
+      order: { kycFileId: 'ASC' },
+    });
   }
 
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
@@ -399,7 +397,15 @@ export class UserDataService {
           continue;
         }
 
-        for (const { name: fileNameFn, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
+        for (const {
+          name: fileNameFn,
+          fileTypes,
+          prefixes,
+          filter,
+          handleFileNotFound,
+          sort,
+          selectAll,
+        } of fileConfig) {
           const files = allFiles
             .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
             .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
@@ -417,19 +423,25 @@ export class UserDataService {
 
           if (checkOnly) continue;
 
-          const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
+          const selectedFiles = selectAll
+            ? files
+            : [files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c))];
 
-          try {
-            const fileData = await this.documentService.downloadFile(
-              selectedFile.category,
-              userDataId,
-              selectedFile.type,
-              selectedFile.name,
-            );
-            const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
-            subFolder.file(filePath, fileData.data);
-          } catch {
-            errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
+          for (const selectedFile of selectedFiles) {
+            try {
+              const fileData = await this.documentService.downloadFile(
+                selectedFile.category,
+                userDataId,
+                selectedFile.type,
+                selectedFile.name,
+              );
+              const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name
+                .split('.')
+                .pop()}`;
+              subFolder.file(filePath, fileData.data);
+            } catch {
+              errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
+            }
           }
         }
       }
@@ -1213,7 +1225,7 @@ export class UserDataService {
 
   private async updateBankTxTime(userDataId: number): Promise<void> {
     const txList = await this.repos.bankTx.find({
-      select: ['id'],
+      select: { id: true },
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
         { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },
