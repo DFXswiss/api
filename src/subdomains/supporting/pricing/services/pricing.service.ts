@@ -319,8 +319,8 @@ export class PricingService implements OnModuleInit {
 
   private getDirectPrice(from: Active, to: Active): Promise<Price> {
     try {
-      if ([from.name, to.name].every((n) => ['EUR', 'REALU'].includes(n)))
-        return this.realunitService.getPrice(from.name, to.name);
+      const names = [from.name, to.name];
+      if (names.includes('EUR') && names.includes('REALU')) return this.realunitService.getPrice(from.name, to.name);
     } catch {
       return undefined;
     }
