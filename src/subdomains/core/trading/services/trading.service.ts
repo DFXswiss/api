@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { NativeCurrency } from '@uniswap/sdk-core';
 import { ethers } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -105,13 +104,6 @@ export class TradingService {
   ): Promise<TradingInfo> {
     try {
       const client = this.blockchainRegistryService.getEvmClient(tradingInfo.assetIn.blockchain);
-
-      const tokenIn = await client.getToken(tradingInfo.assetIn);
-      const tokenOut = await client.getToken(tradingInfo.assetOut);
-
-      if (tokenIn instanceof NativeCurrency || tokenOut instanceof NativeCurrency)
-        throw new Error('Only tokens can be in a pool');
-
       const poolContract = await this.getPoolContract(client, tradingInfo);
 
       const usePriceImpact = Math.abs(tradingInfo.priceImpact) / 2;

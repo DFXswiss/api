@@ -46,6 +46,7 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TxStatementType } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-statement-details.dto';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction, TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -437,9 +438,55 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateInvoiceFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txIdOrUid = isNaN(+id) ? id : +id;
+
+    // For string UIDs, first try to find a TransactionRequest (for pending transactions)
+    if (typeof txIdOrUid === 'string') {
+      const request = await this.transactionRequestService.getTransactionRequestByUid(txIdOrUid, {
+        user: { userData: { organization: true }, wallet: true },
+      });
+
+      if (request) {
+        // Validate ownership and state
+        if (request.user.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction request');
+        if (!request.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
+        if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+        // Generate invoice from request (pending transaction)
+        const currency = await this.fiatService.getFiat(request.sourceId);
+        if (!Config.invoice.currencies.includes(currency.name)) {
+          throw new Error('PDF invoice is only available for CHF and EUR transactions');
+        }
+
+        const buy = await this.buyService.get(jwt.account, request.routeId);
+        const bankInfo = await this.buyService.getBankInfo(
+          {
+            amount: request.amount,
+            currency: currency.name,
+            paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
+            userData: request.userData,
+          },
+          buy,
+          buy?.asset,
+          buy?.user?.wallet,
+        );
+
+        return {
+          pdfData: await this.swissQrService.createInvoiceFromRequest(
+            request.amount,
+            currency.name,
+            bankInfo.reference,
+            bankInfo,
+            request,
+          ),
+        };
+      }
+    }
+
+    // Try to find a completed Transaction
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
       jwt.account,
-      +id,
+      txIdOrUid,
       TxStatementType.INVOICE,
     );
 
@@ -455,9 +502,10 @@ export class TransactionController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), IpGuard, UserActiveGuard())
   @ApiOkResponse({ type: PdfDto })
   async generateReceiptFromTransaction(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+    const txIdOrUid = isNaN(+id) ? id : +id;
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
       jwt.account,
-      +id,
+      txIdOrUid,
       TxStatementType.RECEIPT,
     );
 
@@ -482,6 +530,7 @@ export class TransactionController {
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
 
     if (!targetEntity) {
+      if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
       targetEntity = await this.bankTxService
         .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
         .then((b) => b.bankTxReturn);
@@ -496,6 +545,7 @@ export class TransactionController {
         refundIban: dto.refundTarget ?? refundData.refundTarget,
         chargebackCurrency,
         creditorData: dto.creditorData,
+        chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
         ...refundDto,
       });
     }
@@ -524,6 +574,7 @@ export class TransactionController {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
       chargebackCurrency,
       creditorData: dto.creditorData,
+      chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
       ...refundDto,
     });
   }

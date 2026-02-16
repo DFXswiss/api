@@ -5,6 +5,7 @@ import { ConstructorArgs } from 'ccxt';
 import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
+import { ClementineNetwork } from 'src/integration/blockchain/clementine/clementine-client';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -283,6 +284,7 @@ export class Configuration {
       filter?: (file: KycFileBlob, userData: UserData) => boolean;
       sort?: (a: KycFileBlob, b: KycFileBlob) => KycFileBlob;
       handleFileNotFound?: (zip: JSZip, userData: UserData) => any | false;
+      selectAll?: boolean;
     }[];
   }[] = [
     {
@@ -307,6 +309,19 @@ export class Configuration {
             `spider/${userData.id}/video_identification`,
           ],
           fileTypes: [ContentType.PDF],
+        },
+        {
+          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'IdentDoc',
+          prefixes: (userData: UserData) => [`user/${userData.id}/Identification`],
+          fileTypes: [ContentType.PNG, ContentType.JPEG, ContentType.JPG],
+          filter: (file: KycFileBlob, userData: UserData) => {
+            const latestIdent = userData.kycSteps
+              .filter((s) => s.name === KycStepName.IDENT && s.isCompleted && s.transactionId)
+              .sort((a, b) => b.id - a.id)[0];
+            return latestIdent ? file.name.includes(latestIdent.transactionId) : false;
+          },
+          selectAll: true,
+          handleFileNotFound: () => true,
         },
       ],
     },
@@ -468,12 +483,12 @@ export class Configuration {
     },
     {
       id: 13,
-      name: 'Transaktionsliste Auditperiode 2025',
+      name: 'Transaktionsliste Auditperiode',
       files: [
         {
           prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
           fileTypes: [ContentType.PDF],
-          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2025'.toLowerCase()),
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2026'.toLowerCase()),
         },
       ],
     },
@@ -502,6 +517,20 @@ export class Configuration {
           fileTypes: [ContentType.PDF],
           filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-AddressSignature'.toLowerCase()),
           sort: (a: KycFileBlob, b: KycFileBlob) => (a.name.split('-')[0] < b.name.split('-')[0] ? a : b),
+        },
+      ],
+    },
+    {
+      id: 16,
+      name: 'TMER',
+      files: [
+        {
+          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'TMER',
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('-TMER-'),
+          selectAll: true,
+          handleFileNotFound: () => true,
         },
       ],
     },
@@ -797,6 +826,15 @@ export class Configuration {
       bscApiKey: process.env.ALCHEMY_API_KEY,
       gasPrice: process.env.BSC_GAS_PRICE,
     },
+    citrea: {
+      ...EVM_CHAINS.citrea,
+      citreaGatewayUrl: EVM_CHAINS.citrea.gatewayUrl,
+      citreaChainId: EVM_CHAINS.citrea.chainId,
+      citreaWalletAddress: process.env.CITREA_WALLET_ADDRESS,
+      citreaWalletPrivateKey: process.env.CITREA_WALLET_PRIVATE_KEY,
+      citreaApiKey: process.env.CITREA_API_KEY,
+      blockscoutApiUrl: process.env.CITREA_BLOCKSCOUT_API_URL,
+    },
     citreaTestnet: {
       ...EVM_CHAINS.citreaTestnet,
       citreaTestnetGatewayUrl: EVM_CHAINS.citreaTestnet.gatewayUrl,
@@ -804,7 +842,29 @@ export class Configuration {
       citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
       citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
       citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
-      goldskySubgraphUrl: process.env.CITREA_TESTNET_GOLDSKY_SUBGRAPH_URL,
+      blockscoutApiUrl: process.env.CITREA_TESTNET_BLOCKSCOUT_API_URL,
+    },
+    clementine: {
+      network: (process.env.CLEMENTINE_NETWORK as ClementineNetwork) ?? ClementineNetwork.BITCOIN,
+      cliPath: process.env.CLEMENTINE_CLI_PATH ?? 'clementine-cli',
+      homeDir: process.env.CLEMENTINE_HOME_DIR ?? '/home',
+      recoveryTaprootAddress: process.env.CLEMENTINE_RECOVERY_TAPROOT_ADDRESS,
+      signerAddress: process.env.CLEMENTINE_SIGNER_ADDRESS,
+      timeoutMs: parseInt(process.env.CLEMENTINE_TIMEOUT_MS ?? '60000'),
+      signingTimeoutMs: parseInt(process.env.CLEMENTINE_SIGNING_TIMEOUT_MS ?? '300000'),
+      expectedVersion: process.env.CLEMENTINE_CLI_VERSION ?? '',
+      passphrase: process.env.CLEMENTINE_PASSPHRASE ?? '',
+    },
+    bitcoinTestnet4: {
+      btcTestnet4Output: {
+        active: process.env.NODE_BTC_TESTNET4_OUT_URL_ACTIVE,
+        passive: process.env.NODE_BTC_TESTNET4_OUT_URL_PASSIVE,
+        address: process.env.BTC_TESTNET4_OUT_WALLET_ADDRESS,
+      },
+      user: process.env.NODE_BTC_TESTNET4_USER,
+      password: process.env.NODE_BTC_TESTNET4_PASSWORD,
+      walletPassword: process.env.NODE_BTC_TESTNET4_WALLET_PASSWORD,
+      minTxAmount: 0.00000297,
     },
     lightning: {
       lnbits: {
@@ -905,6 +965,10 @@ export class Configuration {
     deuro: {
       graphUrl: process.env.DEURO_GRAPH_URL,
       apiUrl: process.env.DEURO_API_URL,
+    },
+    juice: {
+      graphUrl: process.env.JUSD_GRAPH_URL,
+      apiUrl: process.env.JUSD_API_URL,
     },
     realunit: {
       graphUrl: process.env.REALUNIT_GRAPH_URL,

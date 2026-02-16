@@ -46,6 +46,7 @@ import { TxMinSpec, TxSpec } from '../dto/transaction-helper/tx-spec.dto';
 import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/tx-statement-details.dto';
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
+import { Transaction } from '../entities/transaction.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 import { TransactionService } from './transaction.service';
 
@@ -407,7 +408,7 @@ export class TransactionHelper implements OnModuleInit {
         ? await this.fiatService.getFiatByName('EUR')
         : inputCurrency;
 
-    const price =
+    const chfPrice =
       refundEntity.manualChfPrice ??
       (await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.PREFER_VALID));
 
@@ -418,7 +419,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const chargebackFee = await this.feeService.getChargebackFee({
       from: inputCurrency,
-      txVolume: price.invert().convert(inputAmount),
+      txVolume: chfPrice.invert().convert(inputAmount),
       paymentMethodIn: refundEntity.paymentMethodIn,
       bankIn,
       specialCodes: [],
@@ -426,16 +427,16 @@ export class TransactionHelper implements OnModuleInit {
       userData,
     });
 
-    const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
+    const dfxFeeAmount = inputAmount * chargebackFee.rate + chfPrice.convert(chargebackFee.fixed);
 
-    let networkFeeAmount = price.convert(chargebackFee.network);
+    let networkFeeAmount = chfPrice.convert(chargebackFee.network);
 
     if (isAsset(inputCurrency) && inputCurrency.blockchain === Blockchain.SOLANA)
       networkFeeAmount += await this.getSolanaRentExemptionFee(inputCurrency);
 
     const bankFeeAmount =
       refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
-        ? price.convert(
+        ? chfPrice.convert(
             chargebackFee.bankRate * inputAmount + chargebackFee.bankFixed + refundEntity.chargebackBankFee * 1.01,
           )
         : 0; // Bank fee buffer 1%
@@ -451,7 +452,7 @@ export class TransactionHelper implements OnModuleInit {
     // convert to refund currency
     const refundPrice = await this.pricingService.getPrice(inputCurrency, refundCurrency, PriceValidity.VALID_ONLY);
 
-    const refundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
+    const targetRefundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
     const feeDfx = Util.roundReadable(refundPrice.convert(dfxFeeAmount), feeAmountType);
     const feeNetwork = Util.roundReadable(refundPrice.convert(networkFeeAmount), feeAmountType);
     const feeBank = Util.roundReadable(refundPrice.convert(bankFeeAmount), feeAmountType);
@@ -463,7 +464,9 @@ export class TransactionHelper implements OnModuleInit {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       inputAmount: Util.roundReadable(inputAmount, amountType),
       inputAsset,
-      refundAmount,
+      refundAmount:
+        inputAsset.id !== refundAsset.id ? targetRefundAmount : Math.min(refundEntity.refundAmount, targetRefundAmount),
+      refundPrice,
       fee: {
         dfx: feeDfx,
         network: feeNetwork,
@@ -493,27 +496,44 @@ export class TransactionHelper implements OnModuleInit {
 
   async getTxStatementDetails(
     userDataId: number,
-    txId: number,
+    txIdOrUid: number | string,
     statementType: TxStatementType,
   ): Promise<TxStatementDetails> {
-    const transaction = await this.transactionService.getTransactionById(txId, {
+    const relations = {
       userData: { organization: true },
       buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
-    });
+      request: true,
+    };
 
-    if (!transaction || !transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn)
-      throw new BadRequestException('Transaction not found');
-    if (!transaction.userData.isDataComplete) throw new BadRequestException('User data is not complete');
-    if (!transaction.targetEntity.isComplete) throw new BadRequestException('Transaction not completed');
+    const transaction =
+      typeof txIdOrUid === 'number'
+        ? await this.transactionService.getTransactionById(txIdOrUid, relations)
+        : await this.transactionService.getTransactionByUid(txIdOrUid, relations);
+
+    if (!transaction) throw new BadRequestException('Transaction not found');
+    if (!transaction.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
+
+    // Handle pending transactions (no targetEntity yet, but has request)
+    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn) {
+      if (statementType === TxStatementType.RECEIPT)
+        throw new BadRequestException('Receipt not available for pending transactions');
+      if (!transaction.request) throw new BadRequestException('Transaction not found');
+      return this.getTxStatementDetailsFromRequest(transaction, statementType);
+    }
+
+    if (statementType === TxStatementType.RECEIPT && !transaction.targetEntity.isComplete)
+      throw new BadRequestException('Transaction not completed');
 
     if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
       const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
       const buy = transaction.buyCrypto.buy;
+      const isCardPayment = transaction.buyCrypto.paymentMethodIn === FiatPaymentMethod.CARD;
       const bankInfo =
         statementType === TxStatementType.INVOICE &&
+        !isCardPayment &&
         (await this.buyService.getBankInfo(
           {
             amount: transaction.buyCrypto.outputAmount,
@@ -564,6 +584,52 @@ export class TransactionHelper implements OnModuleInit {
     }
 
     throw new BadRequestException('Transaction type not supported for invoice generation');
+  }
+
+  async getTxStatementDetailsMulti(
+    userDataId: number,
+    txIds: number[],
+    statementType: TxStatementType,
+  ): Promise<TxStatementDetails[]> {
+    const details: TxStatementDetails[] = [];
+    for (const txId of txIds) {
+      const txDetails = await this.getTxStatementDetails(userDataId, txId, statementType);
+
+      details.push(txDetails);
+    }
+    return details;
+  }
+
+  private async getTxStatementDetailsFromRequest(
+    transaction: Transaction,
+    statementType: TxStatementType,
+  ): Promise<TxStatementDetails> {
+    const request = transaction.request;
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    const currency = await this.fiatService.getFiat(request.sourceId);
+    const buy = await this.buyService.get(transaction.userData.id, request.routeId);
+    const bankInfo = await this.buyService.getBankInfo(
+      {
+        amount: request.amount,
+        currency: currency.name,
+        paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
+        userData: transaction.userData,
+      },
+      buy,
+      buy?.asset,
+      buy?.user?.wallet,
+    );
+
+    return {
+      statementType,
+      transactionType: TransactionType.BUY,
+      transaction,
+      currency: currency.name,
+      bankInfo,
+      reference: bankInfo?.reference,
+      request,
+    };
   }
 
   async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {

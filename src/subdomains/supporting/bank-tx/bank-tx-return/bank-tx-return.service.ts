@@ -171,7 +171,6 @@ export class BankTxReturnService {
       where: { id: buyCryptoId },
       relations: { transaction: { userData: true }, bankTx: true, chargebackOutput: true },
     });
-
     if (!bankTxReturn) throw new NotFoundException('BankTxReturn not found');
 
     return this.refundBankTx(bankTxReturn, {
@@ -191,6 +190,7 @@ export class BankTxReturnService {
     TransactionUtilService.validateRefund(bankTxReturn, {
       refundIban: chargebackIban,
       chargebackAmount,
+      chargebackAmountInInputAsset: dto.chargebackAmountInInputAsset,
     });
 
     if (

@@ -10,6 +10,7 @@ import { CustodyOrderService } from 'src/subdomains/core/custody/services/custod
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -39,6 +40,7 @@ export class BuyCryptoOutService {
     private readonly fiatService: FiatService,
     private readonly custodyOrderService: CustodyOrderService,
     private readonly feeService: FeeService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
@@ -200,6 +202,8 @@ export class BuyCryptoOutService {
           }
 
           await this.buyCryptoRepo.save(tx);
+
+          if (tx.transaction) await this.transactionService.completeTransaction(tx.transaction.id, tx.outputDate);
 
           const custodyOrder = await this.custodyOrderService.getCustodyOrderByTx(tx);
 

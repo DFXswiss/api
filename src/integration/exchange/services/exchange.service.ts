@@ -7,6 +7,7 @@ import {
   Exchange,
   Market,
   Order,
+  OrderBook,
   Trade,
   Transaction,
   WithdrawalResponse,
@@ -164,7 +165,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
             this.logger.verbose(`Could not update order ${order.id} price: ${JSON.stringify(updatedOrder)}`);
 
             if (updatedOrder.status === OrderStatus.OPEN)
-              await this.callApi((e) => e.cancelOrder(order.id, order.symbol)).catch((e) =>
+              await this.cancelOrder(order.id, order.symbol).catch((e) =>
                 this.logger.error(`Error while cancelling order ${order.id}:`, e),
               );
           }
@@ -177,8 +178,8 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
 
       case OrderStatus.CANCELED: {
         // check for min. amount
-        const minAmount = await this.getMinTradeAmount(order.symbol);
-        if (order.remaining < minAmount) {
+        const { amount: minAmount, cost: minCost } = await this.getMinTradeAmount(order.symbol);
+        if (order.remaining < minAmount || order.remaining * order.price < minCost) {
           return true;
         }
 
@@ -227,14 +228,22 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   // currency pairs
   private async getMarkets(): Promise<Market[]> {
     if (!this.markets) {
-      this.markets = await this.callApi((e) => e.fetchMarkets());
+      this.markets = await this.fetchMarkets();
     }
 
     return this.markets;
   }
 
-  async getMinTradeAmount(pair: string): Promise<number> {
-    return this.getMarket(pair).then((m) => m.limits.amount.min);
+  protected async fetchMarkets(): Promise<Market[]> {
+    return this.callApi((e) => e.fetchMarkets());
+  }
+
+  async getMinTradeAmount(pair: string): Promise<{ amount: number; cost: number }> {
+    const market = await this.getMarket(pair);
+    return {
+      amount: market.limits.amount.min ?? 0,
+      cost: market.limits.cost?.min ?? 0,
+    };
   }
 
   private async getPrecision(pair: string): Promise<{ price: number; amount: number }> {
@@ -277,14 +286,22 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   private async fetchLastOrderPrice(from: string, to: string): Promise<number> {
     const pair = await this.getPair(from, to);
 
-    const trades = await this.callApi((e) => e.fetchTrades(pair, undefined, 1));
+    const trades = await this.fetchTrades(pair, 1);
     if (trades.length === 0) throw new Error(`${this.name}: no trades found for ${pair}`);
 
     return Util.sort(trades, 'timestamp', 'DESC')[0].price;
   }
 
-  private async fetchCurrentOrderPrice(pair: string, direction: string): Promise<number> {
-    const orderBook = await this.callApi((e) => e.fetchOrderBook(pair));
+  protected async fetchTrades(pair: string, limit: number): Promise<Trade[]> {
+    return this.callApi((e) => e.fetchTrades(pair, undefined, limit));
+  }
+
+  protected async fetchOrderBook(pair: string): Promise<OrderBook> {
+    return this.callApi((e) => e.fetchOrderBook(pair));
+  }
+
+  private async fetchCurrentOrderPrice(pair: string, direction: string, orderBook?: OrderBook): Promise<number> {
+    orderBook ??= await this.fetchOrderBook(pair);
 
     const { price: pricePrecision } = await this.getPrecision(pair);
 
@@ -297,15 +314,14 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
   async getBestBidLiquidity(from: string, to: string): Promise<{ price: number; amount: number } | undefined> {
     const { pair, direction } = await this.getTradePair(from, to);
 
-    const minAmount = await this.getMinTradeAmount(pair);
-    const orderBook = await this.callApi((e) => e.fetchOrderBook(pair));
+    const { amount: minAmount, cost: minCost } = await this.getMinTradeAmount(pair);
+    const orderBook = await this.fetchOrderBook(pair);
     const { price: pricePrecision } = await this.getPrecision(pair);
 
     const orders = direction === OrderSide.SELL ? orderBook.bids : orderBook.asks;
 
     // Find first order that meets minimum amount requirement
-    const validOrder = orders.find(([, amount]) => amount >= minAmount);
-
+    const validOrder = orders.find(([price, amount]) => amount >= minAmount && price * amount >= minCost);
     if (!validOrder) return undefined;
 
     const [price, amount] = validOrder;
@@ -322,9 +338,18 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     // place the order
     const { pair, direction } = await this.getTradePair(from, to);
     const { amount: amountPrecision } = await this.getPrecision(pair);
-    const price = await this.fetchCurrentOrderPrice(pair, direction);
+    const orderBook = await this.fetchOrderBook(pair);
+    const price = await this.fetchCurrentOrderPrice(pair, direction, orderBook);
 
-    const orderAmount = Util.floorToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
+    const orders = direction === OrderSide.BUY ? orderBook.asks : orderBook.bids;
+
+    let orderAmount = Util.floorToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
+
+    // Snap to nearby order book amount to avoid leaving dust
+    const matchingOrder = orders.find(([, amt]) => Math.abs(amt - orderAmount) <= 2 * amountPrecision);
+    if (matchingOrder) {
+      orderAmount = matchingOrder[1];
+    }
 
     const id = await this.placeOrder(pair, direction, orderAmount, price);
 
@@ -341,7 +366,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.createOrder(pair, direction, amount, price).then((o) => o.id);
   }
 
-  private async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {
+  protected async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {
     return this.callApi((e) => e.createOrder(pair, 'limit', direction, amount, price));
   }
 
@@ -349,6 +374,10 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, amount, price)).then(
       (o) => o.id,
     );
+  }
+
+  protected async cancelOrder(orderId: string, symbol: string): Promise<void> {
+    await this.callApi((e) => e.cancelOrder(orderId, symbol));
   }
 
   // other

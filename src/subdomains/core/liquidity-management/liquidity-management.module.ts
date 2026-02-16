@@ -13,9 +13,12 @@ import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module'
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
 import { BaseL2BridgeAdapter } from './adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
+import { ClementineBridgeAdapter } from './adapters/actions/clementine-bridge.adapter';
+import { LayerZeroBridgeAdapter } from './adapters/actions/layerzero-bridge.adapter';
 import { DEuroAdapter } from './adapters/actions/deuro.adapter';
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { FrankencoinAdapter } from './adapters/actions/frankencoin.adapter';
+import { JuiceAdapter } from './adapters/actions/juice.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
 import { LiquidityPipelineAdapter } from './adapters/actions/liquidity-pipeline.adapter';
 import { MexcAdapter } from './adapters/actions/mexc.adapter';
@@ -95,6 +98,8 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     OptimismL2BridgeAdapter,
     PolygonL2BridgeAdapter,
     BaseL2BridgeAdapter,
+    LayerZeroBridgeAdapter,
+    ClementineBridgeAdapter,
     BinanceAdapter,
     MexcAdapter,
     ScryptAdapter,
@@ -103,6 +108,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     LiquidityPipelineAdapter,
     FrankencoinAdapter,
     DEuroAdapter,
+    JuiceAdapter,
   ],
   exports: [LiquidityManagementService, LiquidityManagementBalanceService, LiquidityManagementPipelineService],
 })

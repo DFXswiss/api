@@ -453,7 +453,7 @@ export class UserService {
     const { userData } = await this.userRepo.findOne({
       where: { id: userId },
       relations: { userData: true },
-      select: ['id', 'userData'],
+      select: { id: true, userData: true },
     });
     await this.userDataService.updateVolumes(userData.id);
   }

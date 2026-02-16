@@ -222,7 +222,10 @@ export class DexService {
   }
 
   async getPendingOrders(context: LiquidityOrderContext): Promise<string[]> {
-    const pending = await this.liquidityOrderRepo.find({ where: { context }, select: ['context', 'correlationId'] });
+    const pending = await this.liquidityOrderRepo.find({
+      where: { context },
+      select: { context: true, correlationId: true },
+    });
     return pending.map((o) => o.correlationId);
   }
 
@@ -297,7 +300,7 @@ export class DexService {
     try {
       return await strategy.calculatePrice(from, to, poolFee);
     } catch (e) {
-      this.logger.error('Error while getting target amount:', e);
+      this.logger.error(`Error while getting target amount (${from.uniqueName} -> ${to.uniqueName}):`, e);
 
       // default public exception
       throw new Error(`Error while getting price from ${from.uniqueName} to ${to.uniqueName}.`);

@@ -6,7 +6,7 @@
       "value": 1
     },
     "containerImage": {
-      "value": "dfxswiss/deuro-api:beta"
+      "value": "juicedollar-api:latest"
     },
     "containerVolumeMounts": {
       "value": [
@@ -40,12 +40,20 @@
     "containerEnv": {
       "value": [
         {
+          "name": "API_ENVIRONMENT",
+          "value": "dev"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "info"
+        },
+        {
           "name": "PORT",
           "value": "3000"
         },
         {
           "name": "CONFIG_CHAIN",
-          "value": "ethereum"
+          "value": "testnet"
         },
         {
           "name": "CONFIG_APP_URL",
@@ -61,11 +69,7 @@
         },
         {
           "name": "RPC_URL_MAINNET",
-          "value": "https://eth-mainnet.g.alchemy.com/v2/[API-KEY]"
-        },
-        {
-          "name": "RPC_URL_POLYGON",
-          "value": "https://polygon-mainnet.g.alchemy.com/v2/[API-KEY]"
+          "value": "https://rpc.testnet.juiceswap.com"
         },
         {
           "name": "TELEGRAM_BOT_TOKEN",
@@ -74,6 +78,26 @@
         {
           "name": "TELEGRAM_GROUPS_JSON",
           "value": "/app/.api/telegram.groups.json"
+        },
+        {
+          "name": "TWITTER_CLIENT_APP_KEY",
+          "value": "[TWITTER_CLIENT_APP_KEY]"
+        },
+        {
+          "name": "TWITTER_CLIENT_APP_SECRET",
+          "value": "[TWITTER_CLIENT_APP_SECRET]"
+        },
+        {
+          "name": "TWITTER_ACCESS_TOKEN",
+          "value": "[TWITTER_ACCESS_TOKEN]"
+        },
+        {
+          "name": "TWITTER_ACCESS_SECRET",
+          "value": "[TWITTER_ACCESS_SECRET]"
+        },
+        {
+          "name": "TWITTER_IMAGES_DIR",
+          "value": "/app/.api/images/twitter"
         }
       ]
     },

@@ -80,6 +80,51 @@ export class SellSupportInfo {
   volume: number;
 }
 
+export class TransactionListEntry {
+  id: number;
+  type?: string;
+  accountId?: number;
+  kycFileId?: number;
+  name?: string;
+  domicile?: string;
+  created?: Date;
+  eventDate?: Date;
+  outputDate?: Date;
+  assets?: string;
+  amountInChf?: number;
+  highRisk?: boolean;
+}
+
+export class KycFileListEntry {
+  kycFileId: number;
+  id: number;
+  amlAccountType?: string;
+  verifiedName?: string;
+  country?: { name: string };
+  allBeneficialOwnersDomicile?: string;
+  amlListAddedDate?: Date;
+  amlListExpiredDate?: Date;
+  amlListReactivatedDate?: Date;
+  newOpeningInAuditPeriod?: boolean;
+  highRisk?: boolean;
+  pep?: boolean;
+  complexOrgStructure?: boolean;
+  totalVolumeChfAuditPeriod?: number;
+  totalCustodyBalanceChfAuditPeriod?: number;
+}
+
+export class KycFileYearlyStats {
+  year: number;
+  startCount: number;
+  reopened: number;
+  newFiles: number;
+  addedDuringYear: number;
+  activeDuringYear: number;
+  closedDuringYear: number;
+  endCount: number;
+  highestFileNr: number;
+}
+
 export class UserDataSupportInfoDetails {
   userData: UserData;
   kycFiles: KycFile[];

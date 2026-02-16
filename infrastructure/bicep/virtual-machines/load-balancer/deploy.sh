@@ -11,8 +11,9 @@ environmentOptions=("loc" "dev" "prd")
 resourceGroupOptions=("api" "core")
 
 # "ctn": Citrea Testnet Node
+# "cmn": Citrea Mainnet Node
 # "sln": Swiss Ledger Node
-nodeNameOptions=("ctn" "sln")
+nodeNameOptions=("ctn" "cmn" "sln")
 
 # --- FUNCTIONS --- #
 selectOption() {

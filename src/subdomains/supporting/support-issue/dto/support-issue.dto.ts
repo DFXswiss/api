@@ -1,10 +1,27 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CountryDto } from 'src/shared/models/country/dto/country.dto';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { FundOrigin, InvestmentDate, LimitRequestDecision } from '../entities/limit-request.entity';
+import { Department } from '../enums/department.enum';
 import {
   SupportIssueInternalState,
   SupportIssueReason,
   SupportIssueState,
   SupportIssueType,
 } from '../enums/support-issue.enum';
+
+export enum SupportMessageTranslationKey {
+  BOT_HINT = 'support-issue.bot_hint',
+  MONERO_NOT_DISPLAYED = 'support-issue.monero_not_displayed',
+  SEPA_STANDARD = 'support-issue.sepa_standard',
+  SEPA_WEEKEND = 'support-issue.sepa_weekend',
+  MISSING_LIQUIDITY = 'support-issue.missing_liquidity',
+}
 
 export class SupportMessageDto {
   @ApiProperty()
@@ -66,6 +83,148 @@ export class SupportIssueDto {
 
   @ApiPropertyOptional({ type: SupportIssueLimitRequestDto })
   limitRequest?: SupportIssueLimitRequestDto;
+}
+
+export class SupportIssueInternalAccountDataDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty({ enum: UserDataStatus })
+  status: UserDataStatus;
+
+  @ApiPropertyOptional()
+  verifiedName?: string;
+
+  @ApiPropertyOptional()
+  completeName?: string;
+
+  @ApiPropertyOptional({ enum: AccountType })
+  accountType?: AccountType;
+
+  @ApiProperty({ enum: KycLevel })
+  kycLevel: KycLevel;
+
+  @ApiPropertyOptional()
+  depositLimit?: number;
+
+  @ApiProperty()
+  annualVolume: number;
+
+  @ApiProperty()
+  kycHash: string;
+
+  @ApiPropertyOptional({ type: CountryDto })
+  country?: CountryDto;
+}
+
+export class SupportIssueInternalWalletDto {
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  amlRules: string;
+
+  @ApiProperty()
+  isKycClient: boolean;
+}
+
+export class SupportIssueInternalTransactionDataDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty({ enum: TransactionSourceType })
+  sourceType: TransactionSourceType;
+
+  @ApiProperty({ enum: TransactionTypeInternal })
+  type: TransactionTypeInternal;
+
+  @ApiPropertyOptional({ enum: CheckStatus })
+  amlCheck?: CheckStatus;
+
+  @ApiPropertyOptional({ enum: AmlReason })
+  amlReason?: AmlReason;
+
+  @ApiPropertyOptional()
+  comment?: string;
+
+  @ApiPropertyOptional()
+  inputAmount?: number;
+
+  @ApiPropertyOptional()
+  inputAsset?: string;
+
+  @ApiPropertyOptional({ enum: Blockchain })
+  inputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional()
+  outputAmount?: number;
+
+  @ApiPropertyOptional()
+  outputAsset?: string;
+
+  @ApiPropertyOptional({ enum: Blockchain })
+  outputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional({ type: SupportIssueInternalWalletDto })
+  wallet?: SupportIssueInternalWalletDto;
+
+  @ApiPropertyOptional()
+  isComplete?: boolean;
+}
+
+export class SupportIssueInternalLimitRequestDataDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  limit: number;
+
+  @ApiPropertyOptional()
+  acceptedLimit?: number;
+
+  @ApiProperty()
+  investmentDate: InvestmentDate;
+
+  @ApiProperty()
+  fundOrigin: FundOrigin;
+
+  @ApiPropertyOptional()
+  decision?: LimitRequestDecision;
+}
+
+export class SupportIssueInternalDataDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty({ type: Date })
+  created: Date;
+
+  @ApiProperty()
+  uid: string;
+
+  @ApiProperty({ enum: SupportIssueType })
+  type: SupportIssueType;
+
+  @ApiPropertyOptional({ enum: Department })
+  department?: Department;
+
+  @ApiProperty({ enum: SupportIssueReason })
+  reason: SupportIssueReason;
+
+  @ApiProperty({ enum: SupportIssueInternalState })
+  state: SupportIssueInternalState;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ type: SupportIssueInternalAccountDataDto })
+  account: SupportIssueInternalAccountDataDto;
+
+  @ApiPropertyOptional({ type: SupportIssueInternalTransactionDataDto })
+  transaction?: SupportIssueInternalTransactionDataDto;
+
+  @ApiPropertyOptional({ type: SupportIssueInternalLimitRequestDataDto })
+  limitRequest?: SupportIssueInternalLimitRequestDataDto;
 }
 
 export const SupportIssueStateMapper: {

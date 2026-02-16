@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { BitcoinClient, TransactionHistory } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
+import { TransactionHistory } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
+import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';

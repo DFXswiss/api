@@ -21,6 +21,7 @@ import { PayInArbitrumService } from './services/payin-arbitrum.service';
 import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
+import { PayInCitreaService } from './services/payin-citrea.service';
 import { PayInCitreaTestnetService } from './services/payin-citrea-testnet.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
 import { PayInGnosisService } from './services/payin-gnosis.service';
@@ -42,6 +43,7 @@ import { BinancePayStrategy as BinancePayStrategyR } from './strategies/register
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { CardanoStrategy as CardanoStrategyR } from './strategies/register/impl/cardano.strategy';
+import { CitreaStrategy as CitreaStrategyR } from './strategies/register/impl/citrea.strategy';
 import { CitreaTestnetStrategy as CitreaTestnetStrategyR } from './strategies/register/impl/citrea-testnet.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
 import { GnosisStrategy as GnosisStrategyR } from './strategies/register/impl/gnosis.strategy';
@@ -65,6 +67,8 @@ import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
 import { CardanoCoinStrategy as CardanoCoinStrategyS } from './strategies/send/impl/cardano-coin.strategy';
 import { CardanoTokenStrategy as CardanoTokenStrategyS } from './strategies/send/impl/cardano-token.strategy';
+import { CitreaCoinStrategy as CitreaCoinStrategyS } from './strategies/send/impl/citrea-coin.strategy';
+import { CitreaTokenStrategy as CitreaTokenStrategyS } from './strategies/send/impl/citrea-token.strategy';
 import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyS } from './strategies/send/impl/citrea-testnet-coin.strategy';
 import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyS } from './strategies/send/impl/citrea-testnet-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send/impl/ethereum-coin.strategy';
@@ -125,6 +129,7 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     PayInGnosisService,
     PayInTronService,
     PayInCardanoService,
+    PayInCitreaService,
     PayInCitreaTestnetService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
@@ -170,6 +175,9 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     CardanoStrategyR,
     CardanoCoinStrategyS,
     CardanoTokenStrategyS,
+    CitreaStrategyR,
+    CitreaCoinStrategyS,
+    CitreaTokenStrategyS,
     CitreaTestnetStrategyR,
     CitreaTestnetCoinStrategyS,
     CitreaTestnetTokenStrategyS,

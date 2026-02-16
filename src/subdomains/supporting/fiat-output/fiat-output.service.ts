@@ -132,7 +132,11 @@ export class FiatOutputService {
     });
 
     // Validate creditor fields for all types - data comes from frontend or admin DTO
-    this.validateRequiredCreditorFields(entity);
+    try {
+      this.validateRequiredCreditorFields(entity);
+    } catch (e) {
+      throw new Error(`Failed to create fiat output for ${type} ${originEntityId}: ${e.message}`);
+    }
 
     if (createReport) entity.reportCreated = false;
 

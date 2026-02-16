@@ -229,6 +229,14 @@ export class AssetService {
     });
   }
 
+  async getCitreaCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'cBTC',
+      blockchain: Blockchain.CITREA,
+      type: AssetType.COIN,
+    });
+  }
+
   async getCitreaTestnetCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'cBTC',
@@ -265,6 +273,14 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'ADA',
       blockchain: Blockchain.CARDANO,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getBitcoinTestnet4Coin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'BTC',
+      blockchain: Blockchain.BITCOIN_TESTNET4,
       type: AssetType.COIN,
     });
   }

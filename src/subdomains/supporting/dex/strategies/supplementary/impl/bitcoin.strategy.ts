@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TransactionHistory } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
+import { TransactionHistory } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';

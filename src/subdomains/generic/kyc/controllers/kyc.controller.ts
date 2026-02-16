@@ -25,7 +25,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Request, Response } from 'express';
+import { Request } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { GetConfig } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -421,17 +421,6 @@ export class KycController {
   }
 
   // --- HELPER METHODS --- //
-
-  private allowFrameIntegration(res: Response) {
-    res.removeHeader('X-Frame-Options');
-
-    const contentPolicy = res.getHeader('Content-Security-Policy') as string;
-    const updatedPolicy = contentPolicy
-      ?.split(';')
-      .filter((p) => !p.includes('frame-ancestors'))
-      .join(';');
-    res.setHeader('Content-Security-Policy', updatedPolicy);
-  }
 
   private fileName(type: string, file: string): string {
     return `${Util.isoDateTime(new Date())}_${type}_user-upload_${Util.randomId()}_${file}`;

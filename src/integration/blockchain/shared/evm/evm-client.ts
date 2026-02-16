@@ -9,11 +9,11 @@ import BigNumber from 'bignumber.js';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { hashMessage } from 'ethers/lib/utils';
 import { AlchemyService, AssetTransfersParams } from 'src/integration/alchemy/services/alchemy.service';
+import { BlockscoutService } from 'src/integration/blockchain/shared/blockscout/blockscout.service';
 import ERC1271_ABI from 'src/integration/blockchain/shared/evm/abi/erc1271.abi.json';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
-import { GoldskyService } from 'src/integration/goldsky/goldsky.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
@@ -30,7 +30,8 @@ import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 export interface EvmClientParams {
   http: HttpService;
   alchemyService?: AlchemyService;
-  goldskyService?: GoldskyService;
+  blockscoutService?: BlockscoutService;
+  blockscoutApiUrl?: string;
   gatewayUrl: string;
   apiKey: string;
   walletPrivateKey: string;
@@ -38,6 +39,7 @@ export interface EvmClientParams {
   swapContractAddress?: string;
   quoteContractAddress?: string;
   swapFactoryAddress?: string;
+  swapGatewayAddress?: string;
 }
 
 interface UniswapPosition {
@@ -60,7 +62,8 @@ export abstract class EvmClient extends BlockchainClient {
 
   readonly http: HttpService;
   private readonly alchemyService: AlchemyService;
-  protected readonly goldskyService?: GoldskyService;
+  protected readonly blockscoutService?: BlockscoutService;
+  protected readonly blockscoutApiUrl?: string;
   readonly chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
@@ -72,12 +75,14 @@ export abstract class EvmClient extends BlockchainClient {
   private readonly swapContractAddress: string;
   private readonly swapFactoryAddress: string;
   private readonly quoteContractAddress: string;
+  protected readonly swapGatewayAddress: string;
 
   constructor(params: EvmClientParams) {
     super();
     this.http = params.http;
     this.alchemyService = params.alchemyService;
-    this.goldskyService = params.goldskyService;
+    this.blockscoutService = params.blockscoutService;
+    this.blockscoutApiUrl = params.blockscoutApiUrl;
     this.chainId = params.chainId;
 
     const url = `${params.gatewayUrl}/${params.apiKey ?? ''}`;
@@ -95,6 +100,7 @@ export abstract class EvmClient extends BlockchainClient {
     this.swapContractAddress = params.swapContractAddress;
     this.quoteContractAddress = params.quoteContractAddress;
     this.swapFactoryAddress = params.swapFactoryAddress;
+    this.swapGatewayAddress = params.swapGatewayAddress;
   }
 
   // --- PUBLIC API - GETTERS --- //
@@ -160,6 +166,11 @@ export abstract class EvmClient extends BlockchainClient {
 
   async getCurrentBlock(): Promise<number> {
     return this.provider.getBlockNumber();
+  }
+
+  async getLatestBlockTimestamp(): Promise<number> {
+    const block = await this.provider.getBlock('latest');
+    return block.timestamp;
   }
 
   async getTransactionCount(address: string): Promise<number> {
@@ -441,7 +452,7 @@ export abstract class EvmClient extends BlockchainClient {
     return EvmUtil.getGasPriceLimitFromHex(txHex, currentGasPrice);
   }
 
-  async approveContract(asset: Asset, contractAddress: string): Promise<string> {
+  async approveContract(asset: Asset, contractAddress: string, wait = false): Promise<string> {
     const contract = this.getERC20ContractForDex(asset.chainId);
 
     const transaction = await contract.populateTransaction.approve(contractAddress, ethers.constants.MaxInt256);
@@ -458,7 +469,18 @@ export abstract class EvmClient extends BlockchainClient {
 
     this.setNonce(this.walletAddress, nonce + 1);
 
+    if (wait) await tx.wait();
+
     return tx.hash;
+  }
+
+  async checkAndApproveContract(asset: Asset, contractAddress: string, amount: EthersNumber): Promise<string | null> {
+    const contract = this.getERC20ContractForDex(asset.chainId);
+    const allowance = await contract.allowance(this.walletAddress, contractAddress);
+
+    if (allowance.gte(amount)) return null;
+
+    return this.approveContract(asset, contractAddress, true);
   }
 
   // --- PUBLIC API - SWAPS --- //
@@ -538,27 +560,13 @@ export abstract class EvmClient extends BlockchainClient {
   ): Promise<{ targetAmount: number; feeAmount: number; priceImpact: number }> {
     if (source.id === target.id) return { targetAmount: sourceAmount, feeAmount: 0, priceImpact: 0 };
 
-    const [sourceToken, targetToken] = await this.getTokenPair(source, target);
-
-    const poolContract = this.getPoolContract(
-      Pool.getAddress(sourceToken, targetToken, poolFee, undefined, this.swapFactoryAddress),
-    );
-
-    const token0IsInToken = sourceToken.address === (await poolContract.token0());
-    const slot0 = await poolContract.slot0();
-    const sqrtPriceX96 = slot0.sqrtPriceX96;
-
-    const quote = await this.poolQuote(sourceToken, targetToken, sourceAmount, poolFee);
-
-    let sqrtPriceRatio = +quote.sqrtPriceX96 / +sqrtPriceX96;
-    if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
-
+    const quote = await this.assetPoolQuote(source, target, sourceAmount, poolFee);
     const gasPrice = await this.getRecommendedGasPrice();
 
     return {
-      targetAmount: EvmUtil.fromWeiAmount(quote.amountOut, targetToken.decimals),
+      targetAmount: EvmUtil.fromWeiAmount(quote.amountOut, target.decimals),
       feeAmount: EvmUtil.fromWeiAmount(quote.gasEstimate.mul(gasPrice)),
-      priceImpact: Math.abs(1 - sqrtPriceRatio),
+      priceImpact: quote.priceImpact,
     };
   }
 
@@ -593,14 +601,48 @@ export abstract class EvmClient extends BlockchainClient {
     return this.doSwap(parameters);
   }
 
+  protected async assetPoolQuote(
+    source: Asset,
+    target: Asset,
+    sourceAmount: number,
+    poolFee: FeeAmount,
+  ): Promise<{
+    amountOut: EthersNumber;
+    gasEstimate: EthersNumber;
+    priceImpact: number;
+  }> {
+    const [sourceToken, targetToken] = await this.getTokenPair(source, target);
+    const quote = await this.poolQuote(sourceToken, targetToken, sourceAmount, poolFee);
+
+    const token0IsIn = sourceToken.address.toLowerCase() === quote.pool.token0.address.toLowerCase();
+    const sqrtPriceX96Before = ethers.BigNumber.from(quote.pool.sqrtRatioX96.toString());
+
+    return {
+      amountOut: quote.amountOut,
+      gasEstimate: quote.gasEstimate,
+      priceImpact: this.calcPriceImpact(sqrtPriceX96Before, quote.sqrtPriceX96After, token0IsIn),
+    };
+  }
+
+  protected calcPriceImpact(
+    sqrtPriceX96Before: EthersNumber,
+    sqrtPriceX96After: EthersNumber,
+    token0IsIn: boolean,
+  ): number {
+    let sqrtPriceRatio = +sqrtPriceX96After / +sqrtPriceX96Before;
+    if (!token0IsIn) sqrtPriceRatio = 1 / sqrtPriceRatio;
+    return Math.abs(1 - sqrtPriceRatio);
+  }
+
   private async poolQuote(
     sourceToken: Token,
     targetToken: Token,
     sourceAmount: number,
     poolFee: FeeAmount,
   ): Promise<{
+    pool: Pool;
     amountOut: EthersNumber;
-    sqrtPriceX96: EthersNumber;
+    sqrtPriceX96After: EthersNumber;
     gasEstimate: EthersNumber;
     route: Route<Token, Token>;
   }> {
@@ -626,22 +668,25 @@ export abstract class EvmClient extends BlockchainClient {
       data: calldata,
     });
 
-    const [amountOut, sqrtPriceX96, _, gasEstimate] = ethers.utils.defaultAbiCoder.decode(
+    const [amountOut, sqrtPriceX96After, _, gasEstimate] = ethers.utils.defaultAbiCoder.decode(
       QuoterV2ABI.abi.find((f) => f.name === 'quoteExactInputSingle')?.outputs.map((o) => o.type),
       quoteCallReturnData,
     );
 
-    return { amountOut, sqrtPriceX96, gasEstimate, route };
+    return { pool, amountOut, sqrtPriceX96After, gasEstimate, route };
   }
 
   async getSwapResult(txId: string, asset: Asset): Promise<number> {
     const receipt = await this.getTxReceipt(txId);
 
-    const swapLog = receipt?.logs?.find((l) => l.address.toLowerCase() === asset.chainId);
+    const walletTopic = ethers.utils.hexZeroPad(this.walletAddress.toLowerCase(), 32);
+
+    const swapLog = receipt?.logs?.find(
+      (l) => l.address.toLowerCase() === asset.chainId.toLowerCase() && l.topics[2]?.toLowerCase() === walletTopic,
+    );
     if (!swapLog) throw new Error(`Failed to get swap result for TX ${txId}`);
 
-    const token = await this.getToken(asset);
-    return EvmUtil.fromWeiAmount(swapLog.data, token.decimals);
+    return EvmUtil.fromWeiAmount(swapLog.data, asset.decimals);
   }
 
   private async getRoute(source: Asset, target: Asset, sourceAmount: number, maxSlippage: number): Promise<SwapRoute> {

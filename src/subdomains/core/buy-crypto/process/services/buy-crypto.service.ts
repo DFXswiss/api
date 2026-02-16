@@ -234,7 +234,7 @@ export class BuyCryptoService {
         cryptoInput: true,
         bankTx: true,
         checkoutTx: true,
-        transaction: { user: { wallet: true }, userData: { users: true } },
+        transaction: { user: { wallet: true }, userData: { users: true, kycSteps: true } },
         chargebackOutput: true,
         bankData: true,
       },
@@ -347,9 +347,9 @@ export class BuyCryptoService {
           inputReferenceCurrency,
         );
 
-        await this.amlService.postProcessing(entity, amlCheckBefore, last30dVolume);
+        await this.amlService.postProcessing(entity, last30dVolume);
       } else {
-        await this.amlService.postProcessing(entity, amlCheckBefore, undefined);
+        await this.amlService.postProcessing(entity, undefined);
       }
     }
 
@@ -535,6 +535,7 @@ export class BuyCryptoService {
     TransactionUtilService.validateRefund(buyCrypto, {
       refundIban: chargebackIban,
       chargebackAmount,
+      chargebackAmountInInputAsset: dto.chargebackAmountInInputAsset,
     });
 
     if (

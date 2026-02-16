@@ -25,6 +25,7 @@ import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
+import { TransactionNotificationService } from 'src/subdomains/supporting/payment/services/transaction-notification.service';
 import {
   DeepPartial,
   FindOptionsRelations,
@@ -108,6 +109,8 @@ export class BankTxService implements OnModuleInit {
     private readonly sepaParser: SepaParser,
     private readonly bankDataService: BankDataService,
     private readonly virtualIbanService: VirtualIbanService,
+    @Inject(forwardRef(() => TransactionNotificationService))
+    private readonly transactionNotificationService: TransactionNotificationService,
   ) {}
 
   onModuleInit() {
@@ -126,18 +129,23 @@ export class BankTxService implements OnModuleInit {
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.BANK_TX })
   async enrichYapealTransactions(): Promise<void> {
-    const transactions = await this.bankTxRepo.findBy([
-      { created: MoreThan(Util.minutesBefore(30)), familyCode: 'CCRD' }, // credit card => wrong data
-    ]);
+    const transactions = await this.bankTxRepo.find({
+      where: { familyCode: 'CCRD' }, // credit card => wrong data
+      order: { id: 'DESC' },
+      take: 100,
+    });
 
     if (transactions.length === 0) return;
 
-    const today = new Date();
     const ibanGroups = Util.groupBy<BankTx, string>(transactions, 'accountIban');
 
     for (const [accountIban, groupTransactions] of ibanGroups) {
       try {
-        const yapealTransactions = await this.yapealService.getTransactions(accountIban, today, today);
+        const dates = groupTransactions.map((tx) => (tx.bookingDate ?? tx.created).getTime());
+        const fromDate = new Date(Math.min(...dates));
+        const toDate = Util.daysAfter(1, new Date(Math.max(...dates)));
+
+        const yapealTransactions = await this.yapealService.getTransactions(accountIban, fromDate, toDate);
 
         for (const transaction of groupTransactions) {
           const yapealTx = yapealTransactions.find((tx) => tx.accountServiceRef === transaction.accountServiceRef);
@@ -561,6 +569,8 @@ export class BankTxService implements OnModuleInit {
       if (bankTx.transaction.userData) continue;
 
       await this.transactionService.updateInternal(bankTx.transaction, { userData });
+
+      await this.transactionNotificationService.sendUnassignedTxMail(bankTx.transaction, userData);
     }
   }
 

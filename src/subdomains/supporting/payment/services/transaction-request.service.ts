@@ -20,6 +20,8 @@ import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { Between, FindOptionsRelations, In, IsNull, LessThan, MoreThan } from 'typeorm';
+import { CustodyOrder } from '../../../core/custody/entities/custody-order.entity';
+import { CustodyOrderStatus } from '../../../core/custody/enums/custody';
 import { Deposit } from '../../address-pool/deposit/deposit.entity';
 import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
@@ -324,8 +326,11 @@ export class TransactionRequestService {
     }
   }
 
-  async confirmTransactionRequest(txRequest: TransactionRequest): Promise<void> {
-    await this.transactionRequestRepo.update(txRequest.id, { status: TransactionRequestStatus.WAITING_FOR_PAYMENT });
+  async confirmTransactionRequest(txRequest: TransactionRequest, aktionariatResponse?: string): Promise<void> {
+    await this.transactionRequestRepo.update(txRequest.id, {
+      status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
+      ...(aktionariatResponse && { aktionariatResponse }),
+    });
   }
 
   async getActiveDepositAddresses(created: Date, blockchain: Blockchain): Promise<string[]> {
@@ -335,12 +340,29 @@ export class TransactionRequestService {
       .distinct()
       .innerJoin(DepositRoute, 'dr', 'tr.routeId = dr.id')
       .innerJoin(Deposit, 'd', 'dr.depositId = d.id')
+      .leftJoin(CustodyOrder, 'co', 'co.transactionRequestId = tr.id')
       .where('tr.type IN (:...types)', { types: [TransactionRequestType.SELL, TransactionRequestType.SWAP] })
-      .andWhere('tr.status = :status', { status: TransactionRequestStatus.CREATED })
-      .andWhere('tr.created > :created', { created })
-      .andWhere('d.blockchains = :blockchain', { blockchain })
+      .andWhere('tr.status = :trStatus', { trStatus: TransactionRequestStatus.CREATED })
+      .andWhere('(tr.created > :created OR co.status = :coStatus)', {
+        created,
+        coStatus: CustodyOrderStatus.IN_PROGRESS,
+      })
+      .andWhere('d.blockchains LIKE :blockchain', { blockchain: `%${blockchain}%` })
       .getRawMany<{ address: string }>()
       .then((transactionRequests) => transactionRequests.map((deposit) => deposit.address));
+  }
+
+  async getByAssetId(assetId: number, limit = 50, offset = 0): Promise<TransactionRequest[]> {
+    return this.transactionRequestRepo.find({
+      where: [
+        { type: TransactionRequestType.BUY, targetId: assetId, isComplete: false },
+        { type: TransactionRequestType.SELL, sourceId: assetId, isComplete: false },
+      ],
+      order: { created: 'DESC' },
+      take: limit,
+      skip: offset,
+      relations: { user: true },
+    });
   }
 
   // --- HELPER METHODS --- //

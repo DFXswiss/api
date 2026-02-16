@@ -70,7 +70,7 @@ export class CardanoStrategy extends RegisterStrategy {
   private async getLastCheckedBlockHeight(depositAddress: BlockchainAddress): Promise<number> {
     return this.payInRepository
       .findOne({
-        select: ['id', 'blockHeight'],
+        select: { id: true, blockHeight: true },
         where: { address: depositAddress },
         order: { blockHeight: 'DESC' },
         loadEagerRelations: false,

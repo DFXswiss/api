@@ -3,9 +3,12 @@ import { ArbitrumService } from '../../arbitrum/arbitrum.service';
 import { BaseService } from '../../base/base.service';
 import { BitcoinClient } from '../../bitcoin/node/bitcoin-client';
 import { BitcoinNodeType, BitcoinService } from '../../bitcoin/node/bitcoin.service';
+import { BitcoinTestnet4Client } from '../../bitcoin-testnet4/bitcoin-testnet4-client';
+import { BitcoinTestnet4NodeType, BitcoinTestnet4Service } from '../../bitcoin-testnet4/bitcoin-testnet4.service';
 import { BscService } from '../../bsc/bsc.service';
 import { CardanoClient } from '../../cardano/cardano-client';
 import { CardanoService } from '../../cardano/services/cardano.service';
+import { CitreaService } from '../../citrea/citrea.service';
 import { CitreaTestnetService } from '../../citrea-testnet/citrea-testnet.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
 import { GnosisService } from '../../gnosis/gnosis.service';
@@ -30,6 +33,7 @@ import { L2BridgeEvmClient } from '../evm/interfaces';
 type BlockchainClientType =
   | EvmClient
   | BitcoinClient
+  | BitcoinTestnet4Client
   | MoneroClient
   | SparkClient
   | ZanoClient
@@ -39,6 +43,7 @@ type BlockchainClientType =
 type BlockchainServiceType =
   | EvmService
   | BitcoinService
+  | BitcoinTestnet4Service
   | MoneroService
   | SparkService
   | ZanoService
@@ -64,7 +69,9 @@ export class BlockchainRegistryService {
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
     private readonly cardanoService: CardanoService,
+    private readonly citreaService: CitreaService,
     private readonly citreaTestnetService: CitreaTestnetService,
+    private readonly bitcoinTestnet4Service: BitcoinTestnet4Service,
   ) {}
 
   getClient(blockchain: Blockchain): BlockchainClientType {
@@ -81,6 +88,13 @@ export class BlockchainRegistryService {
     const blockchainService = this.getService(blockchain);
     if (!(blockchainService instanceof BitcoinService))
       throw new Error(`No bitcoin client found for blockchain ${blockchain}`);
+    return blockchainService.getDefaultClient(type);
+  }
+
+  getBitcoinTestnet4Client(blockchain: Blockchain, type: BitcoinTestnet4NodeType): BitcoinTestnet4Client {
+    const blockchainService = this.getService(blockchain);
+    if (!(blockchainService instanceof BitcoinTestnet4Service))
+      throw new Error(`No bitcoin testnet4 client found for blockchain ${blockchain}`);
     return blockchainService.getDefaultClient(type);
   }
 
@@ -116,8 +130,12 @@ export class BlockchainRegistryService {
         return this.tronService;
       case Blockchain.CARDANO:
         return this.cardanoService;
+      case Blockchain.CITREA:
+        return this.citreaService;
       case Blockchain.CITREA_TESTNET:
         return this.citreaTestnetService;
+      case Blockchain.BITCOIN_TESTNET4:
+        return this.bitcoinTestnet4Service;
 
       default:
         throw new Error(`No service found for blockchain ${blockchain}`);

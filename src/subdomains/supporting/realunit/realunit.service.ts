@@ -27,6 +27,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
@@ -34,6 +35,7 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -41,18 +43,30 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
+import { RealUnitDevService } from './realunit-dev.service';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
   HoldersClientResponse,
   TokenInfoClientResponse,
 } from './dto/client.dto';
+import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
-import { AktionariatRegistrationDto, RealUnitRegistrationDto, RealUnitUserType } from './dto/realunit-registration.dto';
+import {
+  AktionariatRegistrationDto,
+  RealUnitEmailRegistrationDto,
+  RealUnitEmailRegistrationStatus,
+  RealUnitRegistrationDto,
+  RealUnitRegistrationStatus,
+  RealUnitUserType,
+} from './dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from './dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
@@ -98,6 +112,10 @@ export class RealUnitService {
     private readonly sellService: SellService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly transactionService: TransactionService,
+    private readonly accountMergeService: AccountMergeService,
+    private readonly devService: RealUnitDevService,
+    private readonly swissQrService: SwissQRService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -201,30 +219,15 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (!hasRegistration) {
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
       throw new RegistrationRequiredException();
     }
 
-    // 2. KYC Level check - Level 20 for amounts <= 1000 CHF, Level 50 for higher amounts
+    // 2. KYC Level check - Level 30 required for all RealUnit purchases
     const currency = await this.fiatService.getFiatByName(currencyName);
-    const amountChf =
-      currencyName === 'CHF'
-        ? dto.amount
-        : (await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY)).convert(dto.amount);
 
-    const maxAmountForLevel20 = Config.tradingLimits.monthlyDefaultWoKyc;
-    const requiresLevel50 = amountChf > maxAmountForLevel20;
-    const requiredLevel = requiresLevel50 ? KycLevel.LEVEL_50 : KycLevel.LEVEL_20;
-
-    if (userData.kycLevel < requiredLevel) {
-      throw new KycLevelRequiredException(
-        requiredLevel,
-        userData.kycLevel,
-        requiresLevel50
-          ? `KYC Level 50 required for amounts above ${maxAmountForLevel20} CHF`
-          : 'KYC Level 20 required for RealUnit',
-      );
+    if (userData.kycLevel < KycLevel.LEVEL_30) {
+      throw new KycLevelRequiredException(KycLevel.LEVEL_30, userData.kycLevel, 'KYC Level 30 required for RealUnit');
     }
 
     // 3. Get or create Buy route for REALU
@@ -254,9 +257,9 @@ export class RealUnitService {
       zip: realunitAddress.zip,
       city: realunitAddress.city,
       country: realunitAddress.country,
-      // Bank info from BuyService
-      iban: buyPaymentInfo.iban,
-      bic: buyPaymentInfo.bic,
+      // Bank info from RealUnit config (not Yapeal/DFX)
+      iban: realunitBank.iban,
+      bic: realunitBank.bic,
       // Amount and currency
       amount: buyPaymentInfo.amount,
       currency: buyPaymentInfo.currency.name,
@@ -272,12 +275,75 @@ export class RealUnitService {
       priceSteps: buyPaymentInfo.priceSteps,
       // RealUnit specific
       estimatedAmount: buyPaymentInfo.estimatedAmount,
-      paymentRequest: buyPaymentInfo.paymentRequest,
+      paymentRequest: buyPaymentInfo.isValid
+        ? this.generatePaymentRequest(
+            currencyName,
+            buyPaymentInfo.amount,
+            buyPaymentInfo.remittanceInfo,
+            realunitBank,
+            realunitAddress,
+            user.userData,
+          )
+        : undefined,
       isValid: buyPaymentInfo.isValid,
       error: buyPaymentInfo.error,
     };
 
     return response;
+  }
+
+  private generatePaymentRequest(
+    currency: string,
+    amount: number,
+    reference: string,
+    bank: { iban: string; bic: string; recipient: string; name: string },
+    address: { street: string; number: string; zip: string; city: string; country: string },
+    userData: UserData,
+  ): string {
+    const bankInfo = {
+      name: bank.recipient,
+      bank: bank.name,
+      street: address.street,
+      number: address.number,
+      zip: address.zip,
+      city: address.city,
+      country: address.country,
+      iban: bank.iban,
+      bic: bank.bic,
+      sepaInstant: false,
+    };
+
+    if (currency === 'CHF') {
+      return this.swissQrService.createQrCode(amount, 'CHF', reference, bankInfo, userData);
+    }
+
+    return PdfUtil.generateGiroCode({
+      ...bankInfo,
+      currency,
+      amount,
+      reference,
+    });
+  }
+
+  async confirmBuy(userId: number, requestId: number): Promise<void> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
+      throw new ConflictException('Transaction request is already confirmed');
+    if (Util.daysDiff(request.created) >= Config.txRequestWaitingExpiryDays)
+      throw new BadRequestException('Transaction request is expired');
+
+    // Aktionariat API aufrufen
+    const fiat = await this.fiatService.getFiat(request.sourceId);
+    const aktionariatResponse = await this.blockchainService.requestPaymentInstructions({
+      currency: fiat.name,
+      address: request.user.address,
+      shares: Math.floor(request.estimatedAmount),
+      price: Math.round(request.exchangeRate * 100),
+    });
+
+    // Status + Response speichern
+    await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));
   }
 
   // --- Registration Methods ---
@@ -339,6 +405,100 @@ export class RealUnitService {
     // forward to Aktionariat
     const success = await this.forwardRegistration(kycStep, dto);
     return !success;
+  }
+
+  async registerEmail(
+    userDataId: number,
+    walletAddress: string,
+    dto: RealUnitEmailRegistrationDto,
+  ): Promise<RealUnitEmailRegistrationStatus> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true, wallet: true });
+    if (!userData) throw new NotFoundException('User not found');
+
+    if (userData.wallet?.name !== 'RealUnit') {
+      throw new BadRequestException('Registration is only allowed from RealUnit wallet');
+    }
+
+    const isNewEmail = !userData.mail || !Util.equalsIgnoreCase(dto.email, userData.mail);
+
+    if (isNewEmail) {
+      if (userData.mail && this.hasRegistrationForWallet(userData, walletAddress)) {
+        throw new BadRequestException('Not allowed to register a new email for this address');
+      }
+
+      try {
+        await this.userDataService.trySetUserMail(userData, dto.email);
+      } catch (e) {
+        if (e instanceof ConflictException) {
+          if (e.message.includes('account merge request sent')) {
+            return RealUnitEmailRegistrationStatus.MERGE_REQUESTED;
+          }
+        }
+        throw e;
+      }
+    }
+
+    if (userData.kycLevel < KycLevel.LEVEL_10) {
+      await this.kycService.initializeProcess(userData);
+    }
+
+    return RealUnitEmailRegistrationStatus.EMAIL_REGISTERED;
+  }
+
+  async completeRegistration(userDataId: number, dto: RealUnitRegistrationDto): Promise<RealUnitRegistrationStatus> {
+    await this.validateRegistrationDto(dto);
+
+    // get and validate user
+    const userData = await this.userService
+      .getUserByAddress(dto.walletAddress, {
+        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
+      })
+      .then((u) => u?.userData);
+
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
+
+    if (userData.kycLevel < KycLevel.LEVEL_10 || !userData.mail) {
+      throw new BadRequestException('Email registration must be completed first');
+    }
+    if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+      throw new BadRequestException('Email does not match registered email');
+    }
+
+    if (this.hasRegistrationForWallet(userData, dto.walletAddress)) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet');
+    }
+
+    // validate personal data
+    const hasExistingData = userData.firstname != null;
+    if (hasExistingData && !this.isPersonalDataMatching(userData, dto)) {
+      throw new BadRequestException('Personal data does not match existing data');
+    }
+
+    // save personal data
+    if (!hasExistingData) {
+      await this.userDataService.updatePersonalData(userData, dto.kycData);
+      await this.userDataService.updateUserDataInternal(userData, {
+        nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
+        birthday: new Date(dto.birthday),
+        language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
+        tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
+      });
+    }
+
+    // store data with internal review
+    const kycStep = await this.kycService.createCustomKycStep(
+      userData,
+      KycStepName.REALUNIT_REGISTRATION,
+      ReviewStatus.INTERNAL_REVIEW,
+      dto,
+    );
+
+    // forward to Aktionariat
+    const success = await this.forwardRegistration(kycStep, dto);
+    if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    return RealUnitRegistrationStatus.COMPLETED;
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
@@ -477,6 +637,16 @@ export class RealUnitService {
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
+  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
+    return userData
+      .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
+      .filter((s) => !(s.isFailed || s.isCanceled))
+      .some((s) => {
+        const result = s.getResult<AktionariatRegistrationDto>();
+        return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
+      });
+  }
+
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
     const kycData = dto.kycData;
 
@@ -562,15 +732,14 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    const hasRegistration = userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION);
-    if (!hasRegistration) {
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
       throw new RegistrationRequiredException();
     }
 
-    // 2. KYC Level check - Level 20 minimum
-    const requiredLevel = KycLevel.LEVEL_20;
+    // 2. KYC Level check - Level 30 minimum
+    const requiredLevel = KycLevel.LEVEL_30;
     if (userData.kycLevel < requiredLevel) {
-      throw new KycLevelRequiredException(requiredLevel, userData.kycLevel, 'KYC Level 20 required for RealUnit sell');
+      throw new KycLevelRequiredException(requiredLevel, userData.kycLevel, 'KYC Level 30 required for RealUnit sell');
     }
 
     // 3. Get REALU asset
@@ -656,6 +825,71 @@ export class RealUnitService {
     };
 
     return response;
+  }
+
+  // --- Admin Methods ---
+
+  async confirmPaymentReceived(requestId: number): Promise<void> {
+    const request = await this.transactionRequestService.getTransactionRequest(requestId, { user: true });
+    if (!request) throw new NotFoundException('Transaction request not found');
+    if (request.status !== TransactionRequestStatus.WAITING_FOR_PAYMENT) {
+      throw new BadRequestException('Transaction request is not in WaitingForPayment status');
+    }
+
+    if ([Environment.DEV, Environment.LOC].includes(Config.environment)) {
+      const realuAsset = await this.getRealuAsset();
+      await this.devService.simulatePaymentForRequest(request, realuAsset);
+    } else {
+      const aktionariatResponse = JSON.parse(request.aktionariatResponse);
+      const reference = aktionariatResponse.reference;
+      if (!reference) throw new BadRequestException('No reference found in aktionariat response');
+
+      // Convert amount to CHF Rappen for Aktionariat API
+      const fiat = await this.fiatService.getFiat(request.sourceId);
+      let amountChf = request.amount;
+      if (fiat.name !== 'CHF') {
+        const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
+        amountChf = price.convert(request.amount);
+      }
+
+      await this.blockchainService.payAndAllocate({
+        amount: Math.round(amountChf * 100),
+        ref: reference,
+      });
+      await this.transactionRequestService.complete(request.id);
+    }
+  }
+
+  async getAdminQuotes(limit = 50, offset = 0): Promise<RealUnitQuoteDto[]> {
+    const realuAsset = await this.getRealuAsset();
+    const requests = await this.transactionRequestService.getByAssetId(realuAsset.id, limit, offset);
+
+    return requests.map((r) => ({
+      id: r.id,
+      uid: r.uid,
+      type: r.type,
+      status: r.status,
+      amount: r.amount,
+      estimatedAmount: r.estimatedAmount,
+      created: r.created,
+      userAddress: r.user?.address,
+    }));
+  }
+
+  async getAdminTransactions(limit = 50, offset = 0): Promise<RealUnitTransactionDto[]> {
+    const realuAsset = await this.getRealuAsset();
+    const transactions = await this.transactionService.getByAssetId(realuAsset.id, limit, offset);
+
+    return transactions.map((t) => ({
+      id: t.id,
+      uid: t.uid,
+      type: t.type,
+      amountInChf: t.amountInChf,
+      assets: t.assets,
+      created: t.created,
+      outputDate: t.outputDate,
+      userAddress: t.user?.address,
+    }));
   }
 
   async confirmSell(userId: number, requestId: number, dto: RealUnitSellConfirmDto): Promise<{ txHash: string }> {

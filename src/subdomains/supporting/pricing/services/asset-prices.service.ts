@@ -16,18 +16,28 @@ export class AssetPricesService {
     });
   }
 
+  async getAssetPricesForDate(assetIds: number[], date: Date): Promise<Map<number, number>> {
+    const prices = await this.getAssetPriceEntitiesForDate(assetIds, date);
+    return new Map(prices.map((p) => [p.asset.id, p.priceChf]));
+  }
+
   async getAssetPriceForDate(assetId: number, date: Date): Promise<AssetPrice | null> {
+    const prices = await this.getAssetPriceEntitiesForDate([assetId], date);
+    return prices[0] ?? null;
+  }
+
+  private async getAssetPriceEntitiesForDate(assetIds: number[], date: Date): Promise<AssetPrice[]> {
+    if (!assetIds.length) return [];
+
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
 
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    return this.assetPriceRepo.findOne({
-      where: {
-        asset: { id: assetId },
-        created: Between(startOfDay, endOfDay),
-      },
+    return this.assetPriceRepo.find({
+      where: { asset: { id: In(assetIds) }, created: Between(startOfDay, endOfDay) },
+      relations: { asset: true },
     });
   }
 }

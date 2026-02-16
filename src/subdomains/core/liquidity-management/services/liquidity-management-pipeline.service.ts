@@ -239,13 +239,11 @@ export class LiquidityManagementPipelineService {
 
     if (isComplete) {
       order.complete();
-      await this.orderRepo.save(order);
-
-      this.logger.verbose(`Liquidity management order ${order.id} complete`);
-      return true;
     }
 
-    return false;
+    await this.orderRepo.save(order);
+
+    return isComplete;
   }
 
   private async handlePipelineCompletion(pipeline: LiquidityManagementPipeline): Promise<void> {

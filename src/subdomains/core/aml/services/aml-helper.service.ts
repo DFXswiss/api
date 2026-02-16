@@ -270,7 +270,6 @@ export class AmlHelperService {
           errors.push(AmlError.ACCOUNT_IBAN_BLACKLISTED);
 
         const bank = banks.find((b) => b.iban === entity.bankTx.accountIban);
-        if (bank?.sctInst && !entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
         if (bank?.sctInst && !entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
         if (bank && !bank.amlEnabled) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
@@ -434,6 +433,15 @@ export class AmlHelperService {
 
       case AmlRule.RULE_15:
         errors.push(AmlError.FORCE_MANUAL_CHECK);
+        break;
+
+      case AmlRule.RULE_16:
+        if (
+          entity instanceof BuyCrypto &&
+          entity.userData.accountType === AccountType.PERSONAL &&
+          !entity.userData.phoneCallCheckDate
+        )
+          errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
         break;
     }
 

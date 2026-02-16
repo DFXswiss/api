@@ -15,6 +15,7 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { RouteService } from 'src/subdomains/core/route/route.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -80,7 +81,7 @@ export class BuyService {
     const { user } = await this.buyRepo.findOne({
       where: { id: buyId },
       relations: { user: true },
-      select: ['id', 'user'],
+      select: { id: true, user: true },
     });
     const userVolume = await this.getUserVolume(user.id);
 
@@ -369,11 +370,13 @@ export class BuyService {
         // max 10 vIBANs per user
         const activeCount = await this.virtualIbanService.countActiveForUser(selector.userData.id);
         if (activeCount < 10) {
-          virtualIban = await this.virtualIbanService.createForBuy(selector.userData, buy, selector.currency);
+          virtualIban = await this.virtualIbanService
+            .createForBuy(selector.userData, buy, selector.currency)
+            .catch(() => null);
         }
       }
 
-      if (virtualIban) {
+      if (virtualIban?.bank.receive) {
         return this.buildVirtualIbanResponse(virtualIban, selector.userData);
       }
     }
@@ -383,16 +386,11 @@ export class BuyService {
 
     // EUR/CHF: create vIBAN for KYC 50+
     if (!virtualIban && ['EUR', 'CHF'].includes(selector.currency) && selector.userData.kycLevel >= KycLevel.LEVEL_50) {
-      virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency);
+      virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency).catch(() => null);
     }
 
-    if (virtualIban) {
+    if (virtualIban?.bank.receive) {
       return this.buildVirtualIbanResponse(virtualIban, selector.userData, buy?.bankUsage);
-    }
-
-    // EUR: vIBAN is mandatory
-    if (selector.currency === 'EUR') {
-      throw new BadRequestException('KycRequired');
     }
 
     // normal bank selection
@@ -446,20 +444,11 @@ export class BuyService {
   }
 
   private generateGiroCode(bankInfo: BankInfoDto & { reference?: string }, dto: GetBuyPaymentInfoDto): string {
-    const reference = bankInfo.reference ?? '';
-
-    return `
-${Config.giroCode.service}
-${Config.giroCode.version}
-${Config.giroCode.encoding}
-${Config.giroCode.transfer}
-${bankInfo.bic}
-${bankInfo.name}, ${bankInfo.street} ${bankInfo.number}, ${bankInfo.zip} ${bankInfo.city}, ${bankInfo.country}
-${bankInfo.iban}
-${dto.currency.name}${dto.amount}
-${Config.giroCode.char}
-${Config.giroCode.ref}
-${reference}
-`.trim();
+    return PdfUtil.generateGiroCode({
+      ...bankInfo,
+      currency: dto.currency.name,
+      amount: dto.amount,
+      reference: bankInfo.reference,
+    });
   }
 }

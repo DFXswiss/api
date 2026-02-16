@@ -1,3 +1,20 @@
+export interface TronAccountResponse {
+  balance: number;
+  createTime: number;
+  trc10: { key: string; value: number }[];
+  trc20: Record<string, string>[];
+  freeNetLimit: number;
+  bandwidth: number;
+}
+
+export interface TronAddressBalance {
+  asset: string;
+  type: string;
+  balance: string;
+  decimals: number;
+  tokenAddress?: string;
+}
+
 export interface TronChainParameterDto {
   bandwidthUnitPrice: number;
   energyUnitPrice: number;

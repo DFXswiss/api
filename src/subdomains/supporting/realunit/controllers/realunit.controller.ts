@@ -16,6 +16,7 @@ import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiExcludeEndpoint,
   ApiOkResponse,
   ApiOperation,
@@ -33,6 +34,7 @@ import {
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
@@ -44,8 +46,15 @@ import { BalancePdfService } from '../../balance/services/balance-pdf.service';
 import { TxStatementType } from '../../payment/dto/transaction-helper/tx-statement-details.dto';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { TransactionHelper } from '../../payment/services/transaction-helper';
-import { RealUnitBalancePdfDto } from '../dto/realunit-balance-pdf.dto';
+import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
+  RealUnitBalancePdfDto,
+  RealUnitMultiReceiptPdfDto,
+  RealUnitSingleReceiptPdfDto,
+} from '../dto/realunit-pdf.dto';
+import {
+  RealUnitEmailRegistrationDto,
+  RealUnitEmailRegistrationResponseDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
@@ -167,7 +176,7 @@ export class RealUnitController {
 
   // --- Receipt PDF Endpoint ---
 
-  @Put('transaction/:id/receipt')
+  @Post('transactions/receipt/single')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
@@ -176,12 +185,12 @@ export class RealUnitController {
   @ApiParam({ name: 'id', description: 'Transaction ID' })
   @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
   @ApiBadRequestResponse({ description: 'Transaction not found or not a RealUnit transaction' })
-  async generateReceipt(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
+  async generateReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitSingleReceiptPdfDto): Promise<PdfDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
 
     const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
       user.userData.id,
-      +id,
+      dto.transactionId,
       TxStatementType.RECEIPT,
     );
 
@@ -190,6 +199,30 @@ export class RealUnitController {
     }
 
     return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
+  }
+
+  @Post('transactions/receipt/multi')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    description: 'Generates a single PDF receipt for multiple completed RealUnit transactions',
+  })
+  @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
+  @ApiBadRequestResponse({ description: 'Transaction not found, currency mismatch, or not a RealUnit transaction' })
+  async generateMultiReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitMultiReceiptPdfDto): Promise<PdfDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+
+    const txStatementDetails = await this.transactionHelper.getTxStatementDetailsMulti(
+      user.userData.id,
+      dto.transactionIds,
+      TxStatementType.RECEIPT,
+    );
+
+    if (txStatementDetails.length > 0 && !Config.invoice.currencies.includes(txStatementDetails[0].currency)) {
+      throw new BadRequestException('PDF receipt is only available for CHF and EUR transactions');
+    }
+
+    return { pdfData: await this.swissQrService.createMultiTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
   }
 
   // --- Brokerbot Endpoints ---
@@ -244,13 +277,21 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get payment info for RealUnit buy',
     description:
-      'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 50 and RealUnit registration.',
+      'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 30 and RealUnit registration.',
   })
   @ApiOkResponse({ type: RealUnitPaymentInfoDto })
-  @ApiBadRequestResponse({ description: 'KYC Level 50 required, registration missing, or address not on allowlist' })
+  @ApiBadRequestResponse({ description: 'KYC Level 30 required, registration missing, or address not on allowlist' })
   async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
     const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
     return this.realunitService.getPaymentInfo(user, dto);
+  }
+
+  @Put('buy/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
+  @ApiOkResponse()
+  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
+    await this.realunitService.confirmBuy(jwt.user, +id);
   }
 
   // --- Sell Payment Info Endpoints ---
@@ -291,7 +332,68 @@ export class RealUnitController {
     return this.realunitService.confirmSell(jwt.user, +id, dto);
   }
 
-  // --- Registration Endpoint ---
+  // --- Registration Endpoints ---
+
+  @Get('register/status')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Check if wallet is registered for RealUnit',
+    description: 'Returns true if the connected wallet is registered for RealUnit, false otherwise',
+  })
+  @ApiOkResponse({ type: Boolean })
+  async isRegistered(@GetJwt() jwt: JwtPayload): Promise<boolean> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
+    return this.realunitService.hasRegistrationForWallet(user.userData, jwt.address);
+  }
+
+  @Post('register/email')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Step 1: Register email for RealUnit',
+    description:
+      'First step of RealUnit registration. Checks if email exists in DFX system. If exists and merge is possible, sends merge confirmation email. Otherwise registers email and sets KYC Level 10.',
+  })
+  @ApiOkResponse({ type: RealUnitEmailRegistrationResponseDto })
+  @ApiBadRequestResponse({ description: 'Email does not match verified email' })
+  @ApiConflictResponse({ description: 'Account already exists and merge not possible' })
+  async registerEmail(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitEmailRegistrationDto,
+  ): Promise<RealUnitEmailRegistrationResponseDto> {
+    const status = await this.realunitService.registerEmail(jwt.account, jwt.address, dto);
+    return { status };
+  }
+
+  @Post('register/complete')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Step 2: Complete RealUnit registration',
+    description:
+      'Second step of RealUnit registration. Requires email registration to be completed. Validates personal data against DFX system and forwards to Aktionariat.',
+  })
+  @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
+  @ApiAcceptedResponse({
+    type: RealUnitRegistrationResponseDto,
+    description: 'Registration accepted, manual review needed or forwarding to Aktionariat failed',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid signature, wallet mismatch, email registration not completed, or data mismatch',
+  })
+  async completeRegistration(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitRegistrationDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const status = await this.realunitService.completeRegistration(jwt.account, dto);
+    const response: RealUnitRegistrationResponseDto = {
+      status: status,
+    };
+    const statusCode = status === RealUnitRegistrationStatus.COMPLETED ? HttpStatus.CREATED : HttpStatus.ACCEPTED;
+    res.status(statusCode).json(response);
+  }
 
   @Post('register')
   @ApiBearerAuth()
@@ -314,6 +416,37 @@ export class RealUnitController {
   }
 
   // --- Admin Endpoints ---
+
+  @Get('admin/quotes')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Get RealUnit quotes' })
+  @ApiOkResponse({ type: [RealUnitQuoteDto], description: 'List of open RealUnit requests (quotes)' })
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getAdminQuotes(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitQuoteDto[]> {
+    return this.realunitService.getAdminQuotes(limit, offset);
+  }
+
+  @Get('admin/transactions')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Get RealUnit transactions' })
+  @ApiOkResponse({ type: [RealUnitTransactionDto], description: 'List of completed RealUnit transactions' })
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getAdminTransactions(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitTransactionDto[]> {
+    return this.realunitService.getAdminTransactions(limit, offset);
+  }
+
+  @Put('admin/quotes/:id/confirm-payment')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Confirm payment received for a open RealUnit request (quote)' })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ description: 'Payment confirmed and shares allocated' })
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async confirmPaymentReceived(@Param('id') id: string): Promise<void> {
+    await this.realunitService.confirmPaymentReceived(+id);
+  }
 
   @Put('admin/registration/:kycStepId/forward')
   @ApiBearerAuth()

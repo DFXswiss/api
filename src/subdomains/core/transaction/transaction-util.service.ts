@@ -32,6 +32,7 @@ export type RefundValidation = {
   refundIban?: string;
   refundUser?: User;
   chargebackAmount?: number;
+  chargebackAmountInInputAsset?: number;
 };
 
 @Injectable()
@@ -77,16 +78,22 @@ export class TransactionUtilService {
       throw new BadRequestException('Transaction is already returned');
 
     if (entity instanceof BankTxReturn) {
-      if (dto.chargebackAmount && dto.chargebackAmount > entity.bankTx.amount)
+      if (
+        dto.chargebackAmount &&
+        ((dto.chargebackAmount > entity.bankTx.refundAmount && !dto.chargebackAmountInInputAsset) ||
+          dto.chargebackAmountInInputAsset > entity.bankTx.refundAmount)
+      )
         throw new BadRequestException('You can not refund more than the input amount');
       return;
     }
 
     if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(entity.amlCheck) || entity.outputAmount)
       throw new BadRequestException('Only failed or pending transactions are refundable');
+
     if (
       dto.chargebackAmount &&
-      dto.chargebackAmount > (entity instanceof BuyCrypto && entity.bankTx ? entity.bankTx.amount : entity.inputAmount)
+      ((dto.chargebackAmount > entity.refundAmount && !dto.chargebackAmountInInputAsset) ||
+        dto.chargebackAmountInInputAsset > entity.refundAmount)
     )
       throw new BadRequestException('You can not refund more than the input amount');
   }
