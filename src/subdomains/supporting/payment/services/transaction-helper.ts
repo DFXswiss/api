@@ -452,7 +452,7 @@ export class TransactionHelper implements OnModuleInit {
     // convert to refund currency
     const refundPrice = await this.pricingService.getPrice(inputCurrency, refundCurrency, PriceValidity.VALID_ONLY);
 
-    const refundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
+    const targetRefundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
     const feeDfx = Util.roundReadable(refundPrice.convert(dfxFeeAmount), feeAmountType);
     const feeNetwork = Util.roundReadable(refundPrice.convert(networkFeeAmount), feeAmountType);
     const feeBank = Util.roundReadable(refundPrice.convert(bankFeeAmount), feeAmountType);
@@ -464,7 +464,7 @@ export class TransactionHelper implements OnModuleInit {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       inputAmount: Util.roundReadable(inputAmount, amountType),
       inputAsset,
-      refundAmount: inputAsset.id !== refundAsset.id ? refundAmount : Math.min(refundEntity.refundAmount, refundAmount),
+      refundAmount: inputAsset.id !== refundAsset.id ? targetRefundAmount : Math.min(refundEntity.refundAmount, targetRefundAmount),
       refundPrice,
       fee: {
         dfx: feeDfx,

@@ -80,7 +80,7 @@ export class TransactionUtilService {
     if (entity instanceof BankTxReturn) {
       if (
         dto.chargebackAmount &&
-        ((dto.chargebackAmount > entity.bankTx.amount && !dto.chargebackAmountInInputAsset) ||
+        ((dto.chargebackAmount > entity.bankTx.refundAmount && !dto.chargebackAmountInInputAsset) ||
           dto.chargebackAmountInInputAsset > entity.bankTx.amount)
       )
         throw new BadRequestException('You can not refund more than the input amount');
@@ -90,7 +90,7 @@ export class TransactionUtilService {
     if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(entity.amlCheck) || entity.outputAmount)
       throw new BadRequestException('Only failed or pending transactions are refundable');
 
-    const inputAmount = entity instanceof BuyCrypto && entity.bankTx ? entity.bankTx.amount : entity.inputAmount;
+    const inputAmount = entity instanceof BuyCrypto && entity.bankTx ? entity.bankTx.refundAmount : entity.inputAmount;
     if (
       dto.chargebackAmount &&
       ((dto.chargebackAmount > inputAmount && !dto.chargebackAmountInInputAsset) ||
