@@ -464,7 +464,7 @@ export class TransactionHelper implements OnModuleInit {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       inputAmount: Util.roundReadable(inputAmount, amountType),
       inputAsset,
-      refundAmount: Math.min(refundEntity.refundAmount, refundAmount),
+      refundAmount: inputAsset.id !== refundAsset.id ? refundAmount : Math.min(refundEntity.refundAmount, refundAmount),
       refundPrice,
       fee: {
         dfx: feeDfx,
