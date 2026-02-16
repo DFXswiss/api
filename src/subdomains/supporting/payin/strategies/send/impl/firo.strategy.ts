@@ -28,7 +28,7 @@ export class FiroStrategy extends BitcoinBasedStrategy {
   }
 
   get forwardRequired(): boolean {
-    return false;
+    return true;
   }
 
   protected getForwardAddress(): BlockchainAddress {
