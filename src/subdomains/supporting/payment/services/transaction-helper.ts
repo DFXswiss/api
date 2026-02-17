@@ -634,7 +634,7 @@ export class TransactionHelper implements OnModuleInit {
       inputCurrency?.name === 'CHF' &&
       refundTarget &&
       !Config.isDomesticIban(refundTarget)
-      ? await this.fiatService.getFiatByName('EUR')
+      ? this.fiatService.getFiatByName('EUR')
       : inputCurrency;
   }
 
