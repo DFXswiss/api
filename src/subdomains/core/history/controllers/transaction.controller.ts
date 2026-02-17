@@ -25,6 +25,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { isFiatDto } from 'src/shared/models/active';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -534,19 +535,31 @@ export class TransactionController {
         .then((b) => b.bankTxReturn);
     }
 
-    const chargebackCurrency =
-      !refundData.refundTarget && dto.refundTarget
-        ? await this.transactionHelper
-            .getRefundCurrency(undefined, refundData.inputAsset, dto.refundTarget)
-            .then((r) => r?.name ?? refundData.refundAsset.name)
-        : refundData.refundAsset.name;
+    if (!refundData.refundTarget && dto.refundTarget) {
+      const bankIn =
+        targetEntity instanceof BankTxReturn || (targetEntity instanceof BuyCrypto && targetEntity.bankTx)
+          ? await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name)
+          : targetEntity instanceof BuyCrypto && targetEntity.checkoutTx
+            ? CardBankName.CHECKOUT
+            : undefined;
+
+      refundData = await this.transactionHelper.getRefundData(
+        transaction.refundTargetEntity,
+        transaction.userData,
+        bankIn,
+        dto.refundTarget,
+        isFiatDto(refundData.inputAsset),
+      );
+    }
+
+    const chargebackCurrency = refundData.refundAsset.name;
 
     if (targetEntity instanceof BankTxReturn) {
       if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
       return this.bankTxReturnService.refundBankTx(targetEntity, {
         refundIban: dto.refundTarget ?? refundData.refundTarget,
-        chargebackCurrency,
+        chargebackCurrency: chargebackCurrency,
         creditorData: dto.creditorData,
         chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
         ...refundDto,
@@ -575,7 +588,7 @@ export class TransactionController {
 
     return this.buyCryptoService.refundBankTx(targetEntity, {
       refundIban: dto.refundTarget ?? refundData.refundTarget,
-      chargebackCurrency,
+      chargebackCurrency: chargebackCurrency,
       creditorData: dto.creditorData,
       chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
       ...refundDto,
