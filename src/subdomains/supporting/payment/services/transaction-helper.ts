@@ -402,7 +402,6 @@ export class TransactionHelper implements OnModuleInit {
     const inputCurrency = await this.getRefundInputCurrency(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
-    // CHF refunds only to domestic IBANs
     const refundCurrency = await this.getRefundCurrency(inputCurrency, refundTarget);
 
     const chfPrice =
@@ -630,6 +629,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getRefundCurrency(inputCurrency: Active, refundTarget: string): Promise<Active> {
+    // CHF refunds only to domestic IBANs
     return isFiat(inputCurrency) &&
       inputCurrency?.name === 'CHF' &&
       refundTarget &&
