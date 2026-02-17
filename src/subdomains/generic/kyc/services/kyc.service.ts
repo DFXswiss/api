@@ -207,7 +207,7 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: { users: true, wallet: true, kycFiles: true } },
+      relations: { userData: { users: true, wallet: true, kycFiles: true, organization: { country: true } } },
     });
 
     for (const entity of entities) {
@@ -1470,10 +1470,15 @@ export class KycService {
 
     // Country & verifiedName check
     const userCountry =
-      identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
+      identStep.userData.organizationCountry ??
+      identStep.userData.organization.country ??
+      identStep.userData.verifiedCountry ??
+      identStep.userData.country;
+
     if (identStep.userData.accountType === AccountType.PERSONAL) {
       // Personal Account
-      if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (!userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry.manualReviewRequired) errors.push(KycError.MANUAL_REVIEW_REQUIRED);
 
       if (!identStep.userData.verifiedName && identStep.userData.status === UserDataStatus.ACTIVE) {
         errors.push(KycError.VERIFIED_NAME_MISSING);
@@ -1485,7 +1490,8 @@ export class KycService {
       }
     } else {
       // Business Account
-      if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (!userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry.manualReviewRequiredOrganization) errors.push(KycError.MANUAL_REVIEW_REQUIRED);
     }
 
     return errors;
