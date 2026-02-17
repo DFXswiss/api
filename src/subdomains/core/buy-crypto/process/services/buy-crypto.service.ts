@@ -279,15 +279,19 @@ export class BuyCryptoService {
         if (!dto.chargebackCreditorName && !entity.creditorData)
           throw new BadRequestException('Creditor data is required for chargeback');
 
+        const inputCurrency = await this.transactionHelper.getRefundInputCurrency(entity);
+        const chargebackIban = dto.chargebackIban ?? entity.chargebackIban;
+        const chargebackCurrency = await this.transactionHelper.getRefundCurrency(inputCurrency, chargebackIban);
+
         update.chargebackOutput = await this.fiatOutputService.createInternal(
           FiatOutputType.BUY_CRYPTO_FAIL,
           { buyCrypto: entity },
           entity.id,
           false,
           {
-            iban: dto.chargebackIban ?? entity.chargebackIban,
+            iban: chargebackIban,
             amount: entity.chargebackAmount ?? entity.bankTx.amount,
-            currency: entity.bankTx.currency,
+            currency: chargebackCurrency.name,
             name: dto.chargebackCreditorName ?? entity.creditorData?.name,
             address: dto.chargebackCreditorAddress ?? entity.creditorData?.address,
             houseNumber: dto.chargebackCreditorHouseNumber ?? entity.creditorData?.houseNumber,
