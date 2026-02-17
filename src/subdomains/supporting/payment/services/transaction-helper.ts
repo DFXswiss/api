@@ -403,7 +403,7 @@ export class TransactionHelper implements OnModuleInit {
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
     // CHF refunds only to domestic IBANs
-    const refundCurrency = await this.getRefundCurrency(inputCurrency, undefined, refundTarget);
+    const refundCurrency = await this.getRefundCurrency(inputCurrency, refundTarget);
 
     const chfPrice =
       refundEntity.manualChfPrice ??
