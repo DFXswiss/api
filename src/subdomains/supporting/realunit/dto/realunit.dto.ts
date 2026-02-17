@@ -15,6 +15,9 @@ export class HistoricalBalanceDto {
 
   @ApiPropertyOptional({ description: 'Valuation in CHF at this point in time' })
   valueChf?: number;
+
+  @ApiPropertyOptional({ description: 'Valuation in EUR at this point in time' })
+  valueEur?: number;
 }
 
 export class PageInfoDto implements PageInfo {
