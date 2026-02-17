@@ -175,6 +175,7 @@ export class BankTxReturnService {
     return this.refundBankTx(bankTxReturn, {
       refundIban: dto.refundIban,
       chargebackAmount: dto.chargebackAmount,
+      chargebackCurrency: dto.chargebackAsset,
       chargebackAllowedDate: dto.chargebackAllowedDate,
       chargebackAllowedBy: dto.chargebackAllowedBy,
     });

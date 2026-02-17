@@ -455,6 +455,7 @@ export class BuyCryptoService {
       return this.refundCryptoInput(buyCrypto, {
         refundUserId: dto.refundUser?.id,
         chargebackAmount: dto.chargebackAmount,
+        chargebackCurrency: dto.chargebackAsset,
         chargebackAllowedDate: dto.chargebackAllowedDate,
         chargebackAllowedBy: dto.chargebackAllowedBy,
       });
@@ -462,6 +463,7 @@ export class BuyCryptoService {
     return this.refundBankTx(buyCrypto, {
       refundIban: dto.refundIban,
       chargebackAmount: dto.chargebackAmount,
+      chargebackCurrency: dto.chargebackAsset,
       chargebackAllowedDate: dto.chargebackAllowedDate,
       chargebackAllowedBy: dto.chargebackAllowedBy,
     });
@@ -556,7 +558,7 @@ export class BuyCryptoService {
     if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
       throw new BadRequestException('Creditor data is required for chargeback');
 
-    if (dto.chargebackAllowedDate && chargebackAmount)
+    if (dto.chargebackAllowedDate && chargebackAmount && (dto.chargebackCurrency || buyCrypto.chargebackAsset))
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
         { buyCrypto },
@@ -565,7 +567,7 @@ export class BuyCryptoService {
         {
           iban: chargebackIban,
           amount: chargebackAmount,
-          currency: dto.chargebackCurrency ?? buyCrypto.bankTx?.currency,
+          currency: dto.chargebackCurrency ?? buyCrypto.chargebackAsset,
           ...creditorData,
         },
       );

@@ -11,26 +11,30 @@ export class RefundInternalDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => EntityDto)
-  refundUser: User;
+  refundUser?: User;
 
   @IsOptional()
   @IsString()
   @IsIBAN()
   @Transform(Util.trimAll)
-  refundIban: string;
+  refundIban?: string;
 
   @IsOptional()
   @IsNumber()
-  chargebackAmount: number;
+  chargebackAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  chargebackAsset?: string;
 
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  chargebackAllowedDate: Date;
+  chargebackAllowedDate?: Date;
 
   @IsOptional()
   @IsString()
-  chargebackAllowedBy: string;
+  chargebackAllowedBy?: string;
 }
 
 export class BaseRefund {
