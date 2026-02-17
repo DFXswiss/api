@@ -5,7 +5,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
-import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/models/active';
+import { Active, ActiveDto, amountType, feeAmountType, isAsset, isFiat, isFiatDto } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
@@ -399,14 +399,11 @@ export class TransactionHelper implements OnModuleInit {
     refundTarget: string,
     isFiat: boolean,
   ): Promise<RefundDataDto> {
-    const inputCurrency = await this.getRefundActive(refundEntity);
+    const inputCurrency = await this.getRefundInputCurrency(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
     // CHF refunds only to domestic IBANs
-    const refundCurrency =
-      isFiat && inputCurrency.name === 'CHF' && refundTarget && !Config.isDomesticIban(refundTarget)
-        ? await this.fiatService.getFiatByName('EUR')
-        : inputCurrency;
+    const refundCurrency = await this.getRefundCurrency(inputCurrency, undefined, refundTarget);
 
     const chfPrice =
       refundEntity.manualChfPrice ??
@@ -632,7 +629,16 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
+  async getRefundCurrency(inputCurrency: Active, inputCurrencyDto: ActiveDto, refundTarget: string): Promise<Active> {
+    return (isFiatDto(inputCurrencyDto) || isFiat(inputCurrency)) &&
+      [inputCurrency?.name, inputCurrencyDto?.name].includes('CHF') &&
+      refundTarget &&
+      !Config.isDomesticIban(refundTarget)
+      ? await this.fiatService.getFiatByName('EUR')
+      : inputCurrency;
+  }
+
+  async getRefundInputCurrency(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
     if (refundEntity instanceof BankTxReturn) return this.fiatService.getFiatByName(refundEntity.bankTx.currency);
     if (refundEntity instanceof BankTx) return this.fiatService.getFiatByName(refundEntity.currency);
     if (refundEntity instanceof BuyCrypto && refundEntity.bankTx)

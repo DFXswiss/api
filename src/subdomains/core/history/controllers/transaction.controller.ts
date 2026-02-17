@@ -522,7 +522,7 @@ export class TransactionController {
     refundData: RefundDataDto,
     dto: TransactionRefundDto,
   ): Promise<void> {
-    const inputCurrency = await this.transactionHelper.getRefundActive(transaction.refundTargetEntity);
+    const inputCurrency = await this.transactionHelper.getRefundInputCurrency(transaction.refundTargetEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
     const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
@@ -534,7 +534,12 @@ export class TransactionController {
         .then((b) => b.bankTxReturn);
     }
 
-    const chargebackCurrency = refundData.refundAsset.name;
+    const chargebackCurrency =
+      !refundData.refundTarget && dto.refundTarget
+        ? await this.transactionHelper
+            .getRefundCurrency(undefined, refundData.inputAsset, dto.refundTarget)
+            .then((r) => r?.name ?? refundData.refundAsset.name)
+        : refundData.refundAsset.name;
 
     if (targetEntity instanceof BankTxReturn) {
       if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
