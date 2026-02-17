@@ -58,6 +58,9 @@ export class BankTxReturn extends IEntity {
   chargebackAmount?: number;
 
   @Column({ length: 256, nullable: true })
+  chargebackAsset?: string;
+
+  @Column({ length: 256, nullable: true })
   chargebackAllowedBy?: string;
 
   @Column({ length: 256, nullable: true })
@@ -154,6 +157,7 @@ export class BankTxReturn extends IEntity {
   chargebackFillUp(
     chargebackIban: string,
     chargebackAmount: number,
+    chargebackAsset: string,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
@@ -169,6 +173,7 @@ export class BankTxReturn extends IEntity {
       chargebackAllowedDateUser,
       chargebackIban,
       chargebackAmount,
+      chargebackAsset,
       chargebackOutput,
       chargebackAllowedBy,
       chargebackRemittanceInfo,

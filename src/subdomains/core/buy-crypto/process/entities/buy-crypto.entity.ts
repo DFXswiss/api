@@ -221,6 +221,9 @@ export class BuyCrypto extends IEntity {
   chargebackAmount?: number;
 
   @Column({ length: 256, nullable: true })
+  chargebackAsset?: string;
+
+  @Column({ length: 256, nullable: true })
   chargebackAllowedBy?: string;
 
   @Column({ length: 256, nullable: true })
@@ -527,6 +530,7 @@ export class BuyCrypto extends IEntity {
   chargebackFillUp(
     chargebackIban: string,
     chargebackAmount: number,
+    chargebackAsset: string,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
@@ -543,6 +547,7 @@ export class BuyCrypto extends IEntity {
       chargebackAllowedDateUser,
       chargebackIban,
       chargebackAmount,
+      chargebackAsset,
       chargebackOutput,
       chargebackAllowedBy,
       chargebackRemittanceInfo,

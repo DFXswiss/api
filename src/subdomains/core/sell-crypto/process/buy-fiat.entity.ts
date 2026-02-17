@@ -166,6 +166,9 @@ export class BuyFiat extends IEntity {
   chargebackAmount?: number;
 
   @Column({ length: 256, nullable: true })
+  chargebackAsset?: string;
+
+  @Column({ length: 256, nullable: true })
   chargebackAllowedBy?: string;
 
   // Pass
@@ -260,6 +263,7 @@ export class BuyFiat extends IEntity {
   chargebackFillUp(
     chargebackAddress: string,
     chargebackAmount: number,
+    chargebackAsset: string,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
@@ -271,6 +275,7 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDateUser,
       chargebackAddress,
       chargebackAmount,
+      chargebackAsset,
       chargebackAllowedBy,
       amlCheck: CheckStatus.FAIL,
       mailReturnSendDate: null,

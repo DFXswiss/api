@@ -78,6 +78,7 @@ import { HistoryDto } from '../dto/history.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { RefundDataDto } from '../dto/refund-data.dto';
+import { BaseRefund } from '../dto/refund-internal.dto';
 import { TransactionFilter } from '../dto/transaction-filter.dto';
 import { TransactionRefundDto } from '../dto/transaction-refund.dto';
 import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
@@ -526,15 +527,6 @@ export class TransactionController {
     const inputCurrency = await this.transactionHelper.getRefundInputCurrency(transaction.refundTargetEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
-    const refundDto = { chargebackAmount: refundData.refundAmount, chargebackAllowedDateUser: new Date() };
-
-    if (!targetEntity) {
-      if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
-      targetEntity = await this.bankTxService
-        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
-        .then((b) => b.bankTxReturn);
-    }
-
     if (!refundData.refundTarget && dto.refundTarget) {
       const bankIn =
         targetEntity instanceof BankTxReturn || (targetEntity instanceof BuyCrypto && targetEntity.bankTx)
@@ -552,14 +544,24 @@ export class TransactionController {
       );
     }
 
-    const chargebackCurrency = refundData.refundAsset.name;
+    const refundDto: BaseRefund = {
+      chargebackAmount: refundData.refundAmount,
+      chargebackCurrency: refundData.refundAsset.name,
+      chargebackAllowedDateUser: new Date(),
+    };
+
+    if (!targetEntity) {
+      if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
+      targetEntity = await this.bankTxService
+        .updateInternal(transaction.bankTx, { type: BankTxType.BANK_TX_RETURN })
+        .then((b) => b.bankTxReturn);
+    }
 
     if (targetEntity instanceof BankTxReturn) {
       if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
       return this.bankTxReturnService.refundBankTx(targetEntity, {
         refundIban: dto.refundTarget ?? refundData.refundTarget,
-        chargebackCurrency: chargebackCurrency,
         creditorData: dto.creditorData,
         chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
         ...refundDto,
@@ -588,7 +590,6 @@ export class TransactionController {
 
     return this.buyCryptoService.refundBankTx(targetEntity, {
       refundIban: dto.refundTarget ?? refundData.refundTarget,
-      chargebackCurrency: chargebackCurrency,
       creditorData: dto.creditorData,
       chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
       ...refundDto,

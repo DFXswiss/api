@@ -204,7 +204,7 @@ export class BankTxReturnService {
     if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
       throw new BadRequestException('Creditor data is required for chargeback');
 
-    if (dto.chargebackAllowedDate && chargebackAmount) {
+    if (dto.chargebackAllowedDate && chargebackAmount && (dto.chargebackCurrency || bankTxReturn.chargebackAsset)) {
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BANK_TX_RETURN,
         { bankTxReturn },
@@ -213,7 +213,7 @@ export class BankTxReturnService {
         {
           iban: chargebackIban,
           amount: chargebackAmount,
-          currency: dto.chargebackCurrency ?? bankTxReturn.bankTx?.currency,
+          currency: dto.chargebackCurrency ?? bankTxReturn.chargebackAsset,
           ...creditorData,
         },
       );
@@ -223,6 +223,7 @@ export class BankTxReturnService {
       ...bankTxReturn.chargebackFillUp(
         chargebackIban,
         chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,

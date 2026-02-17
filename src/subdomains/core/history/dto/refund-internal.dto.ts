@@ -35,6 +35,7 @@ export class RefundInternalDto {
 
 export class BaseRefund {
   chargebackAmount?: number;
+  chargebackCurrency?: string;
   chargebackAllowedDate?: Date;
   chargebackAllowedDateUser?: Date;
   chargebackAllowedBy?: string;
@@ -42,7 +43,6 @@ export class BaseRefund {
 
 export class BankTxRefund extends BaseRefund {
   refundIban?: string;
-  chargebackCurrency?: string;
   chargebackOutput?: FiatOutput;
   creditorData?: CreditorData;
   chargebackAmountInInputAsset?: number;

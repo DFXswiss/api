@@ -481,6 +481,7 @@ export class BuyCryptoService {
       ...buyCrypto.chargebackFillUp(
         undefined,
         chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
@@ -519,6 +520,7 @@ export class BuyCryptoService {
       ...buyCrypto.chargebackFillUp(
         refundUser.address ?? buyCrypto.chargebackIban,
         chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
@@ -572,6 +574,7 @@ export class BuyCryptoService {
       ...buyCrypto.chargebackFillUp(
         chargebackIban,
         chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,

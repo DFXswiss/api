@@ -354,6 +354,7 @@ export class BuyFiatService {
       ...buyFiat.chargebackFillUp(
         refundUser.address ?? buyFiat.chargebackAddress,
         chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
