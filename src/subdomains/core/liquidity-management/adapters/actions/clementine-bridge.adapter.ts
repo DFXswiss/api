@@ -35,9 +35,9 @@ export enum ClementineBridgeCommands {
 }
 
 /**
- * Correlation ID format for tracking operations:
- * - Deposit: clementine:deposit:{depositAddress}:{btcTxId}
- * - Withdraw: clementine:withdraw:{step}:{signerAddress}:{destinationAddress}:{withdrawalUtxo}:{optimisticSig}:{operatorSig}
+ * Correlation ID format for tracking operations (base64-encoded JSON after prefix):
+ * - Deposit: clementine:deposit:{base64(DepositCorrelationData)}
+ * - Withdraw: clementine:withdraw:{base64(WithdrawCorrelationData)}
  *
  * Withdrawal steps: dust_sent, scanning, signatures_generated, sent_to_bridge, waiting_optimistic, sent_to_operators
  */
@@ -323,7 +323,8 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
           return false;
         }
 
-        // Approved - send BTC
+        await this.removeDepositApproval(correlationData.depositAddress);
+
         const btcTxId = await this.sendBtcToAddress(correlationData.depositAddress, CLEMENTINE_BRIDGE_AMOUNT_BTC);
         correlationData.btcTxId = btcTxId;
         order.correlationId = `${CORRELATION_PREFIX.DEPOSIT}${this.encodeDepositCorrelation(correlationData)}`;
@@ -349,8 +350,6 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
       if (depositStatus.status === 'completed') {
         order.outputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
-        // Remove from approved list after completion
-        await this.removeDepositApproval(correlationData.depositAddress);
         return true;
       }
 
