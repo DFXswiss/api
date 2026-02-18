@@ -382,6 +382,22 @@ export class KycService {
   }
 
   async checkDfxApproval(kycStep: KycStep): Promise<void> {
+    const expiredSteps = [
+      kycStep.userData.getCompletedStepWith(KycStepName.IDENT),
+      kycStep.userData.getCompletedStepWith(KycStepName.FINANCIAL_DATA),
+    ].filter((s) => s && Util.daysDiff(s.created) > Config.kycStepExpiry);
+
+    if (expiredSteps.length) {
+      for (const expiredStep of expiredSteps) {
+        await this.kycStepRepo.update(expiredStep.id, {
+          status: ReviewStatus.OUTDATED,
+          comment: expiredStep.addComment(KycError.EXPIRED_STEP),
+        });
+      }
+
+      return this.kycNotificationService.kycStepReminder(kycStep.userData);
+    }
+
     const missingCompletedSteps = requiredKycSteps(kycStep.userData).filter(
       (rs) => !kycStep.userData.hasCompletedStep(rs),
     );
