@@ -291,8 +291,7 @@ export class TransactionHelper implements OnModuleInit {
     // get specs (CHF)
     const specs = this.getMinSpecs(from, to);
 
-    const { kycLimit: rawKycLimit, defaultLimit } = await this.getLimits(paymentMethodIn, paymentMethodOut, user);
-    const kycLimit = TransactionHelper.isRealUnitTransaction(from, to) ? Number.MAX_VALUE : rawKycLimit;
+    const { kycLimit, defaultLimit } = await this.getLimits(from, to, paymentMethodIn, paymentMethodOut, user);
 
     const error = this.getTxError(
       from,
@@ -916,10 +915,16 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getLimits(
+    from: Active,
+    to: Active,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
     user?: User,
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
+    if (this.isRealUnitTransaction(from, to)) {
+      return { kycLimit: Number.MAX_VALUE, defaultLimit: Number.MAX_VALUE };
+    }
+
     const volume30d =
       user?.userData.kycLevel < KycLevel.LEVEL_50
         ? await this.user30dVolumeCache.get(user.id.toString(), () =>
@@ -951,7 +956,7 @@ export class TransactionHelper implements OnModuleInit {
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
-    const isRealUnit = TransactionHelper.isRealUnitTransaction(from, to);
+    const isRealUnit = this.isRealUnitTransaction(from, to);
 
     if (
       user?.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) &&
@@ -1037,7 +1042,7 @@ export class TransactionHelper implements OnModuleInit {
     return currency;
   }
 
-  private static isRealUnitTransaction(from: Active, to: Active): boolean {
+  private isRealUnitTransaction(from: Active, to: Active): boolean {
     return (isAsset(from) && from.name === 'REALU') || (isAsset(to) && to.name === 'REALU');
   }
 }
