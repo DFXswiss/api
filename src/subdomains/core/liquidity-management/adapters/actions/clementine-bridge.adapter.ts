@@ -20,6 +20,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { isAsset } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
@@ -34,9 +35,9 @@ export enum ClementineBridgeCommands {
 }
 
 /**
- * Correlation ID format for tracking operations:
- * - Deposit: clementine:deposit:{depositAddress}:{btcTxId}
- * - Withdraw: clementine:withdraw:{step}:{signerAddress}:{destinationAddress}:{withdrawalUtxo}:{optimisticSig}:{operatorSig}
+ * Correlation ID format for tracking operations (base64-encoded JSON after prefix):
+ * - Deposit: clementine:deposit:{base64(DepositCorrelationData)}
+ * - Withdraw: clementine:withdraw:{base64(WithdrawCorrelationData)}
  *
  * Withdrawal steps: dust_sent, scanning, signatures_generated, sent_to_bridge, waiting_optimistic, sent_to_operators
  */
@@ -71,6 +72,12 @@ const BITCOIN_RELAY_CONFIRMATIONS: Record<ClementineNetwork, number> = {
   [ClementineNetwork.BITCOIN]: 6,
   [ClementineNetwork.TESTNET4]: 100,
 };
+
+interface DepositCorrelationData {
+  depositAddress: string;
+  citreaAddress: string;
+  btcTxId?: string;
+}
 
 interface WithdrawCorrelationData {
   step: string;
@@ -107,6 +114,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     private readonly assetService: AssetService,
     private readonly bitcoinFeeService: BitcoinFeeService,
     private readonly bitcoinTestnet4FeeService: BitcoinTestnet4FeeService,
+    private readonly settingService: SettingService,
   ) {
     super(LiquidityManagementSystem.CLEMENTINE_BRIDGE);
 
@@ -152,6 +160,10 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   /**
    * Deposit BTC to receive cBTC on Citrea
    * Note: Clementine uses a fixed bridge amount of 10 BTC
+   *
+   * Deposit is a two-step process:
+   * 1. Generate deposit address (returns pending_confirmation)
+   * 2. After manual approval, send BTC to deposit address
    */
   private async deposit(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
@@ -189,7 +201,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     const { depositAddress } = await this.clementineClient.depositStart(this.recoveryTaprootAddress, citreaAddress);
 
     this.logger.info(
-      `Deposit address generated: ${depositAddress}, recovery: ${this.recoveryTaprootAddress}, citrea: ${citreaAddress}`,
+      `Deposit address generated: ${depositAddress}, recovery: ${this.recoveryTaprootAddress}, citrea: ${citreaAddress}. Waiting for manual approval before sending BTC.`,
     );
 
     // Update order with fixed amount
@@ -197,11 +209,13 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     order.inputAsset = bitcoinAsset.name;
     order.outputAsset = citreaAsset.name;
 
-    // Send BTC to the deposit address
-    const btcTxId = await this.sendBtcToAddress(depositAddress, CLEMENTINE_BRIDGE_AMOUNT_BTC);
+    // Store deposit data - BTC will be sent after manual approval
+    const correlationData: DepositCorrelationData = {
+      depositAddress,
+      citreaAddress,
+    };
 
-    // Store deposit address and txId in correlation ID for status checks
-    return `${CORRELATION_PREFIX.DEPOSIT}${depositAddress}:${btcTxId}`;
+    return `${CORRELATION_PREFIX.DEPOSIT}${this.encodeDepositCorrelation(correlationData)}`;
   }
 
   /**
@@ -291,21 +305,44 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     try {
-      // Extract deposit address and BTC txId from correlation ID
-      const correlationData = order.correlationId.replace(CORRELATION_PREFIX.DEPOSIT, '');
-      const [depositAddress, btcTxId] = correlationData.split(':');
+      const correlationData = this.decodeDepositCorrelation(
+        order.correlationId.replace(CORRELATION_PREFIX.DEPOSIT, ''),
+      );
 
-      // Step 1: Verify the Bitcoin transaction has enough confirmations for block relay
-      if (btcTxId && !(await this.isBtcTxRelayConfirmed(btcTxId))) {
+      this.logger.verbose(
+        `Deposit check: address=${correlationData.depositAddress}, btcTxId=${correlationData.btcTxId ?? 'pending'}`,
+      );
+
+      // Step 1: If no BTC sent yet, wait for manual approval via Setting
+      if (!correlationData.btcTxId) {
+        const isConfirmed = await this.isDepositApproved(correlationData.depositAddress);
+        if (!isConfirmed) {
+          this.logger.verbose(
+            `Deposit ${correlationData.depositAddress}: waiting for manual approval (add to 'clementineApprovedDeposits' setting)`,
+          );
+          return false;
+        }
+
+        await this.removeDepositApproval(correlationData.depositAddress);
+
+        const btcTxId = await this.sendBtcToAddress(correlationData.depositAddress, CLEMENTINE_BRIDGE_AMOUNT_BTC);
+        correlationData.btcTxId = btcTxId;
+        order.correlationId = `${CORRELATION_PREFIX.DEPOSIT}${this.encodeDepositCorrelation(correlationData)}`;
+        this.logger.info(`Deposit ${correlationData.depositAddress}: approved and BTC sent, txId=${btcTxId}`);
+        return false;
+      }
+
+      // Step 2: Verify the Bitcoin transaction has enough confirmations for block relay
+      if (correlationData.btcTxId && !(await this.isBtcTxRelayConfirmed(correlationData.btcTxId))) {
         this.logger.verbose(
-          `Deposit ${depositAddress}: BTC TX not yet confirmed (need ${BITCOIN_RELAY_CONFIRMATIONS[this.network]}+)`,
+          `Deposit ${correlationData.depositAddress}: BTC TX not yet confirmed (need ${BITCOIN_RELAY_CONFIRMATIONS[this.network]}+)`,
         );
         return false;
       }
 
-      // Step 2: Check Clementine deposit status
-      const depositStatus = await this.clementineClient.depositStatus(depositAddress);
-      this.logger.verbose(`Deposit ${depositAddress}: Clementine status = ${depositStatus.status}`);
+      // Step 3: Check Clementine deposit status
+      const depositStatus = await this.clementineClient.depositStatus(correlationData.depositAddress);
+      this.logger.verbose(`Deposit ${correlationData.depositAddress}: Clementine status = ${depositStatus.status}`);
 
       if (depositStatus.status === 'failed') {
         throw new OrderFailedException(`Clementine deposit failed: ${depositStatus.errorMessage ?? 'Unknown error'}`);
@@ -320,6 +357,17 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     } catch (e) {
       throw e instanceof OrderFailedException ? e : new OrderFailedException(e.message);
     }
+  }
+
+  private async isDepositApproved(depositAddress: string): Promise<boolean> {
+    const approvedDeposits = await this.settingService.getObj<string[]>('clementineApprovedDeposits', []);
+    return approvedDeposits.includes(depositAddress);
+  }
+
+  private async removeDepositApproval(depositAddress: string): Promise<void> {
+    const approvedDeposits = await this.settingService.getObj<string[]>('clementineApprovedDeposits', []);
+    const updated = approvedDeposits.filter((addr) => addr !== depositAddress);
+    await this.settingService.setObj('clementineApprovedDeposits', updated);
   }
 
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
@@ -587,6 +635,14 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     }
 
     return true;
+  }
+
+  private encodeDepositCorrelation(data: DepositCorrelationData): string {
+    return Buffer.from(JSON.stringify(data)).toString('base64');
+  }
+
+  private decodeDepositCorrelation(encoded: string): DepositCorrelationData {
+    return JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'));
   }
 
   private encodeWithdrawCorrelation(data: WithdrawCorrelationData): string {

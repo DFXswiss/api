@@ -44,13 +44,12 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
-import { RealUnitDevService } from './realunit-dev.service';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
@@ -79,6 +78,7 @@ import {
   TokenInfoDto,
 } from './dto/realunit.dto';
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
+import { RealUnitDevService } from './realunit-dev.service';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
@@ -339,7 +339,7 @@ export class RealUnitService {
       currency: fiat.name,
       address: request.user.address,
       shares: Math.floor(request.estimatedAmount),
-      price: Math.round(request.exchangeRate * 100),
+      price: Math.round(request.amount * 100),
     });
 
     // Status + Response speichern
@@ -407,25 +407,11 @@ export class RealUnitService {
     return !success;
   }
 
-  async registerEmail(
-    userDataId: number,
-    walletAddress: string,
-    dto: RealUnitEmailRegistrationDto,
-  ): Promise<RealUnitEmailRegistrationStatus> {
-    const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true, wallet: true });
+  async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: true });
     if (!userData) throw new NotFoundException('User not found');
 
-    if (userData.wallet?.name !== 'RealUnit') {
-      throw new BadRequestException('Registration is only allowed from RealUnit wallet');
-    }
-
-    const isNewEmail = !userData.mail || !Util.equalsIgnoreCase(dto.email, userData.mail);
-
-    if (isNewEmail) {
-      if (userData.mail && this.hasRegistrationForWallet(userData, walletAddress)) {
-        throw new BadRequestException('Not allowed to register a new email for this address');
-      }
-
+    if (!userData.mail) {
       try {
         await this.userDataService.trySetUserMail(userData, dto.email);
       } catch (e) {
@@ -436,6 +422,8 @@ export class RealUnitService {
         }
         throw e;
       }
+    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+      throw new BadRequestException('Email does not match verified email');
     }
 
     if (userData.kycLevel < KycLevel.LEVEL_10) {

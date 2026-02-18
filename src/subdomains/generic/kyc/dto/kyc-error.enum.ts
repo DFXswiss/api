@@ -29,6 +29,7 @@ export enum KycError {
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
   COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
   RESIDENCE_PERMIT_CHECK_REQUIRED = 'ResidencePermitCheckRequired',
+  MANUAL_REVIEW_REQUIRED = 'ManualReviewRequired',
 
   // Recommendation errors
   EXPIRED_RECOMMENDATION = 'ExpiredRecommendation',
@@ -91,6 +92,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.INCORRECT_INFO]: 'Incorrect response',
   [KycError.RESIDENCE_PERMIT_CHECK_REQUIRED]: undefined,
   [KycError.EXPIRED_STEP]: 'Your documents are expired',
+  [KycError.MANUAL_REVIEW_REQUIRED]: undefined,
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
