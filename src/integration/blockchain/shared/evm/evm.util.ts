@@ -121,7 +121,7 @@ export class EvmUtil {
 
   static decodeErc20Transfer(data: string): { to: string; amount: EthersNumber } {
     const decoded = this.ERC20_INTERFACE.decodeFunctionData('transfer', data);
-    return { to: decoded.to.toLowerCase(), amount: EthersNumber.from(decoded.amount) };
+    return { to: decoded._to.toLowerCase(), amount: EthersNumber.from(decoded._value) };
   }
 
   static isErc20Transfer(data: string | undefined): boolean {
