@@ -350,65 +350,6 @@ export class RealUnitService {
 
   // --- Registration Methods ---
 
-  // returns true if registration needs manual review, false if completed
-  async register(userDataId: number, dto: RealUnitRegistrationDto): Promise<boolean> {
-    // validate DTO
-    await this.validateRegistrationDto(dto);
-
-    // get and validate user
-    const userData = await this.userService
-      .getUserByAddress(dto.walletAddress, {
-        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
-      })
-      .then((u) => u?.userData);
-
-    if (!userData) throw new NotFoundException('User not found');
-    if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
-
-    if (!userData.mail) {
-      // Email not set yet - try to set it (will fail if email already exists for another user)
-      await this.userDataService.trySetUserMail(userData, dto.email);
-    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
-      throw new BadRequestException('Email does not match verified email');
-    }
-
-    // duplicate check
-    if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
-      throw new BadRequestException('RealUnit registration already exists');
-    }
-
-    // store data with internal review
-    const kycStep = await this.kycService.createCustomKycStep(
-      userData,
-      KycStepName.REALUNIT_REGISTRATION,
-      ReviewStatus.INTERNAL_REVIEW,
-      dto,
-    );
-
-    const hasExistingData = userData.firstname != null;
-    if (hasExistingData) {
-      const dataMatches = this.isPersonalDataMatching(userData, dto);
-      if (!dataMatches) {
-        await this.kycService.saveKycStepUpdate(kycStep.manualReview('Existing KYC data does not match'));
-        return true;
-      }
-    } else {
-      await this.userDataService.updatePersonalData(userData, dto.kycData);
-    }
-
-    // update always
-    await this.userDataService.updateUserDataInternal(userData, {
-      nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
-      birthday: new Date(dto.birthday),
-      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
-      tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
-    });
-
-    // forward to Aktionariat
-    const success = await this.forwardRegistration(kycStep, dto);
-    return !success;
-  }
-
   async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
     const userData = await this.userDataService.getUserData(userDataId, { users: true });
     if (!userData) throw new NotFoundException('User not found');

@@ -397,26 +397,6 @@ export class RealUnitController {
     res.status(statusCode).json(response);
   }
 
-  @Post('register')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  @ApiOperation({ summary: 'Register for RealUnit' })
-  @ApiOkResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration completed successfully' })
-  @ApiAcceptedResponse({
-    type: RealUnitRegistrationResponseDto,
-    description: 'Registration accepted, pending manual review',
-  })
-  @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
-  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto, @Res() res: Response): Promise<void> {
-    const needsReview = await this.realunitService.register(jwt.account, dto);
-
-    const response: RealUnitRegistrationResponseDto = {
-      status: needsReview ? RealUnitRegistrationStatus.PENDING_REVIEW : RealUnitRegistrationStatus.COMPLETED,
-    };
-
-    res.status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK).json(response);
-  }
-
   @Get('register/account-merge-data')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
