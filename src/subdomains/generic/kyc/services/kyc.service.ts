@@ -389,11 +389,13 @@ export class KycService {
 
     if (expiredSteps.length) {
       for (const expiredStep of expiredSteps) {
-        await this.kycStepRepo.update(expiredStep.id, {
-          status: ReviewStatus.OUTDATED,
-          comment: expiredStep.addComment(KycError.EXPIRED_STEP),
-        });
+        await this.kycStepRepo.update(...expiredStep.update(ReviewStatus.OUTDATED, undefined, KycError.EXPIRED_STEP));
       }
+
+      kycStep.userData = await this.userDataService.getUserData(kycStep.userData.id, { kycSteps: true });
+
+      // initiate next step
+      await this.updateProgress(kycStep.userData, true, false);
 
       return this.kycNotificationService.kycStepReminder(kycStep.userData);
     }

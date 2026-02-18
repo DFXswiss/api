@@ -212,7 +212,7 @@ export class KycStep extends IEntity {
     const update: Partial<KycStep> = {
       status,
       result: this.setResult(result),
-      comment: comment ?? this.comment,
+      comment: this.addComment(comment),
       sequenceNumber,
     };
 
@@ -354,7 +354,8 @@ export class KycStep extends IEntity {
     return this.result;
   }
 
-  addComment(comment: string): string {
+  addComment(comment: string): string | undefined {
+    if (!comment) return this.comment;
     return !this.comment ? comment : `${this.comment};${comment}`;
   }
 
