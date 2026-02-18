@@ -379,7 +379,7 @@ export class RealUnitController {
   @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
   @ApiAcceptedResponse({
     type: RealUnitRegistrationResponseDto,
-    description: 'Registration accepted, manual review needed or forwarding to Aktionariat failed',
+    description: 'Registration accepted or forwarding to Aktionariat failed',
   })
   @ApiBadRequestResponse({
     description: 'Invalid signature, wallet mismatch, email registration not completed, or data mismatch',
@@ -421,7 +421,7 @@ export class RealUnitController {
   @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
   @ApiAcceptedResponse({
     type: RealUnitRegistrationResponseDto,
-    description: 'Registration accepted but forwarding to Aktionariat failed',
+    description: 'Registration accepted or forwarding to Aktionariat failed',
   })
   @ApiBadRequestResponse({ description: 'No pending registration, invalid signature, or wallet mismatch' })
   async completeAccountMergeRegistration(
