@@ -1471,7 +1471,7 @@ export class KycService {
     // Country & verifiedName check
     const userCountry =
       identStep.userData.organizationCountry ??
-      identStep.userData.organization.country ??
+      identStep.userData.organization?.country ??
       identStep.userData.verifiedCountry ??
       identStep.userData.country;
 
