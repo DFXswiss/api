@@ -339,7 +339,7 @@ export class RealUnitService {
       currency: fiat.name,
       address: request.user.address,
       shares: Math.floor(request.estimatedAmount),
-      price: Math.round(request.exchangeRate * 100),
+      price: Math.round(request.amount * 100),
     });
 
     // Status + Response speichern
