@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
+import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 

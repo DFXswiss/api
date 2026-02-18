@@ -15,6 +15,7 @@ export class BitstampService extends ExchangeService {
     Bitcoin: undefined,
     Lightning: undefined,
     Spark: undefined,
+    Firo: undefined,
     Monero: undefined,
     Zano: undefined,
     Cardano: undefined,

@@ -1,6 +1,6 @@
 import { mock } from 'jest-mock-extended';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -9,6 +9,7 @@ import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
 import { DexBaseService } from '../../../services/dex-base.service';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { DexBscService } from '../../../services/dex-bsc.service';
+import { DexCardanoService } from '../../../services/dex-cardano.service';
 import { DexEthereumService } from '../../../services/dex-ethereum.service';
 import { DexGnosisService } from '../../../services/dex-gnosis.service';
 import { DexLightningService } from '../../../services/dex-lightning.service';
@@ -18,7 +19,6 @@ import { DexPolygonService } from '../../../services/dex-polygon.service';
 import { DexSolanaService } from '../../../services/dex-solana.service';
 import { DexTronService } from '../../../services/dex-tron.service';
 import { DexZanoService } from '../../../services/dex-zano.service';
-import { DexCardanoService } from '../../../services/dex-cardano.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -27,6 +27,8 @@ import { CheckLiquidityStrategyRegistry } from '../impl/base/check-liquidity.str
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
+import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
+import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { GnosisCoinStrategy } from '../impl/gnosis-coin.strategy';
@@ -43,8 +45,6 @@ import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
 import { ZanoCoinStrategy } from '../impl/zano-coin.strategy';
 import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
-import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
-import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
 
 describe('CheckLiquidityStrategies', () => {
   let bitcoinService: BitcoinService;
