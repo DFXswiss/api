@@ -20,11 +20,18 @@ import { RegisterStrategy } from './base/register.strategy';
 export class CardanoStrategy extends RegisterStrategy {
   protected logger: DfxLogger = new DfxLogger(CardanoStrategy);
 
+  private readonly cardanoPaymentDepositAddress: string;
+
   constructor(
     private readonly payInCardanoService: PayInCardanoService,
     private readonly transactionRequestService: TransactionRequestService,
   ) {
     super();
+
+    this.cardanoPaymentDepositAddress = CardanoUtil.createWallet({
+      seed: Config.payment.cardanoSeed,
+      index: 0,
+    }).address;
   }
 
   get blockchain(): Blockchain {
@@ -38,6 +45,8 @@ export class CardanoStrategy extends RegisterStrategy {
       Util.hoursBefore(1),
       this.blockchain,
     );
+
+    if (this.cardanoPaymentDepositAddress) activeDepositAddresses.push(this.cardanoPaymentDepositAddress);
 
     await this.processNewPayInEntries(activeDepositAddresses.map((a) => BlockchainAddress.create(a, this.blockchain)));
   }
@@ -126,8 +135,7 @@ export class CardanoStrategy extends RegisterStrategy {
     return payInEntries;
   }
 
-  private getTxType(depositAddress: string): PayInType {
-    const paymentAddress = CardanoUtil.createWallet({ seed: Config.payment.cardanoSeed, index: 0 }).address;
-    return Util.equalsIgnoreCase(paymentAddress, depositAddress) ? PayInType.PAYMENT : PayInType.DEPOSIT;
+  private getTxType(address: string): PayInType {
+    return Util.equalsIgnoreCase(this.cardanoPaymentDepositAddress, address) ? PayInType.PAYMENT : PayInType.DEPOSIT;
   }
 }
