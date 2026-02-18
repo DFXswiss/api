@@ -60,6 +60,8 @@ import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.d
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
+  RealUnitAccountMergeUserDataDto,
+  RealUnitCompleteAccountMergeRegistrationDto,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationStatus,
   RealUnitRegistrationDto,
@@ -487,6 +489,98 @@ export class RealUnitService {
     if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
 
     return RealUnitRegistrationStatus.COMPLETED;
+  }
+
+  // --- Registration Methods for Account Merge ---
+
+  async getRealUnitUserData(userDataId: number, walletAddress: string): Promise<RealUnitAccountMergeUserDataDto> {
+    const userData = await this.userDataService.getUserData(userDataId, { kycSteps: true });
+    if (!userData) throw new NotFoundException('User not found');
+
+    if (this.hasRegistrationForWallet(userData, walletAddress)) {
+      throw new BadRequestException('Wallet is already registered');
+    }
+
+    const registrationStep = this.findExistentRegistrationStep(userData, walletAddress);
+    if (!registrationStep) {
+      throw new BadRequestException('No RealUnit registration found');
+    }
+
+    try {
+      const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
+      if (!registrationData) {
+        throw new BadRequestException('Invalid registration data');
+      }
+
+      const { signature, walletAddress: oldWallet, registrationDate, ...accountMergeUserData } = registrationData;
+      return accountMergeUserData as RealUnitAccountMergeUserDataDto; // Return data without signature/walletAddress/registrationDate
+    } catch {
+      this.logger.error(`Failed to parse RealUnit registration data for user ${userDataId}`);
+      throw new BadRequestException(`Failed to parse RealUnit registration data for user ${userDataId}`);
+    }
+  }
+
+  // Find RealUnit registration steps where the wallet address is different from the current wallet
+  private findExistentRegistrationStep(userData: UserData, currentWalletAddress: string): KycStep | undefined {
+    return userData
+      .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
+      .filter((s) => (s.isCompleted || s.isCanceled) && s.result)
+      .find((s) => {
+        const result = s.getResult<AktionariatRegistrationDto>();
+        return result?.walletAddress && !Util.equalsIgnoreCase(result.walletAddress, currentWalletAddress);
+      });
+  }
+
+  async completeAccountMergeRegistration(
+    userDataId: number,
+    dto: RealUnitCompleteAccountMergeRegistrationDto,
+  ): Promise<RealUnitRegistrationStatus> {
+    const userData = await this.userService
+      .getUserByAddress(dto.walletAddress, {
+        userData: { kycSteps: true, users: true, country: true },
+      })
+      .then((u) => u?.userData);
+
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
+
+    if (this.hasRegistrationForWallet(userData, dto.walletAddress)) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet');
+    }
+
+    const registrationStep = this.findExistentRegistrationStep(userData, dto.walletAddress);
+    if (!registrationStep) {
+      throw new BadRequestException('No RealUnit registration found');
+    }
+
+    const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
+    if (!registrationData) {
+      throw new BadRequestException('Invalid registration data');
+    }
+
+    // full registration DTO with new signature/wallet/date
+    const { signature: oldSig, walletAddress: oldWallet, registrationDate: oldDate, ...pendingData } = registrationData;
+    const fullDto: RealUnitRegistrationDto = {
+      ...pendingData,
+      walletAddress: dto.walletAddress,
+      signature: dto.signature,
+      registrationDate: dto.registrationDate,
+    };
+
+    if (!this.verifyRealUnitRegistrationSignature(fullDto)) {
+      throw new BadRequestException('Invalid signature');
+    }
+
+    const kycStep = await this.kycService.createCustomKycStep(
+      userData,
+      KycStepName.REALUNIT_REGISTRATION,
+      ReviewStatus.INTERNAL_REVIEW,
+      fullDto,
+    );
+
+    const success = await this.forwardRegistration(kycStep, fullDto);
+
+    return success ? RealUnitRegistrationStatus.COMPLETED : RealUnitRegistrationStatus.FORWARDING_FAILED;
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {

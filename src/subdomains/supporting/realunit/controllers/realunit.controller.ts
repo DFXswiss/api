@@ -53,6 +53,8 @@ import {
   RealUnitSingleReceiptPdfDto,
 } from '../dto/realunit-pdf.dto';
 import {
+  RealUnitAccountMergeUserDataDto,
+  RealUnitCompleteAccountMergeRegistrationDto,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationResponseDto,
   RealUnitRegistrationDto,
@@ -413,6 +415,44 @@ export class RealUnitController {
     };
 
     res.status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK).json(response);
+  }
+
+  @Get('register/account-merge-data')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get RealUnit registration data from user',
+    description:
+      'Returns registration data from the user. The data is then used for the complete-account-merge endpoint.',
+  })
+  @ApiOkResponse({ type: RealUnitAccountMergeUserDataDto, description: 'Pending registration data' })
+  async getRealUnitUserData(@GetJwt() jwt: JwtPayload): Promise<RealUnitAccountMergeUserDataDto> {
+    return this.realunitService.getRealUnitUserData(jwt.account, jwt.address);
+  }
+
+  @Post('register/complete-account-merge')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Complete RealUnit registration with data from account-merge-data endpoint',
+    description:
+      'Completes a registration with existent data that can be fetched from the account-merge-data endpoint endpoint with a new signature.',
+  })
+  @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
+  @ApiAcceptedResponse({
+    type: RealUnitRegistrationResponseDto,
+    description: 'Registration accepted but forwarding to Aktionariat failed',
+  })
+  @ApiBadRequestResponse({ description: 'No pending registration, invalid signature, or wallet mismatch' })
+  async completeAccountMergeRegistration(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitCompleteAccountMergeRegistrationDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const status = await this.realunitService.completeAccountMergeRegistration(jwt.account, dto);
+    const response: RealUnitRegistrationResponseDto = { status };
+    const statusCode = status === RealUnitRegistrationStatus.COMPLETED ? HttpStatus.CREATED : HttpStatus.ACCEPTED;
+    res.status(statusCode).json(response);
   }
 
   // --- Admin Endpoints ---
