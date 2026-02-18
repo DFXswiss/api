@@ -418,6 +418,12 @@ export class PaymentQuoteService {
         for (let i = 0; i < tryCount; i++) {
           const tx = await client.getTx(transferInfo.tx);
           if (tx?.confirmations > 0) {
+            const receipt = await client.getTxReceipt(transferInfo.tx);
+            if (!receipt?.status) {
+              quote.txFailed(`Transaction ${transferInfo.tx} has been reverted`);
+              return;
+            }
+
             const error = this.validateEvmTx(quote, method, expectedRecipient, tx);
             if (error) {
               quote.txFailed(`Transaction validation failed: ${error}`);
