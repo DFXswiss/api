@@ -291,7 +291,8 @@ export class TransactionHelper implements OnModuleInit {
     // get specs (CHF)
     const specs = this.getMinSpecs(from, to);
 
-    const { kycLimit, defaultLimit } = await this.getLimits(paymentMethodIn, paymentMethodOut, user);
+    const { kycLimit: rawKycLimit, defaultLimit } = await this.getLimits(paymentMethodIn, paymentMethodOut, user);
+    const kycLimit = TransactionHelper.isRealUnitTransaction(from, to) ? Number.MAX_VALUE : rawKycLimit;
 
     const error = this.getTxError(
       from,
@@ -950,6 +951,7 @@ export class TransactionHelper implements OnModuleInit {
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
+    const isRealUnit = TransactionHelper.isRealUnitTransaction(from, to);
 
     if (
       user?.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) &&
@@ -1012,6 +1014,7 @@ export class TransactionHelper implements OnModuleInit {
     // verification checks
     if (
       ((isSell && to.name !== 'CHF') || isSwap) &&
+      !isRealUnit &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
@@ -1032,5 +1035,9 @@ export class TransactionHelper implements OnModuleInit {
     if (!currency) throw new BadRequestException('Preferred currency not found');
 
     return currency;
+  }
+
+  private static isRealUnitTransaction(from: Active, to: Active): boolean {
+    return (isAsset(from) && from.name === 'REALU') || (isAsset(to) && to.name === 'REALU');
   }
 }
