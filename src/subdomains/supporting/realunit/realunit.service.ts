@@ -442,27 +442,27 @@ export class RealUnitService {
       throw new BadRequestException('Wallet is already registered');
     }
 
-    const registrationStep = this.findExistentRegistrationStep(userData, walletAddress);
+    const registrationStep = this.findExistingRegistrationStep(userData, walletAddress);
     if (!registrationStep) {
       throw new BadRequestException('No RealUnit registration found');
     }
 
-    try {
-      const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
-      if (!registrationData) {
-        throw new BadRequestException('Invalid registration data');
-      }
-
-      const { signature, walletAddress: oldWallet, registrationDate, ...accountMergeUserData } = registrationData;
-      return accountMergeUserData as RealUnitAccountMergeUserDataDto; // Return data without signature/walletAddress/registrationDate
-    } catch {
-      this.logger.error(`Failed to parse RealUnit registration data for user ${userDataId}`);
-      throw new BadRequestException(`Failed to parse RealUnit registration data for user ${userDataId}`);
+    const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
+    if (!registrationData) {
+      throw new BadRequestException('Invalid registration data');
     }
+
+    const {
+      signature: _sig,
+      walletAddress: _wallet,
+      registrationDate: _date,
+      ...accountMergeUserData
+    } = registrationData;
+    return accountMergeUserData as RealUnitAccountMergeUserDataDto; // Return data without signature/walletAddress/registrationDate
   }
 
   // Find RealUnit registration steps where the wallet address is different from the current wallet
-  private findExistentRegistrationStep(userData: UserData, currentWalletAddress: string): KycStep | undefined {
+  private findExistingRegistrationStep(userData: UserData, currentWalletAddress: string): KycStep | undefined {
     return userData
       .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
       .filter((s) => (s.isCompleted || s.isCanceled) && s.result)
@@ -489,7 +489,7 @@ export class RealUnitService {
       throw new BadRequestException('RealUnit registration already exists for this wallet');
     }
 
-    const registrationStep = this.findExistentRegistrationStep(userData, dto.walletAddress);
+    const registrationStep = this.findExistingRegistrationStep(userData, dto.walletAddress);
     if (!registrationStep) {
       throw new BadRequestException('No RealUnit registration found');
     }
@@ -500,9 +500,9 @@ export class RealUnitService {
     }
 
     // full registration DTO with new signature/wallet/date
-    const { signature: oldSig, walletAddress: oldWallet, registrationDate: oldDate, ...pendingData } = registrationData;
+    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...accountMergeData } = registrationData;
     const fullDto: RealUnitRegistrationDto = {
-      ...pendingData,
+      ...accountMergeData,
       walletAddress: dto.walletAddress,
       signature: dto.signature,
       registrationDate: dto.registrationDate,

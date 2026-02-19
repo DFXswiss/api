@@ -416,7 +416,7 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Complete RealUnit registration with data from account-merge-data endpoint',
     description:
-      'Completes a registration with existent data that can be fetched from the account-merge-data endpoint endpoint with a new signature.',
+      'Completes a registration using existing data from the account-merge-data endpoint endpoint with a new signature.',
   })
   @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
   @ApiAcceptedResponse({
