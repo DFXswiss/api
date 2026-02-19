@@ -38,7 +38,7 @@ export class IpLogService {
     walletType?: WalletType,
     userData?: UserData,
   ): Promise<IpLog> {
-    const { country, result, user } = await this.checkIpCountry(ip, address);
+    const { country, result, user } = await this.checkIpCountry(ip, address, userData);
     const ipLog = this.ipLogRepo.create({
       ip,
       country,
@@ -116,6 +116,7 @@ export class IpLogService {
   private async checkIpCountry(
     userIp: string,
     address: string,
+    userData?: UserData,
   ): Promise<{ country: string; result: boolean; user: User }> {
     if (Config.environment === Environment.LOC || userIp?.includes(Config.azureIpSubstring))
       return { country: 'INTERN', result: true, user: undefined };
@@ -126,6 +127,8 @@ export class IpLogService {
     const user = await this.repos.user.findOne({ where: { address }, relations: { userData: true } });
 
     if (!countryObject || (user && user.role != UserRole.USER)) return { country, result: true, user };
+
+    if (userData?.ipExempt) return { country, result: true, user };
 
     return { country, result: countryObject?.ipEnable, user };
   }
