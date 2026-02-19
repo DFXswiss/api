@@ -386,7 +386,9 @@ export class LogJobService {
 
     // EUR: Yapeal -> Scrypt
     const eurSenderScryptBankTx = recentScryptBankTx.filter(
-      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      (b) =>
+        (b.accountIban === yapealEurBank.iban || b.accountIban === olkyBank.iban) &&
+        b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const eurReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
       (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR',
@@ -405,7 +407,9 @@ export class LogJobService {
       (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status === 'ok' && k.currency === 'EUR',
     );
     const eurReceiverScryptBankTx = recentScryptBankTx.filter(
-      (b) => b.accountIban === yapealEurBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      (b) =>
+        (b.accountIban === yapealEurBank.iban || b.accountIban === olkyBank.iban) &&
+        b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
     // sender and receiver data for Yapeal -> Scrypt
