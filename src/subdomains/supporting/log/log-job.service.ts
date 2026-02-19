@@ -246,6 +246,7 @@ export class LogJobService {
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     const yapealEurBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'EUR');
     const yapealChfBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'CHF');
+    const eurBankIbans = [yapealEurBank.iban, olkyBank.iban];
 
     // pending balances
     const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
@@ -384,11 +385,9 @@ export class LogJobService {
       eurReceiverExchangeTx,
     );
 
-    // EUR: Yapeal -> Scrypt
+    // EUR: Bank -> Scrypt
     const eurSenderScryptBankTx = recentScryptBankTx.filter(
-      (b) =>
-        (b.accountIban === yapealEurBank.iban || b.accountIban === olkyBank.iban) &&
-        b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      (b) => eurBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const eurReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
       (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR',
@@ -402,14 +401,12 @@ export class LogJobService {
       (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
-    // EUR: Scrypt -> Yapeal
+    // EUR: Scrypt -> Bank
     const eurSenderScryptExchangeTx = recentScryptExchangeTx.filter(
       (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status === 'ok' && k.currency === 'EUR',
     );
     const eurReceiverScryptBankTx = recentScryptBankTx.filter(
-      (b) =>
-        (b.accountIban === yapealEurBank.iban || b.accountIban === olkyBank.iban) &&
-        b.creditDebitIndicator === BankTxIndicator.CREDIT,
+      (b) => eurBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
     // sender and receiver data for Yapeal -> Scrypt
