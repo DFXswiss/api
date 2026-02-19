@@ -128,7 +128,7 @@ export class IpLogService {
 
     if (!countryObject || (user && user.role != UserRole.USER)) return { country, result: true, user };
 
-    if (userData?.ipExempt) return { country, result: true, user };
+    if (userData?.ipExempt || user?.userData?.ipExempt) return { country, result: true, user };
 
     return { country, result: countryObject?.ipEnable, user };
   }
