@@ -282,6 +282,10 @@ export class UpdateUserDataDto {
   isTrustedReferrer?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  ipExempt?: boolean;
+
+  @IsOptional()
   @IsString()
   postAmlCheck?: string;
 
