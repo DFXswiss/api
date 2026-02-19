@@ -355,8 +355,7 @@ export class KycStep extends IEntity {
   }
 
   addComment(comment: string): string | undefined {
-    if (!comment) return this.comment;
-    return !this.comment ? comment : `${this.comment};${comment}`;
+    return [this.comment, comment].filter((c) => c).join(';');
   }
 
   get resultData(): IdentResultData {

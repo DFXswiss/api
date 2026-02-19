@@ -385,7 +385,7 @@ export class KycService {
     const expiredSteps = [
       kycStep.userData.getCompletedStepWith(KycStepName.IDENT),
       kycStep.userData.getCompletedStepWith(KycStepName.FINANCIAL_DATA),
-    ].filter((s) => s && Util.daysDiff(s.created) > Config.kycStepExpiry);
+    ].filter((s) => s && Util.daysDiff(s.created) > Config.kyc.kycStepExpiry);
 
     if (expiredSteps.length) {
       for (const expiredStep of expiredSteps) {

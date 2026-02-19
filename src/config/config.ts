@@ -116,7 +116,6 @@ export class Configuration {
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
-  kycStepExpiry = 90; // days
   allowedBorderRegions = ['CH', 'DE']; // aml & kyc
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
@@ -272,6 +271,7 @@ export class Configuration {
     residencePermitCountries: ['RU'],
     maxIdentTries: 7,
     maxRecommendationTries: 3,
+    kycStepExpiry: 90, // days
   };
 
   fileDownloadConfig: {
