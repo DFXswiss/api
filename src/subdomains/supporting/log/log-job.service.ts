@@ -409,7 +409,7 @@ export class LogJobService {
       (b) => eurBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
-    // sender and receiver data for Yapeal -> Scrypt
+    // sender and receiver data for Bank -> Scrypt
     const { sender: recentChfYapealScryptTx, receiver: recentChfBankTxScrypt } = this.filterSenderPendingList(
       chfSenderScryptBankTx,
       chfReceiverScryptExchangeTx,
@@ -419,7 +419,7 @@ export class LogJobService {
       eurReceiverScryptExchangeTx,
     );
 
-    // sender and receiver data for Scrypt -> Yapeal
+    // sender and receiver data for Scrypt -> Bank
     const { sender: recentChfScryptYapealTx, receiver: recentChfScryptBankTx } = this.filterSenderPendingList(
       chfSenderScryptExchangeTx,
       chfReceiverScryptBankTx,
