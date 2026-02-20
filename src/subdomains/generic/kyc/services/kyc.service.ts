@@ -176,22 +176,7 @@ export class KycService {
         const result = entity.getResult<KycNationalityData>();
         const nationality = await this.countryService.getCountry(result.nationality.id);
 
-        //Skip nationalities which needs a residencePermit first
-        if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) continue;
-
-        const errors = this.getNationalityErrors(entity, nationality);
-        const comment = errors.join(';');
-
-        if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
-          await this.kycStepRepo.update(...entity.ignored(comment));
-        } else if (errors.length > 0) {
-          await this.kycStepRepo.update(...entity.manualReview(comment));
-        } else {
-          await this.kycStepRepo.update(...entity.complete());
-          await this.checkDfxApproval(entity);
-        }
-
-        await this.createStepLog(entity.userData, entity);
+        await this.reviewNationalityData(entity, entity.userData, nationality);
       } catch (e) {
         this.logger.error(`Failed to auto review nationality step ${entity.id}:`, e);
       }
@@ -584,26 +569,10 @@ export class KycService {
 
     Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
 
-    // set to INTERNAL_REVIEW first (same as before)
     await this.kycStepRepo.update(...kycStep.update(ReviewStatus.INTERNAL_REVIEW, data));
     await this.createStepLog(user, kycStep);
 
-    // immediately review instead of waiting for cron job
-    if (!Config.kyc.residencePermitCountries.includes(nationality.symbol)) {
-      const errors = this.getNationalityErrors(kycStep, nationality);
-      const comment = errors.join(';');
-
-      if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
-        await this.kycStepRepo.update(...kycStep.ignored(comment));
-      } else if (errors.length > 0) {
-        await this.kycStepRepo.update(...kycStep.manualReview(comment));
-      } else {
-        await this.kycStepRepo.update(...kycStep.complete());
-        await this.checkDfxApproval(kycStep);
-      }
-
-      await this.createStepLog(user, kycStep);
-    }
+    await this.reviewNationalityData(kycStep, user, nationality);
 
     await this.updateProgress(user, false);
 
@@ -1406,6 +1375,24 @@ export class KycService {
     if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
 
     return errors;
+  }
+
+  private async reviewNationalityData(kycStep: KycStep, user: UserData, nationality: Country): Promise<void> {
+    if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) return;
+
+    const errors = this.getNationalityErrors(kycStep, nationality);
+    const comment = errors.join(';');
+
+    if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
+      await this.kycStepRepo.update(...kycStep.ignored(comment));
+    } else if (errors.length > 0) {
+      await this.kycStepRepo.update(...kycStep.manualReview(comment));
+    } else {
+      await this.kycStepRepo.update(...kycStep.complete());
+      await this.checkDfxApproval(kycStep);
+    }
+
+    await this.createStepLog(user, kycStep);
   }
 
   private getFinancialDataErrors(entity: KycStep): KycError[] {
