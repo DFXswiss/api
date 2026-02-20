@@ -692,9 +692,11 @@ export class RealUnitService {
         countryAndTINs: dto.countryAndTINs,
       };
 
-      await this.http.post(`${api.url}/registerUser`, payload, {
-        headers: { 'x-api-key': api.key },
-      });
+      if (![Environment.DEV, Environment.LOC].includes(Config.environment)) {
+        await this.http.post(`${api.url}/registerUser`, payload, {
+          headers: { 'x-api-key': api.key },
+        });
+      }
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
 
