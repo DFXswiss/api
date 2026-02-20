@@ -335,12 +335,14 @@ export class RealUnitService {
 
     // Aktionariat API aufrufen
     const fiat = await this.fiatService.getFiat(request.sourceId);
-    const aktionariatResponse = await this.blockchainService.requestPaymentInstructions({
-      currency: fiat.name,
-      address: request.user.address,
-      shares: Math.floor(request.estimatedAmount),
-      price: Math.round(request.amount * 100),
-    });
+    const aktionariatResponse = [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? { reference: `DEV-${request.id}-${Date.now()}`, mock: true }
+      : await this.blockchainService.requestPaymentInstructions({
+          currency: fiat.name,
+          address: request.user.address,
+          shares: Math.floor(request.estimatedAmount),
+          price: Math.round(request.amount * 100),
+        });
 
     // Status + Response speichern
     await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));
@@ -690,9 +692,11 @@ export class RealUnitService {
         countryAndTINs: dto.countryAndTINs,
       };
 
-      await this.http.post(`${api.url}/registerUser`, payload, {
-        headers: { 'x-api-key': api.key },
-      });
+      if (![Environment.DEV, Environment.LOC].includes(Config.environment)) {
+        await this.http.post(`${api.url}/registerUser`, payload, {
+          headers: { 'x-api-key': api.key },
+        });
+      }
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
 
