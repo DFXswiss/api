@@ -61,6 +61,7 @@ export enum TransactionReason {
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
   BANK_RELEASE_PENDING = 'BankReleasePending',
   INPUT_NOT_CONFIRMED = 'InputNotConfirmed',
+  KYC_NEEDED = 'KycNeeded',
 }
 
 export const KycRequiredReason = [
@@ -115,6 +116,7 @@ export const TransactionReasonMapper: {
   [AmlReason.VIRTUAL_IBAN_USER_MISMATCH]: TransactionReason.UNKNOWN,
   [AmlReason.INTERMEDIARY_WITHOUT_SENDER]: TransactionReason.BANK_NOT_ALLOWED,
   [AmlReason.NAME_TOO_SHORT]: TransactionReason.KYC_DATA_NEEDED,
+  [AmlReason.KYC_NEEDED]: TransactionReason.KYC_NEEDED,
 };
 
 export class UnassignedTransactionDto {

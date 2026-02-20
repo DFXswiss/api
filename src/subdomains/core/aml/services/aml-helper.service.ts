@@ -183,6 +183,8 @@ export class AmlHelperService {
 
     if (entity instanceof BuyCrypto) {
       // buyCrypto
+      if (entity.inputAsset === 'EUR' && entity.userData.kycLevel < KycLevel.LEVEL_30)
+        errors.push(AmlError.EUR_TX_WITHOUT_KYC);
       if (entity.userData.isRiskBuyCryptoBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
       if (
         !entity.cryptoInput &&

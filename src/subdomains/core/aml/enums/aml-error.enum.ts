@@ -65,6 +65,7 @@ export enum AmlError {
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
   FORCE_MANUAL_CHECK = 'ForceManualCheck',
+  EUR_TX_WITHOUT_KYC = 'EurTxWithoutKyc',
 }
 
 export const DelayResultError = [
@@ -315,5 +316,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
+  },
+  [AmlError.EUR_TX_WITHOUT_KYC]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.KYC_NEEDED,
   },
 };

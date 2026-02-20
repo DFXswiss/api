@@ -40,6 +40,7 @@ export enum AmlReason {
   VIRTUAL_IBAN_USER_MISMATCH = 'VirtualIbanUserMismatch',
   INTERMEDIARY_WITHOUT_SENDER = 'IntermediaryWithoutSender',
   NAME_TOO_SHORT = 'NameTooShort',
+  KYC_NEEDED = 'KycNeeded',
 }
 
 export const KycAmlReasons = [
@@ -51,6 +52,7 @@ export const KycAmlReasons = [
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.VIDEO_IDENT_NEEDED,
   AmlReason.KYC_DATA_NEEDED,
+  AmlReason.KYC_NEEDED,
 ];
 
 export const RecheckAmlReasons = [
@@ -66,6 +68,7 @@ export const RecheckAmlReasons = [
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.KYC_DATA_NEEDED,
   AmlReason.BANK_RELEASE_PENDING,
+  AmlReason.KYC_NEEDED,
 ];
 
 export const BlockAmlReasons = [AmlReason.MANUAL_CHECK, AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE];
