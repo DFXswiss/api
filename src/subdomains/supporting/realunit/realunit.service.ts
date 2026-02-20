@@ -60,13 +60,14 @@ import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.d
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
-  RealUnitAccountMergeUserDataDto,
-  RealUnitCompleteAccountMergeRegistrationDto,
+  RealUnitAddWalletDto,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationStatus,
   RealUnitRegistrationDto,
   RealUnitRegistrationStatus,
+  RealUnitUserDataDto,
   RealUnitUserType,
+  RealUnitWalletStatusDto,
 } from './dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from './dto/realunit-sell.dto';
 import {
@@ -432,33 +433,47 @@ export class RealUnitService {
     return RealUnitRegistrationStatus.COMPLETED;
   }
 
-  // --- Registration Methods for Account Merge ---
+  // --- Wallet Methods ---
 
-  async getRealUnitUserData(userDataId: number, walletAddress: string): Promise<RealUnitAccountMergeUserDataDto> {
-    const userData = await this.userDataService.getUserData(userDataId, { kycSteps: true });
-    if (!userData) throw new NotFoundException('User not found');
+  getAddressWalletStatus(userData: UserData, walletAddress: string): RealUnitWalletStatusDto {
+    const isRegistered = this.hasRegistrationForWallet(userData, walletAddress);
+    const registrationData = this.getRegistrationUserData(userData, walletAddress, isRegistered);
 
-    if (this.hasRegistrationForWallet(userData, walletAddress)) {
-      throw new BadRequestException('Wallet is already registered');
+    return {
+      isRegistered,
+      userData: registrationData,
+    };
+  }
+
+  private getRegistrationUserData(
+    userData: UserData,
+    walletAddress: string,
+    isRegistered: boolean,
+  ): RealUnitUserDataDto | undefined {
+    let registrationStep: KycStep | undefined;
+
+    if (isRegistered) {
+      // Get the completed registration for this wallet
+      registrationStep = userData
+        .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
+        .filter((s) => !(s.isFailed || s.isCanceled))
+        .find((s) => {
+          const result = s.getResult<AktionariatRegistrationDto>();
+          return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
+        });
+    } else {
+      // Get existing registration from another wallet (for account merge)
+      registrationStep = this.findExistingRegistrationStep(userData, walletAddress);
     }
 
-    const registrationStep = this.findExistingRegistrationStep(userData, walletAddress);
-    if (!registrationStep) {
-      throw new BadRequestException('No RealUnit registration found');
-    }
+    if (!registrationStep) return undefined;
 
     const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
-    if (!registrationData) {
-      throw new BadRequestException('Invalid registration data');
-    }
+    if (!registrationData) return undefined;
 
-    const {
-      signature: _sig,
-      walletAddress: _wallet,
-      registrationDate: _date,
-      ...accountMergeUserData
-    } = registrationData;
-    return accountMergeUserData as RealUnitAccountMergeUserDataDto; // Return data without signature/walletAddress/registrationDate
+    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...userDataDto } = registrationData;
+
+    return userDataDto as RealUnitUserDataDto;
   }
 
   // Find RealUnit registration steps where the wallet address is different from the current wallet
@@ -472,9 +487,9 @@ export class RealUnitService {
       });
   }
 
-  async completeAccountMergeRegistration(
+  async completeRegistrationForWalletAddress(
     userDataId: number,
-    dto: RealUnitCompleteAccountMergeRegistrationDto,
+    dto: RealUnitAddWalletDto,
   ): Promise<RealUnitRegistrationStatus> {
     const userData = await this.userService
       .getUserByAddress(dto.walletAddress, {

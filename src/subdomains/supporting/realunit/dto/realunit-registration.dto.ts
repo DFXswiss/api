@@ -188,7 +188,7 @@ export class RealUnitRegistrationDto extends AktionariatRegistrationDto {
   kycData: KycPersonalData;
 }
 
-export class RealUnitAccountMergeUserDataDto {
+export class RealUnitUserDataDto {
   @ApiProperty()
   email: string;
 
@@ -232,7 +232,15 @@ export class RealUnitAccountMergeUserDataDto {
   kycData: KycPersonalData;
 }
 
-export class RealUnitCompleteAccountMergeRegistrationDto {
+export class RealUnitWalletStatusDto {
+  @ApiProperty({ description: 'Whether the wallet is registered for RealUnit' })
+  isRegistered: boolean;
+
+  @ApiPropertyOptional({ type: RealUnitUserDataDto, description: 'User data if available' })
+  userData?: RealUnitUserDataDto;
+}
+
+export class RealUnitAddWalletDto {
   @ApiProperty({ description: 'Ethereum wallet address (0x...)' })
   @IsNotEmpty()
   @IsString()

@@ -53,13 +53,13 @@ import {
   RealUnitSingleReceiptPdfDto,
 } from '../dto/realunit-pdf.dto';
 import {
-  RealUnitAccountMergeUserDataDto,
-  RealUnitCompleteAccountMergeRegistrationDto,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationResponseDto,
+  RealUnitAddWalletDto as RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
+  RealUnitWalletStatusDto,
 } from '../dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
 import {
@@ -334,6 +334,22 @@ export class RealUnitController {
     return this.realunitService.confirmSell(jwt.user, +id, dto);
   }
 
+  // --- Wallet Status Endpoint ---
+
+  @Get('wallet/status')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get wallet status and user data',
+    description:
+      'Returns registration status for the connected wallet and user data if available. Can be used to check registration, get data for account merge, or display user profile.',
+  })
+  @ApiOkResponse({ type: RealUnitWalletStatusDto })
+  async getWalletStatus(@GetJwt() jwt: JwtPayload): Promise<RealUnitWalletStatusDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
+    return this.realunitService.getAddressWalletStatus(user.userData, jwt.address);
+  }
+
   // --- Registration Endpoints ---
 
   @Get('register/status')
@@ -397,26 +413,12 @@ export class RealUnitController {
     res.status(statusCode).json(response);
   }
 
-  @Get('register/account-merge-data')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
-  @ApiOperation({
-    summary: 'Get RealUnit registration data from user',
-    description:
-      'Returns registration data from the user. The data is then used for the complete-account-merge endpoint.',
-  })
-  @ApiOkResponse({ type: RealUnitAccountMergeUserDataDto, description: 'Pending registration data' })
-  async getRealUnitUserData(@GetJwt() jwt: JwtPayload): Promise<RealUnitAccountMergeUserDataDto> {
-    return this.realunitService.getRealUnitUserData(jwt.account, jwt.address);
-  }
-
-  @Post('register/complete-account-merge')
+  @Post('register/wallet')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOperation({
-    summary: 'Complete RealUnit registration with data from account-merge-data endpoint',
-    description:
-      'Completes a registration using existing data from the account-merge-data endpoint endpoint with a new signature.',
+    summary: 'Complete RealUnit registration for given wallet address that is already owned by a user',
+    description: 'Completes a registration using existing data from the wallet status endpoint with a new signature.',
   })
   @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
   @ApiAcceptedResponse({
@@ -424,12 +426,12 @@ export class RealUnitController {
     description: 'Registration accepted or forwarding to Aktionariat failed',
   })
   @ApiBadRequestResponse({ description: 'No pending registration, invalid signature, or wallet mismatch' })
-  async completeAccountMergeRegistration(
+  async completeRegistrationForWalletAddress(
     @GetJwt() jwt: JwtPayload,
-    @Body() dto: RealUnitCompleteAccountMergeRegistrationDto,
+    @Body() dto: RealUnitRegisterWalletDto,
     @Res() res: Response,
   ): Promise<void> {
-    const status = await this.realunitService.completeAccountMergeRegistration(jwt.account, dto);
+    const status = await this.realunitService.completeRegistrationForWalletAddress(jwt.account, dto);
     const response: RealUnitRegistrationResponseDto = { status };
     const statusCode = status === RealUnitRegistrationStatus.COMPLETED ? HttpStatus.CREATED : HttpStatus.ACCEPTED;
     res.status(statusCode).json(response);
