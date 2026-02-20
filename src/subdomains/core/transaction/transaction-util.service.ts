@@ -80,7 +80,8 @@ export class TransactionUtilService {
     if (entity instanceof BankTxReturn) {
       if (
         dto.chargebackAmount &&
-        ((dto.chargebackAmount > entity.bankTx.refundAmount && !dto.chargebackAmountInInputAsset) ||
+        ((dto.chargebackAmount > entity.bankTx.refundAmount &&
+          (!entity.chargebackAsset || entity.bankTx.currency === entity.chargebackAsset)) ||
           dto.chargebackAmountInInputAsset > entity.bankTx.refundAmount)
       )
         throw new BadRequestException('You can not refund more than the input amount');
@@ -92,7 +93,8 @@ export class TransactionUtilService {
 
     if (
       dto.chargebackAmount &&
-      ((dto.chargebackAmount > entity.refundAmount && !dto.chargebackAmountInInputAsset) ||
+      ((dto.chargebackAmount > entity.refundAmount &&
+        (!entity.chargebackAsset || entity.inputAsset === entity.chargebackAsset)) ||
         dto.chargebackAmountInInputAsset > entity.refundAmount)
     )
       throw new BadRequestException('You can not refund more than the input amount');
