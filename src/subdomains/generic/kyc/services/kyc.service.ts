@@ -575,6 +575,41 @@ export class KycService {
     return this.updateKycStepAndLog(kycStep, user, data, reviewStatus);
   }
 
+  async updateNationalityStep(kycHash: string, stepId: number, data: KycNationalityData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    const nationality = await this.countryService.getCountry(data.nationality.id);
+    if (!nationality) throw new BadRequestException('Nationality not found');
+
+    Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
+
+    // set to INTERNAL_REVIEW first (same as before)
+    await this.kycStepRepo.update(...kycStep.update(ReviewStatus.INTERNAL_REVIEW, data));
+    await this.createStepLog(user, kycStep);
+
+    // immediately review instead of waiting for cron job
+    if (!Config.kyc.residencePermitCountries.includes(nationality.symbol)) {
+      const errors = this.getNationalityErrors(kycStep, nationality);
+      const comment = errors.join(';');
+
+      if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
+        await this.kycStepRepo.update(...kycStep.ignored(comment));
+      } else if (errors.length > 0) {
+        await this.kycStepRepo.update(...kycStep.manualReview(comment));
+      } else {
+        await this.kycStepRepo.update(...kycStep.complete());
+        await this.checkDfxApproval(kycStep);
+      }
+
+      await this.createStepLog(user, kycStep);
+    }
+
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
+  }
+
   async updateBeneficialOwnerData(kycHash: string, stepId: number, data: KycBeneficialData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
