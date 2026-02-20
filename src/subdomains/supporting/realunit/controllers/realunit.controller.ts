@@ -289,7 +289,7 @@ export class RealUnitController {
   @Put('buy/:id/confirm')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
-  @ApiOkResponse()
+  @ApiOkResponse({ description: 'Payment confirmed', schema: { properties: { reference: { type: 'string' } } } })
   async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<{ reference: string }> {
     return this.realunitService.confirmBuy(jwt.user, +id);
   }
