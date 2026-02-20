@@ -163,7 +163,10 @@ export class BuyFiat extends IEntity {
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
-  chargebackAmount?: number;
+  chargebackReferenceAmount?: number; // inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount?: number; // chargebackAsset
 
   @Column({ length: 256, nullable: true })
   chargebackAsset?: string;
@@ -262,6 +265,7 @@ export class BuyFiat extends IEntity {
 
   chargebackFillUp(
     chargebackAddress: string,
+    chargebackReferenceAmount: number,
     chargebackAmount: number,
     chargebackAsset: string,
     chargebackAllowedDate: Date,
@@ -274,6 +278,7 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDate,
       chargebackAllowedDateUser,
       chargebackAddress,
+      chargebackReferenceAmount,
       chargebackAmount,
       chargebackAsset,
       chargebackAllowedBy,

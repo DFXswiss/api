@@ -472,7 +472,7 @@ export class BuyCryptoService {
   async refundCheckoutTx(buyCrypto: BuyCrypto, dto: CheckoutTxRefund): Promise<void> {
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount ?? buyCrypto.inputAmount;
 
-    TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount });
+    TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount, assetMismatch: false });
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
       dto.chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
@@ -482,6 +482,7 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
         undefined,
+        chargebackAmount,
         chargebackAmount,
         dto.chargebackCurrency,
         dto.chargebackAllowedDate,
@@ -506,7 +507,7 @@ export class BuyCryptoService {
 
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
 
-    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount });
+    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount, assetMismatch: false });
 
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
@@ -521,6 +522,7 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
         refundUser.address ?? buyCrypto.chargebackIban,
+        chargebackAmount,
         chargebackAmount,
         dto.chargebackCurrency,
         dto.chargebackAllowedDate,
@@ -538,12 +540,15 @@ export class BuyCryptoService {
       throw new BadRequestException('You have to define a chargebackIban');
 
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
+    const chargebackReferenceAmount = dto.chargebackReferenceAmount ?? buyCrypto.chargebackReferenceAmount;
     const chargebackIban = dto.refundIban ?? buyCrypto.chargebackIban;
+    const chargebackAsset = dto.chargebackCurrency ?? buyCrypto.chargebackAsset;
 
     TransactionUtilService.validateRefund(buyCrypto, {
       refundIban: chargebackIban,
       chargebackAmount,
-      chargebackAmountInInputAsset: dto.chargebackAmountInInputAsset,
+      chargebackReferenceAmount,
+      assetMismatch: chargebackAsset && chargebackAsset !== buyCrypto.inputAsset,
     });
 
     if (
@@ -575,8 +580,9 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
         chargebackIban,
+        chargebackReferenceAmount,
         chargebackAmount,
-        dto.chargebackCurrency,
+        chargebackAsset,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,

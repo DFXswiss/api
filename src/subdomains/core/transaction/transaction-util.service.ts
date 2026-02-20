@@ -31,8 +31,9 @@ import { Sell } from '../sell-crypto/route/sell.entity';
 export type RefundValidation = {
   refundIban?: string;
   refundUser?: User;
-  chargebackAmount?: number;
-  chargebackAmountInInputAsset?: number;
+  chargebackAmount: number; // chargebackAsset
+  chargebackReferenceAmount?: number; // inputAsset
+  assetMismatch: boolean;
 };
 
 @Injectable()
@@ -80,9 +81,8 @@ export class TransactionUtilService {
     if (entity instanceof BankTxReturn) {
       if (
         dto.chargebackAmount &&
-        ((dto.chargebackAmount > entity.bankTx.refundAmount &&
-          (!entity.chargebackAsset || entity.bankTx.currency === entity.chargebackAsset)) ||
-          dto.chargebackAmountInInputAsset > entity.bankTx.refundAmount)
+        ((dto.chargebackAmount > entity.bankTx.refundAmount && !dto.assetMismatch) ||
+          (dto.chargebackReferenceAmount > entity.bankTx.refundAmount && dto.assetMismatch))
       )
         throw new BadRequestException('You can not refund more than the input amount');
       return;
@@ -93,9 +93,8 @@ export class TransactionUtilService {
 
     if (
       dto.chargebackAmount &&
-      ((dto.chargebackAmount > entity.refundAmount &&
-        (!entity.chargebackAsset || entity.inputAsset === entity.chargebackAsset)) ||
-        dto.chargebackAmountInInputAsset > entity.refundAmount)
+      ((dto.chargebackAmount > entity.refundAmount && !dto.assetMismatch) ||
+        (dto.chargebackReferenceAmount > entity.refundAmount && dto.assetMismatch))
     )
       throw new BadRequestException('You can not refund more than the input amount');
   }

@@ -341,7 +341,7 @@ export class BuyFiatService {
 
     const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
 
-    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount });
+    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount, assetMismatch: false });
 
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
@@ -354,6 +354,7 @@ export class BuyFiatService {
     await this.buyFiatRepo.update(
       ...buyFiat.chargebackFillUp(
         refundUser.address ?? buyFiat.chargebackAddress,
+        chargebackAmount,
         chargebackAmount,
         dto.chargebackCurrency,
         dto.chargebackAllowedDate,

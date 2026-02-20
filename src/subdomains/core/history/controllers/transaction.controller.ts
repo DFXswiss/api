@@ -563,7 +563,7 @@ export class TransactionController {
       return this.bankTxReturnService.refundBankTx(targetEntity, {
         refundIban: dto.refundTarget ?? refundData.refundTarget,
         creditorData: dto.creditorData,
-        chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
+        chargebackReferenceAmount: refundData.refundPrice.invert().convert(refundData.refundAmount),
         ...refundDto,
       });
     }
@@ -591,7 +591,7 @@ export class TransactionController {
     return this.buyCryptoService.refundBankTx(targetEntity, {
       refundIban: dto.refundTarget ?? refundData.refundTarget,
       creditorData: dto.creditorData,
-      chargebackAmountInInputAsset: refundData.refundPrice.invert().convert(refundData.refundAmount),
+      chargebackReferenceAmount: refundData.refundPrice.invert().convert(refundData.refundAmount),
       ...refundDto,
     });
   }
