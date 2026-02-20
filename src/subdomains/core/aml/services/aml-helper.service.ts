@@ -358,13 +358,11 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_2:
-        if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_30)
-          return [AmlError.KYC_LEVEL_30_NOT_REACHED];
+        if (entity.userData.kycLevel < KycLevel.LEVEL_30) return [AmlError.KYC_LEVEL_30_NOT_REACHED];
         break;
 
       case AmlRule.RULE_3:
-        if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_50)
-          errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
+        if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
         break;
 
       case AmlRule.RULE_4:
@@ -377,22 +375,12 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_6:
-        if (
-          entity.user.status === UserStatus.NA &&
-          entity instanceof BuyCrypto &&
-          entity.checkoutTx &&
-          entity.userData.kycLevel < KycLevel.LEVEL_30
-        )
+        if (entity instanceof BuyCrypto && entity.checkoutTx && entity.userData.kycLevel < KycLevel.LEVEL_30)
           errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
         break;
 
       case AmlRule.RULE_7:
-        if (
-          entity.user.status === UserStatus.NA &&
-          entity instanceof BuyCrypto &&
-          entity.checkoutTx &&
-          entity.userData.kycLevel < KycLevel.LEVEL_50
-        )
+        if (entity instanceof BuyCrypto && entity.checkoutTx && entity.userData.kycLevel < KycLevel.LEVEL_50)
           errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
         break;
 
@@ -459,24 +447,13 @@ export class AmlHelperService {
 
     if (exceptAmlRules?.length) amlRules = amlRules.filter((a) => !exceptAmlRules.includes(a));
 
-    if (
-      amlRules.includes(AmlRule.RULE_2) &&
-      user.status === UserStatus.NA &&
-      user.userData.kycLevel < KycLevel.LEVEL_30
-    )
-      return QuoteError.KYC_REQUIRED;
+    if (amlRules.includes(AmlRule.RULE_2) && user.userData.kycLevel < KycLevel.LEVEL_30) return QuoteError.KYC_REQUIRED;
 
-    if (
-      amlRules.includes(AmlRule.RULE_3) &&
-      user.status === UserStatus.NA &&
-      user.userData.kycLevel < KycLevel.LEVEL_50
-    )
-      return QuoteError.KYC_REQUIRED;
+    if (amlRules.includes(AmlRule.RULE_3) && user.userData.kycLevel < KycLevel.LEVEL_50) return QuoteError.KYC_REQUIRED;
 
     if (
       amlRules.includes(AmlRule.RULE_6) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      user.status === UserStatus.NA &&
       user.userData.kycLevel < KycLevel.LEVEL_30
     )
       return QuoteError.KYC_REQUIRED;
@@ -484,7 +461,6 @@ export class AmlHelperService {
     if (
       amlRules.includes(AmlRule.RULE_7) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      user.status === UserStatus.NA &&
       user.userData.kycLevel < KycLevel.LEVEL_50
     )
       return QuoteError.KYC_REQUIRED;

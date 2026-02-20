@@ -28,6 +28,7 @@ interface PaymentInstructionsRequest {
 }
 
 interface PaymentInstructionsResponse {
+  reference: string;
   [key: string]: unknown;
 }
 
