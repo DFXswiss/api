@@ -290,8 +290,8 @@ export class RealUnitController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse()
-  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
-    await this.realunitService.confirmBuy(jwt.user, +id);
+  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<{ reference: string }> {
+    return this.realunitService.confirmBuy(jwt.user, +id);
   }
 
   // --- Sell Payment Info Endpoints ---
