@@ -350,3 +350,8 @@ export class RealUnitPaymentInfoDto {
   @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
   error?: QuoteError;
 }
+
+export class RealUnitBuyConfirmDto {
+  @ApiProperty({ description: 'Aktionariat reference for the confirmed buy order' })
+  reference: string;
+}
