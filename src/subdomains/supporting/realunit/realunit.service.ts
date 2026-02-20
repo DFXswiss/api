@@ -180,12 +180,24 @@ export class RealUnitService {
   }
 
   async getHistoricalPrice(timeFrame: TimeFrame): Promise<HistoricalPriceDto[]> {
-    return this.historicalPriceCache.get(timeFrame, async () => {
+    const historicalPrices = await this.historicalPriceCache.get(timeFrame, async () => {
       const startDate = await this.getHistoricalPriceStartDate(timeFrame);
       const prices = await this.assetPricesService.getAssetPrices([await this.getRealuAsset()], startDate);
       const filledPrices = TimeseriesUtils.fillMissingDates(prices);
       return RealUnitDtoMapper.assetPricesToHistoricalPricesDto(filledPrices);
     });
+
+    if (historicalPrices.length > 0) {
+      const currentPrice = await this.getRealUnitPrice();
+      historicalPrices[historicalPrices.length - 1] = {
+        timestamp: currentPrice.timestamp,
+        chf: currentPrice.chf,
+        eur: currentPrice.eur,
+        usd: currentPrice.usd,
+      };
+    }
+
+    return historicalPrices;
   }
 
   async getRealUnitInfo(): Promise<TokenInfoDto> {
