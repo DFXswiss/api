@@ -68,6 +68,7 @@ import {
   HistoricalPriceQueryDto,
   HoldersDto,
   HoldersQueryDto,
+  RealUnitBuyConfirmDto,
   RealUnitBuyDto,
   RealUnitPaymentInfoDto,
   TimeFrame,
@@ -289,9 +290,9 @@ export class RealUnitController {
   @Put('buy/:id/confirm')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
-  @ApiOkResponse()
-  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
-    await this.realunitService.confirmBuy(jwt.user, +id);
+  @ApiOkResponse({ type: RealUnitBuyConfirmDto, description: 'Payment confirmed' })
+  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RealUnitBuyConfirmDto> {
+    return this.realunitService.confirmBuy(jwt.user, +id);
   }
 
   // --- Sell Payment Info Endpoints ---

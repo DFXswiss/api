@@ -325,7 +325,7 @@ export class RealUnitService {
     });
   }
 
-  async confirmBuy(userId: number, requestId: number): Promise<void> {
+  async confirmBuy(userId: number, requestId: number): Promise<{ reference: string }> {
     const request = await this.transactionRequestService.getOrThrow(requestId, userId);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
@@ -346,6 +346,8 @@ export class RealUnitService {
 
     // Status + Response speichern
     await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));
+
+    return { reference: aktionariatResponse.reference };
   }
 
   // --- Registration Methods ---
