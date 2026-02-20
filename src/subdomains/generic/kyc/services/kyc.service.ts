@@ -545,17 +545,10 @@ export class KycService {
     data: Partial<UserData>,
     reviewStatus: ReviewStatus,
   ): Promise<KycStepBase> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    if (data.nationality) {
-      const nationality = await this.countryService.getCountry(data.nationality.id);
-      if (!nationality) throw new BadRequestException('Nationality not found');
-
-      Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
-    } else {
-      user = await this.userDataService.updateUserDataInternal(user, data);
-    }
+    await this.userDataService.updateUserDataInternal(user, data);
 
     return this.updateKycStepAndLog(kycStep, user, data, reviewStatus);
   }
