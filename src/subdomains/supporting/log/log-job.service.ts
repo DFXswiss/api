@@ -689,9 +689,15 @@ export class LogJobService {
         pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
 
       let fromScrypt =
-        pendingChfScryptYapealPlusAmount + pendingEurScryptYapealPlusAmount + pendingEurScryptOlkyPlusAmount + pendingScryptYapealMinusAmount;
+        pendingChfScryptYapealPlusAmount +
+        pendingEurScryptYapealPlusAmount +
+        pendingEurScryptOlkyPlusAmount +
+        pendingScryptYapealMinusAmount;
       let toScrypt =
-        pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount + pendingEurOlkyScryptMinusAmount;
+        pendingYapealScryptPlusAmount +
+        pendingChfYapealScryptMinusAmount +
+        pendingEurYapealScryptMinusAmount +
+        pendingEurOlkyScryptMinusAmount;
 
       const fromScryptUnfiltered =
         pendingChfScryptYapealPlusAmountUnfiltered +
