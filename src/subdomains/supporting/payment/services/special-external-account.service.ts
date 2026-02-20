@@ -44,14 +44,12 @@ export class SpecialExternalAccountService {
     );
   }
 
-  async getPhoneCallList(types?: SpecialExternalAccountType[]): Promise<SpecialExternalAccount[]> {
-    return this.specialExternalAccountRepo.findCachedBy(`PhoneCallList-${types?.toString()}`, {
-      type: In(
-        types ?? [
-          SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY,
-          SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY,
-        ],
-      ),
+  async getPhoneCallList(): Promise<SpecialExternalAccount[]> {
+    return this.specialExternalAccountRepo.findCachedBy('PhoneCallList', {
+      type: In([
+        SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY,
+        SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY,
+      ]),
     });
   }
 
