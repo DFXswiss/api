@@ -240,7 +240,7 @@ export class RealUnitWalletStatusDto {
   userData?: RealUnitUserDataDto;
 }
 
-export class RealUnitAddWalletDto {
+export class RealUnitRegisterWalletDto {
   @ApiProperty({ description: 'Ethereum wallet address (0x...)' })
   @IsNotEmpty()
   @IsString()

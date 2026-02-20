@@ -60,9 +60,9 @@ import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.d
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
-  RealUnitAddWalletDto,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationStatus,
+  RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationStatus,
   RealUnitUserDataDto,
@@ -489,7 +489,7 @@ export class RealUnitService {
 
   async completeRegistrationForWalletAddress(
     userDataId: number,
-    dto: RealUnitAddWalletDto,
+    dto: RealUnitRegisterWalletDto,
   ): Promise<RealUnitRegistrationStatus> {
     const userData = await this.userService
       .getUserByAddress(dto.walletAddress, {
@@ -515,9 +515,9 @@ export class RealUnitService {
     }
 
     // full registration DTO with new signature/wallet/date
-    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...accountMergeData } = registrationData;
+    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...accountData } = registrationData;
     const fullDto: RealUnitRegistrationDto = {
-      ...accountMergeData,
+      ...accountData,
       walletAddress: dto.walletAddress,
       signature: dto.signature,
       registrationDate: dto.registrationDate,

@@ -55,7 +55,7 @@ import {
 import {
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationResponseDto,
-  RealUnitAddWalletDto as RealUnitRegisterWalletDto,
+  RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
