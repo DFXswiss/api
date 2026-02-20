@@ -1,6 +1,7 @@
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
     container_name: dfx-mssql
     environment:
       - ACCEPT_EULA=Y
@@ -19,6 +20,7 @@ services:
 
   db-init:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
     depends_on:
       db:
         condition: service_healthy

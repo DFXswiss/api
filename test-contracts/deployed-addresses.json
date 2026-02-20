@@ -1,0 +1,9 @@
+{
+  "realu": "0x80ddc3117a38d256adf124c95a40a1e811f725da",
+  "zchf": "0xd8a8830a51d56eb0c43a8e0fb5124d45f07d9e2b",
+  "brokerbot": "0x2a7a0481c38b77e5617e9bbbead2ce557d868854",
+  "pricePerShare": "1.57",
+  "network": "sepolia",
+  "deployer": "0xF60094D2D9fD3998A812F6215f26eE8Ee9d9f014",
+  "testUser": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+}

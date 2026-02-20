@@ -34,6 +34,9 @@ const CALLTYPE_SINGLE = '0x00000000000000000000000000000000000000000000000000000
 // ERC20 transfer function
 const ERC20_ABI = parseAbi(['function transfer(address to, uint256 amount) returns (bool)']);
 
+// ERC677 transferAndCall function (used by REALU token for BrokerBot interaction)
+const ERC677_ABI = parseAbi(['function transferAndCall(address to, uint256 value, bytes data) returns (bool)']);
+
 // Unified chain configuration: viem chain + config keys
 const CHAIN_CONFIG: Partial<Record<Blockchain, { chain: Chain; configKey: string; prefix: string }>> = {
   [Blockchain.ETHEREUM]: { chain: mainnet, configKey: 'ethereum', prefix: 'eth' },
@@ -294,6 +297,208 @@ export class Eip7702DelegationService {
       signedDelegation,
       authorization,
     );
+  }
+
+  /**
+   * Execute BrokerBot sell for RealUnit via EIP-7702 delegation
+   * Atomic batch: REALU -> BrokerBot (via transferAndCall) + ZCHF -> DFX Deposit (via transfer)
+   */
+  async executeBrokerBotSellForRealUnit(
+    userAddress: string,
+    realuToken: Asset,
+    zchfTokenAddress: string,
+    brokerbotAddress: string,
+    dfxDepositAddress: string,
+    realuAmount: number,
+    zchfAmountWei: bigint,
+    signedDelegation: {
+      delegate: string;
+      delegator: string;
+      authority: string;
+      salt: string;
+      signature: string;
+    },
+    authorization: any,
+  ): Promise<string> {
+    if (!this.isDelegationSupportedForRealUnit(realuToken.blockchain)) {
+      throw new Error(`EIP-7702 delegation not supported for RealUnit on ${realuToken.blockchain}`);
+    }
+    return this._executeBrokerBotSellInternal(
+      userAddress,
+      realuToken,
+      zchfTokenAddress,
+      brokerbotAddress,
+      dfxDepositAddress,
+      realuAmount,
+      zchfAmountWei,
+      signedDelegation,
+      authorization,
+    );
+  }
+
+  /**
+   * Internal implementation for BrokerBot sell with atomic batch delegation
+   */
+  private async _executeBrokerBotSellInternal(
+    userAddress: string,
+    realuToken: Asset,
+    zchfTokenAddress: string,
+    brokerbotAddress: string,
+    dfxDepositAddress: string,
+    realuAmount: number,
+    zchfAmountWei: bigint,
+    signedDelegation: {
+      delegate: string;
+      delegator: string;
+      authority: string;
+      salt: string;
+      signature: string;
+    },
+    authorization: any,
+  ): Promise<string> {
+    const blockchain = realuToken.blockchain;
+
+    // Input validation
+    if (!realuAmount || realuAmount <= 0) {
+      throw new Error(`Invalid REALU amount: ${realuAmount}`);
+    }
+    if (!dfxDepositAddress || !/^0x[a-fA-F0-9]{40}$/.test(dfxDepositAddress)) {
+      throw new Error(`Invalid DFX deposit address: ${dfxDepositAddress}`);
+    }
+    if (!realuToken.chainId || !/^0x[a-fA-F0-9]{40}$/.test(realuToken.chainId)) {
+      throw new Error(`Invalid REALU token contract address: ${realuToken.chainId}`);
+    }
+    if (!brokerbotAddress || !/^0x[a-fA-F0-9]{40}$/.test(brokerbotAddress)) {
+      throw new Error(`Invalid BrokerBot address: ${brokerbotAddress}`);
+    }
+    if (!zchfTokenAddress || !/^0x[a-fA-F0-9]{40}$/.test(zchfTokenAddress)) {
+      throw new Error(`Invalid ZCHF token address: ${zchfTokenAddress}`);
+    }
+
+    const chainConfig = this.getChainConfig(blockchain);
+    if (!chainConfig) {
+      throw new Error(`No chain config found for ${blockchain}`);
+    }
+
+    // Get relayer account
+    const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
+    const relayerAccount = privateKeyToAccount(relayerPrivateKey);
+
+    // Create clients
+    const publicClient = createPublicClient({
+      chain: chainConfig.chain,
+      transport: http(chainConfig.rpcUrl),
+    });
+
+    const walletClient = createWalletClient({
+      account: relayerAccount,
+      chain: chainConfig.chain,
+      transport: http(chainConfig.rpcUrl),
+    });
+
+    // 1. Rebuild delegation from signed data
+    const delegation: Delegation = {
+      delegate: signedDelegation.delegate as Address,
+      delegator: signedDelegation.delegator as Address,
+      authority: signedDelegation.authority as Hex,
+      caveats: [],
+      salt: BigInt(signedDelegation.salt),
+      signature: signedDelegation.signature as Hex,
+    };
+
+    // 2. Encode Call 1: REALU -> BrokerBot via ERC-677 transferAndCall
+    const realuAmountWei = BigInt(EvmUtil.toWeiAmount(realuAmount, realuToken.decimals).toString());
+    const transferAndCallData = encodeFunctionData({
+      abi: ERC677_ABI,
+      functionName: 'transferAndCall',
+      args: [brokerbotAddress as Address, realuAmountWei, '0x' as Hex],
+    });
+    const executionData1 = encodePacked(
+      ['address', 'uint256', 'bytes'],
+      [realuToken.chainId as Address, 0n, transferAndCallData],
+    );
+
+    // 3. Encode Call 2: ZCHF -> DFX Deposit via ERC-20 transfer
+    const zchfTransferData = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: 'transfer',
+      args: [dfxDepositAddress as Address, zchfAmountWei],
+    });
+    const executionData2 = encodePacked(
+      ['address', 'uint256', 'bytes'],
+      [zchfTokenAddress as Address, 0n, zchfTransferData],
+    );
+
+    // 4. Encode permission context (same delegation for both calls)
+    const permissionContext = this.encodePermissionContext([delegation]);
+
+    // 5. Encode redeemDelegations call with batch (2 calls)
+    const redeemData = encodeFunctionData({
+      abi: DELEGATION_MANAGER_ABI,
+      functionName: 'redeemDelegations',
+      args: [
+        [permissionContext, permissionContext],
+        [CALLTYPE_SINGLE, CALLTYPE_SINGLE],
+        [executionData1, executionData2],
+      ],
+    });
+
+    // Use EIP-1559 gas parameters with dynamic fee estimation
+    const block = await publicClient.getBlock();
+    const maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
+    const maxFeePerGas = block.baseFeePerGas
+      ? block.baseFeePerGas * 2n + maxPriorityFeePerGas
+      : maxPriorityFeePerGas * 2n;
+
+    // Higher gas limit for BrokerBot interaction + 2 token transfers
+    const gasLimit = 500000n;
+
+    const estimatedGasCost = (maxFeePerGas * gasLimit) / BigInt(1e18);
+    this.logger.verbose(
+      `Executing BrokerBot sell on ${blockchain}: ${realuAmount} REALU ` +
+        `from ${userAddress} via BrokerBot ${brokerbotAddress} -> ZCHF to ${dfxDepositAddress} ` +
+        `(gasLimit: ${gasLimit}, estimatedCost: ~${estimatedGasCost} native)`,
+    );
+
+    // Get nonce and chain ID
+    const nonce = await publicClient.getTransactionCount({ address: relayerAccount.address });
+    const chainId = await publicClient.getChainId();
+
+    // Convert authorization to Viem format
+    const viemAuthorization = {
+      chainId: BigInt(authorization.chainId),
+      address: authorization.address as Address,
+      nonce: BigInt(authorization.nonce),
+      r: authorization.r as Hex,
+      s: authorization.s as Hex,
+      yParity: authorization.yParity,
+    };
+
+    // Manually construct complete transaction to bypass viem's gas validation
+    const transaction = {
+      from: relayerAccount.address as Address,
+      to: DELEGATION_MANAGER_ADDRESS,
+      data: redeemData,
+      value: 0n,
+      nonce,
+      chainId,
+      gas: gasLimit,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+      authorizationList: [viemAuthorization],
+      type: 'eip7702' as const,
+    };
+
+    // Sign and broadcast transaction
+    const signedTx = await walletClient.signTransaction(transaction as any);
+    const txHash = await walletClient.sendRawTransaction({ serializedTransaction: signedTx as `0x${string}` });
+
+    this.logger.info(
+      `BrokerBot sell successful on ${blockchain}: ` +
+        `${realuAmount} REALU -> ZCHF to ${dfxDepositAddress} | TX: ${txHash}`,
+    );
+
+    return txHash;
   }
 
   /**

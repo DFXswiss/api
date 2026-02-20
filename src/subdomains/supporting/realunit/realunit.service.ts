@@ -908,12 +908,18 @@ export class RealUnitService {
         throw new BadRequestException('Delegation delegator does not match user address');
       }
 
-      // Execute gasless transfer via EIP-7702 delegation (ForRealUnit bypasses global disable)
-      txHash = await this.eip7702DelegationService.transferTokenWithUserDelegationForRealUnit(
+      // Calculate expected ZCHF amount from BrokerBot (with slippage buffer)
+      const { zchfAmountWei } = await this.blockchainService.getBrokerbotSellPrice(Math.floor(request.amount));
+
+      // Atomic batch: REALU -> BrokerBot -> ZCHF -> DFX Deposit
+      txHash = await this.eip7702DelegationService.executeBrokerBotSellForRealUnit(
         request.user.address,
         realuAsset,
+        this.blockchainService.getZchfAddress(),
+        this.blockchainService.getBrokerbotAddress(),
         sell.deposit.address,
-        request.amount,
+        Math.floor(request.amount),
+        zchfAmountWei,
         dto.eip7702.delegation,
         dto.eip7702.authorization,
       );
