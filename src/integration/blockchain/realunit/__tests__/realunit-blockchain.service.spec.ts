@@ -40,18 +40,6 @@ describe('RealUnitBlockchainService', () => {
     jest.clearAllMocks();
   });
 
-  describe('getBrokerbotAddress', () => {
-    it('should return the BrokerBot contract address', () => {
-      expect(service.getBrokerbotAddress()).toBe('0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d');
-    });
-  });
-
-  describe('getZchfAddress', () => {
-    it('should return the ZCHF contract address', () => {
-      expect(service.getZchfAddress()).toBe('0xb58e61c3098d85632df34eecfb899a1ed80921cb');
-    });
-  });
-
   describe('getBrokerbotSellPrice', () => {
     beforeEach(() => {
       httpService.post.mockResolvedValue({

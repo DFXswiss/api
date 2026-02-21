@@ -152,6 +152,18 @@ export class RealUnitService {
     });
   }
 
+  private async getZchfAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: 'ZCHF',
+      blockchain: this.tokenBlockchain,
+      type: AssetType.TOKEN,
+    });
+  }
+
+  private getBrokerbotAddress(): string {
+    return GetConfig().blockchain.realunit.brokerbotAddress;
+  }
+
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
     const realuAsset = await this.getRealuAsset();
 
@@ -209,7 +221,8 @@ export class RealUnitService {
   }
 
   async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
-    return this.blockchainService.getBrokerbotInfo();
+    const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    return this.blockchainService.getBrokerbotInfo(this.getBrokerbotAddress(), realuAsset.chainId, zchfAsset.chainId);
   }
 
   // --- Buy Payment Info Methods ---
@@ -909,14 +922,17 @@ export class RealUnitService {
       }
 
       // Calculate expected ZCHF amount from BrokerBot (with slippage buffer)
-      const { zchfAmountWei } = await this.blockchainService.getBrokerbotSellPrice(Math.floor(request.amount));
+      const [{ zchfAmountWei }, zchfAsset] = await Promise.all([
+        this.blockchainService.getBrokerbotSellPrice(Math.floor(request.amount)),
+        this.getZchfAsset(),
+      ]);
 
       // Atomic batch: REALU -> BrokerBot -> ZCHF -> DFX Deposit
       txHash = await this.eip7702DelegationService.executeBrokerBotSellForRealUnit(
         request.user.address,
         realuAsset,
-        this.blockchainService.getZchfAddress(),
-        this.blockchainService.getBrokerbotAddress(),
+        zchfAsset.chainId,
+        this.getBrokerbotAddress(),
         sell.deposit.address,
         Math.floor(request.amount),
         zchfAmountWei,
