@@ -575,6 +575,12 @@ export class LogJobService {
         ExchangeTxType.DEPOSIT,
         yapealEurBank.iban,
       );
+      const pendingEurOlkyScryptMinusAmount = this.getPendingBankAmount(
+        [curr],
+        recentEurBankTxScrypt,
+        ExchangeTxType.DEPOSIT,
+        olkyBank.iban,
+      );
 
       // unfiltered lists
       const pendingYapealScryptPlusAmountUnfiltered = this.getPendingBankAmount(
@@ -597,6 +603,12 @@ export class LogJobService {
         ExchangeTxType.DEPOSIT,
         yapealEurBank.iban,
       );
+      const pendingEurOlkyScryptMinusAmountUnfiltered = this.getPendingBankAmount(
+        [curr],
+        eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
+        ExchangeTxType.DEPOSIT,
+        olkyBank.iban,
+      );
 
       // Scrypt to Yapeal //
 
@@ -612,6 +624,12 @@ export class LogJobService {
         recentEurScryptYapealTx,
         ExchangeTxType.WITHDRAWAL,
         yapealEurBank.iban,
+      );
+      const pendingEurScryptOlkyPlusAmount = this.getPendingBankAmount(
+        [curr],
+        recentEurScryptYapealTx,
+        ExchangeTxType.WITHDRAWAL,
+        olkyBank.iban,
       );
       const pendingScryptYapealMinusAmount = this.getPendingBankAmount(
         [curr],
@@ -634,6 +652,14 @@ export class LogJobService {
             eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
             ExchangeTxType.WITHDRAWAL,
             yapealEurBank.iban,
+          )
+        : 0;
+      const pendingEurScryptOlkyPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
+        ? this.getPendingBankAmount(
+            [curr],
+            eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+            ExchangeTxType.WITHDRAWAL,
+            olkyBank.iban,
           )
         : 0;
       const pendingScryptYapealMinusAmountUnfiltered =
@@ -663,18 +689,26 @@ export class LogJobService {
         pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
 
       let fromScrypt =
-        pendingChfScryptYapealPlusAmount + pendingEurScryptYapealPlusAmount + pendingScryptYapealMinusAmount;
+        pendingChfScryptYapealPlusAmount +
+        pendingEurScryptYapealPlusAmount +
+        pendingEurScryptOlkyPlusAmount +
+        pendingScryptYapealMinusAmount;
       let toScrypt =
-        pendingYapealScryptPlusAmount + pendingChfYapealScryptMinusAmount + pendingEurYapealScryptMinusAmount;
+        pendingYapealScryptPlusAmount +
+        pendingChfYapealScryptMinusAmount +
+        pendingEurYapealScryptMinusAmount +
+        pendingEurOlkyScryptMinusAmount;
 
       const fromScryptUnfiltered =
         pendingChfScryptYapealPlusAmountUnfiltered +
         pendingEurScryptYapealPlusAmountUnfiltered +
+        pendingEurScryptOlkyPlusAmountUnfiltered +
         pendingScryptYapealMinusAmountUnfiltered;
       const toScryptUnfiltered =
         pendingYapealScryptPlusAmountUnfiltered +
         pendingChfYapealScryptMinusAmountUnfiltered +
-        pendingEurYapealScryptMinusAmountUnfiltered;
+        pendingEurYapealScryptMinusAmountUnfiltered +
+        pendingEurOlkyScryptMinusAmountUnfiltered;
 
       const errors = [];
 
