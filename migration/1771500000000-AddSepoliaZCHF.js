@@ -1,5 +1,3 @@
-const { MigrationInterface, QueryRunner } = require("typeorm");
-
 module.exports = class AddSepoliaZCHF1771500000000 {
     name = 'AddSepoliaZCHF1771500000000'
 

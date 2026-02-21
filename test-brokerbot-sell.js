@@ -9,8 +9,8 @@
  * 5. Confirm sell → atomic batch TX on Sepolia
  */
 
-const { createWalletClient, http, encodePacked, keccak256, toHex, parseAbi, createPublicClient } = require('viem');
-const { privateKeyToAccount, signTypedData } = require('viem/accounts');
+const { createWalletClient, http, createPublicClient } = require('viem');
+const { privateKeyToAccount } = require('viem/accounts');
 const { sepolia } = require('viem/chains');
 
 const API_URL = 'http://localhost:3000/v1';
