@@ -118,4 +118,41 @@ describe('RealUnitBlockchainService', () => {
       expect(result.zchfAmountWei).toBeGreaterThan(0n);
     });
   });
+
+  describe('getBrokerbotInfo', () => {
+    it('should return the passed addresses correctly', async () => {
+      httpService.post.mockResolvedValue({ priceInCHF: 100, priceInEUR: 92, availableShares: 500 });
+
+      const result = await service.getBrokerbotInfo('0xBrokerbot', '0xREALU', '0xZCHF');
+
+      expect(result.brokerbotAddress).toBe('0xBrokerbot');
+      expect(result.tokenAddress).toBe('0xREALU');
+      expect(result.baseCurrencyAddress).toBe('0xZCHF');
+    });
+
+    it('should return price from fetchPrice', async () => {
+      httpService.post.mockResolvedValue({ priceInCHF: 123.45, priceInEUR: 114, availableShares: 200 });
+
+      const result = await service.getBrokerbotInfo('0xBB', '0xR', '0xZ');
+
+      expect(result.pricePerShare).toBe('123.45');
+      expect(result.availableShares).toBe(200);
+    });
+
+    it('should set buyingEnabled to false when availableShares is 0', async () => {
+      httpService.post.mockResolvedValue({ priceInCHF: 100, priceInEUR: 92, availableShares: 0 });
+
+      const result = await service.getBrokerbotInfo('0xBB', '0xR', '0xZ');
+
+      expect(result.buyingEnabled).toBe(false);
+    });
+
+    it('should always set sellingEnabled to true', async () => {
+      httpService.post.mockResolvedValue({ priceInCHF: 100, priceInEUR: 92, availableShares: 0 });
+
+      const result = await service.getBrokerbotInfo('0xBB', '0xR', '0xZ');
+
+      expect(result.sellingEnabled).toBe(true);
+    });
+  });
 });
