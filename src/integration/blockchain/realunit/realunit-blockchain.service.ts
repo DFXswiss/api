@@ -9,11 +9,6 @@ import {
   BrokerbotSharesDto,
 } from './dto/realunit-broker.dto';
 
-// Contract addresses
-const BROKERBOT_ADDRESS = '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d';
-const REALU_TOKEN_ADDRESS = '0x553C7f9C780316FC1D34b8e14ac2465Ab22a090B';
-const ZCHF_ADDRESS = '0xb58e61c3098d85632df34eecfb899a1ed80921cb';
-
 interface AktionariatPriceResponse {
   priceInCHF: number;
   priceInEUR: number;
@@ -113,17 +108,25 @@ export class RealUnitBlockchainService {
     };
   }
 
-  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
+  async getBrokerbotInfo(brokerbotAddr: string, realuAddr: string, zchfAddr: string): Promise<BrokerbotInfoDto> {
     const { priceInCHF, availableShares } = await this.fetchPrice();
 
     return {
-      brokerbotAddress: BROKERBOT_ADDRESS,
-      tokenAddress: REALU_TOKEN_ADDRESS,
-      baseCurrencyAddress: ZCHF_ADDRESS,
+      brokerbotAddress: brokerbotAddr,
+      tokenAddress: realuAddr,
+      baseCurrencyAddress: zchfAddr,
       pricePerShare: priceInCHF.toString(),
       buyingEnabled: availableShares > 0,
       sellingEnabled: true,
       availableShares,
     };
+  }
+
+  async getBrokerbotSellPrice(shares: number, slippageBps = 50): Promise<{ zchfAmountWei: bigint }> {
+    const { priceInCHF } = await this.fetchPrice();
+    const slippageFactor = 1 - slippageBps / 10000;
+    const zchfAmount = priceInCHF * shares * slippageFactor;
+    const zchfAmountWei = BigInt(Math.floor(zchfAmount * 1e18));
+    return { zchfAmountWei };
   }
 }
