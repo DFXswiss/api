@@ -108,11 +108,7 @@ export class RealUnitBlockchainService {
     };
   }
 
-  async getBrokerbotInfo(
-    brokerbotAddr: string,
-    realuAddr: string,
-    zchfAddr: string,
-  ): Promise<BrokerbotInfoDto> {
+  async getBrokerbotInfo(brokerbotAddr: string, realuAddr: string, zchfAddr: string): Promise<BrokerbotInfoDto> {
     const { priceInCHF, availableShares } = await this.fetchPrice();
 
     return {
