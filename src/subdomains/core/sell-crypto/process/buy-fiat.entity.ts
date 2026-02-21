@@ -396,6 +396,7 @@ export class BuyFiat extends IEntity {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    phoneCallList: SpecialExternalAccount[],
     ibanCountry: Country,
     refUser?: User,
   ): UpdateResult<BuyFiat> {
@@ -410,6 +411,7 @@ export class BuyFiat extends IEntity {
         last365dVolume,
         bankData,
         blacklist,
+        phoneCallList,
         ibanCountry,
         refUser,
       ),

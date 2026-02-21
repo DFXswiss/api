@@ -59,6 +59,8 @@ export enum AmlError {
   MERGE_EXPIRED = 'MergeExpired',
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
   IP_PHONE_VERIFICATION_NEEDED = 'IpPhoneVerificationNeeded',
+  BIC_PHONE_VERIFICATION_NEEDED = 'BicPhoneVerificationNeeded',
+  IBAN_PHONE_VERIFICATION_NEEDED = 'IbanPhoneVerificationNeeded',
   IP_BLACKLISTED_WITHOUT_KYC = 'IpBlacklistedWithoutKyc',
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
@@ -285,6 +287,16 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK_IP_PHONE,
+  },
+  [AmlError.BIC_PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
+  },
+  [AmlError.IBAN_PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
   },
   [AmlError.BANK_RELEASE_DATE_MISSING]: {
     type: AmlErrorType.SINGLE,

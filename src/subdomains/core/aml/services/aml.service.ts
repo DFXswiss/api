@@ -93,11 +93,13 @@ export class AmlService {
     refUser: User;
     bankData: BankData;
     blacklist: SpecialExternalAccount[];
+    phoneCallList: SpecialExternalAccount[];
     banks?: Bank[];
     ipLogCountries?: string[];
     multiAccountBankNames?: string[];
   }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
+    const phoneCallList = await this.specialExternalBankAccountService.getPhoneCallList();
     const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountNames();
 
     entity.userData.kycSteps = await this.kycService.getStepsByUserData(entity.userData.id);
@@ -166,7 +168,7 @@ export class AmlService {
       if (verifiedCountry) await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry });
     }
 
-    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist };
+    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist, phoneCallList };
 
     const ipLogCountries = await this.ipLogService.getLoginCountries(entity.userData.id, Util.daysBefore(3));
 
@@ -176,12 +178,22 @@ export class AmlService {
         refUser,
         bankData: undefined,
         blacklist,
+        phoneCallList,
         banks: undefined,
         ipLogCountries,
       };
 
     const banks = await this.bankService.getAllBanks();
-    return { users: entity.userData.users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames };
+    return {
+      users: entity.userData.users,
+      refUser,
+      bankData,
+      blacklist,
+      phoneCallList,
+      banks,
+      ipLogCountries,
+      multiAccountBankNames,
+    };
   }
 
   //*** HELPER METHODS ***//
