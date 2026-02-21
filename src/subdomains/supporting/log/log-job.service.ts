@@ -417,7 +417,7 @@ export class LogJobService {
       chfSenderScryptBankTx,
       chfReceiverScryptExchangeTx,
     );
-    const { sender: recentEurYapealScryptTx, receiver: recentEurBankTxScrypt } = this.filterSenderPendingList(
+    const { sender: recentEurBankToScryptTx, receiver: recentEurBankTxScrypt } = this.filterSenderPendingList(
       eurSenderScryptBankTx,
       eurReceiverScryptExchangeTx,
     );
@@ -427,7 +427,7 @@ export class LogJobService {
       chfSenderScryptExchangeTx,
       chfReceiverScryptBankTx,
     );
-    const { sender: recentEurScryptYapealTx, receiver: recentEurScryptBankTx } = this.filterSenderPendingList(
+    const { sender: recentEurScryptToBankTx, receiver: recentEurScryptBankTx } = this.filterSenderPendingList(
       eurSenderScryptExchangeTx,
       eurReceiverScryptBankTx,
     );
@@ -466,7 +466,7 @@ export class LogJobService {
       // EUR Scrypt pending: aggregated under Scrypt/EUR instead of per-bank
       const isEurBankAsset =
         [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(curr.blockchain) && curr.dexName === 'EUR';
-      const isScryptEurAsset = (curr.blockchain as string) === 'Scrypt' && curr.dexName === 'EUR';
+      const isScryptEurAsset = (curr.blockchain as string) === ExchangeName.SCRYPT && curr.dexName === 'EUR';
 
       // Olky to Yapeal //
       const pendingOlkyYapealAmount = this.getPendingBankAmount(
@@ -567,12 +567,12 @@ export class LogJobService {
 
       // filtered lists
       const pendingBankScryptPlusAmount = isScryptEurAsset
-        ? this.getPendingBankAmount(eurBankAssets, recentEurYapealScryptTx, BankTxType.SCRYPT)
+        ? this.getPendingBankAmount(eurBankAssets, recentEurBankToScryptTx, BankTxType.SCRYPT)
         : isEurBankAsset
           ? 0
           : this.getPendingBankAmount(
               [curr],
-              [...recentChfYapealScryptTx, ...recentEurYapealScryptTx],
+              [...recentChfYapealScryptTx, ...recentEurBankToScryptTx],
               BankTxType.SCRYPT,
             );
       const pendingChfBankScryptMinusAmount = this.getPendingBankAmount(
@@ -635,10 +635,10 @@ export class LogJobService {
         yapealChfBank.iban,
       );
       const pendingEurScryptBankPlusAmount = isScryptEurAsset
-        ? this.getPendingBankAmount([curr], recentEurScryptYapealTx, ExchangeTxType.WITHDRAWAL)
+        ? this.getPendingBankAmount([curr], recentEurScryptToBankTx, ExchangeTxType.WITHDRAWAL)
         : isEurBankAsset
           ? 0
-          : this.getPendingBankAmount([curr], recentEurScryptYapealTx, ExchangeTxType.WITHDRAWAL, yapealEurBank.iban);
+          : this.getPendingBankAmount([curr], recentEurScryptToBankTx, ExchangeTxType.WITHDRAWAL, yapealEurBank.iban);
       const pendingScryptBankMinusAmount = isScryptEurAsset
         ? this.getPendingBankAmount(eurBankAssets, recentEurScryptBankTx, BankTxType.SCRYPT)
         : isEurBankAsset
