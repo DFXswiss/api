@@ -7,13 +7,16 @@ const { sepolia } = require('viem/chains');
 const fs = require('fs');
 const path = require('path');
 
-const ALCHEMY_KEY = 'LBoTdXKMuNSrRtZ9YSS1p';
-const RPC_URL = `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`;
+const ALCHEMY_KEY = process.env.ALCHEMY_KEY;
+const RELAYER_KEY = process.env.SEPOLIA_WALLET_PRIVATE_KEY;
+const USER_KEY = process.env.TEST_PRIVATE_KEY;
 
-// Relayer key (from .env SEPOLIA_WALLET_PRIVATE_KEY)
-const RELAYER_KEY = '0xd136cd05a0bfcf5894a8a413a10c7e49cedda13fb4b05eb440a97d117c082a3d';
-// Test user key (Hardhat #0)
-const USER_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+if (!ALCHEMY_KEY || !RELAYER_KEY || !USER_KEY) {
+  console.error('Required env vars: ALCHEMY_KEY, SEPOLIA_WALLET_PRIVATE_KEY, TEST_PRIVATE_KEY');
+  process.exit(1);
+}
+
+const RPC_URL = `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`;
 
 const relayerAccount = privateKeyToAccount(RELAYER_KEY);
 const userAccount = privateKeyToAccount(USER_KEY);

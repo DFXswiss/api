@@ -13,9 +13,14 @@ const { createWalletClient, http, createPublicClient } = require('viem');
 const { privateKeyToAccount } = require('viem/accounts');
 const { sepolia } = require('viem/chains');
 
-const API_URL = 'http://localhost:3000/v1';
-const PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-const ALCHEMY_KEY = 'LBoTdXKMuNSrRtZ9YSS1p';
+const API_URL = process.env.API_URL || 'http://localhost:3000/v1';
+const PRIVATE_KEY = process.env.TEST_PRIVATE_KEY;
+const ALCHEMY_KEY = process.env.ALCHEMY_KEY;
+
+if (!PRIVATE_KEY || !ALCHEMY_KEY) {
+  console.error('Required env vars: TEST_PRIVATE_KEY, ALCHEMY_KEY');
+  process.exit(1);
+}
 
 const account = privateKeyToAccount(PRIVATE_KEY);
 console.log('Test account:', account.address);
