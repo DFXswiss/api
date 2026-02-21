@@ -3,6 +3,7 @@ module.exports = class AddSepoliaZCHF1771500000000 {
 
     async up(queryRunner) {
         await queryRunner.query(`
+            IF NOT EXISTS (SELECT 1 FROM "dbo"."asset" WHERE "uniqueName" = 'Sepolia/ZCHF')
             INSERT INTO "dbo"."asset" (
                 "name", "type", "buyable", "sellable", "chainId", "dexName", "category", "blockchain", "uniqueName", "description",
                 "comingSoon", "decimals", "paymentEnabled", "refundEnabled", "cardBuyable", "cardSellable", "instantBuyable", "instantSellable",
