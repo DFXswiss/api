@@ -101,7 +101,10 @@ export class BankService implements OnModuleInit {
     const banks = await this.bankRepo.find();
 
     for (const bank of banks) {
-      BankService.ibanCache.set(`${bank.name}-${bank.currency}`, bank.iban);
+      const key = `${bank.name}-${bank.currency}`;
+      if (!BankService.ibanCache.has(key)) {
+        BankService.ibanCache.set(key, bank.iban);
+      }
     }
   }
 
