@@ -9,7 +9,7 @@ module.exports = class AddSepoliaZCHF1771500000000 {
                 "financialType", "ikna", "personalIbanEnabled", "amlRuleFrom", "amlRuleTo", "priceRuleId",
                 "approxPriceUsd", "approxPriceChf", "approxPriceEur", "sortOrder"
             ) VALUES (
-                'ZCHF', 'Token', 0, 0, '0xd8a8830a51d56eb0c43a8e0fb5124d45f07d9e2b', 'ZCHF', 'Public', 'Sepolia', 'Sepolia/ZCHF', 'Frankencoin (Testnet)',
+                'ZCHF', 'Token', 0, 0, '0xd3117681ca462268048f57d106d312ba0b1215ea', 'ZCHF', 'Public', 'Sepolia', 'Sepolia/ZCHF', 'Frankencoin',
                 0, 18, 0, 0, 0, 0, 0, 0,
                 'Other', 0, 0, 0, 0, NULL,
                 1.0, 1.0, 0.93, 99
