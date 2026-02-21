@@ -977,7 +977,7 @@ export class Configuration {
         key: process.env.REALUNIT_API_KEY,
       },
       brokerbotAddress: [Environment.DEV, Environment.LOC].includes(this.environment)
-        ? '0x2a7a0481c38b77e5617e9bbbead2ce557d868854'
+        ? '0x61a43bc9d4a211cc32bb13952cc30369e227b9dd'
         : '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d',
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
