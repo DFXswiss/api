@@ -90,7 +90,7 @@
     "ebics-client": "^5.0.0",
     "ethers": "^5.8.0",
     "express-useragent": "^1.0.15",
-    "fast-xml-parser": "^4.5.3",
+    "fast-xml-parser": "^5.3.7",
     "geoip-lite2": "^2.2.7",
     "graphql": "^16.11.0",
     "graphql-request": "^6.1.0",
@@ -190,6 +190,7 @@
     },
     "multer": "^2.0.0",
     "uuid": "^9.0.0",
-    "semver": "^7.6.0"
+    "semver": "^7.6.0",
+    "fast-xml-parser": "$fast-xml-parser"
   }
 }
