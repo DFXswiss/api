@@ -247,6 +247,9 @@ export class LogJobService {
     const yapealEurBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'EUR');
     const yapealChfBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'CHF');
     const eurBankIbans = [yapealEurBank.iban, olkyBank.iban];
+    const eurBankAssets = assets.filter(
+      (a) => [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(a.blockchain) && a.dexName === 'EUR',
+    );
 
     // pending balances
     const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
@@ -460,6 +463,11 @@ export class LogJobService {
         0,
       );
 
+      // EUR Scrypt pending: aggregated under Scrypt/EUR instead of per-bank
+      const isEurBankAsset =
+        [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(curr.blockchain) && curr.dexName === 'EUR';
+      const isScryptEurAsset = (curr.blockchain as string) === 'Scrypt' && curr.dexName === 'EUR';
+
       // Olky to Yapeal //
       const pendingOlkyYapealAmount = this.getPendingBankAmount(
         [curr],
@@ -555,90 +563,90 @@ export class LogJobService {
         yapealEurBank.iban,
       );
 
-      // Yapeal to Scrypt //
+      // Bank to Scrypt //
 
       // filtered lists
-      const pendingYapealScryptPlusAmount = this.getPendingBankAmount(
-        [curr],
-        [...recentChfYapealScryptTx, ...recentEurYapealScryptTx],
-        BankTxType.SCRYPT,
-      );
-      const pendingChfYapealScryptMinusAmount = this.getPendingBankAmount(
+      const pendingBankScryptPlusAmount = isScryptEurAsset
+        ? this.getPendingBankAmount(eurBankAssets, recentEurYapealScryptTx, BankTxType.SCRYPT)
+        : isEurBankAsset
+          ? 0
+          : this.getPendingBankAmount(
+              [curr],
+              [...recentChfYapealScryptTx, ...recentEurYapealScryptTx],
+              BankTxType.SCRYPT,
+            );
+      const pendingChfBankScryptMinusAmount = this.getPendingBankAmount(
         [curr],
         recentChfBankTxScrypt,
         ExchangeTxType.DEPOSIT,
         yapealChfBank.iban,
       );
-      const pendingEurYapealScryptMinusAmount = this.getPendingBankAmount(
-        [curr],
-        recentEurBankTxScrypt,
-        ExchangeTxType.DEPOSIT,
-        yapealEurBank.iban,
-      );
-      const pendingEurOlkyScryptMinusAmount = this.getPendingBankAmount(
-        [curr],
-        recentEurBankTxScrypt,
-        ExchangeTxType.DEPOSIT,
-        olkyBank.iban,
-      );
+      const pendingEurBankScryptMinusAmount = isScryptEurAsset
+        ? this.getPendingBankAmount([curr], recentEurBankTxScrypt, ExchangeTxType.DEPOSIT)
+        : isEurBankAsset
+          ? 0
+          : this.getPendingBankAmount([curr], recentEurBankTxScrypt, ExchangeTxType.DEPOSIT, yapealEurBank.iban);
 
       // unfiltered lists
-      const pendingYapealScryptPlusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        [
-          ...chfSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.bankTxId),
-          ...eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
-        ],
-        BankTxType.SCRYPT,
-      );
-      const pendingChfYapealScryptMinusAmountUnfiltered = this.getPendingBankAmount(
+      const pendingBankScryptPlusAmountUnfiltered = isScryptEurAsset
+        ? this.getPendingBankAmount(
+            eurBankAssets,
+            eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
+            BankTxType.SCRYPT,
+          )
+        : isEurBankAsset
+          ? 0
+          : this.getPendingBankAmount(
+              [curr],
+              [
+                ...chfSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.bankTxId),
+                ...eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
+              ],
+              BankTxType.SCRYPT,
+            );
+      const pendingChfBankScryptMinusAmountUnfiltered = this.getPendingBankAmount(
         [curr],
         chfReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.exchangeTxId),
         ExchangeTxType.DEPOSIT,
         yapealChfBank.iban,
       );
-      const pendingEurYapealScryptMinusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
-        ExchangeTxType.DEPOSIT,
-        yapealEurBank.iban,
-      );
-      const pendingEurOlkyScryptMinusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
-        ExchangeTxType.DEPOSIT,
-        olkyBank.iban,
-      );
+      const pendingEurBankScryptMinusAmountUnfiltered = isScryptEurAsset
+        ? this.getPendingBankAmount(
+            [curr],
+            eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
+            ExchangeTxType.DEPOSIT,
+          )
+        : isEurBankAsset
+          ? 0
+          : this.getPendingBankAmount(
+              [curr],
+              eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
+              ExchangeTxType.DEPOSIT,
+              yapealEurBank.iban,
+            );
 
-      // Scrypt to Yapeal //
+      // Scrypt to Bank //
 
       // filtered lists
-      const pendingChfScryptYapealPlusAmount = this.getPendingBankAmount(
+      const pendingChfScryptBankPlusAmount = this.getPendingBankAmount(
         [curr],
         recentChfScryptYapealTx,
         ExchangeTxType.WITHDRAWAL,
         yapealChfBank.iban,
       );
-      const pendingEurScryptYapealPlusAmount = this.getPendingBankAmount(
-        [curr],
-        recentEurScryptYapealTx,
-        ExchangeTxType.WITHDRAWAL,
-        yapealEurBank.iban,
-      );
-      const pendingEurScryptOlkyPlusAmount = this.getPendingBankAmount(
-        [curr],
-        recentEurScryptYapealTx,
-        ExchangeTxType.WITHDRAWAL,
-        olkyBank.iban,
-      );
-      const pendingScryptYapealMinusAmount = this.getPendingBankAmount(
-        [curr],
-        [...recentChfScryptBankTx, ...recentEurScryptBankTx],
-        BankTxType.SCRYPT,
-      );
+      const pendingEurScryptBankPlusAmount = isScryptEurAsset
+        ? this.getPendingBankAmount([curr], recentEurScryptYapealTx, ExchangeTxType.WITHDRAWAL)
+        : isEurBankAsset
+          ? 0
+          : this.getPendingBankAmount([curr], recentEurScryptYapealTx, ExchangeTxType.WITHDRAWAL, yapealEurBank.iban);
+      const pendingScryptBankMinusAmount = isScryptEurAsset
+        ? this.getPendingBankAmount(eurBankAssets, recentEurScryptBankTx, BankTxType.SCRYPT)
+        : isEurBankAsset
+          ? 0
+          : this.getPendingBankAmount([curr], [...recentChfScryptBankTx, ...recentEurScryptBankTx], BankTxType.SCRYPT);
 
       // unfiltered lists
-      const pendingChfScryptYapealPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.chf?.exchangeTxId
+      const pendingChfScryptBankPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.chf?.exchangeTxId
         ? this.getPendingBankAmount(
             [curr],
             chfSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.exchangeTxId),
@@ -646,33 +654,44 @@ export class LogJobService {
             yapealChfBank.iban,
           )
         : 0;
-      const pendingEurScryptYapealPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
-        ? this.getPendingBankAmount(
-            [curr],
-            eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
-            ExchangeTxType.WITHDRAWAL,
-            yapealEurBank.iban,
-          )
-        : 0;
-      const pendingEurScryptOlkyPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
-        ? this.getPendingBankAmount(
-            [curr],
-            eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
-            ExchangeTxType.WITHDRAWAL,
-            olkyBank.iban,
-          )
-        : 0;
-      const pendingScryptYapealMinusAmountUnfiltered =
-        financeLogPairIds?.fromScrypt?.chf?.bankTxId || financeLogPairIds?.fromScrypt?.eur?.bankTxId
+      const pendingEurScryptBankPlusAmountUnfiltered = isScryptEurAsset
+        ? financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
           ? this.getPendingBankAmount(
               [curr],
-              [
-                ...chfReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.bankTxId),
-                ...eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
-              ],
+              eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+              ExchangeTxType.WITHDRAWAL,
+            )
+          : 0
+        : isEurBankAsset
+          ? 0
+          : financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
+            ? this.getPendingBankAmount(
+                [curr],
+                eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+                ExchangeTxType.WITHDRAWAL,
+                yapealEurBank.iban,
+              )
+            : 0;
+      const pendingScryptBankMinusAmountUnfiltered = isScryptEurAsset
+        ? financeLogPairIds?.fromScrypt?.eur?.bankTxId
+          ? this.getPendingBankAmount(
+              eurBankAssets,
+              eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
               BankTxType.SCRYPT,
             )
-          : 0;
+          : 0
+        : isEurBankAsset
+          ? 0
+          : financeLogPairIds?.fromScrypt?.chf?.bankTxId || financeLogPairIds?.fromScrypt?.eur?.bankTxId
+            ? this.getPendingBankAmount(
+                [curr],
+                [
+                  ...chfReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.bankTxId),
+                  ...eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
+                ],
+                BankTxType.SCRYPT,
+              )
+            : 0;
 
       const fromKrakenUnfiltered =
         pendingChfKrakenYapealPlusAmountUnfiltered +
@@ -688,27 +707,17 @@ export class LogJobService {
       let toKraken =
         pendingYapealKrakenPlusAmount + pendingChfYapealKrakenMinusAmount + pendingEurYapealKrakenMinusAmount;
 
-      let fromScrypt =
-        pendingChfScryptYapealPlusAmount +
-        pendingEurScryptYapealPlusAmount +
-        pendingEurScryptOlkyPlusAmount +
-        pendingScryptYapealMinusAmount;
-      let toScrypt =
-        pendingYapealScryptPlusAmount +
-        pendingChfYapealScryptMinusAmount +
-        pendingEurYapealScryptMinusAmount +
-        pendingEurOlkyScryptMinusAmount;
+      let fromScrypt = pendingChfScryptBankPlusAmount + pendingEurScryptBankPlusAmount + pendingScryptBankMinusAmount;
+      let toScrypt = pendingBankScryptPlusAmount + pendingChfBankScryptMinusAmount + pendingEurBankScryptMinusAmount;
 
       const fromScryptUnfiltered =
-        pendingChfScryptYapealPlusAmountUnfiltered +
-        pendingEurScryptYapealPlusAmountUnfiltered +
-        pendingEurScryptOlkyPlusAmountUnfiltered +
-        pendingScryptYapealMinusAmountUnfiltered;
+        pendingChfScryptBankPlusAmountUnfiltered +
+        pendingEurScryptBankPlusAmountUnfiltered +
+        pendingScryptBankMinusAmountUnfiltered;
       const toScryptUnfiltered =
-        pendingYapealScryptPlusAmountUnfiltered +
-        pendingChfYapealScryptMinusAmountUnfiltered +
-        pendingEurYapealScryptMinusAmountUnfiltered +
-        pendingEurOlkyScryptMinusAmountUnfiltered;
+        pendingBankScryptPlusAmountUnfiltered +
+        pendingChfBankScryptMinusAmountUnfiltered +
+        pendingEurBankScryptMinusAmountUnfiltered;
 
       const errors = [];
 
@@ -761,8 +770,8 @@ export class LogJobService {
         errors.push(`toScrypt < 0`);
         this.logger.verbose(
           `Error in financial log, toScrypt balance < 0 for asset: ${curr.id}, pendingPlusAmount:
-          ${pendingYapealScryptPlusAmount}, pendingChfMinusAmount: ${pendingChfYapealScryptMinusAmount},
-          pendingEurMinusAmount: ${pendingEurYapealScryptMinusAmount}`,
+          ${pendingBankScryptPlusAmount}, pendingChfMinusAmount: ${pendingChfBankScryptMinusAmount},
+          pendingEurMinusAmount: ${pendingEurBankScryptMinusAmount}`,
         );
         toScrypt = 0;
       }
@@ -771,8 +780,8 @@ export class LogJobService {
         errors.push(`fromScrypt < 0`);
         this.logger.verbose(
           `Error in financial log, fromScrypt balance < 0 for asset: ${curr.id}, pendingChfPlusAmount:
-          ${pendingChfScryptYapealPlusAmount}, pendingEurPlusAmount: ${pendingEurScryptYapealPlusAmount},
-          pendingMinusAmount: ${pendingScryptYapealMinusAmount}`,
+          ${pendingChfScryptBankPlusAmount}, pendingEurPlusAmount: ${pendingEurScryptBankPlusAmount},
+          pendingMinusAmount: ${pendingScryptBankMinusAmount}`,
         );
         fromScrypt = 0;
       }
