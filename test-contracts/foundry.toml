@@ -1,5 +1,0 @@
-[profile.default]
-src = "src"
-out = "out"
-solc = "0.8.20"
-evm_version = "paris"
