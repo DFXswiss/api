@@ -21,6 +21,15 @@ import { WalletAccount } from '../domain/wallet-account';
 import { EvmUtil } from '../evm.util';
 import DELEGATION_MANAGER_ABI from './delegation-manager.abi.json';
 
+interface Eip7702Authorization {
+  chainId: string | number;
+  address: string;
+  nonce: string | number;
+  r: string;
+  s: string;
+  yParity: number;
+}
+
 // Contract addresses (same on all EVM chains via CREATE2)
 const DELEGATOR_ADDRESS = '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b' as Address;
 const DELEGATION_MANAGER_ADDRESS = '0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3' as Address;
@@ -253,7 +262,7 @@ export class Eip7702DelegationService {
       salt: string;
       signature: string;
     },
-    authorization: any,
+    authorization: Eip7702Authorization,
   ): Promise<string> {
     if (!this.isDelegationSupported(token.blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for ${token.blockchain}`);
@@ -284,7 +293,7 @@ export class Eip7702DelegationService {
       salt: string;
       signature: string;
     },
-    authorization: any,
+    authorization: Eip7702Authorization,
   ): Promise<string> {
     if (!this.isDelegationSupportedForRealUnit(token.blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for RealUnit on ${token.blockchain}`);
@@ -318,7 +327,7 @@ export class Eip7702DelegationService {
       salt: string;
       signature: string;
     },
-    authorization: any,
+    authorization: Eip7702Authorization,
   ): Promise<string> {
     if (!this.isDelegationSupportedForRealUnit(realuToken.blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for RealUnit on ${realuToken.blockchain}`);
@@ -354,7 +363,7 @@ export class Eip7702DelegationService {
       salt: string;
       signature: string;
     },
-    authorization: any,
+    authorization: Eip7702Authorization,
   ): Promise<string> {
     const blockchain = realuToken.blockchain;
 
@@ -516,7 +525,7 @@ export class Eip7702DelegationService {
       salt: string;
       signature: string;
     },
-    authorization: any,
+    authorization: Eip7702Authorization,
   ): Promise<string> {
     const blockchain = token.blockchain;
 
