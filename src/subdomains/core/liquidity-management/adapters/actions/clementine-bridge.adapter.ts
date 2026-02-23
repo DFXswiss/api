@@ -348,6 +348,14 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
         const balanceIncrease = currentBalance - correlationData.citreaBalanceBefore;
 
         if (balanceIncrease >= CLEMENTINE_BRIDGE_AMOUNT_BTC * 0.99) {
+          // Verify Clementine API doesn't report failure before marking complete
+          const depositStatus = await this.clementineClient.depositStatus(correlationData.depositAddress);
+          if (depositStatus.status === 'failed') {
+            throw new OrderFailedException(
+              `Clementine deposit failed: ${depositStatus.errorMessage ?? 'Unknown error'}`,
+            );
+          }
+
           this.logger.info(
             `Deposit ${correlationData.depositAddress}: completed via on-chain detection (balance increase: ${balanceIncrease} cBTC)`,
           );
