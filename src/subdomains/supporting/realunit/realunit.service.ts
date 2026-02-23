@@ -923,7 +923,7 @@ export class RealUnitService {
 
       // Calculate expected ZCHF amount from BrokerBot (with slippage buffer)
       const [{ zchfAmountWei }, zchfAsset] = await Promise.all([
-        this.blockchainService.getBrokerbotSellPrice(Math.floor(request.amount)),
+        this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), Math.floor(request.amount)),
         this.getZchfAsset(),
       ]);
 

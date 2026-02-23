@@ -98,6 +98,13 @@ jest.mock('src/config/config', () => ({
 jest.mock('../../evm.util', () => ({
   EvmUtil: {
     toWeiAmount: jest.fn((amount, decimals) => BigInt(amount * 10 ** (decimals || 18))),
+    hasViemChainConfig: jest.fn(() => true),
+    getViemChainConfig: jest.fn(() => ({
+      chain: { id: 11155111, name: 'Sepolia' },
+      rpcUrl: 'https://sepolia.example.com/mock-key',
+      configKey: 'sepolia',
+      prefix: 'sepolia',
+    })),
   },
 }));
 

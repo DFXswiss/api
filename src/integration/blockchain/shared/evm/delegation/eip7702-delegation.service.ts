@@ -5,7 +5,6 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import {
   Address,
-  Chain,
   createPublicClient,
   createWalletClient,
   encodeAbiParameters,
@@ -16,7 +15,6 @@ import {
   parseAbi,
 } from 'viem';
 import { privateKeyToAccount, signTypedData } from 'viem/accounts';
-import { arbitrum, base, bsc, gnosis, mainnet, optimism, polygon, sepolia } from 'viem/chains';
 import { WalletAccount } from '../domain/wallet-account';
 import { EvmUtil } from '../evm.util';
 import DELEGATION_MANAGER_ABI from './delegation-manager.abi.json';
@@ -45,18 +43,6 @@ const ERC20_ABI = parseAbi(['function transfer(address to, uint256 amount) retur
 
 // ERC677 transferAndCall function (used by REALU token for BrokerBot interaction)
 const ERC677_ABI = parseAbi(['function transferAndCall(address to, uint256 value, bytes data) returns (bool)']);
-
-// Unified chain configuration: viem chain + config keys
-const CHAIN_CONFIG: Partial<Record<Blockchain, { chain: Chain; configKey: string; prefix: string }>> = {
-  [Blockchain.ETHEREUM]: { chain: mainnet, configKey: 'ethereum', prefix: 'eth' },
-  [Blockchain.ARBITRUM]: { chain: arbitrum, configKey: 'arbitrum', prefix: 'arbitrum' },
-  [Blockchain.OPTIMISM]: { chain: optimism, configKey: 'optimism', prefix: 'optimism' },
-  [Blockchain.POLYGON]: { chain: polygon, configKey: 'polygon', prefix: 'polygon' },
-  [Blockchain.BASE]: { chain: base, configKey: 'base', prefix: 'base' },
-  [Blockchain.BINANCE_SMART_CHAIN]: { chain: bsc, configKey: 'bsc', prefix: 'bsc' },
-  [Blockchain.GNOSIS]: { chain: gnosis, configKey: 'gnosis', prefix: 'gnosis' },
-  [Blockchain.SEPOLIA]: { chain: sepolia, configKey: 'sepolia', prefix: 'sepolia' },
-};
 
 // Delegation struct type
 interface Caveat {
@@ -99,14 +85,14 @@ export class Eip7702DelegationService {
     const expectedBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
       ? Blockchain.SEPOLIA
       : Blockchain.ETHEREUM;
-    return blockchain === expectedBlockchain && CHAIN_CONFIG[blockchain] !== undefined;
+    return blockchain === expectedBlockchain && EvmUtil.hasViemChainConfig(blockchain);
   }
 
   /**
    * Check if user has zero native token balance
    */
   async hasZeroNativeBalance(userAddress: string, blockchain: Blockchain): Promise<boolean> {
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
     if (!chainConfig) return false;
 
     try {
@@ -187,14 +173,13 @@ export class Eip7702DelegationService {
     types: any;
     message: any;
   }> {
-    const chainConfig = CHAIN_CONFIG[blockchain];
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
     if (!chainConfig) throw new Error(`No chain config found for ${blockchain}`);
 
     // Fetch user's current account nonce for EIP-7702 authorization
-    const fullChainConfig = this.getChainConfig(blockchain);
     const publicClient = createPublicClient({
       chain: chainConfig.chain,
-      transport: http(fullChainConfig.rpcUrl),
+      transport: http(chainConfig.rpcUrl),
     });
 
     const userNonce = Number(await publicClient.getTransactionCount({ address: userAddress as Address }));
@@ -353,7 +338,7 @@ export class Eip7702DelegationService {
       throw new Error(`Invalid ZCHF token address: ${zchfTokenAddress}`);
     }
 
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
@@ -509,7 +494,7 @@ export class Eip7702DelegationService {
       throw new Error(`Invalid token contract address: ${token.chainId}`);
     }
 
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
@@ -649,7 +634,7 @@ export class Eip7702DelegationService {
       throw new Error(`EIP-7702 delegation not supported for ${blockchain}`);
     }
 
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
@@ -856,23 +841,10 @@ export class Eip7702DelegationService {
   }
 
   /**
-   * Get chain configuration for viem
-   */
-  private getChainConfig(blockchain: Blockchain): { chain: Chain; rpcUrl: string } | undefined {
-    const config = CHAIN_CONFIG[blockchain];
-    if (!config) return undefined;
-
-    const chainConfig = this.config[config.configKey];
-    const rpcUrl = `${chainConfig[`${config.prefix}GatewayUrl`]}/${chainConfig[`${config.prefix}ApiKey`] ?? ''}`;
-
-    return { chain: config.chain, rpcUrl };
-  }
-
-  /**
    * Get relayer private key for the blockchain
    */
   private getRelayerPrivateKey(blockchain: Blockchain): Hex {
-    const config = CHAIN_CONFIG[blockchain];
+    const config = EvmUtil.getViemChainConfig(blockchain);
     if (!config) throw new Error(`No config found for ${blockchain}`);
 
     const key = this.config[config.configKey][`${config.prefix}WalletPrivateKey`];

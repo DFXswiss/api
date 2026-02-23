@@ -1,13 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { GetConfig } from 'src/config/config';
+import { createPublicClient, http, parseAbi } from 'viem';
+import { Environment, GetConfig } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { Blockchain } from '../shared/enums/blockchain.enum';
+import { EvmUtil } from '../shared/evm/evm.util';
 import {
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
 } from './dto/realunit-broker.dto';
+
+const BROKERBOT_ABI = parseAbi([
+  'function getSellPrice(uint256 shares) view returns (uint256)',
+  'function getPrice() view returns (uint256)',
+]);
 
 interface AktionariatPriceResponse {
   priceInCHF: number;
@@ -122,11 +130,37 @@ export class RealUnitBlockchainService {
     };
   }
 
-  async getBrokerbotSellPrice(shares: number, slippageBps = 50): Promise<{ zchfAmountWei: bigint }> {
-    const { priceInCHF } = await this.fetchPrice();
-    const slippageFactor = 1 - slippageBps / 10000;
-    const zchfAmount = priceInCHF * shares * slippageFactor;
-    const zchfAmountWei = BigInt(Math.floor(zchfAmount * 1e18));
+  async getBrokerbotSellPrice(
+    brokerbotAddress: string,
+    shares: number,
+    slippageBps = 50,
+  ): Promise<{ zchfAmountWei: bigint }> {
+    const blockchain = [Environment.DEV, Environment.LOC].includes(GetConfig().environment)
+      ? Blockchain.SEPOLIA
+      : Blockchain.ETHEREUM;
+
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
+    if (!chainConfig) {
+      throw new Error(`No chain config found for ${blockchain}`);
+    }
+
+    const publicClient = createPublicClient({
+      chain: chainConfig.chain,
+      transport: http(chainConfig.rpcUrl),
+    });
+
+    // Call getSellPrice on the BrokerBot contract
+    const sellPriceWei = (await publicClient.readContract({
+      address: brokerbotAddress as `0x${string}`,
+      abi: BROKERBOT_ABI,
+      functionName: 'getSellPrice',
+      args: [BigInt(shares)],
+    } as any)) as bigint;
+
+    // Apply slippage buffer (reduce expected amount to account for price movement)
+    const slippageFactor = BigInt(10000 - slippageBps);
+    const zchfAmountWei = (sellPriceWei * slippageFactor) / BigInt(10000);
+
     return { zchfAmountWei };
   }
 }
