@@ -278,37 +278,6 @@ export class Eip7702DelegationService {
   }
 
   /**
-   * Execute token transfer for RealUnit (bypasses global disable)
-   * RealUnit app supports eth_sign, so EIP-7702 works unlike MetaMask
-   */
-  async transferTokenWithUserDelegationForRealUnit(
-    userAddress: string,
-    token: Asset,
-    recipient: string,
-    amount: number,
-    signedDelegation: {
-      delegate: string;
-      delegator: string;
-      authority: string;
-      salt: string;
-      signature: string;
-    },
-    authorization: Eip7702Authorization,
-  ): Promise<string> {
-    if (!this.isDelegationSupportedForRealUnit(token.blockchain)) {
-      throw new Error(`EIP-7702 delegation not supported for RealUnit on ${token.blockchain}`);
-    }
-    return this._transferTokenWithUserDelegationInternal(
-      userAddress,
-      token,
-      recipient,
-      amount,
-      signedDelegation,
-      authorization,
-    );
-  }
-
-  /**
    * Execute BrokerBot sell for RealUnit via EIP-7702 delegation
    * Atomic batch: REALU -> BrokerBot (via transferAndCall) + ZCHF -> DFX Deposit (via transfer)
    */
