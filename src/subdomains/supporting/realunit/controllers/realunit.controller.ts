@@ -55,9 +55,11 @@ import {
 import {
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationResponseDto,
+  RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
+  RealUnitWalletStatusDto,
 } from '../dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
 import {
@@ -333,6 +335,22 @@ export class RealUnitController {
     return this.realunitService.confirmSell(jwt.user, +id, dto);
   }
 
+  // --- Wallet Status Endpoint ---
+
+  @Get('wallet/status')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get wallet status and user data',
+    description:
+      'Returns registration status for the connected wallet and user data if available. Can be used to check registration, get data for account merge, or display user profile.',
+  })
+  @ApiOkResponse({ type: RealUnitWalletStatusDto })
+  async getWalletStatus(@GetJwt() jwt: JwtPayload): Promise<RealUnitWalletStatusDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
+    return this.realunitService.getAddressWalletStatus(user.userData, jwt.address);
+  }
+
   // --- Registration Endpoints ---
 
   @Get('register/status')
@@ -378,7 +396,7 @@ export class RealUnitController {
   @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
   @ApiAcceptedResponse({
     type: RealUnitRegistrationResponseDto,
-    description: 'Registration accepted, manual review needed or forwarding to Aktionariat failed',
+    description: 'Registration accepted or forwarding to Aktionariat failed',
   })
   @ApiBadRequestResponse({
     description: 'Invalid signature, wallet mismatch, email registration not completed, or data mismatch',
@@ -396,24 +414,28 @@ export class RealUnitController {
     res.status(statusCode).json(response);
   }
 
-  @Post('register')
+  @Post('register/wallet')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  @ApiOperation({ summary: 'Register for RealUnit' })
-  @ApiOkResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration completed successfully' })
+  @ApiOperation({
+    summary: 'Complete RealUnit registration for given wallet address that is already owned by a user',
+    description: 'Completes a registration using existing data from the wallet status endpoint with a new signature.',
+  })
+  @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
   @ApiAcceptedResponse({
     type: RealUnitRegistrationResponseDto,
-    description: 'Registration accepted, pending manual review',
+    description: 'Registration accepted or forwarding to Aktionariat failed',
   })
-  @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
-  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto, @Res() res: Response): Promise<void> {
-    const needsReview = await this.realunitService.register(jwt.account, dto);
-
-    const response: RealUnitRegistrationResponseDto = {
-      status: needsReview ? RealUnitRegistrationStatus.PENDING_REVIEW : RealUnitRegistrationStatus.COMPLETED,
-    };
-
-    res.status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK).json(response);
+  @ApiBadRequestResponse({ description: 'No pending registration, invalid signature, or wallet mismatch' })
+  async completeRegistrationForWalletAddress(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitRegisterWalletDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const status = await this.realunitService.completeRegistrationForWalletAddress(jwt.account, dto);
+    const response: RealUnitRegistrationResponseDto = { status };
+    const statusCode = status === RealUnitRegistrationStatus.COMPLETED ? HttpStatus.CREATED : HttpStatus.ACCEPTED;
+    res.status(statusCode).json(response);
   }
 
   // --- Admin Endpoints ---
