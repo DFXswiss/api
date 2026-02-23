@@ -836,6 +836,6 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
    */
   private isBtcTxRelayConfirmed(txId: string): Promise<boolean> {
     const requiredConfirmations = BITCOIN_RELAY_CONFIRMATIONS[this.network];
-    return this.bitcoinClient.isTxComplete(txId, requiredConfirmations);
+    return this.bitcoinClient.isTxComplete(txId, requiredConfirmations - 1);
   }
 }
