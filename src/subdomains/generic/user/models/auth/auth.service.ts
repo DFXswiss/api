@@ -402,10 +402,16 @@ export class AuthService {
   // --- HELPER METHODS --- //
 
   private async checkPendingRecommendation(userData: UserData, userWallet?: Wallet): Promise<void> {
-    if (userData.wallet?.autoTradeApproval || userWallet?.autoTradeApproval)
+    if (userData.wallet?.autoTradeApproval || userWallet?.autoTradeApproval) {
       await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
 
-    await this.recommendationService.checkAndConfirmRecommendInvitation(userData.id);
+      const recommendationStep = await this.kycAdminService
+        .getKycSteps(userData.id)
+        .then((k) => k.find((s) => s.name === KycStepName.RECOMMENDATION && !s.isCompleted));
+      if (recommendationStep) await this.kycAdminService.updateKycStepInternal(recommendationStep.cancel());
+
+      await this.recommendationService.checkAndConfirmRecommendInvitation(userData.id);
+    }
   }
 
   private async confirmRecommendationCode(code: string, userData: UserData): Promise<void> {

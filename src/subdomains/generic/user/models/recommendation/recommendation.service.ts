@@ -213,6 +213,8 @@ export class RecommendationService {
   async updateRecommendationInternal(entity: Recommendation, update: Partial<Recommendation>): Promise<Recommendation> {
     Object.assign(entity, update);
 
+    if (entity.isConfirmed !== null && update.isConfirmed !== entity.isConfirmed)
+      throw new BadRequestException('Recommendation already completed');
     if (update.isConfirmed && entity.recommended) {
       await this.userDataService.updateUserDataInternal(entity.recommended, {
         tradeApprovalDate: new Date(),

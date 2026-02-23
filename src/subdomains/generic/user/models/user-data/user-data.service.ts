@@ -262,7 +262,7 @@ export class UserDataService {
 
   // --- CREATE / UPDATE ---
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
-    const userData = this.userDataRepo.create({
+    const entity = this.userDataRepo.create({
       ...dto,
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
@@ -270,9 +270,13 @@ export class UserDataService {
       kycSteps: [],
     });
 
-    await this.loadRelationsAndVerify(userData, dto);
+    await this.loadRelationsAndVerify(entity, dto);
 
-    return this.userDataRepo.save(userData);
+    const userData = await this.userDataRepo.save(entity);
+
+    if (dto.tradeApprovalDate) await this.createTradeApprovalLog(userData, dto.tradeApprovalDate);
+
+    return userData;
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
@@ -462,6 +466,8 @@ export class UserDataService {
 
     if (dto.kycLevel && dto.kycLevel < userData.kycLevel) dto.kycLevel = userData.kycLevel;
 
+    if (dto.tradeApprovalDate) await this.createTradeApprovalLog(userData, dto.tradeApprovalDate);
+
     await this.userDataRepo.update(userData.id, dto);
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
@@ -579,6 +585,7 @@ export class UserDataService {
     }
 
     if (update.mail) await this.kycLogService.createMailChangeLog(userData, userData.mail, update.mail);
+    if (update.tradeApprovalDate) await this.createTradeApprovalLog(userData, update.tradeApprovalDate);
 
     await this.userDataRepo.update(userData.id, update);
 
@@ -828,6 +835,14 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
+  private async createTradeApprovalLog(userData: UserData, tradeApprovalDate: Date): Promise<void> {
+    return this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.KYC,
+      `TradeApprovalDate set to ${tradeApprovalDate.toISOString()}`,
+    );
+  }
+
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
@@ -1164,9 +1179,15 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
-    if (!master.tradeApprovalDate && slave.tradeApprovalDate) master.tradeApprovalDate = slave.tradeApprovalDate;
+    if (!master.tradeApprovalDate && slave.tradeApprovalDate) {
+      master.tradeApprovalDate = slave.tradeApprovalDate;
 
-    const pendingRecommendation = master.kycSteps.find((k) => k.name === KycStepName.RECOMMENDATION && !k.isDone);
+      await this.createTradeApprovalLog(master, master.tradeApprovalDate);
+    }
+
+    const pendingRecommendation = master.kycSteps.find(
+      (k) => k.name === KycStepName.RECOMMENDATION && (k.isInProgress || k.isInReview),
+    );
     if (master.tradeApprovalDate && pendingRecommendation)
       await this.kycAdminService.updateKycStepInternal(pendingRecommendation.update(ReviewStatus.COMPLETED));
 
