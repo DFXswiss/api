@@ -285,7 +285,7 @@ describe('RealUnitService', () => {
       });
 
       expect(result.txHash).toBe(mockTxHash);
-      expect(blockchainService.getBrokerbotSellPrice).toHaveBeenCalledWith(10);
+      expect(blockchainService.getBrokerbotSellPrice).toHaveBeenCalledWith('0xBrokerbotAddress', 10);
       expect(eip7702DelegationService.executeBrokerBotSellForRealUnit).toHaveBeenCalledWith(
         userAddress,
         realuAsset,
