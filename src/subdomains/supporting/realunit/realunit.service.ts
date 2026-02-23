@@ -351,6 +351,10 @@ export class RealUnitService {
 
   // --- Registration Methods ---
 
+  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
+    return this.findRegistrationStep(userData, walletAddress).isForCurrentWallet;
+  }
+
   async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
     const userData = await this.userDataService.getUserData(userDataId, { users: true });
     if (!userData) throw new NotFoundException('User not found');
@@ -436,55 +440,12 @@ export class RealUnitService {
   // --- Wallet Methods ---
 
   getAddressWalletStatus(userData: UserData, walletAddress: string): RealUnitWalletStatusDto {
-    const isRegistered = this.hasRegistrationForWallet(userData, walletAddress);
-    const registrationData = this.getRegistrationUserData(userData, walletAddress, isRegistered);
+    const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
 
     return {
-      isRegistered,
-      userData: registrationData,
+      isRegistered: isForCurrentWallet,
+      userData: this.toUserDataDto(step),
     };
-  }
-
-  private getRegistrationUserData(
-    userData: UserData,
-    walletAddress: string,
-    isRegistered: boolean,
-  ): RealUnitUserDataDto | undefined {
-    let registrationStep: KycStep | undefined;
-
-    if (isRegistered) {
-      // Get the completed registration for this wallet
-      registrationStep = userData
-        .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
-        .filter((s) => !(s.isFailed || s.isCanceled))
-        .find((s) => {
-          const result = s.getResult<AktionariatRegistrationDto>();
-          return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
-        });
-    } else {
-      // Get existing registration from another wallet (for account merge)
-      registrationStep = this.findExistingRegistrationStep(userData, walletAddress);
-    }
-
-    if (!registrationStep) return undefined;
-
-    const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
-    if (!registrationData) return undefined;
-
-    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...userDataDto } = registrationData;
-
-    return userDataDto as RealUnitUserDataDto;
-  }
-
-  // Find RealUnit registration steps where the wallet address is different from the current wallet
-  private findExistingRegistrationStep(userData: UserData, currentWalletAddress: string): KycStep | undefined {
-    return userData
-      .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
-      .filter((s) => (s.isCompleted || s.isCanceled) && s.result)
-      .find((s) => {
-        const result = s.getResult<AktionariatRegistrationDto>();
-        return result?.walletAddress && !Util.equalsIgnoreCase(result.walletAddress, currentWalletAddress);
-      });
   }
 
   async completeRegistrationForWalletAddress(
@@ -500,11 +461,12 @@ export class RealUnitService {
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
 
-    if (this.hasRegistrationForWallet(userData, dto.walletAddress)) {
+    const { step: registrationStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+
+    if (isForCurrentWallet) {
       throw new BadRequestException('RealUnit registration already exists for this wallet');
     }
 
-    const registrationStep = this.findExistingRegistrationStep(userData, dto.walletAddress);
     if (!registrationStep) {
       throw new BadRequestException('No RealUnit registration found');
     }
@@ -675,14 +637,49 @@ export class RealUnitService {
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
-  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
-    return userData
-      .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
+  /**
+   * Finds a registration step for the user.
+   * First tries to find a registration for the current wallet.
+   * If not found, falls back to finding a registration from another wallet (for account merge scenarios).
+   */
+  private findRegistrationStep(
+    userData: UserData,
+    walletAddress: string,
+  ): { step: KycStep | undefined; isForCurrentWallet: boolean } {
+    const allSteps = userData.getStepsWith(KycStepName.REALUNIT_REGISTRATION);
+
+    // First: look for registration for the current wallet (non-failed, non-canceled)
+    const currentWalletStep = allSteps
       .filter((s) => !(s.isFailed || s.isCanceled))
-      .some((s) => {
+      .find((s) => {
         const result = s.getResult<AktionariatRegistrationDto>();
         return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
       });
+
+    if (currentWalletStep) {
+      return { step: currentWalletStep, isForCurrentWallet: true };
+    }
+
+    // Second: look for registration from another wallet (for account merge)
+    const otherWalletStep = allSteps
+      .filter((s) => (s.isCompleted || s.isCanceled) && s.result)
+      .find((s) => {
+        const result = s.getResult<AktionariatRegistrationDto>();
+        return result?.walletAddress && !Util.equalsIgnoreCase(result.walletAddress, walletAddress);
+      });
+
+    return { step: otherWalletStep, isForCurrentWallet: false };
+  }
+
+  private toUserDataDto(step: KycStep | undefined): RealUnitUserDataDto | undefined {
+    if (!step) return undefined;
+
+    const registrationData = step.getResult<RealUnitRegistrationDto>();
+    if (!registrationData) return undefined;
+
+    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...userDataDto } = registrationData;
+
+    return userDataDto as RealUnitUserDataDto;
   }
 
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
