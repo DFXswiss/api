@@ -35,6 +35,7 @@ export class AmlHelperService {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    phoneCallList: SpecialExternalAccount[],
     banks?: Bank[],
     ibanCountry?: Country,
     refUser?: User,
@@ -263,6 +264,19 @@ export class AmlHelperService {
           )
         )
           errors.push(AmlError.IBAN_BLACKLISTED);
+
+        if (
+          phoneCallList.some((b) =>
+            b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY], entity.bankTx.bic),
+          )
+        )
+          errors.push(AmlError.BIC_PHONE_VERIFICATION_NEEDED);
+        if (
+          phoneCallList.some((b) =>
+            b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY], entity.bankTx.iban),
+          )
+        )
+          errors.push(AmlError.IBAN_PHONE_VERIFICATION_NEEDED);
 
         if (
           blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_ACCOUNT_IBAN], entity.bankTx.accountIban))
@@ -496,6 +510,7 @@ export class AmlHelperService {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    phoneCallList: SpecialExternalAccount[],
     ibanCountry?: Country,
     refUser?: User,
     banks?: Bank[],
@@ -520,6 +535,7 @@ export class AmlHelperService {
       last365dVolume,
       bankData,
       blacklist,
+      phoneCallList,
       banks,
       ibanCountry,
       refUser,
