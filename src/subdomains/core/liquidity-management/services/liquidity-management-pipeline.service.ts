@@ -72,6 +72,27 @@ export class LiquidityManagementPipelineService {
     });
   }
 
+  async refreshOrderCompletion(orders: LiquidityManagementOrder[]): Promise<void> {
+    for (const order of orders) {
+      try {
+        await this.checkOrder(order);
+      } catch (e) {
+        if (e instanceof OrderNotProcessableException) {
+          order.notProcessable(e);
+          await this.orderRepo.save(order);
+          continue;
+        }
+        if (e instanceof OrderFailedException) {
+          order.fail(e);
+          await this.orderRepo.save(order);
+          continue;
+        }
+
+        this.logger.error(`Error in refreshing liquidity order ${order.id}:`, e);
+      }
+    }
+  }
+
   async getPipelineStatus(pipelineId: number): Promise<LiquidityManagementPipelineStatus> {
     const pipeline = await this.pipelineRepo.findOneBy({ id: pipelineId });
 

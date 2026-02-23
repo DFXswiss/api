@@ -251,8 +251,17 @@ export class LogJobService {
       (a) => [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(a.blockchain) && a.dexName === 'EUR',
     );
 
-    // pending balances
-    const pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
+    // pending balances — refresh bridge orders first to avoid double-counting
+    let pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
+
+    const bridgeOrdersToRefresh = pendingOrders.filter(
+      (o) => LiquidityManagementBridges.includes(o.action.system) && ['withdraw', 'deposit'].includes(o.action.command),
+    );
+
+    if (bridgeOrdersToRefresh.length) {
+      await this.liquidityManagementPipelineService.refreshOrderCompletion(bridgeOrdersToRefresh);
+      pendingOrders = await this.liquidityManagementPipelineService.getPendingTx();
+    }
 
     const pendingExchangeOrders = pendingOrders.filter((o) => LiquidityManagementExchanges.includes(o.action.system));
     const pendingBridgeOrders = pendingOrders.filter(

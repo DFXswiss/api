@@ -77,6 +77,7 @@ interface DepositCorrelationData {
   depositAddress: string;
   citreaAddress: string;
   btcTxId?: string;
+  citreaBalanceBefore?: number;
 }
 
 interface WithdrawCorrelationData {
@@ -327,6 +328,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
         const btcTxId = await this.sendBtcToAddress(correlationData.depositAddress, CLEMENTINE_BRIDGE_AMOUNT_BTC);
         correlationData.btcTxId = btcTxId;
+        correlationData.citreaBalanceBefore = await this.citreaClient.getNativeCoinBalance();
         order.correlationId = `${CORRELATION_PREFIX.DEPOSIT}${this.encodeDepositCorrelation(correlationData)}`;
         this.logger.info(`Deposit ${correlationData.depositAddress}: approved and BTC sent, txId=${btcTxId}`);
         return false;
@@ -340,7 +342,21 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
         return false;
       }
 
-      // Step 3: Check Clementine deposit status
+      // Step 2.5: On-chain completion detection (faster than Clementine API)
+      if (correlationData.citreaBalanceBefore != null) {
+        const currentBalance = await this.citreaClient.getNativeCoinBalance();
+        const balanceIncrease = currentBalance - correlationData.citreaBalanceBefore;
+
+        if (balanceIncrease >= CLEMENTINE_BRIDGE_AMOUNT_BTC * 0.99) {
+          this.logger.info(
+            `Deposit ${correlationData.depositAddress}: completed via on-chain detection (balance increase: ${balanceIncrease} cBTC)`,
+          );
+          order.outputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
+          return true;
+        }
+      }
+
+      // Step 3: Check Clementine deposit status (fallback / backward compatibility)
       const depositStatus = await this.clementineClient.depositStatus(correlationData.depositAddress);
       this.logger.verbose(`Deposit ${correlationData.depositAddress}: Clementine status = ${depositStatus.status}`);
 
