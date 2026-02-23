@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHistory } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { FiroClient } from 'src/integration/blockchain/firo/firo-client';
+import { FiroFeeService } from 'src/integration/blockchain/firo/services/firo-fee.service';
 import { FiroService } from 'src/integration/blockchain/firo/services/firo.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
@@ -13,6 +14,7 @@ export class DexFiroService {
 
   constructor(
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    private readonly feeService: FiroFeeService,
     readonly firoService: FiroService,
   ) {
     this.client = firoService.getDefaultClient();
@@ -43,8 +45,7 @@ export class DexFiroService {
   //*** HELPER METHODS ***//
 
   private async getFeeRate(): Promise<number> {
-    const feeRate = await this.client.estimateSmartFee(1);
-    return (feeRate ?? 10) * 1.5;
+    return this.feeService.getSendFeeRate();
   }
 
   private async getPendingAmount(): Promise<number> {

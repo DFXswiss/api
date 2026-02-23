@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { FiroClient } from 'src/integration/blockchain/firo/firo-client';
 import { FiroFeeService } from 'src/integration/blockchain/firo/services/firo-fee.service';
 import { FiroService } from 'src/integration/blockchain/firo/services/firo.service';
@@ -42,11 +41,6 @@ export class PayoutFiroService extends PayoutBitcoinBasedService {
   }
 
   async getCurrentFeeRate(): Promise<number> {
-    const baseRate = await this.feeService.getRecommendedFeeRate();
-
-    const { allowUnconfirmedUtxos, cpfpFeeMultiplier, defaultFeeMultiplier } = Config.blockchain.firo;
-    const multiplier = allowUnconfirmedUtxos ? cpfpFeeMultiplier : defaultFeeMultiplier;
-
-    return baseRate * multiplier;
+    return this.feeService.getSendFeeRate();
   }
 }

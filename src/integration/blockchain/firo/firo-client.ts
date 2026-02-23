@@ -36,6 +36,10 @@ export class FiroClient extends BitcoinBasedClient {
     return Config.blockchain.firo.walletAddress;
   }
 
+  get paymentAddress(): string {
+    return Config.payment.firoAddress;
+  }
+
   // --- RPC Overrides for Firo compatibility --- //
 
   // Firo's getnewaddress only accepts an optional account parameter, no address type
@@ -44,10 +48,13 @@ export class FiroClient extends BitcoinBasedClient {
   }
 
   // Firo's account-based getbalance with '' returns only the default account, which can be negative.
-  // Use listunspent filtered to the liquidity address for an accurate spendable balance.
+  // Use listunspent filtered to the liquidity and payment addresses for an accurate spendable balance.
   async getBalance(): Promise<number> {
     const minConf = this.nodeConfig.allowUnconfirmedUtxos ? 0 : 1;
-    const utxos = await this.callNode(() => this.rpc.listUnspent(minConf, 9999999, [this.walletAddress]), true);
+    const utxos = await this.callNode(
+      () => this.rpc.listUnspent(minConf, 9999999, [this.walletAddress, this.paymentAddress]),
+      true,
+    );
 
     return utxos?.reduce((sum, u) => sum + u.amount, 0) ?? 0;
   }
@@ -96,7 +103,8 @@ export class FiroClient extends BitcoinBasedClient {
     return { outTxId, feeAmount };
   }
 
-  // Only use UTXOs from the liquidity (wallet) address to avoid spending deposit/payment UTXOs.
+  // Use UTXOs from the liquidity and payment addresses to avoid spending deposit UTXOs.
+  // Change is sent back to the liquidity address, naturally consolidating funds over time.
   async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
     const outputs = payload.reduce(
       (acc, p) => ({ ...acc, [p.addressTo]: this.roundAmount(p.amount) }),
@@ -104,12 +112,15 @@ export class FiroClient extends BitcoinBasedClient {
     );
     const outputTotal = payload.reduce((sum, p) => sum + p.amount, 0);
 
-    // Get UTXOs only from the liquidity address
+    // Get UTXOs from liquidity and payment addresses (excludes deposit address UTXOs)
     const minConf = this.nodeConfig.allowUnconfirmedUtxos ? 0 : 1;
-    const utxos = await this.callNode(() => this.rpc.listUnspent(minConf, 9999999, [this.walletAddress]), true);
+    const utxos = await this.callNode(
+      () => this.rpc.listUnspent(minConf, 9999999, [this.walletAddress, this.paymentAddress]),
+      true,
+    );
 
     if (!utxos || utxos.length === 0) {
-      throw new Error('No UTXOs available on the liquidity address');
+      throw new Error('No UTXOs available on the liquidity/payment addresses');
     }
 
     // Select UTXOs to cover outputs + estimated fee (225 bytes per input, 34 per output, 10 overhead)
@@ -132,7 +143,9 @@ export class FiroClient extends BitcoinBasedClient {
     const fee = (feeRate * txSize) / 1e8;
 
     if (inputTotal < outputTotal + fee) {
-      throw new Error(`Insufficient funds on liquidity address: have ${inputTotal}, need ${outputTotal + fee}`);
+      throw new Error(
+        `Insufficient funds on liquidity/payment addresses: have ${inputTotal}, need ${outputTotal + fee}`,
+      );
     }
 
     const change = this.roundAmount(inputTotal - outputTotal - fee);
@@ -163,7 +176,7 @@ export class FiroClient extends BitcoinBasedClient {
     return this.callNode(() => this.rpc.call<string>('sendrawtransaction', [signedResult.hex]), true);
   }
 
-  // Delegates to sendMany which uses manual coin selection from the liquidity address only.
+  // Delegates to sendMany which uses manual coin selection from the liquidity and payment addresses.
   async sendUtxoToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {
     if (payload.length > 100) {
       throw new Error('Too many addresses in one transaction batch, allowed max 100 for UTXO');
