@@ -504,6 +504,7 @@ export class TransactionHelper implements OnModuleInit {
       buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
+      bankTxReturn: true,
       request: true,
     };
 
@@ -516,8 +517,8 @@ export class TransactionHelper implements OnModuleInit {
     if (!transaction.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
 
-    // Handle pending transactions (no targetEntity yet, but has request)
-    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn) {
+    // Handle pending or refunded transactions (no targetEntity yet, or has bankTxReturn)
+    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn || transaction.bankTxReturn) {
       if (statementType === TxStatementType.RECEIPT)
         throw new BadRequestException('Receipt not available for pending transactions');
       if (!transaction.request) throw new BadRequestException('Transaction not found');
