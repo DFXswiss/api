@@ -215,7 +215,7 @@ export class RecommendationService {
 
     if (entity.isConfirmed !== null && update.isConfirmed !== entity.isConfirmed)
       throw new BadRequestException('Recommendation already completed');
-    if (update.isConfirmed && entity.recommended) {
+    if (update.isConfirmed && entity.recommended && !entity.recommended.tradeApprovalDate) {
       await this.userDataService.updateUserDataInternal(entity.recommended, {
         tradeApprovalDate: new Date(),
       });

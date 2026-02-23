@@ -1355,7 +1355,8 @@ export class KycService {
   }
 
   async completeRecommendation(userData: UserData): Promise<void> {
-    await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
+    if (!userData.tradeApprovalDate)
+      await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
   }
 
   private getStepDefaultErrors(entity: KycStep): KycError[] {
