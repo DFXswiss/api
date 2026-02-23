@@ -18,6 +18,7 @@ import { PayoutPolygonService } from '../../../services/payout-polygon.service';
 import { PayoutSolanaService } from '../../../services/payout-solana.service';
 import { PayoutTronService } from '../../../services/payout-tron.service';
 import { PayoutZanoService } from '../../../services/payout-zano.service';
+import { PayoutFiroService } from '../../../services/payout-firo.service';
 import { PayoutCardanoService } from '../../../services/payout-cardano.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
@@ -43,6 +44,7 @@ import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
 import { ZanoCoinStrategy } from '../impl/zano-coin.strategy';
 import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
+import { FiroStrategy } from '../impl/firo.strategy';
 import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
 import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
 
@@ -52,6 +54,7 @@ describe('PayoutStrategyRegistry', () => {
   let monero: MoneroStrategy;
   let zanoCoin: ZanoCoinStrategy;
   let zanoToken: ZanoTokenStrategy;
+  let firo: FiroStrategy;
   let arbitrumCoin: ArbitrumCoinStrategy;
   let arbitrumToken: ArbitrumTokenStrategy;
   let bscCoin: BscCoinStrategy;
@@ -103,6 +106,12 @@ describe('PayoutStrategyRegistry', () => {
       mock<NotificationService>(),
       mock<PayoutOrderRepository>(),
       mock<PayoutZanoService>(),
+      mock<AssetService>(),
+    );
+    firo = new FiroStrategy(
+      mock<NotificationService>(),
+      mock<PayoutFiroService>(),
+      mock<PayoutOrderRepository>(),
       mock<AssetService>(),
     );
     arbitrumCoin = new ArbitrumCoinStrategy(
@@ -189,6 +198,7 @@ describe('PayoutStrategyRegistry', () => {
       monero,
       zanoCoin,
       zanoToken,
+      firo,
       arbitrumCoin,
       arbitrumToken,
       bscCoin,
@@ -252,6 +262,14 @@ describe('PayoutStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(ZanoTokenStrategy);
+      });
+
+      it('gets FIRO strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.FIRO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(FiroStrategy);
       });
 
       it('gets ARBITRUM_COIN strategy', () => {
@@ -434,6 +452,7 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     monero: MoneroStrategy,
     zanoCoin: ZanoCoinStrategy,
     zanoToken: ZanoTokenStrategy,
+    firo: FiroStrategy,
     arbitrumCoin: ArbitrumCoinStrategy,
     arbitrumToken: ArbitrumTokenStrategy,
     bscCoin: BscCoinStrategy,
@@ -462,6 +481,7 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     this.add({ blockchain: Blockchain.MONERO, assetType: AssetType.COIN }, monero);
     this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.COIN }, zanoCoin);
     this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.TOKEN }, zanoToken);
+    this.add({ blockchain: Blockchain.FIRO, assetType: AssetType.COIN }, firo);
 
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.COIN }, arbitrumCoin);
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);
