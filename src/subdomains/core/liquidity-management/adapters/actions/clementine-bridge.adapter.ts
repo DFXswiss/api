@@ -326,9 +326,9 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
         await this.removeDepositApproval(correlationData.depositAddress);
 
+        correlationData.citreaBalanceBefore = await this.citreaClient.getNativeCoinBalance();
         const btcTxId = await this.sendBtcToAddress(correlationData.depositAddress, CLEMENTINE_BRIDGE_AMOUNT_BTC);
         correlationData.btcTxId = btcTxId;
-        correlationData.citreaBalanceBefore = await this.citreaClient.getNativeCoinBalance();
         order.correlationId = `${CORRELATION_PREFIX.DEPOSIT}${this.encodeDepositCorrelation(correlationData)}`;
         this.logger.info(`Deposit ${correlationData.depositAddress}: approved and BTC sent, txId=${btcTxId}`);
         return false;
@@ -344,23 +344,30 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
       // Step 2.5: On-chain completion detection (faster than Clementine API)
       if (correlationData.citreaBalanceBefore != null) {
-        const currentBalance = await this.citreaClient.getNativeCoinBalance();
-        const balanceIncrease = currentBalance - correlationData.citreaBalanceBefore;
+        try {
+          const currentBalance = await this.citreaClient.getNativeCoinBalance();
+          const balanceIncrease = currentBalance - correlationData.citreaBalanceBefore;
 
-        if (balanceIncrease >= CLEMENTINE_BRIDGE_AMOUNT_BTC * 0.99) {
-          // Verify Clementine API doesn't report failure before marking complete
-          const depositStatus = await this.clementineClient.depositStatus(correlationData.depositAddress);
-          if (depositStatus.status === 'failed') {
-            throw new OrderFailedException(
-              `Clementine deposit failed: ${depositStatus.errorMessage ?? 'Unknown error'}`,
+          if (balanceIncrease >= CLEMENTINE_BRIDGE_AMOUNT_BTC * 0.99) {
+            // Verify Clementine API doesn't report failure before marking complete
+            const depositStatus = await this.clementineClient.depositStatus(correlationData.depositAddress);
+            if (depositStatus.status === 'failed') {
+              throw new OrderFailedException(
+                `Clementine deposit failed: ${depositStatus.errorMessage ?? 'Unknown error'}`,
+              );
+            }
+
+            this.logger.info(
+              `Deposit ${correlationData.depositAddress}: completed via on-chain detection (balance increase: ${balanceIncrease} cBTC)`,
             );
+            order.outputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
+            return true;
           }
-
-          this.logger.info(
-            `Deposit ${correlationData.depositAddress}: completed via on-chain detection (balance increase: ${balanceIncrease} cBTC)`,
+        } catch (e) {
+          if (e instanceof OrderFailedException) throw e;
+          this.logger.verbose(
+            `Deposit ${correlationData.depositAddress}: on-chain check failed, falling back to Clementine API: ${e.message}`,
           );
-          order.outputAmount = CLEMENTINE_BRIDGE_AMOUNT_BTC;
-          return true;
         }
       }
 
