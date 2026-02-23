@@ -504,6 +504,7 @@ export class TransactionHelper implements OnModuleInit {
       buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
+      bankTxReturn: true,
       request: true,
     };
 
@@ -516,12 +517,24 @@ export class TransactionHelper implements OnModuleInit {
     if (!transaction.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
 
-    // Handle pending transactions (no targetEntity yet, but has request)
-    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn) {
+    // Handle pending or refunded transactions (no targetEntity yet, or has bankTxReturn)
+    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn || transaction.bankTxReturn) {
       if (statementType === TxStatementType.RECEIPT)
-        throw new BadRequestException('Receipt not available for pending transactions');
-      if (!transaction.request) throw new BadRequestException('Transaction not found');
-      return this.getTxStatementDetailsFromRequest(transaction, statementType);
+        throw new BadRequestException('Receipt not available for returned transactions');
+      if (transaction.request) return this.getTxStatementDetailsFromRequest(transaction, statementType);
+
+      // Refunded transactions without request: build details from buyCrypto data
+      if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
+        const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
+        return {
+          statementType,
+          transactionType: TransactionType.BUY,
+          transaction,
+          currency: fiat.name,
+        };
+      }
+
+      throw new BadRequestException('Invoice data not available for this transaction');
     }
 
     if (statementType === TxStatementType.RECEIPT && !transaction.targetEntity.isComplete)
