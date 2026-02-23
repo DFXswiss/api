@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { createPublicClient, http, parseAbi } from 'viem';
 import { Environment, GetConfig } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { createPublicClient, http, parseAbi } from 'viem';
 import { Blockchain } from '../shared/enums/blockchain.enum';
 import { EvmUtil } from '../shared/evm/evm.util';
 import {
@@ -156,6 +156,10 @@ export class RealUnitBlockchainService {
       functionName: 'getSellPrice',
       args: [BigInt(shares)],
     } as any)) as bigint;
+
+    if (sellPriceWei === 0n) {
+      throw new Error('BrokerBot returned zero sell price');
+    }
 
     // Apply slippage buffer (reduce expected amount to account for price movement)
     const slippageFactor = BigInt(10000 - slippageBps);
