@@ -143,14 +143,15 @@ export class ClementineClient {
 
     // Parse the deposit address from CLI output
     const addressMatch =
-      output.match(/(?:deposit\s+)?address[:\s]+([a-zA-Z0-9]+)/i) ||
-      output.match(/bc1[a-zA-Z0-9]{59,}/i) ||
-      output.match(/tb1[a-zA-Z0-9]{59,}/i);
+      output.match(/bc1p[a-zA-Z0-9]{58}/i) ||
+      output.match(/tb1p[a-zA-Z0-9]{58}/i) ||
+      output.match(/bc1q[a-zA-Z0-9]{38,}/i) ||
+      output.match(/tb1q[a-zA-Z0-9]{38,}/i);
     if (!addressMatch) {
       throw new Error(`Failed to parse deposit address from CLI output: ${output}`);
     }
 
-    return { depositAddress: addressMatch[1] || addressMatch[0] };
+    return { depositAddress: addressMatch[0] };
   }
 
   /**
