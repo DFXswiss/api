@@ -44,6 +44,15 @@ export class SpecialExternalAccountService {
     );
   }
 
+  async getPhoneCallList(): Promise<SpecialExternalAccount[]> {
+    return this.specialExternalAccountRepo.findCachedBy('PhoneCallList', {
+      type: In([
+        SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY,
+        SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY,
+      ]),
+    });
+  }
+
   async getBlacklist(types?: SpecialExternalAccountType[]): Promise<SpecialExternalAccount[]> {
     return this.specialExternalAccountRepo.findCachedBy(`Blacklist-${types?.toString()}`, {
       type: In(
