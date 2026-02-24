@@ -641,8 +641,8 @@ export class Configuration {
       blockchain === Blockchain.INTERNET_COMPUTER
         ? 1
         : [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.FIRO, Blockchain.MONERO, Blockchain.ZANO].includes(
-            blockchain,
-          )
+              blockchain,
+            )
           ? 6
           : 100,
     minVolume: 0.01, // CHF
