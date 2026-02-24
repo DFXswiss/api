@@ -506,8 +506,12 @@ export class UserData extends IEntity {
       phone: dto.phone ?? this.phone,
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
-      phoneCallTimes: dto.preferredTimes ? dto.preferredTimes.join(';') : undefined,
-      phoneCallStatus: dto.rejectCall ? PhoneCallStatus.REJECTED : dto.repeatCall ? PhoneCallStatus.REPEAT : undefined,
+      phoneCallTimes: dto.preferredPhoneTimes ? dto.preferredPhoneTimes.join(';') : undefined,
+      phoneCallStatus: dto.rejectPhoneCall
+        ? PhoneCallStatus.REJECTED
+        : dto.repeatPhoneCall
+          ? PhoneCallStatus.REPEAT
+          : undefined,
     };
 
     Object.assign(this, update);

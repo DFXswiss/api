@@ -43,19 +43,19 @@ export class UpdateUserDto {
   @ApiPropertyOptional({ type: String, isArray: true })
   @IsOptional()
   @IsEnum(PhoneCallPreferredTime)
-  preferredTimes?: PhoneCallPreferredTime[];
+  preferredPhoneTimes?: PhoneCallPreferredTime[];
 
   @ApiPropertyOptional()
   @IsNotEmpty()
-  @ValidateIf((a: UpdateUserDto) => Boolean(a.rejectCall || !a.repeatCall))
+  @ValidateIf((a: UpdateUserDto) => Boolean(a.rejectPhoneCall || !a.repeatPhoneCall))
   @IsBoolean()
-  rejectCall?: boolean;
+  rejectPhoneCall?: boolean;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
-  @ValidateIf((a: UpdateUserDto) => Boolean(a.repeatCall || !a.rejectCall))
+  @ValidateIf((a: UpdateUserDto) => Boolean(a.repeatPhoneCall || !a.rejectPhoneCall))
   @IsBoolean()
-  repeatCall?: boolean;
+  repeatPhoneCall?: boolean;
 }
 
 export class UpdateUserMailDto {

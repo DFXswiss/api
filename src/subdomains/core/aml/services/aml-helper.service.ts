@@ -63,7 +63,7 @@ export class AmlHelperService {
     )
       errors.push(
         [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
-          ? AmlError.USER_DATA_REJECTED_CALL
+          ? AmlError.USER_DATA_FAILED_CALL
           : AmlError.TRADE_APPROVAL_DATE_MISSING,
       );
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
@@ -99,7 +99,7 @@ export class AmlHelperService {
       if (entity.userData.kycLevel >= KycLevel.LEVEL_50) {
         errors.push(
           [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
-            ? AmlError.USER_DATA_REJECTED_CALL
+            ? AmlError.USER_DATA_FAILED_CALL
             : AmlError.IP_PHONE_VERIFICATION_NEEDED,
         );
       } else {
@@ -209,7 +209,7 @@ export class AmlHelperService {
       )
         errors.push(
           [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
-            ? AmlError.USER_DATA_REJECTED_CALL
+            ? AmlError.USER_DATA_FAILED_CALL
             : AmlError.IP_COUNTRY_MISMATCH,
         );
 
@@ -239,7 +239,7 @@ export class AmlHelperService {
       )
         errors.push(
           [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
-            ? AmlError.USER_DATA_REJECTED_CALL
+            ? AmlError.USER_DATA_FAILED_CALL
             : AmlError.PHONE_VERIFICATION_NEEDED,
         );
 
@@ -464,7 +464,7 @@ export class AmlHelperService {
         )
           errors.push(
             [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
-              ? AmlError.USER_DATA_REJECTED_CALL
+              ? AmlError.USER_DATA_FAILED_CALL
               : AmlError.PHONE_VERIFICATION_NEEDED,
           );
         break;

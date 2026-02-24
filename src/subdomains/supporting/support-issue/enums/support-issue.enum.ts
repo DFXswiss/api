@@ -18,7 +18,10 @@ export enum SupportIssueType {
 }
 
 export enum SupportIssueReason {
+  // general
   OTHER = 'Other',
+
+  // support
   DATA_REQUEST = 'DataRequest',
 
   // transaction issue
@@ -28,7 +31,6 @@ export enum SupportIssueReason {
   // verification call
   REJECT_CALL = 'RejectCall',
   REPEAT_CALL = 'RepeatCall',
-  PREFERRED_CALL_TIME = 'PreferredCallTime',
 
   // notification of changes issue
   NAME_CHANGED = 'NameChanged',
