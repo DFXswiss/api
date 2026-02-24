@@ -108,14 +108,17 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
     const rawValue = transaction.rawContract.rawValue;
     if (!rawValue || rawValue === '0x') return;
 
+    const asset = this.getTransactionAsset(supportedAssets, transaction.rawContract.address);
+    const decimals = transaction.rawContract.decimals ?? asset?.decimals;
+
     return {
       senderAddresses: transaction.fromAddress,
       receiverAddress: BlockchainAddress.create(transaction.toAddress, this.blockchain),
       txId: transaction.hash,
       txType: this.getTxType(transaction.toAddress),
       blockHeight: Number(transaction.blockNum),
-      amount: Util.floorByPrecision(EvmUtil.fromWeiAmount(rawValue, transaction.rawContract.decimals), 15), // temporary precision fix
-      asset: this.getTransactionAsset(supportedAssets, transaction.rawContract.address) ?? null,
+      amount: Util.floorByPrecision(EvmUtil.fromWeiAmount(rawValue, decimals), 15), // temporary precision fix
+      asset: asset ?? null,
     };
   }
 }
