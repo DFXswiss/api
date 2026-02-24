@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
@@ -44,12 +43,6 @@ export class PayoutBitcoinService extends PayoutBitcoinBasedService {
   }
 
   async getCurrentFeeRate(): Promise<number> {
-    const baseRate = await this.feeService.getRecommendedFeeRate();
-
-    // Use higher multiplier when unconfirmed UTXOs are enabled (CPFP effect)
-    const { allowUnconfirmedUtxos, cpfpFeeMultiplier, defaultFeeMultiplier } = Config.blockchain.default;
-    const multiplier = allowUnconfirmedUtxos ? cpfpFeeMultiplier : defaultFeeMultiplier;
-
-    return baseRate * multiplier;
+    return this.feeService.getSendFeeRate();
   }
 }

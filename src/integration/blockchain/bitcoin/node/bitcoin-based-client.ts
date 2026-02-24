@@ -53,13 +53,20 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
     return { outTxId: result?.txid ?? '', feeAmount };
   }
 
-  async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
+  async sendMany(
+    payload: { addressTo: string; amount: number }[],
+    feeRate: number,
+    inputs?: Array<{ txid: string; vout: number }>,
+    subtractFeeFromOutputs?: number[],
+  ): Promise<string> {
     const outputs = payload.map((p) => ({ [p.addressTo]: p.amount }));
 
     const options = {
       replaceable: true,
       change_address: this.walletAddress,
       ...(this.nodeConfig.allowUnconfirmedUtxos && { include_unsafe: true }),
+      ...(inputs && { inputs, add_inputs: false }),
+      ...(subtractFeeFromOutputs && { subtract_fee_from_outputs: subtractFeeFromOutputs }),
     };
 
     const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);

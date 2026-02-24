@@ -21,7 +21,7 @@ export class DexBitcoinService {
   }
 
   async sendUtxoToMany(payout: { addressTo: string; amount: number }[]): Promise<string> {
-    const feeRate = await this.feeService.getRecommendedFeeRate();
+    const feeRate = await this.feeService.getSendFeeRate();
     return this.client.sendMany(payout, feeRate);
   }
 

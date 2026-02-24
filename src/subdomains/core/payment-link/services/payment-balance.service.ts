@@ -1,5 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
+import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -43,6 +45,7 @@ export class PaymentBalanceService implements OnModuleInit {
   constructor(
     private readonly assetService: AssetService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly bitcoinFeeService: BitcoinFeeService,
   ) {}
 
   onModuleInit() {
@@ -151,7 +154,7 @@ export class PaymentBalanceService implements OnModuleInit {
   }
 
   async forwardDeposits() {
-    const chainsWithoutForwarding = [Blockchain.BITCOIN, Blockchain.FIRO, ...this.chainsWithoutPaymentBalance];
+    const chainsWithoutForwarding = [Blockchain.FIRO, ...this.chainsWithoutPaymentBalance];
 
     const paymentAssets = await this.assetService
       .getPaymentAssets()
@@ -171,12 +174,33 @@ export class PaymentBalanceService implements OnModuleInit {
   }
 
   private async forwardDeposit(asset: Asset, balance: number): Promise<string> {
+    if (asset.blockchain === Blockchain.BITCOIN) {
+      return this.forwardBitcoinDeposit();
+    }
+
     const account = this.getPaymentAccount(asset.blockchain);
     const client = this.blockchainRegistryService.getClient(asset.blockchain) as EvmClient | SolanaClient | TronClient;
 
     return asset.type === AssetType.COIN
       ? client.sendNativeCoinFromAccount(account, client.walletAddress, balance)
       : client.sendTokenFromAccount(account, client.walletAddress, asset, balance);
+  }
+
+  private async forwardBitcoinDeposit(): Promise<string> {
+    const client = this.blockchainRegistryService.getBitcoinClient(Blockchain.BITCOIN, BitcoinNodeType.BTC_INPUT);
+    const paymentAddress = Config.payment.bitcoinAddress;
+    const outputAddress = Config.blockchain.default.btcOutput.address;
+    const feeRate = await this.bitcoinFeeService.getSendFeeRate();
+
+    // only use UTXOs from the payment address (not deposit UTXOs on the same wallet)
+    const utxos = await client.getUtxoForAddresses([paymentAddress], true);
+    if (!utxos.length) return '';
+
+    const inputs = utxos.map((u) => ({ txid: u.txid, vout: u.vout }));
+    const utxoBalance = utxos.reduce((sum, u) => sum + u.amount, 0);
+
+    // sweep all UTXOs: send full balance and let Bitcoin Core subtract the fee from the output
+    return client.sendMany([{ addressTo: outputAddress, amount: utxoBalance }], feeRate, inputs, [0]);
   }
 
   private getPaymentAccount(chain: Blockchain): WalletAccount {

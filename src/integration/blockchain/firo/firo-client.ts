@@ -50,10 +50,9 @@ export class FiroClient extends BitcoinBasedClient {
   // Firo's account-based getbalance with '' returns only the default account, which can be negative.
   // Use listunspent filtered to the liquidity and payment addresses for an accurate spendable balance.
   async getBalance(): Promise<number> {
-    const minConf = this.nodeConfig.allowUnconfirmedUtxos ? 0 : 1;
-    const utxos = await this.callNode(
-      () => this.rpc.listUnspent(minConf, 9999999, [this.walletAddress, this.paymentAddress]),
-      true,
+    const utxos = await this.getUtxoForAddresses(
+      [this.walletAddress, this.paymentAddress],
+      this.nodeConfig.allowUnconfirmedUtxos,
     );
 
     return utxos?.reduce((sum, u) => sum + u.amount, 0) ?? 0;
@@ -113,10 +112,9 @@ export class FiroClient extends BitcoinBasedClient {
     const outputTotal = payload.reduce((sum, p) => sum + p.amount, 0);
 
     // Get UTXOs from liquidity and payment addresses (excludes deposit address UTXOs)
-    const minConf = this.nodeConfig.allowUnconfirmedUtxos ? 0 : 1;
-    const utxos = await this.callNode(
-      () => this.rpc.listUnspent(minConf, 9999999, [this.walletAddress, this.paymentAddress]),
-      true,
+    const utxos = await this.getUtxoForAddresses(
+      [this.walletAddress, this.paymentAddress],
+      this.nodeConfig.allowUnconfirmedUtxos,
     );
 
     if (!utxos || utxos.length === 0) {
