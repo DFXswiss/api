@@ -14,7 +14,11 @@ import { PayInEntry } from '../../../../interfaces';
 import { RegisterStrategy } from './register.strategy';
 
 export interface PayInCitreaServiceInterface {
-  getHistory(address: string, fromBlock: number, toBlock?: number): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]>;
+  getHistory(
+    address: string,
+    fromBlock: number,
+    toBlock?: number,
+  ): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]>;
 }
 
 export abstract class CitreaBaseStrategy extends RegisterStrategy {
