@@ -19,7 +19,7 @@ export enum SpecialExternalAccountType {
   BANNED_MAIL = 'BannedMail',
   BANNED_ACCOUNT_IBAN = 'BannedAccountIban',
   AML_PHONE_CALL_NEEDED_BIC_BUY = 'AmlPhoneCallNeededBicBuy',
-  AML_PHONE_CALL_NEEDED_BLZ_BUY = 'AmlPhoneCallNeededBicBuy',
+  AML_PHONE_CALL_NEEDED_BLZ_BUY = 'AmlPhoneCallNeededBlzBuy',
   AML_PHONE_CALL_NEEDED_IBAN_BUY = 'AmlPhoneCallNeededIbanBuy',
 }
 
