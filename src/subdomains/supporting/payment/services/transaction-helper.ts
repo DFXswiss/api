@@ -399,14 +399,10 @@ export class TransactionHelper implements OnModuleInit {
     refundTarget: string,
     isFiat: boolean,
   ): Promise<RefundDataDto> {
-    const inputCurrency = await this.getRefundActive(refundEntity);
+    const inputCurrency = await this.getRefundInputCurrency(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
-    // CHF refunds only to domestic IBANs
-    const refundCurrency =
-      isFiat && inputCurrency.name === 'CHF' && refundTarget && !Config.isDomesticIban(refundTarget)
-        ? await this.fiatService.getFiatByName('EUR')
-        : inputCurrency;
+    const refundCurrency = await this.getRefundCurrency(inputCurrency, refundTarget);
 
     const chfPrice =
       refundEntity.manualChfPrice ??
@@ -645,7 +641,17 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
+  async getRefundCurrency(inputCurrency: Active, refundTarget: string): Promise<Active> {
+    // CHF refunds only to domestic IBANs
+    return isFiat(inputCurrency) &&
+      inputCurrency?.name === 'CHF' &&
+      refundTarget &&
+      !Config.isDomesticIban(refundTarget)
+      ? this.fiatService.getFiatByName('EUR')
+      : inputCurrency;
+  }
+
+  async getRefundInputCurrency(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
     if (refundEntity instanceof BankTxReturn) return this.fiatService.getFiatByName(refundEntity.bankTx.currency);
     if (refundEntity instanceof BankTx) return this.fiatService.getFiatByName(refundEntity.currency);
     if (refundEntity instanceof BuyCrypto && refundEntity.bankTx)
