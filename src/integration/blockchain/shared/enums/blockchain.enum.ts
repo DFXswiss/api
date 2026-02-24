@@ -16,6 +16,7 @@ export enum Blockchain {
   LIQUID = 'Liquid',
   ARWEAVE = 'Arweave',
   CARDANO = 'Cardano',
+  INTERNET_COMPUTER = 'InternetComputer',
   DEFICHAIN = 'DeFiChain',
   RAILGUN = 'Railgun',
   SOLANA = 'Solana',

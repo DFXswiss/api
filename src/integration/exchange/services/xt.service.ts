@@ -34,6 +34,7 @@ export class XtService extends ExchangeService {
     KucoinPay: undefined,
     Solana: undefined,
     Tron: undefined,
+    InternetComputer: undefined,
     Citrea: undefined,
     CitreaTestnet: undefined,
     BitcoinTestnet4: undefined,

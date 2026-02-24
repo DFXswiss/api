@@ -92,6 +92,12 @@ describe('CryptoService', () => {
   it('should match tron addresses', async () => {
     expect(getBlockchain('TRmumx428iKqDQkBMhtjK8DQgcfYK7NdZP')).toEqual(Blockchain.TRON);
   });
+
+  it('should match internet computer addresses', async () => {
+    expect(getBlockchain('rjyxf-rur4n-jwk64-rsslr-kppnq-irqqy-s2wil-peeif-k3syc-intp2-uae')).toEqual(
+      Blockchain.INTERNET_COMPUTER,
+    );
+  });
 });
 
 function getBlockchain(address: string): Blockchain {

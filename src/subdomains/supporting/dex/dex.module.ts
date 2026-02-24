@@ -18,6 +18,7 @@ import { DexCitreaService } from './services/dex-citrea.service';
 import { DexEthereumService } from './services/dex-ethereum.service';
 import { DexFiroService } from './services/dex-firo.service';
 import { DexGnosisService } from './services/dex-gnosis.service';
+import { DexIcpService } from './services/dex-icp.service';
 import { DexLightningService } from './services/dex-lightning.service';
 import { DexMoneroService } from './services/dex-monero.service';
 import { DexOptimismService } from './services/dex-optimism.service';
@@ -47,6 +48,8 @@ import { EthereumTokenStrategy as EthereumTokenStrategyCL } from './strategies/c
 import { FiroCoinStrategy as FiroCoinStrategyCL } from './strategies/check-liquidity/impl/firo-coin.strategy';
 import { GnosisCoinStrategy as GnosisCoinStrategyCL } from './strategies/check-liquidity/impl/gnosis-coin.strategy';
 import { GnosisTokenStrategy as GnosisTokenStrategyCL } from './strategies/check-liquidity/impl/gnosis-token.strategy';
+import { IcpCoinStrategy as IcpCoinStrategyCL } from './strategies/check-liquidity/impl/icp-coin.strategy';
+import { IcpTokenStrategy as IcpTokenStrategyCL } from './strategies/check-liquidity/impl/icp-token.strategy';
 import { LightningStrategy as LightningStrategyCL } from './strategies/check-liquidity/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyCL } from './strategies/check-liquidity/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyCL } from './strategies/check-liquidity/impl/optimism-coin.strategy';
@@ -81,6 +84,8 @@ import { EthereumTokenStrategy as EthereumTokenStrategyPL } from './strategies/p
 import { FiroStrategy as FiroStrategyPL } from './strategies/purchase-liquidity/impl/firo.strategy';
 import { GnosisCoinStrategy as GnosisCoinStrategyPL } from './strategies/purchase-liquidity/impl/gnosis-coin.strategy';
 import { GnosisTokenStrategy as GnosisTokenStrategyPL } from './strategies/purchase-liquidity/impl/gnosis-token.strategy';
+import { IcpCoinStrategy as IcpCoinStrategyPL } from './strategies/purchase-liquidity/impl/icp-coin.strategy';
+import { IcpTokenStrategy as IcpTokenStrategyPL } from './strategies/purchase-liquidity/impl/icp-token.strategy';
 import { MoneroStrategy as MoneroStrategyPL } from './strategies/purchase-liquidity/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyPL } from './strategies/purchase-liquidity/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyPL } from './strategies/purchase-liquidity/impl/optimism-token.strategy';
@@ -114,6 +119,8 @@ import { EthereumTokenStrategy as EthereumTokenStrategySL } from './strategies/s
 import { FiroStrategy as FiroStrategySL } from './strategies/sell-liquidity/impl/firo.strategy';
 import { GnosisCoinStrategy as GnosisCoinStrategySL } from './strategies/sell-liquidity/impl/gnosis-coin.strategy';
 import { GnosisTokenStrategy as GnosisTokenStrategySL } from './strategies/sell-liquidity/impl/gnosis-token.strategy';
+import { IcpCoinStrategy as IcpCoinStrategySL } from './strategies/sell-liquidity/impl/icp-coin.strategy';
+import { IcpTokenStrategy as IcpTokenStrategySL } from './strategies/sell-liquidity/impl/icp-token.strategy';
 import { MoneroStrategy as MoneroStrategySL } from './strategies/sell-liquidity/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategySL } from './strategies/sell-liquidity/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategySL } from './strategies/sell-liquidity/impl/optimism-token.strategy';
@@ -139,6 +146,7 @@ import { CitreaStrategy as CitreaStrategyS } from './strategies/supplementary/im
 import { EthereumStrategy as EthereumStrategyS } from './strategies/supplementary/impl/ethereum.strategy';
 import { FiroStrategy as FiroStrategyS } from './strategies/supplementary/impl/firo.strategy';
 import { GnosisStrategy as GnosisStrategyS } from './strategies/supplementary/impl/gnosis.strategy';
+import { IcpStrategy as IcpStrategyS } from './strategies/supplementary/impl/icp.strategy';
 import { MoneroStrategy as MoneroStrategyS } from './strategies/supplementary/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementary/impl/optimism.strategy';
 import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/impl/polygon.strategy';
@@ -173,6 +181,7 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     DexSolanaService,
     DexTronService,
     DexCardanoService,
+    DexIcpService,
     CheckLiquidityStrategyRegistry,
     PurchaseLiquidityStrategyRegistry,
     SellLiquidityStrategyRegistry,
@@ -210,6 +219,8 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     TronTokenStrategyCL,
     CardanoCoinStrategyCL,
     CardanoTokenStrategyCL,
+    IcpCoinStrategyCL,
+    IcpTokenStrategyCL,
     EthereumCoinStrategyPL,
     BscCoinStrategyPL,
     BitcoinStrategyPL,
@@ -242,6 +253,8 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     TronTokenStrategyPL,
     CardanoCoinStrategyPL,
     CardanoTokenStrategyPL,
+    IcpCoinStrategyPL,
+    IcpTokenStrategyPL,
     BitcoinStrategySL,
     BitcoinTestnet4StrategySL,
     FiroStrategySL,
@@ -274,6 +287,8 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     TronTokenStrategySL,
     CardanoCoinStrategySL,
     CardanoTokenStrategySL,
+    IcpCoinStrategySL,
+    IcpTokenStrategySL,
     ArbitrumStrategyS,
     BitcoinStrategyS,
     BitcoinTestnet4StrategyS,
@@ -292,6 +307,7 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     GnosisStrategyS,
     TronStrategyS,
     CardanoStrategyS,
+    IcpStrategyS,
   ],
   exports: [DexService],
 })

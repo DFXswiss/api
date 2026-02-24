@@ -20,6 +20,7 @@ import { PayoutTronService } from '../../../services/payout-tron.service';
 import { PayoutZanoService } from '../../../services/payout-zano.service';
 import { PayoutFiroService } from '../../../services/payout-firo.service';
 import { PayoutCardanoService } from '../../../services/payout-cardano.service';
+import { PayoutInternetComputerService } from '../../../services/payout-icp.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -47,6 +48,8 @@ import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
 import { FiroStrategy } from '../impl/firo.strategy';
 import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
 import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
+import { InternetComputerCoinStrategy } from '../impl/icp-coin.strategy';
+import { InternetComputerTokenStrategy } from '../impl/icp-token.strategy';
 
 describe('PayoutStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
@@ -75,6 +78,8 @@ describe('PayoutStrategyRegistry', () => {
   let tronToken: TronTokenStrategy;
   let cardanoCoin: CardanoCoinStrategy;
   let cardanoToken: CardanoTokenStrategy;
+  let icpCoin: InternetComputerCoinStrategy;
+  let icpToken: InternetComputerTokenStrategy;
 
   let registry: PayoutStrategyRegistryWrapper;
 
@@ -191,6 +196,16 @@ describe('PayoutStrategyRegistry', () => {
       mock<AssetService>(),
       mock<PayoutOrderRepository>(),
     );
+    icpCoin = new InternetComputerCoinStrategy(
+      mock<PayoutInternetComputerService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    icpToken = new InternetComputerTokenStrategy(
+      mock<PayoutInternetComputerService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
 
     registry = new PayoutStrategyRegistryWrapper(
       bitcoin,
@@ -219,6 +234,8 @@ describe('PayoutStrategyRegistry', () => {
       tronToken,
       cardanoCoin,
       cardanoToken,
+      icpCoin,
+      icpToken,
     );
   });
 
@@ -432,6 +449,22 @@ describe('PayoutStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(CardanoTokenStrategy);
       });
 
+      it('gets ICP_COIN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.INTERNET_COMPUTER, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(InternetComputerCoinStrategy);
+      });
+
+      it('gets ICP_TOKEN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.INTERNET_COMPUTER, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(InternetComputerTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPayoutStrategy(
@@ -473,6 +506,8 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     tronToken: TronTokenStrategy,
     cardanoCoin: CardanoCoinStrategy,
     cardanoToken: CardanoTokenStrategy,
+    icpCoin: InternetComputerCoinStrategy,
+    icpToken: InternetComputerTokenStrategy,
   ) {
     super();
 
@@ -503,5 +538,7 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     this.add({ blockchain: Blockchain.TRON, assetType: AssetType.TOKEN }, tronToken);
     this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.COIN }, cardanoCoin);
     this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.TOKEN }, cardanoToken);
+    this.add({ blockchain: Blockchain.INTERNET_COMPUTER, assetType: AssetType.COIN }, icpCoin);
+    this.add({ blockchain: Blockchain.INTERNET_COMPUTER, assetType: AssetType.TOKEN }, icpToken);
   }
 }

@@ -161,8 +161,9 @@ export class Configuration {
   solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{43,44}';
   tronAddressFormat = 'T[1-9A-HJ-NP-Za-km-z]{32,34}';
   zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
+  internetComputerPrincipalFormat = '[a-z0-9]{5}(-[a-z0-9]{5})*(-[a-z0-9]{1,5})?';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -178,13 +179,15 @@ export class Configuration {
   solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
   tronSignatureFormat = '(0x)?[a-f0-9]{130}';
   zanoSignatureFormat = '[a-f0-9]{128}';
+  internetComputerSignatureFormat = '[a-f0-9]{128,144}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}|${this.internetComputerSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '.*';
+  internetComputerKeyFormat = '[a-f0-9]{64,130}';
 
-  allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}`;
+  allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}|${this.internetComputerKeyFormat}`;
 
   formats = {
     address: new RegExp(`^(${this.allAddressFormat})$`),
@@ -629,16 +632,19 @@ export class Configuration {
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
     cardanoSeed: process.env.PAYMENT_CARDANO_SEED,
+    internetComputerSeed: process.env.PAYMENT_INTERNET_COMPUTER_SEED,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     firoAddress: process.env.PAYMENT_FIRO_ADDRESS,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
     minConfirmations: (blockchain: Blockchain) =>
-      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.FIRO, Blockchain.MONERO, Blockchain.ZANO].includes(
-        blockchain,
-      )
-        ? 6
-        : 100,
+      blockchain === Blockchain.INTERNET_COMPUTER
+        ? 1
+        : [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.FIRO, Blockchain.MONERO, Blockchain.ZANO].includes(
+            blockchain,
+          )
+          ? 6
+          : 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
     cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
@@ -968,6 +974,17 @@ export class Configuration {
 
       walletAccount: (accountIndex: number): WalletAccount => ({
         seed: this.blockchain.cardano.cardanoWalletSeed,
+        index: accountIndex,
+      }),
+    },
+    internetComputer: {
+      internetComputerHost: 'https://ic0.app',
+      internetComputerWalletSeed: process.env.ICP_WALLET_SEED,
+      internetComputerLedgerCanisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
+      transferFee: 0.0001,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.internetComputer.internetComputerWalletSeed,
         index: accountIndex,
       }),
     },

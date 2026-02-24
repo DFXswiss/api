@@ -13,6 +13,7 @@ import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/services/bitcoin.service';
 import { CardanoService } from '../../cardano/services/cardano.service';
 import { FiroService } from '../../firo/services/firo.service';
+import { InternetComputerService } from '../../icp/services/icp.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
@@ -41,6 +42,7 @@ export class CryptoService {
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
     private readonly cardanoService: CardanoService,
+    private readonly internetComputerService: InternetComputerService,
     private readonly arweaveService: ArweaveService,
     private readonly railgunService: RailgunService,
     private readonly blockchainRegistry: BlockchainRegistryService,
@@ -96,6 +98,9 @@ export class CryptoService {
 
       case Blockchain.CARDANO:
         return this.cardanoService.getPaymentRequest(address, amount);
+
+      case Blockchain.INTERNET_COMPUTER:
+        return this.internetComputerService.getPaymentRequest(address, amount);
 
       default:
         return undefined;
@@ -155,6 +160,9 @@ export class CryptoService {
       case Blockchain.CARDANO:
         return UserAddressType.CARDANO;
 
+      case Blockchain.INTERNET_COMPUTER:
+        return UserAddressType.INTERNET_COMPUTER;
+
       case Blockchain.RAILGUN:
         return UserAddressType.RAILGUN;
 
@@ -180,6 +188,7 @@ export class CryptoService {
     if (CryptoService.isLiquidAddress(address)) return [Blockchain.LIQUID];
     if (CryptoService.isArweaveAddress(address)) return [Blockchain.ARWEAVE];
     if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
+    if (CryptoService.isInternetComputerAddress(address)) return [Blockchain.INTERNET_COMPUTER];
     if (CryptoService.isRailgunAddress(address)) return [Blockchain.RAILGUN];
     if (CryptoService.isDefichainAddress(address)) return [Blockchain.DEFICHAIN];
     return [];
@@ -234,6 +243,10 @@ export class CryptoService {
     return new RegExp(`^(${Config.cardanoAddressFormat})$`).test(address);
   }
 
+  public static isInternetComputerAddress(address: string): boolean {
+    return new RegExp(`^(${Config.internetComputerPrincipalFormat})$`).test(address);
+  }
+
   public static isRailgunAddress(address: string): boolean {
     return new RegExp(`^(${Config.railgunAddressFormat})$`).test(address);
   }
@@ -275,6 +288,8 @@ export class CryptoService {
       if (detectedBlockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
       if (detectedBlockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
       if (detectedBlockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
+      if (detectedBlockchain === Blockchain.INTERNET_COMPUTER)
+        return await this.verifyInternetComputer(message, address, signature, key);
       if (detectedBlockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
     } catch (e) {
       if (e instanceof SignatureException) throw new BadRequestException(e.message);
@@ -377,6 +392,15 @@ export class CryptoService {
 
   private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {
     return this.cardanoService.verifySignature(message, address, signature, key);
+  }
+
+  private async verifyInternetComputer(
+    message: string,
+    address: string,
+    signature: string,
+    key?: string,
+  ): Promise<boolean> {
+    return this.internetComputerService.verifySignature(message, address, signature, key);
   }
 
   private async verifyArweave(message: string, signature: string, key: string): Promise<boolean> {
