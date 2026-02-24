@@ -33,6 +33,7 @@ import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
 import { ZanoCoinStrategy } from '../impl/zano-coin.strategy';
 import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
+import { FiroStrategy } from '../impl/firo.strategy';
 import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
 import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
 
@@ -42,6 +43,7 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
   let monero: MoneroStrategy;
   let zanoCoin: ZanoCoinStrategy;
   let zanoToken: ZanoTokenStrategy;
+  let firo: FiroStrategy;
   let arbitrumCoin: ArbitrumCoinStrategy;
   let arbitrumToken: ArbitrumTokenStrategy;
   let bscCoin: BscCoinStrategy;
@@ -72,6 +74,8 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
 
     zanoCoin = new ZanoCoinStrategy();
     zanoToken = new ZanoTokenStrategy();
+
+    firo = new FiroStrategy();
 
     arbitrumCoin = new ArbitrumCoinStrategy(mock<DexArbitrumService>());
     arbitrumToken = new ArbitrumTokenStrategy(mock<DexArbitrumService>());
@@ -109,6 +113,7 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       monero,
       zanoCoin,
       zanoToken,
+      firo,
       arbitrumCoin,
       arbitrumToken,
       bscCoin,
@@ -172,6 +177,14 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(ZanoTokenStrategy);
+      });
+
+      it('gets FIRO strategy for FIRO Crypto', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.FIRO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(FiroStrategy);
       });
 
       it('gets ARBITRUM_COIN strategy', () => {
@@ -360,6 +373,7 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     monero: MoneroStrategy,
     zanoCoin: ZanoCoinStrategy,
     zanoToken: ZanoTokenStrategy,
+    firo: FiroStrategy,
     arbitrumCoin: ArbitrumCoinStrategy,
     arbitrumToken: ArbitrumTokenStrategy,
     bscCoin: BscCoinStrategy,
@@ -388,6 +402,7 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     this.add({ blockchain: Blockchain.MONERO, assetType: AssetType.COIN }, monero);
     this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.COIN }, zanoCoin);
     this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.TOKEN }, zanoToken);
+    this.add({ blockchain: Blockchain.FIRO, assetType: AssetType.COIN }, firo);
 
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.COIN }, arbitrumCoin);
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);

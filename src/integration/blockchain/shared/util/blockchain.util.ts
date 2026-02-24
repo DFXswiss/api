@@ -35,6 +35,7 @@ export const PaymentLinkBlockchains = [
   Blockchain.GNOSIS,
   Blockchain.BINANCE_SMART_CHAIN,
   Blockchain.BITCOIN,
+  Blockchain.FIRO,
   Blockchain.ZANO,
   Blockchain.BINANCE_PAY,
   Blockchain.KUCOIN_PAY,
@@ -68,6 +69,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.BITCOIN]: 'https://mempool.space',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.SPARK]: 'https://sparkscan.io',
+  [Blockchain.FIRO]: 'https://explorer.firo.org',
   [Blockchain.MONERO]: 'https://xmrscan.org',
   [Blockchain.ZANO]: 'https://explorer.zano.org',
   [Blockchain.ETHEREUM]: 'https://etherscan.io',
@@ -106,6 +108,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.BITCOIN]: 'tx',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.SPARK]: 'tx',
+  [Blockchain.FIRO]: 'tx',
   [Blockchain.MONERO]: 'tx',
   [Blockchain.ZANO]: 'transaction',
   [Blockchain.ETHEREUM]: 'tx',
@@ -147,6 +150,7 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.BITCOIN:
     case Blockchain.BITCOIN_TESTNET4:
     case Blockchain.LIGHTNING:
+    case Blockchain.FIRO:
     case Blockchain.MONERO:
       return undefined;
 
@@ -182,6 +186,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.DEFICHAIN:
     case Blockchain.BITCOIN:
     case Blockchain.BITCOIN_TESTNET4:
+    case Blockchain.FIRO:
     case Blockchain.ETHEREUM:
     case Blockchain.BINANCE_SMART_CHAIN:
     case Blockchain.OPTIMISM:

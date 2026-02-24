@@ -19,8 +19,9 @@ export class PaymentRequestMapper {
       case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
       case Blockchain.BINANCE_SMART_CHAIN:
-      case Blockchain.MONERO:
       case Blockchain.BITCOIN:
+      case Blockchain.FIRO:
+      case Blockchain.MONERO:
       case Blockchain.ZANO:
       case Blockchain.SOLANA:
       case Blockchain.TRON:
