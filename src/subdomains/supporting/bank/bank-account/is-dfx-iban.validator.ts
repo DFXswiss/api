@@ -8,6 +8,7 @@ import {
 } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { SpecialExternalAccountType } from '../../payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from '../../payment/services/special-external-account.service';
 import { Bank } from '../bank/bank.entity';
@@ -30,6 +31,7 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   ) {}
 
   private blockedIbans: string[] = [];
+  private blockedBLZs: string[] = [];
   private blockedBICs: string[] = [];
   private dfxBanks: Bank[] = [];
   private currentBIC: string = undefined;
@@ -37,11 +39,23 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   async validate(_: string, args: ValidationArguments) {
     // blacklist types
     const type = args.constraints[0];
-    const types = [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_BIC];
+    const types = [
+      SpecialExternalAccountType.BANNED_IBAN,
+      SpecialExternalAccountType.BANNED_BLZ,
+      SpecialExternalAccountType.BANNED_BIC,
+    ];
     if ([IbanType.BUY, IbanType.BOTH].includes(type))
-      types.push(SpecialExternalAccountType.BANNED_IBAN_BUY, SpecialExternalAccountType.BANNED_BIC_BUY);
+      types.push(
+        SpecialExternalAccountType.BANNED_IBAN_BUY,
+        SpecialExternalAccountType.BANNED_BLZ_BUY,
+        SpecialExternalAccountType.BANNED_BIC_BUY,
+      );
     if ([IbanType.SELL, IbanType.BOTH].includes(type))
-      types.push(SpecialExternalAccountType.BANNED_IBAN_SELL, SpecialExternalAccountType.BANNED_BIC_SELL);
+      types.push(
+        SpecialExternalAccountType.BANNED_IBAN_SELL,
+        SpecialExternalAccountType.BANNED_BLZ_SELL,
+        SpecialExternalAccountType.BANNED_BIC_SELL,
+      );
 
     const blacklists = await this.specialExternalAccountService.getBlacklist(types);
 
@@ -53,6 +67,15 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
           SpecialExternalAccountType.BANNED_IBAN,
           SpecialExternalAccountType.BANNED_IBAN_BUY,
           SpecialExternalAccountType.BANNED_IBAN_SELL,
+        ].includes(b.type),
+      )
+      .map((b) => b.value);
+    this.blockedBLZs = blacklists
+      .filter((b) =>
+        [
+          SpecialExternalAccountType.BANNED_BLZ,
+          SpecialExternalAccountType.BANNED_BLZ_BUY,
+          SpecialExternalAccountType.BANNED_BLZ_SELL,
         ].includes(b.type),
       )
       .map((b) => b.value);
@@ -85,6 +108,8 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
     // check blocked IBANs
     const isBlocked = this.blockedIbans.some((i) => new RegExp(i.toLowerCase()).test(iban.toLowerCase()));
     if (isBlocked) return `${args.property} not allowed`;
+
+    if (this.blockedBLZs.some((i) => new RegExp(i).test(Util.getBLZ(iban)))) return `${args.property} not allowed`;
 
     if (this.blockedBICs.some((b) => new RegExp(b.toLowerCase()).test(this.currentBIC?.toLowerCase())))
       return `${args.property} BIC not allowed`;
