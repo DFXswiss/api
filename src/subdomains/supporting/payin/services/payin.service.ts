@@ -70,9 +70,9 @@ export class PayInService {
     return payIn;
   }
 
-  async pollAddress(address: BlockchainAddress): Promise<void> {
+  async pollAddress(address: BlockchainAddress, fromBlock?: number, toBlock?: number): Promise<void> {
     const registerStrategy = this.registerStrategyRegistry.get(address.blockchain);
-    if (registerStrategy.pollAddress) return registerStrategy.pollAddress(address);
+    if (registerStrategy.pollAddress) return registerStrategy.pollAddress(address, fromBlock, toBlock);
 
     throw new BadRequestException(`Address poll not supported for ${address.blockchain}`);
   }

@@ -22,6 +22,28 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
 
   protected abstract getOwnAddresses(): string[];
 
+  // --- POLL ADDRESS --- //
+
+  async pollAddress(depositAddress: BlockchainAddress, fromBlock?: number, toBlock?: number): Promise<void> {
+    if (depositAddress.blockchain !== this.blockchain)
+      throw new Error(`Invalid blockchain: ${depositAddress.blockchain}`);
+
+    toBlock ??= await this.alchemyService.getBlockNumber(this.blockchain);
+    fromBlock ??= await this.payInRepository
+      .findOne({
+        where: { address: { address: depositAddress.address, blockchain: depositAddress.blockchain } },
+        order: { blockHeight: 'DESC' },
+      })
+      .then((p) => p?.blockHeight ?? toBlock - 1000);
+
+    await this.alchemyService.syncTransactions({
+      blockchain: this.blockchain,
+      address: depositAddress.address,
+      fromBlock,
+      toBlock,
+    });
+  }
+
   // --- WEBHOOKS --- //
 
   protected processAddressWebhookMessageQueue(dto: AlchemyWebhookDto): void {
@@ -108,14 +130,17 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
     const rawValue = transaction.rawContract.rawValue;
     if (!rawValue || rawValue === '0x') return;
 
+    const asset = this.getTransactionAsset(supportedAssets, transaction.rawContract.address);
+    const decimals = transaction.rawContract.decimals ?? asset?.decimals;
+
     return {
       senderAddresses: transaction.fromAddress,
       receiverAddress: BlockchainAddress.create(transaction.toAddress, this.blockchain),
       txId: transaction.hash,
       txType: this.getTxType(transaction.toAddress),
       blockHeight: Number(transaction.blockNum),
-      amount: Util.floorByPrecision(EvmUtil.fromWeiAmount(rawValue, transaction.rawContract.decimals), 15), // temporary precision fix
-      asset: this.getTransactionAsset(supportedAssets, transaction.rawContract.address) ?? null,
+      amount: Util.floorByPrecision(EvmUtil.fromWeiAmount(rawValue, decimals), 15), // temporary precision fix
+      asset: asset ?? null,
     };
   }
 }
