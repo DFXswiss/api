@@ -83,3 +83,12 @@ export enum UserDataStatus {
 export enum Moderator {
   WENDEL = 'Wendel',
 }
+
+export enum TradeApprovalReason {
+  USER_DATA_MERGE = 'UserDataMerge',
+  PERSONAL_DATA_ORGANIZATION = 'PersonalDataOrganization',
+  KYC_STEP_COMPLETED = 'KycStepCompleted',
+  MAIL_INVITATION = 'MailInvitation',
+  RECOMMENDATION_CONFIRMED = 'RecommendationConfirmed',
+  AUTO_TRADE_APPROVAL_USER_DATA_CREATED = 'AutoTradeApprovalUserDataCreated',
+}

@@ -32,7 +32,7 @@ import { UserDataRelationService } from '../../user/models/user-data-relation/us
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
+import { KycLevel, KycType, TradeApprovalReason, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -1355,8 +1355,10 @@ export class KycService {
   }
 
   async completeRecommendation(userData: UserData): Promise<void> {
-    if (!userData.tradeApprovalDate)
+    if (!userData.tradeApprovalDate) {
       await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
+      await this.userDataService.createTradeApprovalLog(userData, TradeApprovalReason.KYC_STEP_COMPLETED);
+    }
   }
 
   private getStepDefaultErrors(entity: KycStep): KycError[] {

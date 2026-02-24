@@ -66,7 +66,7 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, UserDataStatus } from './user-data.enum';
+import { KycLevel, TradeApprovalReason, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -272,11 +272,7 @@ export class UserDataService {
 
     await this.loadRelationsAndVerify(entity, dto);
 
-    const userData = await this.userDataRepo.save(entity);
-
-    if (dto.tradeApprovalDate) await this.createTradeApprovalLog(userData, dto.tradeApprovalDate);
-
-    return userData;
+    return this.userDataRepo.save(entity);
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
@@ -466,8 +462,6 @@ export class UserDataService {
 
     if (dto.kycLevel && dto.kycLevel < userData.kycLevel) dto.kycLevel = userData.kycLevel;
 
-    if (dto.tradeApprovalDate) await this.createTradeApprovalLog(userData, dto.tradeApprovalDate);
-
     await this.userDataRepo.update(userData.id, dto);
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
@@ -586,7 +580,12 @@ export class UserDataService {
     }
 
     if (update.mail) await this.kycLogService.createMailChangeLog(userData, userData.mail, update.mail);
-    if (update.tradeApprovalDate) await this.createTradeApprovalLog(userData, update.tradeApprovalDate);
+    if (update.tradeApprovalDate)
+      await this.createTradeApprovalLog(
+        userData,
+        TradeApprovalReason.PERSONAL_DATA_ORGANIZATION,
+        update.tradeApprovalDate,
+      );
 
     await this.userDataRepo.update(userData.id, update);
 
@@ -632,6 +631,18 @@ export class UserDataService {
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
+  }
+
+  async createTradeApprovalLog(
+    userData: UserData,
+    reason: TradeApprovalReason,
+    tradeApprovalDate?: Date,
+  ): Promise<void> {
+    return this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.KYC,
+      `TradeApprovalDate set to ${(tradeApprovalDate ?? userData.tradeApprovalDate).toISOString()}, reason: ${reason}`,
+    );
   }
 
   // --- MAIL UPDATE --- //
@@ -836,13 +847,6 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
-  private async createTradeApprovalLog(userData: UserData, tradeApprovalDate: Date): Promise<void> {
-    return this.kycLogService.createLogInternal(
-      userData,
-      KycLogType.KYC,
-      `TradeApprovalDate set to ${tradeApprovalDate.toISOString()}`,
-    );
-  }
 
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
@@ -1183,7 +1187,7 @@ export class UserDataService {
     if (!master.tradeApprovalDate && slave.tradeApprovalDate) {
       master.tradeApprovalDate = slave.tradeApprovalDate;
 
-      await this.createTradeApprovalLog(master, master.tradeApprovalDate);
+      await this.createTradeApprovalLog(master, TradeApprovalReason.USER_DATA_MERGE);
     }
 
     const pendingRecommendation = master.kycSteps.find(
