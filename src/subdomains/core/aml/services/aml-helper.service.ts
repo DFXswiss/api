@@ -218,7 +218,7 @@ export class AmlHelperService {
         (entity.bankTx || entity.checkoutTx) &&
         entity.userData.phone &&
         entity.userData.birthday &&
-        (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
+        entity.userData.isPersonalAccount &&
         Util.yearsDiff(entity.userData.birthday) > 55
       )
         errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
@@ -276,7 +276,7 @@ export class AmlHelperService {
 
         if (
           !entity.userData.phoneCallCheckDate &&
-          (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
+          entity.userData.isPersonalAccount &&
           phoneCallList.some((b) =>
             b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY], entity.bankTx.bic),
           )
@@ -284,7 +284,7 @@ export class AmlHelperService {
           errors.push(AmlError.BIC_PHONE_VERIFICATION_NEEDED);
         if (
           !entity.userData.phoneCallCheckDate &&
-          (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
+          entity.userData.isPersonalAccount &&
           phoneCallList.some(
             (b) =>
               b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY], entity.bankTx.iban) ||
@@ -462,11 +462,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_16:
-        if (
-          entity instanceof BuyCrypto &&
-          entity.userData.accountType === AccountType.PERSONAL &&
-          !entity.userData.phoneCallCheckDate
-        )
+        if (entity instanceof BuyCrypto && entity.userData.isPersonalAccount && !entity.userData.phoneCallCheckDate)
           errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
         break;
     }
