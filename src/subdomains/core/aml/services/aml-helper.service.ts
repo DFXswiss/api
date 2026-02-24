@@ -266,12 +266,16 @@ export class AmlHelperService {
           errors.push(AmlError.IBAN_BLACKLISTED);
 
         if (
+          !entity.userData.phoneCallCheckDate &&
+          (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
           phoneCallList.some((b) =>
             b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY], entity.bankTx.bic),
           )
         )
           errors.push(AmlError.BIC_PHONE_VERIFICATION_NEEDED);
         if (
+          !entity.userData.phoneCallCheckDate &&
+          (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
           phoneCallList.some((b) =>
             b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY], entity.bankTx.iban),
           )
