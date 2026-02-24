@@ -157,14 +157,19 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
-    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
-      from: this.walletAddress,
-      to: token.chainId,
-      data: this.dummyTokenPayload,
-      type: 2,
-    });
+    try {
+      const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
+        from: this.walletAddress,
+        to: token.chainId,
+        data: this.dummyTokenPayload,
+        type: 2,
+      });
 
-    return EvmUtil.fromWeiAmount(totalGasCost);
+      return EvmUtil.fromWeiAmount(totalGasCost);
+    } catch (e) {
+      this.logger.verbose(`Gas estimation failed for token ${token.uniqueName}: ${e.message}. Using default.`);
+      return 0.00001;
+    }
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
