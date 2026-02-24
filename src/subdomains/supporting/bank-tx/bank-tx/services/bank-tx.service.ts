@@ -8,6 +8,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import * as IbanTools from 'ibantools';
 import { Observable, Subject } from 'rxjs';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -21,6 +22,7 @@ import { BankBalanceUpdate } from 'src/subdomains/core/liquidity-management/serv
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -111,6 +113,7 @@ export class BankTxService implements OnModuleInit {
     private readonly virtualIbanService: VirtualIbanService,
     @Inject(forwardRef(() => TransactionNotificationService))
     private readonly transactionNotificationService: TransactionNotificationService,
+    private readonly bankAccountService: BankAccountService,
   ) {}
 
   onModuleInit() {
@@ -305,6 +308,12 @@ export class BankTxService implements OnModuleInit {
 
     entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
+    if (!entity.bic && entity.iban && IbanTools.validateIBAN(entity.iban).valid)
+      entity.bic = await this.bankAccountService
+        .getOrCreateIbanBankAccountInternal(entity.iban, false)
+        .catch(() => null)
+        .then((b) => b?.bic);
+
     return this.bankTxRepo.save(entity);
   }
 
@@ -484,6 +493,12 @@ export class BankTxService implements OnModuleInit {
 
     for (const tx of newTxs) {
       tx.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+
+      if (!tx.bic && tx.iban && IbanTools.validateIBAN(tx.iban).valid)
+        tx.bic = await this.bankAccountService
+          .getOrCreateIbanBankAccountInternal(tx.iban, false)
+          .catch(() => null)
+          .then((b) => b?.bic);
     }
 
     // store batch and entries in one transaction
