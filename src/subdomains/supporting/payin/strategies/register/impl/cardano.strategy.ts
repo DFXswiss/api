@@ -51,22 +51,26 @@ export class CardanoStrategy extends RegisterStrategy {
     await this.processNewPayInEntries(activeDepositAddresses.map((a) => BlockchainAddress.create(a, this.blockchain)));
   }
 
-  async pollAddress(depositAddress: BlockchainAddress): Promise<void> {
+  async pollAddress(depositAddress: BlockchainAddress, fromBlock?: number, toBlock?: number): Promise<void> {
     if (depositAddress.blockchain !== this.blockchain)
       throw new Error(`Invalid blockchain: ${depositAddress.blockchain}`);
 
-    return this.processNewPayInEntries([depositAddress]);
+    return this.processNewPayInEntries([depositAddress], fromBlock, toBlock);
   }
 
-  private async processNewPayInEntries(depositAddresses: BlockchainAddress[]): Promise<void> {
+  private async processNewPayInEntries(
+    depositAddresses: BlockchainAddress[],
+    fromBlock?: number,
+    toBlock?: number,
+  ): Promise<void> {
     const log = this.createNewLogObject();
 
     const newEntries: PayInEntry[] = [];
 
     for (const depositAddress of depositAddresses) {
-      const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight(depositAddress);
+      const from = fromBlock ?? (await this.getLastCheckedBlockHeight(depositAddress)) + 1;
 
-      newEntries.push(...(await this.getNewEntries(depositAddress, lastCheckedBlockHeight)));
+      newEntries.push(...(await this.getNewEntries(depositAddress, from, toBlock)));
     }
 
     if (newEntries?.length) {
@@ -89,13 +93,15 @@ export class CardanoStrategy extends RegisterStrategy {
 
   private async getNewEntries(
     depositAddress: BlockchainAddress,
-    lastCheckedBlockHeight: number,
+    fromBlock: number,
+    toBlock?: number,
   ): Promise<PayInEntry[]> {
     const transactions = await this.payInCardanoService.getHistoryForAddress(depositAddress.address, 50);
     const relevantTransactions = this.filterByRelevantTransactions(
       transactions,
       depositAddress,
-      lastCheckedBlockHeight,
+      fromBlock,
+      toBlock,
     );
 
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
@@ -106,11 +112,13 @@ export class CardanoStrategy extends RegisterStrategy {
   private filterByRelevantTransactions(
     transactions: CardanoTransactionDto[],
     depositAddress: BlockchainAddress,
-    lastCheckedBlockHeight: number,
+    fromBlock: number,
+    toBlock?: number,
   ): CardanoTransactionDto[] {
     return transactions
       .filter((t) => t.to.toLowerCase().includes(depositAddress.address.toLowerCase()))
-      .filter((t) => t.blockNumber > lastCheckedBlockHeight);
+      .filter((t) => t.blockNumber >= fromBlock)
+      .filter((t) => !toBlock || t.blockNumber <= toBlock);
   }
 
   private async mapToPayInEntries(

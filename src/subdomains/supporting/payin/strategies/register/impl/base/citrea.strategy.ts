@@ -14,7 +14,7 @@ import { PayInEntry } from '../../../../interfaces';
 import { RegisterStrategy } from './register.strategy';
 
 export interface PayInCitreaServiceInterface {
-  getHistory(address: string, fromBlock: number): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]>;
+  getHistory(address: string, fromBlock: number, toBlock?: number): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]>;
 }
 
 export abstract class CitreaBaseStrategy extends RegisterStrategy {
@@ -43,22 +43,26 @@ export abstract class CitreaBaseStrategy extends RegisterStrategy {
     await this.processNewPayInEntries(activeDepositAddresses.map((a) => BlockchainAddress.create(a, this.blockchain)));
   }
 
-  async pollAddress(depositAddress: BlockchainAddress): Promise<void> {
+  async pollAddress(depositAddress: BlockchainAddress, fromBlock?: number, toBlock?: number): Promise<void> {
     if (depositAddress.blockchain !== this.blockchain)
       throw new Error(`Invalid blockchain: ${depositAddress.blockchain}`);
 
-    return this.processNewPayInEntries([depositAddress]);
+    return this.processNewPayInEntries([depositAddress], fromBlock, toBlock);
   }
 
-  private async processNewPayInEntries(depositAddresses: BlockchainAddress[]): Promise<void> {
+  private async processNewPayInEntries(
+    depositAddresses: BlockchainAddress[],
+    fromBlock?: number,
+    toBlock?: number,
+  ): Promise<void> {
     const log = this.createNewLogObject();
 
     const newEntries: PayInEntry[] = [];
 
     for (const depositAddress of depositAddresses) {
-      const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight(depositAddress);
+      const from = fromBlock ?? (await this.getLastCheckedBlockHeight(depositAddress)) + 1;
 
-      newEntries.push(...(await this.getNewEntries(depositAddress, lastCheckedBlockHeight)));
+      newEntries.push(...(await this.getNewEntries(depositAddress, from, toBlock)));
     }
 
     if (newEntries?.length) {
@@ -81,12 +85,13 @@ export abstract class CitreaBaseStrategy extends RegisterStrategy {
 
   private async getNewEntries(
     depositAddress: BlockchainAddress,
-    lastCheckedBlockHeight: number,
+    fromBlock: number,
+    toBlock?: number,
   ): Promise<PayInEntry[]> {
-    const fromBlock = lastCheckedBlockHeight + 1;
     const [coinTransactions, tokenTransactions] = await this.payInCitreaService.getHistory(
       depositAddress.address,
       fromBlock,
+      toBlock,
     );
 
     const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);

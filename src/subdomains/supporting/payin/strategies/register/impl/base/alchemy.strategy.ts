@@ -22,6 +22,28 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
 
   protected abstract getOwnAddresses(): string[];
 
+  // --- POLL ADDRESS --- //
+
+  async pollAddress(depositAddress: BlockchainAddress, fromBlock?: number, toBlock?: number): Promise<void> {
+    if (depositAddress.blockchain !== this.blockchain)
+      throw new Error(`Invalid blockchain: ${depositAddress.blockchain}`);
+
+    toBlock ??= await this.alchemyService.getBlockNumber(this.blockchain);
+    fromBlock ??= await this.payInRepository
+      .findOne({
+        where: { address: { address: depositAddress.address, blockchain: depositAddress.blockchain } },
+        order: { blockHeight: 'DESC' },
+      })
+      .then((p) => p?.blockHeight ?? toBlock - 1000);
+
+    await this.alchemyService.syncTransactions({
+      blockchain: this.blockchain,
+      address: depositAddress.address,
+      fromBlock,
+      toBlock,
+    });
+  }
+
   // --- WEBHOOKS --- //
 
   protected processAddressWebhookMessageQueue(dto: AlchemyWebhookDto): void {
