@@ -581,11 +581,7 @@ export class UserDataService {
 
     if (update.mail) await this.kycLogService.createMailChangeLog(userData, userData.mail, update.mail);
     if (update.tradeApprovalDate)
-      await this.createTradeApprovalLog(
-        userData,
-        TradeApprovalReason.PERSONAL_DATA_ORGANIZATION,
-        update.tradeApprovalDate,
-      );
+      await this.createTradeApprovalLog(userData, TradeApprovalReason.ORGANIZATION, update.tradeApprovalDate);
 
     await this.userDataRepo.update(userData.id, update);
 

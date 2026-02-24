@@ -86,7 +86,7 @@ export enum Moderator {
 
 export enum TradeApprovalReason {
   USER_DATA_MERGE = 'UserDataMerge',
-  PERSONAL_DATA_ORGANIZATION = 'PersonalDataOrganization',
+  ORGANIZATION = 'Organization',
   KYC_STEP_COMPLETED = 'KycStepCompleted',
   MAIL_INVITATION = 'MailInvitation',
   RECOMMENDATION_CONFIRMED = 'RecommendationConfirmed',
