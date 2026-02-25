@@ -637,14 +637,15 @@ export class Configuration {
     firoAddress: process.env.PAYMENT_FIRO_ADDRESS,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
-    minConfirmations: (blockchain: Blockchain) =>
-      blockchain === Blockchain.INTERNET_COMPUTER
-        ? 1
-        : [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.FIRO, Blockchain.MONERO, Blockchain.ZANO].includes(
-              blockchain,
-            )
-          ? 6
-          : 100,
+    minConfirmations: (blockchain: Blockchain): number =>
+      ({
+        [Blockchain.ETHEREUM]: 6,
+        [Blockchain.BITCOIN]: 6,
+        [Blockchain.FIRO]: 6,
+        [Blockchain.MONERO]: 6,
+        [Blockchain.ZANO]: 6,
+        [Blockchain.INTERNET_COMPUTER]: 1,
+      })[blockchain] ?? 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
     cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
