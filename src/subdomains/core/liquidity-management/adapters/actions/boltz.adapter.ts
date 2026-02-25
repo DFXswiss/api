@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { randomBytes, createHash } from 'crypto';
 import {
   BoltzClient,
-  ReverseSwapFailedStatuses,
-  ReverseSwapSuccessStatuses,
+  ChainSwapFailedStatuses,
+  ChainSwapSuccessStatuses,
 } from 'src/integration/blockchain/boltz/boltz-client';
 import { BoltzService } from 'src/integration/blockchain/boltz/boltz.service';
 import { CitreaClient } from 'src/integration/blockchain/citrea/citrea-client';
@@ -20,7 +21,7 @@ import { Command, CorrelationId } from '../../interfaces';
 import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 
 export enum BoltzCommands {
-  DEPOSIT = 'deposit', // BTC -> cBTC via Boltz Reverse Swap
+  DEPOSIT = 'deposit', // BTC onchain -> cBTC onchain via Boltz Chain Swap
 }
 
 const CORRELATION_PREFIX = {
@@ -30,7 +31,8 @@ const CORRELATION_PREFIX = {
 interface DepositCorrelationData {
   swapId: string;
   claimAddress: string;
-  invoiceAmountSats: number;
+  lockupAddress: string;
+  userLockAmountSats: number;
 }
 
 @Injectable()
@@ -74,9 +76,10 @@ export class BoltzAdapter extends LiquidityActionAdapter {
   //*** COMMANDS ***//
 
   /**
-   * Deposit BTC -> cBTC via Boltz Reverse Swap.
-   * Creates a reverse swap on Lightning.space, which will send cBTC to the claim address
-   * once the Lightning invoice is paid.
+   * Deposit BTC -> cBTC via Boltz Chain Swap.
+   * Creates a chain swap on Lightning.space (BTC onchain -> cBTC on Citrea).
+   * Boltz provides a lockup address where BTC must be sent.
+   * After confirmation, Boltz sends cBTC to the claim address on Citrea.
    */
   private async deposit(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
@@ -92,13 +95,18 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     }
 
     const claimAddress = this.citreaClient.walletAddress;
-    const invoiceAmountSats = Math.round(maxAmount * 1e8);
+    const userLockAmountSats = Math.round(maxAmount * 1e8);
 
-    // Create reverse swap via Boltz API
-    const swap = await this.boltzClient.createReverseSwap(claimAddress, invoiceAmountSats);
+    // Generate preimage hash (required by Boltz Chain Swap API)
+    const preimage = randomBytes(32);
+    const preimageHash = createHash('sha256').update(preimage).digest('hex');
+
+    // Create chain swap via Boltz API
+    const swap = await this.boltzClient.createChainSwap(preimageHash, claimAddress, userLockAmountSats);
 
     this.logger.info(
-      `Boltz reverse swap created: id=${swap.id}, amount=${invoiceAmountSats} sats, claimAddress=${claimAddress}`,
+      `Boltz chain swap created: id=${swap.id}, amount=${userLockAmountSats} sats, ` +
+        `lockup=${swap.lockupDetails.lockupAddress}, claim=${claimAddress}`,
     );
 
     // Get asset names for order tracking
@@ -111,7 +119,8 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     const correlationData: DepositCorrelationData = {
       swapId: swap.id,
       claimAddress,
-      invoiceAmountSats,
+      lockupAddress: swap.lockupDetails.lockupAddress,
+      userLockAmountSats,
     };
 
     return `${CORRELATION_PREFIX.DEPOSIT}${this.encodeCorrelation(correlationData)}`;
@@ -139,14 +148,14 @@ export class BoltzAdapter extends LiquidityActionAdapter {
 
       this.logger.verbose(`Boltz swap ${correlationData.swapId}: status=${status.status}`);
 
-      if (ReverseSwapFailedStatuses.includes(status.status)) {
+      if (ChainSwapFailedStatuses.includes(status.status)) {
         throw new OrderFailedException(
           `Boltz swap failed: ${status.status}${status.failureReason ? ` (${status.failureReason})` : ''}`,
         );
       }
 
-      if (ReverseSwapSuccessStatuses.includes(status.status)) {
-        order.outputAmount = correlationData.invoiceAmountSats / 1e8;
+      if (ChainSwapSuccessStatuses.includes(status.status)) {
+        order.outputAmount = correlationData.userLockAmountSats / 1e8;
         return true;
       }
 

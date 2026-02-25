@@ -25,31 +25,41 @@ export enum BoltzSwapStatus {
   TRANSACTION_FAILED = 'transaction.failed',
   TRANSACTION_LOCKUP_FAILED = 'transaction.lockupFailed',
 
+  TRANSACTION_SERVER_MEMPOOL = 'transaction.server.mempool',
+  TRANSACTION_SERVER_CONFIRMED = 'transaction.server.confirmed',
+
   MINERFEE_PAID = 'minerfee.paid',
 }
 
-// Reverse Swap success: invoice.settled (Boltz paid the Lightning invoice)
-// Reverse Swap failure: swap.expired, transaction.failed, transaction.refunded
-export const ReverseSwapSuccessStatuses = [BoltzSwapStatus.INVOICE_SETTLED];
-export const ReverseSwapFailedStatuses = [
+// Chain Swap final events (BTC onchain -> cBTC onchain)
+// Success: transaction.claimed
+// Fail: swap.expired, transaction.failed, transaction.refunded
+export const ChainSwapSuccessStatuses = [BoltzSwapStatus.TRANSACTION_CLAIMED];
+export const ChainSwapFailedStatuses = [
   BoltzSwapStatus.EXPIRED,
   BoltzSwapStatus.TRANSACTION_FAILED,
   BoltzSwapStatus.TRANSACTION_REFUNDED,
 ];
 
-export interface BoltzReverseSwapResponse {
-  id: string;
-  invoice: string;
+export interface ChainSwapDetails {
   swapTree: {
     claimLeaf: { output: string; version: number };
     refundLeaf: { output: string; version: number };
   };
   lockupAddress: string;
-  onchainAmount: number;
+  serverPublicKey: string;
   timeoutBlockHeight: number;
-  refundPublicKey?: string;
+  amount: number;
   blindingKey?: string;
   refundAddress?: string;
+  claimAddress?: string;
+  bip21?: string;
+}
+
+export interface BoltzChainSwapResponse {
+  id: string;
+  claimDetails: ChainSwapDetails;
+  lockupDetails: ChainSwapDetails;
 }
 
 export interface BoltzSwapStatusResponse {
@@ -71,21 +81,29 @@ export class BoltzClient {
     private readonly config: BoltzConfig,
   ) {}
 
-  async createReverseSwap(claimAddress: string, invoiceAmount: number): Promise<BoltzReverseSwapResponse> {
-    const url = `${this.config.apiUrl}/v2/swap/reverse`;
+  /**
+   * Create a Chain Swap: BTC (onchain) -> cBTC (Citrea onchain)
+   * For EVM destination chains, only claimAddress is needed (no claimPublicKey).
+   * preimageHash is required by the Boltz API.
+   */
+  async createChainSwap(
+    preimageHash: string,
+    claimAddress: string,
+    userLockAmount: number,
+  ): Promise<BoltzChainSwapResponse> {
+    const url = `${this.config.apiUrl}/v2/swap/chain`;
 
-    // For EVM chains (cBTC on Citrea), Boltz handles the claim via smart contracts.
-    // No preimageHash or claimPublicKey needed - Boltz generates these internally.
     const body = {
       from: 'BTC',
       to: 'cBTC',
+      preimageHash,
       claimAddress,
-      invoiceAmount,
+      userLockAmount,
     };
 
-    this.logger.verbose(`Creating reverse swap: ${invoiceAmount} sats -> ${claimAddress}`);
+    this.logger.verbose(`Creating chain swap: ${userLockAmount} sats, BTC -> cBTC, claim=${claimAddress}`);
 
-    return this.http.post<BoltzReverseSwapResponse>(url, body, { tryCount: 3, retryDelay: 2000 });
+    return this.http.post<BoltzChainSwapResponse>(url, body, { tryCount: 3, retryDelay: 2000 });
   }
 
   async getSwapStatus(swapId: string): Promise<BoltzSwapStatusResponse> {
