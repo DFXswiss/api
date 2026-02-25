@@ -17,6 +17,7 @@ export enum LiquidityManagementSystem {
   BASE_L2_BRIDGE = 'BaseL2Bridge',
   LAYERZERO_BRIDGE = 'LayerZeroBridge',
   CLEMENTINE_BRIDGE = 'ClementineBridge',
+  BOLTZ = 'Boltz',
   LIQUIDITY_PIPELINE = 'LiquidityPipeline',
   FRANKENCOIN = 'Frankencoin',
   DEURO = 'dEURO',
@@ -70,4 +71,5 @@ export const LiquidityManagementBridges = [
   LiquidityManagementSystem.OPTIMISM_L2_BRIDGE,
   LiquidityManagementSystem.LAYERZERO_BRIDGE,
   LiquidityManagementSystem.CLEMENTINE_BRIDGE,
+  LiquidityManagementSystem.BOLTZ,
 ];
