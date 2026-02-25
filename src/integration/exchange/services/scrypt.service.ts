@@ -172,7 +172,7 @@ export class ScryptService extends PricingProvider {
           ClReqID: params.reqId,
           Quantity: params.amount.toString(),
           TransactTime: params.timeStamp.toISOString(),
-          TxHashes: (params.txHashes ?? []).map((hash) => ({ TxHash: hash })),
+          TxHashes: (params.txHashes?.length ? params.txHashes : [params.reqId]).map((hash) => ({ TxHash: hash })),
         },
       ],
     };

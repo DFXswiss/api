@@ -273,6 +273,7 @@ export class Configuration {
     residencePermitCountries: ['RU'],
     maxIdentTries: 7,
     maxRecommendationTries: 3,
+    kycStepExpiry: 90, // days
   };
 
   fileDownloadConfig: {

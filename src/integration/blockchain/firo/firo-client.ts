@@ -56,7 +56,7 @@ export class FiroClient extends BitcoinBasedClient {
       true,
     );
 
-    return utxos?.reduce((sum, u) => sum + u.amount, 0) ?? 0;
+    return this.roundAmount(utxos?.reduce((sum, u) => sum + u.amount, 0) ?? 0);
   }
 
   // Firo's getblock uses boolean verbose, not int verbosity (0/1/2)
