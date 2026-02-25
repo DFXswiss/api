@@ -29,21 +29,35 @@ import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
+import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
-import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import {
+  TransactionRequest,
+  TransactionRequestStatus,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import {
+  TransactionSourceType,
+  TransactionTypeInternal,
+} from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -81,7 +95,6 @@ import {
   TokenInfoDto,
 } from './dto/realunit.dto';
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
-import { RealUnitDevService } from './realunit-dev.service';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
@@ -116,9 +129,11 @@ export class RealUnitService {
     private readonly eip7702DelegationService: Eip7702DelegationService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
-    private readonly accountMergeService: AccountMergeService,
-    private readonly devService: RealUnitDevService,
     private readonly swissQrService: SwissQRService,
+    private readonly buyCryptoRepo: BuyCryptoRepository,
+    private readonly bankTxService: BankTxService,
+    private readonly bankService: BankService,
+    private readonly specialAccountService: SpecialExternalAccountService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -896,22 +911,36 @@ export class RealUnitService {
   // --- Admin Methods ---
 
   async confirmPaymentReceived(requestId: number): Promise<void> {
-    const request = await this.transactionRequestService.getTransactionRequest(requestId, { user: true });
+    const request = await this.transactionRequestService.getTransactionRequest(requestId, {
+      user: { userData: true },
+    });
     if (!request) throw new NotFoundException('Transaction request not found');
     if (request.status !== TransactionRequestStatus.WAITING_FOR_PAYMENT) {
       throw new BadRequestException('Transaction request is not in WaitingForPayment status');
     }
 
+    const buy = await this.buyService.getBuyByKey('id', request.routeId);
+    if (!buy) {
+      this.logger.warn(`Buy route ${request.routeId} not found for TransactionRequest ${request.id}`);
+      return;
+    }
+    const fiat = await this.fiatService.getFiat(request.sourceId);
+    if (!fiat) {
+      this.logger.warn(`Fiat ${request.sourceId} not found for TransactionRequest ${request.id}`);
+      return;
+    }
+    const realuAsset = await this.getRealuAsset();
+
     if ([Environment.DEV, Environment.LOC].includes(Config.environment)) {
-      const realuAsset = await this.getRealuAsset();
-      await this.devService.simulatePaymentForRequest(request, realuAsset);
+      // Simulate payment with BankTx and create transaction records
+      await this.createTransactionWithBankTx(request, buy, fiat.name, realuAsset);
     } else {
+      // Call Aktionariat API first, then create transaction records
       const aktionariatResponse = JSON.parse(request.aktionariatResponse);
       const reference = aktionariatResponse.reference;
       if (!reference) throw new BadRequestException('No reference found in aktionariat response');
 
       // Convert amount to CHF Rappen for Aktionariat API
-      const fiat = await this.fiatService.getFiat(request.sourceId);
       let amountChf = request.amount;
       if (fiat.name !== 'CHF') {
         const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
@@ -922,8 +951,104 @@ export class RealUnitService {
         amount: Math.round(amountChf * 100),
         ref: reference,
       });
-      await this.transactionRequestService.complete(request.id);
+
+      // Create transaction records (without BankTx since payment went to RealUnit's bank)
+      await this.createTransactionWithoutBankTx(request, buy, fiat.name, realuAsset);
     }
+  }
+
+  private async createTransactionWithBankTx(
+    request: TransactionRequest,
+    buy: Buy,
+    fiatName: string,
+    realuAsset: Asset,
+  ): Promise<void> {
+    const simulationMarker = `DEV simulation payment for TransactionRequest ${request.id}`;
+    const existingBankTx = await this.bankTxService.getBankTxByKey('txInfo', simulationMarker);
+    if (existingBankTx) return;
+    const bankName = fiatName === 'CHF' ? IbanBankName.YAPEAL : IbanBankName.OLKY;
+    const bank = await this.bankService.getBankInternal(bankName, fiatName);
+    if (!bank) {
+      this.logger.warn(`Bank ${bankName} for ${fiatName} not found - skipping`);
+      return;
+    }
+    const accountServiceRef = `DEV-SIM-${Util.createUid('SIM')}-${Date.now()}`;
+    const multiAccounts = await this.specialAccountService.getMultiAccounts();
+
+    const bankTx = await this.bankTxService.create(
+      {
+        accountServiceRef,
+        bookingDate: new Date(),
+        valueDate: new Date(),
+        amount: request.amount,
+        txAmount: request.amount,
+        currency: fiatName,
+        txCurrency: fiatName,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        remittanceInfo: buy.bankUsage,
+        iban: 'CH0000000000000000000',
+        name: 'DEV SIMULATION',
+        accountIban: bank.iban,
+        txInfo: `DEV simulation for TransactionRequest ${request.id}`,
+      },
+      multiAccounts,
+    );
+    await this.createBuyCryptoAndComplete(request, buy, fiatName, realuAsset, bankTx.transaction.id, bankTx.id);
+    await this.transactionService.updateInternal(bankTx.transaction, {
+      type: TransactionTypeInternal.BUY_CRYPTO,
+      user: buy.user,
+      userData: buy.user.userData,
+      request,
+    });
+    this.logger.info(
+      `DEV payment confirmed for TransactionRequest ${request.id}: ${request.amount} ${fiatName} -> REALU (Transaction ${bankTx.transaction.id} created with BankTx)`,
+    );
+  }
+
+  private async createTransactionWithoutBankTx(
+    request: TransactionRequest,
+    buy: Buy,
+    fiatName: string,
+    realuAsset: Asset,
+  ): Promise<void> {
+    const transaction = await this.transactionService.create({
+      sourceType: TransactionSourceType.BANK_TX,
+      type: TransactionTypeInternal.BUY_CRYPTO,
+      user: buy.user,
+      userData: buy.user.userData,
+    });
+    await this.transactionService.updateInternal(transaction, { request });
+    await this.createBuyCryptoAndComplete(request, buy, fiatName, realuAsset, transaction.id);
+    this.logger.info(
+      `Payment confirmed for TransactionRequest ${request.id}: ${request.amount} ${fiatName} -> REALU (Transaction ${transaction.id} created)`,
+    );
+  }
+
+  private async createBuyCryptoAndComplete(
+    request: TransactionRequest,
+    buy: Buy,
+    fiatName: string,
+    realuAsset: Asset,
+    transactionId: number,
+    bankTxId?: number,
+  ): Promise<void> {
+    const buyCrypto = this.buyCryptoRepo.create({
+      ...(bankTxId && { bankTx: { id: bankTxId } as any }),
+      buy,
+      inputAmount: request.amount,
+      inputAsset: fiatName,
+      inputReferenceAmount: request.amount,
+      inputReferenceAsset: fiatName,
+      outputAsset: realuAsset,
+      outputReferenceAsset: realuAsset,
+      amlCheck: CheckStatus.PASS,
+      priceDefinitionAllowedDate: new Date(),
+      transaction: { id: transactionId } as any,
+    });
+
+    await this.buyCryptoRepo.save(buyCrypto);
+
+    await this.transactionRequestService.complete(request.id);
   }
 
   async getAdminQuotes(limit = 50, offset = 0): Promise<RealUnitQuoteDto[]> {

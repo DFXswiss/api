@@ -13,7 +13,6 @@ import { PaymentModule } from '../payment/payment.module';
 import { TransactionModule } from '../payment/transaction.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { RealUnitController } from './controllers/realunit.controller';
-import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitService } from './realunit.service';
 
 @Module({
@@ -33,7 +32,7 @@ import { RealUnitService } from './realunit.service';
     forwardRef(() => SellCryptoModule),
   ],
   controllers: [RealUnitController],
-  providers: [RealUnitService, RealUnitDevService],
+  providers: [RealUnitService],
   exports: [RealUnitService],
 })
 export class RealUnitModule {}
