@@ -71,6 +71,7 @@ export class AmlService {
         amlCheck: entity.amlCheck,
         assets: `${entity.inputReferenceAsset}-${entity.outputAsset.name}`,
         amountInChf: entity.amountInChf,
+        feeAmountInChf: entity.feeAmountChf,
         highRisk: entity.highRisk == true,
         eventDate: entity.created,
         amlType: entity.transaction.type,
