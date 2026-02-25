@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
-import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -10,6 +10,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { HttpService } from 'src/shared/services/http.service';
+import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
@@ -19,9 +20,11 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { BankTxService } from '../../bank-tx/bank-tx/services/bank-tx.service';
+import { BankService } from '../../bank/bank/bank.service';
+import { SpecialExternalAccountService } from '../../payment/services/special-external-account.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
-import { RealUnitDevService } from '../realunit-dev.service';
 import { RealUnitService } from '../realunit.service';
 
 jest.mock('src/config/config', () => ({
@@ -159,8 +162,33 @@ describe('RealUnitService', () => {
         },
         { provide: TransactionService, useValue: {} },
         { provide: AccountMergeService, useValue: {} },
-        { provide: RealUnitDevService, useValue: {} },
         { provide: SwissQRService, useValue: {} },
+        {
+          provide: BuyCryptoRepository,
+          useValue: {
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: BankTxService,
+          useValue: {
+            getBankTxByKey: jest.fn(),
+            create: jest.fn(),
+          },
+        },
+        {
+          provide: BankService,
+          useValue: {
+            getBankInternal: jest.fn(),
+          },
+        },
+        {
+          provide: SpecialExternalAccountService,
+          useValue: {
+            getMultiAccounts: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
