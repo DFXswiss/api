@@ -91,4 +91,5 @@ export enum TradeApprovalReason {
   MAIL_INVITATION = 'MailInvitation',
   RECOMMENDATION_CONFIRMED = 'RecommendationConfirmed',
   AUTO_TRADE_APPROVAL_USER_DATA_CREATED = 'AutoTradeApprovalUserDataCreated',
+  AUTO_TRADE_APPROVAL_LOGIN = 'AutoTradeApprovalLogin',
 }

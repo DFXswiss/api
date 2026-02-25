@@ -35,7 +35,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { CustodyProviderService } from '../custody-provider/custody-provider.service';
 import { RecommendationService } from '../recommendation/recommendation.service';
 import { UserData } from '../user-data/user-data.entity';
-import { KycType, UserDataStatus } from '../user-data/user-data.enum';
+import { KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User } from '../user/user.entity';
@@ -402,8 +402,10 @@ export class AuthService {
   // --- HELPER METHODS --- //
 
   private async checkPendingRecommendation(userData: UserData, userWallet?: Wallet): Promise<void> {
-    if (userData.wallet?.autoTradeApproval || userWallet?.autoTradeApproval) {
+    if (!userData.tradeApprovalDate && (userData.wallet?.autoTradeApproval || userWallet?.autoTradeApproval)) {
       await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
+
+      await this.userDataService.createTradeApprovalLog(userData, TradeApprovalReason.AUTO_TRADE_APPROVAL_LOGIN);
 
       const recommendationStep = await this.kycAdminService
         .getKycSteps(userData.id)
