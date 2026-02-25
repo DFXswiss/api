@@ -155,6 +155,18 @@ export class RealUnitService {
     });
   }
 
+  private async getZchfAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: 'ZCHF',
+      blockchain: this.tokenBlockchain,
+      type: AssetType.TOKEN,
+    });
+  }
+
+  private getBrokerbotAddress(): string {
+    return GetConfig().blockchain.realunit.brokerbotAddress;
+  }
+
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
     const realuAsset = await this.getRealuAsset();
 
@@ -212,7 +224,8 @@ export class RealUnitService {
   }
 
   async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
-    return this.blockchainService.getBrokerbotInfo();
+    const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    return this.blockchainService.getBrokerbotInfo(this.getBrokerbotAddress(), realuAsset.chainId, zchfAsset.chainId);
   }
 
   // --- Buy Payment Info Methods ---
@@ -955,12 +968,21 @@ export class RealUnitService {
         throw new BadRequestException('Delegation delegator does not match user address');
       }
 
-      // Execute gasless transfer via EIP-7702 delegation (ForRealUnit bypasses global disable)
-      txHash = await this.eip7702DelegationService.transferTokenWithUserDelegationForRealUnit(
+      // Calculate expected ZCHF amount from BrokerBot (with slippage buffer)
+      const [{ zchfAmountWei }, zchfAsset] = await Promise.all([
+        this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), Math.floor(request.amount)),
+        this.getZchfAsset(),
+      ]);
+
+      // Atomic batch: REALU -> BrokerBot -> ZCHF -> DFX Deposit
+      txHash = await this.eip7702DelegationService.executeBrokerBotSellForRealUnit(
         request.user.address,
         realuAsset,
+        zchfAsset.chainId,
+        this.getBrokerbotAddress(),
         sell.deposit.address,
-        request.amount,
+        Math.floor(request.amount),
+        zchfAmountWei,
         dto.eip7702.delegation,
         dto.eip7702.authorization,
       );

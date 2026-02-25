@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { GetConfig } from 'src/config/config';
+import { Environment, GetConfig } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { createPublicClient, http, parseAbi } from 'viem';
+import { Blockchain } from '../shared/enums/blockchain.enum';
+import { EvmUtil } from '../shared/evm/evm.util';
 import {
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
@@ -9,10 +12,10 @@ import {
   BrokerbotSharesDto,
 } from './dto/realunit-broker.dto';
 
-// Contract addresses
-const BROKERBOT_ADDRESS = '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d';
-const REALU_TOKEN_ADDRESS = '0x553C7f9C780316FC1D34b8e14ac2465Ab22a090B';
-const ZCHF_ADDRESS = '0xb58e61c3098d85632df34eecfb899a1ed80921cb';
+const BROKERBOT_ABI = parseAbi([
+  'function getSellPrice(uint256 shares) view returns (uint256)',
+  'function getPrice() view returns (uint256)',
+]);
 
 interface AktionariatPriceResponse {
   priceInCHF: number;
@@ -113,17 +116,55 @@ export class RealUnitBlockchainService {
     };
   }
 
-  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
+  async getBrokerbotInfo(brokerbotAddr: string, realuAddr: string, zchfAddr: string): Promise<BrokerbotInfoDto> {
     const { priceInCHF, availableShares } = await this.fetchPrice();
 
     return {
-      brokerbotAddress: BROKERBOT_ADDRESS,
-      tokenAddress: REALU_TOKEN_ADDRESS,
-      baseCurrencyAddress: ZCHF_ADDRESS,
+      brokerbotAddress: brokerbotAddr,
+      tokenAddress: realuAddr,
+      baseCurrencyAddress: zchfAddr,
       pricePerShare: priceInCHF.toString(),
       buyingEnabled: availableShares > 0,
       sellingEnabled: true,
       availableShares,
     };
+  }
+
+  async getBrokerbotSellPrice(
+    brokerbotAddress: string,
+    shares: number,
+    slippageBps = 50,
+  ): Promise<{ zchfAmountWei: bigint }> {
+    const blockchain = [Environment.DEV, Environment.LOC].includes(GetConfig().environment)
+      ? Blockchain.SEPOLIA
+      : Blockchain.ETHEREUM;
+
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
+    if (!chainConfig) {
+      throw new Error(`No chain config found for ${blockchain}`);
+    }
+
+    const publicClient = createPublicClient({
+      chain: chainConfig.chain,
+      transport: http(chainConfig.rpcUrl),
+    });
+
+    // Call getSellPrice on the BrokerBot contract
+    const sellPriceWei = (await publicClient.readContract({
+      address: brokerbotAddress as `0x${string}`,
+      abi: BROKERBOT_ABI,
+      functionName: 'getSellPrice',
+      args: [BigInt(shares)],
+    } as any)) as bigint;
+
+    if (sellPriceWei === 0n) {
+      throw new Error('BrokerBot returned zero sell price');
+    }
+
+    // Apply slippage buffer (reduce expected amount to account for price movement)
+    const slippageFactor = BigInt(10000 - slippageBps);
+    const zchfAmountWei = (sellPriceWei * slippageFactor) / BigInt(10000);
+
+    return { zchfAmountWei };
   }
 }

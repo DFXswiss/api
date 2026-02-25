@@ -154,6 +154,32 @@ export class ScryptService extends PricingProvider {
     };
   }
 
+  // --- DEPOSITS --- //
+
+  async sendDepositRequest(params: {
+    currency: string;
+    amount: number;
+    reqId: string;
+    timeStamp: Date;
+    txHashes?: string[];
+  }): Promise<void> {
+    const request = {
+      type: ScryptMessageType.NEW_DEPOSIT_REQUEST,
+      reqid: Date.now(),
+      data: [
+        {
+          Currency: params.currency,
+          ClReqID: params.reqId,
+          Quantity: params.amount.toString(),
+          TransactTime: params.timeStamp.toISOString(),
+          TxHashes: (params.txHashes ?? []).map((hash) => ({ TxHash: hash })),
+        },
+      ],
+    };
+
+    await this.connection.send(request);
+  }
+
   // --- TRANSACTIONS --- //
 
   async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
