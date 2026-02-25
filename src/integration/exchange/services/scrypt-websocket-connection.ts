@@ -20,6 +20,7 @@ interface ScryptMessage {
 
 export enum ScryptMessageType {
   NEW_WITHDRAW_REQUEST = 'NewWithdrawRequest',
+  NEW_DEPOSIT_REQUEST = 'NewDepositRequest',
   BALANCE_TRANSACTION = 'BalanceTransaction',
   BALANCE = 'Balance',
   TRADE = 'Trade',
@@ -80,6 +81,10 @@ export class ScryptWebSocketConnection {
   ) {}
 
   // --- PUBLIC METHODS --- //
+
+  async send(request: ScryptRequest): Promise<ScryptMessage> {
+    return this.request(request);
+  }
 
   async fetch<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
     const response = await this.request({
