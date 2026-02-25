@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { BoltzClient, BoltzSwapStatus } from 'src/integration/blockchain/boltz/boltz-client';
+import {
+  BoltzClient,
+  ReverseSwapFailedStatuses,
+  ReverseSwapSuccessStatuses,
+} from 'src/integration/blockchain/boltz/boltz-client';
 import { BoltzService } from 'src/integration/blockchain/boltz/boltz.service';
 import { CitreaClient } from 'src/integration/blockchain/citrea/citrea-client';
 import { CitreaService } from 'src/integration/blockchain/citrea/citrea.service';
@@ -22,14 +26,6 @@ export enum BoltzCommands {
 const CORRELATION_PREFIX = {
   DEPOSIT: 'boltz:deposit:',
 };
-
-const COMPLETED_STATUSES = [BoltzSwapStatus.TRANSACTION_CLAIMED];
-const FAILED_STATUSES = [
-  BoltzSwapStatus.TRANSACTION_FAILED,
-  BoltzSwapStatus.TRANSACTION_REFUNDED,
-  BoltzSwapStatus.SWAP_EXPIRED,
-  BoltzSwapStatus.INVOICE_FAILEDTOPAY,
-];
 
 interface DepositCorrelationData {
   swapId: string;
@@ -143,13 +139,13 @@ export class BoltzAdapter extends LiquidityActionAdapter {
 
       this.logger.verbose(`Boltz swap ${correlationData.swapId}: status=${status.status}`);
 
-      if (FAILED_STATUSES.includes(status.status)) {
+      if (ReverseSwapFailedStatuses.includes(status.status)) {
         throw new OrderFailedException(
           `Boltz swap failed: ${status.status}${status.failureReason ? ` (${status.failureReason})` : ''}`,
         );
       }
 
-      if (COMPLETED_STATUSES.includes(status.status)) {
+      if (ReverseSwapSuccessStatuses.includes(status.status)) {
         order.outputAmount = correlationData.invoiceAmountSats / 1e8;
         return true;
       }
