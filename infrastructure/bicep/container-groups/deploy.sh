@@ -9,10 +9,8 @@ API_NAME="api"
 environmentOptions=("loc" "dev" "prd")
 
 # "hb-deuro-usdt": Hummingbot (dEURO/USDT)
-# "hb-deuro-btc":  Hummingbot (dEURO/BTC)
 # "hb-deps-usdt":  Hummingbot (dEPS/USDT)
-# "hb-deps-btc":   Hummingbot (dEPS/BTC)
-instanceNameOptions=("hb-deuro-usdt" "hb-deuro-btc" "hb-deps-usdt" "hb-deps-btc")
+instanceNameOptions=("hb-deuro-usdt" "hb-deps-usdt")
 
 # --- ARGUMENTS --- #
 DOCKER_USERNAME=

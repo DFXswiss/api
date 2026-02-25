@@ -16,6 +16,7 @@ import { PayInPolygonService } from '../../../services/payin-polygon.service';
 import { PayInSolanaService } from '../../../services/payin-solana.service';
 import { PayInTronService } from '../../../services/payin-tron.service';
 import { PayInZanoService } from '../../../services/payin-zano.service';
+import { PayInFiroService } from '../../../services/payin-firo.service';
 import { PayInCardanoService } from '../../../services/payin-cardano.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
@@ -41,6 +42,7 @@ import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
 import { ZanoCoinStrategy } from '../impl/zano-coin.strategy';
 import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
+import { FiroStrategy } from '../impl/firo.strategy';
 import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
 import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
 
@@ -50,6 +52,7 @@ describe('SendStrategyRegistry', () => {
   let monero: MoneroStrategy;
   let zanoCoin: ZanoCoinStrategy;
   let zanoToken: ZanoTokenStrategy;
+  let firo: FiroStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
   let bscCoin: BscCoinStrategy;
@@ -82,6 +85,8 @@ describe('SendStrategyRegistry', () => {
 
     zanoCoin = new ZanoCoinStrategy(mock<PayInZanoService>(), mock<PayInRepository>());
     zanoToken = new ZanoTokenStrategy(mock<PayInZanoService>(), mock<PayInRepository>());
+
+    firo = new FiroStrategy(mock<PayInFiroService>(), mock<PayInRepository>());
 
     ethereumCoin = new EthereumCoinStrategy(mock<PayInEthereumService>(), mock<PayInRepository>());
     ethereumToken = new EthereumTokenStrategy(mock<PayInEthereumService>(), mock<PayInRepository>(), undefined);
@@ -119,6 +124,7 @@ describe('SendStrategyRegistry', () => {
       monero,
       zanoCoin,
       zanoToken,
+      firo,
       ethereumCoin,
       ethereumToken,
       bscCoin,
@@ -182,6 +188,14 @@ describe('SendStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(ZanoTokenStrategy);
+      });
+
+      it('gets FIRO strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.FIRO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(FiroStrategy);
       });
 
       it('gets ETHEREUM_COIN strategy', () => {
@@ -364,6 +378,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     monero: MoneroStrategy,
     zanoCoin: ZanoCoinStrategy,
     zanoToken: ZanoTokenStrategy,
+    firo: FiroStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
     bscCoin: BscCoinStrategy,
@@ -392,6 +407,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     this.add({ blockchain: Blockchain.MONERO }, monero);
     this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.COIN }, zanoCoin);
     this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.TOKEN }, zanoToken);
+    this.add({ blockchain: Blockchain.FIRO }, firo);
 
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);

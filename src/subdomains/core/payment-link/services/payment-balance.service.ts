@@ -35,8 +35,9 @@ export class PaymentBalanceService implements OnModuleInit {
   private solanaDepositAddress: string;
   private tronDepositAddress: string;
   private cardanoDepositAddress: string;
-  private moneroDepositAddress: string;
   private bitcoinDepositAddress: string;
+  private firoDepositAddress: string;
+  private moneroDepositAddress: string;
   private zanoDepositAddress: string;
 
   constructor(
@@ -50,8 +51,9 @@ export class PaymentBalanceService implements OnModuleInit {
     this.tronDepositAddress = TronUtil.createWallet({ seed: Config.payment.tronSeed, index: 0 }).address;
     this.cardanoDepositAddress = CardanoUtil.createWallet({ seed: Config.payment.cardanoSeed, index: 0 })?.address;
 
-    this.moneroDepositAddress = Config.payment.moneroAddress;
     this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
+    this.firoDepositAddress = Config.payment.firoAddress;
+    this.moneroDepositAddress = Config.payment.moneroAddress;
     this.zanoDepositAddress = Config.payment.zanoAddress;
   }
 
@@ -128,6 +130,9 @@ export class PaymentBalanceService implements OnModuleInit {
       case Blockchain.BITCOIN:
         return this.bitcoinDepositAddress;
 
+      case Blockchain.FIRO:
+        return this.firoDepositAddress;
+
       case Blockchain.MONERO:
         return this.moneroDepositAddress;
 
@@ -146,7 +151,7 @@ export class PaymentBalanceService implements OnModuleInit {
   }
 
   async forwardDeposits() {
-    const chainsWithoutForwarding = [Blockchain.BITCOIN, ...this.chainsWithoutPaymentBalance];
+    const chainsWithoutForwarding = [Blockchain.BITCOIN, Blockchain.FIRO, ...this.chainsWithoutPaymentBalance];
 
     const paymentAssets = await this.assetService
       .getPaymentAssets()

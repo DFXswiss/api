@@ -3,6 +3,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
+import { CoinOnly } from '../../shared/util/blockchain-client';
 import { NodeClient, NodeClientConfig } from './node-client';
 
 export interface TransactionHistory {
@@ -24,7 +25,7 @@ export interface TestMempoolResult {
   'reject-reason': string;
 }
 
-export abstract class BitcoinBasedClient extends NodeClient {
+export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly {
   constructor(http: HttpService, url: string, config: NodeClientConfig) {
     super(http, url, config);
   }

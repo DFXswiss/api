@@ -136,7 +136,7 @@ export class FiatOutputJobService {
     if (entity.userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(entity.type)) {
       const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(
         entity.userData,
-        entity.bankAccountCurrency,
+        entity.currency ?? entity.bankAccountCurrency,
       );
 
       if (virtualIban?.bank?.send && virtualIban.bank.isCountryEnabled(country))
@@ -144,7 +144,7 @@ export class FiatOutputJobService {
     }
 
     // fallback to standard bank account selection
-    const bank = await this.bankService.getSenderBank(entity.bankAccountCurrency);
+    const bank = await this.bankService.getSenderBank(entity.currency ?? entity.bankAccountCurrency);
     return bank?.isCountryEnabled(country)
       ? { accountIban: bank.iban, bank }
       : { accountIban: undefined, bank: undefined };

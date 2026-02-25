@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -15,7 +15,7 @@ export interface PayInEntry {
   asset: Asset | null;
 }
 
-export class DepositAddress {
+export class PollAddressDto {
   @IsNotEmpty()
   @IsString()
   address: string;
@@ -23,4 +23,12 @@ export class DepositAddress {
   @IsNotEmpty()
   @IsEnum(Blockchain)
   blockchain: Blockchain;
+
+  @IsOptional()
+  @IsNumber()
+  fromBlock?: number;
+
+  @IsOptional()
+  @IsNumber()
+  toBlock?: number;
 }
