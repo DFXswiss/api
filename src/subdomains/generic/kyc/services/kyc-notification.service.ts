@@ -28,10 +28,10 @@ export class KycNotificationService {
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.KYC_MAIL, timeout: 1800 })
   async sendNotificationMails(): Promise<void> {
-    await this.kycStepReminder();
+    await this.autoKycStepReminder();
   }
 
-  private async kycStepReminder(): Promise<void> {
+  private async autoKycStepReminder(): Promise<void> {
     const entities = await this.kycStepRepo.find({
       where: {
         reminderSentDate: IsNull(),
@@ -50,41 +50,43 @@ export class KycNotificationService {
 
     for (const entity of entities) {
       try {
-        const recipientMail = entity.userData.mail;
-
-        if (recipientMail) {
-          await this.notificationService.sendMail({
-            type: MailType.USER_V2,
-            context: MailContext.KYC_REMINDER,
-            input: {
-              userData: entity.userData,
-              wallet: entity.userData.wallet,
-              title: `${MailTranslationKey.KYC_REMINDER}.title`,
-              salutation: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
-              texts: [
-                { key: MailKey.SPACE, params: { value: '1' } },
-                { key: `${MailTranslationKey.KYC_REMINDER}.message` },
-                { key: MailKey.SPACE, params: { value: '2' } },
-                {
-                  key: `${MailTranslationKey.GENERAL}.button`,
-                  params: { url: entity.userData.kycUrl, button: 'true' },
-                },
-                {
-                  key: `${MailTranslationKey.KYC}.next_step`,
-                  params: { url: entity.userData.kycUrl, urlText: entity.userData.kycUrl },
-                },
-                { key: MailKey.DFX_TEAM_CLOSING },
-              ],
-            },
-          });
-        } else {
-          this.logger.warn(`Failed to send KYC reminder mail for user data ${entity.userData.id}: user has no email`);
-        }
+        await this.kycStepReminder(entity.userData);
 
         await this.kycStepRepo.update(...entity.reminderSent());
       } catch (e) {
         this.logger.error(`Failed to send KYC reminder mail for KYC step ${entity.id}:`, e);
       }
+    }
+  }
+
+  async kycStepReminder(userData: UserData): Promise<void> {
+    if (userData.mail) {
+      await this.notificationService.sendMail({
+        type: MailType.USER_V2,
+        context: MailContext.KYC_REMINDER,
+        input: {
+          userData,
+          wallet: userData.wallet,
+          title: `${MailTranslationKey.KYC_REMINDER}.title`,
+          salutation: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
+          texts: [
+            { key: MailKey.SPACE, params: { value: '1' } },
+            { key: `${MailTranslationKey.KYC_REMINDER}.message` },
+            { key: MailKey.SPACE, params: { value: '2' } },
+            {
+              key: `${MailTranslationKey.GENERAL}.button`,
+              params: { url: userData.kycUrl, button: 'true' },
+            },
+            {
+              key: `${MailTranslationKey.KYC}.next_step`,
+              params: { url: userData.kycUrl, urlText: userData.kycUrl },
+            },
+            { key: MailKey.DFX_TEAM_CLOSING },
+          ],
+        },
+      });
+    } else {
+      this.logger.warn(`Failed to send KYC reminder mail for user data ${userData.id}: user has no email`);
     }
   }
 
