@@ -83,16 +83,16 @@ export class PaymentBalanceService implements OnModuleInit {
         const coin = assets.find((a) => a.type === AssetType.COIN);
         const tokens = assets.filter((a) => a.type !== AssetType.COIN);
 
-        if (coin) {
-          balanceMap.set(coin.id, {
-            owner: targetAddress,
-            contractAddress: coin.chainId,
-            balance: await client.getNativeCoinBalanceForAddress(targetAddress),
-          });
-        }
+        try {
+          if (coin) {
+            balanceMap.set(coin.id, {
+              owner: targetAddress,
+              contractAddress: coin.chainId,
+              balance: await client.getNativeCoinBalanceForAddress(targetAddress),
+            });
+          }
 
-        if (tokens.length) {
-          try {
+          if (tokens.length) {
             const tokenBalances = await client.getTokenBalances(tokens, targetAddress);
             for (const token of tokens) {
               const balance = tokenBalances.find((b) => b.contractAddress === token.chainId)?.balance;
@@ -104,11 +104,11 @@ export class PaymentBalanceService implements OnModuleInit {
                   balance,
                 });
             }
-          } catch (e) {
-            if (!catchException) throw e;
-
-            this.logger.error(`Error getting payment balances for blockchain ${chain}:`, e);
           }
+        } catch (e) {
+          if (!catchException) throw e;
+
+          this.logger.error(`Error getting payment balances for blockchain ${chain}:`, e);
         }
       }),
     );
