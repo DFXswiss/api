@@ -1352,7 +1352,9 @@ export class KycService {
         });
 
         if (hasOpenSanctions) {
-          this.logger.warn(`Sanctions guard: blocked KYC Level 30 for userData ${userData.id} due to open sanctioned name checks`);
+          this.logger.warn(
+            `Sanctions guard: blocked KYC Level 30 for userData ${userData.id} due to open sanctioned name checks`,
+          );
         } else {
           await this.createKycLevelLog(userData, KycLevel.LEVEL_30);
         }
