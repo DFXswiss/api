@@ -1,4 +1,11 @@
-import { forwardRef, Inject, Injectable, InternalServerErrorException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { IsNull } from 'typeorm';
 import { BankData, BankDataType } from '../../user/models/bank-data/bank-data.entity';
