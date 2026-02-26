@@ -82,8 +82,8 @@ export class ScryptWebSocketConnection {
 
   // --- PUBLIC METHODS --- //
 
-  async send(request: ScryptRequest): Promise<ScryptMessage> {
-    return this.request(request);
+  async send(type: ScryptMessageType, data: any[]): Promise<void> {
+    return this.notify({ type, data });
   }
 
   async fetch<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
@@ -98,7 +98,8 @@ export class ScryptWebSocketConnection {
   }
 
   async requestAndWaitForUpdate<T>(
-    request: ScryptRequest,
+    type: ScryptMessageType,
+    data: any[],
     streamName: ScryptMessageType,
     matcher: (data: T[]) => T | null,
     timeoutMs: number,
@@ -118,7 +119,7 @@ export class ScryptWebSocketConnection {
         }
       });
 
-      this.request(request, timeoutMs).catch((error) => {
+      this.request({ type, data }, timeoutMs).catch((error) => {
         clearTimeout(timeoutId);
         unsubscribe();
         reject(error);
@@ -246,6 +247,15 @@ export class ScryptWebSocketConnection {
   }
 
   // --- REQUEST/RESPONSE --- //
+
+  private async notify(message: ScryptRequest): Promise<void> {
+    const ws = await this.ensureConnected();
+
+    const reqId = ++this.reqIdCounter;
+    const request: ScryptRequest = { ...message, reqid: reqId };
+
+    ws.send(JSON.stringify(request));
+  }
 
   private async request(message: ScryptRequest, timeoutMs = 30000): Promise<ScryptMessage> {
     const ws = await this.ensureConnected();
