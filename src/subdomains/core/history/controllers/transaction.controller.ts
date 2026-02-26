@@ -314,12 +314,16 @@ export class TransactionController {
       checkoutTx: true,
       bankTxReturn: { bankTx: true },
       userData: true,
+      user: { wallet: true },
       buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
       buyFiat: { cryptoInput: true },
       refReward: true,
     });
 
     if (!transaction || !transaction.refundTargetEntity) throw new NotFoundException('Transaction not found');
+
+    if (transaction.user?.wallet?.name === 'RealUnit')
+      throw new BadRequestException('Refund must be processed via support for this wallet type');
 
     let userData: UserData;
 
@@ -396,8 +400,12 @@ export class TransactionController {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
+      user: { wallet: true },
       refReward: true,
     });
+
+    if (transaction.user?.wallet?.name === 'RealUnit')
+      throw new BadRequestException('Refund must be processed via support for this wallet type');
 
     if ([TransactionTypeInternal.BUY_CRYPTO, TransactionTypeInternal.CRYPTO_CRYPTO].includes(transaction.type))
       transaction.buyCrypto = await this.buyCryptoService.getBuyCryptoByTransactionId(transaction.id, {

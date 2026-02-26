@@ -90,42 +90,12 @@ describe('RealUnitBlockchainService', () => {
   });
 
   describe('getBrokerbotSellPrice', () => {
-    it('should query BrokerBot contract and apply default 0.5% slippage', async () => {
+    it('should query BrokerBot contract and return exact amount', async () => {
       // BrokerBot returns 1000 ZCHF (in Wei) for 10 shares
       mockReadContract.mockResolvedValue(BigInt('1000000000000000000000'));
 
       const result = await service.getBrokerbotSellPrice(MOCK_BROKERBOT_ADDRESS, 10);
 
-      // 1000 ZCHF * (1 - 0.005) = 995 ZCHF
-      expect(result.zchfAmountWei).toBe(BigInt('995000000000000000000'));
-    });
-
-    it('should calculate correctly for 1 share', async () => {
-      // BrokerBot returns 100 ZCHF for 1 share
-      mockReadContract.mockResolvedValue(BigInt('100000000000000000000'));
-
-      const result = await service.getBrokerbotSellPrice(MOCK_BROKERBOT_ADDRESS, 1);
-
-      // 100 * 0.995 = 99.5 ZCHF
-      expect(result.zchfAmountWei).toBe(BigInt('99500000000000000000'));
-    });
-
-    it('should accept custom slippage in basis points', async () => {
-      // BrokerBot returns 1000 ZCHF for 10 shares
-      mockReadContract.mockResolvedValue(BigInt('1000000000000000000000'));
-
-      const result = await service.getBrokerbotSellPrice(MOCK_BROKERBOT_ADDRESS, 10, 100); // 1% slippage
-
-      // 1000 * (1 - 0.01) = 990 ZCHF
-      expect(result.zchfAmountWei).toBe(BigInt('990000000000000000000'));
-    });
-
-    it('should handle zero slippage', async () => {
-      mockReadContract.mockResolvedValue(BigInt('1000000000000000000000'));
-
-      const result = await service.getBrokerbotSellPrice(MOCK_BROKERBOT_ADDRESS, 10, 0);
-
-      // Full amount with no slippage
       expect(result.zchfAmountWei).toBe(BigInt('1000000000000000000000'));
     });
 

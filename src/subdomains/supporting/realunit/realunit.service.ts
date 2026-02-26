@@ -980,7 +980,8 @@ export class RealUnitService {
         throw new BadRequestException('Delegation delegator does not match user address');
       }
 
-      // Calculate expected ZCHF amount from BrokerBot (with slippage buffer)
+      // Calculate expected ZCHF amount from BrokerBot
+      // If price drops between quote and execution, transaction reverts safely and user can retry
       const [{ zchfAmountWei }, zchfAsset] = await Promise.all([
         this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), Math.floor(request.amount)),
         this.getZchfAsset(),
