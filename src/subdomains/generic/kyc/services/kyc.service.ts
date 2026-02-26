@@ -88,6 +88,7 @@ import { SumsubService } from './integration/sum-sub.service';
 import { KycFileService } from './kyc-file.service';
 import { KycLogService } from './kyc-log.service';
 import { KycNotificationService } from './kyc-notification.service';
+import { NameCheckService } from './name-check.service';
 import { TfaLevel, TfaService } from './tfa.service';
 
 @Injectable()
@@ -119,6 +120,7 @@ export class KycService {
     @Inject(forwardRef(() => UserDataRelationService))
     private readonly userDataRelationService: UserDataRelationService,
     private readonly recommendationService: RecommendationService,
+    private readonly nameCheckService: NameCheckService,
   ) {
     this.webhookQueue = new QueueHandler();
   }
@@ -1332,8 +1334,10 @@ export class KycService {
 
         return;
       } else if (nationality) {
+        const hasOpenSanctions = await this.nameCheckService.hasOpenNameChecks(userData);
+
         await this.userDataService.updateUserDataInternal(userData, {
-          kycLevel: KycLevel.LEVEL_30,
+          ...(hasOpenSanctions ? {} : { kycLevel: KycLevel.LEVEL_30 }),
           birthday: data.birthday,
           verifiedCountry: !userData.verifiedCountry ? userData.country : undefined,
           identificationType,
@@ -1346,7 +1350,12 @@ export class KycService {
           olkypayAllowed: userData.olkypayAllowed ?? true,
           nationality,
         });
-        await this.createKycLevelLog(userData, KycLevel.LEVEL_30);
+
+        if (hasOpenSanctions) {
+          this.logger.warn(`Sanctions guard: blocked KYC Level 30 for userData ${userData.id} due to open sanctioned name checks`);
+        } else {
+          await this.createKycLevelLog(userData, KycLevel.LEVEL_30);
+        }
 
         if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createBankDataInternal(kycStep.userData, {
