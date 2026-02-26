@@ -940,7 +940,7 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethodOut: PaymentMethod,
     user?: User,
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
-    if (this.isRealUnitTransaction(from, to)) {
+    if (this.isRealUnitTransaction(from, to) && !(isAsset(from) && from.name === 'REALU' && isFiat(to))) {
       return { kycLimit: Number.MAX_VALUE, defaultLimit: Number.MAX_VALUE };
     }
 
