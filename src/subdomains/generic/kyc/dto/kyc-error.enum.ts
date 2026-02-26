@@ -49,6 +49,7 @@ export enum KycError {
 
   // DfxApproval errors
   BANK_RECALL_FEE_NOT_PAID = 'BankRecallFeeNotPaid',
+  OPEN_SANCTIONED_NAME_CHECK = 'OpenSanctionedNameCheck',
 
   // Deactivated userData errors
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
@@ -89,6 +90,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.EXPIRED_RECOMMENDATION]: 'Your recommendation request is expired',
   [KycError.RECOMMENDER_BLOCKED]: 'Unknown error',
   [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee not paid',
+  [KycError.OPEN_SANCTIONED_NAME_CHECK]: 'Open sanctioned name check pending evaluation',
   [KycError.INCORRECT_INFO]: 'Incorrect response',
   [KycError.RESIDENCE_PERMIT_CHECK_REQUIRED]: undefined,
   [KycError.EXPIRED_STEP]: 'Your documents are expired',
