@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, InternalServerErrorException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { IsNull } from 'typeorm';
 import { BankData, BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -22,7 +22,7 @@ export class NameCheckService implements OnModuleInit {
   constructor(
     private readonly nameCheckLogRepo: NameCheckLogRepository,
     private readonly dilisenseService: DilisenseService,
-    private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly documentService: KycDocumentService,
   ) {}
 
