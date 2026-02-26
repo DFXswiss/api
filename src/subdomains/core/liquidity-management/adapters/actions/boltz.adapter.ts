@@ -139,15 +139,16 @@ export class BoltzAdapter extends LiquidityActionAdapter {
         `lockup=${swap.lockupDetails.lockupAddress}, claim=${claimAddress}`,
     );
 
-    // Step 4: Send BTC to the lockup address
-    const btcTxId = await this.sendBtcToAddress(swap.lockupDetails.lockupAddress, maxAmount);
+    // Step 4: Send BTC to the lockup address (use amount from Boltz response, not our request)
+    const lockupAmountBtc = swap.lockupDetails.amount / 1e8;
+    const btcTxId = await this.sendBtcToAddress(swap.lockupDetails.lockupAddress, lockupAmountBtc);
 
-    this.logger.info(`BTC sent to lockup address: txId=${btcTxId}, amount=${maxAmount} BTC`);
+    this.logger.info(`BTC sent to lockup address: txId=${btcTxId}, amount=${lockupAmountBtc} BTC`);
 
     // Set order tracking fields
     const btcAsset = await this.assetService.getBtcCoin();
 
-    order.inputAmount = maxAmount;
+    order.inputAmount = lockupAmountBtc;
     order.inputAsset = btcAsset.name;
     order.outputAsset = citreaAsset.name;
 
@@ -221,7 +222,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
   ): Promise<boolean> {
     if (status === BoltzSwapStatus.TRANSACTION_SERVER_CONFIRMED) {
       // Server has confirmed the lockup — request claiming
-      const claimResult = await this.boltzClient.helpMeClaim(correlationData.preimage, correlationData.preimageHash);
+      const claimResult = await this.boltzClient.helpMeClaim(correlationData.preimage, `0x${correlationData.preimageHash}`);
 
       this.logger.info(
         `Boltz swap ${correlationData.swapId}: helpMeClaim called, claimTxHash=${claimResult.txHash}`,
