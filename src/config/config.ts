@@ -890,7 +890,7 @@ export class Configuration {
       certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
     boltz: {
-      apiUrl: process.env.BOLTZ_API_URL ?? 'https://api.lightning.space',
+      apiUrl: process.env.BOLTZ_API_URL ?? 'https://lightning.space/v1',
     },
     spark: {
       sparkWalletSeed: process.env.SPARK_WALLET_SEED,

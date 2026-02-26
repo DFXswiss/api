@@ -73,6 +73,38 @@ export interface BoltzSwapStatusResponse {
   };
 }
 
+export interface ChainPairInfo {
+  hash: string;
+  rate: number;
+  limits: {
+    maximal: number;
+    minimal: number;
+    maximalZeroConf: number;
+  };
+  fees: {
+    percentage: number;
+    minerFees: {
+      server: number;
+      user: {
+        claim: number;
+        lockup: number;
+      };
+    };
+  };
+}
+
+// Response: Record<fromAsset, Record<toAsset, ChainPairInfo>>
+export type ChainPairsResponse = Record<string, Record<string, ChainPairInfo>>;
+
+export interface HelpMeClaimRequest {
+  preimage: string;
+  preimageHash: string;
+}
+
+export interface HelpMeClaimResponse {
+  txHash: string;
+}
+
 export class BoltzClient {
   private readonly logger = new DfxLogger(BoltzClient);
 
@@ -82,16 +114,27 @@ export class BoltzClient {
   ) {}
 
   /**
+   * Fetch available chain swap pairs (includes pairHash needed for createChainSwap).
+   */
+  async getChainPairs(): Promise<ChainPairsResponse> {
+    const url = `${this.config.apiUrl}/swap/v2/swap/chain/`;
+
+    return this.http.get<ChainPairsResponse>(url, { tryCount: 3, retryDelay: 2000 });
+  }
+
+  /**
    * Create a Chain Swap: BTC (onchain) -> cBTC (Citrea onchain)
    * For EVM destination chains, only claimAddress is needed (no claimPublicKey).
-   * preimageHash is required by the Boltz API.
+   * preimageHash and pairHash are required by the Boltz API.
    */
   async createChainSwap(
     preimageHash: string,
     claimAddress: string,
     userLockAmount: number,
+    pairHash: string,
+    referralId: string,
   ): Promise<BoltzChainSwapResponse> {
-    const url = `${this.config.apiUrl}/v2/swap/chain`;
+    const url = `${this.config.apiUrl}/swap/v2/swap/chain/`;
 
     const body = {
       from: 'BTC',
@@ -99,6 +142,8 @@ export class BoltzClient {
       preimageHash,
       claimAddress,
       userLockAmount,
+      pairHash,
+      referralId,
     };
 
     this.logger.verbose(`Creating chain swap: ${userLockAmount} sats, BTC -> cBTC, claim=${claimAddress}`);
@@ -107,8 +152,22 @@ export class BoltzClient {
   }
 
   async getSwapStatus(swapId: string): Promise<BoltzSwapStatusResponse> {
-    const url = `${this.config.apiUrl}/v2/swap/${swapId}`;
+    const url = `${this.config.apiUrl}/swap/v2/swap/${swapId}`;
 
     return this.http.get<BoltzSwapStatusResponse>(url, { tryCount: 3, retryDelay: 2000 });
+  }
+
+  /**
+   * Request Boltz to claim cBTC on behalf of the user (server-side claiming).
+   * The preimage proves payment; Boltz uses it to release cBTC to the claim address.
+   */
+  async helpMeClaim(preimage: string, preimageHash: string): Promise<HelpMeClaimResponse> {
+    const url = `${this.config.apiUrl}/claim/help-me-claim`;
+
+    const body: HelpMeClaimRequest = { preimage, preimageHash };
+
+    this.logger.verbose(`Requesting help-me-claim for preimageHash=${preimageHash}`);
+
+    return this.http.post<HelpMeClaimResponse>(url, body, { tryCount: 3, retryDelay: 2000 });
   }
 }

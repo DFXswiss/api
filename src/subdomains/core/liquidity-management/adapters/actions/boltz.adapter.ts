@@ -2,10 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { randomBytes, createHash } from 'crypto';
 import {
   BoltzClient,
+  BoltzSwapStatus,
   ChainSwapFailedStatuses,
-  ChainSwapSuccessStatuses,
 } from 'src/integration/blockchain/boltz/boltz-client';
 import { BoltzService } from 'src/integration/blockchain/boltz/boltz.service';
+import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
+import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
+import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { CitreaClient } from 'src/integration/blockchain/citrea/citrea-client';
 import { CitreaService } from 'src/integration/blockchain/citrea/citrea.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -20,6 +23,8 @@ import { OrderNotProcessableException } from '../../exceptions/order-not-process
 import { Command, CorrelationId } from '../../interfaces';
 import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 
+const BOLTZ_REFERRAL_ID = 'DFX';
+
 export enum BoltzCommands {
   DEPOSIT = 'deposit', // BTC onchain -> cBTC onchain via Boltz Chain Swap
 }
@@ -29,10 +34,15 @@ const CORRELATION_PREFIX = {
 };
 
 interface DepositCorrelationData {
+  step: 'btc_sent' | 'claiming';
   swapId: string;
   claimAddress: string;
   lockupAddress: string;
   userLockAmountSats: number;
+  preimage: string;
+  preimageHash: string;
+  btcTxId: string;
+  pairHash: string;
 }
 
 @Injectable()
@@ -42,16 +52,20 @@ export class BoltzAdapter extends LiquidityActionAdapter {
   protected commands = new Map<string, Command>();
 
   private readonly boltzClient: BoltzClient;
+  private readonly bitcoinClient: BitcoinBasedClient;
   private readonly citreaClient: CitreaClient;
 
   constructor(
     boltzService: BoltzService,
+    bitcoinService: BitcoinService,
     citreaService: CitreaService,
     private readonly assetService: AssetService,
+    private readonly bitcoinFeeService: BitcoinFeeService,
   ) {
     super(LiquidityManagementSystem.BOLTZ);
 
     this.boltzClient = boltzService.getDefaultClient();
+    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
     this.citreaClient = citreaService.getDefaultClient<CitreaClient>();
 
     this.commands.set(BoltzCommands.DEPOSIT, this.deposit.bind(this));
@@ -77,9 +91,11 @@ export class BoltzAdapter extends LiquidityActionAdapter {
 
   /**
    * Deposit BTC -> cBTC via Boltz Chain Swap.
-   * Creates a chain swap on Lightning.space (BTC onchain -> cBTC on Citrea).
-   * Boltz provides a lockup address where BTC must be sent.
-   * After confirmation, Boltz sends cBTC to the claim address on Citrea.
+   * 1. Fetch chain pairs to get pairHash
+   * 2. Generate preimage + preimageHash
+   * 3. Create chain swap via API
+   * 4. Send BTC to the lockup address
+   * 5. Save all data in correlation ID for later claiming
    */
   private async deposit(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
@@ -97,30 +113,55 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     const claimAddress = this.citreaClient.walletAddress;
     const userLockAmountSats = Math.round(maxAmount * 1e8);
 
-    // Generate preimage hash (required by Boltz Chain Swap API)
-    const preimage = randomBytes(32);
-    const preimageHash = createHash('sha256').update(preimage).digest('hex');
+    // Step 1: Get chain pairs to extract pairHash
+    const pairs = await this.boltzClient.getChainPairs();
+    const btcPairs = pairs['BTC'];
+    if (!btcPairs || !btcPairs['cBTC']) {
+      throw new OrderNotProcessableException('BTC -> cBTC chain pair not available on Boltz');
+    }
+    const pairHash = btcPairs['cBTC'].hash;
 
-    // Create chain swap via Boltz API
-    const swap = await this.boltzClient.createChainSwap(preimageHash, claimAddress, userLockAmountSats);
+    // Step 2: Generate preimage and hash
+    const preimage = randomBytes(32).toString('hex');
+    const preimageHash = createHash('sha256').update(Buffer.from(preimage, 'hex')).digest('hex');
+
+    // Step 3: Create chain swap via Boltz API
+    const swap = await this.boltzClient.createChainSwap(
+      preimageHash,
+      claimAddress,
+      userLockAmountSats,
+      pairHash,
+      BOLTZ_REFERRAL_ID,
+    );
 
     this.logger.info(
       `Boltz chain swap created: id=${swap.id}, amount=${userLockAmountSats} sats, ` +
         `lockup=${swap.lockupDetails.lockupAddress}, claim=${claimAddress}`,
     );
 
-    // Get asset names for order tracking
+    // Step 4: Send BTC to the lockup address
+    const btcTxId = await this.sendBtcToAddress(swap.lockupDetails.lockupAddress, maxAmount);
+
+    this.logger.info(`BTC sent to lockup address: txId=${btcTxId}, amount=${maxAmount} BTC`);
+
+    // Set order tracking fields
     const btcAsset = await this.assetService.getBtcCoin();
 
     order.inputAmount = maxAmount;
     order.inputAsset = btcAsset.name;
     order.outputAsset = citreaAsset.name;
 
+    // Step 5: Save correlation data
     const correlationData: DepositCorrelationData = {
+      step: 'btc_sent',
       swapId: swap.id,
       claimAddress,
       lockupAddress: swap.lockupDetails.lockupAddress,
       userLockAmountSats,
+      preimage,
+      preimageHash,
+      btcTxId,
+      pairHash,
     };
 
     return `${CORRELATION_PREFIX.DEPOSIT}${this.encodeCorrelation(correlationData)}`;
@@ -146,7 +187,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
 
       const status = await this.boltzClient.getSwapStatus(correlationData.swapId);
 
-      this.logger.verbose(`Boltz swap ${correlationData.swapId}: status=${status.status}`);
+      this.logger.verbose(`Boltz swap ${correlationData.swapId}: step=${correlationData.step}, status=${status.status}`);
 
       if (ChainSwapFailedStatuses.includes(status.status)) {
         throw new OrderFailedException(
@@ -154,18 +195,85 @@ export class BoltzAdapter extends LiquidityActionAdapter {
         );
       }
 
-      if (ChainSwapSuccessStatuses.includes(status.status)) {
-        order.outputAmount = correlationData.userLockAmountSats / 1e8;
-        return true;
-      }
+      switch (correlationData.step) {
+        case 'btc_sent':
+          return this.handleBtcSentStep(order, correlationData, status.status);
 
-      return false;
+        case 'claiming':
+          return this.handleClaimingStep(order, correlationData, status.status);
+
+        default:
+          throw new OrderFailedException(`Unknown step: ${correlationData.step}`);
+      }
     } catch (e) {
       throw e instanceof OrderFailedException ? e : new OrderFailedException(e.message);
     }
   }
 
+  /**
+   * Step: btc_sent — waiting for Boltz server to confirm the lockup and prepare cBTC.
+   * When server confirms, call helpMeClaim to trigger claiming.
+   */
+  private async handleBtcSentStep(
+    order: LiquidityManagementOrder,
+    correlationData: DepositCorrelationData,
+    status: BoltzSwapStatus,
+  ): Promise<boolean> {
+    if (status === BoltzSwapStatus.TRANSACTION_SERVER_CONFIRMED) {
+      // Server has confirmed the lockup — request claiming
+      const claimResult = await this.boltzClient.helpMeClaim(correlationData.preimage, correlationData.preimageHash);
+
+      this.logger.info(
+        `Boltz swap ${correlationData.swapId}: helpMeClaim called, claimTxHash=${claimResult.txHash}`,
+      );
+
+      // Advance to claiming step
+      correlationData.step = 'claiming';
+      order.correlationId = `${CORRELATION_PREFIX.DEPOSIT}${this.encodeCorrelation(correlationData)}`;
+
+      return false;
+    }
+
+    // Still waiting for server confirmation
+    return false;
+  }
+
+  /**
+   * Step: claiming — waiting for the claim transaction to be confirmed.
+   */
+  private async handleClaimingStep(
+    order: LiquidityManagementOrder,
+    correlationData: DepositCorrelationData,
+    status: BoltzSwapStatus,
+  ): Promise<boolean> {
+    if (status === BoltzSwapStatus.TRANSACTION_CLAIMED) {
+      order.outputAmount = correlationData.userLockAmountSats / 1e8;
+
+      this.logger.info(`Boltz swap ${correlationData.swapId}: claimed successfully`);
+
+      return true;
+    }
+
+    // Still waiting for claim confirmation
+    return false;
+  }
+
   //*** HELPERS ***//
+
+  private async sendBtcToAddress(address: string, amount: number): Promise<string> {
+    if (!address || address.length < 26 || address.length > 90) {
+      throw new OrderFailedException(`Invalid Bitcoin address format: ${address}`);
+    }
+
+    const feeRate = await this.bitcoinFeeService.getRecommendedFeeRate();
+    const txId = await this.bitcoinClient.sendMany([{ addressTo: address, amount }], feeRate);
+
+    if (!txId) {
+      throw new OrderFailedException(`Failed to send BTC to address ${address}`);
+    }
+
+    return txId;
+  }
 
   private encodeCorrelation(data: DepositCorrelationData): string {
     return Buffer.from(JSON.stringify(data)).toString('base64');
