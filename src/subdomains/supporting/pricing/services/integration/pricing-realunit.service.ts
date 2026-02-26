@@ -9,8 +9,13 @@ import { PricingProvider } from './pricing-provider';
 export class PricingRealUnitService extends PricingProvider implements OnModuleInit {
   private static readonly REALU = 'REALU';
   private static readonly ZCHF = 'ZCHF';
+  private static readonly EUR = 'EUR';
 
-  private static readonly ALLOWED_ASSETS = [PricingRealUnitService.REALU, PricingRealUnitService.ZCHF];
+  private static readonly ALLOWED_ASSETS = [
+    PricingRealUnitService.REALU,
+    PricingRealUnitService.ZCHF,
+    PricingRealUnitService.EUR,
+  ];
 
   private realunitService: RealUnitBlockchainService;
 
@@ -25,8 +30,16 @@ export class PricingRealUnitService extends PricingProvider implements OnModuleI
   async getPrice(from: string, to: string): Promise<Price> {
     if (!PricingRealUnitService.ALLOWED_ASSETS.includes(from)) throw new Error(`from asset ${from} is not allowed`);
     if (!PricingRealUnitService.ALLOWED_ASSETS.includes(to)) throw new Error(`to asset ${to} is not allowed`);
+    if (![from, to].includes(PricingRealUnitService.REALU))
+      throw new Error(`from asset ${from} to asset ${to} is not allowed`);
 
-    const realunitPrice = await this.realunitService.getRealUnitPrice();
+    const isEurPair = [from, to].includes(PricingRealUnitService.EUR);
+
+    const realunitPrice = isEurPair
+      ? await this.realunitService.getRealUnitPriceEur()
+      : await this.realunitService.getRealUnitPriceChf();
+
+    if (realunitPrice == null) throw new Error(`No price available for ${from} -> ${to}`);
 
     const assetPrice = from === PricingRealUnitService.REALU ? 1 / realunitPrice : realunitPrice;
 

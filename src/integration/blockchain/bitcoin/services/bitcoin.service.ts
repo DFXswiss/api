@@ -3,8 +3,8 @@ import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainService } from '../../shared/util/blockchain.service';
-import { BitcoinClient } from './bitcoin-client';
-import { BlockchainInfo } from './rpc';
+import { BitcoinClient } from '../node/bitcoin-client';
+import { BlockchainInfo } from '../node/rpc';
 
 export enum BitcoinNodeType {
   BTC_INPUT = 'btc-inp',

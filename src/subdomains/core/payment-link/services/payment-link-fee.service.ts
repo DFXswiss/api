@@ -8,6 +8,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { PayoutBitcoinService } from 'src/subdomains/supporting/payout/services/payout-bitcoin.service';
+import { PayoutFiroService } from 'src/subdomains/supporting/payout/services/payout-firo.service';
 import { BlockchainRegistryService } from '../../../../integration/blockchain/shared/services/blockchain-registry.service';
 
 interface FeeCacheData {
@@ -26,6 +27,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
   constructor(
     private readonly blockchainRegistryService: BlockchainRegistryService,
     private readonly payoutBitcoinService: PayoutBitcoinService,
+    private readonly payoutFiroService: PayoutFiroService,
   ) {
     this.feeCache = new Map();
   }
@@ -78,6 +80,9 @@ export class PaymentLinkFeeService implements OnModuleInit {
 
       case Blockchain.BITCOIN:
         return this.payoutBitcoinService.getCurrentFeeRate();
+
+      case Blockchain.FIRO:
+        return this.payoutFiroService.getCurrentFeeRate();
     }
   }
 

@@ -32,11 +32,19 @@ export class RealUnitDtoMapper {
 
     const historicalBalancesFilled = TimeseriesUtils.fillMissingDates(historicalBalances);
 
-    dto.historicalBalances = historicalBalancesFilled.map((hb) => ({
-      balance: hb.balance,
-      timestamp: hb.created,
-      valueChf: Util.round(historicalPricesMap.get(Util.isoDate(hb.created))?.chf * Number(hb.balance), 4),
-    }));
+    if (historicalBalancesFilled.length > 0) {
+      historicalBalancesFilled[historicalBalancesFilled.length - 1].balance = account.balance;
+    }
+
+    dto.historicalBalances = historicalBalancesFilled.map((hb) => {
+      const price = historicalPricesMap.get(Util.isoDate(hb.created));
+      return {
+        balance: hb.balance,
+        timestamp: hb.created,
+        valueChf: Util.round(price?.chf * Number(hb.balance), 4),
+        valueEur: Util.round(price?.eur * Number(hb.balance), 4),
+      };
+    });
 
     return dto;
   }

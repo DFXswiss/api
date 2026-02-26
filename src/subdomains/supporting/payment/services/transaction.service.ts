@@ -8,6 +8,7 @@ import { Between, Brackets, FindOptionsRelations, IsNull, LessThanOrEqual, Not }
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
+import { TransactionRequestType } from '../entities/transaction-request.entity';
 import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 import { SpecialExternalAccountService } from './special-external-account.service';
@@ -254,6 +255,19 @@ export class TransactionService {
       )
       .groupBy('tx.userDataId')
       .getRawMany();
+  }
+
+  async getByAssetId(assetId: number, limit = 50, offset = 0): Promise<Transaction[]> {
+    return this.repo.find({
+      where: [
+        { type: Not(IsNull()), request: { type: TransactionRequestType.BUY, targetId: assetId } },
+        { type: Not(IsNull()), request: { type: TransactionRequestType.SELL, sourceId: assetId } },
+      ],
+      order: { created: 'DESC' },
+      take: limit,
+      skip: offset,
+      relations: { request: true, user: true, userData: true },
+    });
   }
 
   async getTransactionByKey(key: string, value: any): Promise<Transaction> {

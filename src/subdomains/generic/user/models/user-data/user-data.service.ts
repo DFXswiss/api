@@ -66,7 +66,7 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, UserDataStatus } from './user-data.enum';
+import { KycLevel, TradeApprovalReason, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -222,28 +222,26 @@ export class UserDataService {
   }
 
   async getUserDatasWithKycFile(): Promise<UserData[]> {
-    return this.userDataRepo
-      .createQueryBuilder('userData')
-      .leftJoinAndSelect('userData.country', 'country')
-      .select([
-        'userData.id',
-        'userData.kycFileId',
-        'userData.amlAccountType',
-        'userData.verifiedName',
-        'userData.allBeneficialOwnersDomicile',
-        'userData.amlListAddedDate',
-        'userData.amlListExpiredDate',
-        'userData.amlListReactivatedDate',
-        'userData.highRisk',
-        'userData.pep',
-        'userData.complexOrgStructure',
-        'userData.totalVolumeChfAuditPeriod',
-        'userData.totalCustodyBalanceChfAuditPeriod',
-        'country.name',
-      ])
-      .where('userData.kycFileId > 0')
-      .orderBy('userData.kycFileId', 'ASC')
-      .getMany();
+    return this.userDataRepo.find({
+      select: {
+        id: true,
+        kycFileId: true,
+        amlAccountType: true,
+        verifiedName: true,
+        allBeneficialOwnersDomicile: true,
+        amlListAddedDate: true,
+        amlListExpiredDate: true,
+        amlListReactivatedDate: true,
+        highRisk: true,
+        pep: true,
+        complexOrgStructure: true,
+        totalVolumeChfAuditPeriod: true,
+        totalCustodyBalanceChfAuditPeriod: true,
+        country: { name: true },
+      },
+      where: { kycFileId: MoreThan(0) },
+      order: { kycFileId: 'ASC' },
+    });
   }
 
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
@@ -264,7 +262,7 @@ export class UserDataService {
 
   // --- CREATE / UPDATE ---
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
-    const userData = this.userDataRepo.create({
+    const entity = this.userDataRepo.create({
       ...dto,
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
@@ -272,9 +270,9 @@ export class UserDataService {
       kycSteps: [],
     });
 
-    await this.loadRelationsAndVerify(userData, dto);
+    await this.loadRelationsAndVerify(entity, dto);
 
-    return this.userDataRepo.save(userData);
+    return this.userDataRepo.save(entity);
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
@@ -350,7 +348,7 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[], checkOnly = false): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.fileDownloadConfig.reverse();
+    const downloadTargets = [...Config.fileDownloadConfig].reverse();
     const errors: { userDataId: number; errorType: string; folder: string; details: string }[] = [];
 
     const escapeCsvValue = (value: string): string => {
@@ -360,7 +358,7 @@ export class UserDataService {
       return value;
     };
 
-    for (const userDataId of userDataIds.reverse()) {
+    for (const userDataId of [...userDataIds].reverse()) {
       const userData = await this.getUserData(userDataId, { kycSteps: true });
 
       if (!userData) {
@@ -399,7 +397,15 @@ export class UserDataService {
           continue;
         }
 
-        for (const { name: fileNameFn, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
+        for (const {
+          name: fileNameFn,
+          fileTypes,
+          prefixes,
+          filter,
+          handleFileNotFound,
+          sort,
+          selectAll,
+        } of fileConfig) {
           const files = allFiles
             .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
             .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
@@ -417,19 +423,25 @@ export class UserDataService {
 
           if (checkOnly) continue;
 
-          const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
+          const selectedFiles = selectAll
+            ? files
+            : [files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c))];
 
-          try {
-            const fileData = await this.documentService.downloadFile(
-              selectedFile.category,
-              userDataId,
-              selectedFile.type,
-              selectedFile.name,
-            );
-            const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
-            subFolder.file(filePath, fileData.data);
-          } catch {
-            errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
+          for (const selectedFile of selectedFiles) {
+            try {
+              const fileData = await this.documentService.downloadFile(
+                selectedFile.category,
+                userDataId,
+                selectedFile.type,
+                selectedFile.name,
+              );
+              const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name
+                .split('.')
+                .pop()}`;
+              subFolder.file(filePath, fileData.data);
+            } catch {
+              errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
+            }
           }
         }
       }
@@ -508,7 +520,8 @@ export class UserDataService {
       organizationLocation: data.organizationAddress?.city,
       organizationZip: data.organizationAddress?.zip,
       organizationCountry: data.organizationAddress?.country,
-      tradeApprovalDate: data.accountType === AccountType.ORGANIZATION ? new Date() : undefined,
+      tradeApprovalDate:
+        !userData.tradeApprovalDate && data.accountType === AccountType.ORGANIZATION ? new Date() : undefined,
     };
 
     const isPersonalAccount =
@@ -567,6 +580,8 @@ export class UserDataService {
     }
 
     if (update.mail) await this.kycLogService.createMailChangeLog(userData, userData.mail, update.mail);
+    if (update.tradeApprovalDate)
+      await this.createTradeApprovalLog(userData, TradeApprovalReason.ORGANIZATION, update.tradeApprovalDate);
 
     await this.userDataRepo.update(userData.id, update);
 
@@ -612,6 +627,18 @@ export class UserDataService {
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
+  }
+
+  async createTradeApprovalLog(
+    userData: UserData,
+    reason: TradeApprovalReason,
+    tradeApprovalDate?: Date,
+  ): Promise<void> {
+    return this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.KYC,
+      `TradeApprovalDate set to ${(tradeApprovalDate ?? userData.tradeApprovalDate).toISOString()}, reason: ${reason}`,
+    );
   }
 
   // --- MAIL UPDATE --- //
@@ -816,6 +843,7 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
+
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
@@ -1152,9 +1180,15 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
-    if (!master.tradeApprovalDate && slave.tradeApprovalDate) master.tradeApprovalDate = slave.tradeApprovalDate;
+    if (!master.tradeApprovalDate && slave.tradeApprovalDate) {
+      master.tradeApprovalDate = slave.tradeApprovalDate;
 
-    const pendingRecommendation = master.kycSteps.find((k) => k.name === KycStepName.RECOMMENDATION && !k.isDone);
+      await this.createTradeApprovalLog(master, TradeApprovalReason.USER_DATA_MERGE);
+    }
+
+    const pendingRecommendation = master.kycSteps.find(
+      (k) => k.name === KycStepName.RECOMMENDATION && (k.isInProgress || k.isInReview),
+    );
     if (master.tradeApprovalDate && pendingRecommendation)
       await this.kycAdminService.updateKycStepInternal(pendingRecommendation.update(ReviewStatus.COMPLETED));
 
@@ -1210,7 +1244,7 @@ export class UserDataService {
 
   private async updateBankTxTime(userDataId: number): Promise<void> {
     const txList = await this.repos.bankTx.find({
-      select: ['id'],
+      select: { id: true },
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
         { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },

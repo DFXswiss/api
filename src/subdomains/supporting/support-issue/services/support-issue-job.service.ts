@@ -5,12 +5,13 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { MailFactory } from '../../notification/factories/mail.factory';
 import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
 import { SupportMessageTranslationKey } from '../dto/support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
-import { AutoResponder } from '../entities/support-message.entity';
+import { AutoResponder, CustomerAuthor } from '../entities/support-message.entity';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportIssueService } from './support-issue.service';
@@ -18,6 +19,7 @@ import { SupportIssueService } from './support-issue.service';
 enum AutoResponse {
   MONERO_COMPLETE = 'MoneroComplete',
   SEPA = 'Sepa',
+  MISSING_LIQUIDITY = 'MissingLiquidity',
 }
 
 @Injectable()
@@ -37,6 +39,18 @@ export class SupportIssueJobService {
 
     if (!disabledTemplates.includes(AutoResponse.MONERO_COMPLETE)) await this.moneroComplete();
     if (!disabledTemplates.includes(AutoResponse.SEPA)) await this.sepa();
+    if (!disabledTemplates.includes(AutoResponse.MISSING_LIQUIDITY)) await this.missingLiquidity();
+  }
+
+  async missingLiquidity(): Promise<void> {
+    const issues = await this.getAutoResponseIssues({
+      type: SupportIssueType.TRANSACTION_ISSUE,
+      reason: In([SupportIssueReason.FUNDS_NOT_RECEIVED, SupportIssueReason.TRANSACTION_MISSING]),
+      transaction: {
+        buyCrypto: { id: Not(IsNull()), amlCheck: CheckStatus.PASS, status: BuyCryptoStatus.MISSING_LIQUIDITY },
+      },
+    });
+    await this.sendAutoResponse(SupportMessageTranslationKey.MISSING_LIQUIDITY, issues);
   }
 
   async sepa(): Promise<void> {
@@ -62,7 +76,11 @@ export class SupportIssueJobService {
   async moneroComplete(): Promise<void> {
     const issues = await this.getAutoResponseIssues({
       type: SupportIssueType.TRANSACTION_ISSUE,
-      reason: In([SupportIssueReason.FUNDS_NOT_RECEIVED, SupportIssueReason.TRANSACTION_MISSING]),
+      reason: In([
+        SupportIssueReason.FUNDS_NOT_RECEIVED,
+        SupportIssueReason.TRANSACTION_MISSING,
+        SupportIssueReason.OTHER,
+      ]),
       transaction: {
         buyCrypto: { id: Not(IsNull()), isComplete: true, amlCheck: CheckStatus.PASS, outputAsset: { name: 'XMR' } },
       },
@@ -73,13 +91,20 @@ export class SupportIssueJobService {
 
   // --- HELPER METHODS --- //
   private async getAutoResponseIssues(where: FindOptionsWhere<SupportIssue>): Promise<SupportIssue[]> {
-    return this.supportIssueRepo.find({
-      where: {
-        state: SupportIssueInternalState.CREATED,
-        messages: { author: Not(AutoResponder) },
-        ...where,
-      },
-    });
+    const request: FindOptionsWhere<SupportIssue> = { state: SupportIssueInternalState.CREATED, ...where };
+    return this.supportIssueRepo
+      .find({
+        where: [
+          { ...request, clerk: IsNull() },
+          { ...request, clerk: Not(AutoResponder) },
+        ],
+        relations: { messages: true },
+      })
+      .then((issues) =>
+        issues.filter(
+          (i) => i.messages.at(-1).author === CustomerAuthor && i.messages.every((m) => m.author !== AutoResponder),
+        ),
+      );
   }
 
   private async sendAutoResponse(

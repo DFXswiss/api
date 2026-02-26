@@ -27,6 +27,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.BITCOIN]: 100,
   [Blockchain.LIGHTNING]: 1,
   [Blockchain.SPARK]: 1,
+  [Blockchain.FIRO]: undefined,
   [Blockchain.MONERO]: 1,
   [Blockchain.ZANO]: undefined,
   [Blockchain.CARDANO]: undefined,

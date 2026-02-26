@@ -1,10 +1,10 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { ModuleRef } from '@nestjs/core';
-import { Contract } from 'ethers';
+import { Injectable } from '@nestjs/common';
+import { Environment, GetConfig } from 'src/config/config';
+import { HttpService } from 'src/shared/services/http.service';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { createPublicClient, http, parseAbi } from 'viem';
 import { Blockchain } from '../shared/enums/blockchain.enum';
-import { EvmClient } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
-import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
 import {
   BrokerbotBuyPriceDto,
   BrokerbotInfoDto,
@@ -12,91 +12,151 @@ import {
   BrokerbotSharesDto,
 } from './dto/realunit-broker.dto';
 
-// Contract addresses
-const BROKERBOT_ADDRESS = '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d';
-const REALU_TOKEN_ADDRESS = '0x553C7f9C780316FC1D34b8e14ac2465Ab22a090B';
-const ZCHF_ADDRESS = '0xb58e61c3098d85632df34eecfb899a1ed80921cb';
+const BROKERBOT_ABI = parseAbi([
+  'function getSellPrice(uint256 shares) view returns (uint256)',
+  'function getPrice() view returns (uint256)',
+]);
 
-// Contract ABIs
-const BROKERBOT_ABI = [
-  'function getPrice() public view returns (uint256)',
-  'function getBuyPrice(uint256 shares) public view returns (uint256)',
-  'function getShares(uint256 money) public view returns (uint256)',
-  'function settings() public view returns (uint256)',
-];
+interface AktionariatPriceResponse {
+  priceInCHF: number;
+  priceInEUR: number;
+  availableShares: number;
+}
+
+interface PaymentInstructionsRequest {
+  currency: string;
+  address: string;
+  shares: number;
+  price: number;
+}
+
+interface PaymentInstructionsResponse {
+  reference: string;
+  [key: string]: unknown;
+}
+
+interface PayAndAllocateRequest {
+  amount: number;
+  ref: string;
+}
 
 @Injectable()
-export class RealUnitBlockchainService implements OnModuleInit {
-  private registryService: BlockchainRegistryService;
+export class RealUnitBlockchainService {
+  private readonly priceCache = new AsyncCache<AktionariatPriceResponse>(CacheItemResetPeriod.EVERY_30_SECONDS);
 
-  constructor(private readonly moduleRef: ModuleRef) {}
+  constructor(private readonly http: HttpService) {}
 
-  private getEvmClient(): EvmClient {
-    return this.registryService.getClient(Blockchain.ETHEREUM) as EvmClient;
+  private async fetchPrice(): Promise<AktionariatPriceResponse> {
+    return this.priceCache.get(
+      'price',
+      async () => {
+        const { url, key } = GetConfig().blockchain.realunit.api;
+        return this.http.post<AktionariatPriceResponse>(`${url}/directinvestment/getPrice`, null, {
+          headers: { 'x-api-key': key },
+        });
+      },
+      undefined,
+      true,
+    );
   }
 
-  private getBrokerbotContract(): Contract {
-    return new Contract(BROKERBOT_ADDRESS, BROKERBOT_ABI, this.getEvmClient().wallet);
+  async getRealUnitPriceChf(): Promise<number> {
+    return this.fetchPrice().then((r) => r.priceInCHF);
   }
 
-  onModuleInit() {
-    this.registryService = this.moduleRef.get(BlockchainRegistryService, { strict: false });
+  async getRealUnitPriceEur(): Promise<number> {
+    return this.fetchPrice().then((r) => r.priceInEUR);
   }
 
-  async getRealUnitPrice(): Promise<number> {
-    const price = await this.getBrokerbotContract().getPrice();
-    return EvmUtil.fromWeiAmount(price);
+  async requestPaymentInstructions(request: PaymentInstructionsRequest): Promise<PaymentInstructionsResponse> {
+    const { url, key } = GetConfig().blockchain.realunit.api;
+    return this.http.post(`${url}/directinvestment/requestPaymentInstructions`, request, {
+      headers: { 'x-api-key': key },
+    });
+  }
+
+  async payAndAllocate(request: PayAndAllocateRequest): Promise<void> {
+    const { url, key } = GetConfig().blockchain.realunit.api;
+    await this.http.post(`${url}/directinvestment/payAndAllocate`, request, {
+      headers: { 'x-api-key': key },
+    });
   }
 
   // --- Brokerbot Methods ---
 
   async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
-    const priceRaw = await this.getBrokerbotContract().getPrice();
+    const { priceInCHF, availableShares } = await this.fetchPrice();
     return {
-      pricePerShare: EvmUtil.fromWeiAmount(priceRaw).toString(),
-      pricePerShareRaw: priceRaw.toString(),
+      pricePerShare: priceInCHF.toString(),
+      availableShares,
     };
   }
 
   async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
-    const contract = this.getBrokerbotContract();
-    const [totalPriceRaw, pricePerShareRaw] = await Promise.all([contract.getBuyPrice(shares), contract.getPrice()]);
+    const { priceInCHF, availableShares } = await this.fetchPrice();
+    const totalPrice = priceInCHF * shares;
 
     return {
       shares,
-      totalPrice: EvmUtil.fromWeiAmount(totalPriceRaw).toString(),
-      totalPriceRaw: totalPriceRaw.toString(),
-      pricePerShare: EvmUtil.fromWeiAmount(pricePerShareRaw).toString(),
+      totalPrice: totalPrice.toString(),
+      pricePerShare: priceInCHF.toString(),
+      availableShares,
     };
   }
 
   async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
-    const contract = this.getBrokerbotContract();
-    const amountWei = EvmUtil.toWeiAmount(parseFloat(amountChf));
-    const [shares, pricePerShareRaw] = await Promise.all([contract.getShares(amountWei), contract.getPrice()]);
+    const { priceInCHF, availableShares } = await this.fetchPrice();
+    const shares = Math.floor(parseFloat(amountChf) / priceInCHF);
 
     return {
       amount: amountChf,
-      shares: shares.toNumber(),
-      pricePerShare: EvmUtil.fromWeiAmount(pricePerShareRaw).toString(),
+      shares,
+      pricePerShare: priceInCHF.toString(),
+      availableShares,
     };
   }
 
-  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
-    const contract = this.getBrokerbotContract();
-    const [priceRaw, settings] = await Promise.all([contract.getPrice(), contract.settings()]);
-
-    // Settings bitmask: bit 0 = buying enabled, bit 1 = selling enabled
-    const buyingEnabled = (settings.toNumber() & 1) === 1;
-    const sellingEnabled = (settings.toNumber() & 2) === 2;
+  async getBrokerbotInfo(brokerbotAddr: string, realuAddr: string, zchfAddr: string): Promise<BrokerbotInfoDto> {
+    const { priceInCHF, availableShares } = await this.fetchPrice();
 
     return {
-      brokerbotAddress: BROKERBOT_ADDRESS,
-      tokenAddress: REALU_TOKEN_ADDRESS,
-      baseCurrencyAddress: ZCHF_ADDRESS,
-      pricePerShare: EvmUtil.fromWeiAmount(priceRaw).toString(),
-      buyingEnabled,
-      sellingEnabled,
+      brokerbotAddress: brokerbotAddr,
+      tokenAddress: realuAddr,
+      baseCurrencyAddress: zchfAddr,
+      pricePerShare: priceInCHF.toString(),
+      buyingEnabled: availableShares > 0,
+      sellingEnabled: true,
+      availableShares,
     };
+  }
+
+  async getBrokerbotSellPrice(brokerbotAddress: string, shares: number): Promise<{ zchfAmountWei: bigint }> {
+    const blockchain = [Environment.DEV, Environment.LOC].includes(GetConfig().environment)
+      ? Blockchain.SEPOLIA
+      : Blockchain.ETHEREUM;
+
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
+    if (!chainConfig) {
+      throw new Error(`No chain config found for ${blockchain}`);
+    }
+
+    const publicClient = createPublicClient({
+      chain: chainConfig.chain,
+      transport: http(chainConfig.rpcUrl),
+    });
+
+    // Call getSellPrice on the BrokerBot contract
+    const zchfAmountWei = (await publicClient.readContract({
+      address: brokerbotAddress as `0x${string}`,
+      abi: BROKERBOT_ABI,
+      functionName: 'getSellPrice',
+      args: [BigInt(shares)],
+    } as any)) as bigint;
+
+    if (zchfAmountWei === 0n) {
+      throw new Error('BrokerBot returned zero sell price');
+    }
+
+    return { zchfAmountWei };
   }
 }

@@ -12,7 +12,7 @@ import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notificat
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
-import { KycLevel, KycType, UserDataStatus } from '../user-data/user-data.enum';
+import { KycLevel, KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
 import { CreateRecommendationDto } from './dto/recommendation.dto';
@@ -74,6 +74,9 @@ export class RecommendationService {
             tradeApprovalDate: new Date(),
           })
         : undefined;
+
+    if (recommended?.tradeApprovalDate)
+      await this.userDataService.createTradeApprovalLog(recommended, TradeApprovalReason.MAIL_INVITATION);
 
     const entity = await this.createRecommendationInternal(
       RecommendationType.INVITATION,
@@ -213,15 +216,22 @@ export class RecommendationService {
   async updateRecommendationInternal(entity: Recommendation, update: Partial<Recommendation>): Promise<Recommendation> {
     Object.assign(entity, update);
 
-    if (update.isConfirmed && entity.recommended) {
+    if (entity.isConfirmed !== null && update.isConfirmed !== entity.isConfirmed)
+      throw new BadRequestException('Recommendation already completed');
+    if (update.isConfirmed && entity.recommended && !entity.recommended.tradeApprovalDate) {
       await this.userDataService.updateUserDataInternal(entity.recommended, {
         tradeApprovalDate: new Date(),
       });
 
+      await this.userDataService.createTradeApprovalLog(
+        entity.recommended,
+        TradeApprovalReason.RECOMMENDATION_CONFIRMED,
+      );
+
       const refCode =
         entity.kycStep && entity.method === RecommendationMethod.REF_CODE
           ? entity.kycStep.getResult<KycRecommendationData>().key
-          : (entity.recommender.users.find((u) => u.ref).ref ?? Config.defaultRef);
+          : (entity.recommender.users.find((u) => u.ref)?.ref ?? Config.defaultRef);
 
       for (const user of entity.recommended.users ??
         (await this.userService.getAllUserDataUsers(entity.recommended.id))) {

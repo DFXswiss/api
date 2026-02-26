@@ -15,6 +15,9 @@ export class HistoricalBalanceDto {
 
   @ApiPropertyOptional({ description: 'Valuation in CHF at this point in time' })
   valueChf?: number;
+
+  @ApiPropertyOptional({ description: 'Valuation in EUR at this point in time' })
+  valueEur?: number;
 }
 
 export class PageInfoDto implements PageInfo {
@@ -346,4 +349,9 @@ export class RealUnitPaymentInfoDto {
 
   @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
   error?: QuoteError;
+}
+
+export class RealUnitBuyConfirmDto {
+  @ApiProperty({ description: 'Aktionariat reference for the confirmed buy order' })
+  reference: string;
 }

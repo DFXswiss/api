@@ -9,6 +9,7 @@ import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInWebHookService } from '../../../services/payin-webhhook.service';
 import { PayInZanoService } from '../../../services/payin-zano.service';
+import { PayInFiroService } from '../../../services/payin-firo.service';
 import { ArbitrumStrategy } from '../impl/arbitrum.strategy';
 import { BaseStrategy } from '../impl/base.strategy';
 import { RegisterStrategyRegistry } from '../impl/base/register.strategy-registry';
@@ -23,12 +24,14 @@ import { PolygonStrategy } from '../impl/polygon.strategy';
 import { SolanaStrategy } from '../impl/solana.strategy';
 import { TronStrategy } from '../impl/tron.strategy';
 import { ZanoStrategy } from '../impl/zano.strategy';
+import { FiroStrategy } from '../impl/firo.strategy';
 
 describe('RegisterStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
   let lightningStrategy: LightningStrategy;
   let moneroStrategy: MoneroStrategy;
   let zanoStrategy: ZanoStrategy;
+  let firoStrategy: FiroStrategy;
   let ethereumStrategy: EthereumStrategy;
   let bscStrategy: BscStrategy;
   let arbitrumStrategy: ArbitrumStrategy;
@@ -49,6 +52,8 @@ describe('RegisterStrategyRegistry', () => {
     moneroStrategy = new MoneroStrategy(mock<PayInMoneroService>());
 
     zanoStrategy = new ZanoStrategy(mock<PayInZanoService>());
+
+    firoStrategy = new FiroStrategy(mock<PayInFiroService>());
 
     ethereumStrategy = new EthereumStrategy();
 
@@ -73,6 +78,7 @@ describe('RegisterStrategyRegistry', () => {
       lightningStrategy,
       moneroStrategy,
       zanoStrategy,
+      firoStrategy,
       ethereumStrategy,
       bscStrategy,
       arbitrumStrategy,
@@ -109,6 +115,12 @@ describe('RegisterStrategyRegistry', () => {
         const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.ZANO }));
 
         expect(strategy).toBeInstanceOf(ZanoStrategy);
+      });
+
+      it('gets FIRO strategy for FIRO', () => {
+        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.FIRO }));
+
+        expect(strategy).toBeInstanceOf(FiroStrategy);
       });
 
       it('gets ETHEREUM strategy for ETHERUM', () => {
@@ -184,6 +196,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     lightningStrategy: LightningStrategy,
     moneroStrategy: MoneroStrategy,
     zanoStrategy: ZanoStrategy,
+    firoStrategy: FiroStrategy,
     ethereumStrategy: EthereumStrategy,
     bscStrategy: BscStrategy,
     arbitrumStrategy: ArbitrumStrategy,
@@ -200,6 +213,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     this.add(Blockchain.LIGHTNING, lightningStrategy);
     this.add(Blockchain.MONERO, moneroStrategy);
     this.add(Blockchain.ZANO, zanoStrategy);
+    this.add(Blockchain.FIRO, firoStrategy);
 
     this.add(Blockchain.ETHEREUM, ethereumStrategy);
     this.add(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);

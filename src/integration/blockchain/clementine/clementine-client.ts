@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import * as pty from 'node-pty';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum ClementineNetwork {
@@ -13,6 +13,7 @@ export interface ClementineConfig {
   timeoutMs: number;
   signingTimeoutMs: number;
   expectedVersion: string;
+  passphrase: string;
 }
 
 export interface ClementineVersionInfo {
@@ -142,14 +143,15 @@ export class ClementineClient {
 
     // Parse the deposit address from CLI output
     const addressMatch =
-      output.match(/(?:deposit\s+)?address[:\s]+([a-zA-Z0-9]+)/i) ||
-      output.match(/bc1[a-zA-Z0-9]{59,}/i) ||
-      output.match(/tb1[a-zA-Z0-9]{59,}/i);
+      output.match(/bc1p[a-zA-Z0-9]{58}/i) ||
+      output.match(/tb1p[a-zA-Z0-9]{58}/i) ||
+      output.match(/bc1q[a-zA-Z0-9]{38,}/i) ||
+      output.match(/tb1q[a-zA-Z0-9]{38,}/i);
     if (!addressMatch) {
       throw new Error(`Failed to parse deposit address from CLI output: ${output}`);
     }
 
-    return { depositAddress: addressMatch[1] || addressMatch[0] };
+    return { depositAddress: addressMatch[0] };
   }
 
   /**
@@ -222,6 +224,11 @@ export class ClementineClient {
    */
   async withdrawScan(signerAddress: string, destinationAddress: string): Promise<WithdrawScanResult | null> {
     const output = await this.executeCommand(['withdraw', 'scan', signerAddress, destinationAddress]);
+
+    if (output.toLowerCase().includes('waiting for confirmation') || output.toLowerCase().includes('unconfirmed')) {
+      this.logger.verbose('withdrawScan: UTXO found but unconfirmed, waiting for confirmation');
+      return null;
+    }
 
     // Parse withdrawal UTXO from output (format: txid:vout)
     const utxoMatch = output.match(/([a-f0-9]{64}:\d+)/i);
@@ -297,21 +304,21 @@ export class ClementineClient {
    * @param destinationAddress Bitcoin destination address
    * @param withdrawalUtxo The withdrawal UTXO (format: txid:vout)
    * @param optimisticSignature The optimistic withdrawal signature
+   * @param citreaPrivateKey Citrea private key for signing the withdrawal transaction (64 hex chars)
    */
   async withdrawSend(
     signerAddress: string,
     destinationAddress: string,
     withdrawalUtxo: string,
     optimisticSignature: string,
+    citreaPrivateKey: string,
   ): Promise<void> {
-    await this.executeCommand([
-      'withdraw',
-      'send-safe-withdraw',
-      signerAddress,
-      destinationAddress,
-      withdrawalUtxo,
-      optimisticSignature,
-    ]);
+    await this.executeCommand(
+      ['withdraw', 'send-safe-withdraw', signerAddress, destinationAddress, withdrawalUtxo, optimisticSignature],
+      this.config.signingTimeoutMs,
+      true,
+      citreaPrivateKey,
+    );
   }
 
   /**
@@ -321,11 +328,17 @@ export class ClementineClient {
    * @returns Status result with NOT_FOUND if no withdrawal exists for this UTXO
    */
   async withdrawStatus(withdrawalUtxo: string): Promise<WithdrawStatusResult> {
-    const output = await this.executeCommand(['withdraw', 'status', withdrawalUtxo]);
+    const output = await this.executeCommand(['withdraw', 'status', withdrawalUtxo]).catch((e) => {
+      // Handle "Withdrawal not found for outpoint" error - return empty to trigger NOT_FOUND
+      if (e.message?.includes('not found for outpoint') || e.message?.includes('wait for confirmation')) {
+        this.logger.verbose(`withdrawStatus: withdrawal not found for ${withdrawalUtxo}, may need confirmation`);
+        return '';
+      }
+      throw e;
+    });
 
     // Check if no withdrawal exists for this UTXO
-    // CLI outputs "No withdrawals found for OutPoint ..." if never submitted
-    if (output.toLowerCase().includes('no withdrawals found')) {
+    if (!output || output.toLowerCase().includes('no withdrawals found')) {
       return {
         withdrawalUtxo,
         status: WithdrawStatus.NOT_FOUND,
@@ -349,24 +362,31 @@ export class ClementineClient {
     withdrawalUtxo: string,
     operatorPaidSignature: string,
   ): Promise<void> {
-    await this.executeCommand([
-      'withdraw',
-      'send-withdrawal-signature-to-operators',
-      signerAddress,
-      destinationAddress,
-      withdrawalUtxo,
-      operatorPaidSignature,
-    ]);
+    await this.executeCommand(
+      [
+        'withdraw',
+        'send-withdrawal-signature-to-operators',
+        signerAddress,
+        destinationAddress,
+        withdrawalUtxo,
+        operatorPaidSignature,
+      ],
+      this.config.signingTimeoutMs,
+    );
   }
 
   // --- INTERNAL METHODS --- //
 
-  private async executeCommand(args: string[], timeout?: number, addNetworkFlag = true): Promise<string> {
+  private async executeCommand(
+    args: string[],
+    timeout?: number,
+    addNetworkFlag = true,
+    citreaPrivateKey?: string,
+  ): Promise<string> {
     const finalArgs = addNetworkFlag ? this.addNetworkFlag(args) : args;
-    this.logger.verbose(`Executing: ${this.config.cliPath} ${finalArgs.join(' ')}`);
 
     try {
-      return await this.spawnAsync(finalArgs, timeout ?? this.config.timeoutMs);
+      return await this.spawnWithPty(finalArgs, timeout ?? this.config.timeoutMs, citreaPrivateKey);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Clementine CLI error: ${message}`);
@@ -374,17 +394,27 @@ export class ClementineClient {
     }
   }
 
-  private spawnAsync(args: string[], timeout: number): Promise<string> {
+  /**
+   * Spawn CLI with PTY to handle interactive prompts.
+   * @param args CLI arguments
+   * @param timeout Timeout in milliseconds
+   * @param citreaPrivateKey Optional Citrea private key for signing withdrawals (64 hex chars)
+   */
+  private spawnWithPty(args: string[], timeout: number, citreaPrivateKey?: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      let stdout = '';
-      let stderr = '';
+      let output = '';
       let timeoutId: NodeJS.Timeout | null = null;
-      let killTimeoutId: NodeJS.Timeout | null = null;
       let isSettled = false;
+      let passphraseHandled = false;
+      let citreaKeyHandled = false;
 
-      const proc = spawn(this.config.cliPath, args, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, HOME: this.config.homeDir },
+      this.logger.verbose(`Executing (PTY): ${this.config.cliPath} ${args.join(' ')}`);
+
+      const proc = pty.spawn(this.config.cliPath, args, {
+        name: 'xterm',
+        cols: 200,
+        rows: 30,
+        env: { ...process.env, HOME: this.config.homeDir } as Record<string, string>,
       });
 
       const cleanup = (): void => {
@@ -392,16 +422,13 @@ export class ClementineClient {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
-        if (killTimeoutId) {
-          clearTimeout(killTimeoutId);
-          killTimeoutId = null;
-        }
       };
 
       const settle = (error?: Error, result?: string): void => {
         if (isSettled) return;
         isSettled = true;
         cleanup();
+        proc.kill();
 
         if (error) {
           reject(error);
@@ -410,38 +437,34 @@ export class ClementineClient {
         }
       };
 
-      // Timeout handling
       timeoutId = setTimeout(() => {
-        proc.kill('SIGTERM');
-
-        // Force kill after 5 seconds if process doesn't respond to SIGTERM
-        killTimeoutId = setTimeout(() => {
-          if (proc.exitCode === null) {
-            // Process still running, force kill
-            proc.kill('SIGKILL');
-          }
-        }, 5000);
-
         settle(new Error(`Command timed out after ${timeout}ms`));
       }, timeout);
 
-      proc.stdout.on('data', (data: Buffer) => {
-        stdout += data.toString();
+      proc.onData((data: string) => {
+        output += data;
+        const lowerData = data.toLowerCase();
+
+        if (!passphraseHandled && lowerData.includes('passphrase')) {
+          passphraseHandled = true;
+          proc.write(this.config.passphrase + '\r');
+        }
+
+        if (!citreaKeyHandled && lowerData.includes('secret key')) {
+          citreaKeyHandled = true;
+          if (citreaPrivateKey) {
+            proc.write(citreaPrivateKey + '\r');
+          } else {
+            settle(new Error('CLI prompted for Citrea private key but none was provided'));
+          }
+        }
       });
 
-      proc.stderr.on('data', (data: Buffer) => {
-        stderr += data.toString();
-      });
-
-      proc.on('error', (error: Error) => {
-        settle(new Error(`Spawn error: ${error.message}`));
-      });
-
-      proc.on('close', (code: number | null) => {
-        if (code === 0) {
-          settle(undefined, stdout);
+      proc.onExit(({ exitCode }) => {
+        if (exitCode === 0) {
+          settle(undefined, output);
         } else {
-          settle(new Error(`Exit code ${code}: ${stderr || stdout}`));
+          settle(new Error(`Exit code ${exitCode}: ${output}`));
         }
       });
     });

@@ -136,7 +136,7 @@ export class BuyFiatService {
         fiatOutput: true,
         bankTx: true,
         cryptoInput: { route: { user: true }, transaction: true },
-        transaction: { user: { wallet: true }, userData: true },
+        transaction: { user: { wallet: true }, userData: { kycSteps: true } },
         bankData: true,
       },
     });
@@ -322,6 +322,7 @@ export class BuyFiatService {
     await this.refundBuyFiatInternal(buyFiat, {
       refundUserId: dto.refundUser?.id,
       chargebackAmount: dto.chargebackAmount,
+      chargebackCurrency: dto.chargebackAsset,
       chargebackAllowedDate: dto.chargebackAllowedDate,
       chargebackAllowedBy: dto.chargebackAllowedBy,
     });
@@ -340,7 +341,7 @@ export class BuyFiatService {
 
     const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
 
-    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount });
+    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount, assetMismatch: false });
 
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
@@ -354,6 +355,8 @@ export class BuyFiatService {
       ...buyFiat.chargebackFillUp(
         refundUser.address ?? buyFiat.chargebackAddress,
         chargebackAmount,
+        chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,

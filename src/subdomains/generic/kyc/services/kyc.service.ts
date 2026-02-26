@@ -32,7 +32,7 @@ import { UserDataRelationService } from '../../user/models/user-data-relation/us
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
+import { KycLevel, KycType, TradeApprovalReason, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -207,7 +207,7 @@ export class KycService {
         status: ReviewStatus.INTERNAL_REVIEW,
         userData: { kycSteps: { name: KycStepName.NATIONALITY_DATA, status: ReviewStatus.COMPLETED } },
       },
-      relations: { userData: { users: true, wallet: true, kycFiles: true } },
+      relations: { userData: { users: true, wallet: true, kycFiles: true, organization: { country: true } } },
     });
 
     for (const entity of entities) {
@@ -269,14 +269,14 @@ export class KycService {
           entity.manualReview(comment);
         }
 
-        await this.createStepLog(entity.userData, entity);
-        await this.kycStepRepo.save(entity);
-
         if (
           !entity.userData.kycFiles.some((f) => f.subType === FileSubType.IDENT_REPORT) &&
           (entity.isCompleted || entity.status === ReviewStatus.MANUAL_REVIEW)
         )
           await this.syncIdentFilesInternal(entity);
+
+        await this.createStepLog(entity.userData, entity);
+        await this.kycStepRepo.save(entity);
 
         if (entity.isCompleted) {
           await this.completeIdent(entity, nationality);
@@ -382,6 +382,30 @@ export class KycService {
   }
 
   async checkDfxApproval(kycStep: KycStep): Promise<void> {
+    const expiredSteps = [
+      ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_AUTO),
+      ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.AUTO),
+      ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.VIDEO),
+      ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_VIDEO),
+      ...kycStep.userData.getStepsWith(KycStepName.FINANCIAL_DATA),
+    ].filter(
+      (s) =>
+        (s?.isInProgress || s?.isInReview || s?.isCompleted) && Util.daysDiff(s.created) > Config.kyc.kycStepExpiry,
+    );
+
+    if (expiredSteps.length) {
+      for (const expiredStep of expiredSteps) {
+        await this.kycStepRepo.update(...expiredStep.update(ReviewStatus.OUTDATED, undefined, KycError.EXPIRED_STEP));
+      }
+
+      kycStep.userData = await this.userDataService.getUserData(kycStep.userData.id, { kycSteps: true });
+
+      // initiate next step
+      await this.updateProgress(kycStep.userData, true, false);
+
+      return this.kycNotificationService.kycStepReminder(kycStep.userData);
+    }
+
     const missingCompletedSteps = requiredKycSteps(kycStep.userData).filter(
       (rs) => !kycStep.userData.hasCompletedStep(rs),
     );
@@ -1355,7 +1379,10 @@ export class KycService {
   }
 
   async completeRecommendation(userData: UserData): Promise<void> {
-    await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
+    if (!userData.tradeApprovalDate) {
+      await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
+      await this.userDataService.createTradeApprovalLog(userData, TradeApprovalReason.KYC_STEP_COMPLETED);
+    }
   }
 
   private getStepDefaultErrors(entity: KycStep): KycError[] {
@@ -1470,10 +1497,15 @@ export class KycService {
 
     // Country & verifiedName check
     const userCountry =
-      identStep.userData.organizationCountry ?? identStep.userData.verifiedCountry ?? identStep.userData.country;
+      identStep.userData.organizationCountry ??
+      identStep.userData.organization?.country ??
+      identStep.userData.verifiedCountry ??
+      identStep.userData.country;
+
     if (identStep.userData.accountType === AccountType.PERSONAL) {
       // Personal Account
-      if (userCountry && !userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (!userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry.manualReviewRequired) errors.push(KycError.MANUAL_REVIEW_REQUIRED);
 
       if (!identStep.userData.verifiedName && identStep.userData.status === UserDataStatus.ACTIVE) {
         errors.push(KycError.VERIFIED_NAME_MISSING);
@@ -1485,7 +1517,8 @@ export class KycService {
       }
     } else {
       // Business Account
-      if (userCountry && !userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (!userCountry.dfxOrganizationEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
+      if (userCountry.manualReviewRequiredOrganization) errors.push(KycError.MANUAL_REVIEW_REQUIRED);
     }
 
     return errors;

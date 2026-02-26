@@ -5,9 +5,9 @@
  * including fee rate caching, TX fee rate lookup, and batch operations.
  */
 
-import { BitcoinFeeService } from '../bitcoin-fee.service';
-import { BitcoinService, BitcoinNodeType } from '../../node/bitcoin.service';
 import { BitcoinClient } from '../../node/bitcoin-client';
+import { BitcoinFeeService } from '../bitcoin-fee.service';
+import { BitcoinNodeType, BitcoinService } from '../bitcoin.service';
 
 describe('BitcoinFeeService', () => {
   let service: BitcoinFeeService;

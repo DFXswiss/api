@@ -5,6 +5,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -41,6 +42,7 @@ export class AmlService {
     private readonly userService: UserService,
     private readonly transactionService: TransactionService,
     private readonly ipLogService: IpLogService,
+    private readonly kycService: KycService,
   ) {}
 
   async postProcessing(entity: BuyFiat | BuyCrypto, last30dVolume: number | undefined): Promise<void> {
@@ -69,6 +71,7 @@ export class AmlService {
         amlCheck: entity.amlCheck,
         assets: `${entity.inputReferenceAsset}-${entity.outputAsset.name}`,
         amountInChf: entity.amountInChf,
+        feeAmountInChf: entity.feeAmountChf,
         highRisk: entity.highRisk == true,
         eventDate: entity.created,
         amlType: entity.transaction.type,
@@ -91,13 +94,16 @@ export class AmlService {
     refUser: User;
     bankData: BankData;
     blacklist: SpecialExternalAccount[];
+    phoneCallList: SpecialExternalAccount[];
     banks?: Bank[];
     ipLogCountries?: string[];
     multiAccountBankNames?: string[];
   }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
+    const phoneCallList = await this.specialExternalBankAccountService.getPhoneCallList();
     const multiAccountBankNames = await this.specialExternalBankAccountService.getMultiAccountNames();
 
+    entity.userData.kycSteps = await this.kycService.getStepsByUserData(entity.userData.id);
     entity.userData.users = await this.userService.getAllUserDataUsers(entity.userData.id);
     let bankData = await this.getBankData(entity);
     const refUser =
@@ -163,7 +169,7 @@ export class AmlService {
       if (verifiedCountry) await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry });
     }
 
-    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist };
+    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist, phoneCallList };
 
     const ipLogCountries = await this.ipLogService.getLoginCountries(entity.userData.id, Util.daysBefore(3));
 
@@ -173,12 +179,22 @@ export class AmlService {
         refUser,
         bankData: undefined,
         blacklist,
+        phoneCallList,
         banks: undefined,
         ipLogCountries,
       };
 
     const banks = await this.bankService.getAllBanks();
-    return { users: entity.userData.users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames };
+    return {
+      users: entity.userData.users,
+      refUser,
+      bankData,
+      blacklist,
+      phoneCallList,
+      banks,
+      ipLogCountries,
+      multiAccountBankNames,
+    };
   }
 
   //*** HELPER METHODS ***//

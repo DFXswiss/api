@@ -2,11 +2,25 @@ import { FeeAmount } from '@uniswap/v3-sdk';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, ethers, BigNumber as EthersNumber } from 'ethers';
 import { defaultPath } from 'ethers/lib/utils';
+import { Chain } from 'viem';
+import { arbitrum, base, bsc, gnosis, mainnet, optimism, polygon, sepolia } from 'viem/chains';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from '../enums/blockchain.enum';
 import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
+
+// Viem chain configuration mapping
+const VIEM_CHAIN_CONFIG: Partial<Record<Blockchain, { chain: Chain; configKey: string; prefix: string }>> = {
+  [Blockchain.ETHEREUM]: { chain: mainnet, configKey: 'ethereum', prefix: 'eth' },
+  [Blockchain.ARBITRUM]: { chain: arbitrum, configKey: 'arbitrum', prefix: 'arbitrum' },
+  [Blockchain.OPTIMISM]: { chain: optimism, configKey: 'optimism', prefix: 'optimism' },
+  [Blockchain.POLYGON]: { chain: polygon, configKey: 'polygon', prefix: 'polygon' },
+  [Blockchain.BASE]: { chain: base, configKey: 'base', prefix: 'base' },
+  [Blockchain.BINANCE_SMART_CHAIN]: { chain: bsc, configKey: 'bsc', prefix: 'bsc' },
+  [Blockchain.GNOSIS]: { chain: gnosis, configKey: 'gnosis', prefix: 'gnosis' },
+  [Blockchain.SEPOLIA]: { chain: sepolia, configKey: 'sepolia', prefix: 'sepolia' },
+};
 
 enum FeeType {
   Legacy = 0,
@@ -121,10 +135,35 @@ export class EvmUtil {
 
   static decodeErc20Transfer(data: string): { to: string; amount: EthersNumber } {
     const decoded = this.ERC20_INTERFACE.decodeFunctionData('transfer', data);
-    return { to: decoded.to.toLowerCase(), amount: EthersNumber.from(decoded.amount) };
+    return { to: decoded._to.toLowerCase(), amount: EthersNumber.from(decoded._value) };
   }
 
   static isErc20Transfer(data: string | undefined): boolean {
     return data?.startsWith(this.ERC20_TRANSFER_SELECTOR) ?? false;
+  }
+
+  // --- Viem Chain Config Utilities --- //
+
+  /**
+   * Get viem chain configuration for a blockchain
+   * Returns the viem Chain object, RPC URL, and config keys for use with viem clients
+   */
+  static getViemChainConfig(
+    blockchain: Blockchain,
+  ): { chain: Chain; rpcUrl: string; configKey: string; prefix: string } | undefined {
+    const config = VIEM_CHAIN_CONFIG[blockchain];
+    if (!config) return undefined;
+
+    const chainConfig = this.blockchainConfig[config.configKey];
+    const rpcUrl = `${chainConfig[`${config.prefix}GatewayUrl`]}/${chainConfig[`${config.prefix}ApiKey`] ?? ''}`;
+
+    return { chain: config.chain, rpcUrl, configKey: config.configKey, prefix: config.prefix };
+  }
+
+  /**
+   * Check if a blockchain has viem chain configuration
+   */
+  static hasViemChainConfig(blockchain: Blockchain): boolean {
+    return VIEM_CHAIN_CONFIG[blockchain] !== undefined;
   }
 }

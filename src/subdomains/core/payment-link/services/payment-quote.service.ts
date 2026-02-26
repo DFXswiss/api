@@ -1,15 +1,20 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
-import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
+import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
+import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
+import { PaymentBalanceService } from 'src/subdomains/core/payment-link/services/payment-balance.service';
 import { PaymentLinkFeeService } from 'src/subdomains/core/payment-link/services/payment-link-fee.service';
 import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Equal, In, LessThan } from 'typeorm';
@@ -23,6 +28,7 @@ import {
   PaymentQuoteStatus,
   PaymentQuoteTxStates,
   PaymentStandard,
+  TxIdBlockchains,
 } from '../enums';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
@@ -38,8 +44,9 @@ export class PaymentQuoteService {
     Blockchain.GNOSIS,
     Blockchain.ETHEREUM,
     Blockchain.BINANCE_SMART_CHAIN,
-    Blockchain.MONERO,
     Blockchain.BITCOIN,
+    Blockchain.FIRO,
+    Blockchain.MONERO,
     Blockchain.ZANO,
     Blockchain.SOLANA,
     Blockchain.TRON,
@@ -55,6 +62,8 @@ export class PaymentQuoteService {
     private readonly pricingService: PricingService,
     private readonly feeService: PaymentLinkFeeService,
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
+    private readonly paymentBalanceService: PaymentBalanceService,
+    private readonly txValidationService: TxValidationService,
   ) {}
 
   // --- JOBS --- //
@@ -84,6 +93,7 @@ export class PaymentQuoteService {
         uniqueId: Equal(uniqueId),
         status: PaymentQuoteStatus.ACTUAL,
       },
+      relations: { activations: true },
     });
   }
 
@@ -379,19 +389,16 @@ export class PaymentQuoteService {
           break;
 
         case Blockchain.BITCOIN:
-          await this.doBitcoinHexPayment(transferInfo.method, transferInfo, quote);
-          break;
-
-        case Blockchain.MONERO:
-        case Blockchain.ZANO:
-        case Blockchain.SOLANA:
-        case Blockchain.TRON:
-        case Blockchain.CARDANO:
-          await this.doTxIdPayment(transferInfo, quote);
+        case Blockchain.FIRO:
+          await this.doBitcoinBasedHexPayment(transferInfo.method, transferInfo, quote);
           break;
 
         default:
-          throw new BadRequestException(`Invalid method ${transferInfo.method} for hex payment`);
+          if (TxIdBlockchains.includes(transferInfo.method as Blockchain)) {
+            await this.doTxIdPayment(transferInfo, quote);
+          } else {
+            throw new BadRequestException(`Invalid method ${transferInfo.method} for hex payment`);
+          }
       }
     } catch (e) {
       this.logger.error(`Transaction failed for quote ${transferInfo.quoteUniqueId}:`, e);
@@ -405,14 +412,27 @@ export class PaymentQuoteService {
   private async doEvmHexPayment(method: Blockchain, transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
       const client = this.blockchainRegistryService.getEvmClient(method);
+      const expectedRecipient = this.paymentBalanceService.getDepositAddress(method);
 
       // handle TX ID
       if (transferInfo.tx && !transferInfo.hex) {
         const tryCount = Config.payment.defaultEvmHexPaymentTryCount;
 
         for (let i = 0; i < tryCount; i++) {
-          const isComplete = await client.isTxComplete(transferInfo.tx, 1);
-          if (isComplete) {
+          const tx = await client.getTx(transferInfo.tx);
+          if (tx?.confirmations > 0) {
+            const receipt = await client.getTxReceipt(transferInfo.tx);
+            if (!receipt?.status) {
+              quote.txFailed(`Transaction ${transferInfo.tx} has been reverted`);
+              return;
+            }
+
+            const error = this.validateEvmTx(quote, method, expectedRecipient, tx);
+            if (error) {
+              quote.txFailed(`Transaction validation failed: ${error}`);
+              return;
+            }
+
             quote.txInBlockchain(transferInfo.tx);
             return;
           }
@@ -437,6 +457,13 @@ export class PaymentQuoteService {
         return;
       }
 
+      const parsedTx = ethers.utils.parseTransaction(transferInfo.hex);
+      const error = this.validateEvmTx(quote, method, expectedRecipient, parsedTx);
+      if (error) {
+        quote.txFailed(`HEX validation failed: ${error}`);
+        return;
+      }
+
       const transactionResponse = await client.sendSignedTransaction(transferInfo.hex);
 
       if (transactionResponse.error) {
@@ -449,19 +476,46 @@ export class PaymentQuoteService {
     }
   }
 
-  private async doBitcoinHexPayment(
+  private validateEvmTx(
+    quote: PaymentQuote,
+    method: Blockchain,
+    expectedRecipient: string,
+    tx: { to?: string; data: string; value: ethers.BigNumber; from?: string },
+  ): string | undefined {
+    const methodActivations = quote.activations?.filter((a) => a.method === method) ?? [];
+
+    const activation = EvmUtil.isErc20Transfer(tx.data)
+      ? methodActivations.find((a) => a.asset.chainId?.toLowerCase() === tx.to?.toLowerCase())
+      : methodActivations.find((a) => a.asset.type === AssetType.COIN);
+
+    if (!activation) return 'No matching activation for transaction';
+
+    const result = this.txValidationService.validateEvmTransactionResponse(
+      tx as ethers.providers.TransactionResponse,
+      expectedRecipient,
+      activation.amount,
+      activation.asset,
+    );
+
+    return result.isValid ? undefined : result.error;
+  }
+
+  private async doBitcoinBasedHexPayment(
     method: Blockchain,
     transferInfo: TransferInfo,
     quote: PaymentQuote,
   ): Promise<void> {
     try {
-      const transferAmount = quote.getTransferAmount(Blockchain.BITCOIN);
+      const transferAmount = quote.getTransferAmount(method);
       if (!transferAmount) {
-        quote.txFailed(`Quote ${quote.uniqueId}: No transfer amount for Bitcoin hex payment`);
+        quote.txFailed(`Quote ${quote.uniqueId}: No transfer amount for ${method} hex payment`);
         return;
       }
 
-      const client = this.blockchainRegistryService.getBitcoinClient(method, BitcoinNodeType.BTC_OUTPUT);
+      const client: BitcoinBasedClient =
+        method === Blockchain.BITCOIN
+          ? this.blockchainRegistryService.getBitcoinClient(method, BitcoinNodeType.BTC_OUTPUT)
+          : (this.blockchainRegistryService.getClient(method) as BitcoinBasedClient);
 
       const testMempoolResults = await client.testMempoolAccept(transferInfo.hex);
 

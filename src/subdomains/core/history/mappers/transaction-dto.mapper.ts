@@ -304,7 +304,9 @@ export class TransactionDtoMapper {
         ? TransactionState.RETURNED
         : bankTxReturn?.chargebackAllowedDateUser
           ? TransactionState.RETURN_PENDING
-          : TransactionState.UNASSIGNED,
+          : bankTxReturn?.id
+            ? TransactionState.FAILED
+            : TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,
       inputAsset: tx.txCurrency,
       inputAssetId: currency.id,

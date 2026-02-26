@@ -62,6 +62,10 @@ describe('CryptoService', () => {
     ).toEqual(Blockchain.ZANO);
   });
 
+  it('should match firo addresses', async () => {
+    expect(getBlockchain('aEXoDuVy8YVAxkvPMFGeVL2NU2KSkfZCZf')).toEqual(Blockchain.FIRO);
+  });
+
   it('should match liquid addresses', async () => {
     expect(getBlockchain('VTpwKsrwasw7VnNf4GHMmcjNY3MR2Q81GaxDv7EyhVS8rzj5exX5b5PF6g29Szb4jrMqKSUwP2ZGnXt4')).toEqual(
       Blockchain.LIQUID,

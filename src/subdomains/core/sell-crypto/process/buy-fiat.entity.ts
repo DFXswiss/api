@@ -170,7 +170,13 @@ export class BuyFiat extends IEntity {
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
-  chargebackAmount?: number;
+  chargebackReferenceAmount?: number; // inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount?: number; // chargebackAsset
+
+  @Column({ length: 256, nullable: true })
+  chargebackAsset?: string;
 
   @Column({ length: 256, nullable: true })
   chargebackAllowedBy?: string;
@@ -266,7 +272,9 @@ export class BuyFiat extends IEntity {
 
   chargebackFillUp(
     chargebackAddress: string,
+    chargebackReferenceAmount: number,
     chargebackAmount: number,
+    chargebackAsset: string,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
@@ -277,7 +285,9 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDate,
       chargebackAllowedDateUser,
       chargebackAddress,
+      chargebackReferenceAmount,
       chargebackAmount,
+      chargebackAsset,
       chargebackAllowedBy,
       amlCheck: CheckStatus.FAIL,
       mailReturnSendDate: null,
@@ -405,6 +415,7 @@ export class BuyFiat extends IEntity {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    phoneCallList: SpecialExternalAccount[],
     ibanCountry: Country,
     refUser?: User,
   ): UpdateResult<BuyFiat> {
@@ -419,6 +430,7 @@ export class BuyFiat extends IEntity {
         last365dVolume,
         bankData,
         blacklist,
+        phoneCallList,
         ibanCountry,
         refUser,
       ),
