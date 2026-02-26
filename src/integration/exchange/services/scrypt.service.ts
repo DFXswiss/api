@@ -98,25 +98,21 @@ export class ScryptService extends PricingProvider {
   ): Promise<ScryptWithdrawResponse> {
     const clReqId = randomUUID();
 
-    const withdrawRequest = {
-      type: ScryptMessageType.NEW_WITHDRAW_REQUEST,
-      data: [
-        {
-          Quantity: amount.toString(),
-          Currency: currency,
-          MarketAccount: 'default',
-          RoutingInfo: {
-            WalletAddress: address,
-            Memo: memo ?? '',
-            DestinationTag: '',
-          },
-          ClReqID: clReqId,
-        },
-      ],
+    const withdrawData = {
+      Quantity: amount.toString(),
+      Currency: currency,
+      MarketAccount: 'default',
+      RoutingInfo: {
+        WalletAddress: address,
+        Memo: memo ?? '',
+        DestinationTag: '',
+      },
+      ClReqID: clReqId,
     };
 
     const transaction = await this.connection.requestAndWaitForUpdate<ScryptBalanceTransaction>(
-      withdrawRequest,
+      ScryptMessageType.NEW_WITHDRAW_REQUEST,
+      [withdrawData],
       ScryptMessageType.BALANCE_TRANSACTION,
       (transactions) =>
         transactions.find((t) => t.ClReqID === clReqId && t.TransactionType === ScryptTransactionType.WITHDRAWAL) ??
@@ -163,21 +159,15 @@ export class ScryptService extends PricingProvider {
     timeStamp: Date;
     txHashes?: string[];
   }): Promise<void> {
-    const request = {
-      type: ScryptMessageType.NEW_DEPOSIT_REQUEST,
-      reqid: Date.now(),
-      data: [
-        {
-          Currency: params.currency,
-          ClReqID: params.reqId,
-          Quantity: params.amount.toString(),
-          TransactTime: params.timeStamp.toISOString(),
-          TxHashes: (params.txHashes?.length ? params.txHashes : [params.reqId]).map((hash) => ({ TxHash: hash })),
-        },
-      ],
+    const depositData = {
+      Currency: params.currency,
+      ClReqID: params.reqId,
+      Quantity: params.amount.toString(),
+      TransactTime: params.timeStamp.toISOString(),
+      TxHashes: (params.txHashes?.length ? params.txHashes : [params.reqId]).map((hash) => ({ TxHash: hash })),
     };
 
-    await this.connection.send(request);
+    await this.connection.send(ScryptMessageType.NEW_DEPOSIT_REQUEST, [depositData]);
   }
 
   // --- TRANSACTIONS --- //
@@ -406,13 +396,9 @@ export class ScryptService extends PricingProvider {
       orderData.Price = price.toString();
     }
 
-    const orderRequest = {
-      type: ScryptMessageType.NEW_ORDER_SINGLE,
-      data: [orderData],
-    };
-
     const report = await this.connection.requestAndWaitForUpdate<ScryptExecutionReport>(
-      orderRequest,
+      ScryptMessageType.NEW_ORDER_SINGLE,
+      [orderData],
       ScryptMessageType.EXECUTION_REPORT,
       (reports) => reports.find((r) => r.ClOrdID === clOrdId) ?? null,
       60000,
@@ -430,24 +416,19 @@ export class ScryptService extends PricingProvider {
 
   private async cancelOrder(clOrdId: string, from: string, to: string): Promise<boolean> {
     const { symbol } = await this.getTradePair(from, to);
-    const origClOrdId = clOrdId;
     const newClOrdId = randomUUID();
 
-    const cancelRequest = {
-      type: ScryptMessageType.ORDER_CANCEL_REQUEST,
-      data: [
-        {
-          OrigClOrdID: origClOrdId,
-          ClOrdID: newClOrdId,
-          Symbol: symbol,
-        },
-      ],
+    const cancelData = {
+      OrigClOrdID: clOrdId,
+      ClOrdID: newClOrdId,
+      Symbol: symbol,
     };
 
     const report = await this.connection.requestAndWaitForUpdate<ScryptExecutionReport>(
-      cancelRequest,
+      ScryptMessageType.ORDER_CANCEL_REQUEST,
+      [cancelData],
       ScryptMessageType.EXECUTION_REPORT,
-      (reports) => reports.find((r) => r.OrigClOrdID === origClOrdId || r.ClOrdID === newClOrdId) ?? null,
+      (reports) => reports.find((r) => r.OrigClOrdID === clOrdId || r.ClOrdID === newClOrdId) ?? null,
       60000,
     );
 
@@ -462,24 +443,19 @@ export class ScryptService extends PricingProvider {
     newPrice: number,
   ): Promise<string> {
     const { symbol } = await this.getTradePair(from, to);
-    const origClOrdId = clOrdId;
     const newClOrdId = randomUUID();
 
-    const replaceRequest = {
-      type: ScryptMessageType.ORDER_CANCEL_REPLACE_REQUEST,
-      data: [
-        {
-          OrigClOrdID: origClOrdId,
-          ClOrdID: newClOrdId,
-          Symbol: symbol,
-          OrderQty: newQuantity.toString(),
-          Price: newPrice.toString(),
-        },
-      ],
+    const editData = {
+      OrigClOrdID: clOrdId,
+      ClOrdID: newClOrdId,
+      Symbol: symbol,
+      OrderQty: newQuantity.toString(),
+      Price: newPrice.toString(),
     };
 
     const report = await this.connection.requestAndWaitForUpdate<ScryptExecutionReport>(
-      replaceRequest,
+      ScryptMessageType.ORDER_CANCEL_REPLACE_REQUEST,
+      [editData],
       ScryptMessageType.EXECUTION_REPORT,
       (reports) => reports.find((r) => r.ClOrdID === newClOrdId) ?? null,
       60000,
