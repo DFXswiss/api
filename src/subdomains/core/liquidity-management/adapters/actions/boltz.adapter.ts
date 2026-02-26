@@ -119,7 +119,20 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     if (!btcPairs || !btcPairs['cBTC']) {
       throw new OrderNotProcessableException('BTC -> cBTC chain pair not available on Boltz');
     }
-    const pairHash = btcPairs['cBTC'].hash;
+    const pairInfo = btcPairs['cBTC'];
+    const pairHash = pairInfo.hash;
+
+    // Validate amount against Boltz pair limits (limits are in sats and change dynamically)
+    if (userLockAmountSats < pairInfo.limits.minimal) {
+      throw new OrderNotProcessableException(
+        `Amount ${userLockAmountSats} sats below Boltz minimum of ${pairInfo.limits.minimal} sats`,
+      );
+    }
+    if (userLockAmountSats > pairInfo.limits.maximal) {
+      throw new OrderNotProcessableException(
+        `Amount ${userLockAmountSats} sats above Boltz maximum of ${pairInfo.limits.maximal} sats`,
+      );
+    }
 
     // Step 2: Generate preimage and hash
     const preimage = randomBytes(32).toString('hex');
