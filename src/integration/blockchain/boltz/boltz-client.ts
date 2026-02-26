@@ -33,11 +33,12 @@ export enum BoltzSwapStatus {
 
 // Chain Swap final events (BTC onchain -> cBTC onchain)
 // Success: transaction.claimed
-// Fail: swap.expired, transaction.failed, transaction.refunded
+// Fail: swap.expired, transaction.failed, transaction.lockupFailed, transaction.refunded
 export const ChainSwapSuccessStatuses = [BoltzSwapStatus.TRANSACTION_CLAIMED];
 export const ChainSwapFailedStatuses = [
   BoltzSwapStatus.EXPIRED,
   BoltzSwapStatus.TRANSACTION_FAILED,
+  BoltzSwapStatus.TRANSACTION_LOCKUP_FAILED,
   BoltzSwapStatus.TRANSACTION_REFUNDED,
 ];
 
