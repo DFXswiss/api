@@ -231,7 +231,7 @@ export class RecommendationService {
       const refCode =
         entity.kycStep && entity.method === RecommendationMethod.REF_CODE
           ? entity.kycStep.getResult<KycRecommendationData>().key
-          : (entity.recommender.users.find((u) => u.ref).ref ?? Config.defaultRef);
+          : (entity.recommender.users.find((u) => u.ref)?.ref ?? Config.defaultRef);
 
       for (const user of entity.recommended.users ??
         (await this.userService.getAllUserDataUsers(entity.recommended.id))) {
