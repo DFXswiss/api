@@ -31,6 +31,9 @@ export class Bank extends IEntity {
   @Column({ default: true })
   amlEnabled: boolean;
 
+  @Column({ type: 'nvarchar', length: 'MAX', nullable: true })
+  yearlyBalances?: string; // JSON: { "2024": { "opening": 1000.00, "closing": 2500.00 }, ... }
+
   @OneToOne(() => Asset, (asset) => asset.bank, { nullable: true })
   @JoinColumn()
   asset: Asset;
