@@ -214,7 +214,7 @@ export class KycController {
     @Param('id') id: string,
     @Body() data: KycNationalityData,
   ): Promise<KycStepBase> {
-    return this.kycService.updateKycStep(code, +id, data, ReviewStatus.INTERNAL_REVIEW);
+    return this.kycService.updateNationalityStep(code, +id, data);
   }
 
   @Put('data/recommendation/:id')
