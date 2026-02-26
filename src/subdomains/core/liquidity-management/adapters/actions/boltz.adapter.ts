@@ -1,11 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomBytes, createHash } from 'crypto';
 import { secp256k1 } from '@noble/curves/secp256k1';
-import {
-  BoltzClient,
-  BoltzSwapStatus,
-  ChainSwapFailedStatuses,
-} from 'src/integration/blockchain/boltz/boltz-client';
+import { BoltzClient, BoltzSwapStatus, ChainSwapFailedStatuses } from 'src/integration/blockchain/boltz/boltz-client';
 import { BoltzService } from 'src/integration/blockchain/boltz/boltz.service';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
@@ -193,13 +189,13 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     }
 
     try {
-      const correlationData = this.decodeCorrelation(
-        order.correlationId.replace(CORRELATION_PREFIX.DEPOSIT, ''),
-      );
+      const correlationData = this.decodeCorrelation(order.correlationId.replace(CORRELATION_PREFIX.DEPOSIT, ''));
 
       const status = await this.boltzClient.getSwapStatus(correlationData.swapId);
 
-      this.logger.verbose(`Boltz swap ${correlationData.swapId}: step=${correlationData.step}, status=${status.status}`);
+      this.logger.verbose(
+        `Boltz swap ${correlationData.swapId}: step=${correlationData.step}, status=${status.status}`,
+      );
 
       if (ChainSwapFailedStatuses.includes(status.status)) {
         throw new OrderFailedException(
@@ -233,11 +229,12 @@ export class BoltzAdapter extends LiquidityActionAdapter {
   ): Promise<boolean> {
     if (status === BoltzSwapStatus.TRANSACTION_SERVER_CONFIRMED) {
       // Server has confirmed the lockup — request claiming
-      const claimResult = await this.boltzClient.helpMeClaim(correlationData.preimage, `0x${correlationData.preimageHash}`);
-
-      this.logger.info(
-        `Boltz swap ${correlationData.swapId}: helpMeClaim called, claimTxHash=${claimResult.txHash}`,
+      const claimResult = await this.boltzClient.helpMeClaim(
+        correlationData.preimage,
+        `0x${correlationData.preimageHash}`,
       );
+
+      this.logger.info(`Boltz swap ${correlationData.swapId}: helpMeClaim called, claimTxHash=${claimResult.txHash}`);
 
       // Advance to claiming step
       correlationData.step = 'claiming';
