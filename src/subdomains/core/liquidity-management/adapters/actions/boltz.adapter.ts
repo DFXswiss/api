@@ -200,10 +200,10 @@ export class BoltzAdapter extends LiquidityActionAdapter {
 
       switch (correlationData.step) {
         case 'btc_sent':
-          return this.handleBtcSentStep(order, correlationData, status.status);
+          return await this.handleBtcSentStep(order, correlationData, status.status);
 
         case 'claiming':
-          return this.handleClaimingStep(order, correlationData, status.status);
+          return await this.handleClaimingStep(order, correlationData, status.status);
 
         default:
           throw new OrderFailedException(`Unknown step: ${correlationData.step}`);
