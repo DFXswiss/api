@@ -125,6 +125,7 @@ export class BoltzClient {
   /**
    * Create a Chain Swap: BTC (onchain) -> cBTC (Citrea onchain)
    * For EVM destination chains, only claimAddress is needed (no claimPublicKey).
+   * refundPublicKey is required for BTC sender side to enable refunds on swap failure.
    * preimageHash and pairHash are required by the Boltz API.
    */
   async createChainSwap(
@@ -133,6 +134,7 @@ export class BoltzClient {
     userLockAmount: number,
     pairHash: string,
     referralId: string,
+    refundPublicKey: string,
   ): Promise<BoltzChainSwapResponse> {
     const url = `${this.config.apiUrl}/swap/v2/swap/chain/`;
 
@@ -144,6 +146,7 @@ export class BoltzClient {
       userLockAmount,
       pairHash,
       referralId,
+      refundPublicKey,
     };
 
     this.logger.verbose(`Creating chain swap: ${userLockAmount} sats, BTC -> cBTC, claim=${claimAddress}`);

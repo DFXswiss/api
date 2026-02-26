@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomBytes, createHash } from 'crypto';
+import { secp256k1 } from '@noble/curves/secp256k1';
 import {
   BoltzClient,
   BoltzSwapStatus,
@@ -44,6 +45,7 @@ interface DepositCorrelationData {
   preimageHash: string;
   btcTxId: string;
   pairHash: string;
+  refundPrivateKey: string;
 }
 
 @Injectable()
@@ -94,9 +96,10 @@ export class BoltzAdapter extends LiquidityActionAdapter {
    * Deposit BTC -> cBTC via Boltz Chain Swap.
    * 1. Fetch chain pairs to get pairHash
    * 2. Generate preimage + preimageHash
-   * 3. Create chain swap via API
-   * 4. Send BTC to the lockup address
-   * 5. Save all data in correlation ID for later claiming
+   * 3. Generate secp256k1 refund key pair
+   * 4. Create chain swap via API
+   * 5. Send BTC to the lockup address
+   * 6. Save all data in correlation ID for later claiming
    */
   private async deposit(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
@@ -126,13 +129,18 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     const preimage = randomBytes(32).toString('hex');
     const preimageHash = createHash('sha256').update(Buffer.from(preimage, 'hex')).digest('hex');
 
-    // Step 3: Create chain swap via Boltz API
+    // Step 3: Generate secp256k1 key pair for BTC refund (in case swap fails)
+    const refundPrivateKey = randomBytes(32).toString('hex');
+    const refundPublicKey = Buffer.from(secp256k1.getPublicKey(refundPrivateKey, true)).toString('hex');
+
+    // Step 4: Create chain swap via Boltz API
     const swap = await this.boltzClient.createChainSwap(
       preimageHash,
       claimAddress,
       userLockAmountSats,
       pairHash,
       BOLTZ_REFERRAL_ID,
+      refundPublicKey,
     );
 
     this.logger.info(
@@ -140,7 +148,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
         `claimAmount=${swap.claimDetails.amount} sats, lockup=${swap.lockupDetails.lockupAddress}, claim=${claimAddress}`,
     );
 
-    // Step 4: Send BTC to the lockup address (use amount from Boltz response, not our request)
+    // Step 5: Send BTC to the lockup address (use amount from Boltz response, not our request)
     const lockupAmountBtc = swap.lockupDetails.amount / 1e8;
     const btcTxId = await this.sendBtcToAddress(swap.lockupDetails.lockupAddress, lockupAmountBtc);
 
@@ -153,7 +161,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     order.inputAsset = btcAsset.name;
     order.outputAsset = citreaAsset.name;
 
-    // Step 5: Save correlation data
+    // Step 6: Save correlation data
     const correlationData: DepositCorrelationData = {
       step: 'btc_sent',
       swapId: swap.id,
@@ -165,6 +173,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
       preimageHash,
       btcTxId,
       pairHash,
+      refundPrivateKey,
     };
 
     return `${CORRELATION_PREFIX.DEPOSIT}${this.encodeCorrelation(correlationData)}`;
