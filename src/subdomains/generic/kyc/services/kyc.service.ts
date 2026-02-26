@@ -386,6 +386,7 @@ export class KycService {
       ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_AUTO),
       ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.AUTO),
       ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.VIDEO),
+      ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_VIDEO),
       ...kycStep.userData.getStepsWith(KycStepName.FINANCIAL_DATA),
     ].filter(
       (s) =>
