@@ -1,5 +1,5 @@
 import { Config, Environment } from 'src/config/config';
-import { Active } from 'src/shared/models/active';
+import { Active, isAsset } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
@@ -51,6 +51,8 @@ export class AmlHelperService {
       [Environment.LOC, Environment.DEV].includes(Config.environment)
     )
       return errors;
+
+    if (isAsset(inputAsset) && inputAsset.name === 'REALU') errors.push(AmlError.ASSET_INPUT_NOT_ALLOWED);
 
     if (
       !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
