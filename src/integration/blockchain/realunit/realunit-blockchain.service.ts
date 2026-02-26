@@ -130,11 +130,7 @@ export class RealUnitBlockchainService {
     };
   }
 
-  async getBrokerbotSellPrice(
-    brokerbotAddress: string,
-    shares: number,
-    slippageBps = 50,
-  ): Promise<{ zchfAmountWei: bigint }> {
+  async getBrokerbotSellPrice(brokerbotAddress: string, shares: number): Promise<{ zchfAmountWei: bigint }> {
     const blockchain = [Environment.DEV, Environment.LOC].includes(GetConfig().environment)
       ? Blockchain.SEPOLIA
       : Blockchain.ETHEREUM;
@@ -150,20 +146,16 @@ export class RealUnitBlockchainService {
     });
 
     // Call getSellPrice on the BrokerBot contract
-    const sellPriceWei = (await publicClient.readContract({
+    const zchfAmountWei = (await publicClient.readContract({
       address: brokerbotAddress as `0x${string}`,
       abi: BROKERBOT_ABI,
       functionName: 'getSellPrice',
       args: [BigInt(shares)],
     } as any)) as bigint;
 
-    if (sellPriceWei === 0n) {
+    if (zchfAmountWei === 0n) {
       throw new Error('BrokerBot returned zero sell price');
     }
-
-    // Apply slippage buffer (reduce expected amount to account for price movement)
-    const slippageFactor = BigInt(10000 - slippageBps);
-    const zchfAmountWei = (sellPriceWei * slippageFactor) / BigInt(10000);
 
     return { zchfAmountWei };
   }
