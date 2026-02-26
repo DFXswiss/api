@@ -125,7 +125,7 @@ export class CustodyService {
       .select('SUM(custodyOrder.outputAmount)', 'withdrawal')
       .where('custodyOrder.userId = :id', { id: user.id })
       .andWhere('custodyOrder.outputAssetId = :asset', { asset: asset.id })
-      .andWhere('custodyOrder.status != :status', { status: CustodyOrderStatus.CREATED })
+      .andWhere('custodyOrder.status = :status', { status: CustodyOrderStatus.COMPLETED })
       .getRawOne<{ withdrawal: number }>();
 
     const balance = deposit - withdrawal;
