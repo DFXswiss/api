@@ -28,6 +28,7 @@ export class AssetDtoMapper {
       cardSellable: asset.cardSellable,
       blockchain: asset.blockchain,
       sortOrder: asset.sortOrder,
+      refEnabled: asset.refEnabled,
     };
 
     return Object.assign(new AssetDto(), dto);
