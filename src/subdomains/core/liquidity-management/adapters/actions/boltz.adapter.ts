@@ -42,6 +42,7 @@ interface DepositCorrelationData {
   btcTxId: string;
   pairHash: string;
   refundPrivateKey: string;
+  claimTxHash?: string;
 }
 
 @Injectable()
@@ -211,9 +212,8 @@ export class BoltzAdapter extends LiquidityActionAdapter {
       );
 
       if (ChainSwapFailedStatuses.includes(status.status)) {
-        throw new OrderFailedException(
-          `Boltz swap failed: ${status.status}${status.failureReason ? ` (${status.failureReason})` : ''}`,
-        );
+        const details = [status.failureReason, status.failureDetails].filter(Boolean).join(' - ');
+        throw new OrderFailedException(`Boltz swap failed: ${status.status}${details ? ` (${details})` : ''}`);
       }
 
       switch (correlationData.step) {
@@ -241,13 +241,17 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     status: BoltzSwapStatus,
   ): Promise<boolean> {
     if (status === BoltzSwapStatus.TRANSACTION_SERVER_CONFIRMED) {
-      // Server has confirmed the lockup — request claiming
-      const claimResult = await this.boltzClient.helpMeClaim(
-        correlationData.preimage,
-        `0x${correlationData.preimageHash}`,
-      );
+      // Server has confirmed the lockup — request claiming (skip if already called)
+      if (!correlationData.claimTxHash) {
+        const claimResult = await this.boltzClient.helpMeClaim(
+          correlationData.preimage,
+          `0x${correlationData.preimageHash}`,
+        );
 
-      this.logger.info(`Boltz swap ${correlationData.swapId}: helpMeClaim called, claimTxHash=${claimResult.txHash}`);
+        this.logger.info(`Boltz swap ${correlationData.swapId}: helpMeClaim called, claimTxHash=${claimResult.txHash}`);
+
+        correlationData.claimTxHash = claimResult.txHash;
+      }
 
       // Advance to claiming step
       correlationData.step = 'claiming';
