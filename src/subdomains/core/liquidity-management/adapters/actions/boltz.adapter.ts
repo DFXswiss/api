@@ -39,6 +39,7 @@ interface DepositCorrelationData {
   claimAddress: string;
   lockupAddress: string;
   userLockAmountSats: number;
+  claimAmountSats: number;
   preimage: string;
   preimageHash: string;
   btcTxId: string;
@@ -135,8 +136,8 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     );
 
     this.logger.info(
-      `Boltz chain swap created: id=${swap.id}, amount=${userLockAmountSats} sats, ` +
-        `lockup=${swap.lockupDetails.lockupAddress}, claim=${claimAddress}`,
+      `Boltz chain swap created: id=${swap.id}, lockupAmount=${swap.lockupDetails.amount} sats, ` +
+        `claimAmount=${swap.claimDetails.amount} sats, lockup=${swap.lockupDetails.lockupAddress}, claim=${claimAddress}`,
     );
 
     // Step 4: Send BTC to the lockup address (use amount from Boltz response, not our request)
@@ -159,6 +160,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
       claimAddress,
       lockupAddress: swap.lockupDetails.lockupAddress,
       userLockAmountSats,
+      claimAmountSats: swap.claimDetails.amount,
       preimage,
       preimageHash,
       btcTxId,
@@ -248,9 +250,10 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     status: BoltzSwapStatus,
   ): Promise<boolean> {
     if (status === BoltzSwapStatus.TRANSACTION_CLAIMED) {
-      order.outputAmount = correlationData.userLockAmountSats / 1e8;
+      // Use claimAmountSats (cBTC received after Boltz fees), not userLockAmountSats (BTC sent)
+      order.outputAmount = correlationData.claimAmountSats / 1e8;
 
-      this.logger.info(`Boltz swap ${correlationData.swapId}: claimed successfully`);
+      this.logger.info(`Boltz swap ${correlationData.swapId}: claimed successfully, output=${order.outputAmount} cBTC`);
 
       return true;
     }
