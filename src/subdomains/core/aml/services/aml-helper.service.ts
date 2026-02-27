@@ -1,3 +1,4 @@
+import * as IbanTools from 'ibantools';
 import { Config, Environment } from 'src/config/config';
 import { Active } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -268,7 +269,7 @@ export class AmlHelperService {
                   SpecialExternalAccountType.BANNED_BLZ_BUY,
                   SpecialExternalAccountType.BANNED_BLZ_AML,
                 ],
-                Util.getBLZ(entity.bankTx.iban),
+                IbanTools.extractIBAN(entity.bankTx.iban).bankIdentifier,
               ),
           )
         )
@@ -288,7 +289,10 @@ export class AmlHelperService {
           phoneCallList.some(
             (b) =>
               b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY], entity.bankTx.iban) ||
-              b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BLZ_BUY], Util.getBLZ(entity.bankTx.iban)),
+              b.matches(
+                [SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BLZ_BUY],
+                IbanTools.extractIBAN(entity.bankTx.iban).bankIdentifier,
+              ),
           )
         )
           errors.push(AmlError.IBAN_PHONE_VERIFICATION_NEEDED);
@@ -359,7 +363,7 @@ export class AmlHelperService {
                 SpecialExternalAccountType.BANNED_BLZ_SELL,
                 SpecialExternalAccountType.BANNED_BLZ_AML,
               ],
-              Util.getBLZ(entity.sell.iban),
+              IbanTools.extractIBAN(entity.sell.iban).bankIdentifier,
             ),
         )
       )

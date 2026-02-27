@@ -273,23 +273,6 @@ export class Util {
     return result || '0';
   }
 
-  // --- IBAN --- //
-  static getBLZ(iban: string): string | undefined {
-    if (!iban) return undefined;
-
-    switch (Util.getIbanCountry(iban)) {
-      case 'DE':
-        return iban.substring(4, 12);
-
-      default:
-        return iban.length >= 10 ? iban.substring(4, 9) : undefined;
-    }
-  }
-
-  static getIbanCountry(iban: string): string {
-    return iban.substring(0, 2);
-  }
-
   // --- ID GENERATION --- //
   static randomId(): number {
     return randomBytes(4).readUInt32BE();

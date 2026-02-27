@@ -13,7 +13,6 @@ import { BlockchainRegistryService } from 'src/integration/blockchain/shared/ser
 import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
 import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
@@ -121,7 +120,7 @@ export class TransactionUtilService {
             SpecialExternalAccountType.BANNED_BLZ_SELL,
             SpecialExternalAccountType.BANNED_BLZ_AML,
           ].includes(b.type) &&
-            b.value === Util.getBLZ(iban)),
+            b.value === IbanTools.extractIBAN(iban).bankIdentifier),
       )
     )
       throw new BadRequestException('Iban not allowed');
