@@ -191,13 +191,6 @@ export class RealUnitService {
       cursor = history.pageInfo.endCursor;
     }
 
-    // Verify all requested transactions were found
-    const foundHashes = new Set(foundEvents.map((e) => e.txHash.toLowerCase()));
-    const missingHashes = txHashes.filter((h) => !foundHashes.has(h.toLowerCase()));
-    if (missingHashes.length > 0) {
-      throw new NotFoundException(`Transactions not found: ${missingHashes.join(', ')}`);
-    }
-
     return foundEvents;
   }
 
