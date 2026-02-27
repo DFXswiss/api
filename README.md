@@ -190,7 +190,7 @@ npm install
 cp .env.local.example .env
 
 # 3. Start database
-docker-compose up -d
+docker compose up -d
 
 # 4. Run setup (generates seeds, starts API, registers admin)
 npm run setup
@@ -251,10 +251,10 @@ Seed data is stored in `migration/seed/` and can be customized as needed.
 ### Docker Commands
 
 ```bash
-docker-compose up -d          # Start database
-docker-compose logs db-init   # Check if database was created
-docker-compose down           # Stop database
-docker-compose down -v        # Stop and delete data
+docker compose up -d          # Start database
+docker compose logs db-init   # Check if database was created
+docker compose down           # Stop database
+docker compose down -v        # Stop and delete data
 docker logs dfx-mssql         # View database logs
 ```
 
