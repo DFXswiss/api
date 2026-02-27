@@ -170,12 +170,14 @@ export class CustodyService {
       return map.set(key, dayMap);
     }, new Map<string, Map<number, CustodyOrderSingle[]>>());
 
-    // get all assets (unique)
-    const allAssets = custodyOrders
+    // get all assets: from orders AND from current balances (includes assets without orders)
+    const orderAssets = custodyOrders
       .map((o) => [o.inputAsset, o.outputAsset])
       .flat()
       .filter((a) => a);
-    const assets = Array.from(new Map(allAssets.map((a) => [a.id, a])).values());
+    const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
+    const balanceAssets = custodyBalances.filter((b) => b.balance > 0).map((b) => b.asset);
+    const assets = Array.from(new Map([...orderAssets, ...balanceAssets].map((a) => [a.id, a])).values());
 
     // get all prices (by date)
     const startDate = new Date(custodyOrders[0].created);
@@ -184,27 +186,32 @@ export class CustodyService {
 
     const priceMap = Util.groupByAccessor(prices, (p) => Util.isoDate(p.created));
 
-    // process by day
+    // process by day: apply order volumes before calculating value
     const assetBalancesMap = new Map<number, number>();
     const totalValue: CustodyHistoryEntryDto[] = [];
+    const sortedOrderDays = [...orderMap.keys()].sort();
+    let orderDayIndex = 0;
 
-    for (const [day, prices] of priceMap.entries()) {
-      const dailyValue = prices.reduce(
+    for (const [day, dayPrices] of priceMap.entries()) {
+      // apply all order balance changes up to and including this day
+      while (orderDayIndex < sortedOrderDays.length && sortedOrderDays[orderDayIndex] <= day) {
+        const dayOrders = orderMap.get(sortedOrderDays[orderDayIndex]);
+        if (dayOrders) {
+          for (const [assetId, orders] of dayOrders.entries()) {
+            const currentBalance = assetBalancesMap.get(assetId) ?? 0;
+            assetBalancesMap.set(assetId, currentBalance + Util.sum(orders.map((o) => o.amount)));
+          }
+        }
+        orderDayIndex++;
+      }
+
+      // calculate daily portfolio value from current balances and available prices
+      const dailyValue = dayPrices.reduce(
         (value, price) => {
-          // update asset balance
-          const currentBalance = assetBalancesMap.get(price.asset.id) ?? 0;
-
-          const ordersToday = orderMap.get(day)?.get(price.asset.id) ?? [];
-          const dayVolume = Util.sum(ordersToday.map((o) => o.amount));
-
-          const newBalance = currentBalance + dayVolume;
-          assetBalancesMap.set(price.asset.id, newBalance);
-
-          // update value
-          value.chf += newBalance * price.priceChf;
-          value.eur += newBalance * price.priceEur;
-          value.usd += newBalance * price.priceUsd;
-
+          const balance = assetBalancesMap.get(price.asset.id) ?? 0;
+          value.chf += balance * price.priceChf;
+          value.eur += balance * price.priceEur;
+          value.usd += balance * price.priceUsd;
           return value;
         },
         { chf: 0, eur: 0, usd: 0 },
