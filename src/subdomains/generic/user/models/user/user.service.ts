@@ -600,13 +600,14 @@ export class UserService {
     await this.userDataRepo.activateUserData(userData);
   }
 
-  private async checkRef(user: User, usedRef: string, existingUsedRef?: string): Promise<string> {
-    const refUser = usedRef ? await this.getRefUser(usedRef) : undefined;
-    return !usedRef && existingUsedRef
-      ? existingUsedRef
-      : usedRef === user.ref || (usedRef && !refUser) || user?.userData?.id === refUser?.userData?.id
-        ? Config.defaultRef
-        : usedRef;
+  private async checkRef(user: User, usedRef?: string, existingUsedRef?: string): Promise<string> {
+    if (usedRef) {
+      const refUser = await this.getRefUser(usedRef);
+      const isValidRef = usedRef !== user.ref && refUser && user?.userData?.id !== refUser?.userData?.id;
+      if (isValidRef) return usedRef;
+    }
+
+    return existingUsedRef ?? Config.defaultRef;
   }
 
   public async getTotalRefRewards(): Promise<number> {
