@@ -163,6 +163,7 @@ export class SwissQRService {
       transactionType,
       brand,
       userData.completeName,
+      true,
     );
   }
 
@@ -212,12 +213,12 @@ export class SwissQRService {
       currency,
     };
 
-    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand);
+    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true);
   }
 
   private shortenTxHash(txHash: string): string {
     if (txHash.length <= 16) return txHash;
-    return `${txHash.slice(0, 8)}...${txHash.slice(-6)}`;
+    return `${txHash.slice(0, 8)}...${txHash.slice(-8)}`;
   }
 
   private async generatePdfInvoice(
@@ -228,6 +229,7 @@ export class SwissQRService {
     transactionType: TransactionType,
     brand: PdfBrand = PdfBrand.DFX,
     debtorName?: string,
+    skipTermsAndConditions = false,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
 
@@ -364,8 +366,6 @@ export class SwissQRService {
       },
     ];
 
-    const termsAndConditions = this.getTermsAndConditions(language);
-
     if (bankInfo) {
       rows.push({
         columns: [
@@ -378,7 +378,10 @@ export class SwissQRService {
         ],
       });
     }
-    rows.push({ columns: [termsAndConditions] });
+
+    if (!skipTermsAndConditions) {
+      rows.push({ columns: [this.getTermsAndConditions(language)] });
+    }
 
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
@@ -442,6 +445,7 @@ export class SwissQRService {
     language: string,
     billData: QrBillData,
     brand: PdfBrand = PdfBrand.DFX,
+    skipTermsAndConditions = false,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
 
@@ -614,7 +618,9 @@ export class SwissQRService {
       padding: 5,
     });
 
-    rows.push({ columns: [this.getTermsAndConditions(language)] });
+    if (!skipTermsAndConditions) {
+      rows.push({ columns: [this.getTermsAndConditions(language)] });
+    }
 
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
