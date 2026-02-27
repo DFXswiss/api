@@ -90,7 +90,7 @@ export class PayInFiroService extends PayInBitcoinBasedService {
   }
 
   async sendTransfer(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
-    const feeRate = await this.feeService.getRecommendedFeeRate();
+    const feeRate = await this.feeService.getSendFeeRate();
     return this.client.send(
       input.destinationAddress.address,
       input.inTxId,

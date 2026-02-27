@@ -53,18 +53,43 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
     return { outTxId: result?.txid ?? '', feeAmount };
   }
 
-  async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
+  async sendMany(
+    payload: { addressTo: string; amount: number }[],
+    feeRate: number,
+    inputs?: Array<{ txid: string; vout: number }>,
+    subtractFeeFromOutputs?: number[],
+  ): Promise<string> {
     const outputs = payload.map((p) => ({ [p.addressTo]: p.amount }));
 
     const options = {
       replaceable: true,
       change_address: this.walletAddress,
       ...(this.nodeConfig.allowUnconfirmedUtxos && { include_unsafe: true }),
+      ...(inputs && { inputs, add_inputs: false }),
+      ...(subtractFeeFromOutputs && { subtract_fee_from_outputs: subtractFeeFromOutputs }),
     };
 
     const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
 
     return result?.txid ?? '';
+  }
+
+  async sendManyFromAddress(
+    fromAddresses: string[],
+    payload: { addressTo: string; amount: number }[],
+    feeRate: number,
+    subtractFeeFromOutputs?: number[],
+  ): Promise<string> {
+    const utxos = await this.getUtxoForAddresses(fromAddresses, this.nodeConfig.allowUnconfirmedUtxos);
+    if (!utxos.length) return '';
+
+    const inputs = utxos.map((u) => ({ txid: u.txid, vout: u.vout }));
+    const utxoBalance = utxos.reduce((sum, u) => sum + u.amount, 0);
+
+    // resolve zero-amount entries with full UTXO balance (sweep mode)
+    const resolvedPayload = payload.map((p) => ({ addressTo: p.addressTo, amount: p.amount || utxoBalance }));
+
+    return this.sendMany(resolvedPayload, feeRate, inputs, subtractFeeFromOutputs);
   }
 
   async testMempoolAccept(hex: string): Promise<TestMempoolResult[]> {

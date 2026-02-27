@@ -21,7 +21,7 @@ export class DexFiroService {
   }
 
   async sendUtxoToMany(payout: { addressTo: string; amount: number }[]): Promise<string> {
-    const feeRate = await this.getFeeRate();
+    const feeRate = await this.feeService.getSendFeeRate();
     return this.client.sendMany(payout, feeRate);
   }
 
@@ -43,10 +43,6 @@ export class DexFiroService {
   }
 
   //*** HELPER METHODS ***//
-
-  private async getFeeRate(): Promise<number> {
-    return this.feeService.getSendFeeRate();
-  }
 
   private async getPendingAmount(): Promise<number> {
     const pendingOrders = await this.liquidityOrderRepo.findBy({
