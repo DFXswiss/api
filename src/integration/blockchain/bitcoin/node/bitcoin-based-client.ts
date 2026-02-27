@@ -74,6 +74,24 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
     return result?.txid ?? '';
   }
 
+  async sendManyFromAddress(
+    fromAddresses: string[],
+    payload: { addressTo: string; amount: number }[],
+    feeRate: number,
+    subtractFeeFromOutputs?: number[],
+  ): Promise<string> {
+    const utxos = await this.getUtxoForAddresses(fromAddresses, this.nodeConfig.allowUnconfirmedUtxos);
+    if (!utxos.length) return '';
+
+    const inputs = utxos.map((u) => ({ txid: u.txid, vout: u.vout }));
+    const utxoBalance = utxos.reduce((sum, u) => sum + u.amount, 0);
+
+    // resolve zero-amount entries with full UTXO balance (sweep mode)
+    const resolvedPayload = payload.map((p) => ({ addressTo: p.addressTo, amount: p.amount || utxoBalance }));
+
+    return this.sendMany(resolvedPayload, feeRate, inputs, subtractFeeFromOutputs);
+  }
+
   async testMempoolAccept(hex: string): Promise<TestMempoolResult[]> {
     const result = await this.callNode(() => this.rpc.testMempoolAccept([hex]), true);
 

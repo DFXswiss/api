@@ -188,19 +188,16 @@ export class PaymentBalanceService implements OnModuleInit {
 
   private async forwardBitcoinDeposit(): Promise<string> {
     const client = this.blockchainRegistryService.getBitcoinClient(Blockchain.BITCOIN, BitcoinNodeType.BTC_INPUT);
-    const paymentAddress = Config.payment.bitcoinAddress;
     const outputAddress = Config.blockchain.default.btcOutput.address;
     const feeRate = await this.bitcoinFeeService.getSendFeeRate();
 
-    // only use UTXOs from the payment address (not deposit UTXOs on the same wallet)
-    const utxos = await client.getUtxoForAddresses([paymentAddress], true);
-    if (!utxos.length) return '';
-
-    const inputs = utxos.map((u) => ({ txid: u.txid, vout: u.vout }));
-    const utxoBalance = utxos.reduce((sum, u) => sum + u.amount, 0);
-
-    // sweep all UTXOs: send full balance and let Bitcoin Core subtract the fee from the output
-    return client.sendMany([{ addressTo: outputAddress, amount: utxoBalance }], feeRate, inputs, [0]);
+    // sweep all payment UTXOs: amount 0 = use full UTXO balance, fee subtracted from output
+    return client.sendManyFromAddress(
+      [Config.payment.bitcoinAddress],
+      [{ addressTo: outputAddress, amount: 0 }],
+      feeRate,
+      [0],
+    );
   }
 
   private getPaymentAccount(chain: Blockchain): WalletAccount {
