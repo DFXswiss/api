@@ -379,6 +379,7 @@ export class FiatOutputJobService {
       try {
         const msgId = `YAPEAL-${entity.id}-${Date.now()}`;
         const endToEndId = entity.endToEndId ?? `E2E-${entity.id}`;
+        const remittanceInfo = entity.remittanceInfo ?? `DFX Payout ${entity.id}`;
 
         const payment: Pain001Payment = {
           messageId: msgId,
@@ -400,13 +401,14 @@ export class FiatOutputJobService {
             iban: entity.iban,
             bic: entity.bic,
           },
-          remittanceInfo: entity.remittanceInfo,
+          remittanceInfo,
         };
 
         await this.yapealService.sendPayment(payment);
         await this.fiatOutputRepo.update(entity.id, {
           yapealMsgId: msgId,
           endToEndId,
+          remittanceInfo,
           isTransmittedDate: new Date(),
           isApprovedDate: new Date(),
           ...(entity.info?.startsWith('YAPEAL error') && { info: null }),
@@ -440,6 +442,8 @@ export class FiatOutputJobService {
 
     for (const entity of entities) {
       try {
+        const remittanceInfo = entity.remittanceInfo ?? `DFX Payout ${entity.id}`;
+
         // create recipient
         const recipient = await this.olkypayService.getOrCreateRecipient({
           iban: entity.iban,
@@ -455,7 +459,7 @@ export class FiatOutputJobService {
         // send payment order
         const orderResponse = await this.olkypayService.createPaymentOrder({
           clientId: +recipient.olkyPayerId,
-          comment: entity.remittanceInfo ?? `DFX Payout ${entity.id}`,
+          comment: remittanceInfo,
           currencyCode: entity.currency,
           executionDate: Util.isoDate(new Date()),
           externalId: `${entity.id}`,
@@ -467,6 +471,7 @@ export class FiatOutputJobService {
         await this.fiatOutputRepo.update(entity.id, {
           olkyOrderId: orderResponse.id,
           isTransmittedDate: new Date(),
+          remittanceInfo,
           ...(entity.info?.startsWith('OLKYPAY error') && { info: null }),
         });
 

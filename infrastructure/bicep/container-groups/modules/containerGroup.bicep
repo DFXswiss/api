@@ -21,7 +21,7 @@ param containerEnv array
 param containerCommand array
 
 @description('Container CPU resource')
-param containerCPU int
+param containerCPU string
 
 @description('Container memory resource')
 param containerMemory int
@@ -66,7 +66,7 @@ resource containerGroup 'Microsoft.ContainerInstance/containerGroups@2023-05-01'
           image: containerImage
           resources: {
             requests: {
-              cpu: containerCPU
+              cpu: json(containerCPU)
               memoryInGB: containerMemory
             }
           }
