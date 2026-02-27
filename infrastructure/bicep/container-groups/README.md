@@ -12,10 +12,14 @@ Container Instances are:
 
 - hb-deuro-usdt: Hummingbot (dEURO/USDT)
 - hb-deps-usdt: Hummingbot (dEPS/USDT)
+- rk: RangeKeeper Liquidity Bot
 
 ### Fileshare
 
-Each Container Instance uses its own fileshare, which is mounted to `/mnt/hummingbot`.
+Each Container Instance uses its own fileshare:
+
+- Hummingbot instances: mounted to `/mnt/hummingbot`
+- RangeKeeper: mounted to `/app/data` (contains `.env` with sensitive config and `state.json` for persistence)
 
 ### Entrypoint
 
