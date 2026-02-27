@@ -454,10 +454,16 @@ export class LogJobService {
       const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING, Blockchain.ZANO].includes(curr.blockchain)
         ? 0
         : pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
-      const exchangeOrder = pendingExchangeOrders.reduce(
-        (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
-        0,
-      );
+      const exchangeOrder = pendingExchangeOrders.reduce((sum, tx) => {
+        if (tx.pipeline.rule.targetAsset.id !== curr.id) return sum;
+
+        // for transfer/deposit: only count when action.system matches the target asset's exchange
+        // (funds leaving this exchange, balance decreased). Skip when funds arrive from another
+        // exchange, as the destination balance already reflects those funds before order completion.
+        if (tx.action.command !== 'withdraw' && tx.action.system !== (curr.blockchain as string)) return sum;
+
+        return sum + tx.inputAmount;
+      }, 0);
       const bridgeOrder = pendingBridgeOrders.reduce(
         (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
         0,
