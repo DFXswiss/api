@@ -41,6 +41,7 @@ import {
   LegalEntity,
   LimitPeriod,
   Moderator,
+  PhoneCallStatus,
   RiskStatus,
   SignatoryPower,
   UserDataStatus,
@@ -245,6 +246,12 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   phoneCallIpCountryCheckDate?: Date;
+
+  @Column({ length: 256, nullable: true })
+  phoneCallTimes: string; // PhoneCallPreferredTimes array
+
+  @Column({ length: 256, nullable: true })
+  phoneCallStatus: PhoneCallStatus;
 
   @Column({ type: 'datetime2', nullable: true })
   tradeApprovalDate?: Date;
@@ -499,6 +506,12 @@ export class UserData extends IEntity {
       phone: dto.phone ?? this.phone,
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
+      phoneCallTimes: dto.preferredPhoneTimes ? dto.preferredPhoneTimes.join(';') : undefined,
+      phoneCallStatus: dto.rejectPhoneCall
+        ? PhoneCallStatus.REJECTED
+        : dto.repeatPhoneCall
+          ? PhoneCallStatus.REPEAT
+          : undefined,
     };
 
     Object.assign(this, update);

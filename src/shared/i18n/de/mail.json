@@ -91,9 +91,10 @@
                 "test_only": "Test",
                 "kyc_data_needed": "Für die Transaktion werden deine KYC Daten benötigt",
                 "bank_tx_needed": "Um diese Transaktion auszuführen ist zuvor eine Banktransaktion erforderlich",
-                "manual_check_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
-                "manual_check_ip_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
-                "manual_check_ip_country_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
+                "manual_check_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen. Du kannst einen erneuten Anruf und eine bevorzugte Uhrzeit für das Telefongespräch selber hier beantragen: [url:https://app.dfx.swiss/settings]",
+                "manual_check_ip_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen. Du kannst einen erneuten Anruf und eine bevorzugte Uhrzeit für das Telefongespräch selber hier beantragen: [url:https://app.dfx.swiss/settings]",
+                "manual_check_ip_country_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen. Du kannst einen erneuten Anruf und eine bevorzugte Uhrzeit für das Telefongespräch selber hier beantragen: [url:https://app.dfx.swiss/settings]",
+                "manual_check_phone_rejected": "Das Telefonat war nicht erfolgreich oder wurde abgelehnt",
                 "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert",
                 "intermediary_without_sender": "Die Absenderbank (Wise/Revolut) hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. DFX kann daher den tatsächlichen Absender nicht verifizieren und die Transaktion nicht verarbeiten.",
                 "name_too_short": "Dein Name ist zu kurz für die Bankverarbeitung. Banken benötigen mindestens 4 Buchstaben im Namen des Kontoinhabers."
@@ -215,7 +216,7 @@
                 "line1": "Wir haben deine Einzahlung erhalten.",
                 "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
                 "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
-                "line4": "",
+                "line4": "Du kannst eine bevorzugte Uhrzeit für das Telefongespräch selber hier angeben: [url:https://app.dfx.swiss/settings]",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             },
             "merge_incomplete": {
@@ -242,7 +243,7 @@
                 "line1": "Wir haben deine Einzahlung erhalten.",
                 "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
                 "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
-                "line4": "",
+                "line4": "Du kannst eine bevorzugte Uhrzeit für das Telefongespräch selber hier angeben: [url:https://app.dfx.swiss/settings]",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             },
             "manual_check_ip_country_phone": {
@@ -251,7 +252,7 @@
                 "line1": "Wir haben deine Einzahlung erhalten.",
                 "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
                 "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
-                "line4": "",
+                "line4": "Du kannst eine bevorzugte Uhrzeit für das Telefongespräch selber hier angeben: [url:https://app.dfx.swiss/settings]",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },

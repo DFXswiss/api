@@ -1,11 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
 import { DfxPhoneTransform, IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
+import { PhoneCallPreferredTime } from '../../user-data/user-data.enum';
 
 export class UpdateUserDto {
   @ApiPropertyOptional()
@@ -28,6 +39,23 @@ export class UpdateUserDto {
   @ValidateNested()
   @Type(() => EntityDto)
   currency?: Fiat;
+
+  @ApiPropertyOptional({ type: String, isArray: true })
+  @IsOptional()
+  @IsEnum(PhoneCallPreferredTime)
+  preferredPhoneTimes?: PhoneCallPreferredTime[];
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: UpdateUserDto) => Boolean(a.rejectPhoneCall || !a.repeatPhoneCall))
+  @IsBoolean()
+  rejectPhoneCall?: boolean;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: UpdateUserDto) => Boolean(a.repeatPhoneCall || !a.rejectPhoneCall))
+  @IsBoolean()
+  repeatPhoneCall?: boolean;
 }
 
 export class UpdateUserMailDto {

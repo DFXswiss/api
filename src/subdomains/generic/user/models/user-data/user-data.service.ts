@@ -754,6 +754,9 @@ export class UserDataService {
       if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
+    if (userData.phoneCallStatus && (dto.rejectPhoneCall || dto.repeatPhoneCall))
+      throw new BadRequestException('Phone call status is already set');
+
     const phoneChanged = dto.phone && dto.phone !== userData.phone;
 
     const updateSiftAccount: CreateAccount = { $time: Date.now() };
