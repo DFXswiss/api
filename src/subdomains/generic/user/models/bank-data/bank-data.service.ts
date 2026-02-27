@@ -23,7 +23,6 @@ import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment
 import { FindOptionsRelations, FindOptionsWhere, IsNull, Like, Not } from 'typeorm';
 import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
-import { AccountType } from '../user-data/account-type.enum';
 import { KycType, UserDataStatus } from '../user-data/user-data.enum';
 import { BankData, BankDataType, BankDataVerificationError } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
@@ -70,17 +69,14 @@ export class BankDataService {
 
   async verifyBankData(entity: BankData): Promise<void> {
     try {
-      if (
-        !entity.userData.verifiedName &&
-        (entity.userData.accountType === AccountType.PERSONAL || entity.type === BankDataType.BANK_IN)
-      )
+      if (!entity.userData.verifiedName && (entity.userData.isPersonalAccount || entity.type === BankDataType.BANK_IN))
         await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       if (entity.type === BankDataType.USER) return;
 
       if ([BankDataType.IDENT, BankDataType.NAME_CHECK].includes(entity.type)) {
         if (
-          entity.userData.accountType === AccountType.PERSONAL ||
+          entity.userData.isPersonalAccount ||
           entity.userData.hasCompletedStep(KycStepName.LEGAL_ENTITY) ||
           entity.userData.hasCompletedStep(KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION)
         ) {

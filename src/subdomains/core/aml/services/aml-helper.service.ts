@@ -1,3 +1,4 @@
+import * as IbanTools from 'ibantools';
 import { Config, Environment } from 'src/config/config';
 import { Active, isAsset } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -220,7 +221,7 @@ export class AmlHelperService {
         (entity.bankTx || entity.checkoutTx) &&
         entity.userData.phone &&
         entity.userData.birthday &&
-        (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
+        entity.userData.isPersonalAccount &&
         Util.yearsDiff(entity.userData.birthday) > 55
       )
         errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
@@ -254,28 +255,46 @@ export class AmlHelperService {
         )
           errors.push(AmlError.BIC_BLACKLISTED);
         if (
-          blacklist.some((b) =>
-            b.matches(
-              [
-                SpecialExternalAccountType.BANNED_IBAN,
-                SpecialExternalAccountType.BANNED_IBAN_BUY,
-                SpecialExternalAccountType.BANNED_IBAN_AML,
-              ],
-              entity.bankTx.iban,
-            ),
+          blacklist.some(
+            (b) =>
+              b.matches(
+                [
+                  SpecialExternalAccountType.BANNED_IBAN,
+                  SpecialExternalAccountType.BANNED_IBAN_BUY,
+                  SpecialExternalAccountType.BANNED_IBAN_AML,
+                ],
+                entity.bankTx.iban,
+              ) ||
+              b.matches(
+                [
+                  SpecialExternalAccountType.BANNED_BLZ,
+                  SpecialExternalAccountType.BANNED_BLZ_BUY,
+                  SpecialExternalAccountType.BANNED_BLZ_AML,
+                ],
+                IbanTools.extractIBAN(entity.bankTx.iban).bankIdentifier,
+              ),
           )
         )
           errors.push(AmlError.IBAN_BLACKLISTED);
 
         if (
+          !entity.userData.phoneCallCheckDate &&
+          entity.userData.isPersonalAccount &&
           phoneCallList.some((b) =>
             b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY], entity.bankTx.bic),
           )
         )
           errors.push(AmlError.BIC_PHONE_VERIFICATION_NEEDED);
         if (
-          phoneCallList.some((b) =>
-            b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY], entity.bankTx.iban),
+          !entity.userData.phoneCallCheckDate &&
+          entity.userData.isPersonalAccount &&
+          phoneCallList.some(
+            (b) =>
+              b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY], entity.bankTx.iban) ||
+              b.matches(
+                [SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BLZ_BUY],
+                IbanTools.extractIBAN(entity.bankTx.iban).bankIdentifier,
+              ),
           )
         )
           errors.push(AmlError.IBAN_PHONE_VERIFICATION_NEEDED);
@@ -330,15 +349,24 @@ export class AmlHelperService {
       if (entity.sell.fiat.name === 'CHF' && !Config.isDomesticIban(entity.sell.iban))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (
-        blacklist.some((b) =>
-          b.matches(
-            [
-              SpecialExternalAccountType.BANNED_IBAN,
-              SpecialExternalAccountType.BANNED_IBAN_SELL,
-              SpecialExternalAccountType.BANNED_IBAN_AML,
-            ],
-            entity.sell.iban,
-          ),
+        blacklist.some(
+          (b) =>
+            b.matches(
+              [
+                SpecialExternalAccountType.BANNED_IBAN,
+                SpecialExternalAccountType.BANNED_IBAN_SELL,
+                SpecialExternalAccountType.BANNED_IBAN_AML,
+              ],
+              entity.sell.iban,
+            ) ||
+            b.matches(
+              [
+                SpecialExternalAccountType.BANNED_BLZ,
+                SpecialExternalAccountType.BANNED_BLZ_SELL,
+                SpecialExternalAccountType.BANNED_BLZ_AML,
+              ],
+              IbanTools.extractIBAN(entity.sell.iban).bankIdentifier,
+            ),
         )
       )
         errors.push(AmlError.IBAN_BLACKLISTED);
@@ -440,11 +468,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_16:
-        if (
-          entity instanceof BuyCrypto &&
-          entity.userData.accountType === AccountType.PERSONAL &&
-          !entity.userData.phoneCallCheckDate
-        )
+        if (entity instanceof BuyCrypto && entity.userData.isPersonalAccount && !entity.userData.phoneCallCheckDate)
           errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
         break;
     }

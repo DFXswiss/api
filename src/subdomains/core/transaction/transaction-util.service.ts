@@ -108,12 +108,20 @@ export class TransactionUtilService {
     if (
       blockedAccounts.some(
         (b) =>
-          [
+          ([
             SpecialExternalAccountType.BANNED_IBAN,
             SpecialExternalAccountType.BANNED_IBAN_BUY,
             SpecialExternalAccountType.BANNED_IBAN_SELL,
             SpecialExternalAccountType.BANNED_IBAN_AML,
-          ].includes(b.type) && b.value === iban,
+          ].includes(b.type) &&
+            b.value === iban) ||
+          ([
+            SpecialExternalAccountType.BANNED_BLZ,
+            SpecialExternalAccountType.BANNED_BLZ_BUY,
+            SpecialExternalAccountType.BANNED_BLZ_SELL,
+            SpecialExternalAccountType.BANNED_BLZ_AML,
+          ].includes(b.type) &&
+            b.value === IbanTools.extractIBAN(iban).bankIdentifier),
       )
     )
       throw new BadRequestException('Iban not allowed');
