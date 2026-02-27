@@ -3,10 +3,13 @@ import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { HistoryEventDto } from 'src/subdomains/supporting/realunit/dto/realunit.dto';
 import { PDFColumn, PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Creditor, Debtor, Data as QrBillData } from 'swissqrbill/types';
@@ -117,34 +120,105 @@ export class SwissQRService {
     );
   }
 
-  async createMultiTxStatement(details: TxStatementDetails[], brand: PdfBrand = PdfBrand.DFX): Promise<string> {
-    if (details.length === 0) throw new Error('At least one transaction is required');
+  async createTxFromBlockchainReceipt(
+    historyEvent: HistoryEventDto,
+    userData: UserData,
+    asset: Asset,
+    fiatPrice: number,
+    currency: 'CHF' | 'EUR',
+    isIncoming: boolean,
+    brand: PdfBrand = PdfBrand.REALUNIT,
+  ): Promise<string> {
+    const debtor = this.getDebtor(userData);
+    const language = this.getLanguage(userData);
+    const tokenAmount = Number(historyEvent.transfer.value);
+    const fiatAmount = Util.roundReadable(tokenAmount * fiatPrice, AmountType.FIAT);
 
-    const firstDetail = details[0];
-    const debtor = this.getDebtor(firstDetail.transaction.userData);
-    if (!debtor) throw new Error('Debtor is required');
+    const tableData: SwissQRBillTableData = {
+      title: this.translate('invoice.receipt_title', language.toLowerCase(), {
+        invoiceId: this.shortenTxHash(historyEvent.txHash),
+      }),
+      quantity: tokenAmount,
+      description: {
+        assetDescription: asset.description ?? asset.name,
+        assetName: asset.name,
+        assetBlockchain: asset.blockchain,
+      },
+      fiatAmount,
+      date: historyEvent.timestamp,
+    };
 
-    const validatedCurrency = this.validateCurrency(firstDetail.currency);
-    const language = this.getLanguage(firstDetail.transaction.userData);
+    const billData: QrBillData = {
+      creditor: this.getDefaultCreditor(brand),
+      debtor,
+      currency,
+    };
+
+    const transactionType = isIncoming ? TransactionType.BUY : TransactionType.SELL;
+    return this.generatePdfInvoice(
+      tableData,
+      language,
+      billData,
+      undefined,
+      transactionType,
+      brand,
+      userData.completeName,
+      true,
+    );
+  }
+
+  async createTxFromBlockchainMultiReceipt(
+    receipts: Array<{
+      historyEvent: HistoryEventDto;
+      fiatPrice: number;
+      isIncoming: boolean;
+    }>,
+    userData: UserData,
+    asset: Asset,
+    currency: 'CHF' | 'EUR',
+    brand: PdfBrand = PdfBrand.REALUNIT,
+  ): Promise<string> {
+    if (receipts.length === 0) throw new Error('At least one transaction is required');
+
+    const debtor = this.getDebtor(userData);
+    const language = this.getLanguage(userData);
 
     const tableDataWithType: { data: SwissQRBillTableData; type: TransactionType }[] = [];
-    for (const detail of details) {
-      const tableData = await this.getTableData(
-        detail.statementType,
-        detail.transactionType,
-        detail.transaction,
-        validatedCurrency,
-      );
-      tableDataWithType.push({ data: tableData, type: detail.transactionType });
+
+    for (const { historyEvent, fiatPrice, isIncoming } of receipts) {
+      const tokenAmount = Number(historyEvent.transfer.value);
+      const fiatAmount = Util.roundReadable(tokenAmount * fiatPrice, AmountType.FIAT);
+
+      const tableData: SwissQRBillTableData = {
+        title: this.translate('invoice.receipt_title', language.toLowerCase(), {
+          invoiceId: this.shortenTxHash(historyEvent.txHash),
+        }),
+        quantity: tokenAmount,
+        description: {
+          assetDescription: asset.description ?? asset.name,
+          assetName: asset.name,
+          assetBlockchain: asset.blockchain,
+        },
+        fiatAmount,
+        date: historyEvent.timestamp,
+      };
+
+      const transactionType = isIncoming ? TransactionType.BUY : TransactionType.SELL;
+      tableDataWithType.push({ data: tableData, type: transactionType });
     }
 
     const billData: QrBillData = {
       creditor: this.getDefaultCreditor(brand),
       debtor,
-      currency: validatedCurrency,
+      currency,
     };
 
-    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand);
+    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true);
+  }
+
+  private shortenTxHash(txHash: string): string {
+    if (txHash.length <= 16) return txHash;
+    return `${txHash.slice(0, 8)}...${txHash.slice(-8)}`;
   }
 
   private async generatePdfInvoice(
@@ -155,6 +229,7 @@ export class SwissQRService {
     transactionType: TransactionType,
     brand: PdfBrand = PdfBrand.DFX,
     debtorName?: string,
+    skipTermsAndConditions = false,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
 
@@ -291,8 +366,6 @@ export class SwissQRService {
       },
     ];
 
-    const termsAndConditions = this.getTermsAndConditions(language);
-
     if (bankInfo) {
       rows.push({
         columns: [
@@ -305,7 +378,10 @@ export class SwissQRService {
         ],
       });
     }
-    rows.push({ columns: [termsAndConditions] });
+
+    if (!skipTermsAndConditions) {
+      rows.push({ columns: [this.getTermsAndConditions(language)] });
+    }
 
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
@@ -369,6 +445,7 @@ export class SwissQRService {
     language: string,
     billData: QrBillData,
     brand: PdfBrand = PdfBrand.DFX,
+    skipTermsAndConditions = false,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
 
@@ -541,7 +618,9 @@ export class SwissQRService {
       padding: 5,
     });
 
-    rows.push({ columns: [this.getTermsAndConditions(language)] });
+    if (!skipTermsAndConditions) {
+      rows.push({ columns: [this.getTermsAndConditions(language)] });
+    }
 
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
