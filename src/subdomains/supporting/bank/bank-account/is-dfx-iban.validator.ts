@@ -108,8 +108,6 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
     const isBlocked = this.blockedIbans.some((i) => new RegExp(i.toLowerCase()).test(iban.toLowerCase()));
     if (isBlocked) return `${args.property} not allowed`;
 
-    const t = IbanTools.extractIBAN(iban);
-
     if (this.blockedBLZs.some((i) => new RegExp(i).test(IbanTools.extractIBAN(iban).bankIdentifier)))
       return `${args.property} not allowed`;
 
