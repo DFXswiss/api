@@ -20,8 +20,8 @@ param containerEnv array
 @description('Command of the container')
 param containerCommand array
 
-@description('Container CPU resource')
-param containerCPU int
+@description('Container CPU resource (supports decimal, e.g. 0.5)')
+param containerCPU string
 
 @description('Container memory resource')
 param containerMemory int
