@@ -260,7 +260,7 @@ export class RealUnitController {
       historyEvent,
       user.userData,
       realuAsset,
-      price.price,
+      price.convert(1),
       currency,
       isIncoming,
       PdfBrand.REALUNIT,
@@ -293,7 +293,7 @@ export class RealUnitController {
         const isIncoming = Util.equalsIgnoreCase(event.transfer.to, jwt.address);
         return {
           historyEvent: event,
-          fiatPrice: price.price,
+          fiatPrice: price.convert(1),
           isIncoming,
         };
       }),
