@@ -120,39 +120,7 @@ export class SwissQRService {
     );
   }
 
-  async createMultiTxStatement(details: TxStatementDetails[], brand: PdfBrand = PdfBrand.DFX): Promise<string> {
-    if (details.length === 0) throw new Error('At least one transaction is required');
-
-    const firstDetail = details[0];
-    const debtor = this.getDebtor(firstDetail.transaction.userData);
-    if (!debtor) throw new Error('Debtor is required');
-
-    const validatedCurrency = this.validateCurrency(firstDetail.currency);
-    const language = this.getLanguage(firstDetail.transaction.userData);
-
-    const tableDataWithType: { data: SwissQRBillTableData; type: TransactionType }[] = [];
-    for (const detail of details) {
-      const tableData = await this.getTableData(
-        detail.statementType,
-        detail.transactionType,
-        detail.transaction,
-        validatedCurrency,
-      );
-      tableDataWithType.push({ data: tableData, type: detail.transactionType });
-    }
-
-    const billData: QrBillData = {
-      creditor: this.getDefaultCreditor(brand),
-      debtor,
-      currency: validatedCurrency,
-    };
-
-    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand);
-  }
-
-  // --- History Receipt Methods ---
-
-  async createHistoryTxReceipt(
+  async createTxFromBlockchainReceipt(
     historyEvent: HistoryEventDto,
     userData: UserData,
     asset: Asset,
@@ -198,7 +166,7 @@ export class SwissQRService {
     );
   }
 
-  async createMultiHistoryTxReceipt(
+  async createTxFromBlockchainMultiReceipt(
     receipts: Array<{
       historyEvent: HistoryEventDto;
       fiatPrice: number;

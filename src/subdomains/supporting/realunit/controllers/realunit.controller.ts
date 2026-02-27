@@ -1,16 +1,4 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  Get,
-  HttpStatus,
-  Param,
-  Post,
-  Put,
-  Query,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiAcceptedResponse,
@@ -44,15 +32,11 @@ import { Util } from 'src/shared/utils/util';
 import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BalancePdfService } from '../../balance/services/balance-pdf.service';
-import { TxStatementType } from '../../payment/dto/transaction-helper/tx-statement-details.dto';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
-import { TransactionHelper } from '../../payment/services/transaction-helper';
 import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
   RealUnitBalancePdfDto,
-  RealUnitHistoryMultiReceiptDto,
-  RealUnitHistorySingleReceiptDto,
   RealUnitMultiReceiptPdfDto,
   RealUnitSingleReceiptPdfDto,
   ReceiptCurrency,
@@ -90,7 +74,6 @@ export class RealUnitController {
     private readonly realunitService: RealUnitService,
     private readonly balancePdfService: BalancePdfService,
     private readonly userService: UserService,
-    private readonly transactionHelper: TransactionHelper,
     private readonly swissQrService: SwissQRService,
     private readonly pricingService: PricingService,
   ) {}
@@ -162,7 +145,7 @@ export class RealUnitController {
     return this.realunitService.getRealUnitInfo();
   }
 
-  // --- Balance PDF Endpoint ---
+  // --- PDF Endpoints ---
 
   @Post('balance/pdf')
   @ApiBearerAuth()
@@ -183,72 +166,16 @@ export class RealUnitController {
     return { pdfData };
   }
 
-  // --- Receipt PDF Endpoint ---
-
   @Post('transactions/receipt/single')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    description: 'Generates a PDF receipt for a completed RealUnit transaction',
-  })
-  @ApiParam({ name: 'id', description: 'Transaction ID' })
-  @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
-  @ApiBadRequestResponse({ description: 'Transaction not found or not a RealUnit transaction' })
-  async generateReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitSingleReceiptPdfDto): Promise<PdfDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: true });
-
-    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
-      user.userData.id,
-      dto.transactionId,
-      TxStatementType.RECEIPT,
-    );
-
-    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
-      throw new BadRequestException('PDF receipt is only available for CHF and EUR transactions');
-    }
-
-    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
-  }
-
-  @Post('transactions/receipt/multi')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
-  @ApiOperation({
-    description: 'Generates a single PDF receipt for multiple completed RealUnit transactions',
-  })
-  @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
-  @ApiBadRequestResponse({ description: 'Transaction not found, currency mismatch, or not a RealUnit transaction' })
-  async generateMultiReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitMultiReceiptPdfDto): Promise<PdfDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: true });
-
-    const txStatementDetails = await this.transactionHelper.getTxStatementDetailsMulti(
-      user.userData.id,
-      dto.transactionIds,
-      TxStatementType.RECEIPT,
-    );
-
-    if (txStatementDetails.length > 0 && !Config.invoice.currencies.includes(txStatementDetails[0].currency)) {
-      throw new BadRequestException('PDF receipt is only available for CHF and EUR transactions');
-    }
-
-    return { pdfData: await this.swissQrService.createMultiTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
-  }
-
-  // --- History Receipt Endpoints ---
-
-  @Post('transactions/receipt/history/single')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
-  @ApiOperation({
-    summary: 'Generate receipt from blockchain history',
+    summary: 'Generate receipt from blockchain transaction',
     description: 'Generates a PDF receipt for any RealUnit transaction found in blockchain history',
   })
   @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
   @ApiBadRequestResponse({ description: 'Transaction not found or not a transfer' })
-  async generateHistoryReceipt(
-    @GetJwt() jwt: JwtPayload,
-    @Body() dto: RealUnitHistorySingleReceiptDto,
-  ): Promise<PdfDto> {
+  async generateHistoryReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitSingleReceiptPdfDto): Promise<PdfDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
     const currency = dto.currency ?? ReceiptCurrency.CHF;
     const historyEvent = await this.realunitService.getHistoryEventByTxHash(jwt.address, dto.txHash);
@@ -256,7 +183,7 @@ export class RealUnitController {
     const price = await this.pricingService.getPriceAt(realuAsset, PriceCurrency[currency], historyEvent.timestamp);
     const isIncoming = Util.equalsIgnoreCase(historyEvent.transfer.to, jwt.address);
 
-    const pdfData = await this.swissQrService.createHistoryTxReceipt(
+    const pdfData = await this.swissQrService.createTxFromBlockchainReceipt(
       historyEvent,
       user.userData,
       realuAsset,
@@ -269,18 +196,18 @@ export class RealUnitController {
     return { pdfData };
   }
 
-  @Post('transactions/receipt/history/multi')
+  @Post('transactions/receipt/multi')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    summary: 'Generate multi-receipt from blockchain history',
+    summary: 'Generate multi-receipt from blockchain transactions',
     description: 'Generates a single PDF receipt for multiple RealUnit transactions found in blockchain history',
   })
   @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
   @ApiBadRequestResponse({ description: 'Transaction not found or not a transfer' })
   async generateHistoryMultiReceipt(
     @GetJwt() jwt: JwtPayload,
-    @Body() dto: RealUnitHistoryMultiReceiptDto,
+    @Body() dto: RealUnitMultiReceiptPdfDto,
   ): Promise<PdfDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
     const currency = dto.currency ?? ReceiptCurrency.CHF;
@@ -299,7 +226,7 @@ export class RealUnitController {
       }),
     );
 
-    const pdfData = await this.swissQrService.createMultiHistoryTxReceipt(
+    const pdfData = await this.swissQrService.createTxFromBlockchainMultiReceipt(
       receipts,
       user.userData,
       realuAsset,
