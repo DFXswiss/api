@@ -1,14 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { randomBytes, createHash } from 'crypto';
 import { secp256k1 } from '@noble/curves/secp256k1';
-import { BoltzClient, BoltzSwapStatus, ChainSwapFailedStatuses } from 'src/integration/blockchain/boltz/boltz-client';
-import { BoltzService } from 'src/integration/blockchain/boltz/boltz.service';
+import { createHash, randomBytes } from 'crypto';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { BoltzClient, BoltzSwapStatus, ChainSwapFailedStatuses } from 'src/integration/blockchain/boltz/boltz-client';
+import { BoltzService } from 'src/integration/blockchain/boltz/boltz.service';
 import { CitreaClient } from 'src/integration/blockchain/citrea/citrea-client';
 import { CitreaService } from 'src/integration/blockchain/citrea/citrea.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { isAsset } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -23,7 +24,7 @@ import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 const BOLTZ_REFERRAL_ID = 'DFX';
 
 export enum BoltzCommands {
-  DEPOSIT = 'deposit', // BTC onchain -> cBTC onchain via Boltz Chain Swap
+  DEPOSIT = 'deposit', // BTC onchain -> cBTC onchain
 }
 
 const CORRELATION_PREFIX = {
@@ -100,6 +101,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
    */
   private async deposit(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
+      minAmount,
       maxAmount,
       pipeline: {
         rule: { targetAsset: citreaAsset },
@@ -111,27 +113,35 @@ export class BoltzAdapter extends LiquidityActionAdapter {
       throw new OrderNotProcessableException('Boltz deposit only supports cBTC (native coin) on Citrea');
     }
 
+    // check BTC balance
+    const btcBalance = await this.bitcoinClient.getNativeCoinBalance();
+    if (btcBalance < minAmount) {
+      throw new OrderNotProcessableException(
+        `Not enough BTC (balance: ${btcBalance}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
+      );
+    }
+    const amount = Math.min(btcBalance, maxAmount);
+
     const claimAddress = this.citreaClient.walletAddress;
-    const userLockAmountSats = Math.round(maxAmount * 1e8);
+    const amountSats = LightningHelper.btcToSat(amount);
 
     // Step 1: Get chain pairs to extract pairHash
     const pairs = await this.boltzClient.getChainPairs();
-    const btcPairs = pairs['BTC'];
-    if (!btcPairs || !btcPairs['cBTC']) {
+    const pairInfo = pairs['BTC']?.['cBTC'];
+    if (!pairInfo) {
       throw new OrderNotProcessableException('BTC -> cBTC chain pair not available on Boltz');
     }
-    const pairInfo = btcPairs['cBTC'];
     const pairHash = pairInfo.hash;
 
     // Validate amount against Boltz pair limits (limits are in sats and change dynamically)
-    if (userLockAmountSats < pairInfo.limits.minimal) {
+    if (amountSats < pairInfo.limits.minimal) {
       throw new OrderNotProcessableException(
-        `Amount ${userLockAmountSats} sats below Boltz minimum of ${pairInfo.limits.minimal} sats`,
+        `Amount ${amountSats} sats below Boltz minimum of ${pairInfo.limits.minimal} sats`,
       );
     }
-    if (userLockAmountSats > pairInfo.limits.maximal) {
+    if (amountSats > pairInfo.limits.maximal) {
       throw new OrderNotProcessableException(
-        `Amount ${userLockAmountSats} sats above Boltz maximum of ${pairInfo.limits.maximal} sats`,
+        `Amount ${amountSats} sats above Boltz maximum of ${pairInfo.limits.maximal} sats`,
       );
     }
 
@@ -147,7 +157,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     const swap = await this.boltzClient.createChainSwap(
       preimageHash,
       claimAddress,
-      userLockAmountSats,
+      amountSats,
       pairHash,
       BOLTZ_REFERRAL_ID,
       refundPublicKey,
@@ -159,7 +169,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     );
 
     // Step 5: Send BTC to the lockup address (use amount from Boltz response, not our request)
-    const lockupAmountBtc = swap.lockupDetails.amount / 1e8;
+    const lockupAmountBtc = LightningHelper.satToBtc(swap.lockupDetails.amount);
     const btcTxId = await this.sendBtcToAddress(swap.lockupDetails.lockupAddress, lockupAmountBtc);
 
     this.logger.info(`BTC sent to lockup address: txId=${btcTxId}, amount=${lockupAmountBtc} BTC`);
@@ -177,7 +187,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
       swapId: swap.id,
       claimAddress,
       lockupAddress: swap.lockupDetails.lockupAddress,
-      userLockAmountSats,
+      userLockAmountSats: amountSats,
       claimAmountSats: swap.claimDetails.amount,
       preimage,
       preimageHash,
@@ -243,12 +253,12 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     if (status === BoltzSwapStatus.TRANSACTION_SERVER_CONFIRMED) {
       // Server has confirmed the lockup — request claiming (skip if already called)
       if (!correlationData.claimTxHash) {
-        const claimResult = await this.boltzClient.helpMeClaim(
+        const claimResult = await this.boltzClient.claimChainSwap(
           correlationData.preimage,
           `0x${correlationData.preimageHash}`,
         );
 
-        this.logger.info(`Boltz swap ${correlationData.swapId}: helpMeClaim called, claimTxHash=${claimResult.txHash}`);
+        this.logger.info(`Boltz swap ${correlationData.swapId}: claim called, claimTxHash=${claimResult.txHash}`);
 
         correlationData.claimTxHash = claimResult.txHash;
       }
@@ -274,7 +284,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
   ): Promise<boolean> {
     if (status === BoltzSwapStatus.TRANSACTION_CLAIMED) {
       // Use claimAmountSats (cBTC received after Boltz fees), not userLockAmountSats (BTC sent)
-      order.outputAmount = correlationData.claimAmountSats / 1e8;
+      order.outputAmount = LightningHelper.satToBtc(correlationData.claimAmountSats);
 
       this.logger.info(`Boltz swap ${correlationData.swapId}: claimed successfully, output=${order.outputAmount} cBTC`);
 
