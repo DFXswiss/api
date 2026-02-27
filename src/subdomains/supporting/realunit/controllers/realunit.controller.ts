@@ -40,17 +40,22 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { PdfBrand } from 'src/shared/utils/pdf.util';
+import { Util } from 'src/shared/utils/util';
 import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BalancePdfService } from '../../balance/services/balance-pdf.service';
 import { TxStatementType } from '../../payment/dto/transaction-helper/tx-statement-details.dto';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { TransactionHelper } from '../../payment/services/transaction-helper';
+import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
   RealUnitBalancePdfDto,
+  RealUnitHistoryMultiReceiptDto,
+  RealUnitHistorySingleReceiptDto,
   RealUnitMultiReceiptPdfDto,
   RealUnitSingleReceiptPdfDto,
+  ReceiptCurrency,
 } from '../dto/realunit-pdf.dto';
 import {
   RealUnitEmailRegistrationDto,
@@ -87,6 +92,7 @@ export class RealUnitController {
     private readonly userService: UserService,
     private readonly transactionHelper: TransactionHelper,
     private readonly swissQrService: SwissQRService,
+    private readonly pricingService: PricingService,
   ) {}
 
   @Get('account/:address')
@@ -226,6 +232,82 @@ export class RealUnitController {
     }
 
     return { pdfData: await this.swissQrService.createMultiTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
+  }
+
+  // --- History Receipt Endpoints ---
+
+  @Post('transactions/receipt/history/single')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Generate receipt from blockchain history',
+    description: 'Generates a PDF receipt for any RealUnit transaction found in blockchain history',
+  })
+  @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
+  @ApiBadRequestResponse({ description: 'Transaction not found or not a transfer' })
+  async generateHistoryReceipt(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitHistorySingleReceiptDto,
+  ): Promise<PdfDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+    const currency = dto.currency ?? ReceiptCurrency.CHF;
+    const historyEvent = await this.realunitService.getHistoryEventByTxHash(jwt.address, dto.txHash);
+    const realuAsset = await this.realunitService.getRealuAsset();
+    const price = await this.pricingService.getPriceAt(realuAsset, PriceCurrency[currency], historyEvent.timestamp);
+    const isIncoming = Util.equalsIgnoreCase(historyEvent.transfer.to, jwt.address);
+
+    const pdfData = await this.swissQrService.createHistoryTxReceipt(
+      historyEvent,
+      user.userData,
+      realuAsset,
+      price.price,
+      currency,
+      isIncoming,
+      PdfBrand.REALUNIT,
+    );
+
+    return { pdfData };
+  }
+
+  @Post('transactions/receipt/history/multi')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Generate multi-receipt from blockchain history',
+    description: 'Generates a single PDF receipt for multiple RealUnit transactions found in blockchain history',
+  })
+  @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
+  @ApiBadRequestResponse({ description: 'Transaction not found or not a transfer' })
+  async generateHistoryMultiReceipt(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitHistoryMultiReceiptDto,
+  ): Promise<PdfDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+    const currency = dto.currency ?? ReceiptCurrency.CHF;
+    const historyEvents = await this.realunitService.getHistoryEventsByTxHashes(jwt.address, dto.txHashes);
+    const realuAsset = await this.realunitService.getRealuAsset();
+
+    const receipts = await Promise.all(
+      historyEvents.map(async (event) => {
+        const price = await this.pricingService.getPriceAt(realuAsset, PriceCurrency[currency], event.timestamp);
+        const isIncoming = Util.equalsIgnoreCase(event.transfer.to, jwt.address);
+        return {
+          historyEvent: event,
+          fiatPrice: price.price,
+          isIncoming,
+        };
+      }),
+    );
+
+    const pdfData = await this.swissQrService.createMultiHistoryTxReceipt(
+      receipts,
+      user.userData,
+      realuAsset,
+      currency,
+      PdfBrand.REALUNIT,
+    );
+
+    return { pdfData };
   }
 
   // --- Brokerbot Endpoints ---
