@@ -35,25 +35,25 @@ export class SepaParser {
     let data: Partial<BankTxBatch> = {};
     try {
       data = {
-        sequenceNumber: +info?.ElctrncSeqNb,
+        sequenceNumber: this.toNumber(info?.ElctrncSeqNb),
         creationDate: new Date(info?.CreDtTm),
         fromDate: new Date(info?.FrToDt?.FrDtTm),
         toDate: new Date(info?.FrToDt?.ToDtTm),
         duplicate: this.toString(info?.CpyDplctInd),
         iban: this.toString(info?.Acct?.Id?.IBAN),
-        balanceBeforeAmount: +info?.Bal?.[0]?.Amt?.['#text'],
+        balanceBeforeAmount: this.toNumber(info?.Bal?.[0]?.Amt?.['#text']),
         balanceBeforeCurrency: this.toString(info?.Bal?.[0]?.Amt?.['@_Ccy']),
         balanceBeforeCdi: this.toString(info?.Bal?.[0]?.CdtDbtInd),
-        balanceAfterAmount: +info?.Bal?.[1]?.Amt?.['#text'],
+        balanceAfterAmount: this.toNumber(info?.Bal?.[1]?.Amt?.['#text']),
         balanceAfterCurrency: this.toString(info?.Bal?.[1]?.Amt?.['@_Ccy']),
         balanceAfterCdi: this.toString(info?.Bal?.[1]?.CdtDbtInd),
-        totalCount: +info?.TxsSummry?.TtlNtries?.NbOfNtries,
-        totalAmount: +info?.TxsSummry?.TtlNtries?.TtlNetNtry?.Amt,
+        totalCount: this.toNumber(info?.TxsSummry?.TtlNtries?.NbOfNtries),
+        totalAmount: this.toNumber(info?.TxsSummry?.TtlNtries?.TtlNetNtry?.Amt),
         totalCdi: this.toString(info?.TxsSummry?.TtlNtries?.TtlNetNtry?.CdtDbtInd),
-        creditCount: +info?.TxsSummry?.TtlCdtNtries?.NbOfNtries,
-        creditAmount: +info?.TxsSummry?.TtlCdtNtries?.Sum,
-        debitCount: +info?.TxsSummry?.TtlDbtNtries?.NbOfNtries,
-        debitAmount: +info?.TxsSummry?.TtlDbtNtries?.Sum,
+        creditCount: this.toNumber(info?.TxsSummry?.TtlCdtNtries?.NbOfNtries),
+        creditAmount: this.toNumber(info?.TxsSummry?.TtlCdtNtries?.Sum),
+        debitCount: this.toNumber(info?.TxsSummry?.TtlDbtNtries?.NbOfNtries),
+        debitAmount: this.toNumber(info?.TxsSummry?.TtlDbtNtries?.Sum),
       };
     } catch (e) {
       this.logger.error(`Failed to import SEPA batch data for ID ${identification}:`, e);
@@ -86,20 +86,20 @@ export class SepaParser {
         data = {
           bookingDate: new Date(entry?.BookgDt?.Dt),
           valueDate: new Date(entry?.ValDt?.Dt),
-          txCount: +entry?.NtryDtls?.Btch?.NbOfTxs,
+          txCount: this.toNumber(entry?.NtryDtls?.Btch?.NbOfTxs),
           endToEndId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.EndToEndId),
           instructionId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.InstrId),
           txId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.TxId),
-          amount: +entry?.NtryDtls?.TxDtls?.Amt?.['#text'],
+          amount: this.toNumber(entry?.NtryDtls?.TxDtls?.Amt?.['#text']),
           currency,
           creditDebitIndicator,
-          instructedAmount: +amtDtls?.InstdAmt?.Amt?.['#text'],
+          instructedAmount: this.toNumber(amtDtls?.InstdAmt?.Amt?.['#text']),
           instructedCurrency: this.toString(amtDtls?.InstdAmt?.Amt?.['@_Ccy']),
-          txAmount: +amtDtls?.TxAmt?.Amt?.['#text'],
+          txAmount: this.toNumber(amtDtls?.TxAmt?.Amt?.['#text']),
           txCurrency: this.toString(amtDtls?.TxAmt?.Amt?.['@_Ccy']),
           exchangeSourceCurrency: this.toString(amtDtls?.TxAmt?.CcyXchg?.SrcCcy),
           exchangeTargetCurrency: this.toString(amtDtls?.TxAmt?.CcyXchg?.TrgtCcy),
-          exchangeRate: +amtDtls?.TxAmt?.CcyXchg?.XchgRate,
+          exchangeRate: this.toNumber(amtDtls?.TxAmt?.CcyXchg?.XchgRate),
           ...(await this.getTotalCharge(
             creditDebitIndicator === SepaCdi.CREDIT ? entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd : entry?.Chrgs?.Rcrd,
             currency,
@@ -252,5 +252,11 @@ export class SepaParser {
 
   private toString(item: unknown): string | undefined {
     return item != null ? `${item}` : undefined;
+  }
+
+  private toNumber(item: unknown): number | undefined {
+    if (item == null) return undefined;
+    const num = +item;
+    return isNaN(num) ? undefined : num;
   }
 }
