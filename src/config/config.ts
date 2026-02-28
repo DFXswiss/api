@@ -890,6 +890,10 @@ export class Configuration {
       },
       certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
+    boltz: {
+      apiUrl: process.env.BOLTZ_API_URL,
+      seed: process.env.BOLTZ_SEED,
+    },
     spark: {
       sparkWalletSeed: process.env.SPARK_WALLET_SEED,
     },

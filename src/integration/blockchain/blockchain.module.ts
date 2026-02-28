@@ -8,6 +8,7 @@ import { BlockchainApiModule } from './api/blockchain-api.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { ArweaveModule } from './arweave/arweave.module';
 import { BaseModule } from './base/base.module';
+import { BoltzModule } from './boltz/boltz.module';
 import { BscModule } from './bsc/bsc.module';
 import { CardanoModule } from './cardano/cardano.module';
 import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
@@ -67,6 +68,7 @@ import { ZanoModule } from './zano/zano.module';
     CitreaModule,
     CitreaTestnetModule,
     ClementineModule,
+    BoltzModule,
     RealUnitBlockchainModule,
     Eip7702DelegationModule,
     PimlicoPaymasterModule,
@@ -99,6 +101,7 @@ import { ZanoModule } from './zano/zano.module';
     CitreaModule,
     CitreaTestnetModule,
     ClementineModule,
+    BoltzModule,
     CryptoService,
     BlockchainRegistryService,
     TxValidationService,
