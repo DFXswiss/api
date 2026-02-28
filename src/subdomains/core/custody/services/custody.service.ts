@@ -151,13 +151,13 @@ export class CustodyService {
     const custodyUserIds = account.users.filter((u) => u.role === UserRole.CUSTODY).map((u) => u.id);
     const custodyOrders = await this.custodyOrderRepo.find({
       where: { user: { id: In(custodyUserIds) }, status: CustodyOrderStatus.COMPLETED },
-      order: { id: 'ASC' },
+      order: { updated: 'ASC' },
     });
 
     if (!custodyOrders.length) return { totalValue: [] };
 
     const orderMap = custodyOrders.reduce((map, order) => {
-      const key = Util.isoDate(order.created);
+      const key = Util.isoDate(order.updated);
       const dayMap = map.get(key) ?? new Map<number, CustodyOrderSingle[]>();
 
       [
@@ -170,17 +170,15 @@ export class CustodyService {
       return map.set(key, dayMap);
     }, new Map<string, Map<number, CustodyOrderSingle[]>>());
 
-    // get all assets: from orders AND from current balances (includes assets without orders)
-    const orderAssets = custodyOrders
+    // get all assets (unique)
+    const allAssets = custodyOrders
       .map((o) => [o.inputAsset, o.outputAsset])
       .flat()
       .filter((a) => a);
-    const custodyBalances = await this.custodyBalanceRepo.findBy({ user: { id: In(custodyUserIds) } });
-    const balanceAssets = custodyBalances.filter((b) => b.balance > 0).map((b) => b.asset);
-    const assets = Array.from(new Map([...orderAssets, ...balanceAssets].map((a) => [a.id, a])).values());
+    const assets = Array.from(new Map(allAssets.map((a) => [a.id, a])).values());
 
     // get all prices (by date)
-    const startDate = new Date(custodyOrders[0].created);
+    const startDate = new Date(custodyOrders[0].updated);
     startDate.setHours(0, 0, 0, 0);
     const prices = await this.assetPricesService.getAssetPrices(assets, startDate);
 
