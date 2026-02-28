@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { FindOptionsRelations } from 'typeorm';
 import { WalletDto } from './dto/wallet.dto';
@@ -40,6 +41,6 @@ export class WalletService {
   }
 
   async getDefault(): Promise<Wallet> {
-    return this.repo.findOneCachedBy('default', { id: 1 });
+    return this.repo.findOneCachedBy('default', { id: Config.defaultWalletId });
   }
 }

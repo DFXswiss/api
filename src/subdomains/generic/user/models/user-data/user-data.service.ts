@@ -1166,6 +1166,7 @@ export class UserDataService {
     // optional master updates
     if (master.status === UserDataStatus.KYC_ONLY && slave.users.length && slave.wallet) master.wallet = slave.wallet;
     if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
+    if ((!master.wallet || master.wallet.id === Config.defaultWalletId) && slave.wallet) master.wallet = slave.wallet;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
       master.amlListExpiredDate = slave.amlListExpiredDate;
