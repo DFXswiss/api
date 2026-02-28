@@ -73,6 +73,7 @@ export class SepaParser {
     return Util.asyncMap(entries, async (entry) => {
       const accountServiceRef =
         entry?.NtryDtls?.TxDtls?.Refs?.AcctSvcrRef ??
+        entry?.AcctSvcrRef ??
         `CUSTOM/${file.BkToCstmrStmt.Stmt?.Acct?.Id?.IBAN}/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
 
       const creditDebitIndicator = this.toString(entry?.NtryDtls?.TxDtls?.CdtDbtInd);
