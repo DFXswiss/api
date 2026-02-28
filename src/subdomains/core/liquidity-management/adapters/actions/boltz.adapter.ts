@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
-import { createHash, randomBytes } from 'crypto';
+import { createHash } from 'crypto';
+import { Config } from 'src/config/config';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
@@ -14,6 +15,7 @@ import { isAsset } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
@@ -31,6 +33,11 @@ const CORRELATION_PREFIX = {
   DEPOSIT: 'boltz:deposit:',
 };
 
+interface SwapTree {
+  claimLeaf: { output: string; version: number };
+  refundLeaf: { output: string; version: number };
+}
+
 interface DepositCorrelationData {
   step: 'btc_sent' | 'claiming';
   swapId: string;
@@ -38,12 +45,13 @@ interface DepositCorrelationData {
   lockupAddress: string;
   userLockAmountSats: number;
   claimAmountSats: number;
-  preimage: string;
-  preimageHash: string;
   btcTxId: string;
   pairHash: string;
-  refundPrivateKey: string;
   claimTxHash?: string;
+  // Refund data (required to recover funds if swap fails)
+  swapTree: SwapTree;
+  timeoutBlockHeight: number;
+  serverPublicKey: string;
 }
 
 @Injectable()
@@ -133,7 +141,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     }
     const pairHash = pairInfo.hash;
 
-    // Validate amount against Boltz pair limits (limits are in sats and change dynamically)
+    // Validate amount against Boltz pair limits
     if (amountSats < pairInfo.limits.minimal) {
       throw new OrderNotProcessableException(
         `Amount ${amountSats} sats below Boltz minimum of ${pairInfo.limits.minimal} sats`,
@@ -145,13 +153,11 @@ export class BoltzAdapter extends LiquidityActionAdapter {
       );
     }
 
-    // Step 2: Generate preimage and hash
-    const preimage = randomBytes(32).toString('hex');
-    const preimageHash = createHash('sha256').update(Buffer.from(preimage, 'hex')).digest('hex');
+    // Step 2: Derive preimage deterministically from order.id
+    const { preimageHash } = this.getPreimageData(order.id);
 
-    // Step 3: Generate secp256k1 key pair for BTC refund (in case swap fails)
-    const refundPrivateKey = randomBytes(32).toString('hex');
-    const refundPublicKey = Buffer.from(secp256k1.getPublicKey(refundPrivateKey, true)).toString('hex');
+    // Step 3: Derive secp256k1 key pair for BTC refund (deterministic from seed + orderId)
+    const refundPublicKey = this.getRefundPublicKey(order.id);
 
     // Step 4: Create chain swap via Boltz API
     const swap = await this.boltzClient.createChainSwap(
@@ -165,10 +171,11 @@ export class BoltzAdapter extends LiquidityActionAdapter {
 
     this.logger.info(
       `Boltz chain swap created: id=${swap.id}, lockupAmount=${swap.lockupDetails.amount} sats, ` +
-        `claimAmount=${swap.claimDetails.amount} sats, lockup=${swap.lockupDetails.lockupAddress}, claim=${claimAddress}`,
+        `claimAmount=${swap.claimDetails.amount} sats, lockup=${swap.lockupDetails.lockupAddress}, ` +
+        `claim=${claimAddress}, timeoutBlockHeight=${swap.lockupDetails.timeoutBlockHeight}`,
     );
 
-    // Step 5: Send BTC to the lockup address (use amount from Boltz response, not our request)
+    // Step 5: Send BTC to the lockup address
     const lockupAmountBtc = LightningHelper.satToBtc(swap.lockupDetails.amount);
     const btcTxId = await this.sendBtcToAddress(swap.lockupDetails.lockupAddress, lockupAmountBtc);
 
@@ -189,11 +196,11 @@ export class BoltzAdapter extends LiquidityActionAdapter {
       lockupAddress: swap.lockupDetails.lockupAddress,
       userLockAmountSats: amountSats,
       claimAmountSats: swap.claimDetails.amount,
-      preimage,
-      preimageHash,
       btcTxId,
       pairHash,
-      refundPrivateKey,
+      swapTree: swap.lockupDetails.swapTree,
+      timeoutBlockHeight: swap.lockupDetails.timeoutBlockHeight,
+      serverPublicKey: swap.lockupDetails.serverPublicKey,
     };
 
     return `${CORRELATION_PREFIX.DEPOSIT}${this.encodeCorrelation(correlationData)}`;
@@ -253,10 +260,10 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     if (status === BoltzSwapStatus.TRANSACTION_SERVER_CONFIRMED) {
       // Server has confirmed the lockup — request claiming (skip if already called)
       if (!correlationData.claimTxHash) {
-        const claimResult = await this.boltzClient.claimChainSwap(
-          correlationData.preimage,
-          `0x${correlationData.preimageHash}`,
-        );
+        // Derive preimage from order.id
+        const { preimage, preimageHash } = this.getPreimageData(order.id);
+
+        const claimResult = await this.boltzClient.claimChainSwap(preimage, `0x${preimageHash}`);
 
         this.logger.info(`Boltz swap ${correlationData.swapId}: claim called, claimTxHash=${claimResult.txHash}`);
 
@@ -310,6 +317,39 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     }
 
     return txId;
+  }
+
+  /**
+   * Derive preimage deterministically from seed + orderId.
+   */
+  private getPreimageData(orderId: number): { preimage: string; preimageHash: string } {
+    const seed = Config.blockchain.boltz.refundSeed;
+    if (!seed) {
+      throw new OrderNotProcessableException('BOLTZ_REFUND_SEED not configured');
+    }
+
+    const preimage = Util.createHmac(seed, `boltz:preimage:${orderId}`);
+    const preimageHash = createHash('sha256').update(Buffer.from(preimage, 'hex')).digest('hex');
+
+    return { preimage, preimageHash };
+  }
+
+  /**
+   * Derive refund private key deterministically from seed + orderId.
+   * This allows recovery without storing the private key in the database.
+   */
+  private getRefundPrivateKey(orderId: number): string {
+    const seed = Config.blockchain.boltz.refundSeed;
+    if (!seed) {
+      throw new OrderNotProcessableException('BOLTZ_REFUND_SEED not configured');
+    }
+
+    return Util.createHmac(seed, `boltz:refund:${orderId}`);
+  }
+
+  private getRefundPublicKey(orderId: number): string {
+    const privateKey = this.getRefundPrivateKey(orderId);
+    return Buffer.from(secp256k1.getPublicKey(privateKey, true)).toString('hex');
   }
 
   private encodeCorrelation(data: DepositCorrelationData): string {
