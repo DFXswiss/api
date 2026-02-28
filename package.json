@@ -109,7 +109,7 @@
     "node-2fa": "^2.0.3",
     "node-pty": "^1.1.0",
     "node-sql-parser": "^5.3.13",
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^7.0.13",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.15.2",
@@ -191,6 +191,12 @@
     "multer": "^2.0.0",
     "uuid": "^9.0.0",
     "semver": "^7.6.0",
-    "fast-xml-parser": "$fast-xml-parser"
+    "fast-xml-parser": "$fast-xml-parser",
+    "ws": "^8.17.1",
+    "path-to-regexp": "^3.3.0",
+    "serialize-javascript": "^7.0.3",
+    "node-fetch": "^2.7.0",
+    "glob": "^10.5.0",
+    "express": "^4.22.0"
   }
 }
