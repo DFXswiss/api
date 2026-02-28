@@ -46,6 +46,7 @@ export class BinanceService extends ExchangeService {
     Checkout: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
+    Raiffeisen: undefined,
   };
 
   constructor() {
