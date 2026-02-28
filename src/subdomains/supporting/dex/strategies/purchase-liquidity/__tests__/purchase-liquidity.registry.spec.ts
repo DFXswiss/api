@@ -36,6 +36,8 @@ import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
 import { FiroStrategy } from '../impl/firo.strategy';
 import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
 import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
+import { IcpCoinStrategy } from '../impl/icp-coin.strategy';
+import { IcpTokenStrategy } from '../impl/icp-token.strategy';
 
 describe('PurchaseLiquidityStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
@@ -64,6 +66,8 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
   let tronToken: TronTokenStrategy;
   let cardanoCoin: CardanoCoinStrategy;
   let cardanoToken: CardanoTokenStrategy;
+  let icpCoin: IcpCoinStrategy;
+  let icpToken: IcpTokenStrategy;
 
   let registry: PurchaseLiquidityStrategyRegistryWrapper;
 
@@ -107,6 +111,9 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
     cardanoCoin = new CardanoCoinStrategy();
     cardanoToken = new CardanoTokenStrategy();
 
+    icpCoin = new IcpCoinStrategy();
+    icpToken = new IcpTokenStrategy();
+
     registry = new PurchaseLiquidityStrategyRegistryWrapper(
       bitcoin,
       lightning,
@@ -134,6 +141,8 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       tronToken,
       cardanoCoin,
       cardanoToken,
+      icpCoin,
+      icpToken,
     );
   });
 
@@ -347,6 +356,22 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(CardanoTokenStrategy);
       });
 
+      it('gets ICP_COIN strategy', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.INTERNET_COMPUTER, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(IcpCoinStrategy);
+      });
+
+      it('gets ICP_TOKEN strategy', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.INTERNET_COMPUTER, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(IcpTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const strategy = registry.getPurchaseLiquidityStrategy(
           createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }),
@@ -394,6 +419,8 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     tronToken: TronTokenStrategy,
     cardanoCoin: CardanoCoinStrategy,
     cardanoToken: CardanoTokenStrategy,
+    icpCoin: IcpCoinStrategy,
+    icpToken: IcpTokenStrategy,
   ) {
     super();
 
@@ -424,5 +451,7 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     this.add({ blockchain: Blockchain.TRON, assetType: AssetType.TOKEN }, tronToken);
     this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.COIN }, cardanoCoin);
     this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.TOKEN }, cardanoToken);
+    this.add({ blockchain: Blockchain.INTERNET_COMPUTER, assetType: AssetType.COIN }, icpCoin);
+    this.add({ blockchain: Blockchain.INTERNET_COMPUTER, assetType: AssetType.TOKEN }, icpToken);
   }
 }

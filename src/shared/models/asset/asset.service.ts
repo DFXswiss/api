@@ -285,6 +285,14 @@ export class AssetService {
     });
   }
 
+  async getInternetComputerCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ICP',
+      blockchain: Blockchain.INTERNET_COMPUTER,
+      type: AssetType.COIN,
+    });
+  }
+
   async getBitcoinTestnet4Coin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'BTC',

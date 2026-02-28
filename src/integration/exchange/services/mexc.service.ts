@@ -50,6 +50,7 @@ export class MexcService extends ExchangeService {
     KucoinPay: undefined,
     Solana: 'SOL',
     Tron: 'TRX',
+    InternetComputer: undefined,
     Citrea: undefined,
     CitreaTestnet: undefined,
     BitcoinTestnet4: undefined,

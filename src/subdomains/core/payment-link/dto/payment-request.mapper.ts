@@ -26,6 +26,7 @@ export class PaymentRequestMapper {
       case Blockchain.SOLANA:
       case Blockchain.TRON:
       case Blockchain.CARDANO:
+      case Blockchain.INTERNET_COMPUTER:
         return this.toPaymentLinkPayment(paymentActivation.method, paymentActivation);
 
       case Blockchain.KUCOIN_PAY:
@@ -47,9 +48,16 @@ export class PaymentRequestMapper {
   ): PaymentLinkEvmPaymentDto {
     const infoUrl = `${Config.url()}/lnurlp/tx/${paymentActivation.payment.uniqueId}`;
 
-    const hint = TxIdBlockchains.includes(method)
-      ? `Use this data to create a transaction and sign it. Broadcast the signed transaction to the blockchain and send the transaction hash back via the endpoint ${infoUrl}`
-      : `Use this data to create a transaction and sign it. Send the signed transaction back as HEX via the endpoint ${infoUrl}. We check the transferred HEX and broadcast the transaction to the blockchain.`;
+    let hint: string;
+    if (method === Blockchain.INTERNET_COMPUTER) {
+      hint =
+        `Approve the address from the URI for the required amount plus transfer fee using icrc2_approve. ` +
+        `Then send your Principal ID as the sender parameter via the endpoint ${infoUrl}.`;
+    } else if (TxIdBlockchains.includes(method)) {
+      hint = `Use this data to create a transaction and sign it. Broadcast the signed transaction to the blockchain and send the transaction hash back via the endpoint ${infoUrl}`;
+    } else {
+      hint = `Use this data to create a transaction and sign it. Send the signed transaction back as HEX via the endpoint ${infoUrl}. We check the transferred HEX and broadcast the transaction to the blockchain.`;
+    }
 
     return {
       expiryDate: paymentActivation.expiryDate,
