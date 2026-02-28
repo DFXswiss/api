@@ -891,7 +891,7 @@ export class Configuration {
     },
     boltz: {
       apiUrl: process.env.BOLTZ_API_URL,
-      refundSeed: process.env.BOLTZ_REFUND_SEED,
+      seed: process.env.BOLTZ_SEED,
     },
     spark: {
       sparkWalletSeed: process.env.SPARK_WALLET_SEED,

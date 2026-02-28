@@ -323,9 +323,9 @@ export class BoltzAdapter extends LiquidityActionAdapter {
    * Derive preimage deterministically from seed + orderId.
    */
   private getPreimageData(orderId: number): { preimage: string; preimageHash: string } {
-    const seed = Config.blockchain.boltz.refundSeed;
+    const seed = Config.blockchain.boltz.seed;
     if (!seed) {
-      throw new OrderNotProcessableException('BOLTZ_REFUND_SEED not configured');
+      throw new OrderNotProcessableException('BOLTZ_SEED not configured');
     }
 
     const preimage = Util.createHmac(seed, `boltz:preimage:${orderId}`);
@@ -339,9 +339,9 @@ export class BoltzAdapter extends LiquidityActionAdapter {
    * This allows recovery without storing the private key in the database.
    */
   private getRefundPrivateKey(orderId: number): string {
-    const seed = Config.blockchain.boltz.refundSeed;
+    const seed = Config.blockchain.boltz.seed;
     if (!seed) {
-      throw new OrderNotProcessableException('BOLTZ_REFUND_SEED not configured');
+      throw new OrderNotProcessableException('BOLTZ_SEED not configured');
     }
 
     return Util.createHmac(seed, `boltz:refund:${orderId}`);
