@@ -259,7 +259,7 @@ export class KycService {
         } else if (
           errors.includes(KycError.VERIFIED_NAME_MISSING) &&
           errors.length === 1 &&
-          entity.userData.accountType === AccountType.PERSONAL
+          entity.userData.isPersonalAccount
         ) {
           await this.userDataService.updateUserDataInternal(entity.userData, {
             verifiedName: `${entity.userData.firstname} ${entity.userData.surname}`,
@@ -1513,7 +1513,7 @@ export class KycService {
       identStep.userData.verifiedCountry ??
       identStep.userData.country;
 
-    if (identStep.userData.accountType === AccountType.PERSONAL) {
+    if (identStep.userData.isPersonalAccount) {
       // Personal Account
       if (!userCountry.dfxEnable) errors.push(KycError.COUNTRY_NOT_ALLOWED);
       if (userCountry.manualReviewRequired) errors.push(KycError.MANUAL_REVIEW_REQUIRED);
