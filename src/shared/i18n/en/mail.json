@@ -96,7 +96,8 @@
                 "manual_check_ip_country_phone": "We were unable to reach you at the phone number you provided",
                 "merge_incomplete": "The email confirmation was not accepted",
                 "intermediary_without_sender": "The sender bank (Wise/Revolut) only transmitted the bank name, not the account holder's name. DFX is therefore unable to verify the actual sender and cannot process the transaction.",
-                "name_too_short": "Your name is too short for bank processing. Banks require at least 4 letters in the account holder name."
+                "name_too_short": "Your name is too short for bank processing. Banks require at least 4 letters in the account holder name.",
+                "asset_input_not_allowed": "The asset is currently not available for trading with DFX"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
