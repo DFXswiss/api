@@ -4,16 +4,22 @@ services:
   firod:
     image: firoorg/firod:0.14.15.2
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+        reservations:
+          memory: 1024M
     volumes:
       - ./volumes/firo:/home/firod/.firo
     ports:
       - '8168:8168'
       - '8888:8888'
     healthcheck:
-      test: firo-cli -conf=/home/firod/.firo/firo.conf getblockchaininfo || exit 1
+      test: firo-cli -conf=/home/firod/.firo/firo.conf getblockcount || exit 1
       start_period: 120s
-      interval: 30s
-      timeout: 60s
-      retries: 10
+      interval: 120s
+      timeout: 10s
+      retries: 3
     command: >
       -conf=/home/firod/.firo/firo.conf
