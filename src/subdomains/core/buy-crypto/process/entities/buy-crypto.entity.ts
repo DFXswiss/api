@@ -25,12 +25,13 @@ import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.en
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FeeType } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -133,6 +134,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   usedRef?: string;
 
+  @Column({ length: 256, nullable: true })
+  usedPartnerRef?: string;
+
   @Column({ type: 'float', nullable: true })
   refProvision?: number;
 
@@ -161,6 +165,9 @@ export class BuyCrypto extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   bankFeeAmount?: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
+  partnerFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
   percentFeeAmount?: number; //inputReferenceAsset
@@ -570,11 +577,11 @@ export class BuyCrypto extends IEntity {
   }
 
   setFeeAndFiatReference(
-    fee: InternalFeeDto & FeeDto,
+    fee: InternalFeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
-    const { usedRef, refProvision } = this.user.specifiedRef;
+    const partnerFee = fee.partner ? fee.fees.find((f) => f.type === FeeType.PARTNER) : undefined;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
 
     const update: Partial<BuyCrypto> =
@@ -590,10 +597,12 @@ export class BuyCrypto extends IEntity {
             totalFeeAmountChf,
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
+            partnerFeeAmount: fee.partner,
+            usedPartnerRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
             inputReferenceAmountMinusFee,
-            usedRef,
-            refProvision,
-            refFactor: !fee.payoutRefBonus || usedRef === Config.defaultRef ? 0 : 1,
+            usedRef: this.user.usedRef,
+            refProvision: this.user.refFeePercent,
+            refFactor: !fee.payoutRefBonus || this.user.usedRef === Config.defaultRef ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             networkStartFeeAmount: fee.networkStart,
             status: this.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE ? BuyCryptoStatus.CREATED : undefined,
@@ -692,6 +701,8 @@ export class BuyCrypto extends IEntity {
       chargebackAllowedBy: null,
       chargebackOutput: null,
       priceDefinitionAllowedDate: null,
+      partnerFeeAmount: null,
+      usedPartnerRef: null,
     };
 
     Object.assign(this, update);

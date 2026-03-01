@@ -1,3 +1,5 @@
+import { FeeSpec } from '../fee.dto';
+
 export interface TxMinSpec {
   minVolume: number;
   minFee: number;
@@ -10,8 +12,9 @@ export interface TxSpec {
   };
   fee: {
     min: number;
-    fixed: number;
-    bankFixed: number;
+    dfx: FeeSpec;
+    partner: FeeSpec;
+    bank: FeeSpec;
     network: number;
     networkStart: number;
   };
