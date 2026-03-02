@@ -985,6 +985,7 @@ export class Configuration {
     },
     internetComputer: {
       internetComputerHost: 'https://ic0.app',
+      internetComputerLedgerApiUrl: process.env.ICP_LEDGER_API_URL ?? 'https://ledger-api.internetcomputer.org/v2',
       internetComputerWalletSeed: process.env.ICP_WALLET_SEED,
       internetComputerLedgerCanisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
       transferFee: 0.0001,
