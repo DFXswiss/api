@@ -30,7 +30,7 @@ export class InternetComputerService extends BlockchainService {
   }
 
   getPaymentRequest(address: string, amount: number): string {
-    return `internetComputer:${address}?amount=${Util.numberToFixedString(amount)}`;
+    return `icp:${address}?amount=${Util.numberToFixedString(amount)}`;
   }
 
   async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {
