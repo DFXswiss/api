@@ -43,6 +43,10 @@ export class LogService {
     return this.logRepo.findOne({ where: { system, subsystem, severity, valid }, order: { id: 'DESC' } });
   }
 
+  async getFinancialLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
+    return this.logRepo.getFinancialLogs(from, dailySample);
+  }
+
   async getBankLog(batchId: string): Promise<Log> {
     return this.logRepo
       .createQueryBuilder('log')

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
-import { EntityManager } from 'typeorm';
+import { EntityManager, MoreThanOrEqual } from 'typeorm';
 import { LogCleanupSetting } from './dto/create-log.dto';
-import { Log } from './log.entity';
+import { Log, LogSeverity } from './log.entity';
 
 @Injectable()
 export class LogRepository extends BaseRepository<Log> {
@@ -38,5 +38,41 @@ export class LogRepository extends BaseRepository<Log> {
     const logIdsToBeDeleted = await query.getRawMany<{ log_id: number }>().then((i) => i.map((i) => i.log_id));
 
     await Util.doInBatches(logIdsToBeDeleted, async (batch: number[]) => this.delete(batch), 100);
+  }
+
+  async getFinancialLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
+    if (dailySample) {
+      const subQuery = this.createQueryBuilder('subLog')
+        .select('MAX(subLog.id)', 'max_id')
+        .where('subLog.system = :system')
+        .andWhere('subLog.subsystem = :subsystem')
+        .andWhere('subLog.severity = :severity')
+        .groupBy('CAST(subLog.created AS DATE)');
+
+      let query = this.createQueryBuilder('log')
+        .where('log.system = :system', { system: 'LogService' })
+        .andWhere('log.subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
+        .andWhere('log.severity = :severity', { severity: LogSeverity.INFO })
+        .andWhere(`log.id IN (${subQuery.getQuery()})`)
+        .orderBy('log.created', 'ASC');
+
+      if (from) {
+        query = query.andWhere('log.created >= :from', { from });
+      }
+
+      return query.getMany();
+    }
+
+    const where: any = {
+      system: 'LogService',
+      subsystem: 'FinancialDataLog',
+      severity: LogSeverity.INFO,
+    };
+
+    if (from) {
+      where.created = MoreThanOrEqual(from);
+    }
+
+    return this.find({ where, order: { created: 'ASC' } });
   }
 }
