@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { LndInvoiceState } from 'src/integration/lightning/dto/lnd.dto';
@@ -54,9 +55,15 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
 
   private async lightningWithdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const asset = order.pipeline.rule.targetAsset.dexName;
+    const network = this.exchangeService.mapNetwork(Blockchain.LIGHTNING) || undefined;
     const balance = await this.exchangeService.getAvailableBalance(asset);
 
-    const amount = Util.floor(Math.min(order.maxAmount, balance, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC), 8);
+    const withdrawalFee = await this.exchangeService.getWithdrawalFee(asset, network);
+
+    const amount = Util.floor(
+      Math.min(order.maxAmount, balance - withdrawalFee, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC),
+      8,
+    );
 
     if (amount <= 0)
       throw new OrderNotProcessableException(
@@ -64,19 +71,25 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
       );
     const amountSats = LightningHelper.btcToSat(amount);
 
-    // Generate invoice via LnBits
+    // Generate invoice via LnBits for the target amount (excluding fee)
     const invoice = await this.lightningClient.getLnBitsWalletPayment({
       amount: amountSats,
       memo: `LM Order ${order.id}`,
       expirySec: 1800, // 30 min (Binance limit)
     });
 
-    order.inputAmount = amount;
+    order.inputAmount = amount + withdrawalFee;
     order.inputAsset = asset;
     order.outputAsset = asset;
 
-    // Send invoice to Binance for withdrawal
-    const response = await this.exchangeService.withdrawFunds(asset, amount, invoice.pr, undefined, 'LIGHTNING');
+    // Send invoice to Binance - amount must be invoice_amount + withdrawal_fee
+    const response = await this.exchangeService.withdrawFunds(
+      asset,
+      amount + withdrawalFee,
+      invoice.pr,
+      undefined,
+      network,
+    );
 
     return response.id;
   }
