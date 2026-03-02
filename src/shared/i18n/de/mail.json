@@ -71,7 +71,7 @@
                 "min_deposit_not_reached": "Die Mindesteinzahlungsgrenze wurde nicht erreicht",
                 "name_check_without_kyc": "Ihre Transaktion wurde wegen fehlender KYC storniert<br>Aufgrund von Namensübereinstimmungen ist es nicht möglich, die Transaktion ohne KYC zu bearbeiten. Siehe hier für weitere Details:<br>[url:{urlText}]",
                 "annual_limit_without_kyc": "Du hast das Jahreslimit ohne Verifizierung (KYC) überschritten",
-                "asset_currently_not_available": "Der Vermögenswert ist derzeit nicht für den Handel mit DFX verfügbar",
+                "asset_currently_not_available": "Das Asset ist derzeit nicht für den Handel mit DFX verfügbar",
                 "staking_discontinued": "Staking-Einzahlungen sind nicht mehr möglich",
                 "bank_not_allowed": "Die von dir verwendete Absenderbank ist nicht erlaubt. Bitte nutze eine andere Bank für deine Einzahlung.",
                 "country_not_allowed": "Deine Einzahlung kann leider nicht bearbeitet werden,<br>weil das Geld aus einem Land stammt welches wir nicht unterstützen können. Mehr Informationen:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
@@ -96,7 +96,8 @@
                 "manual_check_ip_country_phone": "Wir konnten dich unter deiner angegebenen Telefonnummer nicht erreichen",
                 "merge_incomplete": "Die Email Bestätigung wurde nicht akzeptiert",
                 "intermediary_without_sender": "Die Absenderbank (Wise/Revolut) hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. DFX kann daher den tatsächlichen Absender nicht verifizieren und die Transaktion nicht verarbeiten.",
-                "name_too_short": "Dein Name ist zu kurz für die Bankverarbeitung. Banken benötigen mindestens 4 Buchstaben im Namen des Kontoinhabers."
+                "name_too_short": "Dein Name ist zu kurz für die Bankverarbeitung. Banken benötigen mindestens 4 Buchstaben im Namen des Kontoinhabers.",
+                "asset_input_not_allowed": "Das Asset ist derzeit nicht für den Handel mit DFX verfügbar"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"
         },
