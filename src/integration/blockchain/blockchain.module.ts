@@ -8,6 +8,7 @@ import { BlockchainApiModule } from './api/blockchain-api.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { ArweaveModule } from './arweave/arweave.module';
 import { BaseModule } from './base/base.module';
+import { BoltzModule } from './boltz/boltz.module';
 import { BscModule } from './bsc/bsc.module';
 import { CardanoModule } from './cardano/cardano.module';
 import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
@@ -34,6 +35,7 @@ import { TxValidationService } from './shared/services/tx-validation.service';
 import { SolanaModule } from './solana/solana.module';
 import { SparkModule } from './spark/spark.module';
 import { TronModule } from './tron/tron.module';
+import { InternetComputerModule } from './icp/icp.module';
 import { ZanoModule } from './zano/zano.module';
 
 @Module({
@@ -64,9 +66,11 @@ import { ZanoModule } from './zano/zano.module';
     SolanaModule,
     TronModule,
     CardanoModule,
+    InternetComputerModule,
     CitreaModule,
     CitreaTestnetModule,
     ClementineModule,
+    BoltzModule,
     RealUnitBlockchainModule,
     Eip7702DelegationModule,
     PimlicoPaymasterModule,
@@ -96,9 +100,11 @@ import { ZanoModule } from './zano/zano.module';
     SolanaModule,
     TronModule,
     CardanoModule,
+    InternetComputerModule,
     CitreaModule,
     CitreaTestnetModule,
     ClementineModule,
+    BoltzModule,
     CryptoService,
     BlockchainRegistryService,
     TxValidationService,
