@@ -5,6 +5,7 @@ import { Principal } from '@dfinity/principal';
 import { Config, GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
@@ -17,6 +18,7 @@ import {
   IcpTransfer,
   IcpTransferQueryResult,
   IcrcRawLedger,
+  RosettaTransaction,
 } from './dto/icp.dto';
 import { InternetComputerWallet } from './icp-wallet';
 import { icpNativeLedgerIdlFactory, icrcLedgerIdlFactory } from './icp.idl';
@@ -26,21 +28,31 @@ export class InternetComputerClient extends BlockchainClient {
   private readonly logger = new DfxLogger(InternetComputerClient);
 
   private readonly host: string;
+  private readonly rosettaApiUrl: string;
   private readonly seed: string;
   private readonly wallet: InternetComputerWallet;
   private readonly agent: HttpAgent;
   private readonly nativeLedger: IcrcLedgerCanister;
   private readonly transferFee: number;
 
+  private readonly http: HttpService;
   private readonly nativeRawLedger: IcpNativeRawLedger;
   private readonly icrcRawLedgers: Map<string, IcrcRawLedger> = new Map();
 
-  constructor() {
+  constructor(http: HttpService) {
     super();
 
-    const { internetComputerHost, internetComputerWalletSeed, internetComputerLedgerCanisterId, transferFee } =
-      GetConfig().blockchain.internetComputer;
+    this.http = http;
+
+    const {
+      internetComputerHost,
+      internetComputerRosettaApiUrl,
+      internetComputerWalletSeed,
+      internetComputerLedgerCanisterId,
+      transferFee,
+    } = GetConfig().blockchain.internetComputer;
     this.host = internetComputerHost;
+    this.rosettaApiUrl = internetComputerRosettaApiUrl;
     this.seed = internetComputerWalletSeed;
     this.transferFee = transferFee;
 
@@ -247,6 +259,11 @@ export class InternetComputerClient extends BlockchainClient {
 
   async isTxComplete(txId: string): Promise<boolean> {
     try {
+      // TxHash from external sources: 64 hex chars
+      if (/^[a-f0-9]{64}$/i.test(txId)) {
+        return await this.isTxHashComplete(txId);
+      }
+
       // Token txIds have format "canisterId:blockIndex"
       const parts = txId.split(':');
       if (parts.length === 2) {
@@ -264,6 +281,17 @@ export class InternetComputerClient extends BlockchainClient {
       this.logger.error(`Failed to check tx completion for ${txId}:`, e);
       return false;
     }
+  }
+
+  private async isTxHashComplete(txHash: string): Promise<boolean> {
+    const url = `${this.rosettaApiUrl}/search/transactions`;
+    const response = await this.http.post<{ transactions: RosettaTransaction[] }>(url, {
+      network_identifier: { blockchain: 'Internet Computer', network: '00000000000000020101' },
+      transaction_identifier: { hash: txHash },
+    });
+
+    const tx = response.transactions[0];
+    return tx?.transaction.operations.every((op) => op.status === 'COMPLETED') ?? false;
   }
 
   // --- Send native coin ---
