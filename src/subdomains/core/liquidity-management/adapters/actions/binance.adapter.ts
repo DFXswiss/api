@@ -60,18 +60,14 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     const balance = await this.exchangeService.getAvailableBalance(asset);
     const withdrawalFee = await this.exchangeService.getWithdrawalFee(asset, network);
 
-    const amount = Util.floor(
-      Math.min(
-        Math.max(order.maxAmount, BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC),
-        balance - withdrawalFee,
-        BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC,
-      ),
-      8,
-    );
+    const desiredAmount = Math.max(order.maxAmount, BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC);
+    const availableAmount = balance - withdrawalFee;
+
+    const amount = Util.floor(Math.min(desiredAmount, availableAmount, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC), 8);
 
     if (amount < BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC)
       throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${balance}, fee: ${withdrawalFee}, min. withdrawal: ${BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC})`,
+        `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
 
     const amountSats = LightningHelper.btcToSat(amount);
