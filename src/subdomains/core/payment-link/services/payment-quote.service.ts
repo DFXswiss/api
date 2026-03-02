@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
@@ -51,6 +52,7 @@ export class PaymentQuoteService {
     Blockchain.SOLANA,
     Blockchain.TRON,
     Blockchain.CARDANO,
+    Blockchain.INTERNET_COMPUTER,
   ];
 
   private readonly transferAmountAssetOrder: string[] = ['dEURO', 'ZCHF', 'USDT', 'USDC', 'DAI'];
@@ -64,6 +66,7 @@ export class PaymentQuoteService {
     private readonly c2bPaymentLinkService: C2BPaymentLinkService,
     private readonly paymentBalanceService: PaymentBalanceService,
     private readonly txValidationService: TxValidationService,
+    private readonly internetComputerService: InternetComputerService,
   ) {}
 
   // --- JOBS --- //
@@ -393,6 +396,10 @@ export class PaymentQuoteService {
           await this.doBitcoinBasedHexPayment(transferInfo.method, transferInfo, quote);
           break;
 
+        case Blockchain.INTERNET_COMPUTER:
+          await this.doIcpPayment(transferInfo, quote);
+          break;
+
         default:
           if (TxIdBlockchains.includes(transferInfo.method as Blockchain)) {
             await this.doTxIdPayment(transferInfo, quote);
@@ -563,12 +570,68 @@ export class PaymentQuoteService {
     }
   }
 
+  private async doIcpPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    if (!transferInfo.sender) {
+      return this.doTxIdPayment(transferInfo, quote);
+    }
+
+    try {
+      const userPrincipal = transferInfo.sender;
+      const paymentAccount = this.paymentBalanceService.getPaymentAccount(Blockchain.INTERNET_COMPUTER);
+      const paymentAddress = this.paymentBalanceService.getDepositAddress(Blockchain.INTERNET_COMPUTER);
+
+      const activation = (quote.activations ?? [])
+        .filter((a) => a.method === Blockchain.INTERNET_COMPUTER)
+        .find((a) => a.asset.name.toLowerCase() === transferInfo.asset.toLowerCase());
+
+      if (!activation) {
+        quote.txFailed('No matching activation for ICP approve payment');
+        return;
+      }
+
+      const canisterId =
+        activation.asset.type === AssetType.COIN
+          ? Config.blockchain.internetComputer.internetComputerLedgerCanisterId
+          : activation.asset.chainId;
+
+      await Util.retry(
+        async () => {
+          const result = await this.internetComputerService.checkAllowance(
+            userPrincipal,
+            paymentAddress,
+            canisterId,
+            activation.asset.decimals,
+          );
+          if (result.allowance < transferInfo.amount) {
+            throw new Error(`Insufficient allowance: ${result.allowance}, need ${transferInfo.amount}`);
+          }
+        },
+        3,
+        2000,
+      );
+
+      const txId = await this.internetComputerService.transferFromWithAccount(
+        paymentAccount,
+        userPrincipal,
+        paymentAddress,
+        transferInfo.amount,
+        canisterId,
+        activation.asset.decimals,
+      );
+
+      quote.txInBlockchain(txId);
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
+  }
+
   private async getAndCheckQuote(transferInfo: TransferInfo): Promise<PaymentQuote> {
     const quoteUniqueId = transferInfo.quoteUniqueId;
 
     if (!quoteUniqueId) throw new BadRequestException('Quote parameter missing');
     if (!transferInfo.method) throw new BadRequestException('Method parameter missing');
-    if (!transferInfo.hex && !transferInfo.tx) throw new BadRequestException('Hex or Tx parameter missing');
+    if (!transferInfo.hex && !transferInfo.tx && !transferInfo.sender)
+      throw new BadRequestException('Hex, Tx or Sender parameter missing');
 
     const actualQuote = await this.getActualQuoteByUniqueId(quoteUniqueId);
     if (!actualQuote) throw new NotFoundException(`No actual quote with ID ${quoteUniqueId} found`);

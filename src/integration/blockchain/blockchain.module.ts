@@ -35,6 +35,7 @@ import { TxValidationService } from './shared/services/tx-validation.service';
 import { SolanaModule } from './solana/solana.module';
 import { SparkModule } from './spark/spark.module';
 import { TronModule } from './tron/tron.module';
+import { InternetComputerModule } from './icp/icp.module';
 import { ZanoModule } from './zano/zano.module';
 
 @Module({
@@ -65,6 +66,7 @@ import { ZanoModule } from './zano/zano.module';
     SolanaModule,
     TronModule,
     CardanoModule,
+    InternetComputerModule,
     CitreaModule,
     CitreaTestnetModule,
     ClementineModule,
@@ -98,6 +100,7 @@ import { ZanoModule } from './zano/zano.module';
     SolanaModule,
     TronModule,
     CardanoModule,
+    InternetComputerModule,
     CitreaModule,
     CitreaTestnetModule,
     ClementineModule,
