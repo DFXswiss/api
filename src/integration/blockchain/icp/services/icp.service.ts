@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import nacl from 'tweetnacl';
 import { WalletAccount } from '../../shared/evm/domain/wallet-account';
@@ -15,10 +16,10 @@ import { InternetComputerClient } from '../icp-client';
 export class InternetComputerService extends BlockchainService {
   private readonly client: InternetComputerClient;
 
-  constructor() {
+  constructor(private readonly http: HttpService) {
     super();
 
-    this.client = new InternetComputerClient();
+    this.client = new InternetComputerClient(this.http);
   }
 
   getDefaultClient(): InternetComputerClient {
