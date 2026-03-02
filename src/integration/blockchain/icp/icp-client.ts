@@ -18,11 +18,13 @@ import {
   IcpTransfer,
   IcpTransferQueryResult,
   IcrcRawLedger,
-  RosettaTransaction,
+  RosettaTransactionsResponse,
 } from './dto/icp.dto';
 import { InternetComputerWallet } from './icp-wallet';
 import { icpNativeLedgerIdlFactory, icrcLedgerIdlFactory } from './icp.idl';
 import { InternetComputerUtil } from './icp.util';
+
+const ROSETTA_NETWORK_ID = { blockchain: 'Internet Computer', network: '00000000000000020101' };
 
 export class InternetComputerClient extends BlockchainClient {
   private readonly logger = new DfxLogger(InternetComputerClient);
@@ -206,6 +208,44 @@ export class InternetComputerClient extends BlockchainClient {
     };
   }
 
+  // --- Per-address transfers via Rosetta /search/transactions ---
+
+  async getTransfersForAddress(accountIdentifier: string, maxBlock?: number, limit = 50): Promise<IcpTransfer[]> {
+    const url = `${this.rosettaApiUrl}/search/transactions`;
+
+    const body: Record<string, unknown> = {
+      network_identifier: ROSETTA_NETWORK_ID,
+      account_identifier: { address: accountIdentifier },
+      limit,
+    };
+    if (maxBlock !== undefined) body.max_block = maxBlock;
+
+    const response = await this.http.post<RosettaTransactionsResponse>(url, body);
+
+    const transfers: IcpTransfer[] = [];
+
+    for (const entry of response.transactions) {
+      const ops = entry.transaction.operations.filter((op) => op.type === 'TRANSACTION' && op.status === 'COMPLETED');
+
+      const creditOp = ops.find((op) => op.amount && BigInt(op.amount.value) > 0n);
+      const debitOp = ops.find((op) => op.amount && BigInt(op.amount.value) < 0n);
+
+      if (!creditOp?.amount || !debitOp?.amount) continue;
+
+      transfers.push({
+        blockIndex: entry.block_identifier.index,
+        from: debitOp.account.address,
+        to: creditOp.account.address,
+        amount: InternetComputerUtil.fromSmallestUnit(BigInt(creditOp.amount.value)),
+        fee: 0,
+        memo: BigInt(entry.transaction.metadata.memo),
+        timestamp: Math.floor(entry.transaction.metadata.timestamp / 1_000_000_000),
+      });
+    }
+
+    return transfers;
+  }
+
   // --- Block height & transfers (ICRC-3, for ck-tokens) ---
 
   async getIcrcBlockHeight(canisterId: string): Promise<number> {
@@ -285,8 +325,8 @@ export class InternetComputerClient extends BlockchainClient {
 
   private async isTxHashComplete(txHash: string): Promise<boolean> {
     const url = `${this.rosettaApiUrl}/search/transactions`;
-    const response = await this.http.post<{ transactions: RosettaTransaction[] }>(url, {
-      network_identifier: { blockchain: 'Internet Computer', network: '00000000000000020101' },
+    const response = await this.http.post<RosettaTransactionsResponse>(url, {
+      network_identifier: ROSETTA_NETWORK_ID,
       transaction_identifier: { hash: txHash },
     });
 

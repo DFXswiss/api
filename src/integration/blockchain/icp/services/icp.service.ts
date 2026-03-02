@@ -9,7 +9,7 @@ import nacl from 'tweetnacl';
 import { WalletAccount } from '../../shared/evm/domain/wallet-account';
 import { SignatureException } from '../../shared/exceptions/signature.exception';
 import { BlockchainService } from '../../shared/util/blockchain.service';
-import { IcpTransferQueryResult } from '../dto/icp.dto';
+import { IcpTransfer, IcpTransferQueryResult } from '../dto/icp.dto';
 import { InternetComputerClient } from '../icp-client';
 
 @Injectable()
@@ -94,6 +94,10 @@ export class InternetComputerService extends BlockchainService {
 
   async getTransfers(start: number, count: number): Promise<IcpTransferQueryResult> {
     return this.client.getTransfers(start, count);
+  }
+
+  async getTransfersForAddress(accountIdentifier: string, maxBlock?: number, limit?: number): Promise<IcpTransfer[]> {
+    return this.client.getTransfersForAddress(accountIdentifier, maxBlock, limit);
   }
 
   async getIcrcBlockHeight(canisterId: string): Promise<number> {
