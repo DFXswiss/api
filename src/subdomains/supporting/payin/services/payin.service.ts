@@ -31,6 +31,7 @@ import { RegisterStrategyRegistry } from '../strategies/register/impl/base/regis
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { SendStrategyRegistry } from '../strategies/send/impl/base/send.strategy-registry';
 import { PayInBitcoinService } from './payin-bitcoin.service';
+import { PayInFiroService } from './payin-firo.service';
 
 @Injectable()
 export class PayInService {
@@ -43,6 +44,7 @@ export class PayInService {
     private readonly transactionService: TransactionService,
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly payInBitcoinService: PayInBitcoinService,
+    private readonly payInFiroService: PayInFiroService,
   ) {}
 
   // --- PUBLIC API --- //
@@ -70,9 +72,9 @@ export class PayInService {
     return payIn;
   }
 
-  async pollAddress(address: BlockchainAddress): Promise<void> {
+  async pollAddress(address: BlockchainAddress, fromBlock?: number, toBlock?: number): Promise<void> {
     const registerStrategy = this.registerStrategyRegistry.get(address.blockchain);
-    if (registerStrategy.pollAddress) return registerStrategy.pollAddress(address);
+    if (registerStrategy.pollAddress) return registerStrategy.pollAddress(address, fromBlock, toBlock);
 
     throw new BadRequestException(`Address poll not supported for ${address.blockchain}`);
   }
@@ -313,13 +315,21 @@ export class PayInService {
   }
 
   private async getUnconfirmedNextBlockPayIns(): Promise<CryptoInput[]> {
-    if (!Config.blockchain.default.allowUnconfirmedUtxos) return [];
-    if (!this.payInBitcoinService.isAvailable()) {
-      this.logger.warn('Bitcoin service not available - skipping unconfirmed UTXO processing');
-      return [];
-    }
+    const chains = [
+      {
+        blockchain: Blockchain.BITCOIN,
+        enabled: Config.blockchain.default.allowUnconfirmedUtxos,
+        service: this.payInBitcoinService,
+      },
+      {
+        blockchain: Blockchain.FIRO,
+        enabled: Config.blockchain.firo.allowUnconfirmedUtxos,
+        service: this.payInFiroService,
+      },
+    ].filter((c) => c.enabled && c.service.isAvailable());
 
-    // Only Bitcoin supports unconfirmed UTXO forwarding
+    if (chains.length === 0) return [];
+
     const candidates = await this.payInRepository.find({
       where: {
         status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
@@ -331,26 +341,29 @@ export class PayInService {
       relations: { buyCrypto: true, buyFiat: true, asset: true },
     });
 
-    // Filter to Bitcoin only
-    const bitcoinCandidates = candidates.filter((p) => p.asset?.blockchain === Blockchain.BITCOIN);
+    if (candidates.length === 0) return [];
 
-    if (bitcoinCandidates.length === 0) return [];
+    const allNextBlockCandidates: CryptoInput[] = [];
+    const allFailedPayIns: CryptoInput[] = [];
 
-    // Delegate to Bitcoin service for fee-rate filtering
-    try {
-      const { nextBlockCandidates, failedPayIns } =
-        await this.payInBitcoinService.filterUnconfirmedPayInsForForward(bitcoinCandidates);
+    for (const { blockchain, service } of chains) {
+      const chainCandidates = candidates.filter((p) => p.asset?.blockchain === blockchain);
+      if (chainCandidates.length === 0) continue;
 
-      // Persist failed PayIns
-      if (failedPayIns.length > 0) {
-        await this.payInRepository.save(failedPayIns);
+      try {
+        const { nextBlockCandidates, failedPayIns } = await service.filterUnconfirmedPayInsForForward(chainCandidates);
+        allNextBlockCandidates.push(...nextBlockCandidates);
+        allFailedPayIns.push(...failedPayIns);
+      } catch (e) {
+        this.logger.error(`Failed to filter unconfirmed ${blockchain} PayIns:`, e);
       }
-
-      return nextBlockCandidates;
-    } catch (e) {
-      this.logger.error('Failed to filter unconfirmed PayIns:', e);
-      return [];
     }
+
+    if (allFailedPayIns.length > 0) {
+      await this.payInRepository.save(allFailedPayIns);
+    }
+
+    return allNextBlockCandidates;
   }
 
   private async checkOutputConfirmations(): Promise<void> {

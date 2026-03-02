@@ -772,11 +772,10 @@ export class SwissQRService {
         const outputAsset = transaction.buyCrypto?.outputAsset;
         const fiatAmount = transaction.buyCrypto?.inputAmount;
         const quantity = transaction.buyCrypto?.outputAmount;
-        if (!outputAsset || fiatAmount == null || quantity == null)
-          throw new BadRequestException('Missing invoice information');
+        if (!outputAsset || fiatAmount == null) throw new BadRequestException('Missing invoice information');
 
         return {
-          quantity,
+          quantity: quantity ?? '—',
           description: {
             assetDescription: outputAsset.description ?? outputAsset.name,
             assetName: outputAsset.name,

@@ -13,6 +13,7 @@ import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module'
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
 import { BaseL2BridgeAdapter } from './adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
+import { BoltzAdapter } from './adapters/actions/boltz.adapter';
 import { ClementineBridgeAdapter } from './adapters/actions/clementine-bridge.adapter';
 import { LayerZeroBridgeAdapter } from './adapters/actions/layerzero-bridge.adapter';
 import { DEuroAdapter } from './adapters/actions/deuro.adapter';
@@ -100,6 +101,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BaseL2BridgeAdapter,
     LayerZeroBridgeAdapter,
     ClementineBridgeAdapter,
+    BoltzAdapter,
     BinanceAdapter,
     MexcAdapter,
     ScryptAdapter,

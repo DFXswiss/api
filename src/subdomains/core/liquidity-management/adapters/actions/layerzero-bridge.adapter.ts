@@ -235,10 +235,15 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Execute the send transaction
+    const nonce = await this.ethereumClient.getNextNonce();
+
     const sendTx = await oftAdapter.send(sendParam, { nativeFee, lzTokenFee: 0 }, wallet.address, {
       value: nativeFee,
       gasLimit: 500000, // Set a reasonable gas limit for OFT transfers
+      nonce,
     });
+
+    this.ethereumClient.incrementNonce(nonce);
 
     return sendTx.hash;
   }

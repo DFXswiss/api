@@ -652,6 +652,10 @@ export class UserData extends IEntity {
 
   // --- KYC PROCESS --- //
 
+  get isPersonalAccount(): boolean {
+    return !this.accountType || this.accountType === AccountType.PERSONAL;
+  }
+
   get hasSuspiciousMail(): boolean {
     return (this.mail?.split('@')[0].match(/\d/g) ?? []).length > 2;
   }
@@ -754,7 +758,7 @@ export class UserData extends IEntity {
 
   get requiredKycFields(): string[] {
     return ['accountType', 'mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
-      !this.accountType || this.accountType === AccountType.PERSONAL
+      this.isPersonalAccount
         ? []
         : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
     );
@@ -765,9 +769,7 @@ export class UserData extends IEntity {
   }
 
   get requiredInvoiceFields(): string[] {
-    return ['accountType'].concat(
-      !this.accountType || this.accountType === AccountType.PERSONAL ? ['firstname', 'surname'] : ['organizationName'],
-    );
+    return ['accountType'].concat(this.isPersonalAccount ? ['firstname', 'surname'] : ['organizationName']);
   }
 
   get isInvoiceDataComplete(): boolean {

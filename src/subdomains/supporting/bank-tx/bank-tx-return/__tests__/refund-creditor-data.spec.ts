@@ -1,15 +1,15 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { BankTxReturnService } from '../bank-tx-return.service';
-import { BankTxReturnRepository } from '../bank-tx-return.repository';
-import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
+import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BankTxReturn } from '../bank-tx-return.entity';
-import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { BankTxReturnRepository } from '../bank-tx-return.repository';
+import { BankTxReturnService } from '../bank-tx-return.service';
 
 /**
  * Test: Creditor-Daten Fallback in BankTxReturnService.refundBankTx()
@@ -37,6 +37,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
     id: 1,
     chargebackIban: 'CH9300762011623852957',
     chargebackAmount: 50,
+    chargebackAsset: 'CHF',
     chargebackCreditorData: JSON.stringify(mockCreditorData),
     amlCheck: CheckStatus.FAIL,
     outputAmount: null,

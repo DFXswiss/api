@@ -291,7 +291,7 @@ export class TransactionHelper implements OnModuleInit {
     // get specs (CHF)
     const specs = this.getMinSpecs(from, to);
 
-    const { kycLimit, defaultLimit } = await this.getLimits(paymentMethodIn, paymentMethodOut, user);
+    const { kycLimit, defaultLimit } = await this.getLimits(from, to, paymentMethodIn, paymentMethodOut, user);
 
     const error = this.getTxError(
       from,
@@ -399,14 +399,10 @@ export class TransactionHelper implements OnModuleInit {
     refundTarget: string,
     isFiat: boolean,
   ): Promise<RefundDataDto> {
-    const inputCurrency = await this.getRefundActive(refundEntity);
+    const inputCurrency = await this.getRefundInputCurrency(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
-    // CHF refunds only to domestic IBANs
-    const refundCurrency =
-      isFiat && inputCurrency.name === 'CHF' && refundTarget && !Config.isDomesticIban(refundTarget)
-        ? await this.fiatService.getFiatByName('EUR')
-        : inputCurrency;
+    const refundCurrency = await this.getRefundCurrency(inputCurrency, refundTarget);
 
     const chfPrice =
       refundEntity.manualChfPrice ??
@@ -504,6 +500,7 @@ export class TransactionHelper implements OnModuleInit {
       buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
+      bankTxReturn: true,
       request: true,
     };
 
@@ -516,12 +513,24 @@ export class TransactionHelper implements OnModuleInit {
     if (!transaction.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
 
-    // Handle pending transactions (no targetEntity yet, but has request)
-    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn) {
+    // Handle pending or refunded transactions (no targetEntity yet, or has bankTxReturn)
+    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn || transaction.bankTxReturn) {
       if (statementType === TxStatementType.RECEIPT)
-        throw new BadRequestException('Receipt not available for pending transactions');
-      if (!transaction.request) throw new BadRequestException('Transaction not found');
-      return this.getTxStatementDetailsFromRequest(transaction, statementType);
+        throw new BadRequestException('Receipt not available for returned transactions');
+      if (transaction.request) return this.getTxStatementDetailsFromRequest(transaction, statementType);
+
+      // Refunded transactions without request: build details from buyCrypto data
+      if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
+        const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
+        return {
+          statementType,
+          transactionType: TransactionType.BUY,
+          transaction,
+          currency: fiat.name,
+        };
+      }
+
+      throw new BadRequestException('Invoice data not available for this transaction');
     }
 
     if (statementType === TxStatementType.RECEIPT && !transaction.targetEntity.isComplete)
@@ -632,7 +641,17 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
+  async getRefundCurrency(inputCurrency: Active, refundTarget: string): Promise<Active> {
+    // CHF refunds only to domestic IBANs
+    return isFiat(inputCurrency) &&
+      inputCurrency?.name === 'CHF' &&
+      refundTarget &&
+      !Config.isDomesticIban(refundTarget)
+      ? this.fiatService.getFiatByName('EUR')
+      : inputCurrency;
+  }
+
+  async getRefundInputCurrency(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
     if (refundEntity instanceof BankTxReturn) return this.fiatService.getFiatByName(refundEntity.bankTx.currency);
     if (refundEntity instanceof BankTx) return this.fiatService.getFiatByName(refundEntity.currency);
     if (refundEntity instanceof BuyCrypto && refundEntity.bankTx)
@@ -915,10 +934,17 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getLimits(
+    from: Active,
+    to: Active,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
     user?: User,
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
+    const isSellingRealUnitForFiat = isAsset(from) && from.name === 'REALU' && isFiat(to);
+    if (this.isRealUnitTransaction(from, to) && !isSellingRealUnitForFiat) {
+      return { kycLimit: Number.MAX_VALUE, defaultLimit: Number.MAX_VALUE };
+    }
+
     const volume30d =
       user?.userData.kycLevel < KycLevel.LEVEL_50
         ? await this.user30dVolumeCache.get(user.id.toString(), () =>
@@ -950,6 +976,7 @@ export class TransactionHelper implements OnModuleInit {
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
+    const isRealUnit = this.isRealUnitTransaction(from, to);
 
     if (
       user?.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) &&
@@ -1012,6 +1039,7 @@ export class TransactionHelper implements OnModuleInit {
     // verification checks
     if (
       ((isSell && to.name !== 'CHF') || isSwap) &&
+      !isRealUnit &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
@@ -1032,5 +1060,9 @@ export class TransactionHelper implements OnModuleInit {
     if (!currency) throw new BadRequestException('Preferred currency not found');
 
     return currency;
+  }
+
+  private isRealUnitTransaction(from: Active, to: Active): boolean {
+    return (isAsset(from) && from.name === 'REALU') || (isAsset(to) && to.name === 'REALU');
   }
 }

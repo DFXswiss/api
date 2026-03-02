@@ -133,6 +133,14 @@ export class PaymentLinkService {
   }
 
   async create(userId: number, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
+    if (dto.externalId) {
+      const exists = await this.paymentLinkRepo.existsBy({
+        externalId: dto.externalId,
+        route: { user: { id: userId } },
+      });
+      if (exists) throw new ConflictException('Payment link already exists');
+    }
+
     const route = dto.route
       ? await this.depositRouteService.getByLabel(userId, dto.route)
       : dto.routeId
@@ -141,14 +149,6 @@ export class PaymentLinkService {
 
     if (route?.deposit.blockchains !== Blockchain.LIGHTNING)
       throw new BadRequestException('Only Lightning routes are allowed');
-
-    if (dto.externalId) {
-      const exists = await this.paymentLinkRepo.existsBy({
-        externalId: dto.externalId,
-        route: { user: { id: userId } },
-      });
-      if (exists) throw new ConflictException('Payment link already exists');
-    }
 
     const newPaymentLink = await this.createForRoute(route, dto);
     return this.getOrThrow(userId, newPaymentLink.id);

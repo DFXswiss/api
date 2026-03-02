@@ -31,8 +31,9 @@ import { Sell } from '../sell-crypto/route/sell.entity';
 export type RefundValidation = {
   refundIban?: string;
   refundUser?: User;
-  chargebackAmount?: number;
-  chargebackAmountInInputAsset?: number;
+  chargebackAmount: number; // chargebackAsset
+  chargebackReferenceAmount?: number; // inputAsset
+  assetMismatch: boolean;
 };
 
 @Injectable()
@@ -80,8 +81,8 @@ export class TransactionUtilService {
     if (entity instanceof BankTxReturn) {
       if (
         dto.chargebackAmount &&
-        ((dto.chargebackAmount > entity.bankTx.refundAmount && !dto.chargebackAmountInInputAsset) ||
-          dto.chargebackAmountInInputAsset > entity.bankTx.refundAmount)
+        ((dto.chargebackAmount > entity.bankTx.refundAmount && !dto.assetMismatch) ||
+          (dto.chargebackReferenceAmount > entity.bankTx.refundAmount && dto.assetMismatch))
       )
         throw new BadRequestException('You can not refund more than the input amount');
       return;
@@ -92,8 +93,8 @@ export class TransactionUtilService {
 
     if (
       dto.chargebackAmount &&
-      ((dto.chargebackAmount > entity.refundAmount && !dto.chargebackAmountInInputAsset) ||
-        dto.chargebackAmountInInputAsset > entity.refundAmount)
+      ((dto.chargebackAmount > entity.refundAmount && !dto.assetMismatch) ||
+        (dto.chargebackReferenceAmount > entity.refundAmount && dto.assetMismatch))
     )
       throw new BadRequestException('You can not refund more than the input amount');
   }
@@ -107,12 +108,20 @@ export class TransactionUtilService {
     if (
       blockedAccounts.some(
         (b) =>
-          [
+          ([
             SpecialExternalAccountType.BANNED_IBAN,
             SpecialExternalAccountType.BANNED_IBAN_BUY,
             SpecialExternalAccountType.BANNED_IBAN_SELL,
             SpecialExternalAccountType.BANNED_IBAN_AML,
-          ].includes(b.type) && b.value === iban,
+          ].includes(b.type) &&
+            b.value === iban) ||
+          ([
+            SpecialExternalAccountType.BANNED_BLZ,
+            SpecialExternalAccountType.BANNED_BLZ_BUY,
+            SpecialExternalAccountType.BANNED_BLZ_SELL,
+            SpecialExternalAccountType.BANNED_BLZ_AML,
+          ].includes(b.type) &&
+            b.value === IbanTools.extractIBAN(iban).bankIdentifier),
       )
     )
       throw new BadRequestException('Iban not allowed');

@@ -32,7 +32,14 @@ import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-met
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
-import { KycLevel, KycState, KycType, Moderator, UserDataStatus } from '../user-data/user-data.enum';
+import {
+  KycLevel,
+  KycState,
+  KycType,
+  Moderator,
+  TradeApprovalReason,
+  UserDataStatus,
+} from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
@@ -258,6 +265,12 @@ export class UserService {
         wallet: user.wallet,
         tradeApprovalDate: user.wallet?.autoTradeApproval ? new Date() : undefined,
       }));
+
+    if (!data.userData && user.userData.tradeApprovalDate)
+      await this.userDataService.createTradeApprovalLog(
+        user.userData,
+        TradeApprovalReason.AUTO_TRADE_APPROVAL_USER_DATA_CREATED,
+      );
 
     if (user.userData.status === UserDataStatus.KYC_ONLY)
       await this.userDataService.updateUserDataInternal(user.userData, { status: UserDataStatus.NA });

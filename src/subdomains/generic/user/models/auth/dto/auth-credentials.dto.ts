@@ -25,7 +25,10 @@ export class SignInDto {
   @IsString()
   @Matches(GetConfig().formats.key)
   @ValidateIf(
-    (dto: SignInDto) => CryptoService.isArweaveAddress(dto.address) || CryptoService.isCardanoAddress(dto.address),
+    (dto: SignInDto) =>
+      CryptoService.isArweaveAddress(dto.address) ||
+      CryptoService.isCardanoAddress(dto.address) ||
+      CryptoService.isInternetComputerAddress(dto.address),
   )
   key?: string;
 

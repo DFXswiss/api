@@ -95,7 +95,7 @@ export class BuyFiatPreparationService {
           isPayment,
         );
 
-        const { users, refUser, bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+        const { users, refUser, bankData, blacklist, phoneCallList } = await this.amlService.getAmlCheckInput(entity);
         if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(
@@ -148,6 +148,7 @@ export class BuyFiatPreparationService {
             last365dVolume,
             bankData,
             blacklist,
+            phoneCallList,
             ibanCountry,
             refUser,
           ),
@@ -211,6 +212,10 @@ export class BuyFiatPreparationService {
           ...entity.setFeeAndFiatReference(fee, eurPrice.convert(fee.min, 2), chfPrice.convert(fee.total, 2)),
         );
 
+        if (entity.feeAmountChf != null) {
+          await this.transactionService.updateInternal(entity.transaction, { feeAmountInChf: entity.feeAmountChf });
+        }
+
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
         if (isFirstRun) {
@@ -234,6 +239,7 @@ export class BuyFiatPreparationService {
       },
       relations: {
         sell: true,
+        transaction: true,
         cryptoInput: {
           paymentLinkPayment: { link: { route: { user: { userData: { organization: true } } } } },
           paymentQuote: true,
@@ -289,6 +295,10 @@ export class BuyFiatPreparationService {
             [priceStep],
           ),
         );
+
+        if (entity.feeAmountChf != null) {
+          await this.transactionService.updateInternal(entity.transaction, { feeAmountInChf: entity.feeAmountChf });
+        }
 
         if (entity.amlCheck === CheckStatus.FAIL) return;
 

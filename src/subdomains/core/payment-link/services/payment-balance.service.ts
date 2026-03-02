@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
+import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
@@ -9,6 +10,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
+import { InternetComputerClient } from 'src/integration/blockchain/icp/icp-client';
 import { TronClient } from 'src/integration/blockchain/tron/tron-client';
 import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -35,8 +37,10 @@ export class PaymentBalanceService implements OnModuleInit {
   private solanaDepositAddress: string;
   private tronDepositAddress: string;
   private cardanoDepositAddress: string;
-  private moneroDepositAddress: string;
+  private internetComputerDepositAddress: string;
   private bitcoinDepositAddress: string;
+  private firoDepositAddress: string;
+  private moneroDepositAddress: string;
   private zanoDepositAddress: string;
 
   constructor(
@@ -49,9 +53,14 @@ export class PaymentBalanceService implements OnModuleInit {
     this.solanaDepositAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
     this.tronDepositAddress = TronUtil.createWallet({ seed: Config.payment.tronSeed, index: 0 }).address;
     this.cardanoDepositAddress = CardanoUtil.createWallet({ seed: Config.payment.cardanoSeed, index: 0 })?.address;
+    this.internetComputerDepositAddress = InternetComputerUtil.createWallet({
+      seed: Config.payment.internetComputerSeed,
+      index: 0,
+    })?.address;
 
-    this.moneroDepositAddress = Config.payment.moneroAddress;
     this.bitcoinDepositAddress = Config.payment.bitcoinAddress;
+    this.firoDepositAddress = Config.payment.firoAddress;
+    this.moneroDepositAddress = Config.payment.moneroAddress;
     this.zanoDepositAddress = Config.payment.zanoAddress;
   }
 
@@ -81,16 +90,16 @@ export class PaymentBalanceService implements OnModuleInit {
         const coin = assets.find((a) => a.type === AssetType.COIN);
         const tokens = assets.filter((a) => a.type !== AssetType.COIN);
 
-        if (coin) {
-          balanceMap.set(coin.id, {
-            owner: targetAddress,
-            contractAddress: coin.chainId,
-            balance: await client.getNativeCoinBalanceForAddress(targetAddress),
-          });
-        }
+        try {
+          if (coin) {
+            balanceMap.set(coin.id, {
+              owner: targetAddress,
+              contractAddress: coin.chainId,
+              balance: await client.getNativeCoinBalanceForAddress(targetAddress),
+            });
+          }
 
-        if (tokens.length) {
-          try {
+          if (tokens.length) {
             const tokenBalances = await client.getTokenBalances(tokens, targetAddress);
             for (const token of tokens) {
               const balance = tokenBalances.find((b) => b.contractAddress === token.chainId)?.balance;
@@ -102,11 +111,11 @@ export class PaymentBalanceService implements OnModuleInit {
                   balance,
                 });
             }
-          } catch (e) {
-            if (!catchException) throw e;
-
-            this.logger.error(`Error getting payment balances for blockchain ${chain}:`, e);
           }
+        } catch (e) {
+          if (!catchException) throw e;
+
+          this.logger.error(`Error getting payment balances for blockchain ${chain}:`, e);
         }
       }),
     );
@@ -128,6 +137,9 @@ export class PaymentBalanceService implements OnModuleInit {
       case Blockchain.BITCOIN:
         return this.bitcoinDepositAddress;
 
+      case Blockchain.FIRO:
+        return this.firoDepositAddress;
+
       case Blockchain.MONERO:
         return this.moneroDepositAddress;
 
@@ -142,23 +154,26 @@ export class PaymentBalanceService implements OnModuleInit {
 
       case Blockchain.CARDANO:
         return this.cardanoDepositAddress;
+
+      case Blockchain.INTERNET_COMPUTER:
+        return this.internetComputerDepositAddress;
     }
   }
 
   async forwardDeposits() {
-    const chainsWithoutForwarding = [Blockchain.BITCOIN, ...this.chainsWithoutPaymentBalance];
+    const chainsWithoutForwarding = [Blockchain.BITCOIN, Blockchain.FIRO, ...this.chainsWithoutPaymentBalance];
 
     const paymentAssets = await this.assetService
       .getPaymentAssets()
       .then((l) => l.filter((a) => !chainsWithoutForwarding.includes(a.blockchain)));
 
-    const balances = await this.getPaymentBalances(paymentAssets);
+    const balances = await this.getPaymentBalances(paymentAssets, true);
 
     for (const asset of paymentAssets) {
       const balance = balances.get(asset.id)?.balance;
       const balanceChf = balance * asset.approxPriceChf || 0;
 
-      if (balanceChf >= Config.payment.maxDepositBalance) {
+      if (balance > 0 && balanceChf >= Config.payment.maxDepositBalance) {
         const tx = await this.forwardDeposit(asset, balance);
         this.logger.info(`Forwarded ${balance} ${asset.uniqueName} to liquidity address: ${tx}`);
       }
@@ -167,14 +182,18 @@ export class PaymentBalanceService implements OnModuleInit {
 
   private async forwardDeposit(asset: Asset, balance: number): Promise<string> {
     const account = this.getPaymentAccount(asset.blockchain);
-    const client = this.blockchainRegistryService.getClient(asset.blockchain) as EvmClient | SolanaClient | TronClient;
+    const client = this.blockchainRegistryService.getClient(asset.blockchain) as
+      | EvmClient
+      | SolanaClient
+      | TronClient
+      | InternetComputerClient;
 
     return asset.type === AssetType.COIN
       ? client.sendNativeCoinFromAccount(account, client.walletAddress, balance)
       : client.sendTokenFromAccount(account, client.walletAddress, asset, balance);
   }
 
-  private getPaymentAccount(chain: Blockchain): WalletAccount {
+  getPaymentAccount(chain: Blockchain): WalletAccount {
     switch (chain) {
       case Blockchain.ETHEREUM:
       case Blockchain.BINANCE_SMART_CHAIN:
@@ -190,6 +209,9 @@ export class PaymentBalanceService implements OnModuleInit {
 
       case Blockchain.TRON:
         return { seed: Config.payment.tronSeed, index: 0 };
+
+      case Blockchain.INTERNET_COMPUTER:
+        return { seed: Config.payment.internetComputerSeed, index: 0 };
     }
 
     throw new Error(`Payment forwarding not implemented for ${chain}`);

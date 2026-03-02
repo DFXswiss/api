@@ -1,4 +1,6 @@
 import { mock } from 'jest-mock-extended';
+import * as ConfigModule from 'src/config/config';
+import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
 import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
@@ -6,9 +8,11 @@ import { TatumWebhookService } from 'src/integration/tatum/services/tatum-webhoo
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
+import { PayInInternetComputerService } from '../../../services/payin-icp.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInWebHookService } from '../../../services/payin-webhhook.service';
 import { PayInZanoService } from '../../../services/payin-zano.service';
+import { PayInFiroService } from '../../../services/payin-firo.service';
 import { ArbitrumStrategy } from '../impl/arbitrum.strategy';
 import { BaseStrategy } from '../impl/base.strategy';
 import { RegisterStrategyRegistry } from '../impl/base/register.strategy-registry';
@@ -22,13 +26,16 @@ import { OptimismStrategy } from '../impl/optimism.strategy';
 import { PolygonStrategy } from '../impl/polygon.strategy';
 import { SolanaStrategy } from '../impl/solana.strategy';
 import { TronStrategy } from '../impl/tron.strategy';
+import { InternetComputerStrategy as IcpStrategy } from '../impl/icp.strategy';
 import { ZanoStrategy } from '../impl/zano.strategy';
+import { FiroStrategy } from '../impl/firo.strategy';
 
 describe('RegisterStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
   let lightningStrategy: LightningStrategy;
   let moneroStrategy: MoneroStrategy;
   let zanoStrategy: ZanoStrategy;
+  let firoStrategy: FiroStrategy;
   let ethereumStrategy: EthereumStrategy;
   let bscStrategy: BscStrategy;
   let arbitrumStrategy: ArbitrumStrategy;
@@ -38,6 +45,7 @@ describe('RegisterStrategyRegistry', () => {
   let gnosisStrategy: GnosisStrategy;
   let solanaStrategy: SolanaStrategy;
   let tronStrategy: TronStrategy;
+  let icpStrategy: IcpStrategy;
 
   let registry: RegisterStrategyRegistryWrapper;
 
@@ -49,6 +57,8 @@ describe('RegisterStrategyRegistry', () => {
     moneroStrategy = new MoneroStrategy(mock<PayInMoneroService>());
 
     zanoStrategy = new ZanoStrategy(mock<PayInZanoService>());
+
+    firoStrategy = new FiroStrategy(mock<PayInFiroService>());
 
     ethereumStrategy = new EthereumStrategy();
 
@@ -68,11 +78,17 @@ describe('RegisterStrategyRegistry', () => {
 
     tronStrategy = new TronStrategy(mock<TatumWebhookService>(), mock<TronService>(), mock<RepositoryFactory>());
 
+    (ConfigModule as Record<string, unknown>).Config = { payment: { internetComputerSeed: 'test' } };
+    jest.spyOn(InternetComputerUtil, 'createWallet').mockReturnValue({ address: 'test-principal' } as never);
+    jest.spyOn(InternetComputerUtil, 'accountIdentifier').mockReturnValue('test-account-id');
+    icpStrategy = new IcpStrategy(mock<PayInInternetComputerService>());
+
     registry = new RegisterStrategyRegistryWrapper(
       bitcoinStrategy,
       lightningStrategy,
       moneroStrategy,
       zanoStrategy,
+      firoStrategy,
       ethereumStrategy,
       bscStrategy,
       arbitrumStrategy,
@@ -82,6 +98,7 @@ describe('RegisterStrategyRegistry', () => {
       gnosisStrategy,
       solanaStrategy,
       tronStrategy,
+      icpStrategy,
     );
   });
 
@@ -109,6 +126,12 @@ describe('RegisterStrategyRegistry', () => {
         const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.ZANO }));
 
         expect(strategy).toBeInstanceOf(ZanoStrategy);
+      });
+
+      it('gets FIRO strategy for FIRO', () => {
+        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.FIRO }));
+
+        expect(strategy).toBeInstanceOf(FiroStrategy);
       });
 
       it('gets ETHEREUM strategy for ETHERUM', () => {
@@ -167,6 +190,12 @@ describe('RegisterStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(TronStrategy);
       });
 
+      it('gets ICP strategy for INTERNET_COMPUTER', () => {
+        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.INTERNET_COMPUTER }));
+
+        expect(strategy).toBeInstanceOf(IcpStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getRegisterStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -184,6 +213,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     lightningStrategy: LightningStrategy,
     moneroStrategy: MoneroStrategy,
     zanoStrategy: ZanoStrategy,
+    firoStrategy: FiroStrategy,
     ethereumStrategy: EthereumStrategy,
     bscStrategy: BscStrategy,
     arbitrumStrategy: ArbitrumStrategy,
@@ -193,6 +223,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     gnosisStrategy: GnosisStrategy,
     solanaStrategy: SolanaStrategy,
     tronStrategy: TronStrategy,
+    icpStrategy: IcpStrategy,
   ) {
     super();
 
@@ -200,6 +231,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     this.add(Blockchain.LIGHTNING, lightningStrategy);
     this.add(Blockchain.MONERO, moneroStrategy);
     this.add(Blockchain.ZANO, zanoStrategy);
+    this.add(Blockchain.FIRO, firoStrategy);
 
     this.add(Blockchain.ETHEREUM, ethereumStrategy);
     this.add(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);
@@ -210,5 +242,6 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     this.add(Blockchain.GNOSIS, gnosisStrategy);
     this.add(Blockchain.SOLANA, solanaStrategy);
     this.add(Blockchain.TRON, tronStrategy);
+    this.add(Blockchain.INTERNET_COMPUTER, icpStrategy);
   }
 }

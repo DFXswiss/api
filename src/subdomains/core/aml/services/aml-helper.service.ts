@@ -1,5 +1,6 @@
+import * as IbanTools from 'ibantools';
 import { Config, Environment } from 'src/config/config';
-import { Active } from 'src/shared/models/active';
+import { Active, isAsset } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
@@ -40,6 +41,7 @@ export class AmlHelperService {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    phoneCallList: SpecialExternalAccount[],
     banks?: Bank[],
     ibanCountry?: Country,
     refUser?: User,
@@ -55,6 +57,8 @@ export class AmlHelperService {
       [Environment.LOC, Environment.DEV].includes(Config.environment)
     )
       return errors;
+
+    if (isAsset(inputAsset) && inputAsset.name === 'REALU') errors.push(AmlError.ASSET_INPUT_NOT_ALLOWED);
 
     if (
       !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
@@ -234,7 +238,7 @@ export class AmlHelperService {
         (entity.bankTx || entity.checkoutTx) &&
         entity.userData.phone &&
         entity.userData.birthday &&
-        (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
+        entity.userData.isPersonalAccount &&
         Util.yearsDiff(entity.userData.birthday) > 55
       )
         errors.push(
@@ -272,18 +276,49 @@ export class AmlHelperService {
         )
           errors.push(AmlError.BIC_BLACKLISTED);
         if (
-          blacklist.some((b) =>
-            b.matches(
-              [
-                SpecialExternalAccountType.BANNED_IBAN,
-                SpecialExternalAccountType.BANNED_IBAN_BUY,
-                SpecialExternalAccountType.BANNED_IBAN_AML,
-              ],
-              entity.bankTx.iban,
-            ),
+          blacklist.some(
+            (b) =>
+              b.matches(
+                [
+                  SpecialExternalAccountType.BANNED_IBAN,
+                  SpecialExternalAccountType.BANNED_IBAN_BUY,
+                  SpecialExternalAccountType.BANNED_IBAN_AML,
+                ],
+                entity.bankTx.iban,
+              ) ||
+              b.matches(
+                [
+                  SpecialExternalAccountType.BANNED_BLZ,
+                  SpecialExternalAccountType.BANNED_BLZ_BUY,
+                  SpecialExternalAccountType.BANNED_BLZ_AML,
+                ],
+                IbanTools.extractIBAN(entity.bankTx.iban).bankIdentifier,
+              ),
           )
         )
           errors.push(AmlError.IBAN_BLACKLISTED);
+
+        if (
+          !entity.userData.phoneCallCheckDate &&
+          entity.userData.isPersonalAccount &&
+          phoneCallList.some((b) =>
+            b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY], entity.bankTx.bic),
+          )
+        )
+          errors.push(AmlError.BIC_PHONE_VERIFICATION_NEEDED);
+        if (
+          !entity.userData.phoneCallCheckDate &&
+          entity.userData.isPersonalAccount &&
+          phoneCallList.some(
+            (b) =>
+              b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY], entity.bankTx.iban) ||
+              b.matches(
+                [SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BLZ_BUY],
+                IbanTools.extractIBAN(entity.bankTx.iban).bankIdentifier,
+              ),
+          )
+        )
+          errors.push(AmlError.IBAN_PHONE_VERIFICATION_NEEDED);
 
         if (
           blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_ACCOUNT_IBAN], entity.bankTx.accountIban))
@@ -335,15 +370,24 @@ export class AmlHelperService {
       if (entity.sell.fiat.name === 'CHF' && !Config.isDomesticIban(entity.sell.iban))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (
-        blacklist.some((b) =>
-          b.matches(
-            [
-              SpecialExternalAccountType.BANNED_IBAN,
-              SpecialExternalAccountType.BANNED_IBAN_SELL,
-              SpecialExternalAccountType.BANNED_IBAN_AML,
-            ],
-            entity.sell.iban,
-          ),
+        blacklist.some(
+          (b) =>
+            b.matches(
+              [
+                SpecialExternalAccountType.BANNED_IBAN,
+                SpecialExternalAccountType.BANNED_IBAN_SELL,
+                SpecialExternalAccountType.BANNED_IBAN_AML,
+              ],
+              entity.sell.iban,
+            ) ||
+            b.matches(
+              [
+                SpecialExternalAccountType.BANNED_BLZ,
+                SpecialExternalAccountType.BANNED_BLZ_SELL,
+                SpecialExternalAccountType.BANNED_BLZ_AML,
+              ],
+              IbanTools.extractIBAN(entity.sell.iban).bankIdentifier,
+            ),
         )
       )
         errors.push(AmlError.IBAN_BLACKLISTED);
@@ -379,13 +423,11 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_2:
-        if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_30)
-          return [AmlError.KYC_LEVEL_30_NOT_REACHED];
+        if (entity.userData.kycLevel < KycLevel.LEVEL_30) return [AmlError.KYC_LEVEL_30_NOT_REACHED];
         break;
 
       case AmlRule.RULE_3:
-        if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_50)
-          errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
+        if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
         break;
 
       case AmlRule.RULE_4:
@@ -398,22 +440,12 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_6:
-        if (
-          entity.user.status === UserStatus.NA &&
-          entity instanceof BuyCrypto &&
-          entity.checkoutTx &&
-          entity.userData.kycLevel < KycLevel.LEVEL_30
-        )
+        if (entity instanceof BuyCrypto && entity.checkoutTx && entity.userData.kycLevel < KycLevel.LEVEL_30)
           errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
         break;
 
       case AmlRule.RULE_7:
-        if (
-          entity.user.status === UserStatus.NA &&
-          entity instanceof BuyCrypto &&
-          entity.checkoutTx &&
-          entity.userData.kycLevel < KycLevel.LEVEL_50
-        )
+        if (entity instanceof BuyCrypto && entity.checkoutTx && entity.userData.kycLevel < KycLevel.LEVEL_50)
           errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
         break;
 
@@ -459,7 +491,7 @@ export class AmlHelperService {
       case AmlRule.RULE_16:
         if (
           entity instanceof BuyCrypto &&
-          entity.userData.accountType === AccountType.PERSONAL &&
+          entity.userData.isPersonalAccount &&
           !entity.userData.phoneCallCheckDate
         )
           errors.push(
@@ -484,24 +516,13 @@ export class AmlHelperService {
 
     if (exceptAmlRules?.length) amlRules = amlRules.filter((a) => !exceptAmlRules.includes(a));
 
-    if (
-      amlRules.includes(AmlRule.RULE_2) &&
-      user.status === UserStatus.NA &&
-      user.userData.kycLevel < KycLevel.LEVEL_30
-    )
-      return QuoteError.KYC_REQUIRED;
+    if (amlRules.includes(AmlRule.RULE_2) && user.userData.kycLevel < KycLevel.LEVEL_30) return QuoteError.KYC_REQUIRED;
 
-    if (
-      amlRules.includes(AmlRule.RULE_3) &&
-      user.status === UserStatus.NA &&
-      user.userData.kycLevel < KycLevel.LEVEL_50
-    )
-      return QuoteError.KYC_REQUIRED;
+    if (amlRules.includes(AmlRule.RULE_3) && user.userData.kycLevel < KycLevel.LEVEL_50) return QuoteError.KYC_REQUIRED;
 
     if (
       amlRules.includes(AmlRule.RULE_6) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      user.status === UserStatus.NA &&
       user.userData.kycLevel < KycLevel.LEVEL_30
     )
       return QuoteError.KYC_REQUIRED;
@@ -509,7 +530,6 @@ export class AmlHelperService {
     if (
       amlRules.includes(AmlRule.RULE_7) &&
       paymentMethodIn === FiatPaymentMethod.CARD &&
-      user.status === UserStatus.NA &&
       user.userData.kycLevel < KycLevel.LEVEL_50
     )
       return QuoteError.KYC_REQUIRED;
@@ -545,6 +565,7 @@ export class AmlHelperService {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    phoneCallList: SpecialExternalAccount[],
     ibanCountry?: Country,
     refUser?: User,
     banks?: Bank[],
@@ -569,6 +590,7 @@ export class AmlHelperService {
       last365dVolume,
       bankData,
       blacklist,
+      phoneCallList,
       banks,
       ibanCountry,
       refUser,

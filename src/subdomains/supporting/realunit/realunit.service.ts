@@ -44,13 +44,12 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
-import { RealUnitDevService } from './realunit-dev.service';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
@@ -63,9 +62,12 @@ import {
   AktionariatRegistrationDto,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationStatus,
+  RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationStatus,
+  RealUnitUserDataDto,
   RealUnitUserType,
+  RealUnitWalletStatusDto,
 } from './dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from './dto/realunit-sell.dto';
 import {
@@ -79,6 +81,7 @@ import {
   TokenInfoDto,
 } from './dto/realunit.dto';
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
+import { RealUnitDevService } from './realunit-dev.service';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
@@ -152,6 +155,18 @@ export class RealUnitService {
     });
   }
 
+  private async getZchfAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: 'ZCHF',
+      blockchain: this.tokenBlockchain,
+      type: AssetType.TOKEN,
+    });
+  }
+
+  private getBrokerbotAddress(): string {
+    return GetConfig().blockchain.realunit.brokerbotAddress;
+  }
+
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
     const realuAsset = await this.getRealuAsset();
 
@@ -180,12 +195,24 @@ export class RealUnitService {
   }
 
   async getHistoricalPrice(timeFrame: TimeFrame): Promise<HistoricalPriceDto[]> {
-    return this.historicalPriceCache.get(timeFrame, async () => {
+    const historicalPrices = await this.historicalPriceCache.get(timeFrame, async () => {
       const startDate = await this.getHistoricalPriceStartDate(timeFrame);
       const prices = await this.assetPricesService.getAssetPrices([await this.getRealuAsset()], startDate);
       const filledPrices = TimeseriesUtils.fillMissingDates(prices);
       return RealUnitDtoMapper.assetPricesToHistoricalPricesDto(filledPrices);
     });
+
+    if (historicalPrices.length > 0) {
+      const currentPrice = await this.getRealUnitPrice();
+      historicalPrices[historicalPrices.length - 1] = {
+        timestamp: currentPrice.timestamp,
+        chf: currentPrice.chf,
+        eur: currentPrice.eur,
+        usd: currentPrice.usd,
+      };
+    }
+
+    return historicalPrices;
   }
 
   async getRealUnitInfo(): Promise<TokenInfoDto> {
@@ -209,7 +236,8 @@ export class RealUnitService {
   }
 
   async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
-    return this.blockchainService.getBrokerbotInfo();
+    const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    return this.blockchainService.getBrokerbotInfo(this.getBrokerbotAddress(), realuAsset.chainId, zchfAsset.chainId);
   }
 
   // --- Buy Payment Info Methods ---
@@ -325,7 +353,7 @@ export class RealUnitService {
     });
   }
 
-  async confirmBuy(userId: number, requestId: number): Promise<void> {
+  async confirmBuy(userId: number, requestId: number): Promise<{ reference: string }> {
     const request = await this.transactionRequestService.getOrThrow(requestId, userId);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
@@ -335,97 +363,32 @@ export class RealUnitService {
 
     // Aktionariat API aufrufen
     const fiat = await this.fiatService.getFiat(request.sourceId);
-    const aktionariatResponse = await this.blockchainService.requestPaymentInstructions({
-      currency: fiat.name,
-      address: request.user.address,
-      shares: Math.floor(request.estimatedAmount),
-      price: Math.round(request.exchangeRate * 100),
-    });
+    const aktionariatResponse = [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? { reference: `DEV-${request.id}-${Date.now()}`, mock: true }
+      : await this.blockchainService.requestPaymentInstructions({
+          currency: fiat.name,
+          address: request.user.address,
+          shares: Math.floor(request.estimatedAmount),
+          price: Math.round(request.amount * 100),
+        });
 
     // Status + Response speichern
     await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));
+
+    return { reference: aktionariatResponse.reference };
   }
 
   // --- Registration Methods ---
 
-  // returns true if registration needs manual review, false if completed
-  async register(userDataId: number, dto: RealUnitRegistrationDto): Promise<boolean> {
-    // validate DTO
-    await this.validateRegistrationDto(dto);
-
-    // get and validate user
-    const userData = await this.userService
-      .getUserByAddress(dto.walletAddress, {
-        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
-      })
-      .then((u) => u?.userData);
-
-    if (!userData) throw new NotFoundException('User not found');
-    if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
-
-    if (!userData.mail) {
-      // Email not set yet - try to set it (will fail if email already exists for another user)
-      await this.userDataService.trySetUserMail(userData, dto.email);
-    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
-      throw new BadRequestException('Email does not match verified email');
-    }
-
-    // duplicate check
-    if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
-      throw new BadRequestException('RealUnit registration already exists');
-    }
-
-    // store data with internal review
-    const kycStep = await this.kycService.createCustomKycStep(
-      userData,
-      KycStepName.REALUNIT_REGISTRATION,
-      ReviewStatus.INTERNAL_REVIEW,
-      dto,
-    );
-
-    const hasExistingData = userData.firstname != null;
-    if (hasExistingData) {
-      const dataMatches = this.isPersonalDataMatching(userData, dto);
-      if (!dataMatches) {
-        await this.kycService.saveKycStepUpdate(kycStep.manualReview('Existing KYC data does not match'));
-        return true;
-      }
-    } else {
-      await this.userDataService.updatePersonalData(userData, dto.kycData);
-    }
-
-    // update always
-    await this.userDataService.updateUserDataInternal(userData, {
-      nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
-      birthday: new Date(dto.birthday),
-      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
-      tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
-    });
-
-    // forward to Aktionariat
-    const success = await this.forwardRegistration(kycStep, dto);
-    return !success;
+  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
+    return this.findRegistrationStep(userData, walletAddress).isForCurrentWallet;
   }
 
-  async registerEmail(
-    userDataId: number,
-    walletAddress: string,
-    dto: RealUnitEmailRegistrationDto,
-  ): Promise<RealUnitEmailRegistrationStatus> {
-    const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true, wallet: true });
+  async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: true });
     if (!userData) throw new NotFoundException('User not found');
 
-    if (userData.wallet?.name !== 'RealUnit') {
-      throw new BadRequestException('Registration is only allowed from RealUnit wallet');
-    }
-
-    const isNewEmail = !userData.mail || !Util.equalsIgnoreCase(dto.email, userData.mail);
-
-    if (isNewEmail) {
-      if (userData.mail && this.hasRegistrationForWallet(userData, walletAddress)) {
-        throw new BadRequestException('Not allowed to register a new email for this address');
-      }
-
+    if (!userData.mail) {
       try {
         await this.userDataService.trySetUserMail(userData, dto.email);
       } catch (e) {
@@ -436,6 +399,8 @@ export class RealUnitService {
         }
         throw e;
       }
+    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+      throw new BadRequestException('Email does not match verified email');
     }
 
     if (userData.kycLevel < KycLevel.LEVEL_10) {
@@ -499,6 +464,70 @@ export class RealUnitService {
     if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
 
     return RealUnitRegistrationStatus.COMPLETED;
+  }
+
+  // --- Wallet Methods ---
+
+  getAddressWalletStatus(userData: UserData, walletAddress: string): RealUnitWalletStatusDto {
+    const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
+
+    return {
+      isRegistered: isForCurrentWallet,
+      userData: this.toUserDataDto(step),
+    };
+  }
+
+  async completeRegistrationForWalletAddress(
+    userDataId: number,
+    dto: RealUnitRegisterWalletDto,
+  ): Promise<RealUnitRegistrationStatus> {
+    const userData = await this.userService
+      .getUserByAddress(dto.walletAddress, {
+        userData: { kycSteps: true, users: true, country: true },
+      })
+      .then((u) => u?.userData);
+
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
+
+    const { step: registrationStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+
+    if (isForCurrentWallet) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet');
+    }
+
+    if (!registrationStep) {
+      throw new BadRequestException('No RealUnit registration found');
+    }
+
+    const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
+    if (!registrationData) {
+      throw new BadRequestException('Invalid registration data');
+    }
+
+    // full registration DTO with new signature/wallet/date
+    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...accountData } = registrationData;
+    const fullDto: RealUnitRegistrationDto = {
+      ...accountData,
+      walletAddress: dto.walletAddress,
+      signature: dto.signature,
+      registrationDate: dto.registrationDate,
+    };
+
+    if (!this.verifyRealUnitRegistrationSignature(fullDto)) {
+      throw new BadRequestException('Invalid signature');
+    }
+
+    const kycStep = await this.kycService.createCustomKycStep(
+      userData,
+      KycStepName.REALUNIT_REGISTRATION,
+      ReviewStatus.INTERNAL_REVIEW,
+      fullDto,
+    );
+
+    const success = await this.forwardRegistration(kycStep, fullDto);
+
+    return success ? RealUnitRegistrationStatus.COMPLETED : RealUnitRegistrationStatus.FORWARDING_FAILED;
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
@@ -637,14 +666,49 @@ export class RealUnitService {
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
-  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
-    return userData
-      .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
+  /**
+   * Finds a registration step for the user.
+   * First tries to find a registration for the current wallet.
+   * If not found, falls back to finding a registration from another wallet (for account merge scenarios).
+   */
+  private findRegistrationStep(
+    userData: UserData,
+    walletAddress: string,
+  ): { step: KycStep | undefined; isForCurrentWallet: boolean } {
+    const allSteps = userData.getStepsWith(KycStepName.REALUNIT_REGISTRATION);
+
+    // First: look for registration for the current wallet (non-failed, non-canceled)
+    const currentWalletStep = allSteps
       .filter((s) => !(s.isFailed || s.isCanceled))
-      .some((s) => {
+      .find((s) => {
         const result = s.getResult<AktionariatRegistrationDto>();
         return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
       });
+
+    if (currentWalletStep) {
+      return { step: currentWalletStep, isForCurrentWallet: true };
+    }
+
+    // Second: look for registration from another wallet (for account merge)
+    const otherWalletStep = allSteps
+      .filter((s) => (s.isCompleted || s.isCanceled) && s.result)
+      .find((s) => {
+        const result = s.getResult<AktionariatRegistrationDto>();
+        return result?.walletAddress && !Util.equalsIgnoreCase(result.walletAddress, walletAddress);
+      });
+
+    return { step: otherWalletStep, isForCurrentWallet: false };
+  }
+
+  private toUserDataDto(step: KycStep | undefined): RealUnitUserDataDto | undefined {
+    if (!step) return undefined;
+
+    const registrationData = step.getResult<RealUnitRegistrationDto>();
+    if (!registrationData) return undefined;
+
+    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...userDataDto } = registrationData;
+
+    return userDataDto as RealUnitUserDataDto;
   }
 
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
@@ -702,9 +766,11 @@ export class RealUnitService {
         countryAndTINs: dto.countryAndTINs,
       };
 
-      await this.http.post(`${api.url}/registerUser`, payload, {
-        headers: { 'x-api-key': api.key },
-      });
+      if (![Environment.DEV, Environment.LOC].includes(Config.environment)) {
+        await this.http.post(`${api.url}/registerUser`, payload, {
+          headers: { 'x-api-key': api.key },
+        });
+      }
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
 
@@ -914,12 +980,22 @@ export class RealUnitService {
         throw new BadRequestException('Delegation delegator does not match user address');
       }
 
-      // Execute gasless transfer via EIP-7702 delegation (ForRealUnit bypasses global disable)
-      txHash = await this.eip7702DelegationService.transferTokenWithUserDelegationForRealUnit(
+      // Calculate expected ZCHF amount from BrokerBot
+      // If price drops between quote and execution, transaction reverts safely and user can retry
+      const [{ zchfAmountWei }, zchfAsset] = await Promise.all([
+        this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), Math.floor(request.amount)),
+        this.getZchfAsset(),
+      ]);
+
+      // Atomic batch: REALU -> BrokerBot -> ZCHF -> DFX Deposit
+      txHash = await this.eip7702DelegationService.executeBrokerBotSellForRealUnit(
         request.user.address,
         realuAsset,
+        zchfAsset.chainId,
+        this.getBrokerbotAddress(),
         sell.deposit.address,
-        request.amount,
+        Math.floor(request.amount),
+        zchfAmountWei,
         dto.eip7702.delegation,
         dto.eip7702.authorization,
       );

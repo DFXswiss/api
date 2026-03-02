@@ -19,27 +19,7 @@ export class TxValidationService {
   ): TxValidationResult {
     try {
       const parsedTx = ethers.utils.parseTransaction(hex);
-      const sender = parsedTx.from?.toLowerCase() ?? '';
-      const expectedAmountWei = EvmUtil.toWeiAmount(expectedAmount, expectedAsset.decimals);
-
-      const { recipient, amount } =
-        expectedAsset.type === AssetType.COIN
-          ? this.parseNativeTransfer(parsedTx)
-          : this.parseErc20Transfer(parsedTx, expectedAsset);
-
-      if (!recipient) {
-        throw new Error('Transaction has no recipient');
-      }
-
-      if (recipient !== expectedRecipient.toLowerCase()) {
-        throw new Error(`Invalid recipient: expected ${expectedRecipient}, got ${recipient}`);
-      }
-
-      if (amount.lt(expectedAmountWei)) {
-        throw new Error(`Insufficient amount: expected ${expectedAmountWei.toString()}, got ${amount.toString()}`);
-      }
-
-      return { isValid: true, sender };
+      return this.validateParsedTransaction(parsedTx, expectedRecipient, expectedAmount, expectedAsset);
     } catch (e) {
       return {
         isValid: false,
@@ -48,14 +28,62 @@ export class TxValidationService {
     }
   }
 
-  private parseNativeTransfer(parsedTx: ethers.Transaction): { recipient?: string; amount?: BigNumber } {
+  validateEvmTransactionResponse(
+    tx: ethers.providers.TransactionResponse,
+    expectedRecipient: string,
+    expectedAmount: number,
+    expectedAsset: Asset,
+  ): TxValidationResult {
+    try {
+      return this.validateParsedTransaction(tx, expectedRecipient, expectedAmount, expectedAsset);
+    } catch (e) {
+      return {
+        isValid: false,
+        error: e.message,
+      };
+    }
+  }
+
+  private validateParsedTransaction(
+    parsedTx: { from?: string; to?: string; value: BigNumber; data: string },
+    expectedRecipient: string,
+    expectedAmount: number,
+    expectedAsset: Asset,
+  ): TxValidationResult {
+    const sender = parsedTx.from?.toLowerCase() ?? '';
+    const expectedAmountWei = EvmUtil.toWeiAmount(expectedAmount, expectedAsset.decimals);
+
+    const { recipient, amount } =
+      expectedAsset.type === AssetType.COIN
+        ? this.parseNativeTransfer(parsedTx)
+        : this.parseErc20Transfer(parsedTx, expectedAsset);
+
+    if (!recipient) {
+      throw new Error('Transaction has no recipient');
+    }
+
+    if (recipient !== expectedRecipient.toLowerCase()) {
+      throw new Error(`Invalid recipient: expected ${expectedRecipient}, got ${recipient}`);
+    }
+
+    if (amount.lt(expectedAmountWei)) {
+      throw new Error(`Insufficient amount: expected ${expectedAmountWei.toString()}, got ${amount.toString()}`);
+    }
+
+    return { isValid: true, sender };
+  }
+
+  private parseNativeTransfer(parsedTx: { to?: string; value: BigNumber }): { recipient?: string; amount?: BigNumber } {
     const recipient = parsedTx.to?.toLowerCase();
     const amount = parsedTx.value;
 
     return { recipient, amount };
   }
 
-  private parseErc20Transfer(parsedTx: ethers.Transaction, asset: Asset): { recipient?: string; amount?: BigNumber } {
+  private parseErc20Transfer(
+    parsedTx: { to?: string; data: string },
+    asset: Asset,
+  ): { recipient?: string; amount?: BigNumber } {
     if (!asset.chainId) {
       throw new Error('Asset has no chainId (contract address)');
     }

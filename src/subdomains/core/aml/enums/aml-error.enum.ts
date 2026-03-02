@@ -59,6 +59,8 @@ export enum AmlError {
   MERGE_EXPIRED = 'MergeExpired',
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
   IP_PHONE_VERIFICATION_NEEDED = 'IpPhoneVerificationNeeded',
+  BIC_PHONE_VERIFICATION_NEEDED = 'BicPhoneVerificationNeeded',
+  IBAN_PHONE_VERIFICATION_NEEDED = 'IbanPhoneVerificationNeeded',
   IP_BLACKLISTED_WITHOUT_KYC = 'IpBlacklistedWithoutKyc',
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
@@ -66,6 +68,7 @@ export enum AmlError {
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
   FORCE_MANUAL_CHECK = 'ForceManualCheck',
+  ASSET_INPUT_NOT_ALLOWED = 'AssetInputNotAllowed',
 }
 
 export const DelayResultError = [
@@ -287,6 +290,16 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK_IP_PHONE,
   },
+  [AmlError.BIC_PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
+  },
+  [AmlError.IBAN_PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
+  },
   [AmlError.BANK_RELEASE_DATE_MISSING]: {
     type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
@@ -321,5 +334,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
+  },
+  [AmlError.ASSET_INPUT_NOT_ALLOWED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.ASSET_INPUT_NOT_ALLOWED,
   },
 };

@@ -221,10 +221,26 @@ export class AssetService {
     });
   }
 
+  async getFiroCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'FIRO',
+      blockchain: Blockchain.FIRO,
+      type: AssetType.COIN,
+    });
+  }
+
   async getMoneroCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'XMR',
       blockchain: Blockchain.MONERO,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getZanoCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ZANO',
+      blockchain: Blockchain.ZANO,
       type: AssetType.COIN,
     });
   }
@@ -241,14 +257,6 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'cBTC',
       blockchain: Blockchain.CITREA_TESTNET,
-      type: AssetType.COIN,
-    });
-  }
-
-  async getZanoCoin(): Promise<Asset> {
-    return this.getAssetByQuery({
-      name: 'ZANO',
-      blockchain: Blockchain.ZANO,
       type: AssetType.COIN,
     });
   }
@@ -273,6 +281,14 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'ADA',
       blockchain: Blockchain.CARDANO,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getInternetComputerCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ICP',
+      blockchain: Blockchain.INTERNET_COMPUTER,
       type: AssetType.COIN,
     });
   }

@@ -8,6 +8,7 @@ import { Between, Brackets, FindOptionsRelations, IsNull, LessThanOrEqual, Not }
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
+import { TransactionRequestType } from '../entities/transaction-request.entity';
 import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 import { SpecialExternalAccountService } from './special-external-account.service';
@@ -257,30 +258,16 @@ export class TransactionService {
   }
 
   async getByAssetId(assetId: number, limit = 50, offset = 0): Promise<Transaction[]> {
-    return this.repo
-      .createQueryBuilder('transaction')
-      .select('transaction')
-      .leftJoinAndSelect('transaction.request', 'request')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('transaction.userData', 'userData')
-      .where('transaction.type IS NOT NULL')
-      .andWhere(
-        new Brackets((qb) =>
-          qb
-            .where('request.type = :buyType AND request.targetId = :assetId', {
-              buyType: 'Buy',
-              assetId,
-            })
-            .orWhere('request.type = :sellType AND request.sourceId = :assetId', {
-              sellType: 'Sell',
-              assetId,
-            }),
-        ),
-      )
-      .orderBy('transaction.created', 'DESC')
-      .take(limit)
-      .skip(offset)
-      .getMany();
+    return this.repo.find({
+      where: [
+        { type: Not(IsNull()), request: { type: TransactionRequestType.BUY, targetId: assetId } },
+        { type: Not(IsNull()), request: { type: TransactionRequestType.SELL, sourceId: assetId } },
+      ],
+      order: { created: 'DESC' },
+      take: limit,
+      skip: offset,
+      relations: { request: true, user: true, userData: true },
+    });
   }
 
   async getTransactionByKey(key: string, value: any): Promise<Transaction> {
