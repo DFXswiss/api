@@ -76,12 +76,12 @@ fi
 # Start database
 echo ""
 echo "🗄️  Starting database..."
-docker-compose up -d
+docker compose up -d
 
 # Wait for database initialization
 echo "⏳ Waiting for database initialization..."
 for i in {1..30}; do
-  if docker-compose logs db-init 2>&1 | grep -q "Database 'dfx' ready"; then
+  if docker compose logs db-init 2>&1 | grep -q "Database 'dfx' ready"; then
     echo "✅ Database ready"
     break
   fi
