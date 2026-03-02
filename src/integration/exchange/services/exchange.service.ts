@@ -224,6 +224,13 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.callApi((e) => e.fetchWithdrawals(token, this.toCcxtDate(since), 200, { limit: 200 }));
   }
 
+  async getWithdrawalFee(token: string, network?: string): Promise<number> {
+    const fees = await this.callApi((e) => e.fetchDepositWithdrawFees([token]));
+    const tokenFees = fees[token];
+
+    return tokenFees?.networks?.[network]?.fee ?? tokenFees?.withdraw?.fee ?? 0;
+  }
+
   // --- Helper Methods --- //
   // currency pairs
   private async getMarkets(): Promise<Market[]> {
