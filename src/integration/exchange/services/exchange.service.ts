@@ -228,7 +228,7 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     const fees = await this.callApi((e) => e.fetchDepositWithdrawFees([token]));
     const tokenFees = fees[token];
 
-    return tokenFees?.networks?.[network]?.fee ?? tokenFees?.withdraw?.fee ?? 0;
+    return (tokenFees?.networks?.[network] as any)?.withdraw?.fee ?? tokenFees?.withdraw?.fee ?? 0;
   }
 
   // --- Helper Methods --- //
