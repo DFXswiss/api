@@ -18,6 +18,7 @@ import {
   IcpTransfer,
   IcpTransferQueryResult,
   IcrcRawLedger,
+  RosettaTransaction,
 } from './dto/icp.dto';
 import { InternetComputerWallet } from './icp-wallet';
 import { icpNativeLedgerIdlFactory, icrcLedgerIdlFactory } from './icp.idl';
@@ -27,7 +28,7 @@ export class InternetComputerClient extends BlockchainClient {
   private readonly logger = new DfxLogger(InternetComputerClient);
 
   private readonly host: string;
-  private readonly ledgerApiUrl: string;
+  private readonly rosettaApiUrl: string;
   private readonly seed: string;
   private readonly wallet: InternetComputerWallet;
   private readonly agent: HttpAgent;
@@ -45,13 +46,13 @@ export class InternetComputerClient extends BlockchainClient {
 
     const {
       internetComputerHost,
-      internetComputerLedgerApiUrl,
+      internetComputerRosettaApiUrl,
       internetComputerWalletSeed,
       internetComputerLedgerCanisterId,
       transferFee,
     } = GetConfig().blockchain.internetComputer;
     this.host = internetComputerHost;
-    this.ledgerApiUrl = internetComputerLedgerApiUrl;
+    this.rosettaApiUrl = internetComputerRosettaApiUrl;
     this.seed = internetComputerWalletSeed;
     this.transferFee = transferFee;
 
@@ -283,9 +284,14 @@ export class InternetComputerClient extends BlockchainClient {
   }
 
   private async isTxHashComplete(txHash: string): Promise<boolean> {
-    const url = `${this.ledgerApiUrl}/transactions?transaction_hash=${txHash}`;
-    const response = await this.http.get<{ blocks: { block_height: string }[] }>(url);
-    return response.blocks.length > 0;
+    const url = `${this.rosettaApiUrl}/search/transactions`;
+    const response = await this.http.post<{ transactions: RosettaTransaction[] }>(url, {
+      network_identifier: { blockchain: 'Internet Computer', network: '00000000000000020101' },
+      transaction_identifier: { hash: txHash },
+    });
+
+    const tx = response.transactions[0];
+    return tx?.transaction.operations.every((op) => op.status === 'COMPLETED') ?? false;
   }
 
   // --- Send native coin ---

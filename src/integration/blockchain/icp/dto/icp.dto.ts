@@ -65,6 +65,14 @@ export interface CandidIcrcGetTransactionsResponse {
   transactions: CandidIcrcTransaction[];
 }
 
+// --- Rosetta API response types ---
+
+export interface RosettaTransaction {
+  transaction: {
+    operations: { status: string }[];
+  };
+}
+
 // --- Typed raw ledger interfaces (for Actor.createActor results) ---
 
 export interface IcpNativeRawLedger {
