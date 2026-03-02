@@ -58,38 +58,28 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     const network = this.exchangeService.mapNetwork(Blockchain.LIGHTNING) || undefined;
     const balance = await this.exchangeService.getAvailableBalance(asset);
 
-    const withdrawalFee = await this.exchangeService.getWithdrawalFee(asset, network);
-
-    const amount = Util.floor(
-      Math.min(order.maxAmount, balance - withdrawalFee, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC),
-      8,
-    );
+    const amount = Util.floor(Math.min(order.maxAmount, balance, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC), 8);
 
     if (amount <= 0)
       throw new OrderNotProcessableException(
         `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
+
     const amountSats = LightningHelper.btcToSat(amount);
 
-    // Generate invoice via LnBits for the target amount (excluding fee)
+    // Generate invoice via LnBits for the target amount
     const invoice = await this.lightningClient.getLnBitsWalletPayment({
       amount: amountSats,
       memo: `LM Order ${order.id}`,
       expirySec: 1800, // 30 min (Binance limit)
     });
 
-    order.inputAmount = amount + withdrawalFee;
+    order.inputAmount = amount;
     order.inputAsset = asset;
     order.outputAsset = asset;
 
-    // Send invoice to Binance - amount must be invoice_amount + withdrawal_fee
-    const response = await this.exchangeService.withdrawFunds(
-      asset,
-      amount + withdrawalFee,
-      invoice.pr,
-      undefined,
-      network,
-    );
+    // Send only the invoice amount — Binance deducts the fee from the balance separately
+    const response = await this.exchangeService.withdrawFunds(asset, amount, invoice.pr, undefined, network);
 
     return response.id;
   }
