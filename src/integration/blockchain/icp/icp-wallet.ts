@@ -3,6 +3,7 @@ import { Ed25519KeyIdentity } from '@dfinity/identity';
 import { Principal } from '@dfinity/principal';
 import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
+import { InternetComputerUtil } from './icp.util';
 
 const internetComputerDefaultPath = "m/44'/223'/0'/0'/0'";
 
@@ -33,6 +34,10 @@ export class InternetComputerWallet {
 
   get address(): string {
     return this.principal.toText();
+  }
+
+  get accountIdentifier(): string {
+    return InternetComputerUtil.accountIdentifier(this.address);
   }
 
   getAgent(host: string): HttpAgent {
