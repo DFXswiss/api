@@ -58,7 +58,7 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     const network = this.exchangeService.mapNetwork(Blockchain.LIGHTNING) || undefined;
     const balance = await this.exchangeService.getAvailableBalance(asset);
 
-    const amount = Util.floor(Math.min(order.maxAmount, balance, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC), 8);
+    const amount = Util.floor(Math.min(order.maxAmount, balance * 0.99, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC), 8);
 
     if (amount <= 0)
       throw new OrderNotProcessableException(
