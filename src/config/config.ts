@@ -633,7 +633,7 @@ export class Configuration {
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
     cardanoSeed: process.env.PAYMENT_CARDANO_SEED,
-    internetComputerSeed: process.env.PAYMENT_INTERNET_COMPUTER_SEED,
+    internetComputerSeed: process.env.PAYMENT_ICP_SEED,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     firoAddress: process.env.PAYMENT_FIRO_ADDRESS,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
