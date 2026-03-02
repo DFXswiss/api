@@ -489,11 +489,7 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_16:
-        if (
-          entity instanceof BuyCrypto &&
-          entity.userData.isPersonalAccount &&
-          !entity.userData.phoneCallCheckDate
-        )
+        if (entity instanceof BuyCrypto && entity.userData.isPersonalAccount && !entity.userData.phoneCallCheckDate)
           errors.push(
             [PhoneCallStatus.REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
               ? AmlError.USER_DATA_FAILED_CALL
