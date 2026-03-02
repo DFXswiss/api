@@ -23,6 +23,7 @@ export enum BinanceAdapterCommands {
 }
 
 const BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC = 0.00999;
+const BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC = 0.00002;
 
 @Injectable()
 export class BinanceAdapter extends CcxtExchangeAdapter {
@@ -67,6 +68,11 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     if (amount <= 0)
       throw new OrderNotProcessableException(
         `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${balance}, fee: ${withdrawalFee}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+      );
+
+    if (amount < BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC)
+      throw new OrderNotProcessableException(
+        `${this.exchangeService.name}: withdrawal amount ${amount} BTC is below Binance minimum of ${BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC} BTC`,
       );
 
     const amountSats = LightningHelper.btcToSat(amount);
