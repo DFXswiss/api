@@ -67,10 +67,27 @@ export interface CandidIcrcGetTransactionsResponse {
 
 // --- Rosetta API response types ---
 
-export interface RosettaTransaction {
+export interface RosettaTransactionsResponse {
+  transactions: RosettaTransactionEntry[];
+  total_count: number;
+  next_offset?: number;
+}
+
+export interface RosettaTransactionEntry {
+  block_identifier: { index: number; hash: string };
   transaction: {
-    operations: { status: string }[];
+    transaction_identifier: { hash: string };
+    operations: RosettaOperation[];
+    metadata: { block_height: number; memo: number; timestamp: number };
   };
+}
+
+export interface RosettaOperation {
+  operation_identifier: { index: number };
+  type: string;
+  status: string;
+  account: { address: string };
+  amount?: { value: string; currency: { symbol: string; decimals: number } };
 }
 
 // --- Typed raw ledger interfaces (for Actor.createActor results) ---
