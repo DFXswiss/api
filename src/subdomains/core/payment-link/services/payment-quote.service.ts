@@ -602,8 +602,8 @@ export class PaymentQuoteService {
             canisterId,
             activation.asset.decimals,
           );
-          if (result.allowance < transferInfo.amount) {
-            throw new Error(`Insufficient allowance: ${result.allowance}, need ${transferInfo.amount}`);
+          if (result.allowance < activation.amount) {
+            throw new Error(`Insufficient allowance: ${result.allowance}, need ${activation.amount}`);
           }
         },
         3,
@@ -614,14 +614,14 @@ export class PaymentQuoteService {
         paymentAccount,
         userPrincipal,
         paymentAddress,
-        transferInfo.amount,
+        activation.amount,
         canisterId,
         activation.asset.decimals,
       );
 
       quote.txInBlockchain(txId);
     } catch (e) {
-      quote.txFailed(e.message);
+      quote.txFailed(e.errorType ? Object.keys(e.errorType)[0] : e.message);
     }
   }
 
