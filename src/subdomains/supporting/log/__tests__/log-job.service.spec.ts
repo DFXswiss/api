@@ -205,9 +205,10 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: 3 senders (312h old) match 3 receivers (310h old), 1 sender (309h) remains
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx.slice(7),
-      receiver: receiverTx.slice(7),
+      sender: [senderTx[10]], // Only 142409 remains unmatched
+      receiver: [],
     });
   });
 
@@ -228,9 +229,10 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: sender (27h) and receiver (26h) match perfectly (same amount, receiver after sender, < 5d)
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx,
-      receiver: receiverTx,
+      sender: [],
+      receiver: [],
     });
   });
 
@@ -265,9 +267,13 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: all 3 senders match all 3 receivers optimally
+    // sender[0] (8d) ↔ receiver[0] (6d): 2d apart
+    // sender[1] (8d) ↔ receiver[1] (5d): 3d apart
+    // sender[2] (7d) ↔ receiver[2] (5d): 2d apart
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: [senderTx[2]],
-      receiver: [receiverTx[2]],
+      sender: [],
+      receiver: [],
     });
   });
 
@@ -302,9 +308,11 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: sender[1] (17d) matches receiver[1] (16d), sender[2] (7d) matches receiver[2] (6d)
+    // First pair filtered by 21d rule
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx.slice(1),
-      receiver: receiverTx.slice(1),
+      sender: [],
+      receiver: [],
     });
   });
 
@@ -331,9 +339,13 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching:
+    // sender[0] filtered out (>= 21d)
+    // sender[1] (17d, 19999.0) matches receiver[1] (16d, 19999.0)
+    // receiver[0] stays unmatched (amount mismatch: 47543.81 vs 47520.04)
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: [senderTx[1]],
-      receiver: [receiverTx[1]],
+      sender: [],
+      receiver: [receiverTx[0]],
     });
   });
 
@@ -362,11 +374,13 @@ describe('LogJobService', () => {
       }),
     ];
 
-    // Matching finds sender id=3 (oldest sender that's still older than receiver at 18d)
-    // Filter keeps only senders with id >= 3
+    // With optimal matching:
+    // receiver[0] filtered out (>= 21d)
+    // receiver[1] (18d) matches sender[1] (19d, temporally closest: 1d apart)
+    // sender[0] and sender[2] remain unmatched (sorted by id: [1, 3])
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: [senderTx[0]], // Only id=3 remains after matching
-      receiver: [receiverTx[1]],
+      sender: [senderTx[2], senderTx[0]], // id=1 and id=3 remain unmatched, sorted by id
+      receiver: [],
     });
   });
 
@@ -460,9 +474,10 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: 3 senders (312h old) match 3 receivers (310h old)
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx.slice(7),
-      receiver: receiverTx.slice(7),
+      sender: [],
+      receiver: [],
     });
   });
 
