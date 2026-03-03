@@ -716,11 +716,11 @@ export class LogJobService {
       let fromScrypt = pendingChfScryptBankPlusAmount + pendingEurScryptBankPlusAmount + pendingScryptBankMinusAmount;
       let toScrypt = pendingBankScryptPlusAmount + pendingChfBankScryptMinusAmount + pendingEurBankScryptMinusAmount;
 
-      let fromScryptUnfiltered =
+      const fromScryptUnfiltered =
         pendingChfScryptBankPlusAmountUnfiltered +
         pendingEurScryptBankPlusAmountUnfiltered +
         pendingScryptBankMinusAmountUnfiltered;
-      let toScryptUnfiltered =
+      const toScryptUnfiltered =
         pendingBankScryptPlusAmountUnfiltered +
         pendingChfBankScryptMinusAmountUnfiltered +
         pendingEurBankScryptMinusAmountUnfiltered;
@@ -792,25 +792,8 @@ export class LogJobService {
         fromScrypt = 0;
       }
 
-      // Clamp unfiltered Scrypt values to prevent negative plus balances
-      if (fromScryptUnfiltered < 0) {
-        errors.push(`fromScryptUnfiltered < 0`);
-        this.logger.verbose(
-          `Error in financial log, fromScryptUnfiltered balance < 0 for asset: ${curr.id}, fromScryptUnfiltered: ${fromScryptUnfiltered}`,
-        );
-        fromScryptUnfiltered = 0;
-      }
-
-      if (toScryptUnfiltered < 0) {
-        errors.push(`toScryptUnfiltered < 0`);
-        this.logger.verbose(
-          `Error in financial log, toScryptUnfiltered balance < 0 for asset: ${curr.id}, toScryptUnfiltered: ${toScryptUnfiltered}`,
-        );
-        toScryptUnfiltered = 0;
-      }
-
       // total pending balance
-      const totalPlusPending =
+      let totalPlusPending =
         cryptoInput +
         exchangeOrder +
         bridgeOrder +
@@ -819,6 +802,19 @@ export class LogJobService {
         (useUnfilteredTx ? toKrakenUnfiltered : toKraken) +
         (useUnfilteredTx ? fromScryptUnfiltered : fromScrypt) +
         (useUnfilteredTx ? toScryptUnfiltered : toScrypt);
+
+      // Clamp totalPlusPending to prevent negative plus balances
+      // This catches any negative values from unfiltered Kraken/Scrypt or other components
+      if (totalPlusPending < 0) {
+        errors.push(`totalPlusPending < 0`);
+        this.logger.verbose(
+          `Error in financial log, totalPlusPending < 0 for asset: ${curr.id}, totalPlusPending: ${totalPlusPending}. ` +
+            `Components: cryptoInput=${cryptoInput}, exchangeOrder=${exchangeOrder}, bridgeOrder=${bridgeOrder}, ` +
+            `olky=${pendingOlkyYapealAmount}, kraken=${useUnfilteredTx ? fromKrakenUnfiltered : fromKraken}+${useUnfilteredTx ? toKrakenUnfiltered : toKraken}, ` +
+            `scrypt=${useUnfilteredTx ? fromScryptUnfiltered : fromScrypt}+${useUnfilteredTx ? toScryptUnfiltered : toScrypt}`,
+        );
+        totalPlusPending = 0;
+      }
 
       const totalPlus = liquidity + totalPlusPending + (totalCustomBalance ?? 0);
 
