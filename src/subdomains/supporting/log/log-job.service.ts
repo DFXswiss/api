@@ -716,11 +716,11 @@ export class LogJobService {
       let fromScrypt = pendingChfScryptBankPlusAmount + pendingEurScryptBankPlusAmount + pendingScryptBankMinusAmount;
       let toScrypt = pendingBankScryptPlusAmount + pendingChfBankScryptMinusAmount + pendingEurBankScryptMinusAmount;
 
-      const fromScryptUnfiltered =
+      let fromScryptUnfiltered =
         pendingChfScryptBankPlusAmountUnfiltered +
         pendingEurScryptBankPlusAmountUnfiltered +
         pendingScryptBankMinusAmountUnfiltered;
-      const toScryptUnfiltered =
+      let toScryptUnfiltered =
         pendingBankScryptPlusAmountUnfiltered +
         pendingChfBankScryptMinusAmountUnfiltered +
         pendingEurBankScryptMinusAmountUnfiltered;
@@ -790,6 +790,23 @@ export class LogJobService {
           pendingMinusAmount: ${pendingScryptBankMinusAmount}`,
         );
         fromScrypt = 0;
+      }
+
+      // Clamp unfiltered Scrypt values to prevent negative plus balances
+      if (fromScryptUnfiltered < 0) {
+        errors.push(`fromScryptUnfiltered < 0`);
+        this.logger.verbose(
+          `Error in financial log, fromScryptUnfiltered balance < 0 for asset: ${curr.id}, fromScryptUnfiltered: ${fromScryptUnfiltered}`,
+        );
+        fromScryptUnfiltered = 0;
+      }
+
+      if (toScryptUnfiltered < 0) {
+        errors.push(`toScryptUnfiltered < 0`);
+        this.logger.verbose(
+          `Error in financial log, toScryptUnfiltered balance < 0 for asset: ${curr.id}, toScryptUnfiltered: ${toScryptUnfiltered}`,
+        );
+        toScryptUnfiltered = 0;
       }
 
       // total pending balance
