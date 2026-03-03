@@ -1258,10 +1258,7 @@ export class LogJobService {
 
     // Phase 1: Exact Reference Matching (only for BankTx → ExchangeTx)
     if (filtered21SenderTx[0] instanceof BankTx && filtered21ReceiverTx[0] instanceof ExchangeTx) {
-      const phase1Result = this.matchByExactReference(
-        unmatchedSenders as BankTx[],
-        unmatchedReceivers as ExchangeTx[],
-      );
+      const phase1Result = this.matchByExactReference(unmatchedSenders as BankTx[], unmatchedReceivers as ExchangeTx[]);
 
       if (phase1Result.matched.length > 0) {
         this.logger.verbose(
