@@ -1085,54 +1085,223 @@ export class LogJobService {
     );
   }
 
+  /**
+   * Phase 1: Match transactions by exact reference (endToEndId ↔ txId)
+   * This ensures that transactions with matching references are paired first,
+   * preventing suboptimal matches based purely on timing.
+   */
+  private matchByExactReference(
+    senders: BankTx[],
+    receivers: ExchangeTx[],
+  ): {
+    matched: Array<{ sender: BankTx; receiver: ExchangeTx }>;
+    unmatchedSenders: BankTx[];
+    unmatchedReceivers: ExchangeTx[];
+  } {
+    const matched: Array<{ sender: BankTx; receiver: ExchangeTx }> = [];
+    const unmatchedSenders = [...senders];
+    const unmatchedReceivers = [...receivers];
+
+    // Match based on references (endToEndId ↔ txId)
+    for (const sender of senders) {
+      if (!sender.endToEndId) continue;
+
+      // Extract reference number from "E2E-79792" → "79792"
+      const refNumber = sender.endToEndId.replace(/^E2E-/, '');
+
+      const receiverIndex = unmatchedReceivers.findIndex(
+        (r) => r.txId === `DEPOSIT-${refNumber}` || r.txId === refNumber,
+      );
+
+      if (receiverIndex !== -1) {
+        const receiver = unmatchedReceivers[receiverIndex];
+
+        matched.push({ sender, receiver });
+
+        // Remove from unmatched lists
+        const senderIdx = unmatchedSenders.findIndex((s) => s.id === sender.id);
+        if (senderIdx !== -1) unmatchedSenders.splice(senderIdx, 1);
+        unmatchedReceivers.splice(receiverIndex, 1);
+      }
+    }
+
+    return { matched, unmatchedSenders, unmatchedReceivers };
+  }
+
+  /**
+   * Build cost matrix for optimal matching based on temporal proximity
+   */
+  private buildCostMatrix(senders: (BankTx | ExchangeTx)[], receivers: (BankTx | ExchangeTx)[]): number[][] {
+    const matrix: number[][] = [];
+
+    for (let i = 0; i < senders.length; i++) {
+      matrix[i] = [];
+
+      for (let j = 0; j < receivers.length; j++) {
+        const sender = senders[i];
+        const receiver = receivers[j];
+
+        // Check basic matching criteria
+        const senderAmount = sender instanceof BankTx ? sender.instructedAmount : sender.amount;
+        const receiverAmount = receiver instanceof BankTx ? receiver.instructedAmount : receiver.amount;
+        const amountMatch = senderAmount === receiverAmount;
+        const createdAfter = receiver.created > sender.created;
+
+        if (!amountMatch || !createdAfter) {
+          matrix[i][j] = Infinity; // Impossible match
+          continue;
+        }
+
+        // For BankTx, check day difference from valueDate
+        if (sender instanceof BankTx) {
+          const daysDiff = Math.abs(Util.daysDiff(sender.valueDate, receiver.created));
+          if (daysDiff > 5) {
+            matrix[i][j] = Infinity;
+            continue;
+          }
+        }
+
+        // Calculate cost based on temporal proximity (lower is better)
+        // Use minute difference as cost
+        const minutesDiff = Math.abs(receiver.created.getTime() - sender.created.getTime()) / (1000 * 60);
+
+        matrix[i][j] = minutesDiff;
+      }
+    }
+
+    return matrix;
+  }
+
+  /**
+   * Phase 2: Find optimal matches based on cost matrix (temporal proximity)
+   * Uses greedy algorithm on sorted pairs to ensure best matches are selected first
+   */
+  private findOptimalMatches(
+    costMatrix: number[][],
+    senders: (BankTx | ExchangeTx)[],
+    receivers: (BankTx | ExchangeTx)[],
+  ): {
+    matched: Array<{ sender: BankTx | ExchangeTx; receiver: BankTx | ExchangeTx }>;
+    unmatchedSenders: (BankTx | ExchangeTx)[];
+    unmatchedReceivers: (BankTx | ExchangeTx)[];
+  } {
+    const matched: Array<{ sender: BankTx | ExchangeTx; receiver: BankTx | ExchangeTx }> = [];
+
+    // Create list of all possible pairs with their costs
+    const possiblePairs: Array<{
+      senderIndex: number;
+      receiverIndex: number;
+      cost: number;
+      sender: BankTx | ExchangeTx;
+      receiver: BankTx | ExchangeTx;
+    }> = [];
+
+    for (let i = 0; i < senders.length; i++) {
+      for (let j = 0; j < receivers.length; j++) {
+        if (costMatrix[i][j] !== Infinity) {
+          possiblePairs.push({
+            senderIndex: i,
+            receiverIndex: j,
+            cost: costMatrix[i][j],
+            sender: senders[i],
+            receiver: receivers[j],
+          });
+        }
+      }
+    }
+
+    // Sort by cost (best matches first)
+    possiblePairs.sort((a, b) => a.cost - b.cost);
+
+    // Greedy matching on sorted list
+    const usedSenders = new Set<number>();
+    const usedReceivers = new Set<number>();
+
+    for (const pair of possiblePairs) {
+      if (!usedSenders.has(pair.senderIndex) && !usedReceivers.has(pair.receiverIndex)) {
+        matched.push({
+          sender: pair.sender,
+          receiver: pair.receiver,
+        });
+
+        usedSenders.add(pair.senderIndex);
+        usedReceivers.add(pair.receiverIndex);
+      }
+    }
+
+    // Determine unmatched
+    const unmatchedSenders = senders.filter((_, i) => !usedSenders.has(i));
+    const unmatchedReceivers = receivers.filter((_, i) => !usedReceivers.has(i));
+
+    return { matched, unmatchedSenders, unmatchedReceivers };
+  }
+
   public filterSenderPendingList(
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
   ): { receiver: (BankTx | ExchangeTx)[]; sender: (BankTx | ExchangeTx)[] } {
     const before21Days = Util.daysBefore(21);
 
-    let filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
-    let filtered21ReceiverTx = receiverTx.filter((r) => r.created > before21Days);
+    const filtered21SenderTx = senderTx.filter((s) => s.created > before21Days);
+    const filtered21ReceiverTx = receiverTx?.filter((r) => r.created > before21Days) || [];
 
     if (!filtered21SenderTx.length) return { receiver: [], sender: [] };
-    if (!filtered21ReceiverTx?.length) {
+    if (!filtered21ReceiverTx.length) {
       return {
         sender: filtered21SenderTx,
         receiver: [],
       };
     }
 
-    const { senderPair, receiverIndex } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx);
+    let unmatchedSenders = filtered21SenderTx;
+    let unmatchedReceivers = filtered21ReceiverTx;
 
-    if (filtered21SenderTx[0] instanceof BankTx) {
+    // Phase 1: Exact Reference Matching (only for BankTx → ExchangeTx)
+    if (filtered21SenderTx[0] instanceof BankTx && filtered21ReceiverTx[0] instanceof ExchangeTx) {
+      const phase1Result = this.matchByExactReference(
+        unmatchedSenders as BankTx[],
+        unmatchedReceivers as ExchangeTx[],
+      );
+
+      if (phase1Result.matched.length > 0) {
+        this.logger.verbose(
+          `FinanceLog Phase 1 (Exact Reference): ${phase1Result.matched.length} matches found. ` +
+            `Matched pairs: ${phase1Result.matched.map((m) => `${m.sender.id}↔${m.receiver.id}`).join(', ')}`,
+        );
+      }
+
+      unmatchedSenders = phase1Result.unmatchedSenders;
+      unmatchedReceivers = phase1Result.unmatchedReceivers;
+    }
+
+    // Phase 2: Optimal Timing-based Matching
+    if (unmatchedSenders.length > 0 && unmatchedReceivers.length > 0) {
+      const costMatrix = this.buildCostMatrix(unmatchedSenders, unmatchedReceivers);
+      const phase2Result = this.findOptimalMatches(costMatrix, unmatchedSenders, unmatchedReceivers);
+
+      if (phase2Result.matched.length > 0) {
+        this.logger.verbose(
+          `FinanceLog Phase 2 (Optimal Timing): ${phase2Result.matched.length} matches found. ` +
+            `Matched pairs: ${phase2Result.matched.map((m) => `${m.sender.id}↔${m.receiver.id}`).join(', ')}`,
+        );
+      }
+
+      unmatchedSenders = phase2Result.unmatchedSenders;
+      unmatchedReceivers = phase2Result.unmatchedReceivers;
+    }
+
+    // Log unmatched transactions
+    if (unmatchedSenders.length > 0) {
       this.logger.verbose(
-        `FinanceLog receiverTxId/date: ${filtered21ReceiverTx?.[receiverIndex]?.id}/${filtered21ReceiverTx?.[
-          receiverIndex
-        ]?.created.toDateString()}; senderTx[0] id/date: ${
-          filtered21SenderTx[0]?.id
-        }/${filtered21SenderTx[0].valueDate.toDateString()}; senderPair id/date: ${senderPair?.id}/${
-          senderPair && senderPair instanceof BankTx
-            ? senderPair.valueDate.toDateString()
-            : senderPair?.created.toDateString()
-        }; senderTx length: ${filtered21SenderTx.length}`,
+        `FinanceLog Unmatched Senders: ${unmatchedSenders.length} remaining. ` +
+          `IDs: ${unmatchedSenders.map((s) => s.id).join(', ')}`,
       );
     }
 
-    filtered21SenderTx = senderPair ? filtered21SenderTx.filter((s) => s.id >= senderPair.id) : filtered21SenderTx;
-
-    if (filtered21ReceiverTx.length > filtered21SenderTx.length) {
-      const { senderPair } = this.findSenderReceiverPair(filtered21SenderTx, filtered21ReceiverTx, true);
-
-      const senderTxLength = senderPair
-        ? filtered21SenderTx.filter((s) => s.id <= senderPair.id).length
-        : filtered21ReceiverTx.length;
-
-      filtered21ReceiverTx = filtered21ReceiverTx.slice(filtered21ReceiverTx.length - senderTxLength);
-    }
-
+    // Return unmatched as "pending"
     return {
-      receiver: filtered21ReceiverTx.filter((r) => r.id >= (filtered21ReceiverTx[receiverIndex]?.id ?? 0)),
-      sender: filtered21SenderTx.sort((a, b) => a.id - b.id),
+      receiver: unmatchedReceivers,
+      sender: unmatchedSenders.sort((a, b) => a.id - b.id),
     };
   }
 
