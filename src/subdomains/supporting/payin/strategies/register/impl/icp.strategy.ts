@@ -78,7 +78,6 @@ export class InternetComputerStrategy extends RegisterStrategy {
     fromBlock?: number,
     toBlock?: number,
   ): Promise<PayInEntry[]> {
-    const ownAccountId = InternetComputerUtil.accountIdentifier(this.payInInternetComputerService.getWalletAddress());
     const asset = await this.assetService.getNativeAsset(this.blockchain);
 
     const entries: PayInEntry[] = [];
@@ -93,7 +92,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
         for (const transfer of transfers) {
           if (transfer.blockIndex < lastBlock) continue;
           if (toBlock !== undefined && transfer.blockIndex > toBlock) continue;
-          if (transfer.from === ownAccountId) continue;
+          if (transfer.to !== accountId) continue;
 
           entries.push({
             senderAddresses: transfer.from,
