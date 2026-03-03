@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { IcpTransferQueryResult } from 'src/integration/blockchain/icp/dto/icp.dto';
+import { IcpTransfer, IcpTransferQueryResult } from 'src/integration/blockchain/icp/dto/icp.dto';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
@@ -17,6 +17,14 @@ export class PayInInternetComputerService {
 
   async getTransfers(start: number, count: number): Promise<IcpTransferQueryResult> {
     return this.internetComputerService.getTransfers(start, count);
+  }
+
+  async getNativeTransfersForAddress(
+    accountIdentifier: string,
+    maxBlock?: number,
+    limit?: number,
+  ): Promise<IcpTransfer[]> {
+    return this.internetComputerService.getNativeTransfersForAddress(accountIdentifier, maxBlock, limit);
   }
 
   async getIcrcBlockHeight(canisterId: string): Promise<number> {
