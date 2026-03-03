@@ -88,7 +88,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
         const accountId = InternetComputerUtil.accountIdentifier(da.address);
         const lastBlock = fromBlock ?? (await this.getLastCheckedNativeBlockHeight(da)) + 1;
 
-        const transfers = await this.payInInternetComputerService.getTransfersForAddress(accountId);
+        const transfers = await this.payInInternetComputerService.getNativeTransfersForAddress(accountId);
 
         for (const transfer of transfers) {
           if (transfer.blockIndex < lastBlock) continue;

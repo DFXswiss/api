@@ -19,8 +19,12 @@ export class PayInInternetComputerService {
     return this.internetComputerService.getTransfers(start, count);
   }
 
-  async getTransfersForAddress(accountIdentifier: string, maxBlock?: number, limit?: number): Promise<IcpTransfer[]> {
-    return this.internetComputerService.getTransfersForAddress(accountIdentifier, maxBlock, limit);
+  async getNativeTransfersForAddress(
+    accountIdentifier: string,
+    maxBlock?: number,
+    limit?: number,
+  ): Promise<IcpTransfer[]> {
+    return this.internetComputerService.getNativeTransfersForAddress(accountIdentifier, maxBlock, limit);
   }
 
   async getIcrcBlockHeight(canisterId: string): Promise<number> {

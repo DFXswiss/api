@@ -96,8 +96,12 @@ export class InternetComputerService extends BlockchainService {
     return this.client.getTransfers(start, count);
   }
 
-  async getTransfersForAddress(accountIdentifier: string, maxBlock?: number, limit?: number): Promise<IcpTransfer[]> {
-    return this.client.getTransfersForAddress(accountIdentifier, maxBlock, limit);
+  async getNativeTransfersForAddress(
+    accountIdentifier: string,
+    maxBlock?: number,
+    limit?: number,
+  ): Promise<IcpTransfer[]> {
+    return this.client.getNativeTransfersForAddress(accountIdentifier, maxBlock, limit);
   }
 
   async getIcrcBlockHeight(canisterId: string): Promise<number> {

@@ -210,7 +210,7 @@ export class InternetComputerClient extends BlockchainClient {
 
   // --- Per-address transfers via Rosetta /search/transactions ---
 
-  async getTransfersForAddress(accountIdentifier: string, maxBlock?: number, limit = 50): Promise<IcpTransfer[]> {
+  async getNativeTransfersForAddress(accountIdentifier: string, maxBlock?: number, limit = 50): Promise<IcpTransfer[]> {
     const url = `${this.rosettaApiUrl}/search/transactions`;
 
     const body: Record<string, unknown> = {
