@@ -39,7 +39,7 @@ const LAYERZERO_OFT_ADAPTERS: Record<string, { ethereum: string; citrea: string 
 };
 
 // Citrea LayerZero Endpoint ID
-const CITREA_LZ_ENDPOINT_ID = 30291;
+const CITREA_LZ_ENDPOINT_ID = 30403;
 
 export enum LayerZeroBridgeCommands {
   DEPOSIT = 'deposit', // Ethereum -> Citrea
