@@ -1,8 +1,6 @@
 import { SparkWallet } from '@buildonspark/spark-sdk';
-import { Injectable } from '@nestjs/common';
 import { Currency } from '@uniswap/sdk-core';
 import { GetConfig } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncField } from 'src/shared/utils/async-field';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainClient } from '../shared/util/blockchain-client';
@@ -43,10 +41,7 @@ export interface SparkFeeEstimate {
   blocks: number;
 }
 
-@Injectable()
 export class SparkClient extends BlockchainClient {
-  private readonly logger = new DfxLogger(SparkClient);
-
   private readonly wallet: AsyncField<SparkWallet>;
   private readonly cachedAddress: AsyncField<string>;
 
@@ -58,7 +53,7 @@ export class SparkClient extends BlockchainClient {
         mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
         accountNumber: 0,
         options: { network: 'MAINNET' },
-      }).then((r) => r.wallet),
+      }).then(({ wallet }) => this.syncLeaves(wallet)),
     );
     this.cachedAddress = new AsyncField(() => this.wallet.then((w) => w.getSparkAddress()), true);
   }
@@ -71,6 +66,8 @@ export class SparkClient extends BlockchainClient {
 
   async sendTransaction(to: string, amount: number): Promise<{ txid: string; fee: number }> {
     const wallet = await this.wallet;
+
+    await this.syncLeaves(wallet);
 
     const amountSats = Math.round(amount * 1e8);
 
@@ -128,6 +125,19 @@ export class SparkClient extends BlockchainClient {
     );
   }
 
+  // --- SYNC METHODS --- //
+
+  private async syncLeaves(wallet: SparkWallet): Promise<SparkWallet> {
+    // SDK bug: internal this.leaves cache is not synced on initialization or after deposits
+    // optimizeLeaves() fetches fresh leaves from network and updates the cache at the start,
+    // even when no optimization swaps are needed - consume generator to trigger sync
+    for await (const _ of wallet.optimizeLeaves()) {
+      /* Consume generator - sync happens at generator start */
+    }
+
+    return wallet;
+  }
+
   // --- FEE METHODS (always 0 for Spark L2) --- //
 
   async getNativeFee(): Promise<number> {
@@ -153,6 +163,8 @@ export class SparkClient extends BlockchainClient {
 
   async getNativeCoinBalance(): Promise<number> {
     const wallet = await this.wallet;
+
+    await this.syncLeaves(wallet);
 
     const { balance } = await wallet.getBalance();
 
