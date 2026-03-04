@@ -1192,7 +1192,12 @@ export class KycService {
 
         if (user.kycLevel >= KycLevel.LEVEL_50) {
           kycStep.complete();
-        } else if (missingCompletedSteps.length === 1) {
+        } else if (
+          !missingCompletedSteps.length ||
+          (missingCompletedSteps.length === 1 &&
+            missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
+            kycStep.name !== KycStepName.DFX_APPROVAL)
+        ) {
           kycStep.manualReview();
         } else {
           kycStep.onHold();
