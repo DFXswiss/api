@@ -16,6 +16,17 @@ export interface SparkTransaction {
   fee?: number;
 }
 
+export interface SparkTransfer {
+  id: string;
+  amountSats: number;
+  status: string;
+  direction: 'INCOMING' | 'OUTGOING';
+  senderSparkAddress?: string;
+  receiverSparkAddress?: string;
+  createdTime?: Date;
+  updatedTime?: Date;
+}
+
 export interface SparkNodeInfo {
   version: string;
   testnet: boolean;
@@ -85,6 +96,29 @@ export class SparkClient extends BlockchainClient {
       blocktime: transfer.updatedTime ? Math.floor(transfer.updatedTime.getTime() / 1000) : undefined,
       fee: 0,
     };
+  }
+
+  async getTransfers(limit = 100, offset = 0): Promise<SparkTransfer[]> {
+    const wallet = await this.wallet;
+    const result = await wallet.getTransfers(limit, offset);
+
+    return result.transfers.map((t) => ({
+      id: t.id,
+      amountSats: t.totalValue,
+      status: t.status,
+      direction: t.transferDirection as 'INCOMING' | 'OUTGOING',
+      senderSparkAddress: t.senderIdentityPublicKey,
+      receiverSparkAddress: t.receiverIdentityPublicKey,
+      createdTime: t.createdTime,
+      updatedTime: t.updatedTime,
+    }));
+  }
+
+  async getIncomingTransfers(limit = 100, offset = 0): Promise<SparkTransfer[]> {
+    const transfers = await this.getTransfers(limit, offset);
+
+    // Filter only completed incoming transfers
+    return transfers.filter((t) => t.status === 'TRANSFER_STATUS_COMPLETED' && t.direction === 'INCOMING');
   }
 
   // --- FEE METHODS (always 0 for Spark L2) --- //
