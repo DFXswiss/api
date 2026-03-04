@@ -16,11 +16,16 @@ export interface SparkTransaction {
   fee?: number;
 }
 
+export enum SparkTransferDirection {
+  INCOMING = 'INCOMING',
+  OUTGOING = 'OUTGOING',
+}
+
 export interface SparkTransfer {
   id: string;
   amountSats: number;
   status: string;
-  direction: 'INCOMING' | 'OUTGOING';
+  direction: SparkTransferDirection;
   senderSparkAddress?: string;
   receiverSparkAddress?: string;
   createdTime?: Date;
@@ -106,7 +111,7 @@ export class SparkClient extends BlockchainClient {
       id: t.id,
       amountSats: t.totalValue,
       status: t.status,
-      direction: t.transferDirection as 'INCOMING' | 'OUTGOING',
+      direction: t.transferDirection as SparkTransferDirection,
       senderSparkAddress: t.senderIdentityPublicKey,
       receiverSparkAddress: t.receiverIdentityPublicKey,
       createdTime: t.createdTime,
@@ -118,7 +123,7 @@ export class SparkClient extends BlockchainClient {
     const transfers = await this.getTransfers(limit, offset);
 
     // Filter only completed incoming transfers
-    return transfers.filter((t) => t.status === 'TRANSFER_STATUS_COMPLETED' && t.direction === 'INCOMING');
+    return transfers.filter((t) => t.status === 'TRANSFER_STATUS_COMPLETED' && t.direction === SparkTransferDirection.INCOMING);
   }
 
   // --- FEE METHODS (always 0 for Spark L2) --- //
