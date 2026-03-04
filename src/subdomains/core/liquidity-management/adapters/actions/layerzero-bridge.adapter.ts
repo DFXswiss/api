@@ -103,11 +103,12 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
 
       // Find transfer from the Citrea OFT contract matching the expected amount (with 5% tolerance)
       const expectedAmount = order.inputAmount;
+      const zeroAddress = '0x0000000000000000000000000000000000000000';
       const matchingTransfer = transfers.find((t) => {
         const receivedAmount = EvmUtil.fromWeiAmount(t.value, asset.decimals);
         return (
           t.contractAddress?.toLowerCase() === asset.chainId.toLowerCase() &&
-          t.from?.toLowerCase() === oftAdapter.citrea.toLowerCase() &&
+          t.from?.toLowerCase() === zeroAddress &&
           Math.abs(receivedAmount - expectedAmount) / expectedAmount < 0.05
         );
       });
