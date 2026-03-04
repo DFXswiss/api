@@ -79,10 +79,12 @@ export class PayoutService {
     };
   }
 
-  async getPayoutSentCorrelationIds(context: PayoutOrderContext): Promise<Set<string>> {
+  async getRecentPayoutSentCorrelationIds(context: PayoutOrderContext): Promise<Set<string>> {
+    const since = new Date(Date.now() - 3600_000); // 1 hour
     const orders = await this.payoutOrderRepo.findBy({
       context,
       status: In([PayoutOrderStatus.PAYOUT_PENDING, PayoutOrderStatus.COMPLETE]),
+      updated: MoreThan(since),
     });
     return new Set(orders.map((o) => o.correlationId));
   }

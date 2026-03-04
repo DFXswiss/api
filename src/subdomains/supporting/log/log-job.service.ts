@@ -261,7 +261,9 @@ export class LogJobService {
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
-    const payoutSentBuyCryptoIds = await this.payoutService.getPayoutSentCorrelationIds(PayoutOrderContext.BUY_CRYPTO);
+    const payoutSentBuyCryptoIds = await this.payoutService.getRecentPayoutSentCorrelationIds(
+      PayoutOrderContext.BUY_CRYPTO,
+    );
     const filteredPendingBuyCrypto = pendingBuyCrypto.filter((tx) => !payoutSentBuyCryptoIds.has(tx.id.toString()));
     const pendingBankTx = await this.bankTxService.getPendingTx();
     const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
