@@ -123,7 +123,9 @@ export class SparkClient extends BlockchainClient {
     const transfers = await this.getTransfers(limit, offset);
 
     // Filter only completed incoming transfers
-    return transfers.filter((t) => t.status === 'TRANSFER_STATUS_COMPLETED' && t.direction === SparkTransferDirection.INCOMING);
+    return transfers.filter(
+      (t) => t.status === 'TRANSFER_STATUS_COMPLETED' && t.direction === SparkTransferDirection.INCOMING,
+    );
   }
 
   // --- FEE METHODS (always 0 for Spark L2) --- //
