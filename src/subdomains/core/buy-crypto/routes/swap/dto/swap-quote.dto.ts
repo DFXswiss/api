@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+import { StructuredErrorDto } from 'src/subdomains/supporting/payment/dto/transaction-helper/structured-error.dto';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
 export class SwapQuoteDto {
@@ -42,4 +43,7 @@ export class SwapQuoteDto {
 
   @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
   error?: QuoteError;
+
+  @ApiPropertyOptional({ type: [StructuredErrorDto], description: 'Structured errors array' })
+  errors?: StructuredErrorDto[];
 }

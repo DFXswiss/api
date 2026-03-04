@@ -31,6 +31,7 @@ import { VirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/
 import { VirtualIbanMapper } from 'src/subdomains/supporting/bank/virtual-iban/dto/virtual-iban.mapper';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { QuoteErrorUtil } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.util';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -136,6 +137,7 @@ export class BuyController {
       priceSteps,
       isValid,
       error,
+      errors: QuoteErrorUtil.mapToStructuredErrors(error, minVolume, minVolumeTarget, maxVolume, maxVolumeTarget),
     };
   }
 

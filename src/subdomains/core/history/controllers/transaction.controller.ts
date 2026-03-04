@@ -56,6 +56,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { FindOptionsRelations } from 'typeorm';
+import { TransactionStatusDto, mapToProviderStatus } from '../../../supporting/payment/dto/transaction-status.dto';
 import {
   TransactionDetailDto,
   TransactionDto,
@@ -145,6 +146,20 @@ export class TransactionController {
     if (!dto) throw new NotFoundException('Transaction not found');
 
     return dto;
+  }
+
+  @Get('status/:orderId')
+  @ApiOkResponse({ type: TransactionStatusDto })
+  async getTransactionStatus(@Param('orderId') orderId: string): Promise<TransactionStatusDto> {
+    const tx = await this.getTransaction({ uid: orderId, orderUid: orderId });
+
+    const dto = await this.getTransactionDto(tx);
+    if (!dto) throw new NotFoundException('Transaction not found');
+
+    return {
+      orderId,
+      status: mapToProviderStatus(dto.state),
+    };
   }
 
   @Put('csv')

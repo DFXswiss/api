@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Config, Environment } from 'src/config/config';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { CreateBuyDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/create-buy.dto';
@@ -129,8 +130,15 @@ export class PaymentInfoService {
   }
 
   async resolveAsset(asset: Asset): Promise<Asset> {
-    return asset.id
-      ? this.assetService.getAssetById(asset.id)
-      : this.assetService.getAssetByChainId(asset.blockchain, asset.chainId);
+    if (asset.id) return this.assetService.getAssetById(asset.id);
+
+    let blockchain = asset.blockchain;
+    const evmChainId = (asset as any).evmChainId as number | undefined;
+    if (evmChainId && !blockchain) {
+      blockchain = EvmUtil.getBlockchain(evmChainId);
+      if (!blockchain) throw new BadRequestException(`Unsupported EVM chain ID: ${evmChainId}`);
+    }
+
+    return this.assetService.getAssetByChainId(blockchain, asset.chainId);
   }
 }
