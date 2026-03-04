@@ -23,8 +23,13 @@ jobs:
       - name: Wait for DEV deployment
         timeout-minutes: 15
         run: |
-          EXPECTED=$(curl -s https://api.github.com/repos/${{ github.repository }}/commits/develop | jq -r '.sha')
+          EXPECTED=${{ github.event.pull_request.head.sha }}
           echo "Expected commit: $EXPECTED"
+
+          if [ -z "$EXPECTED" ] || [ "$EXPECTED" == "null" ]; then
+            echo "::error::Could not determine expected commit SHA"
+            exit 1
+          fi
 
           for i in {1..30}; do
             if RESPONSE=$(curl -sf ${{ env.DEV_API_URL }}/version 2>&1); then
