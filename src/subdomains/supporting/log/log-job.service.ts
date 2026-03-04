@@ -261,6 +261,8 @@ export class LogJobService {
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
+    const payoutSentBuyCryptoIds = await this.payoutService.getPayoutSentCorrelationIds(PayoutOrderContext.BUY_CRYPTO);
+    const filteredPendingBuyCrypto = pendingBuyCrypto.filter((tx) => !payoutSentBuyCryptoIds.has(tx.id.toString()));
     const pendingBankTx = await this.bankTxService.getPendingTx();
     const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
     const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
@@ -822,7 +824,7 @@ export class LogJobService {
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat);
-      const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], pendingBuyCrypto);
+      const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], filteredPendingBuyCrypto);
 
       const bankTxNull = this.getPendingAmounts(
         [curr],

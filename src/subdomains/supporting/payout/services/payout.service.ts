@@ -7,7 +7,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { FindOptionsRelations, IsNull, MoreThan, Not } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { MailRequest } from '../../notification/interfaces';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
@@ -77,6 +77,14 @@ export class PayoutService {
       payoutAmount,
       payoutAsset,
     };
+  }
+
+  async getPayoutSentCorrelationIds(context: PayoutOrderContext): Promise<Set<string>> {
+    const orders = await this.payoutOrderRepo.findBy({
+      context,
+      status: In([PayoutOrderStatus.PAYOUT_PENDING, PayoutOrderStatus.COMPLETE]),
+    });
+    return new Set(orders.map((o) => o.correlationId));
   }
 
   async estimateFee(targetAsset: Asset, address: string, amount: number, asset: Asset): Promise<FeeResult> {
