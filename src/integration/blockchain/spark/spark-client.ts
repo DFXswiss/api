@@ -81,6 +81,9 @@ export class SparkClient extends BlockchainClient {
 
   async getTransaction(txId: string): Promise<SparkTransaction> {
     const wallet = await this.wallet;
+
+    await this.syncLeaves(wallet);
+
     const transfer = await wallet.getTransfer(txId);
 
     if (!transfer) {
