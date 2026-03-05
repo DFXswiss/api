@@ -88,8 +88,10 @@ export class SparkClient extends BlockchainClient {
       throw new Error(`Transaction ${txId} not found`);
     }
 
-    // SPARK uses final confirmation - either confirmed (1) or not (0)
-    const isConfirmed = transfer.status === 'TRANSFER_STATUS_COMPLETED';
+    // Outgoing: complete once sender key is tweaked (funds left our wallet)
+    // Incoming: complete once receiver has claimed
+    const isConfirmed =
+      transfer.status === 'TRANSFER_STATUS_SENDER_KEY_TWEAKED' || transfer.status === 'TRANSFER_STATUS_COMPLETED';
 
     return {
       txid: transfer.id,
