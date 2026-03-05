@@ -22,6 +22,7 @@ export enum KycStepName {
   // additional features
   PAYMENT_AGREEMENT = 'PaymentAgreement',
   RECALL_AGREEMENT = 'RecallAgreement',
+  CHANGE_PHONE = 'ChangePhone',
 
   // external registrations
   REALUNIT_REGISTRATION = 'RealUnitRegistration',

@@ -24,7 +24,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycChangePhoneData, KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -315,6 +315,18 @@ export class UserService {
     const update = await this.userDataService.updateUserSettings(userData, dto);
 
     return UserDtoMapper.mapUser(update, userId);
+  }
+
+  async updateUserPhone(userDataId: number, data: KycChangePhoneData, userId?: number): Promise<UserV2Dto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true }, kycSteps: true },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+
+    await this.userDataService.updatePhone(userData, data.phone);
+
+    return UserDtoMapper.mapUser(userData, userId);
   }
 
   async updateUserMail(userDataId: number, dto: UpdateUserMailDto, ip: string): Promise<UpdateMailStatus> {

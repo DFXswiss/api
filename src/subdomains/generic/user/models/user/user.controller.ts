@@ -32,7 +32,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycChangePhoneData, KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
@@ -272,6 +272,14 @@ export class UserV2Controller {
     } else {
       res.status(200).send('Mail updated successfully');
     }
+  }
+
+  @Put('phone')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: UserV2Dto })
+  async updateUserPhone(@GetJwt() jwt: JwtPayload, @Body() data: KycChangePhoneData): Promise<UserV2Dto> {
+    return this.userService.updateUserPhone(jwt.account, data, jwt.user);
   }
 
   @Post('mail/verify')

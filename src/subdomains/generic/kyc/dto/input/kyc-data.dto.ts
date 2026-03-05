@@ -37,6 +37,15 @@ export class KycContactData {
   mail: string;
 }
 
+export class KycChangePhoneData {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @IsDfxPhone()
+  @Transform(DfxPhoneTransform)
+  phone: string;
+}
+
 export class KycAddress {
   @ApiProperty()
   @IsNotEmpty()
