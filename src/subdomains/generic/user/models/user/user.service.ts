@@ -240,11 +240,14 @@ export class UserService {
       addressType: CryptoService.getAddressType(data.address),
     });
     const userIsActive = data.userData?.status === UserDataStatus.ACTIVE;
+    const lastExistingUsedRef = data.userData?.users
+      ? Util.sort(data.userData.users, 'id', 'DESC').find((u) => u.usedRef !== Config.defaultRef)?.usedRef
+      : undefined;
 
     user.ip = data.ip;
     user.ipCountry = this.geoLocationService.getCountry(data.ip);
     user.wallet = data.wallet ?? (await this.walletService.getDefault());
-    user.usedRef = await this.checkRef(user, data.usedRef);
+    user.usedRef = await this.checkRef(user, data.usedRef, lastExistingUsedRef);
     user.origin = data.origin;
     user.custodyProvider = data.custodyProvider;
     if (userIsActive) user.status = UserStatus.ACTIVE;
@@ -597,14 +600,14 @@ export class UserService {
     await this.userDataRepo.activateUserData(userData);
   }
 
-  private async checkRef(user: User, usedRef: string): Promise<string> {
-    const refUser = await this.getRefUser(usedRef);
-    return usedRef === null ||
-      usedRef === user.ref ||
-      (usedRef && !refUser) ||
-      user?.userData?.id === refUser?.userData?.id
-      ? Config.defaultRef
-      : usedRef;
+  private async checkRef(user: User, usedRef?: string, existingUsedRef?: string): Promise<string> {
+    if (usedRef) {
+      const refUser = await this.getRefUser(usedRef);
+      const isValidRef = usedRef !== user.ref && refUser && user?.userData?.id !== refUser?.userData?.id;
+      if (isValidRef) return usedRef;
+    }
+
+    return existingUsedRef ?? Config.defaultRef;
   }
 
   public async getTotalRefRewards(): Promise<number> {
