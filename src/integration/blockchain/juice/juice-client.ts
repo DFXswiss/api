@@ -152,6 +152,7 @@ export class JuiceClient {
       case 'USDC':
         return this.getBridgeUSDCContract();
       case 'USDT':
+      case 'USDT.e':
         return this.getBridgeUSDTContract();
       case 'CTUSD':
         return this.getBridgeCTUSDContract();
