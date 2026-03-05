@@ -562,10 +562,7 @@ export class KycService {
 
     Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
 
-    await this.kycStepRepo.update(...kycStep.update(ReviewStatus.INTERNAL_REVIEW, data));
-    await this.createStepLog(user, kycStep);
-
-    await this.reviewNationalityData(kycStep, user, nationality);
+    await this.reviewNationalityData(kycStep, user, nationality, data);
 
     await this.updateProgress(user, false);
 
@@ -1370,19 +1367,41 @@ export class KycService {
     return errors;
   }
 
-  private async reviewNationalityData(kycStep: KycStep, user: UserData, nationality: Country): Promise<void> {
-    if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) return;
+  private async reviewNationalityData(
+    kycStep: KycStep,
+    user: UserData,
+    nationality: Country,
+    data?: KycStepResult,
+  ): Promise<void> {
+    if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) {
+      if (data) {
+        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.INTERNAL_REVIEW, data));
+        await this.createStepLog(user, kycStep);
+      }
+      return;
+    }
 
     const errors = this.getNationalityErrors(kycStep, nationality);
     const comment = errors.join(';');
 
-    if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
-      await this.kycStepRepo.update(...kycStep.ignored(comment));
-    } else if (errors.length > 0) {
-      await this.kycStepRepo.update(...kycStep.manualReview(comment));
+    if (data) {
+      if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
+        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.IGNORED, data, comment));
+      } else if (errors.length > 0) {
+        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.MANUAL_REVIEW, data, comment));
+      } else {
+        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.COMPLETED, data));
+        await this.checkDfxApproval(kycStep);
+      }
     } else {
-      await this.kycStepRepo.update(...kycStep.complete());
-      await this.checkDfxApproval(kycStep);
+      if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
+        await this.kycStepRepo.update(...kycStep.ignored(comment));
+      } else if (errors.length > 0) {
+        await this.kycStepRepo.update(...kycStep.manualReview(comment));
+      } else {
+        await this.kycStepRepo.update(...kycStep.complete());
+        await this.checkDfxApproval(kycStep);
+      }
     }
 
     await this.createStepLog(user, kycStep);
