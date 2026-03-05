@@ -1,6 +1,7 @@
 import { SparkWallet } from '@buildonspark/spark-sdk';
 import { Currency } from '@uniswap/sdk-core';
 import { GetConfig } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncField } from 'src/shared/utils/async-field';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainClient } from '../shared/util/blockchain-client';
@@ -42,8 +43,11 @@ export interface SparkFeeEstimate {
 }
 
 export class SparkClient extends BlockchainClient {
+  private readonly logger = new DfxLogger(SparkClient);
+
   private wallet: AsyncField<SparkWallet>;
   private readonly cachedAddress: AsyncField<string>;
+  private reconnectAttempt = 0;
 
   constructor() {
     super();
@@ -136,7 +140,27 @@ export class SparkClient extends BlockchainClient {
   }
 
   private reconnectWallet(): void {
-    this.wallet = new AsyncField(() => this.initializeWallet(), true);
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempt, 60_000);
+    this.reconnectAttempt++;
+
+    this.logger.warn(`Spark stream disconnected, reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempt})`);
+
+    this.wallet = new AsyncField(
+      () =>
+        new Promise<void>((resolve) => setTimeout(resolve, delay))
+          .then(() => this.initializeWallet())
+          .then((wallet) => {
+            this.reconnectAttempt = 0;
+            this.logger.info('Spark wallet reconnected successfully');
+            return wallet;
+          })
+          .catch((e: Error) => {
+            this.logger.error('Spark wallet reconnect failed', e);
+            this.reconnectWallet();
+            throw e;
+          }),
+      true,
+    );
   }
 
   // --- SYNC METHODS --- //
