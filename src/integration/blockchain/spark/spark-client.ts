@@ -42,19 +42,13 @@ export interface SparkFeeEstimate {
 }
 
 export class SparkClient extends BlockchainClient {
-  private readonly wallet: AsyncField<SparkWallet>;
+  private wallet: AsyncField<SparkWallet>;
   private readonly cachedAddress: AsyncField<string>;
 
   constructor() {
     super();
 
-    this.wallet = new AsyncField(() =>
-      SparkWallet.initialize({
-        mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
-        accountNumber: 0,
-        options: { network: 'MAINNET' },
-      }).then(({ wallet }) => this.syncLeaves(wallet)),
-    );
+    this.wallet = new AsyncField(() => this.initializeWallet(), true);
     this.cachedAddress = new AsyncField(() => this.wallet.then((w) => w.getSparkAddress()), true);
   }
 
@@ -126,6 +120,23 @@ export class SparkClient extends BlockchainClient {
     return transfers.filter(
       (t) => t.status === 'TRANSFER_STATUS_COMPLETED' && t.direction === SparkTransferDirection.INCOMING,
     );
+  }
+
+  // --- WALLET INITIALIZATION --- //
+
+  private initializeWallet(): Promise<SparkWallet> {
+    return SparkWallet.initialize({
+      mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
+      accountNumber: 0,
+      options: { network: 'MAINNET' },
+    }).then(({ wallet }) => {
+      wallet.on('stream:disconnected', () => this.reconnectWallet());
+      return this.syncLeaves(wallet);
+    });
+  }
+
+  private reconnectWallet(): void {
+    this.wallet = new AsyncField(() => this.initializeWallet(), true);
   }
 
   // --- SYNC METHODS --- //
