@@ -53,6 +53,7 @@ import { PriceCurrency, PriceValidity, PricingService } from '../pricing/service
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
+  HistoryEventType,
   HoldersClientResponse,
   TokenInfoClientResponse,
 } from './dto/client.dto';
@@ -74,6 +75,7 @@ import {
   AccountHistoryDto,
   AccountSummaryDto,
   HistoricalPriceDto,
+  HistoryEventDto,
   HoldersDto,
   RealUnitBuyDto,
   RealUnitPaymentInfoDto,
@@ -147,7 +149,52 @@ export class RealUnitService {
     return RealUnitDtoMapper.toAccountHistoryDto(clientResponse);
   }
 
-  private async getRealuAsset(): Promise<Asset> {
+  async getHistoryEventByTxHash(address: string, txHash: string): Promise<HistoryEventDto> {
+    const normalizedTxHash = txHash.toLowerCase();
+    let cursor: string | undefined;
+
+    while (true) {
+      const history = await this.getAccountHistory(address, 100, cursor);
+
+      const event = history.history.find(
+        (e) => e.txHash.toLowerCase() === normalizedTxHash && e.eventType === HistoryEventType.TRANSFER,
+      );
+
+      if (event) return event;
+
+      if (!history.pageInfo.hasNextPage) break;
+      cursor = history.pageInfo.endCursor;
+    }
+
+    throw new NotFoundException('Transaction not found in account history');
+  }
+
+  async getHistoryEventsByTxHashes(address: string, txHashes: string[]): Promise<HistoryEventDto[]> {
+    const normalizedHashes = new Set(txHashes.map((h) => h.toLowerCase()));
+    const foundEvents: HistoryEventDto[] = [];
+    let cursor: string | undefined;
+
+    while (foundEvents.length < txHashes.length) {
+      const history = await this.getAccountHistory(address, 100, cursor);
+
+      for (const event of history.history) {
+        if (
+          normalizedHashes.has(event.txHash.toLowerCase()) &&
+          event.eventType === HistoryEventType.TRANSFER &&
+          !foundEvents.some((e) => e.txHash.toLowerCase() === event.txHash.toLowerCase())
+        ) {
+          foundEvents.push(event);
+        }
+      }
+
+      if (!history.pageInfo.hasNextPage) break;
+      cursor = history.pageInfo.endCursor;
+    }
+
+    return foundEvents;
+  }
+
+  async getRealuAsset(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
       name: this.tokenName,
       blockchain: this.tokenBlockchain,
