@@ -1,6 +1,7 @@
 import { SparkWallet } from '@buildonspark/spark-sdk';
 import { Currency } from '@uniswap/sdk-core';
 import { GetConfig } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncField } from 'src/shared/utils/async-field';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainClient } from '../shared/util/blockchain-client';
@@ -42,19 +43,16 @@ export interface SparkFeeEstimate {
 }
 
 export class SparkClient extends BlockchainClient {
-  private readonly wallet: AsyncField<SparkWallet>;
+  private readonly logger = new DfxLogger(SparkClient);
+
+  private wallet: AsyncField<SparkWallet>;
   private readonly cachedAddress: AsyncField<string>;
+  private reconnectAttempt = 0;
 
   constructor() {
     super();
 
-    this.wallet = new AsyncField(() =>
-      SparkWallet.initialize({
-        mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
-        accountNumber: 0,
-        options: { network: 'MAINNET' },
-      }).then(({ wallet }) => this.syncLeaves(wallet)),
-    );
+    this.wallet = new AsyncField(() => this.initializeWallet(), true);
     this.cachedAddress = new AsyncField(() => this.wallet.then((w) => w.getSparkAddress()), true);
   }
 
@@ -90,8 +88,10 @@ export class SparkClient extends BlockchainClient {
       throw new Error(`Transaction ${txId} not found`);
     }
 
-    // SPARK uses final confirmation - either confirmed (1) or not (0)
-    const isConfirmed = transfer.status === 'TRANSFER_STATUS_COMPLETED';
+    // Outgoing: complete once sender key is tweaked (funds left our wallet)
+    // Incoming: complete once receiver has claimed
+    const isConfirmed =
+      transfer.status === 'TRANSFER_STATUS_SENDER_KEY_TWEAKED' || transfer.status === 'TRANSFER_STATUS_COMPLETED';
 
     return {
       txid: transfer.id,
@@ -125,6 +125,43 @@ export class SparkClient extends BlockchainClient {
     // Filter only completed incoming transfers
     return transfers.filter(
       (t) => t.status === 'TRANSFER_STATUS_COMPLETED' && t.direction === SparkTransferDirection.INCOMING,
+    );
+  }
+
+  // --- WALLET INITIALIZATION --- //
+
+  private initializeWallet(): Promise<SparkWallet> {
+    return SparkWallet.initialize({
+      mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
+      accountNumber: 0,
+      options: { network: 'MAINNET' },
+    }).then(({ wallet }) => {
+      wallet.on('stream:disconnected', () => this.reconnectWallet());
+      return this.syncLeaves(wallet);
+    });
+  }
+
+  private reconnectWallet(): void {
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempt, 60_000);
+    this.reconnectAttempt++;
+
+    this.logger.warn(`Spark stream disconnected, reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempt})`);
+
+    this.wallet = new AsyncField(
+      () =>
+        new Promise<void>((resolve) => setTimeout(resolve, delay))
+          .then(() => this.initializeWallet())
+          .then((wallet) => {
+            this.reconnectAttempt = 0;
+            this.logger.info('Spark wallet reconnected successfully');
+            return wallet;
+          })
+          .catch((e: Error) => {
+            this.logger.error('Spark wallet reconnect failed', e);
+            this.reconnectWallet();
+            throw e;
+          }),
+      true,
     );
   }
 
