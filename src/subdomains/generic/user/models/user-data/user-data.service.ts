@@ -787,6 +787,11 @@ export class UserDataService {
       if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
+    // check phone
+    if (dto.phone && dto.phone !== userData.phone) {
+      await this.updatePhone(userData, dto.phone);
+    }
+
     await this.userDataRepo.update(...userData.setUserDataSettings(dto));
 
     return userData;
