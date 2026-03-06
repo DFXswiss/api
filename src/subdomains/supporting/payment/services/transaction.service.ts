@@ -4,7 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Between, Brackets, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
+import { Between, Brackets, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
@@ -191,9 +191,15 @@ export class TransactionService {
     });
   }
 
-  async getTransactionsForUser(userId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
+  async getTransactionsForUsers(
+    userIds: number[],
+    from = new Date(0),
+    to = new Date(),
+    limit?: number,
+    offset?: number,
+  ): Promise<Transaction[]> {
     return this.repo.find({
-      where: { user: { id: userId }, type: Not(IsNull()), created: Between(from, to) },
+      where: { user: { id: In(userIds) }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
         buyCrypto: {
           buy: true,
@@ -206,6 +212,8 @@ export class TransactionService {
         buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
         refReward: true,
       },
+      take: limit,
+      skip: offset,
     });
   }
 
