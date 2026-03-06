@@ -496,7 +496,6 @@ export class UserData extends IEntity {
 
   setUserDataSettings(dto: UpdateUserDto): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      phone: dto.phone ?? this.phone,
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
     };

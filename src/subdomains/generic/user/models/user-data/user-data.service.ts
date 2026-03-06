@@ -736,12 +736,45 @@ export class UserDataService {
     return userData;
   }
 
-  // --- SETTINGS UPDATE --- //
-  async updateUserSettings(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
-    // check phone KYC is already started
-    if (userData.kycLevel != KycLevel.LEVEL_0 && (dto.phone === null || dto.phone === ''))
+  // --- PHONE UPDATE --- //
+  async updatePhone(userData: UserData, phone: string): Promise<void> {
+    if (userData.kycLevel !== KycLevel.LEVEL_0 && !phone)
       throw new BadRequestException('KYC already started, user data deletion not allowed');
 
+    const previousPhone = userData.phone;
+
+    await this.userDataRepo.update(userData.id, {
+      phone,
+      phoneCallCheckDate: null,
+      phoneCallIpCheckDate: null,
+      phoneCallIpCountryCheckDate: null,
+    });
+
+    Object.assign(userData, {
+      phone,
+      phoneCallCheckDate: null,
+      phoneCallIpCheckDate: null,
+      phoneCallIpCountryCheckDate: null,
+    });
+
+    // update Sift
+    for (const user of userData.users) {
+      this.siftService.updateAccount({
+        $user_id: user.id.toString(),
+        $time: Date.now(),
+        $phone: phone,
+      });
+    }
+
+    // create KYC step
+    await this.kycService.createCustomKycStep(userData, KycStepName.PHONE_CHANGE, ReviewStatus.COMPLETED, {
+      phone,
+      previousPhone,
+    });
+  }
+
+  // --- SETTINGS UPDATE --- //
+  async updateUserSettings(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     // check language
     if (dto.language) {
       dto.language = await this.languageService.getLanguage(dto.language.id);
@@ -754,17 +787,9 @@ export class UserDataService {
       if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
-    const phoneChanged = dto.phone && dto.phone !== userData.phone;
-
-    const updateSiftAccount: CreateAccount = { $time: Date.now() };
-
-    if (phoneChanged) updateSiftAccount.$phone = dto.phone;
-
-    if (phoneChanged) {
-      for (const user of userData.users) {
-        updateSiftAccount.$user_id = user.id.toString();
-        this.siftService.updateAccount(updateSiftAccount);
-      }
+    // check phone
+    if (dto.phone && dto.phone !== userData.phone) {
+      await this.updatePhone(userData, dto.phone);
     }
 
     await this.userDataRepo.update(...userData.setUserDataSettings(dto));
