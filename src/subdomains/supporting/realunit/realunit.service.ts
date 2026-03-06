@@ -285,7 +285,12 @@ export class RealUnitService {
 
   async getBrokerbotInfo(currency?: BrokerbotCurrency): Promise<BrokerbotInfoDto> {
     const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
-    return this.blockchainService.getBrokerbotInfo(this.getBrokerbotAddress(), realuAsset.chainId, zchfAsset.chainId, currency);
+    return this.blockchainService.getBrokerbotInfo(
+      this.getBrokerbotAddress(),
+      realuAsset.chainId,
+      zchfAsset.chainId,
+      currency,
+    );
   }
 
   // --- Buy Payment Info Methods ---

@@ -112,7 +112,10 @@ export class RealUnitBlockchainService {
     };
   }
 
-  async getBrokerbotShares(amount: string, currency: BrokerbotCurrency = BrokerbotCurrency.CHF): Promise<BrokerbotSharesDto> {
+  async getBrokerbotShares(
+    amount: string,
+    currency: BrokerbotCurrency = BrokerbotCurrency.CHF,
+  ): Promise<BrokerbotSharesDto> {
     const { priceInCHF, priceInEUR, availableShares } = await this.fetchPrice();
     const price = currency === BrokerbotCurrency.EUR ? priceInEUR : priceInCHF;
     const shares = Math.floor(parseFloat(amount) / price);

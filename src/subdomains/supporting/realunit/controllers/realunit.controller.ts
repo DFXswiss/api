@@ -246,7 +246,12 @@ export class RealUnitController {
     summary: 'Get Brokerbot info',
     description: 'Retrieves general information about the REALU Brokerbot (addresses, settings)',
   })
-  @ApiQuery({ name: 'currency', enum: BrokerbotCurrency, required: false, description: 'Currency for prices (CHF or EUR)' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotInfoDto })
   async getBrokerbotInfo(@Query() { currency }: BrokerbotCurrencyQueryDto): Promise<BrokerbotInfoDto> {
     return this.realunitService.getBrokerbotInfo(currency);
@@ -257,7 +262,12 @@ export class RealUnitController {
     summary: 'Get current Brokerbot price',
     description: 'Retrieves the current price per REALU share from the Brokerbot smart contract',
   })
-  @ApiQuery({ name: 'currency', enum: BrokerbotCurrency, required: false, description: 'Currency for prices (CHF or EUR)' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotPriceDto })
   async getBrokerbotPrice(@Query() { currency }: BrokerbotCurrencyQueryDto): Promise<BrokerbotPriceDto> {
     return this.realunitService.getBrokerbotPrice(currency);
@@ -269,7 +279,12 @@ export class RealUnitController {
     description: 'Calculates the total cost to buy a specific number of REALU shares (includes price increment)',
   })
   @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to buy' })
-  @ApiQuery({ name: 'currency', enum: BrokerbotCurrency, required: false, description: 'Currency for prices (CHF or EUR)' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotBuyPriceDto })
   async getBrokerbotBuyPrice(
     @Query('shares') shares: number,
@@ -284,7 +299,12 @@ export class RealUnitController {
     description: 'Calculates how many REALU shares can be purchased for a given amount',
   })
   @ApiQuery({ name: 'amount', type: String, description: 'Amount in specified currency (e.g., "1000.50")' })
-  @ApiQuery({ name: 'currency', enum: BrokerbotCurrency, required: false, description: 'Currency for prices (CHF or EUR)' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotSharesDto })
   async getBrokerbotShares(
     @Query('amount') amount: string,
