@@ -729,7 +729,10 @@ export class TransactionController {
       tx =
         (await this.transactionService.getTransactionByUid(uid, relations)) ??
         (await this.transactionRequestService.getTransactionRequestByUid(uid, { user: { userData: true } }));
-    if (orderUid) tx = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+    if (orderUid)
+      tx =
+        (await this.transactionService.getTransactionByRequestUid(orderUid, relations)) ??
+        (await this.transactionRequestService.getTransactionRequestByUid(orderUid, { user: { userData: true } }));
     if (orderId)
       tx =
         (await this.transactionService.getTransactionByRequestId(+orderId, relations)) ??
