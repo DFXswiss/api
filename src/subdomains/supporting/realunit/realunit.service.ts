@@ -11,6 +11,7 @@ import { request } from 'graphql-request';
 import { Config, Environment, GetConfig } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotCurrency,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
@@ -270,21 +271,21 @@ export class RealUnitService {
 
   // --- Brokerbot Methods ---
 
-  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
-    return this.blockchainService.getBrokerbotPrice();
+  async getBrokerbotPrice(currency?: BrokerbotCurrency): Promise<BrokerbotPriceDto> {
+    return this.blockchainService.getBrokerbotPrice(currency);
   }
 
-  async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
-    return this.blockchainService.getBrokerbotBuyPrice(shares);
+  async getBrokerbotBuyPrice(shares: number, currency?: BrokerbotCurrency): Promise<BrokerbotBuyPriceDto> {
+    return this.blockchainService.getBrokerbotBuyPrice(shares, currency);
   }
 
-  async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
-    return this.blockchainService.getBrokerbotShares(amountChf);
+  async getBrokerbotShares(amount: string, currency?: BrokerbotCurrency): Promise<BrokerbotSharesDto> {
+    return this.blockchainService.getBrokerbotShares(amount, currency);
   }
 
-  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
+  async getBrokerbotInfo(currency?: BrokerbotCurrency): Promise<BrokerbotInfoDto> {
     const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
-    return this.blockchainService.getBrokerbotInfo(this.getBrokerbotAddress(), realuAsset.chainId, zchfAsset.chainId);
+    return this.blockchainService.getBrokerbotInfo(this.getBrokerbotAddress(), realuAsset.chainId, zchfAsset.chainId, currency);
   }
 
   // --- Buy Payment Info Methods ---
