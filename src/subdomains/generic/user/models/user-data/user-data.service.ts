@@ -780,14 +780,6 @@ export class UserDataService {
     if (!country.isEnabled(userData.kycType))
       throw new BadRequestException(`Country not allowed for ${userData.kycType}`);
 
-    const previousAddress = {
-      street: userData.street,
-      houseNumber: userData.houseNumber,
-      city: userData.location,
-      zip: userData.zip,
-      country: userData.country?.id,
-    };
-
     const update: Partial<UserData> = {
       street: transliterate(address.street),
       houseNumber: transliterate(address.houseNumber),
@@ -813,18 +805,6 @@ export class UserDataService {
         },
       });
     }
-
-    // create KYC step
-    await this.kycService.createCustomKycStep(userData, KycStepName.ADDRESS_CHANGE, ReviewStatus.COMPLETED, {
-      address: {
-        street: update.street,
-        houseNumber: update.houseNumber,
-        city: update.location,
-        zip: update.zip,
-        country: country.id,
-      },
-      previousAddress,
-    });
   }
 
   // --- SETTINGS UPDATE --- //

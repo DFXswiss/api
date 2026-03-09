@@ -138,7 +138,7 @@ export class KycStep extends IEntity {
         return { url: '', type: UrlType.NONE };
 
       case KycStepName.ADDRESS_CHANGE:
-        return { url: '', type: UrlType.NONE };
+        return { url: `${apiUrl}/data/address/${this.id}`, type: UrlType.API };
     }
   }
 
