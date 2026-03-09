@@ -81,7 +81,7 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
     subtractFeeFromOutputs?: number[],
   ): Promise<string> {
     const utxos = await this.getUtxoForAddresses(fromAddresses, this.nodeConfig.allowUnconfirmedUtxos);
-    if (!utxos.length) return '';
+    if (!utxos.length) throw new Error('No UTXOs available');
 
     const inputs = utxos.map((u) => ({ txid: u.txid, vout: u.vout }));
     const utxoBalance = utxos.reduce((sum, u) => sum + u.amount, 0);
