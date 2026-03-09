@@ -572,7 +572,7 @@ export class BankTxService implements OnModuleInit {
         wheres.push({ ...request, name: Like(`%${joined}%`) }, { ...request, ultimateName: Like(`%${joined}%`) });
       }
 
-      // reversed splits (e.g. "Bernhard Fleckl" for input "Fleckl Bernhard")
+      // reversed splits (e.g. "Doe John" for input "John Doe")
       for (let i = 1; i < parts.length; i++) {
         const firstPart = parts.slice(0, i).join(' ');
         const lastPart = parts.slice(i).join(' ');
