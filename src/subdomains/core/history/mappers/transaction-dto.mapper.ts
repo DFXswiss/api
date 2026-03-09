@@ -419,10 +419,13 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
       case CheckStatus.FAIL:
         if (
           entity.chargebackDate &&
-          (entity.chargebackCryptoTxId || entity.checkoutTx || entity.chargebackOutput?.isTransmittedDate)
+          (Util.daysDiff(entity.chargebackDate) > 7 ||
+            entity.chargebackCryptoTxId ||
+            entity.checkoutTx ||
+            entity.chargebackOutput?.isTransmittedDate)
         )
           return { state: TransactionState.RETURNED, reason };
-        if (entity.chargebackAllowedDateUser || entity.chargebackAllowedDate)
+        if (entity.chargebackAllowedDateUser || entity.chargebackAllowedDate || entity.chargebackDate)
           return { state: TransactionState.RETURN_PENDING, reason };
         return {
           state: TransactionState.FAILED,
@@ -463,8 +466,10 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
         return { state: TransactionState.CHECK_PENDING, reason };
 
       case CheckStatus.FAIL:
-        if (entity.chargebackDate && entity.chargebackTxId) return { state: TransactionState.RETURNED, reason };
-        if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
+        if (entity.chargebackDate && (Util.daysDiff(entity.chargebackDate) > 7 || entity.chargebackTxId))
+          return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackAllowedDateUser || entity.chargebackDate)
+          return { state: TransactionState.RETURN_PENDING, reason };
         return { state: TransactionState.FAILED, reason, chargebackTxId: entity.chargebackTxId };
 
       case CheckStatus.PASS:

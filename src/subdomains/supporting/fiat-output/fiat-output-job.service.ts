@@ -6,6 +6,7 @@ import { OlkypayOrderStatus } from 'src/integration/bank/dto/olkypay.dto';
 import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
+import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -47,6 +48,7 @@ export class FiatOutputJobService {
     private readonly yapealService: YapealService,
     private readonly olkypayService: OlkypayService,
     private readonly virtualIbanService: VirtualIbanService,
+    private readonly scryptService: ScryptService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -377,6 +379,7 @@ export class FiatOutputJobService {
       try {
         const msgId = `YAPEAL-${entity.id}-${Date.now()}`;
         const endToEndId = entity.endToEndId ?? `E2E-${entity.id}`;
+        const remittanceInfo = entity.remittanceInfo ?? `DFX Payout ${entity.id}`;
 
         const payment: Pain001Payment = {
           messageId: msgId,
@@ -398,17 +401,20 @@ export class FiatOutputJobService {
             iban: entity.iban,
             bic: entity.bic,
           },
-          remittanceInfo: entity.remittanceInfo,
+          remittanceInfo,
         };
 
         await this.yapealService.sendPayment(payment);
         await this.fiatOutputRepo.update(entity.id, {
           yapealMsgId: msgId,
           endToEndId,
+          remittanceInfo,
           isTransmittedDate: new Date(),
           isApprovedDate: new Date(),
           ...(entity.info?.startsWith('YAPEAL error') && { info: null }),
         });
+
+        await this.notifyScryptDepositIfApplicable(entity);
       } catch (e) {
         this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
 
@@ -436,6 +442,8 @@ export class FiatOutputJobService {
 
     for (const entity of entities) {
       try {
+        const remittanceInfo = entity.remittanceInfo ?? `DFX Payout ${entity.id}`;
+
         // create recipient
         const recipient = await this.olkypayService.getOrCreateRecipient({
           iban: entity.iban,
@@ -451,7 +459,7 @@ export class FiatOutputJobService {
         // send payment order
         const orderResponse = await this.olkypayService.createPaymentOrder({
           clientId: +recipient.olkyPayerId,
-          comment: entity.remittanceInfo ?? `DFX Payout ${entity.id}`,
+          comment: remittanceInfo,
           currencyCode: entity.currency,
           executionDate: Util.isoDate(new Date()),
           externalId: `${entity.id}`,
@@ -463,8 +471,11 @@ export class FiatOutputJobService {
         await this.fiatOutputRepo.update(entity.id, {
           olkyOrderId: orderResponse.id,
           isTransmittedDate: new Date(),
+          remittanceInfo,
           ...(entity.info?.startsWith('OLKYPAY error') && { info: null }),
         });
+
+        await this.notifyScryptDepositIfApplicable(entity);
       } catch (e) {
         this.logger.error(`Failed to transmit OLKYPAY payment for fiat output ${entity.id}:`, e);
 
@@ -542,6 +553,22 @@ export class FiatOutputJobService {
         const specificType = this.bankTxService.getType(bankTx);
         if (specificType) return this.bankTxService.updateInternal(bankTx, { type: specificType });
       }
+    }
+  }
+
+  private async notifyScryptDepositIfApplicable(entity: FiatOutput): Promise<void> {
+    if (entity.type !== FiatOutputType.LIQ_MANAGEMENT) return;
+    if (!entity.name?.includes('Scrypt Digital Trading')) return;
+
+    try {
+      await this.scryptService.sendDepositRequest({
+        currency: entity.currency,
+        amount: entity.amount,
+        reqId: entity.endToEndId ?? `DEPOSIT-${entity.id}`,
+        timeStamp: new Date(),
+      });
+    } catch (e) {
+      this.logger.error(`Failed to send Scrypt deposit request for fiat output ${entity.id}:`, e);
     }
   }
 }

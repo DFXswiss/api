@@ -212,6 +212,10 @@ export class BuyFiatPreparationService {
           ...entity.setFeeAndFiatReference(fee, eurPrice.convert(fee.min, 2), chfPrice.convert(fee.total, 2)),
         );
 
+        if (entity.feeAmountChf != null) {
+          await this.transactionService.updateInternal(entity.transaction, { feeAmountInChf: entity.feeAmountChf });
+        }
+
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
         if (isFirstRun) {
@@ -235,6 +239,7 @@ export class BuyFiatPreparationService {
       },
       relations: {
         sell: true,
+        transaction: true,
         cryptoInput: {
           paymentLinkPayment: { link: { route: { user: { userData: { organization: true } } } } },
           paymentQuote: true,
@@ -290,6 +295,10 @@ export class BuyFiatPreparationService {
             [priceStep],
           ),
         );
+
+        if (entity.feeAmountChf != null) {
+          await this.transactionService.updateInternal(entity.transaction, { feeAmountInChf: entity.feeAmountChf });
+        }
 
         if (entity.amlCheck === CheckStatus.FAIL) return;
 

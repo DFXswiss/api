@@ -67,6 +67,7 @@ export enum AmlError {
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
   FORCE_MANUAL_CHECK = 'ForceManualCheck',
+  ASSET_INPUT_NOT_ALLOWED = 'AssetInputNotAllowed',
 }
 
 export const DelayResultError = [
@@ -327,5 +328,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
+  },
+  [AmlError.ASSET_INPUT_NOT_ALLOWED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.ASSET_INPUT_NOT_ALLOWED,
   },
 };

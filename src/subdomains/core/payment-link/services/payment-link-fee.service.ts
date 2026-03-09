@@ -65,6 +65,7 @@ export class PaymentLinkFeeService implements OnModuleInit {
       case Blockchain.SOLANA:
       case Blockchain.TRON:
       case Blockchain.CARDANO:
+      case Blockchain.INTERNET_COMPUTER:
         return 0;
 
       case Blockchain.ETHEREUM:

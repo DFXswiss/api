@@ -40,6 +40,7 @@ export enum AmlReason {
   VIRTUAL_IBAN_USER_MISMATCH = 'VirtualIbanUserMismatch',
   INTERMEDIARY_WITHOUT_SENDER = 'IntermediaryWithoutSender',
   NAME_TOO_SHORT = 'NameTooShort',
+  ASSET_INPUT_NOT_ALLOWED = 'AssetInputNotAllowed',
 }
 
 export const KycAmlReasons = [

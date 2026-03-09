@@ -47,6 +47,7 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   defaultRef = '000-000';
+  defaultWalletId = 1;
   transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   refRewardManualCheckLimit = 3000; // EUR
   txRequestWaitingExpiryDays = 7;
@@ -148,7 +149,7 @@ export class Configuration {
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
-  sparkAddressFormat = 'sp1[a-z0-9]{6,87}';
+  sparkAddressFormat = 'spark1[a-z0-9]{6,250}';
   firoAddressFormat = 'a[a-zA-HJ-NP-Z0-9]{33}';
   moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
@@ -161,8 +162,9 @@ export class Configuration {
   solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{43,44}';
   tronAddressFormat = 'T[1-9A-HJ-NP-Za-km-z]{32,34}';
   zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
+  internetComputerPrincipalFormat = '[a-z0-9]{5}(-[a-z0-9]{5})*(-[a-z0-9]{1,5})?';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -178,13 +180,15 @@ export class Configuration {
   solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
   tronSignatureFormat = '(0x)?[a-f0-9]{130}';
   zanoSignatureFormat = '[a-f0-9]{128}';
+  internetComputerSignatureFormat = '[a-f0-9]{128,144}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}|${this.internetComputerSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '.*';
+  internetComputerKeyFormat = '[a-f0-9]{64,130}';
 
-  allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}`;
+  allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}|${this.internetComputerKeyFormat}`;
 
   formats = {
     address: new RegExp(`^(${this.allAddressFormat})$`),
@@ -273,6 +277,7 @@ export class Configuration {
     residencePermitCountries: ['RU'],
     maxIdentTries: 7,
     maxRecommendationTries: 3,
+    kycStepExpiry: 90, // days
   };
 
   fileDownloadConfig: {
@@ -629,16 +634,20 @@ export class Configuration {
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
     cardanoSeed: process.env.PAYMENT_CARDANO_SEED,
+    internetComputerSeed: process.env.PAYMENT_ICP_SEED,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
     firoAddress: process.env.PAYMENT_FIRO_ADDRESS,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
-    minConfirmations: (blockchain: Blockchain) =>
-      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.FIRO, Blockchain.MONERO, Blockchain.ZANO].includes(
-        blockchain,
-      )
-        ? 6
-        : 100,
+    minConfirmations: (blockchain: Blockchain): number =>
+      ({
+        [Blockchain.ETHEREUM]: 6,
+        [Blockchain.BITCOIN]: 6,
+        [Blockchain.FIRO]: 6,
+        [Blockchain.MONERO]: 6,
+        [Blockchain.ZANO]: 6,
+        [Blockchain.INTERNET_COMPUTER]: 1,
+      })[blockchain] ?? 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
     cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
@@ -889,6 +898,10 @@ export class Configuration {
       },
       certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
+    boltz: {
+      apiUrl: process.env.BOLTZ_API_URL,
+      seed: process.env.BOLTZ_SEED,
+    },
     spark: {
       sparkWalletSeed: process.env.SPARK_WALLET_SEED,
     },
@@ -971,6 +984,18 @@ export class Configuration {
         index: accountIndex,
       }),
     },
+    internetComputer: {
+      internetComputerHost: 'https://ic0.app',
+      internetComputerRosettaApiUrl: process.env.ICP_ROSETTA_API_URL ?? 'https://rosetta-api.internetcomputer.org',
+      internetComputerWalletSeed: process.env.ICP_WALLET_SEED,
+      internetComputerLedgerCanisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
+      transferFee: 0.0001,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.internetComputer.internetComputerWalletSeed,
+        index: accountIndex,
+      }),
+    },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
       contractAddress: {
@@ -995,6 +1020,9 @@ export class Configuration {
         url: process.env.REALUNIT_API_URL,
         key: process.env.REALUNIT_API_KEY,
       },
+      brokerbotAddress: [Environment.DEV, Environment.LOC].includes(this.environment)
+        ? '0x39c33c2fd5b07b8e890fd2115d4adff7235fc9d2'
+        : '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d',
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
         iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',

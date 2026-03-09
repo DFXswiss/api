@@ -102,4 +102,5 @@ export const TxIdBlockchains = [
   Blockchain.SOLANA,
   Blockchain.TRON,
   Blockchain.CARDANO,
+  Blockchain.INTERNET_COMPUTER,
 ];

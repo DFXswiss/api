@@ -32,7 +32,14 @@ import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-met
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
-import { KycLevel, KycState, KycType, Moderator, UserDataStatus } from '../user-data/user-data.enum';
+import {
+  KycLevel,
+  KycState,
+  KycType,
+  Moderator,
+  TradeApprovalReason,
+  UserDataStatus,
+} from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
@@ -233,11 +240,14 @@ export class UserService {
       addressType: CryptoService.getAddressType(data.address),
     });
     const userIsActive = data.userData?.status === UserDataStatus.ACTIVE;
+    const lastExistingUsedRef = data.userData?.users
+      ? Util.sort(data.userData.users, 'id', 'DESC').find((u) => u.usedRef !== Config.defaultRef)?.usedRef
+      : undefined;
 
     user.ip = data.ip;
     user.ipCountry = this.geoLocationService.getCountry(data.ip);
     user.wallet = data.wallet ?? (await this.walletService.getDefault());
-    user.usedRef = await this.checkRef(user, data.usedRef);
+    user.usedRef = await this.checkRef(user, data.usedRef, lastExistingUsedRef);
     user.origin = data.origin;
     user.custodyProvider = data.custodyProvider;
     if (userIsActive) user.status = UserStatus.ACTIVE;
@@ -258,6 +268,12 @@ export class UserService {
         wallet: user.wallet,
         tradeApprovalDate: user.wallet?.autoTradeApproval ? new Date() : undefined,
       }));
+
+    if (!data.userData && user.userData.tradeApprovalDate)
+      await this.userDataService.createTradeApprovalLog(
+        user.userData,
+        TradeApprovalReason.AUTO_TRADE_APPROVAL_USER_DATA_CREATED,
+      );
 
     if (user.userData.status === UserDataStatus.KYC_ONLY)
       await this.userDataService.updateUserDataInternal(user.userData, { status: UserDataStatus.NA });
@@ -584,14 +600,14 @@ export class UserService {
     await this.userDataRepo.activateUserData(userData);
   }
 
-  private async checkRef(user: User, usedRef: string): Promise<string> {
-    const refUser = await this.getRefUser(usedRef);
-    return usedRef === null ||
-      usedRef === user.ref ||
-      (usedRef && !refUser) ||
-      user?.userData?.id === refUser?.userData?.id
-      ? Config.defaultRef
-      : usedRef;
+  private async checkRef(user: User, usedRef?: string, existingUsedRef?: string): Promise<string> {
+    if (usedRef) {
+      const refUser = await this.getRefUser(usedRef);
+      const isValidRef = usedRef !== user.ref && refUser && user?.userData?.id !== refUser?.userData?.id;
+      if (isValidRef) return usedRef;
+    }
+
+    return existingUsedRef ?? Config.defaultRef;
   }
 
   public async getTotalRefRewards(): Promise<number> {

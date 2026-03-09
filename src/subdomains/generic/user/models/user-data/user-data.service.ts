@@ -66,7 +66,7 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, UserDataStatus } from './user-data.enum';
+import { KycLevel, TradeApprovalReason, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -262,7 +262,7 @@ export class UserDataService {
 
   // --- CREATE / UPDATE ---
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
-    const userData = this.userDataRepo.create({
+    const entity = this.userDataRepo.create({
       ...dto,
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
@@ -270,9 +270,9 @@ export class UserDataService {
       kycSteps: [],
     });
 
-    await this.loadRelationsAndVerify(userData, dto);
+    await this.loadRelationsAndVerify(entity, dto);
 
-    return this.userDataRepo.save(userData);
+    return this.userDataRepo.save(entity);
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
@@ -520,7 +520,8 @@ export class UserDataService {
       organizationLocation: data.organizationAddress?.city,
       organizationZip: data.organizationAddress?.zip,
       organizationCountry: data.organizationAddress?.country,
-      tradeApprovalDate: data.accountType === AccountType.ORGANIZATION ? new Date() : undefined,
+      tradeApprovalDate:
+        !userData.tradeApprovalDate && data.accountType === AccountType.ORGANIZATION ? new Date() : undefined,
     };
 
     const isPersonalAccount =
@@ -579,6 +580,8 @@ export class UserDataService {
     }
 
     if (update.mail) await this.kycLogService.createMailChangeLog(userData, userData.mail, update.mail);
+    if (update.tradeApprovalDate)
+      await this.createTradeApprovalLog(userData, TradeApprovalReason.ORGANIZATION, update.tradeApprovalDate);
 
     await this.userDataRepo.update(userData.id, update);
 
@@ -624,6 +627,18 @@ export class UserDataService {
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
+  }
+
+  async createTradeApprovalLog(
+    userData: UserData,
+    reason: TradeApprovalReason,
+    tradeApprovalDate?: Date,
+  ): Promise<void> {
+    return this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.KYC,
+      `TradeApprovalDate set to ${(tradeApprovalDate ?? userData.tradeApprovalDate).toISOString()}, reason: ${reason}`,
+    );
   }
 
   // --- MAIL UPDATE --- //
@@ -721,12 +736,45 @@ export class UserDataService {
     return userData;
   }
 
-  // --- SETTINGS UPDATE --- //
-  async updateUserSettings(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
-    // check phone KYC is already started
-    if (userData.kycLevel != KycLevel.LEVEL_0 && (dto.phone === null || dto.phone === ''))
+  // --- PHONE UPDATE --- //
+  async updatePhone(userData: UserData, phone: string): Promise<void> {
+    if (userData.kycLevel !== KycLevel.LEVEL_0 && !phone)
       throw new BadRequestException('KYC already started, user data deletion not allowed');
 
+    const previousPhone = userData.phone;
+
+    await this.userDataRepo.update(userData.id, {
+      phone,
+      phoneCallCheckDate: null,
+      phoneCallIpCheckDate: null,
+      phoneCallIpCountryCheckDate: null,
+    });
+
+    Object.assign(userData, {
+      phone,
+      phoneCallCheckDate: null,
+      phoneCallIpCheckDate: null,
+      phoneCallIpCountryCheckDate: null,
+    });
+
+    // update Sift
+    for (const user of userData.users) {
+      this.siftService.updateAccount({
+        $user_id: user.id.toString(),
+        $time: Date.now(),
+        $phone: phone,
+      });
+    }
+
+    // create KYC step
+    await this.kycService.createCustomKycStep(userData, KycStepName.PHONE_CHANGE, ReviewStatus.COMPLETED, {
+      phone,
+      previousPhone,
+    });
+  }
+
+  // --- SETTINGS UPDATE --- //
+  async updateUserSettings(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     // check language
     if (dto.language) {
       dto.language = await this.languageService.getLanguage(dto.language.id);
@@ -739,17 +787,9 @@ export class UserDataService {
       if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
-    const phoneChanged = dto.phone && dto.phone !== userData.phone;
-
-    const updateSiftAccount: CreateAccount = { $time: Date.now() };
-
-    if (phoneChanged) updateSiftAccount.$phone = dto.phone;
-
-    if (phoneChanged) {
-      for (const user of userData.users) {
-        updateSiftAccount.$user_id = user.id.toString();
-        this.siftService.updateAccount(updateSiftAccount);
-      }
+    // check phone
+    if (dto.phone && dto.phone !== userData.phone) {
+      await this.updatePhone(userData, dto.phone);
     }
 
     await this.userDataRepo.update(...userData.setUserDataSettings(dto));
@@ -828,6 +868,7 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
+
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
@@ -1150,6 +1191,7 @@ export class UserDataService {
     // optional master updates
     if (master.status === UserDataStatus.KYC_ONLY && slave.users.length && slave.wallet) master.wallet = slave.wallet;
     if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
+    if ((!master.wallet || master.wallet.id === Config.defaultWalletId) && slave.wallet) master.wallet = slave.wallet;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
       master.amlListExpiredDate = slave.amlListExpiredDate;
@@ -1164,9 +1206,15 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
-    if (!master.tradeApprovalDate && slave.tradeApprovalDate) master.tradeApprovalDate = slave.tradeApprovalDate;
+    if (!master.tradeApprovalDate && slave.tradeApprovalDate) {
+      master.tradeApprovalDate = slave.tradeApprovalDate;
 
-    const pendingRecommendation = master.kycSteps.find((k) => k.name === KycStepName.RECOMMENDATION && !k.isDone);
+      await this.createTradeApprovalLog(master, TradeApprovalReason.USER_DATA_MERGE);
+    }
+
+    const pendingRecommendation = master.kycSteps.find(
+      (k) => k.name === KycStepName.RECOMMENDATION && (k.isInProgress || k.isInReview),
+    );
     if (master.tradeApprovalDate && pendingRecommendation)
       await this.kycAdminService.updateKycStepInternal(pendingRecommendation.update(ReviewStatus.COMPLETED));
 

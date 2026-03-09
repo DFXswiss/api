@@ -9,6 +9,7 @@ import { PrepareStrategyRegistry } from '../impl/base/prepare.strategy-registry'
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscStrategy } from '../impl/bsc.strategy';
 import { CardanoStrategy } from '../impl/cardano.strategy';
+import { InternetComputerStrategy as IcpStrategy } from '../impl/icp.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
 import { GnosisStrategy } from '../impl/gnosis.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
@@ -36,6 +37,7 @@ describe('PrepareStrategyRegistry', () => {
   let solanaStrategy: SolanaStrategy;
   let tronStrategy: TronStrategy;
   let cardanoStrategy: CardanoStrategy;
+  let icpStrategy: IcpStrategy;
 
   let registry: PrepareStrategyRegistryWrapper;
 
@@ -56,6 +58,7 @@ describe('PrepareStrategyRegistry', () => {
     solanaStrategy = new SolanaStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     tronStrategy = new TronStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     cardanoStrategy = new CardanoStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    icpStrategy = new IcpStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
 
     registry = new PrepareStrategyRegistryWrapper(
       bitcoinStrategy,
@@ -73,6 +76,7 @@ describe('PrepareStrategyRegistry', () => {
       solanaStrategy,
       tronStrategy,
       cardanoStrategy,
+      icpStrategy,
     );
   });
 
@@ -168,6 +172,12 @@ describe('PrepareStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(CardanoStrategy);
       });
 
+      it('gets ICP strategy for INTERNET_COMPUTER', () => {
+        const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.INTERNET_COMPUTER }));
+
+        expect(strategy).toBeInstanceOf(IcpStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPrepareStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -196,6 +206,7 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     solanaStrategy: SolanaStrategy,
     tronStrategy: TronStrategy,
     cardanoStrategy: CardanoStrategy,
+    icpStrategy: IcpStrategy,
   ) {
     super();
 
@@ -215,5 +226,6 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     this.add(Blockchain.SOLANA, solanaStrategy);
     this.add(Blockchain.TRON, tronStrategy);
     this.add(Blockchain.CARDANO, cardanoStrategy);
+    this.add(Blockchain.INTERNET_COMPUTER, icpStrategy);
   }
 }

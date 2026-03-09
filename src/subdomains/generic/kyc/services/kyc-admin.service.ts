@@ -17,6 +17,7 @@ import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { KycNotificationService } from './kyc-notification.service';
 import { KycService } from './kyc.service';
+import { NameCheckService } from './name-check.service';
 
 @Injectable()
 export class KycAdminService {
@@ -28,6 +29,7 @@ export class KycAdminService {
     private readonly kycService: KycService,
     private readonly kycNotificationService: KycNotificationService,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
+    private readonly nameCheckService: NameCheckService,
   ) {}
 
   async getKycSteps(userDataId: number, relations: FindOptionsRelations<KycStep> = {}): Promise<KycStep[]> {
@@ -84,6 +86,11 @@ export class KycAdminService {
           break;
 
         case KycStepName.DFX_APPROVAL:
+          if (await this.nameCheckService.hasOpenNameChecks(kycStep.userData)) {
+            await this.kycStepRepo.update(...kycStep.manualReview(KycError.OPEN_SANCTIONED_NAME_CHECK));
+            break;
+          }
+
           if (kycStep.userData.kycLevel < KycLevel.LEVEL_50)
             await this.userDataService.updateUserDataInternal(kycStep.userData, {
               kycLevel: KycLevel.LEVEL_50,

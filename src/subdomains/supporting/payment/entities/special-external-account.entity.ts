@@ -12,9 +12,14 @@ export enum SpecialExternalAccountType {
   BANNED_BIC_BUY = 'BannedBicBuy',
   BANNED_BIC_SELL = 'BannedBicSell',
   BANNED_BIC_AML = 'BannedBicAml',
+  BANNED_BLZ = 'BannedBlz',
+  BANNED_BLZ_BUY = 'BannedBlzBuy',
+  BANNED_BLZ_SELL = 'BannedBlzSell',
+  BANNED_BLZ_AML = 'BannedBlzAml',
   BANNED_MAIL = 'BannedMail',
   BANNED_ACCOUNT_IBAN = 'BannedAccountIban',
   AML_PHONE_CALL_NEEDED_BIC_BUY = 'AmlPhoneCallNeededBicBuy',
+  AML_PHONE_CALL_NEEDED_BLZ_BUY = 'AmlPhoneCallNeededBlzBuy',
   AML_PHONE_CALL_NEEDED_IBAN_BUY = 'AmlPhoneCallNeededIbanBuy',
 }
 

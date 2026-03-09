@@ -5,7 +5,6 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import {
   Address,
-  Chain,
   createPublicClient,
   createWalletClient,
   encodeAbiParameters,
@@ -16,10 +15,18 @@ import {
   parseAbi,
 } from 'viem';
 import { privateKeyToAccount, signTypedData } from 'viem/accounts';
-import { arbitrum, base, bsc, gnosis, mainnet, optimism, polygon, sepolia } from 'viem/chains';
 import { WalletAccount } from '../domain/wallet-account';
 import { EvmUtil } from '../evm.util';
 import DELEGATION_MANAGER_ABI from './delegation-manager.abi.json';
+
+interface Eip7702Authorization {
+  chainId: string | number;
+  address: string;
+  nonce: string | number;
+  r: string;
+  s: string;
+  yParity: number;
+}
 
 // Contract addresses (same on all EVM chains via CREATE2)
 const DELEGATOR_ADDRESS = '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b' as Address;
@@ -34,17 +41,8 @@ const CALLTYPE_SINGLE = '0x00000000000000000000000000000000000000000000000000000
 // ERC20 transfer function
 const ERC20_ABI = parseAbi(['function transfer(address to, uint256 amount) returns (bool)']);
 
-// Unified chain configuration: viem chain + config keys
-const CHAIN_CONFIG: Partial<Record<Blockchain, { chain: Chain; configKey: string; prefix: string }>> = {
-  [Blockchain.ETHEREUM]: { chain: mainnet, configKey: 'ethereum', prefix: 'eth' },
-  [Blockchain.ARBITRUM]: { chain: arbitrum, configKey: 'arbitrum', prefix: 'arbitrum' },
-  [Blockchain.OPTIMISM]: { chain: optimism, configKey: 'optimism', prefix: 'optimism' },
-  [Blockchain.POLYGON]: { chain: polygon, configKey: 'polygon', prefix: 'polygon' },
-  [Blockchain.BASE]: { chain: base, configKey: 'base', prefix: 'base' },
-  [Blockchain.BINANCE_SMART_CHAIN]: { chain: bsc, configKey: 'bsc', prefix: 'bsc' },
-  [Blockchain.GNOSIS]: { chain: gnosis, configKey: 'gnosis', prefix: 'gnosis' },
-  [Blockchain.SEPOLIA]: { chain: sepolia, configKey: 'sepolia', prefix: 'sepolia' },
-};
+// ERC677 transferAndCall function (used by REALU token for BrokerBot interaction)
+const ERC677_ABI = parseAbi(['function transferAndCall(address to, uint256 value, bytes data) returns (bool)']);
 
 // Delegation struct type
 interface Caveat {
@@ -87,14 +85,14 @@ export class Eip7702DelegationService {
     const expectedBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
       ? Blockchain.SEPOLIA
       : Blockchain.ETHEREUM;
-    return blockchain === expectedBlockchain && CHAIN_CONFIG[blockchain] !== undefined;
+    return blockchain === expectedBlockchain && EvmUtil.hasViemChainConfig(blockchain);
   }
 
   /**
    * Check if user has zero native token balance
    */
   async hasZeroNativeBalance(userAddress: string, blockchain: Blockchain): Promise<boolean> {
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
     if (!chainConfig) return false;
 
     try {
@@ -175,14 +173,13 @@ export class Eip7702DelegationService {
     types: any;
     message: any;
   }> {
-    const chainConfig = CHAIN_CONFIG[blockchain];
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
     if (!chainConfig) throw new Error(`No chain config found for ${blockchain}`);
 
     // Fetch user's current account nonce for EIP-7702 authorization
-    const fullChainConfig = this.getChainConfig(blockchain);
     const publicClient = createPublicClient({
       chain: chainConfig.chain,
-      transport: http(fullChainConfig.rpcUrl),
+      transport: http(chainConfig.rpcUrl),
     });
 
     const userNonce = Number(await publicClient.getTransactionCount({ address: userAddress as Address }));
@@ -250,7 +247,7 @@ export class Eip7702DelegationService {
       salt: string;
       signature: string;
     },
-    authorization: any,
+    authorization: Eip7702Authorization,
   ): Promise<string> {
     if (!this.isDelegationSupported(token.blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for ${token.blockchain}`);
@@ -266,14 +263,17 @@ export class Eip7702DelegationService {
   }
 
   /**
-   * Execute token transfer for RealUnit (bypasses global disable)
-   * RealUnit app supports eth_sign, so EIP-7702 works unlike MetaMask
+   * Execute BrokerBot sell for RealUnit via EIP-7702 delegation
+   * Atomic batch: REALU -> BrokerBot (via transferAndCall) + ZCHF -> DFX Deposit (via transfer)
    */
-  async transferTokenWithUserDelegationForRealUnit(
+  async executeBrokerBotSellForRealUnit(
     userAddress: string,
-    token: Asset,
-    recipient: string,
-    amount: number,
+    realuToken: Asset,
+    zchfTokenAddress: string,
+    brokerbotAddress: string,
+    dfxDepositAddress: string,
+    realuAmount: number,
+    zchfAmountWei: bigint,
     signedDelegation: {
       delegate: string;
       delegator: string;
@@ -281,19 +281,187 @@ export class Eip7702DelegationService {
       salt: string;
       signature: string;
     },
-    authorization: any,
+    authorization: Eip7702Authorization,
   ): Promise<string> {
-    if (!this.isDelegationSupportedForRealUnit(token.blockchain)) {
-      throw new Error(`EIP-7702 delegation not supported for RealUnit on ${token.blockchain}`);
+    if (!this.isDelegationSupportedForRealUnit(realuToken.blockchain)) {
+      throw new Error(`EIP-7702 delegation not supported for RealUnit on ${realuToken.blockchain}`);
     }
-    return this._transferTokenWithUserDelegationInternal(
+    return this._executeBrokerBotSellInternal(
       userAddress,
-      token,
-      recipient,
-      amount,
+      realuToken,
+      zchfTokenAddress,
+      brokerbotAddress,
+      dfxDepositAddress,
+      realuAmount,
+      zchfAmountWei,
       signedDelegation,
       authorization,
     );
+  }
+
+  /**
+   * Internal implementation for BrokerBot sell with atomic batch delegation
+   */
+  private async _executeBrokerBotSellInternal(
+    userAddress: string,
+    realuToken: Asset,
+    zchfTokenAddress: string,
+    brokerbotAddress: string,
+    dfxDepositAddress: string,
+    realuAmount: number,
+    zchfAmountWei: bigint,
+    signedDelegation: {
+      delegate: string;
+      delegator: string;
+      authority: string;
+      salt: string;
+      signature: string;
+    },
+    authorization: Eip7702Authorization,
+  ): Promise<string> {
+    const blockchain = realuToken.blockchain;
+
+    // Input validation
+    if (!realuAmount || realuAmount <= 0) {
+      throw new Error(`Invalid REALU amount: ${realuAmount}`);
+    }
+    if (!dfxDepositAddress || !/^0x[a-fA-F0-9]{40}$/.test(dfxDepositAddress)) {
+      throw new Error(`Invalid DFX deposit address: ${dfxDepositAddress}`);
+    }
+    if (!realuToken.chainId || !/^0x[a-fA-F0-9]{40}$/.test(realuToken.chainId)) {
+      throw new Error(`Invalid REALU token contract address: ${realuToken.chainId}`);
+    }
+    if (!brokerbotAddress || !/^0x[a-fA-F0-9]{40}$/.test(brokerbotAddress)) {
+      throw new Error(`Invalid BrokerBot address: ${brokerbotAddress}`);
+    }
+    if (!zchfTokenAddress || !/^0x[a-fA-F0-9]{40}$/.test(zchfTokenAddress)) {
+      throw new Error(`Invalid ZCHF token address: ${zchfTokenAddress}`);
+    }
+
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
+    if (!chainConfig) {
+      throw new Error(`No chain config found for ${blockchain}`);
+    }
+
+    // Get relayer account
+    const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
+    const relayerAccount = privateKeyToAccount(relayerPrivateKey);
+
+    // Create clients
+    const publicClient = createPublicClient({
+      chain: chainConfig.chain,
+      transport: http(chainConfig.rpcUrl),
+    });
+
+    const walletClient = createWalletClient({
+      account: relayerAccount,
+      chain: chainConfig.chain,
+      transport: http(chainConfig.rpcUrl),
+    });
+
+    // 1. Rebuild delegation from signed data
+    const delegation: Delegation = {
+      delegate: signedDelegation.delegate as Address,
+      delegator: signedDelegation.delegator as Address,
+      authority: signedDelegation.authority as Hex,
+      caveats: [],
+      salt: BigInt(signedDelegation.salt),
+      signature: signedDelegation.signature as Hex,
+    };
+
+    // 2. Encode Call 1: REALU -> BrokerBot via ERC-677 transferAndCall
+    const realuAmountWei = BigInt(EvmUtil.toWeiAmount(realuAmount, realuToken.decimals).toString());
+    const transferAndCallData = encodeFunctionData({
+      abi: ERC677_ABI,
+      functionName: 'transferAndCall',
+      args: [brokerbotAddress as Address, realuAmountWei, '0x' as Hex],
+    });
+    const executionData1 = encodePacked(
+      ['address', 'uint256', 'bytes'],
+      [realuToken.chainId as Address, 0n, transferAndCallData],
+    );
+
+    // 3. Encode Call 2: ZCHF -> DFX Deposit via ERC-20 transfer
+    const zchfTransferData = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: 'transfer',
+      args: [dfxDepositAddress as Address, zchfAmountWei],
+    });
+    const executionData2 = encodePacked(
+      ['address', 'uint256', 'bytes'],
+      [zchfTokenAddress as Address, 0n, zchfTransferData],
+    );
+
+    // 4. Encode permission context (same delegation for both calls)
+    const permissionContext = this.encodePermissionContext([delegation]);
+
+    // 5. Encode redeemDelegations call with batch (2 calls)
+    const redeemData = encodeFunctionData({
+      abi: DELEGATION_MANAGER_ABI,
+      functionName: 'redeemDelegations',
+      args: [
+        [permissionContext, permissionContext],
+        [CALLTYPE_SINGLE, CALLTYPE_SINGLE],
+        [executionData1, executionData2],
+      ],
+    });
+
+    // Use EIP-1559 gas parameters with dynamic fee estimation
+    const block = await publicClient.getBlock();
+    const maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas();
+    const maxFeePerGas = block.baseFeePerGas
+      ? block.baseFeePerGas * 2n + maxPriorityFeePerGas
+      : maxPriorityFeePerGas * 2n;
+
+    // Higher gas limit for BrokerBot interaction + 2 token transfers
+    const gasLimit = 500000n;
+
+    const estimatedGasCost = (maxFeePerGas * gasLimit) / BigInt(1e18);
+    this.logger.verbose(
+      `Executing BrokerBot sell on ${blockchain}: ${realuAmount} REALU ` +
+        `from ${userAddress} via BrokerBot ${brokerbotAddress} -> ZCHF to ${dfxDepositAddress} ` +
+        `(gasLimit: ${gasLimit}, estimatedCost: ~${estimatedGasCost} native)`,
+    );
+
+    // Get nonce and chain ID
+    const nonce = await publicClient.getTransactionCount({ address: relayerAccount.address });
+    const chainId = await publicClient.getChainId();
+
+    // Convert authorization to Viem format
+    const viemAuthorization = {
+      chainId: BigInt(authorization.chainId),
+      address: authorization.address as Address,
+      nonce: BigInt(authorization.nonce),
+      r: authorization.r as Hex,
+      s: authorization.s as Hex,
+      yParity: authorization.yParity,
+    };
+
+    // Manually construct complete transaction to bypass viem's gas validation
+    const transaction = {
+      from: relayerAccount.address as Address,
+      to: DELEGATION_MANAGER_ADDRESS,
+      data: redeemData,
+      value: 0n,
+      nonce,
+      chainId,
+      gas: gasLimit,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+      authorizationList: [viemAuthorization],
+      type: 'eip7702' as const,
+    };
+
+    // Sign and broadcast transaction
+    const signedTx = await walletClient.signTransaction(transaction as any);
+    const txHash = await walletClient.sendRawTransaction({ serializedTransaction: signedTx as `0x${string}` });
+
+    this.logger.info(
+      `BrokerBot sell successful on ${blockchain}: ` +
+        `${realuAmount} REALU -> ZCHF to ${dfxDepositAddress} | TX: ${txHash}`,
+    );
+
+    return txHash;
   }
 
   /**
@@ -311,7 +479,7 @@ export class Eip7702DelegationService {
       salt: string;
       signature: string;
     },
-    authorization: any,
+    authorization: Eip7702Authorization,
   ): Promise<string> {
     const blockchain = token.blockchain;
 
@@ -326,7 +494,7 @@ export class Eip7702DelegationService {
       throw new Error(`Invalid token contract address: ${token.chainId}`);
     }
 
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
@@ -466,7 +634,7 @@ export class Eip7702DelegationService {
       throw new Error(`EIP-7702 delegation not supported for ${blockchain}`);
     }
 
-    const chainConfig = this.getChainConfig(blockchain);
+    const chainConfig = EvmUtil.getViemChainConfig(blockchain);
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
@@ -673,23 +841,10 @@ export class Eip7702DelegationService {
   }
 
   /**
-   * Get chain configuration for viem
-   */
-  private getChainConfig(blockchain: Blockchain): { chain: Chain; rpcUrl: string } | undefined {
-    const config = CHAIN_CONFIG[blockchain];
-    if (!config) return undefined;
-
-    const chainConfig = this.config[config.configKey];
-    const rpcUrl = `${chainConfig[`${config.prefix}GatewayUrl`]}/${chainConfig[`${config.prefix}ApiKey`] ?? ''}`;
-
-    return { chain: config.chain, rpcUrl };
-  }
-
-  /**
    * Get relayer private key for the blockchain
    */
   private getRelayerPrivateKey(blockchain: Blockchain): Hex {
-    const config = CHAIN_CONFIG[blockchain];
+    const config = EvmUtil.getViemChainConfig(blockchain);
     if (!config) throw new Error(`No config found for ${blockchain}`);
 
     const key = this.config[config.configKey][`${config.prefix}WalletPrivateKey`];

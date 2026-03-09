@@ -34,6 +34,7 @@ import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInPolygonService } from './services/payin-polygon.service';
 import { PayInSepoliaService } from './services/payin-sepolia.service';
 import { PayInSolanaService } from './services/payin-solana.service';
+import { PayInInternetComputerService } from './services/payin-icp.service';
 import { PayInTronService } from './services/payin-tron.service';
 import { PayInZanoService } from './services/payin-zano.service';
 import { PayInService } from './services/payin.service';
@@ -57,6 +58,7 @@ import { PolygonStrategy as PolygonStrategyR } from './strategies/register/impl/
 import { SepoliaStrategy as SepoliaStrategyR } from './strategies/register/impl/sepolia.strategy';
 import { SolanaStrategy as SolanaStrategyR } from './strategies/register/impl/solana.strategy';
 import { TronStrategy as TronStrategyR } from './strategies/register/impl/tron.strategy';
+import { InternetComputerStrategy as InternetComputerStrategyR } from './strategies/register/impl/icp.strategy';
 import { ZanoStrategy as ZanoStrategyR } from './strategies/register/impl/zano.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
@@ -69,6 +71,8 @@ import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
 import { CardanoCoinStrategy as CardanoCoinStrategyS } from './strategies/send/impl/cardano-coin.strategy';
 import { CardanoTokenStrategy as CardanoTokenStrategyS } from './strategies/send/impl/cardano-token.strategy';
+import { InternetComputerCoinStrategy as InternetComputerCoinStrategyS } from './strategies/send/impl/icp-coin.strategy';
+import { InternetComputerTokenStrategy as InternetComputerTokenStrategyS } from './strategies/send/impl/icp-token.strategy';
 import { CitreaCoinStrategy as CitreaCoinStrategyS } from './strategies/send/impl/citrea-coin.strategy';
 import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyS } from './strategies/send/impl/citrea-testnet-coin.strategy';
 import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyS } from './strategies/send/impl/citrea-testnet-token.strategy';
@@ -133,6 +137,7 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     PayInGnosisService,
     PayInTronService,
     PayInCardanoService,
+    PayInInternetComputerService,
     PayInCitreaService,
     PayInCitreaTestnetService,
     RegisterStrategyRegistry,
@@ -181,6 +186,9 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
     CardanoStrategyR,
     CardanoCoinStrategyS,
     CardanoTokenStrategyS,
+    InternetComputerStrategyR,
+    InternetComputerCoinStrategyS,
+    InternetComputerTokenStrategyS,
     CitreaStrategyR,
     CitreaCoinStrategyS,
     CitreaTokenStrategyS,

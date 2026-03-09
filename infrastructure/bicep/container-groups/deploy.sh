@@ -9,8 +9,10 @@ API_NAME="api"
 environmentOptions=("loc" "dev" "prd")
 
 # "hb-deuro-usdt": Hummingbot (dEURO/USDT)
+# "hb-jusd-usdt":  Hummingbot (JuiceDollar/USDT)
 # "hb-deps-usdt":  Hummingbot (dEPS/USDT)
-instanceNameOptions=("hb-deuro-usdt" "hb-deps-usdt")
+# "rk":            RangeKeeper Liquidity Bot
+instanceNameOptions=("hb-deuro-usdt" "hb-jusd-usdt" "hb-deps-usdt" "rk")
 
 # --- ARGUMENTS --- #
 DOCKER_USERNAME=

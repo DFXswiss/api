@@ -32,6 +32,10 @@ export class RealUnitDtoMapper {
 
     const historicalBalancesFilled = TimeseriesUtils.fillMissingDates(historicalBalances);
 
+    if (historicalBalancesFilled.length > 0) {
+      historicalBalancesFilled[historicalBalancesFilled.length - 1].balance = account.balance;
+    }
+
     dto.historicalBalances = historicalBalancesFilled.map((hb) => {
       const price = historicalPricesMap.get(Util.isoDate(hb.created));
       return {

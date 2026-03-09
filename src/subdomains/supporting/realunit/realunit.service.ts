@@ -53,6 +53,7 @@ import { PriceCurrency, PriceValidity, PricingService } from '../pricing/service
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
+  HistoryEventType,
   HoldersClientResponse,
   TokenInfoClientResponse,
 } from './dto/client.dto';
@@ -74,6 +75,7 @@ import {
   AccountHistoryDto,
   AccountSummaryDto,
   HistoricalPriceDto,
+  HistoryEventDto,
   HoldersDto,
   RealUnitBuyDto,
   RealUnitPaymentInfoDto,
@@ -147,12 +149,69 @@ export class RealUnitService {
     return RealUnitDtoMapper.toAccountHistoryDto(clientResponse);
   }
 
-  private async getRealuAsset(): Promise<Asset> {
+  async getHistoryEventByTxHash(address: string, txHash: string): Promise<HistoryEventDto> {
+    const normalizedTxHash = txHash.toLowerCase();
+    let cursor: string | undefined;
+
+    while (true) {
+      const history = await this.getAccountHistory(address, 100, cursor);
+
+      const event = history.history.find(
+        (e) => e.txHash.toLowerCase() === normalizedTxHash && e.eventType === HistoryEventType.TRANSFER,
+      );
+
+      if (event) return event;
+
+      if (!history.pageInfo.hasNextPage) break;
+      cursor = history.pageInfo.endCursor;
+    }
+
+    throw new NotFoundException('Transaction not found in account history');
+  }
+
+  async getHistoryEventsByTxHashes(address: string, txHashes: string[]): Promise<HistoryEventDto[]> {
+    const normalizedHashes = new Set(txHashes.map((h) => h.toLowerCase()));
+    const foundEvents: HistoryEventDto[] = [];
+    let cursor: string | undefined;
+
+    while (foundEvents.length < txHashes.length) {
+      const history = await this.getAccountHistory(address, 100, cursor);
+
+      for (const event of history.history) {
+        if (
+          normalizedHashes.has(event.txHash.toLowerCase()) &&
+          event.eventType === HistoryEventType.TRANSFER &&
+          !foundEvents.some((e) => e.txHash.toLowerCase() === event.txHash.toLowerCase())
+        ) {
+          foundEvents.push(event);
+        }
+      }
+
+      if (!history.pageInfo.hasNextPage) break;
+      cursor = history.pageInfo.endCursor;
+    }
+
+    return foundEvents;
+  }
+
+  async getRealuAsset(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
       name: this.tokenName,
       blockchain: this.tokenBlockchain,
       type: AssetType.TOKEN,
     });
+  }
+
+  private async getZchfAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: 'ZCHF',
+      blockchain: this.tokenBlockchain,
+      type: AssetType.TOKEN,
+    });
+  }
+
+  private getBrokerbotAddress(): string {
+    return GetConfig().blockchain.realunit.brokerbotAddress;
   }
 
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
@@ -183,12 +242,24 @@ export class RealUnitService {
   }
 
   async getHistoricalPrice(timeFrame: TimeFrame): Promise<HistoricalPriceDto[]> {
-    return this.historicalPriceCache.get(timeFrame, async () => {
+    const historicalPrices = await this.historicalPriceCache.get(timeFrame, async () => {
       const startDate = await this.getHistoricalPriceStartDate(timeFrame);
       const prices = await this.assetPricesService.getAssetPrices([await this.getRealuAsset()], startDate);
       const filledPrices = TimeseriesUtils.fillMissingDates(prices);
       return RealUnitDtoMapper.assetPricesToHistoricalPricesDto(filledPrices);
     });
+
+    if (historicalPrices.length > 0) {
+      const currentPrice = await this.getRealUnitPrice();
+      historicalPrices[historicalPrices.length - 1] = {
+        timestamp: currentPrice.timestamp,
+        chf: currentPrice.chf,
+        eur: currentPrice.eur,
+        usd: currentPrice.usd,
+      };
+    }
+
+    return historicalPrices;
   }
 
   async getRealUnitInfo(): Promise<TokenInfoDto> {
@@ -212,7 +283,8 @@ export class RealUnitService {
   }
 
   async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
-    return this.blockchainService.getBrokerbotInfo();
+    const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    return this.blockchainService.getBrokerbotInfo(this.getBrokerbotAddress(), realuAsset.chainId, zchfAsset.chainId);
   }
 
   // --- Buy Payment Info Methods ---
@@ -955,12 +1027,22 @@ export class RealUnitService {
         throw new BadRequestException('Delegation delegator does not match user address');
       }
 
-      // Execute gasless transfer via EIP-7702 delegation (ForRealUnit bypasses global disable)
-      txHash = await this.eip7702DelegationService.transferTokenWithUserDelegationForRealUnit(
+      // Calculate expected ZCHF amount from BrokerBot
+      // If price drops between quote and execution, transaction reverts safely and user can retry
+      const [{ zchfAmountWei }, zchfAsset] = await Promise.all([
+        this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), Math.floor(request.amount)),
+        this.getZchfAsset(),
+      ]);
+
+      // Atomic batch: REALU -> BrokerBot -> ZCHF -> DFX Deposit
+      txHash = await this.eip7702DelegationService.executeBrokerBotSellForRealUnit(
         request.user.address,
         realuAsset,
+        zchfAsset.chainId,
+        this.getBrokerbotAddress(),
         sell.deposit.address,
-        request.amount,
+        Math.floor(request.amount),
+        zchfAmountWei,
         dto.eip7702.delegation,
         dto.eip7702.authorization,
       );

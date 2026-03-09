@@ -15,6 +15,8 @@ import { EthereumService } from '../../ethereum/ethereum.service';
 import { FiroClient } from '../../firo/firo-client';
 import { FiroService } from '../../firo/services/firo.service';
 import { GnosisService } from '../../gnosis/gnosis.service';
+import { InternetComputerClient } from '../../icp/icp-client';
+import { InternetComputerService } from '../../icp/services/icp.service';
 import { MoneroClient } from '../../monero/monero-client';
 import { MoneroService } from '../../monero/services/monero.service';
 import { OptimismService } from '../../optimism/optimism.service';
@@ -44,7 +46,8 @@ type BlockchainClientType =
   | ZanoClient
   | SolanaClient
   | TronClient
-  | CardanoClient;
+  | CardanoClient
+  | InternetComputerClient;
 
 type BlockchainServiceType =
   | EvmService
@@ -56,7 +59,8 @@ type BlockchainServiceType =
   | ZanoService
   | SolanaService
   | TronService
-  | CardanoService;
+  | CardanoService
+  | InternetComputerService;
 
 type CoinOnlyServiceType = BlockchainServiceType | LightningService;
 
@@ -89,6 +93,7 @@ export class BlockchainRegistryService {
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
     private readonly cardanoService: CardanoService,
+    private readonly internetComputerService: InternetComputerService,
     private readonly citreaService: CitreaService,
     private readonly citreaTestnetService: CitreaTestnetService,
     private readonly bitcoinTestnet4Service: BitcoinTestnet4Service,
@@ -162,6 +167,8 @@ export class BlockchainRegistryService {
         return this.tronService;
       case Blockchain.CARDANO:
         return this.cardanoService;
+      case Blockchain.INTERNET_COMPUTER:
+        return this.internetComputerService;
       case Blockchain.CITREA:
         return this.citreaService;
       case Blockchain.CITREA_TESTNET:

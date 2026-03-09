@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 100
+    },
+    "containerImage": {
+      "value": "dfxswiss/rangekeeper:latest"
+    },
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "name": "volume",
+          "mountPath": "/app/data",
+          "readOnly": false
+        }
+      ]
+    },
+    "containerCPU": {
+      "value": "0.5"
+    },
+    "containerMemory": {
+      "value": 1
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "DEPLOY_INFO",
+          "value": ""
+        }
+      ]
+    },
+    "containerCommand": {
+      "value": []
+    }
+  }
+}
