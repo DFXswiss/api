@@ -87,6 +87,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.LIGHTNING:
+        case Blockchain.SPARK:
         case Blockchain.FIRO:
         case Blockchain.MONERO:
           await this.updateCoinOnlyBalance(assets);

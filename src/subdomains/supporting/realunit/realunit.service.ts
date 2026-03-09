@@ -11,6 +11,7 @@ import { request } from 'graphql-request';
 import { Config, Environment, GetConfig } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotCurrency,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
@@ -53,6 +54,7 @@ import { PriceCurrency, PriceValidity, PricingService } from '../pricing/service
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
+  HistoryEventType,
   HoldersClientResponse,
   TokenInfoClientResponse,
 } from './dto/client.dto';
@@ -74,6 +76,7 @@ import {
   AccountHistoryDto,
   AccountSummaryDto,
   HistoricalPriceDto,
+  HistoryEventDto,
   HoldersDto,
   RealUnitBuyDto,
   RealUnitPaymentInfoDto,
@@ -147,7 +150,52 @@ export class RealUnitService {
     return RealUnitDtoMapper.toAccountHistoryDto(clientResponse);
   }
 
-  private async getRealuAsset(): Promise<Asset> {
+  async getHistoryEventByTxHash(address: string, txHash: string): Promise<HistoryEventDto> {
+    const normalizedTxHash = txHash.toLowerCase();
+    let cursor: string | undefined;
+
+    while (true) {
+      const history = await this.getAccountHistory(address, 100, cursor);
+
+      const event = history.history.find(
+        (e) => e.txHash.toLowerCase() === normalizedTxHash && e.eventType === HistoryEventType.TRANSFER,
+      );
+
+      if (event) return event;
+
+      if (!history.pageInfo.hasNextPage) break;
+      cursor = history.pageInfo.endCursor;
+    }
+
+    throw new NotFoundException('Transaction not found in account history');
+  }
+
+  async getHistoryEventsByTxHashes(address: string, txHashes: string[]): Promise<HistoryEventDto[]> {
+    const normalizedHashes = new Set(txHashes.map((h) => h.toLowerCase()));
+    const foundEvents: HistoryEventDto[] = [];
+    let cursor: string | undefined;
+
+    while (foundEvents.length < txHashes.length) {
+      const history = await this.getAccountHistory(address, 100, cursor);
+
+      for (const event of history.history) {
+        if (
+          normalizedHashes.has(event.txHash.toLowerCase()) &&
+          event.eventType === HistoryEventType.TRANSFER &&
+          !foundEvents.some((e) => e.txHash.toLowerCase() === event.txHash.toLowerCase())
+        ) {
+          foundEvents.push(event);
+        }
+      }
+
+      if (!history.pageInfo.hasNextPage) break;
+      cursor = history.pageInfo.endCursor;
+    }
+
+    return foundEvents;
+  }
+
+  async getRealuAsset(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
       name: this.tokenName,
       blockchain: this.tokenBlockchain,
@@ -223,21 +271,26 @@ export class RealUnitService {
 
   // --- Brokerbot Methods ---
 
-  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
-    return this.blockchainService.getBrokerbotPrice();
+  async getBrokerbotPrice(currency?: BrokerbotCurrency): Promise<BrokerbotPriceDto> {
+    return this.blockchainService.getBrokerbotPrice(currency);
   }
 
-  async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
-    return this.blockchainService.getBrokerbotBuyPrice(shares);
+  async getBrokerbotBuyPrice(shares: number, currency?: BrokerbotCurrency): Promise<BrokerbotBuyPriceDto> {
+    return this.blockchainService.getBrokerbotBuyPrice(shares, currency);
   }
 
-  async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
-    return this.blockchainService.getBrokerbotShares(amountChf);
+  async getBrokerbotShares(amount: string, currency?: BrokerbotCurrency): Promise<BrokerbotSharesDto> {
+    return this.blockchainService.getBrokerbotShares(amount, currency);
   }
 
-  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
+  async getBrokerbotInfo(currency?: BrokerbotCurrency): Promise<BrokerbotInfoDto> {
     const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
-    return this.blockchainService.getBrokerbotInfo(this.getBrokerbotAddress(), realuAsset.chainId, zchfAsset.chainId);
+    return this.blockchainService.getBrokerbotInfo(
+      this.getBrokerbotAddress(),
+      realuAsset.chainId,
+      zchfAsset.chainId,
+      currency,
+    );
   }
 
   // --- Buy Payment Info Methods ---

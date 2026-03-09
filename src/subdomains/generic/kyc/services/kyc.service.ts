@@ -47,7 +47,9 @@ import { IdNowReason, IdNowResult, IdentShortResult, getIdNowIdentReason } from 
 import { IdentDocument } from '../dto/ident.dto';
 import {
   ContactPersonData,
+  KycAddress,
   KycBeneficialData,
+  KycChangeAddressData,
   KycContactData,
   KycFileData,
   KycLegalEntityData,
@@ -178,22 +180,7 @@ export class KycService {
         const result = entity.getResult<KycNationalityData>();
         const nationality = await this.countryService.getCountry(result.nationality.id);
 
-        //Skip nationalities which needs a residencePermit first
-        if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) continue;
-
-        const errors = this.getNationalityErrors(entity, nationality);
-        const comment = errors.join(';');
-
-        if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
-          await this.kycStepRepo.update(...entity.ignored(comment));
-        } else if (errors.length > 0) {
-          await this.kycStepRepo.update(...entity.manualReview(comment));
-        } else {
-          await this.kycStepRepo.update(...entity.complete());
-          await this.checkDfxApproval(entity);
-        }
-
-        await this.createStepLog(entity.userData, entity);
+        await this.reviewNationalityData(entity, entity.userData, nationality);
       } catch (e) {
         this.logger.error(`Failed to auto review nationality step ${entity.id}:`, e);
       }
@@ -586,19 +573,28 @@ export class KycService {
     data: Partial<UserData>,
     reviewStatus: ReviewStatus,
   ): Promise<KycStepBase> {
-    let user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    if (data.nationality) {
-      const nationality = await this.countryService.getCountry(data.nationality.id);
-      if (!nationality) throw new BadRequestException('Nationality not found');
-
-      Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
-    } else {
-      user = await this.userDataService.updateUserDataInternal(user, data);
-    }
+    await this.userDataService.updateUserDataInternal(user, data);
 
     return this.updateKycStepAndLog(kycStep, user, data, reviewStatus);
+  }
+
+  async updateNationalityStep(kycHash: string, stepId: number, data: KycNationalityData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    const nationality = await this.countryService.getCountry(data.nationality.id);
+    if (!nationality) throw new BadRequestException('Nationality not found');
+
+    Object.assign(data.nationality, { id: nationality.id, symbol: nationality.symbol });
+
+    await this.reviewNationalityData(kycStep, user, nationality, data);
+
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
   }
 
   async updateBeneficialOwnerData(kycHash: string, stepId: number, data: KycBeneficialData): Promise<KycStepBase> {
@@ -706,6 +702,37 @@ export class KycService {
     await this.updateProgress(user, false);
 
     return KycStepMapper.toStepBase(kycStep);
+  }
+
+  async updateAddressChangeData(kycHash: string, stepId: number, data: KycChangeAddressData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    // upload file
+    const { contentType, buffer } = Util.fromBase64(data.file);
+    const { url } = await this.documentService.uploadUserFile(
+      user,
+      FileType.ADDRESS_CHANGE,
+      data.fileName,
+      buffer,
+      contentType as ContentType,
+      false,
+      kycStep,
+    );
+
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, { url, address: data.address }));
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
+  }
+
+  async completeAddressChange(kycStep: KycStep): Promise<void> {
+    const result = kycStep.getResult<{ url: string; address: KycAddress }>();
+    if (!result?.address) return;
+
+    await this.userDataService.updateUserAddress(kycStep.userData, result.address);
   }
 
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
@@ -1192,7 +1219,12 @@ export class KycService {
 
         if (user.kycLevel >= KycLevel.LEVEL_50) {
           kycStep.complete();
-        } else if (missingCompletedSteps.length === 1) {
+        } else if (
+          !missingCompletedSteps.length ||
+          (missingCompletedSteps.length === 1 &&
+            missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
+            kycStep.name !== KycStepName.DFX_APPROVAL)
+        ) {
           kycStep.manualReview();
         } else {
           kycStep.onHold();
@@ -1409,6 +1441,46 @@ export class KycService {
     if (!nationality.nationalityEnable) errors.push(KycError.NATIONALITY_NOT_ALLOWED);
 
     return errors;
+  }
+
+  private async reviewNationalityData(
+    kycStep: KycStep,
+    user: UserData,
+    nationality: Country,
+    data?: KycStepResult,
+  ): Promise<void> {
+    if (Config.kyc.residencePermitCountries.includes(nationality.symbol)) {
+      if (data) {
+        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.INTERNAL_REVIEW, data));
+        await this.createStepLog(user, kycStep);
+      }
+      return;
+    }
+
+    const errors = this.getNationalityErrors(kycStep, nationality);
+    const comment = errors.join(';');
+
+    if (data) {
+      if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
+        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.IGNORED, data, comment));
+      } else if (errors.length > 0) {
+        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.MANUAL_REVIEW, data, comment));
+      } else {
+        await this.kycStepRepo.update(...kycStep.update(ReviewStatus.COMPLETED, data));
+        await this.checkDfxApproval(kycStep);
+      }
+    } else {
+      if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
+        await this.kycStepRepo.update(...kycStep.ignored(comment));
+      } else if (errors.length > 0) {
+        await this.kycStepRepo.update(...kycStep.manualReview(comment));
+      } else {
+        await this.kycStepRepo.update(...kycStep.complete());
+        await this.checkDfxApproval(kycStep);
+      }
+    }
+
+    await this.createStepLog(user, kycStep);
   }
 
   private getFinancialDataErrors(entity: KycStep): KycError[] {

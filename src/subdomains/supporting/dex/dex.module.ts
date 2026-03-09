@@ -25,6 +25,7 @@ import { DexOptimismService } from './services/dex-optimism.service';
 import { DexPolygonService } from './services/dex-polygon.service';
 import { DexSepoliaService } from './services/dex-sepolia.service';
 import { DexSolanaService } from './services/dex-solana.service';
+import { DexSparkService } from './services/dex-spark.service';
 import { DexTronService } from './services/dex-tron.service';
 import { DexZanoService } from './services/dex-zano.service';
 import { DexService } from './services/dex.service';
@@ -60,6 +61,7 @@ import { SepoliaCoinStrategy as SepoliaCoinStrategyCL } from './strategies/check
 import { SepoliaTokenStrategy as SepoliaTokenStrategyCL } from './strategies/check-liquidity/impl/sepolia-token.strategy';
 import { SolanaCoinStrategy as SolanaCoinStrategyCL } from './strategies/check-liquidity/impl/solana-coin.strategy';
 import { SolanaTokenStrategy as SolanaTokenStrategyCL } from './strategies/check-liquidity/impl/solana-token.strategy';
+import { SparkStrategy as SparkStrategyCL } from './strategies/check-liquidity/impl/spark.strategy';
 import { TronCoinStrategy as TronCoinStrategyCL } from './strategies/check-liquidity/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyCL } from './strategies/check-liquidity/impl/tron-token.strategy';
 import { ZanoCoinStrategy as ZanoCoinStrategyCL } from './strategies/check-liquidity/impl/zano-coin.strategy';
@@ -95,6 +97,7 @@ import { SepoliaCoinStrategy as SepoliaCoinStrategyPL } from './strategies/purch
 import { SepoliaTokenStrategy as SepoliaTokenStrategyPL } from './strategies/purchase-liquidity/impl/sepolia-token.strategy';
 import { SolanaCoinStrategy as SolanaCoinStrategyPL } from './strategies/purchase-liquidity/impl/solana-coin.strategy';
 import { SolanaTokenStrategy as SolanaTokenStrategyPL } from './strategies/purchase-liquidity/impl/solana-token.strategy';
+import { SparkStrategy as SparkStrategyPL } from './strategies/purchase-liquidity/impl/spark.strategy';
 import { TronCoinStrategy as TronCoinStrategyPL } from './strategies/purchase-liquidity/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyPL } from './strategies/purchase-liquidity/impl/tron-token.strategy';
 import { ZanoCoinStrategy as ZanoCoinStrategyPL } from './strategies/purchase-liquidity/impl/zano-coin.strategy';
@@ -175,6 +178,7 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     DexCitreaService,
     DexCitreaTestnetService,
     DexLightningService,
+    DexSparkService,
     DexFiroService,
     DexMoneroService,
     DexZanoService,
@@ -193,6 +197,7 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     BitcoinStrategyCL,
     BitcoinTestnet4StrategyCL,
     LightningStrategyCL,
+    SparkStrategyCL,
     FiroCoinStrategyCL,
     MoneroStrategyCL,
     ZanoCoinStrategyCL,
@@ -227,6 +232,7 @@ import { ZanoStrategy as ZanoStrategyS } from './strategies/supplementary/impl/z
     BitcoinTestnet4StrategyPL,
     FiroStrategyPL,
     MoneroStrategyPL,
+    SparkStrategyPL,
     ZanoCoinStrategyPL,
     ZanoTokenStrategyPL,
     ArbitrumCoinStrategyPL,

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from 'src/shared/services/http.service';
+import { BrokerbotCurrency } from '../dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from '../realunit-blockchain.service';
 
 // Mock viem
@@ -127,13 +128,23 @@ describe('RealUnitBlockchainService', () => {
       expect(result.baseCurrencyAddress).toBe('0xZCHF');
     });
 
-    it('should return price from fetchPrice', async () => {
+    it('should return CHF price by default', async () => {
       httpService.post.mockResolvedValue({ priceInCHF: 123.45, priceInEUR: 114, availableShares: 200 });
 
       const result = await service.getBrokerbotInfo('0xBB', '0xR', '0xZ');
 
       expect(result.pricePerShare).toBe('123.45');
+      expect(result.currency).toBe(BrokerbotCurrency.CHF);
       expect(result.availableShares).toBe(200);
+    });
+
+    it('should return EUR price when currency is EUR', async () => {
+      httpService.post.mockResolvedValue({ priceInCHF: 123.45, priceInEUR: 114, availableShares: 200 });
+
+      const result = await service.getBrokerbotInfo('0xBB', '0xR', '0xZ', BrokerbotCurrency.EUR);
+
+      expect(result.pricePerShare).toBe('114');
+      expect(result.currency).toBe(BrokerbotCurrency.EUR);
     });
 
     it('should set buyingEnabled to false when availableShares is 0', async () => {
@@ -150,6 +161,75 @@ describe('RealUnitBlockchainService', () => {
       const result = await service.getBrokerbotInfo('0xBB', '0xR', '0xZ');
 
       expect(result.sellingEnabled).toBe(true);
+    });
+  });
+
+  describe('getBrokerbotPrice', () => {
+    beforeEach(() => {
+      httpService.post.mockResolvedValue({ priceInCHF: 100.5, priceInEUR: 92.3, availableShares: 500 });
+    });
+
+    it('should return CHF price by default', async () => {
+      const result = await service.getBrokerbotPrice();
+
+      expect(result.pricePerShare).toBe('100.5');
+      expect(result.currency).toBe(BrokerbotCurrency.CHF);
+      expect(result.availableShares).toBe(500);
+    });
+
+    it('should return EUR price when currency is EUR', async () => {
+      const result = await service.getBrokerbotPrice(BrokerbotCurrency.EUR);
+
+      expect(result.pricePerShare).toBe('92.3');
+      expect(result.currency).toBe(BrokerbotCurrency.EUR);
+    });
+  });
+
+  describe('getBrokerbotBuyPrice', () => {
+    beforeEach(() => {
+      httpService.post.mockResolvedValue({ priceInCHF: 100, priceInEUR: 92, availableShares: 500 });
+    });
+
+    it('should calculate total price in CHF by default', async () => {
+      const result = await service.getBrokerbotBuyPrice(10);
+
+      expect(result.shares).toBe(10);
+      expect(result.totalPrice).toBe('1000');
+      expect(result.pricePerShare).toBe('100');
+      expect(result.currency).toBe(BrokerbotCurrency.CHF);
+    });
+
+    it('should calculate total price in EUR when currency is EUR', async () => {
+      const result = await service.getBrokerbotBuyPrice(10, BrokerbotCurrency.EUR);
+
+      expect(result.shares).toBe(10);
+      expect(result.totalPrice).toBe('920');
+      expect(result.pricePerShare).toBe('92');
+      expect(result.currency).toBe(BrokerbotCurrency.EUR);
+    });
+  });
+
+  describe('getBrokerbotShares', () => {
+    beforeEach(() => {
+      httpService.post.mockResolvedValue({ priceInCHF: 100, priceInEUR: 92, availableShares: 500 });
+    });
+
+    it('should calculate shares from CHF amount by default', async () => {
+      const result = await service.getBrokerbotShares('1000');
+
+      expect(result.amount).toBe('1000');
+      expect(result.shares).toBe(10);
+      expect(result.pricePerShare).toBe('100');
+      expect(result.currency).toBe(BrokerbotCurrency.CHF);
+    });
+
+    it('should calculate shares from EUR amount when currency is EUR', async () => {
+      const result = await service.getBrokerbotShares('920', BrokerbotCurrency.EUR);
+
+      expect(result.amount).toBe('920');
+      expect(result.shares).toBe(10);
+      expect(result.pricePerShare).toBe('92');
+      expect(result.currency).toBe(BrokerbotCurrency.EUR);
     });
   });
 });

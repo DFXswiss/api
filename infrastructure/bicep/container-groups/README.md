@@ -11,6 +11,7 @@
 Container Instances are:
 
 - hb-deuro-usdt: Hummingbot (dEURO/USDT)
+- hb-jusd-usdt: Hummingbot (JUSD/BTC)
 - hb-deps-usdt: Hummingbot (dEPS/USDT)
 - rk: RangeKeeper Liquidity Bot
 
@@ -30,6 +31,7 @@ There is an entrypoint script in the container to setup the individual environme
 Connect to the running container:
 
 - az container exec --resource-group rg-dfx-api-dev --name ci-dfx-hb-deuro-usdt-dev --exec-command /bin/bash
+- az container exec --resource-group rg-dfx-api-dev --name ci-dfx-hb-jusd-usdt-dev --exec-command /bin/bash
 - az container exec --resource-group rg-dfx-api-dev --name ci-dfx-hb-deps-usdt-dev --exec-command /bin/bash
 
 Start the Hummingbot within the container:

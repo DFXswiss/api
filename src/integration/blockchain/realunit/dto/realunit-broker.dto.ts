@@ -1,8 +1,28 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsOptional } from 'class-validator';
+
+export enum BrokerbotCurrency {
+  CHF = 'CHF',
+  EUR = 'EUR',
+}
+
+export class BrokerbotCurrencyQueryDto {
+  @ApiPropertyOptional({
+    enum: BrokerbotCurrency,
+    description: 'Currency for prices (CHF or EUR)',
+    default: BrokerbotCurrency.CHF,
+  })
+  @IsOptional()
+  @IsEnum(BrokerbotCurrency)
+  currency?: BrokerbotCurrency;
+}
 
 export class BrokerbotPriceDto {
-  @ApiProperty({ description: 'Current price per share in CHF' })
+  @ApiProperty({ description: 'Current price per share' })
   pricePerShare: string;
+
+  @ApiProperty({ description: 'Currency of the price', enum: BrokerbotCurrency })
+  currency: BrokerbotCurrency;
 
   @ApiProperty({ description: 'Available shares for purchase' })
   availableShares: number;
@@ -12,25 +32,31 @@ export class BrokerbotBuyPriceDto {
   @ApiProperty({ description: 'Number of shares' })
   shares: number;
 
-  @ApiProperty({ description: 'Total cost in CHF' })
+  @ApiProperty({ description: 'Total cost' })
   totalPrice: string;
 
-  @ApiProperty({ description: 'Price per share in CHF' })
+  @ApiProperty({ description: 'Price per share' })
   pricePerShare: string;
+
+  @ApiProperty({ description: 'Currency of the prices', enum: BrokerbotCurrency })
+  currency: BrokerbotCurrency;
 
   @ApiProperty({ description: 'Available shares for purchase' })
   availableShares: number;
 }
 
 export class BrokerbotSharesDto {
-  @ApiProperty({ description: 'Amount in CHF' })
+  @ApiProperty({ description: 'Amount in specified currency' })
   amount: string;
 
   @ApiProperty({ description: 'Number of shares that can be purchased' })
   shares: number;
 
-  @ApiProperty({ description: 'Price per share in CHF' })
+  @ApiProperty({ description: 'Price per share' })
   pricePerShare: string;
+
+  @ApiProperty({ description: 'Currency of the prices', enum: BrokerbotCurrency })
+  currency: BrokerbotCurrency;
 
   @ApiProperty({ description: 'Available shares for purchase' })
   availableShares: number;
@@ -46,8 +72,11 @@ export class BrokerbotInfoDto {
   @ApiProperty({ description: 'Base currency (ZCHF) address' })
   baseCurrencyAddress: string;
 
-  @ApiProperty({ description: 'Current price per share in CHF' })
+  @ApiProperty({ description: 'Current price per share' })
   pricePerShare: string;
+
+  @ApiProperty({ description: 'Currency of the price', enum: BrokerbotCurrency })
+  currency: BrokerbotCurrency;
 
   @ApiProperty({ description: 'Whether buying is enabled' })
   buyingEnabled: boolean;
