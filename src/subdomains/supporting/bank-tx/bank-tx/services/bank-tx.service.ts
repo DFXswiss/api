@@ -558,7 +558,7 @@ export class BankTxService implements OnModuleInit {
       { ...request, ultimateName: Like(`%${name}%`) },
     ];
 
-    const nameParts = name.split(' ');
+    const nameParts = name.split(' ').slice(0, 5);
     const namePartsWithoutTitles = nameParts.filter((p) => !p.endsWith('.'));
 
     const splitVariants = [nameParts];
@@ -573,7 +573,7 @@ export class BankTxService implements OnModuleInit {
       }
 
       // reversed splits (e.g. "Doe John" for input "John Doe")
-      for (let i = 1; i < parts.length; i++) {
+      for (let i = 1; i < parts.length && i < 5; i++) {
         const firstPart = parts.slice(0, i).join(' ');
         const lastPart = parts.slice(i).join(' ');
         const reversed = `${lastPart} ${firstPart}`;

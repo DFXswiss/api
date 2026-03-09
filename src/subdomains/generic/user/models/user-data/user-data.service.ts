@@ -197,7 +197,7 @@ export class UserDataService {
       { ...where, organization: { name: Util.contains(name) } },
     ];
 
-    const nameParts = name.split(' ');
+    const nameParts = name.split(' ').slice(0, 5);
     const namePartsWithoutTitles = nameParts.filter((p) => !p.endsWith('.'));
 
     // try all split points on original input and additionally without title-like words (e.g. "Dr.", "Prof.")
@@ -206,7 +206,7 @@ export class UserDataService {
       splitVariants.push(namePartsWithoutTitles);
 
     for (const parts of splitVariants) {
-      for (let i = 1; i < parts.length; i++) {
+      for (let i = 1; i < parts.length && i < 5; i++) {
         const firstPart = parts.slice(0, i).join(' ');
         const lastPart = parts.slice(i).join(' ');
 
