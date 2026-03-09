@@ -553,11 +553,37 @@ export class BankTxService implements OnModuleInit {
       creditDebitIndicator: BankTxIndicator.CREDIT,
     };
 
+    const wheres: FindOptionsWhere<BankTx>[] = [
+      { ...request, name: Like(`%${name}%`) },
+      { ...request, ultimateName: Like(`%${name}%`) },
+    ];
+
+    const nameParts = name.split(' ');
+    const namePartsWithoutTitles = nameParts.filter((p) => !p.endsWith('.'));
+
+    const splitVariants = [nameParts];
+    if (namePartsWithoutTitles.length < nameParts.length && namePartsWithoutTitles.length >= 2)
+      splitVariants.push(namePartsWithoutTitles);
+
+    for (const parts of splitVariants) {
+      // full-string search for title-filtered variant (e.g. "Cyrill Peter Thommen" without "Dr.")
+      const joined = parts.join(' ');
+      if (joined !== name) {
+        wheres.push({ ...request, name: Like(`%${joined}%`) }, { ...request, ultimateName: Like(`%${joined}%`) });
+      }
+
+      // reversed splits (e.g. "Bernhard Fleckl" for input "Fleckl Bernhard")
+      for (let i = 1; i < parts.length; i++) {
+        const firstPart = parts.slice(0, i).join(' ');
+        const lastPart = parts.slice(i).join(' ');
+        const reversed = `${lastPart} ${firstPart}`;
+
+        wheres.push({ ...request, name: Like(`%${reversed}%`) }, { ...request, ultimateName: Like(`%${reversed}%`) });
+      }
+    }
+
     return this.bankTxRepo.find({
-      where: [
-        { ...request, name: Like(`%${name}%`) },
-        { ...request, ultimateName: Like(`%${name}%`) },
-      ],
+      where: wheres,
       relations: { transaction: true },
     });
   }
