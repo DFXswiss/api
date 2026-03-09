@@ -188,7 +188,7 @@ export class InternetComputerClient extends BlockchainClient {
       lastIndex = start - 1;
     }
 
-    return { transfers, lastBlockIndex: lastIndex, chainLength };
+    return { transfers, lastBlockIndex: lastIndex, chainLength, rawTransactionCount: response.blocks.length };
   }
 
   private mapBlockToTransfer(block: CandidBlock, index: number): IcpTransfer | undefined {
@@ -277,9 +277,23 @@ export class InternetComputerClient extends BlockchainClient {
       if (transfer) transfers.push(transfer);
     }
 
-    const lastIndex = response.transactions.length > 0 ? firstIndex + response.transactions.length - 1 : start - 1;
+    let lastIndex: number;
 
-    return { transfers, lastBlockIndex: lastIndex, chainLength: Number(response.log_length) };
+    if (response.transactions.length > 0) {
+      lastIndex = firstIndex + response.transactions.length - 1;
+    } else if (firstIndex > start) {
+      lastIndex = firstIndex - 1;
+      this.logger.info(`Skipping archived ICRC blocks ${start}-${lastIndex}, next query starts at ${firstIndex}`);
+    } else {
+      lastIndex = start - 1;
+    }
+
+    return {
+      transfers,
+      lastBlockIndex: lastIndex,
+      chainLength: Number(response.log_length),
+      rawTransactionCount: response.transactions.length,
+    };
   }
 
   private mapIcrcTransaction(tx: CandidIcrcTransaction, index: number, decimals: number): IcpTransfer | undefined {
