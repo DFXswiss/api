@@ -9,6 +9,8 @@ import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/m
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { Country } from 'src/shared/models/country/country.entity';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -74,6 +76,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly transactionService: TransactionService,
     private readonly buyService: BuyService,
     private readonly assetService: AssetService,
+    private readonly countryService: CountryService,
   ) {}
 
   onModuleInit() {
@@ -258,6 +261,7 @@ export class TransactionHelper implements OnModuleInit {
     walletName?: string,
     specialCodes: string[] = [],
     ibanCountry?: string,
+    country?: string,
   ): Promise<TransactionDetails> {
     const priceValidity = exactPrice ? PriceValidity.PREFER_VALID : PriceValidity.ANY;
 
@@ -293,6 +297,8 @@ export class TransactionHelper implements OnModuleInit {
 
     const { kycLimit, defaultLimit } = await this.getLimits(from, to, paymentMethodIn, paymentMethodOut, user);
 
+    const resolvedCountry = country ? await this.countryService.getCountryWithSymbol(country) : undefined;
+
     const error = this.getTxError(
       from,
       to,
@@ -303,6 +309,7 @@ export class TransactionHelper implements OnModuleInit {
       kycLimit,
       user,
       ibanCountry,
+      resolvedCountry,
     );
 
     // target estimation
@@ -971,6 +978,7 @@ export class TransactionHelper implements OnModuleInit {
     kycLimitChf: number,
     user?: User,
     ibanCountry?: string,
+    country?: Country,
   ): QuoteError | undefined {
     const nationality = user?.userData.nationality;
     const isBuy = isFiat(from) && isAsset(to);
@@ -999,6 +1007,9 @@ export class TransactionHelper implements OnModuleInit {
     if (paymentMethodIn === FiatPaymentMethod.CARD) return QuoteError.PAYMENT_METHOD_NOT_ALLOWED;
 
     if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
+
+    // Country restriction check
+    if (country && !country.dfxEnable) return QuoteError.REGION_RESTRICTED;
 
     if (nationality && ((isBuy && !nationality.bankEnable) || ((isSell || isSwap) && !nationality.cryptoEnable)))
       return QuoteError.NATIONALITY_NOT_ALLOWED;

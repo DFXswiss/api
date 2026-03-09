@@ -15,4 +15,5 @@ export enum QuoteError {
   EMAIL_REQUIRED = 'EmailRequired',
   REGION_RESTRICTED = 'RegionRestricted',
   ASSET_UNSUPPORTED = 'AssetUnsupported',
+  CURRENCY_UNSUPPORTED = 'CurrencyUnsupported',
 }

@@ -31,7 +31,7 @@ import { VirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/
 import { VirtualIbanMapper } from 'src/subdomains/supporting/bank/virtual-iban/dto/virtual-iban.mapper';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { QuoteErrorUtil } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.util';
+import { QuoteErrorUtil, QuoteException } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.util';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -86,6 +86,14 @@ export class BuyController {
   @Put('/quote')
   @ApiOkResponse({ type: BuyQuoteDto })
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
+    let checkedDto: GetBuyQuoteDto;
+    try {
+      checkedDto = await this.paymentInfoService.buyCheck(dto, undefined, undefined, true);
+    } catch (e) {
+      if (e instanceof QuoteException) return QuoteErrorUtil.createErrorQuote(e);
+      throw e;
+    }
+
     const {
       amount: sourceAmount,
       currency,
@@ -93,7 +101,7 @@ export class BuyController {
       targetAmount,
       paymentMethod,
       specialCode,
-    } = await this.paymentInfoService.buyCheck(dto);
+    } = checkedDto;
 
     const {
       rate,
@@ -120,6 +128,8 @@ export class BuyController {
       undefined,
       dto.wallet,
       specialCode ? [specialCode] : [],
+      undefined,
+      dto.country,
     );
 
     return {

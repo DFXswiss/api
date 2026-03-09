@@ -28,7 +28,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { QuoteErrorUtil } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.util';
+import { QuoteErrorUtil, QuoteException } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.util';
 import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -90,13 +90,21 @@ export class SellController {
   @Put('/quote')
   @ApiOkResponse({ type: SellQuoteDto })
   async getSellQuote(@Body() dto: GetSellQuoteDto): Promise<SellQuoteDto> {
+    let checkedDto: GetSellQuoteDto;
+    try {
+      checkedDto = await this.paymentInfoService.sellCheck(dto, undefined, true);
+    } catch (e) {
+      if (e instanceof QuoteException) return QuoteErrorUtil.createErrorQuote(e);
+      throw e;
+    }
+
     const {
       amount: sourceAmount,
       asset,
       currency,
       targetAmount,
       specialCode,
-    } = await this.paymentInfoService.sellCheck(dto);
+    } = checkedDto;
 
     const {
       rate,
@@ -123,6 +131,8 @@ export class SellController {
       undefined,
       dto.wallet,
       specialCode ? [specialCode] : [],
+      undefined,
+      dto.country,
     );
 
     return {
