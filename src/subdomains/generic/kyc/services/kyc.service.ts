@@ -47,7 +47,9 @@ import { IdNowReason, IdNowResult, IdentShortResult, getIdNowIdentReason } from 
 import { IdentDocument } from '../dto/ident.dto';
 import {
   ContactPersonData,
+  KycAddress,
   KycBeneficialData,
+  KycChangeAddressData,
   KycContactData,
   KycFileData,
   KycLegalEntityData,
@@ -700,6 +702,37 @@ export class KycService {
     await this.updateProgress(user, false);
 
     return KycStepMapper.toStepBase(kycStep);
+  }
+
+  async updateAddressChangeData(kycHash: string, stepId: number, data: KycChangeAddressData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    // upload file
+    const { contentType, buffer } = Util.fromBase64(data.file);
+    const { url } = await this.documentService.uploadUserFile(
+      user,
+      FileType.ADDRESS_CHANGE,
+      data.fileName,
+      buffer,
+      contentType as ContentType,
+      false,
+      kycStep,
+    );
+
+    await this.kycStepRepo.update(...kycStep.manualReview(undefined, { url, address: data.address }));
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
+  }
+
+  async completeAddressChange(kycStep: KycStep): Promise<void> {
+    const result = kycStep.getResult<{ url: string; address: KycAddress }>();
+    if (!result?.address) return;
+
+    await this.userDataService.updateUserAddress(kycStep.userData, result.address);
   }
 
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {

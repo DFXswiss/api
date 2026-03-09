@@ -70,6 +70,25 @@ export class KycAddress {
   country: Country;
 }
 
+export class KycChangeAddressData {
+  @ApiProperty({ description: 'Base64 encoded address proof file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+
+  @ApiProperty({ description: 'Name of the address proof file' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  fileName: string;
+
+  @ApiProperty({ type: KycAddress })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => KycAddress)
+  address: KycAddress;
+}
+
 export class KycPersonalData {
   @ApiProperty({ enum: AccountType })
   @IsNotEmpty()
