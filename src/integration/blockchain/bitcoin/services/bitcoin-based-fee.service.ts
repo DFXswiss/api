@@ -9,6 +9,12 @@ export interface TxFeeRateResult {
   feeRate?: number;
 }
 
+export interface FeeConfig {
+  allowUnconfirmedUtxos: boolean;
+  cpfpFeeMultiplier: number;
+  defaultFeeMultiplier: number;
+}
+
 export abstract class BitcoinBasedFeeService {
   private readonly logger = new DfxLogger(BitcoinBasedFeeService);
 
@@ -16,6 +22,8 @@ export abstract class BitcoinBasedFeeService {
   private readonly txFeeRateCache = new AsyncCache<TxFeeRateResult>(CacheItemResetPeriod.EVERY_30_SECONDS);
 
   constructor(protected readonly client: NodeClient) {}
+
+  protected abstract get feeConfig(): FeeConfig;
 
   async getRecommendedFeeRate(): Promise<number> {
     return this.feeRateCache.get(
@@ -73,5 +81,14 @@ export abstract class BitcoinBasedFeeService {
     }
 
     return results;
+  }
+
+  async getSendFeeRate(): Promise<number> {
+    const baseRate = await this.getRecommendedFeeRate();
+
+    const { allowUnconfirmedUtxos, cpfpFeeMultiplier, defaultFeeMultiplier } = this.feeConfig;
+    const multiplier = allowUnconfirmedUtxos ? cpfpFeeMultiplier : defaultFeeMultiplier;
+
+    return baseRate * multiplier;
   }
 }

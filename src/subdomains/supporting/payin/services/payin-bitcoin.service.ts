@@ -99,7 +99,7 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
       input.inTxId,
       input.sendingAmount,
       input.txSequence,
-      await this.feeService.getRecommendedFeeRate(),
+      await this.feeService.getSendFeeRate(),
     );
   }
 
