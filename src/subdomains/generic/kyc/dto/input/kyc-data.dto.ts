@@ -70,6 +70,14 @@ export class KycAddress {
   country: Country;
 }
 
+export class KycChangeAddressData {
+  @ApiProperty({ type: KycAddress })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => KycAddress)
+  address: KycAddress;
+}
+
 export class KycPersonalData {
   @ApiProperty({ enum: AccountType })
   @IsNotEmpty()

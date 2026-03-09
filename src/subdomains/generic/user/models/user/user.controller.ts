@@ -32,7 +32,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycChangeAddressData, KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
@@ -281,6 +281,14 @@ export class UserV2Controller {
   @ApiForbiddenResponse({ description: 'Invalid or expired mail verification token' })
   async verifyMail(@GetJwt() jwt: JwtPayload, @Body() dto: VerifyMailDto): Promise<UserV2Dto> {
     return this.userService.verifyMail(jwt.account, dto.token, jwt.user);
+  }
+
+  @Put('address')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: UserV2Dto })
+  async updateUserAddress(@GetJwt() jwt: JwtPayload, @Body() data: KycChangeAddressData): Promise<UserV2Dto> {
+    return this.userService.updateUserAddress(jwt.account, data, jwt.user);
   }
 
   @Put('addresses/:address')

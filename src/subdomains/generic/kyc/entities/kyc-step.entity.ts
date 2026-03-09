@@ -136,6 +136,9 @@ export class KycStep extends IEntity {
 
       case KycStepName.PHONE_CHANGE:
         return { url: '', type: UrlType.NONE };
+
+      case KycStepName.ADDRESS_CHANGE:
+        return { url: '', type: UrlType.NONE };
     }
   }
 
