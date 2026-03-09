@@ -197,7 +197,10 @@ export class UserDataService {
       { ...where, organization: { name: Util.contains(name) } },
     ];
 
-    const nameParts = name.split(' ').slice(0, 5);
+    const nameParts = name
+      .split(' ')
+      .filter((p) => p)
+      .slice(0, 5);
     const namePartsWithoutTitles = nameParts.filter((p) => !p.endsWith('.'));
 
     // try all split points on original input and additionally without title-like words (e.g. "Dr.", "Prof.")

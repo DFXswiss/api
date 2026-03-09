@@ -558,7 +558,10 @@ export class BankTxService implements OnModuleInit {
       { ...request, ultimateName: Like(`%${name}%`) },
     ];
 
-    const nameParts = name.split(' ').slice(0, 5);
+    const nameParts = name
+      .split(' ')
+      .filter((p) => p)
+      .slice(0, 5);
     const namePartsWithoutTitles = nameParts.filter((p) => !p.endsWith('.'));
 
     const splitVariants = [nameParts];
