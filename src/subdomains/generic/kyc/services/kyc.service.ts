@@ -50,6 +50,7 @@ import {
   KycAddress,
   KycBeneficialData,
   KycChangeAddressData,
+  KycChangeNameData,
   KycContactData,
   KycFileData,
   KycLegalEntityData,
@@ -733,6 +734,39 @@ export class KycService {
     if (!result?.address) return;
 
     await this.userDataService.updateUserAddress(kycStep.userData, result.address);
+  }
+
+  async updateNameChangeData(kycHash: string, stepId: number, data: KycChangeNameData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    // upload file
+    const { contentType, buffer } = Util.fromBase64(data.file);
+    const { url } = await this.documentService.uploadUserFile(
+      user,
+      FileType.NAME_CHANGE,
+      data.fileName,
+      buffer,
+      contentType as ContentType,
+      false,
+      kycStep,
+    );
+
+    await this.kycStepRepo.update(
+      ...kycStep.manualReview(undefined, { url, firstName: data.firstName, lastName: data.lastName }),
+    );
+
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
+  }
+
+  async completeNameChange(kycStep: KycStep): Promise<void> {
+    const result = kycStep.getResult<{ url: string; firstName: string; lastName: string }>();
+    if (!result?.firstName || !result?.lastName) return;
+
+    await this.userDataService.updateUserName(kycStep.userData, result.firstName, result.lastName);
   }
 
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {

@@ -20,6 +20,7 @@ export enum FileType {
   ADDITIONAL_DOCUMENTS = 'AdditionalDocuments',
   AUTHORITY = 'Authority',
   ADDRESS_CHANGE = 'AddressChange',
+  NAME_CHANGE = 'NameChange',
 }
 
 export enum FileSubType {

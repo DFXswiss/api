@@ -89,6 +89,10 @@ export class KycAdminService {
           await this.kycService.completeAddressChange(kycStep);
           break;
 
+        case KycStepName.NAME_CHANGE:
+          await this.kycService.completeNameChange(kycStep);
+          break;
+
         case KycStepName.DFX_APPROVAL:
           if (await this.nameCheckService.hasOpenNameChecks(kycStep.userData)) {
             await this.kycStepRepo.update(...kycStep.manualReview(KycError.OPEN_SANCTIONED_NAME_CHECK));

@@ -807,6 +807,25 @@ export class UserDataService {
     }
   }
 
+  async updateUserName(userData: UserData, firstName: string, lastName: string): Promise<void> {
+    const update: Partial<UserData> = {
+      firstname: transliterate(firstName),
+      surname: transliterate(lastName),
+    };
+
+    await this.userDataRepo.update(userData.id, update);
+    Object.assign(userData, update);
+
+    // update Sift
+    for (const user of userData.users) {
+      this.siftService.updateAccount({
+        $user_id: user.id.toString(),
+        $time: Date.now(),
+        $name: `${update.firstname} ${update.surname}`,
+      });
+    }
+  }
+
   // --- SETTINGS UPDATE --- //
   async updateUserSettings(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     // check language
