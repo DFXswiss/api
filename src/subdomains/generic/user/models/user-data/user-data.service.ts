@@ -209,6 +209,11 @@ export class UserDataService {
       splitVariants.push(namePartsWithoutTitles);
 
     for (const parts of splitVariants) {
+      const joined = parts.join(' ');
+      if (joined !== name) {
+        wheres.push({ ...where, verifiedName: Util.contains(joined) });
+      }
+
       for (let i = 1; i < parts.length && i < 5; i++) {
         const firstPart = parts.slice(0, i).join(' ');
         const lastPart = parts.slice(i).join(' ');

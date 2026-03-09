@@ -569,7 +569,7 @@ export class BankTxService implements OnModuleInit {
       splitVariants.push(namePartsWithoutTitles);
 
     for (const parts of splitVariants) {
-      // full-string search for title-filtered variant (e.g. "Cyrill Peter Thommen" without "Dr.")
+      // full-string search for title-filtered variant (e.g. "John Peter Doe" without "Dr.")
       const joined = parts.join(' ');
       if (joined !== name) {
         wheres.push({ ...request, name: Like(`%${joined}%`) }, { ...request, ultimateName: Like(`%${joined}%`) });
