@@ -766,7 +766,10 @@ export class KycService {
     const result = kycStep.getResult<{ url: string; firstName: string; lastName: string }>();
     if (!result?.firstName || !result?.lastName) return;
 
-    await this.userDataService.updateUserName(kycStep.userData, result.firstName, result.lastName);
+    await this.userDataService.updateUserName(kycStep.userData, {
+      firstName: result.firstName,
+      lastName: result.lastName,
+    });
   }
 
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {

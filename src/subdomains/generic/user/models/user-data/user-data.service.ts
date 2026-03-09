@@ -602,15 +602,21 @@ export class UserDataService {
   }
 
   async updateUserName(userData: UserData, dto: UserNameDto) {
+    const update: Partial<UserData> = {
+      firstname: transliterate(dto.firstName),
+      surname: transliterate(dto.lastName),
+    };
+
+    await this.userDataRepo.update(userData.id, update);
+    Object.assign(userData, update);
+
     for (const user of userData.users) {
       this.siftService.updateAccount({
         $user_id: user.id.toString(),
         $time: Date.now(),
-        $name: `${dto.firstName} ${dto.lastName}`,
+        $name: `${update.firstname} ${update.surname}`,
       } as CreateAccount);
     }
-
-    await this.userDataRepo.update(userData.id, { firstname: dto.firstName, surname: dto.lastName });
   }
 
   async deactivateUserData(userData: UserData): Promise<void> {
@@ -803,25 +809,6 @@ export class UserDataService {
           $country: country.symbol,
           $zipcode: update.zip,
         },
-      });
-    }
-  }
-
-  async updateUserName(userData: UserData, firstName: string, lastName: string): Promise<void> {
-    const update: Partial<UserData> = {
-      firstname: transliterate(firstName),
-      surname: transliterate(lastName),
-    };
-
-    await this.userDataRepo.update(userData.id, update);
-    Object.assign(userData, update);
-
-    // update Sift
-    for (const user of userData.users) {
-      this.siftService.updateAccount({
-        $user_id: user.id.toString(),
-        $time: Date.now(),
-        $name: `${update.firstname} ${update.surname}`,
       });
     }
   }
