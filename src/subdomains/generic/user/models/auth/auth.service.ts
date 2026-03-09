@@ -183,16 +183,11 @@ export class AuthService {
     if (!user.userData.tradeApprovalDate) {
       await this.checkPendingRecommendation(user.userData, wallet);
     } else {
-      const recommendation = await this.recommendationService
-        .getAllRecommendationForUserData(user.userData.id, {
-          recommended: { users: true },
-          recommender: { users: true },
-        })
-        .then((rs) =>
-          rs.find(
-            (r) => r.isConfirmed && r.type === RecommendationType.INVITATION && r.method === RecommendationMethod.MAIL,
-          ),
-        );
+      const recommendation = await this.recommendationService.getUserDataRecommendation(user.userData.id, {
+        isConfirmed: true,
+        type: RecommendationType.INVITATION,
+        method: RecommendationMethod.MAIL,
+      });
       await this.recommendationService.setRecommenderRefCode(recommendation);
     }
 

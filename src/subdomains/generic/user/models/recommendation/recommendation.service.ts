@@ -10,7 +10,7 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { FindOptionsRelations, IsNull, MoreThan } from 'typeorm';
+import { FindOptionsWhere, IsNull, MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { KycLevel, KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
@@ -267,13 +267,23 @@ export class RecommendationService {
     return entity;
   }
 
-  async getAllRecommendationForUserData(
-    userDataId: number,
-    relations: FindOptionsRelations<Recommendation> = { recommended: true, recommender: true },
-  ): Promise<Recommendation[]> {
+  async getAllRecommendationForUserData(recommenderId: number): Promise<Recommendation[]> {
     return this.recommendationRepo.find({
-      where: { recommender: { id: userDataId } },
-      relations,
+      where: { recommender: { id: recommenderId } },
+      relations: { recommended: true, recommender: true },
+    });
+  }
+
+  async getUserDataRecommendation(
+    userDataId: number,
+    where: FindOptionsWhere<Recommendation>,
+  ): Promise<Recommendation> {
+    return this.recommendationRepo.findOne({
+      where: { recommended: { id: userDataId }, ...where },
+      relations: {
+        recommended: { users: true },
+        recommender: { users: true },
+      },
     });
   }
 
