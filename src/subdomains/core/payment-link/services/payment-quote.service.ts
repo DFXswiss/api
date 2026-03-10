@@ -590,19 +590,9 @@ export class PaymentQuoteService {
         return;
       }
 
-      const canisterId =
-        activation.asset.type === AssetType.COIN
-          ? Config.blockchain.internetComputer.internetComputerLedgerCanisterId
-          : activation.asset.chainId;
-
       await Util.retry(
         async () => {
-          const result = await icpClient.checkAllowance(
-            userPrincipal,
-            paymentAddress,
-            canisterId,
-            activation.asset.decimals,
-          );
+          const result = await icpClient.checkAllowance(userPrincipal, paymentAddress, activation.asset);
           if (result.allowance < activation.amount) {
             throw new Error(`Insufficient allowance: ${result.allowance}, need ${activation.amount}`);
           }
@@ -616,8 +606,7 @@ export class PaymentQuoteService {
         userPrincipal,
         paymentAddress,
         activation.amount,
-        canisterId,
-        activation.asset.decimals,
+        activation.asset,
       );
 
       quote.txInBlockchain(txId);
