@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsString, ValidateIf } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetCategory, AssetType } from '../asset.entity';
 
@@ -77,24 +77,25 @@ export class AssetDto {
 export class AssetInDto {
   @ApiPropertyOptional()
   @IsNotEmpty()
-  @ValidateIf((a: AssetInDto) => Boolean(a.id || !(a.chainId || a.blockchain || a.evmChainId)))
+  @ValidateIf((a: AssetInDto) => a.id != null || !a.chainId)
   @IsInt()
   id?: number;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
-  @ValidateIf((a: AssetInDto) => Boolean(a.chainId || !a.id))
+  @ValidateIf((a: AssetInDto) => a.chainId != null || !a.id)
   @IsString()
   chainId?: string;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
-  @ValidateIf((a: AssetInDto) => Boolean(a.blockchain || (!a.id && !a.evmChainId)))
+  @ValidateIf((a: AssetInDto) => a.blockchain != null || (!a.id && !a.evmChainId))
   @IsEnum(Blockchain)
   blockchain?: Blockchain;
 
   @ApiPropertyOptional({ description: 'Numeric EVM chain ID (e.g. 1, 56, 137)' })
-  @IsOptional()
+  @IsNotEmpty()
+  @ValidateIf((a: AssetInDto) => a.evmChainId != null || (!a.id && !a.blockchain))
   @IsInt()
   evmChainId?: number;
 }

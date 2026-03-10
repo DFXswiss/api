@@ -725,18 +725,23 @@ export class TransactionController {
 
     let tx: Transaction | TransactionRequest;
     if (id) tx = await this.transactionService.getTransactionById(+id, relations);
-    if (uid) tx = await this.transactionService.getTransactionByUid(uid, relations);
-    if (orderUid) tx = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
-    if ((uid ?? orderUid) && !tx)
-      tx = await this.transactionRequestService.getTransactionRequestByUid(uid ?? orderUid, {
-        user: { userData: true },
-      });
+
+    const uidParam = uid ?? orderUid;
+    if (uidParam) {
+      tx = uidParam.startsWith(Config.prefixes.transactionUidPrefix)
+        ? await this.transactionService.getTransactionByUid(uidParam, relations)
+        : ((await this.transactionService.getTransactionByRequestUid(uidParam, relations)) ??
+          (await this.transactionRequestService.getTransactionRequestByUid(uidParam, { user: { userData: true } })));
+    }
+
     if (orderId)
       tx =
         (await this.transactionService.getTransactionByRequestId(+orderId, relations)) ??
         (await this.transactionRequestService.getTransactionRequest(+orderId, { user: { userData: true } }));
+
     if (externalId && accountId)
       tx = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
+
     if (ckoId) tx = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
     return tx;
