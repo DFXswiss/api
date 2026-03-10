@@ -45,6 +45,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -867,9 +868,12 @@ export class RealUnitService {
     }
 
     // 2. KYC Level check - Level 30 minimum
-    const requiredLevel = KycLevel.LEVEL_30;
-    if (userData.kycLevel < requiredLevel) {
-      throw new KycLevelRequiredException(requiredLevel, userData.kycLevel, 'KYC Level 30 required for RealUnit sell');
+    if (userData.kycLevel < KycLevel.LEVEL_30) {
+      throw new KycLevelRequiredException(
+        KycLevel.LEVEL_30,
+        userData.kycLevel,
+        'KYC Level 30 required for RealUnit sell',
+      );
     }
 
     // 3. Get REALU asset
@@ -901,13 +905,22 @@ export class RealUnitService {
       false, // includeTx
     );
 
-    // 7. Prepare EIP-7702 delegation data (ALWAYS for RealUnit - app supports eth_sign)
+    // 7. Check if limit exceeded
+    if (sellPaymentInfo.error === QuoteError.LIMIT_EXCEEDED) {
+      throw new KycLevelRequiredException(
+        KycLevel.LEVEL_50,
+        userData.kycLevel,
+        'KYC Level 50 required for RealUnit sell exceeding trading limit',
+      );
+    }
+
+    // 8. Prepare EIP-7702 delegation data (ALWAYS for RealUnit - app supports eth_sign)
     const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
       user.address,
       realuAsset.blockchain,
     );
 
-    // 8. Build response with EIP-7702 data AND fallback transfer info
+    // 9. Build response with EIP-7702 data AND fallback transfer info
     const amountWei = EvmUtil.toWeiAmount(sellPaymentInfo.amount, realuAsset.decimals);
 
     const response: RealUnitSellPaymentInfoDto = {
