@@ -342,13 +342,7 @@ export class InternetComputerClient extends BlockchainClient {
 
   async sendNativeCoinFromAccount(account: WalletAccount, toAddress: string, amount: number): Promise<string> {
     const wallet = InternetComputerWallet.fromSeed(account.seed, account.index);
-    const balance = await this.getNativeCoinBalanceForAddress(wallet.address);
-
-    const sendAmount = Math.min(amount, balance) - this.transferFee;
-    if (sendAmount <= 0)
-      throw new Error(`Insufficient balance for payment forward: balance=${balance}, fee=${this.transferFee}`);
-
-    return this.sendNativeCoin(wallet, toAddress, sendAmount);
+    return this.sendNativeCoin(wallet, toAddress, amount);
   }
 
   async sendNativeCoinFromDepositWallet(accountIndex: number, toAddress: string, amount: number): Promise<string> {
@@ -379,14 +373,7 @@ export class InternetComputerClient extends BlockchainClient {
 
   async sendTokenFromAccount(account: WalletAccount, toAddress: string, token: Asset, amount: number): Promise<string> {
     const wallet = InternetComputerWallet.fromSeed(account.seed, account.index);
-    const balance = await this.getTokenBalance(token, wallet.address);
-    const fee = await this.getCurrentGasCostForTokenTransaction(token);
-
-    const sendAmount = Math.min(amount, balance) - fee;
-    if (sendAmount <= 0)
-      throw new Error(`Insufficient token balance for payment forward: balance=${balance}, fee=${fee}`);
-
-    return this.sendToken(wallet, toAddress, token, sendAmount);
+    return this.sendToken(wallet, toAddress, token, amount);
   }
 
   async sendTokenFromDepositWallet(
