@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNotEmpty, IsString, ValidateIf } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetCategory, AssetType } from '../asset.entity';
 
@@ -84,8 +84,7 @@ export class AssetInDto {
   @ApiPropertyOptional({
     description: 'On-chain contract address (for tokens). If omitted with blockchain/evmChainId, uses native coin.',
   })
-  @IsNotEmpty()
-  @ValidateIf((a: AssetInDto) => a.chainId != null)
+  @IsOptional()
   @IsString()
   chainId?: string;
 

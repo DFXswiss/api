@@ -139,10 +139,11 @@ export class PaymentInfoService {
     }
 
     dto.targetAsset = await this.resolveAsset(dto.targetAsset, forQuote);
-    if (!dto.targetAsset) throw this.createError('Asset not found', QuoteError.ASSET_UNSUPPORTED, forQuote);
-    if (!dto.targetAsset.buyable) throw this.createError('Asset not buyable', QuoteError.ASSET_UNSUPPORTED, forQuote);
+    if (!dto.targetAsset) throw this.createError('Target asset not found', QuoteError.ASSET_UNSUPPORTED, forQuote);
+    if (!dto.targetAsset.buyable)
+      throw this.createError('Target asset not buyable', QuoteError.ASSET_UNSUPPORTED, forQuote);
     if (jwt && !dto.targetAsset.isBuyableOn(jwt.blockchains))
-      throw this.createError('Asset blockchain mismatch', QuoteError.ASSET_UNSUPPORTED, forQuote);
+      throw this.createError('Target asset blockchain mismatch', QuoteError.ASSET_UNSUPPORTED, forQuote);
 
     if ('discountCode' in dto) dto.specialCode = dto.discountCode;
 
