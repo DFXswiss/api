@@ -3,7 +3,7 @@ import { IcpLedgerCanister } from '@dfinity/ledger-icp';
 import { IcrcLedgerCanister } from '@dfinity/ledger-icrc';
 import { Principal } from '@dfinity/principal';
 import { Config, GetConfig } from 'src/config/config';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
@@ -342,13 +342,7 @@ export class InternetComputerClient extends BlockchainClient {
 
   async sendNativeCoinFromAccount(account: WalletAccount, toAddress: string, amount: number): Promise<string> {
     const wallet = InternetComputerWallet.fromSeed(account.seed, account.index);
-    const balance = await this.getNativeCoinBalanceForAddress(wallet.address);
-
-    const sendAmount = Math.min(amount, balance) - this.transferFee;
-    if (sendAmount <= 0)
-      throw new Error(`Insufficient balance for payment forward: balance=${balance}, fee=${this.transferFee}`);
-
-    return this.sendNativeCoin(wallet, toAddress, sendAmount);
+    return this.sendNativeCoin(wallet, toAddress, amount);
   }
 
   async sendNativeCoinFromDepositWallet(accountIndex: number, toAddress: string, amount: number): Promise<string> {
@@ -379,14 +373,7 @@ export class InternetComputerClient extends BlockchainClient {
 
   async sendTokenFromAccount(account: WalletAccount, toAddress: string, token: Asset, amount: number): Promise<string> {
     const wallet = InternetComputerWallet.fromSeed(account.seed, account.index);
-    const balance = await this.getTokenBalance(token, wallet.address);
-    const fee = await this.getCurrentGasCostForTokenTransaction(token);
-
-    const sendAmount = Math.min(amount, balance) - fee;
-    if (sendAmount <= 0)
-      throw new Error(`Insufficient token balance for payment forward: balance=${balance}, fee=${fee}`);
-
-    return this.sendToken(wallet, toAddress, token, sendAmount);
+    return this.sendToken(wallet, toAddress, token, amount);
   }
 
   async sendTokenFromDepositWallet(
@@ -430,9 +417,10 @@ export class InternetComputerClient extends BlockchainClient {
   async checkAllowance(
     ownerPrincipal: string,
     spenderPrincipal: string,
-    canisterId: string,
-    decimals: number,
+    asset: Asset,
   ): Promise<{ allowance: number; expiresAt?: number }> {
+    const canisterId = this.getCanisterId(asset);
+
     const tokenLedger = IcrcLedgerCanister.create({
       agent: this.agent,
       canisterId: Principal.fromText(canisterId),
@@ -445,7 +433,7 @@ export class InternetComputerClient extends BlockchainClient {
     });
 
     return {
-      allowance: InternetComputerUtil.fromSmallestUnit(result.allowance, decimals),
+      allowance: InternetComputerUtil.fromSmallestUnit(result.allowance, asset.decimals),
       expiresAt: result.expires_at?.[0] ? Number(result.expires_at[0]) : undefined,
     };
   }
@@ -455,11 +443,12 @@ export class InternetComputerClient extends BlockchainClient {
     ownerPrincipal: string,
     toAddress: string,
     amount: number,
-    canisterId: string,
-    decimals: number,
+    asset: Asset,
   ): Promise<string> {
     const wallet = InternetComputerWallet.fromSeed(account.seed, account.index);
     const agent = wallet.getAgent(this.host);
+
+    const canisterId = this.getCanisterId(asset);
 
     const tokenLedger = IcrcLedgerCanister.create({
       agent,
@@ -469,11 +458,16 @@ export class InternetComputerClient extends BlockchainClient {
     const blockIndex = await tokenLedger.transferFrom({
       from: { owner: Principal.fromText(ownerPrincipal), subaccount: [] },
       to: { owner: Principal.fromText(toAddress), subaccount: [] },
-      amount: InternetComputerUtil.toSmallestUnit(amount, decimals),
+      amount: InternetComputerUtil.toSmallestUnit(amount, asset.decimals),
     });
 
-    const isNative = canisterId === Config.blockchain.internetComputer.internetComputerLedgerCanisterId;
-    return isNative ? blockIndex.toString() : `${canisterId}:${blockIndex}`;
+    return asset.type === AssetType.COIN ? blockIndex.toString() : `${canisterId}:${blockIndex}`;
+  }
+
+  private getCanisterId(asset: Asset): string {
+    return asset.type === AssetType.COIN
+      ? Config.blockchain.internetComputer.internetComputerLedgerCanisterId
+      : asset.chainId;
   }
 
   // --- Misc ---
