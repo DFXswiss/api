@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
@@ -416,14 +417,24 @@ export class RealUnitService {
 
     // Aktionariat API aufrufen
     const fiat = await this.fiatService.getFiat(request.sourceId);
-    const aktionariatResponse = [Environment.DEV, Environment.LOC].includes(Config.environment)
-      ? { reference: `DEV-${request.id}-${Date.now()}`, mock: true }
-      : await this.blockchainService.requestPaymentInstructions({
-          currency: fiat.name,
-          address: request.user.address,
-          shares: Math.floor(request.estimatedAmount),
-          price: Math.round(request.amount * 100),
-        });
+
+    let aktionariatResponse: { reference: string; [key: string]: any };
+    try {
+      aktionariatResponse = [Environment.DEV, Environment.LOC].includes(Config.environment)
+        ? { reference: `DEV-${request.id}-${Date.now()}`, mock: true }
+        : await this.blockchainService.requestPaymentInstructions({
+            currency: fiat.name,
+            address: request.user.address,
+            shares: Math.floor(request.estimatedAmount),
+            price: Math.round(request.amount * 100),
+          });
+    } catch (error) {
+      const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
+      this.logger.error(
+        `Failed to request payment instructions from Aktionariat for request ${requestId} (currency: ${fiat.name}, shares: ${Math.floor(request.estimatedAmount)}, price: ${Math.round(request.amount * 100)}): ${message}`,
+      );
+      throw new ServiceUnavailableException(`Aktionariat API error: ${message}`);
+    }
 
     // Status + Response speichern
     await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));
