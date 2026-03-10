@@ -75,25 +75,31 @@ export class AssetDto {
 }
 
 export class AssetInDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'DFX asset ID. Use either id alone OR blockchain/evmChainId with chainId.' })
   @IsNotEmpty()
-  @ValidateIf((a: AssetInDto) => a.id != null || !a.chainId)
+  @ValidateIf((a: AssetInDto) => a.id != null || !(a.blockchain || a.evmChainId))
   @IsInt()
   id?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'On-chain contract address (for tokens). If omitted with blockchain/evmChainId, uses native coin.',
+  })
   @IsNotEmpty()
-  @ValidateIf((a: AssetInDto) => a.chainId != null || !a.id)
+  @ValidateIf((a: AssetInDto) => a.chainId != null)
   @IsString()
   chainId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Blockchain name (e.g. Ethereum, Polygon). Use with chainId.',
+  })
   @IsNotEmpty()
   @ValidateIf((a: AssetInDto) => a.blockchain != null || (!a.id && !a.evmChainId))
   @IsEnum(Blockchain)
   blockchain?: Blockchain;
 
-  @ApiPropertyOptional({ description: 'Numeric EVM chain ID (e.g. 1, 56, 137)' })
+  @ApiPropertyOptional({
+    description: 'Numeric EVM chain ID (e.g. 1 for Ethereum, 137 for Polygon). Alternative to blockchain.',
+  })
   @IsNotEmpty()
   @ValidateIf((a: AssetInDto) => a.evmChainId != null || (!a.id && !a.blockchain))
   @IsInt()

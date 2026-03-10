@@ -158,7 +158,9 @@ export class PaymentInfoService {
       if (!blockchain) throw this.createError('Unsupported EVM chain ID', QuoteError.ASSET_UNSUPPORTED, forQuote);
     }
 
-    return this.assetService.getAssetByChainId(blockchain, asset.chainId);
+    return asset.chainId
+      ? this.assetService.getAssetByChainId(blockchain, asset.chainId)
+      : this.assetService.getNativeAsset(blockchain);
   }
 
   async resolveFiat(fiat: Fiat): Promise<Fiat> {
