@@ -725,14 +725,12 @@ export class TransactionController {
 
     let tx: Transaction | TransactionRequest;
     if (id) tx = await this.transactionService.getTransactionById(+id, relations);
-    if (uid)
-      tx =
-        (await this.transactionService.getTransactionByUid(uid, relations)) ??
-        (await this.transactionRequestService.getTransactionRequestByUid(uid, { user: { userData: true } }));
-    if (orderUid)
-      tx =
-        (await this.transactionService.getTransactionByRequestUid(orderUid, relations)) ??
-        (await this.transactionRequestService.getTransactionRequestByUid(orderUid, { user: { userData: true } }));
+    if (uid) tx = await this.transactionService.getTransactionByUid(uid, relations);
+    if (orderUid) tx = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+    if ((uid ?? orderUid) && !tx)
+      tx = await this.transactionRequestService.getTransactionRequestByUid(uid ?? orderUid, {
+        user: { userData: true },
+      });
     if (orderId)
       tx =
         (await this.transactionService.getTransactionByRequestId(+orderId, relations)) ??

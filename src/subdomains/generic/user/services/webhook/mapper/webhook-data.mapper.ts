@@ -1,4 +1,3 @@
-import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import {
@@ -41,7 +40,7 @@ export class WebhookDataMapper {
       dfxReference: payment.id,
       sourceChainId: inputAsset.chainId,
       destinationChainId: null,
-      sourceEvmChainId: EvmUtil.getChainId(inputAsset.blockchain),
+      sourceEvmChainId: inputAsset.evmChainId ?? null,
       destinationEvmChainId: null,
       depositAddress: payment.cryptoInput?.address?.address ?? null,
     };
@@ -68,8 +67,8 @@ export class WebhookDataMapper {
       dfxReference: payment.id,
       sourceChainId: inputAsset.chainId,
       destinationChainId: outputAsset?.chainId ?? null,
-      sourceEvmChainId: EvmUtil.getChainId(inputAsset.blockchain),
-      destinationEvmChainId: outputAsset?.blockchain ? EvmUtil.getChainId(outputAsset.blockchain) : null,
+      sourceEvmChainId: inputAsset.evmChainId ?? null,
+      destinationEvmChainId: outputAsset?.evmChainId ?? null,
       depositAddress: payment.cryptoInput?.address?.address ?? null,
     };
   }
@@ -83,7 +82,7 @@ export class WebhookDataMapper {
       sourceChainId: null,
       destinationChainId: outputAsset?.chainId ?? null,
       sourceEvmChainId: null,
-      destinationEvmChainId: outputAsset?.blockchain ? EvmUtil.getChainId(outputAsset.blockchain) : null,
+      destinationEvmChainId: outputAsset?.evmChainId ?? null,
       depositAddress: null,
     };
   }

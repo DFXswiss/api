@@ -105,8 +105,7 @@ export class SparkClient extends BlockchainClient {
 
       // Outgoing: complete once sender key is tweaked (funds left our wallet)
       // Incoming: complete once receiver has claimed
-      const isConfirmed =
-        transfer.status === 'TRANSFER_STATUS_SENDER_KEY_TWEAKED' || transfer.status === 'TRANSFER_STATUS_COMPLETED';
+      const isConfirmed = ['TRANSFER_STATUS_SENDER_KEY_TWEAKED', 'TRANSFER_STATUS_COMPLETED'].includes(transfer.status);
 
       return {
         txid: transfer.id,

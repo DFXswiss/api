@@ -153,11 +153,9 @@ export class PaymentInfoService {
     if (asset.id) return this.assetService.getAssetById(asset.id);
 
     let blockchain = asset.blockchain;
-    const evmChainId = (asset as any).evmChainId as number | undefined;
-    if (evmChainId && !blockchain) {
-      blockchain = EvmUtil.getBlockchain(evmChainId);
-      if (!blockchain)
-        throw this.createError(`Unsupported EVM chain ID: ${evmChainId}`, QuoteError.ASSET_UNSUPPORTED, forQuote);
+    if (asset.evmChainId && !blockchain) {
+      blockchain = EvmUtil.getBlockchain(asset.evmChainId);
+      if (!blockchain) throw this.createError('Unsupported EVM chain ID', QuoteError.ASSET_UNSUPPORTED, forQuote);
     }
 
     return this.assetService.getAssetByChainId(blockchain, asset.chainId);

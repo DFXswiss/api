@@ -196,25 +196,29 @@ export class TransactionService {
     from = new Date(0),
     to = new Date(),
     limit?: number,
-    offset?: number,
   ): Promise<Transaction[]> {
-    return this.repo.find({
-      where: { user: { id: In(userIds) }, type: Not(IsNull()), created: Between(from, to) },
-      relations: {
-        buyCrypto: {
-          buy: true,
-          cryptoRoute: true,
-          bankTx: true,
-          checkoutTx: true,
-          cryptoInput: true,
-          chargebackOutput: true,
-        },
-        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
-        refReward: true,
-      },
-      take: limit,
-      skip: offset,
-    });
+    return Util.doInBatchesWithLimit(
+      userIds,
+      (batch, remaining) =>
+        this.repo.find({
+          where: { user: { id: In(batch) }, type: Not(IsNull()), created: Between(from, to) },
+          relations: {
+            buyCrypto: {
+              buy: true,
+              cryptoRoute: true,
+              bankTx: true,
+              checkoutTx: true,
+              cryptoInput: true,
+              chargebackOutput: true,
+            },
+            buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+            refReward: true,
+          },
+          take: remaining,
+        }),
+      100,
+      limit,
+    );
   }
 
   async getManualRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
