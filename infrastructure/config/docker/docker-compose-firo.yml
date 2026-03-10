@@ -1,25 +1,42 @@
 name: 'firo'
 
 services:
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: unless-stopped
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=120
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
   firod:
     image: firoorg/firod:0.14.15.2
     restart: unless-stopped
+    labels:
+      - autoheal=true
     deploy:
       resources:
         limits:
-          memory: 2048M
+          memory: 8192M
         reservations:
-          memory: 1024M
+          memory: 4096M
     volumes:
       - ./volumes/firo:/home/firod/.firo
     ports:
       - '8168:8168'
       - '8888:8888'
     healthcheck:
-      test: firo-cli -conf=/home/firod/.firo/firo.conf getblockcount || exit 1
+      test: firo-cli -conf=/home/firod/.firo/firo.conf getblockchaininfo || exit 1
       start_period: 120s
-      interval: 120s
-      timeout: 10s
+      interval: 60s
+      timeout: 30s
       retries: 3
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '100m'
+        max-file: '3'
     command: >
       -conf=/home/firod/.firo/firo.conf
