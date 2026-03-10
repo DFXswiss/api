@@ -89,6 +89,31 @@ export class KycChangeAddressData {
   address: KycAddress;
 }
 
+export class KycChangeNameData {
+  @ApiProperty({ description: 'Base64 encoded name proof file' })
+  @IsNotEmpty()
+  @IsString()
+  file: string;
+
+  @ApiProperty({ description: 'Name of the name proof file' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  fileName: string;
+
+  @ApiProperty({ description: 'New first name' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  firstName: string;
+
+  @ApiProperty({ description: 'New last name' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(Util.sanitize)
+  lastName: string;
+}
+
 export class KycPersonalData {
   @ApiProperty({ enum: AccountType })
   @IsNotEmpty()

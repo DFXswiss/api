@@ -42,6 +42,7 @@ import { SignatoryPower } from '../../user/models/user-data/user-data.enum';
 import {
   KycBeneficialData,
   KycChangeAddressData,
+  KycChangeNameData,
   KycContactData,
   KycFileData,
   KycLegalEntityData,
@@ -251,6 +252,18 @@ export class KycController {
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('address-change', data.fileName);
     return this.kycService.updateAddressChangeData(code, +id, data);
+  }
+
+  @Put('data/name/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updateNameChangeData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycChangeNameData,
+  ): Promise<KycStepBase> {
+    data.fileName = this.fileName('name-change', data.fileName);
+    return this.kycService.updateNameChangeData(code, +id, data);
   }
 
   @Put('data/confirmation/:id')
