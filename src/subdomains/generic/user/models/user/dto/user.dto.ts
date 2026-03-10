@@ -3,9 +3,35 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycLevel, KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.enum';
+import {
+  KycLevel,
+  KycState,
+  KycStatus,
+  LimitPeriod,
+  PhoneCallPreferredTime,
+  PhoneCallStatus,
+} from '../../user-data/user-data.enum';
 import { UserStatus } from '../user.enum';
 import { LinkedUserOutDto } from './linked-user.dto';
+
+export enum UserPhoneCallStatus {
+  REPEAT = 'Repeat',
+  REJECTED = 'Rejected',
+  UNAVAILABLE = 'Unavailable',
+  COMPLETED = 'Completed',
+  FAILED = 'Failed',
+}
+
+export const PhoneCallStatusMapper: {
+  [key in PhoneCallStatus]: UserPhoneCallStatus;
+} = {
+  [PhoneCallStatus.REPEAT]: UserPhoneCallStatus.REPEAT,
+  [PhoneCallStatus.REJECTED]: UserPhoneCallStatus.FAILED,
+  [PhoneCallStatus.UNAVAILABLE]: UserPhoneCallStatus.UNAVAILABLE,
+  [PhoneCallStatus.FAILED]: UserPhoneCallStatus.FAILED,
+  [PhoneCallStatus.COMPLETED]: UserPhoneCallStatus.COMPLETED,
+  [PhoneCallStatus.SUSPICIOUS]: UserPhoneCallStatus.FAILED,
+};
 
 export class VolumeInformation {
   @ApiProperty()
@@ -77,6 +103,12 @@ export class UserDto {
 
   @ApiProperty({ type: String, isArray: true })
   apiFilterCT: HistoryFilterKey[];
+
+  @ApiProperty({ enum: PhoneCallPreferredTime, isArray: true })
+  preferredPhoneTimes: PhoneCallPreferredTime[];
+
+  @ApiProperty({ enum: UserPhoneCallStatus })
+  phoneCallStatus: UserPhoneCallStatus;
 }
 
 export type UserDetails = Omit<UserDetailDto, keyof UserDto>;

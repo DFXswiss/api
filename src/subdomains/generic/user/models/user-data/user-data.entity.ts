@@ -41,6 +41,7 @@ import {
   LegalEntity,
   LimitPeriod,
   Moderator,
+  PhoneCallPreferredTime,
   PhoneCallStatus,
   RiskStatus,
   SignatoryPower,
@@ -517,6 +518,10 @@ export class UserData extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  get phoneCallTimesObject(): PhoneCallPreferredTime[] {
+    return this.phoneCallTimes ? (this.phoneCallTimes?.split(';') as PhoneCallPreferredTime[]) : [];
   }
 
   get hasValidNameCheckDate(): boolean {
