@@ -197,22 +197,33 @@ export class UserDataService {
       { ...where, organization: { name: Util.contains(name) } },
     ];
 
-    const nameParts = name.split(' ');
-    const first = nameParts.shift();
-    const last = nameParts.pop();
+    const nameParts = name
+      .split(' ')
+      .filter((p) => p)
+      .slice(0, 5);
+    const namePartsWithoutTitles = nameParts.filter((p) => !p.endsWith('.'));
 
-    if (last)
-      wheres.push({
-        ...where,
-        firstname: Util.contains(first),
-        surname: Util.contains([...nameParts, last].join(' ')),
-      });
-    if (nameParts.length)
-      wheres.push({
-        ...where,
-        firstname: Util.contains([first, ...nameParts].join(' ')),
-        surname: Util.contains(last),
-      });
+    // try all split points on original input and additionally without title-like words (e.g. "Dr.", "Prof.")
+    const splitVariants = [nameParts];
+    if (namePartsWithoutTitles.length < nameParts.length && namePartsWithoutTitles.length >= 2)
+      splitVariants.push(namePartsWithoutTitles);
+
+    for (const parts of splitVariants) {
+      const joined = parts.join(' ');
+      if (joined !== name) {
+        wheres.push({ ...where, verifiedName: Util.contains(joined) });
+      }
+
+      for (let i = 1; i < parts.length && i < 5; i++) {
+        const firstPart = parts.slice(0, i).join(' ');
+        const lastPart = parts.slice(i).join(' ');
+
+        wheres.push(
+          { ...where, firstname: Util.contains(firstPart), surname: Util.contains(lastPart) },
+          { ...where, firstname: Util.contains(lastPart), surname: Util.contains(firstPart) },
+        );
+      }
+    }
 
     return this.userDataRepo.find({ where: wheres });
   }
