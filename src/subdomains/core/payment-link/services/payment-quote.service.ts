@@ -576,6 +576,7 @@ export class PaymentQuoteService {
     }
 
     try {
+      const icpClient = this.internetComputerService.getDefaultClient();
       const userPrincipal = transferInfo.sender;
       const paymentAccount = this.paymentBalanceService.getPaymentAccount(Blockchain.INTERNET_COMPUTER);
       const paymentAddress = this.paymentBalanceService.getDepositAddress(Blockchain.INTERNET_COMPUTER);
@@ -596,7 +597,7 @@ export class PaymentQuoteService {
 
       await Util.retry(
         async () => {
-          const result = await this.internetComputerService.checkAllowance(
+          const result = await icpClient.checkAllowance(
             userPrincipal,
             paymentAddress,
             canisterId,
@@ -610,7 +611,7 @@ export class PaymentQuoteService {
         2000,
       );
 
-      const txId = await this.internetComputerService.transferFromWithAccount(
+      const txId = await icpClient.transferFromWithAccount(
         paymentAccount,
         userPrincipal,
         paymentAddress,

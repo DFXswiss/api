@@ -1,5 +1,4 @@
 import { Config } from 'src/config/config';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { LogLevel } from 'src/shared/services/dfx-logger';
 import {
   CryptoInput,
@@ -28,10 +27,7 @@ export abstract class InternetComputerStrategy extends SendStrategy {
     feeAmount: number = null,
   ): Promise<CryptoInput | null> {
     if (type === SendType.FORWARD) {
-      const feeAsset =
-        payIn.asset.type === AssetType.TOKEN
-          ? payIn.asset
-          : await this.assetService.getNativeAsset(payIn.asset.blockchain);
+      const feeAsset = payIn.asset;
       const feeAmountChf = feeAmount
         ? await this.pricingService
             .getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY)
