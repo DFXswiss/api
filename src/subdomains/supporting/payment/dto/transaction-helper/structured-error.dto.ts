@@ -1,12 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { QuoteError } from './quote-error.enum';
 
 export class StructuredErrorDto {
-  @ApiProperty({ description: 'Error code' })
-  error: string;
+  @ApiProperty({ enum: QuoteError, description: 'Error code' })
+  error: QuoteError;
 
-  @ApiPropertyOptional({ description: 'Source amount limit' })
-  sourceAmountLimit?: number;
+  @ApiPropertyOptional({ description: 'Volume limit in source asset/currency' })
+  limit?: number;
 
-  @ApiPropertyOptional({ description: 'Destination amount limit' })
-  destinationAmountLimit?: number;
+  @ApiPropertyOptional({ description: 'Volume limit in target asset/currency' })
+  limitTarget?: number;
 }

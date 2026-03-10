@@ -44,7 +44,7 @@ export class BuyQuoteDto {
   @ApiProperty()
   isValid: boolean;
 
-  @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
+  @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false', deprecated: true })
   error?: QuoteError;
 
   @ApiPropertyOptional({ type: [StructuredErrorDto], description: 'Structured errors array' })

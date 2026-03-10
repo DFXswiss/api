@@ -15,6 +15,7 @@ interface ErrorQuote {
   feesTarget: { rate: number; fixed: number; network: number; min: number; dfx: number; bank: number; total: number };
   priceSteps: [];
   isValid: false;
+  /** @deprecated Use `errors` instead */
   error: QuoteError;
   errors: StructuredErrorDto[];
 }
@@ -28,24 +29,33 @@ export class QuoteException extends Error {
 
 export class QuoteErrorUtil {
   static mapToStructuredErrors(
-    error: QuoteError | undefined,
+    errors: QuoteError[],
     minVolume?: number,
     minVolumeTarget?: number,
     maxVolume?: number,
     maxVolumeTarget?: number,
   ): StructuredErrorDto[] {
-    if (!error) return [];
+    if (!errors || errors.length === 0) return [];
 
+    return errors.flatMap((error) =>
+      this.mapSingleError(error, minVolume, minVolumeTarget, maxVolume, maxVolumeTarget),
+    );
+  }
+
+  private static mapSingleError(
+    error: QuoteError,
+    minVolume?: number,
+    minVolumeTarget?: number,
+    maxVolume?: number,
+    maxVolumeTarget?: number,
+  ): StructuredErrorDto[] {
     switch (error) {
-      case QuoteError.NATIONALITY_NOT_ALLOWED:
-        return [{ error: QuoteError.REGION_RESTRICTED }];
-
       case QuoteError.AMOUNT_TOO_LOW:
-        return [{ error: 'UnderLimitError', sourceAmountLimit: minVolume, destinationAmountLimit: minVolumeTarget }];
+        return [{ error, limit: minVolume, limitTarget: minVolumeTarget }];
 
       case QuoteError.AMOUNT_TOO_HIGH:
       case QuoteError.LIMIT_EXCEEDED:
-        return [{ error: 'OverLimitError', sourceAmountLimit: maxVolume, destinationAmountLimit: maxVolumeTarget }];
+        return [{ error, limit: maxVolume, limitTarget: maxVolumeTarget }];
 
       default:
         return [{ error }];
@@ -71,7 +81,7 @@ export class QuoteErrorUtil {
       priceSteps: [],
       isValid: false,
       error: quoteError,
-      errors: this.mapToStructuredErrors(quoteError),
+      errors: this.mapToStructuredErrors([quoteError]),
     };
   }
 }
